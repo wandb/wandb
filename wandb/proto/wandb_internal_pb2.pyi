@@ -46,100 +46,209 @@ class Record(google.protobuf.message.Message):
 
     @property
     def history(self) -> global___HistoryRecord: ...
-
     @property
     def summary(self) -> global___SummaryRecord: ...
-
     @property
     def output(self) -> global___OutputRecord: ...
-
     @property
     def config(self) -> global___ConfigRecord: ...
-
     @property
     def files(self) -> global___FilesRecord: ...
-
     @property
     def stats(self) -> global___StatsRecord: ...
-
     @property
     def artifact(self) -> global___ArtifactRecord: ...
-
     @property
     def tbrecord(self) -> global___TBRecord: ...
-
     @property
     def alert(self) -> global___AlertRecord: ...
-
     @property
     def telemetry(self) -> wandb.proto.wandb_telemetry_pb2.TelemetryRecord: ...
-
     @property
     def metric(self) -> global___MetricRecord: ...
-
     @property
     def output_raw(self) -> global___OutputRawRecord: ...
-
     @property
     def run(self) -> global___RunRecord: ...
-
     @property
     def exit(self) -> global___RunExitRecord: ...
-
     @property
     def final(self) -> global___FinalRecord: ...
-
     @property
     def header(self) -> global___HeaderRecord: ...
-
     @property
     def footer(self) -> global___FooterRecord: ...
-
     @property
     def preempting(self) -> global___RunPreemptingRecord: ...
-
     @property
     def link_artifact(self) -> global___LinkArtifactRecord: ...
-
     @property
     def request(self) -> global___Request: ...
-
     @property
     def control(self) -> global___Control: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        num : builtins.int = ...,
-        history : typing.Optional[global___HistoryRecord] = ...,
-        summary : typing.Optional[global___SummaryRecord] = ...,
-        output : typing.Optional[global___OutputRecord] = ...,
-        config : typing.Optional[global___ConfigRecord] = ...,
-        files : typing.Optional[global___FilesRecord] = ...,
-        stats : typing.Optional[global___StatsRecord] = ...,
-        artifact : typing.Optional[global___ArtifactRecord] = ...,
-        tbrecord : typing.Optional[global___TBRecord] = ...,
-        alert : typing.Optional[global___AlertRecord] = ...,
-        telemetry : typing.Optional[wandb.proto.wandb_telemetry_pb2.TelemetryRecord] = ...,
-        metric : typing.Optional[global___MetricRecord] = ...,
-        output_raw : typing.Optional[global___OutputRawRecord] = ...,
-        run : typing.Optional[global___RunRecord] = ...,
-        exit : typing.Optional[global___RunExitRecord] = ...,
-        final : typing.Optional[global___FinalRecord] = ...,
-        header : typing.Optional[global___HeaderRecord] = ...,
-        footer : typing.Optional[global___FooterRecord] = ...,
-        preempting : typing.Optional[global___RunPreemptingRecord] = ...,
-        link_artifact : typing.Optional[global___LinkArtifactRecord] = ...,
-        request : typing.Optional[global___Request] = ...,
-        control : typing.Optional[global___Control] = ...,
-        uuid : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","output_raw","run","exit","final","header","footer","preempting","link_artifact","request"]: ...
+        num: builtins.int = ...,
+        history: typing.Optional[global___HistoryRecord] = ...,
+        summary: typing.Optional[global___SummaryRecord] = ...,
+        output: typing.Optional[global___OutputRecord] = ...,
+        config: typing.Optional[global___ConfigRecord] = ...,
+        files: typing.Optional[global___FilesRecord] = ...,
+        stats: typing.Optional[global___StatsRecord] = ...,
+        artifact: typing.Optional[global___ArtifactRecord] = ...,
+        tbrecord: typing.Optional[global___TBRecord] = ...,
+        alert: typing.Optional[global___AlertRecord] = ...,
+        telemetry: typing.Optional[
+            wandb.proto.wandb_telemetry_pb2.TelemetryRecord
+        ] = ...,
+        metric: typing.Optional[global___MetricRecord] = ...,
+        output_raw: typing.Optional[global___OutputRawRecord] = ...,
+        run: typing.Optional[global___RunRecord] = ...,
+        exit: typing.Optional[global___RunExitRecord] = ...,
+        final: typing.Optional[global___FinalRecord] = ...,
+        header: typing.Optional[global___HeaderRecord] = ...,
+        footer: typing.Optional[global___FooterRecord] = ...,
+        preempting: typing.Optional[global___RunPreemptingRecord] = ...,
+        link_artifact: typing.Optional[global___LinkArtifactRecord] = ...,
+        request: typing.Optional[global___Request] = ...,
+        control: typing.Optional[global___Control] = ...,
+        uuid: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "alert",
+            b"alert",
+            "artifact",
+            b"artifact",
+            "config",
+            b"config",
+            "control",
+            b"control",
+            "exit",
+            b"exit",
+            "files",
+            b"files",
+            "final",
+            b"final",
+            "footer",
+            b"footer",
+            "header",
+            b"header",
+            "history",
+            b"history",
+            "link_artifact",
+            b"link_artifact",
+            "metric",
+            b"metric",
+            "output",
+            b"output",
+            "output_raw",
+            b"output_raw",
+            "preempting",
+            b"preempting",
+            "record_type",
+            b"record_type",
+            "request",
+            b"request",
+            "run",
+            b"run",
+            "stats",
+            b"stats",
+            "summary",
+            b"summary",
+            "tbrecord",
+            b"tbrecord",
+            "telemetry",
+            b"telemetry",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "alert",
+            b"alert",
+            "artifact",
+            b"artifact",
+            "config",
+            b"config",
+            "control",
+            b"control",
+            "exit",
+            b"exit",
+            "files",
+            b"files",
+            "final",
+            b"final",
+            "footer",
+            b"footer",
+            "header",
+            b"header",
+            "history",
+            b"history",
+            "link_artifact",
+            b"link_artifact",
+            "metric",
+            b"metric",
+            "num",
+            b"num",
+            "output",
+            b"output",
+            "output_raw",
+            b"output_raw",
+            "preempting",
+            b"preempting",
+            "record_type",
+            b"record_type",
+            "request",
+            b"request",
+            "run",
+            b"run",
+            "stats",
+            b"stats",
+            "summary",
+            b"summary",
+            "tbrecord",
+            b"tbrecord",
+            "telemetry",
+            b"telemetry",
+            "uuid",
+            b"uuid",
+        ],
+    ) -> None: ...
+    def WhichOneof(
+        self, oneof_group: typing_extensions.Literal["record_type", b"record_type"]
+    ) -> typing_extensions.Literal[
+        "history",
+        "summary",
+        "output",
+        "config",
+        "files",
+        "stats",
+        "artifact",
+        "tbrecord",
+        "alert",
+        "telemetry",
+        "metric",
+        "output_raw",
+        "run",
+        "exit",
+        "final",
+        "header",
+        "footer",
+        "preempting",
+        "link_artifact",
+        "request",
+    ]: ...
+
 global___Record = Record
 
 class Control(google.protobuf.message.Message):
@@ -153,14 +262,28 @@ class Control(google.protobuf.message.Message):
     relay_id: typing.Text = ...
     mailbox_slot: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        req_resp : builtins.bool = ...,
-        local : builtins.bool = ...,
-        relay_id : typing.Text = ...,
-        mailbox_slot : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"local",b"local",u"mailbox_slot",b"mailbox_slot",u"relay_id",b"relay_id",u"req_resp",b"req_resp"]) -> None: ...
+        req_resp: builtins.bool = ...,
+        local: builtins.bool = ...,
+        relay_id: typing.Text = ...,
+        mailbox_slot: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "local",
+            b"local",
+            "mailbox_slot",
+            b"mailbox_slot",
+            "relay_id",
+            b"relay_id",
+            "req_resp",
+            b"req_resp",
+        ],
+    ) -> None: ...
+
 global___Control = Control
 
 class Result(google.protobuf.message.Message):
@@ -179,47 +302,100 @@ class Result(google.protobuf.message.Message):
 
     @property
     def run_result(self) -> global___RunUpdateResult: ...
-
     @property
     def exit_result(self) -> global___RunExitResult: ...
-
     @property
     def log_result(self) -> global___HistoryResult: ...
-
     @property
     def summary_result(self) -> global___SummaryResult: ...
-
     @property
     def output_result(self) -> global___OutputResult: ...
-
     @property
     def config_result(self) -> global___ConfigResult: ...
-
     @property
     def response(self) -> global___Response: ...
-
     @property
     def control(self) -> global___Control: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._ResultInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run_result : typing.Optional[global___RunUpdateResult] = ...,
-        exit_result : typing.Optional[global___RunExitResult] = ...,
-        log_result : typing.Optional[global___HistoryResult] = ...,
-        summary_result : typing.Optional[global___SummaryResult] = ...,
-        output_result : typing.Optional[global___OutputResult] = ...,
-        config_result : typing.Optional[global___ConfigResult] = ...,
-        response : typing.Optional[global___Response] = ...,
-        control : typing.Optional[global___Control] = ...,
-        uuid : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._ResultInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"config_result",b"config_result",u"control",b"control",u"exit_result",b"exit_result",u"log_result",b"log_result",u"output_result",b"output_result",u"response",b"response",u"result_type",b"result_type",u"run_result",b"run_result",u"summary_result",b"summary_result"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"config_result",b"config_result",u"control",b"control",u"exit_result",b"exit_result",u"log_result",b"log_result",u"output_result",b"output_result",u"response",b"response",u"result_type",b"result_type",u"run_result",b"run_result",u"summary_result",b"summary_result",u"uuid",b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"result_type",b"result_type"]) -> typing_extensions.Literal["run_result","exit_result","log_result","summary_result","output_result","config_result","response"]: ...
+        run_result: typing.Optional[global___RunUpdateResult] = ...,
+        exit_result: typing.Optional[global___RunExitResult] = ...,
+        log_result: typing.Optional[global___HistoryResult] = ...,
+        summary_result: typing.Optional[global___SummaryResult] = ...,
+        output_result: typing.Optional[global___OutputResult] = ...,
+        config_result: typing.Optional[global___ConfigResult] = ...,
+        response: typing.Optional[global___Response] = ...,
+        control: typing.Optional[global___Control] = ...,
+        uuid: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._ResultInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "config_result",
+            b"config_result",
+            "control",
+            b"control",
+            "exit_result",
+            b"exit_result",
+            "log_result",
+            b"log_result",
+            "output_result",
+            b"output_result",
+            "response",
+            b"response",
+            "result_type",
+            b"result_type",
+            "run_result",
+            b"run_result",
+            "summary_result",
+            b"summary_result",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "config_result",
+            b"config_result",
+            "control",
+            b"control",
+            "exit_result",
+            b"exit_result",
+            "log_result",
+            b"log_result",
+            "output_result",
+            b"output_result",
+            "response",
+            b"response",
+            "result_type",
+            b"result_type",
+            "run_result",
+            b"run_result",
+            "summary_result",
+            b"summary_result",
+            "uuid",
+            b"uuid",
+        ],
+    ) -> None: ...
+    def WhichOneof(
+        self, oneof_group: typing_extensions.Literal["result_type", b"result_type"]
+    ) -> typing_extensions.Literal[
+        "run_result",
+        "exit_result",
+        "log_result",
+        "summary_result",
+        "output_result",
+        "config_result",
+        "response",
+    ]: ...
+
 global___Result = Result
 
 class FinalRecord(google.protobuf.message.Message):
@@ -228,13 +404,18 @@ class FinalRecord(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___FinalRecord = FinalRecord
 
 class HeaderRecord(google.protobuf.message.Message):
@@ -243,13 +424,18 @@ class HeaderRecord(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___HeaderRecord = HeaderRecord
 
 class FooterRecord(google.protobuf.message.Message):
@@ -258,13 +444,18 @@ class FooterRecord(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___FooterRecord = FooterRecord
 
 class RunRecord(google.protobuf.message.Message):
@@ -297,7 +488,9 @@ class RunRecord(google.protobuf.message.Message):
     job_type: typing.Text = ...
     display_name: typing.Text = ...
     notes: typing.Text = ...
-    tags: google.protobuf.internal.containers.RepeatedScalarFieldContainer[typing.Text] = ...
+    tags: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        typing.Text
+    ] = ...
     sweep_id: typing.Text = ...
     host: typing.Text = ...
     starting_step: builtins.int = ...
@@ -307,51 +500,112 @@ class RunRecord(google.protobuf.message.Message):
 
     @property
     def config(self) -> global___ConfigRecord: ...
-
     @property
     def summary(self) -> global___SummaryRecord: ...
-
     @property
     def settings(self) -> global___SettingsRecord: ...
-
     @property
     def start_time(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-
     @property
     def telemetry(self) -> wandb.proto.wandb_telemetry_pb2.TelemetryRecord: ...
-
     @property
     def git(self) -> global___GitRepoRecord: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run_id : typing.Text = ...,
-        entity : typing.Text = ...,
-        project : typing.Text = ...,
-        config : typing.Optional[global___ConfigRecord] = ...,
-        summary : typing.Optional[global___SummaryRecord] = ...,
-        run_group : typing.Text = ...,
-        job_type : typing.Text = ...,
-        display_name : typing.Text = ...,
-        notes : typing.Text = ...,
-        tags : typing.Optional[typing.Iterable[typing.Text]] = ...,
-        settings : typing.Optional[global___SettingsRecord] = ...,
-        sweep_id : typing.Text = ...,
-        host : typing.Text = ...,
-        starting_step : builtins.int = ...,
-        storage_id : typing.Text = ...,
-        start_time : typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
-        resumed : builtins.bool = ...,
-        telemetry : typing.Optional[wandb.proto.wandb_telemetry_pb2.TelemetryRecord] = ...,
-        runtime : builtins.int = ...,
-        git : typing.Optional[global___GitRepoRecord] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"config",b"config",u"git",b"git",u"settings",b"settings",u"start_time",b"start_time",u"summary",b"summary",u"telemetry",b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"config",b"config",u"display_name",b"display_name",u"entity",b"entity",u"git",b"git",u"host",b"host",u"job_type",b"job_type",u"notes",b"notes",u"project",b"project",u"resumed",b"resumed",u"run_group",b"run_group",u"run_id",b"run_id",u"runtime",b"runtime",u"settings",b"settings",u"start_time",b"start_time",u"starting_step",b"starting_step",u"storage_id",b"storage_id",u"summary",b"summary",u"sweep_id",b"sweep_id",u"tags",b"tags",u"telemetry",b"telemetry"]) -> None: ...
+        run_id: typing.Text = ...,
+        entity: typing.Text = ...,
+        project: typing.Text = ...,
+        config: typing.Optional[global___ConfigRecord] = ...,
+        summary: typing.Optional[global___SummaryRecord] = ...,
+        run_group: typing.Text = ...,
+        job_type: typing.Text = ...,
+        display_name: typing.Text = ...,
+        notes: typing.Text = ...,
+        tags: typing.Optional[typing.Iterable[typing.Text]] = ...,
+        settings: typing.Optional[global___SettingsRecord] = ...,
+        sweep_id: typing.Text = ...,
+        host: typing.Text = ...,
+        starting_step: builtins.int = ...,
+        storage_id: typing.Text = ...,
+        start_time: typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
+        resumed: builtins.bool = ...,
+        telemetry: typing.Optional[
+            wandb.proto.wandb_telemetry_pb2.TelemetryRecord
+        ] = ...,
+        runtime: builtins.int = ...,
+        git: typing.Optional[global___GitRepoRecord] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "config",
+            b"config",
+            "git",
+            b"git",
+            "settings",
+            b"settings",
+            "start_time",
+            b"start_time",
+            "summary",
+            b"summary",
+            "telemetry",
+            b"telemetry",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "config",
+            b"config",
+            "display_name",
+            b"display_name",
+            "entity",
+            b"entity",
+            "git",
+            b"git",
+            "host",
+            b"host",
+            "job_type",
+            b"job_type",
+            "notes",
+            b"notes",
+            "project",
+            b"project",
+            "resumed",
+            b"resumed",
+            "run_group",
+            b"run_group",
+            "run_id",
+            b"run_id",
+            "runtime",
+            b"runtime",
+            "settings",
+            b"settings",
+            "start_time",
+            b"start_time",
+            "starting_step",
+            b"starting_step",
+            "storage_id",
+            b"storage_id",
+            "summary",
+            b"summary",
+            "sweep_id",
+            b"sweep_id",
+            "tags",
+            b"tags",
+            "telemetry",
+            b"telemetry",
+        ],
+    ) -> None: ...
+
 global___RunRecord = RunRecord
 
 class GitRepoRecord(google.protobuf.message.Message):
@@ -361,12 +615,19 @@ class GitRepoRecord(google.protobuf.message.Message):
     remote_url: typing.Text = ...
     commit: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        remote_url : typing.Text = ...,
-        commit : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"commit",b"commit",u"remote_url",b"remote_url"]) -> None: ...
+        remote_url: typing.Text = ...,
+        commit: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "commit", b"commit", "remote_url", b"remote_url"
+        ],
+    ) -> None: ...
+
 global___GitRepoRecord = GitRepoRecord
 
 class RunUpdateResult(google.protobuf.message.Message):
@@ -376,30 +637,39 @@ class RunUpdateResult(google.protobuf.message.Message):
 
     @property
     def run(self) -> global___RunRecord: ...
-
     @property
     def error(self) -> global___ErrorInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run : typing.Optional[global___RunRecord] = ...,
-        error : typing.Optional[global___ErrorInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"error",b"error",u"run",b"run"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"error",b"error",u"run",b"run"]) -> None: ...
+        run: typing.Optional[global___RunRecord] = ...,
+        error: typing.Optional[global___ErrorInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["error", b"error", "run", b"run"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["error", b"error", "run", b"run"]
+    ) -> None: ...
+
 global___RunUpdateResult = RunUpdateResult
 
 class ErrorInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    class _ErrorCode(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ErrorCode.V], builtins.type):
+
+    class _ErrorCode(
+        google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ErrorCode.V],
+        builtins.type,
+    ):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         UNKNOWN = ErrorInfo.ErrorCode.V(0)
         INVALID = ErrorInfo.ErrorCode.V(1)
         PERMISSION = ErrorInfo.ErrorCode.V(2)
         NETWORK = ErrorInfo.ErrorCode.V(3)
         INTERNAL = ErrorInfo.ErrorCode.V(4)
+
     class ErrorCode(metaclass=_ErrorCode):
-        V = typing.NewType('V', builtins.int)
+        V = typing.NewType("V", builtins.int)
     UNKNOWN = ErrorInfo.ErrorCode.V(0)
     INVALID = ErrorInfo.ErrorCode.V(1)
     PERMISSION = ErrorInfo.ErrorCode.V(2)
@@ -411,12 +681,17 @@ class ErrorInfo(google.protobuf.message.Message):
     message: typing.Text = ...
     code: global___ErrorInfo.ErrorCode.V = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        message : typing.Text = ...,
-        code : global___ErrorInfo.ErrorCode.V = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"code",b"code",u"message",b"message"]) -> None: ...
+        message: typing.Text = ...,
+        code: global___ErrorInfo.ErrorCode.V = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal["code", b"code", "message", b"message"],
+    ) -> None: ...
+
 global___ErrorInfo = ErrorInfo
 
 class RunExitRecord(google.protobuf.message.Message):
@@ -429,22 +704,32 @@ class RunExitRecord(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        exit_code : builtins.int = ...,
-        runtime : builtins.int = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"exit_code",b"exit_code",u"runtime",b"runtime"]) -> None: ...
+        exit_code: builtins.int = ...,
+        runtime: builtins.int = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "exit_code", b"exit_code", "runtime", b"runtime"
+        ],
+    ) -> None: ...
+
 global___RunExitRecord = RunExitRecord
 
 class RunExitResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___RunExitResult = RunExitResult
 
 class RunPreemptingRecord(google.protobuf.message.Message):
@@ -453,20 +738,27 @@ class RunPreemptingRecord(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___RunPreemptingRecord = RunPreemptingRecord
 
 class RunPreemptingResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___RunPreemptingResult = RunPreemptingResult
 
 class SettingsRecord(google.protobuf.message.Message):
@@ -475,18 +767,26 @@ class SettingsRecord(google.protobuf.message.Message):
     _INFO_FIELD_NUMBER: builtins.int
 
     @property
-    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___SettingsItem]: ...
-
+    def item(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___SettingsItem
+    ]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        item : typing.Optional[typing.Iterable[global___SettingsItem]] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"item",b"item"]) -> None: ...
+        item: typing.Optional[typing.Iterable[global___SettingsItem]] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info", "item", b"item"]
+    ) -> None: ...
+
 global___SettingsRecord = SettingsRecord
 
 class SettingsItem(google.protobuf.message.Message):
@@ -496,12 +796,19 @@ class SettingsItem(google.protobuf.message.Message):
     key: typing.Text = ...
     value_json: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        value_json : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"value_json",b"value_json"]) -> None: ...
+        key: typing.Text = ...,
+        value_json: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key", b"key", "value_json", b"value_json"
+        ],
+    ) -> None: ...
+
 global___SettingsItem = SettingsItem
 
 class HistoryStep(google.protobuf.message.Message):
@@ -509,11 +816,15 @@ class HistoryStep(google.protobuf.message.Message):
     NUM_FIELD_NUMBER: builtins.int
     num: builtins.int = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        num : builtins.int = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"num",b"num"]) -> None: ...
+        num: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["num", b"num"]
+    ) -> None: ...
+
 global___HistoryStep = HistoryStep
 
 class HistoryRecord(google.protobuf.message.Message):
@@ -523,22 +834,32 @@ class HistoryRecord(google.protobuf.message.Message):
     _INFO_FIELD_NUMBER: builtins.int
 
     @property
-    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___HistoryItem]: ...
-
+    def item(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___HistoryItem
+    ]: ...
     @property
     def step(self) -> global___HistoryStep: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        item : typing.Optional[typing.Iterable[global___HistoryItem]] = ...,
-        step : typing.Optional[global___HistoryStep] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"step",b"step"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"item",b"item",u"step",b"step"]) -> None: ...
+        item: typing.Optional[typing.Iterable[global___HistoryItem]] = ...,
+        step: typing.Optional[global___HistoryStep] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info", "step", b"step"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "item", b"item", "step", b"step"
+        ],
+    ) -> None: ...
+
 global___HistoryRecord = HistoryRecord
 
 class HistoryItem(google.protobuf.message.Message):
@@ -547,33 +868,49 @@ class HistoryItem(google.protobuf.message.Message):
     NESTED_KEY_FIELD_NUMBER: builtins.int
     VALUE_JSON_FIELD_NUMBER: builtins.int
     key: typing.Text = ...
-    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[typing.Text] = ...
+    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        typing.Text
+    ] = ...
     value_json: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        nested_key : typing.Optional[typing.Iterable[typing.Text]] = ...,
-        value_json : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"nested_key",b"nested_key",u"value_json",b"value_json"]) -> None: ...
+        key: typing.Text = ...,
+        nested_key: typing.Optional[typing.Iterable[typing.Text]] = ...,
+        value_json: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key", b"key", "nested_key", b"nested_key", "value_json", b"value_json"
+        ],
+    ) -> None: ...
+
 global___HistoryItem = HistoryItem
 
 class HistoryResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___HistoryResult = HistoryResult
 
 class OutputRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    class _OutputType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputType.V], builtins.type):
+
+    class _OutputType(
+        google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputType.V],
+        builtins.type,
+    ):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         STDERR = OutputRecord.OutputType.V(0)
         STDOUT = OutputRecord.OutputType.V(1)
+
     class OutputType(metaclass=_OutputType):
-        V = typing.NewType('V', builtins.int)
+        V = typing.NewType("V", builtins.int)
     STDERR = OutputRecord.OutputType.V(0)
     STDOUT = OutputRecord.OutputType.V(1)
 
@@ -586,36 +923,60 @@ class OutputRecord(google.protobuf.message.Message):
 
     @property
     def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        output_type : global___OutputRecord.OutputType.V = ...,
-        timestamp : typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
-        line : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"timestamp",b"timestamp"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"line",b"line",u"output_type",b"output_type",u"timestamp",b"timestamp"]) -> None: ...
+        output_type: global___OutputRecord.OutputType.V = ...,
+        timestamp: typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
+        line: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "timestamp", b"timestamp"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "line",
+            b"line",
+            "output_type",
+            b"output_type",
+            "timestamp",
+            b"timestamp",
+        ],
+    ) -> None: ...
+
 global___OutputRecord = OutputRecord
 
 class OutputResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___OutputResult = OutputResult
 
 class OutputRawRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    class _OutputType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputType.V], builtins.type):
+
+    class _OutputType(
+        google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputType.V],
+        builtins.type,
+    ):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         STDERR = OutputRawRecord.OutputType.V(0)
         STDOUT = OutputRawRecord.OutputType.V(1)
+
     class OutputType(metaclass=_OutputType):
-        V = typing.NewType('V', builtins.int)
+        V = typing.NewType("V", builtins.int)
     STDERR = OutputRawRecord.OutputType.V(0)
     STDOUT = OutputRawRecord.OutputType.V(1)
 
@@ -628,37 +989,61 @@ class OutputRawRecord(google.protobuf.message.Message):
 
     @property
     def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        output_type : global___OutputRawRecord.OutputType.V = ...,
-        timestamp : typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
-        line : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"timestamp",b"timestamp"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"line",b"line",u"output_type",b"output_type",u"timestamp",b"timestamp"]) -> None: ...
+        output_type: global___OutputRawRecord.OutputType.V = ...,
+        timestamp: typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
+        line: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "timestamp", b"timestamp"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "line",
+            b"line",
+            "output_type",
+            b"output_type",
+            "timestamp",
+            b"timestamp",
+        ],
+    ) -> None: ...
+
 global___OutputRawRecord = OutputRawRecord
 
 class OutputRawResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___OutputRawResult = OutputRawResult
 
 class MetricRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    class _MetricGoal(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[MetricGoal.V], builtins.type):
+
+    class _MetricGoal(
+        google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[MetricGoal.V],
+        builtins.type,
+    ):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         GOAL_UNSET = MetricRecord.MetricGoal.V(0)
         GOAL_MINIMIZE = MetricRecord.MetricGoal.V(1)
         GOAL_MAXIMIZE = MetricRecord.MetricGoal.V(2)
+
     class MetricGoal(metaclass=_MetricGoal):
-        V = typing.NewType('V', builtins.int)
+        V = typing.NewType("V", builtins.int)
     GOAL_UNSET = MetricRecord.MetricGoal.V(0)
     GOAL_MINIMIZE = MetricRecord.MetricGoal.V(1)
     GOAL_MAXIMIZE = MetricRecord.MetricGoal.V(2)
@@ -680,37 +1065,71 @@ class MetricRecord(google.protobuf.message.Message):
 
     @property
     def options(self) -> global___MetricOptions: ...
-
     @property
     def summary(self) -> global___MetricSummary: ...
-
     @property
     def _control(self) -> global___MetricControl: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        name : typing.Text = ...,
-        glob_name : typing.Text = ...,
-        step_metric : typing.Text = ...,
-        step_metric_index : builtins.int = ...,
-        options : typing.Optional[global___MetricOptions] = ...,
-        summary : typing.Optional[global___MetricSummary] = ...,
-        goal : global___MetricRecord.MetricGoal.V = ...,
-        _control : typing.Optional[global___MetricControl] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_control",b"_control",u"_info",b"_info",u"options",b"options",u"summary",b"summary"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_control",b"_control",u"_info",b"_info",u"glob_name",b"glob_name",u"goal",b"goal",u"name",b"name",u"options",b"options",u"step_metric",b"step_metric",u"step_metric_index",b"step_metric_index",u"summary",b"summary"]) -> None: ...
+        name: typing.Text = ...,
+        glob_name: typing.Text = ...,
+        step_metric: typing.Text = ...,
+        step_metric_index: builtins.int = ...,
+        options: typing.Optional[global___MetricOptions] = ...,
+        summary: typing.Optional[global___MetricSummary] = ...,
+        goal: global___MetricRecord.MetricGoal.V = ...,
+        _control: typing.Optional[global___MetricControl] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_control",
+            b"_control",
+            "_info",
+            b"_info",
+            "options",
+            b"options",
+            "summary",
+            b"summary",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_control",
+            b"_control",
+            "_info",
+            b"_info",
+            "glob_name",
+            b"glob_name",
+            "goal",
+            b"goal",
+            "name",
+            b"name",
+            "options",
+            b"options",
+            "step_metric",
+            b"step_metric",
+            "step_metric_index",
+            b"step_metric_index",
+            "summary",
+            b"summary",
+        ],
+    ) -> None: ...
+
 global___MetricRecord = MetricRecord
 
 class MetricResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___MetricResult = MetricResult
 
 class MetricOptions(google.protobuf.message.Message):
@@ -722,13 +1141,20 @@ class MetricOptions(google.protobuf.message.Message):
     hidden: builtins.bool = ...
     defined: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        step_sync : builtins.bool = ...,
-        hidden : builtins.bool = ...,
-        defined : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"defined",b"defined",u"hidden",b"hidden",u"step_sync",b"step_sync"]) -> None: ...
+        step_sync: builtins.bool = ...,
+        hidden: builtins.bool = ...,
+        defined: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "defined", b"defined", "hidden", b"hidden", "step_sync", b"step_sync"
+        ],
+    ) -> None: ...
+
 global___MetricOptions = MetricOptions
 
 class MetricControl(google.protobuf.message.Message):
@@ -736,11 +1162,15 @@ class MetricControl(google.protobuf.message.Message):
     OVERWRITE_FIELD_NUMBER: builtins.int
     overwrite: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        overwrite : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"overwrite",b"overwrite"]) -> None: ...
+        overwrite: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["overwrite", b"overwrite"]
+    ) -> None: ...
+
 global___MetricControl = MetricControl
 
 class MetricSummary(google.protobuf.message.Message):
@@ -760,17 +1190,37 @@ class MetricSummary(google.protobuf.message.Message):
     none: builtins.bool = ...
     copy: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        min : builtins.bool = ...,
-        max : builtins.bool = ...,
-        mean : builtins.bool = ...,
-        best : builtins.bool = ...,
-        last : builtins.bool = ...,
-        none : builtins.bool = ...,
-        copy : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"best",b"best",u"copy",b"copy",u"last",b"last",u"max",b"max",u"mean",b"mean",u"min",b"min",u"none",b"none"]) -> None: ...
+        min: builtins.bool = ...,
+        max: builtins.bool = ...,
+        mean: builtins.bool = ...,
+        best: builtins.bool = ...,
+        last: builtins.bool = ...,
+        none: builtins.bool = ...,
+        copy: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "best",
+            b"best",
+            "copy",
+            b"copy",
+            "last",
+            b"last",
+            "max",
+            b"max",
+            "mean",
+            b"mean",
+            "min",
+            b"min",
+            "none",
+            b"none",
+        ],
+    ) -> None: ...
+
 global___MetricSummary = MetricSummary
 
 class ConfigRecord(google.protobuf.message.Message):
@@ -780,22 +1230,36 @@ class ConfigRecord(google.protobuf.message.Message):
     _INFO_FIELD_NUMBER: builtins.int
 
     @property
-    def update(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigItem]: ...
-
+    def update(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___ConfigItem
+    ]: ...
     @property
-    def remove(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigItem]: ...
-
+    def remove(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___ConfigItem
+    ]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        update : typing.Optional[typing.Iterable[global___ConfigItem]] = ...,
-        remove : typing.Optional[typing.Iterable[global___ConfigItem]] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"remove",b"remove",u"update",b"update"]) -> None: ...
+        update: typing.Optional[typing.Iterable[global___ConfigItem]] = ...,
+        remove: typing.Optional[typing.Iterable[global___ConfigItem]] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "remove", b"remove", "update", b"update"
+        ],
+    ) -> None: ...
+
 global___ConfigRecord = ConfigRecord
 
 class ConfigItem(google.protobuf.message.Message):
@@ -804,23 +1268,34 @@ class ConfigItem(google.protobuf.message.Message):
     NESTED_KEY_FIELD_NUMBER: builtins.int
     VALUE_JSON_FIELD_NUMBER: builtins.int
     key: typing.Text = ...
-    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[typing.Text] = ...
+    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        typing.Text
+    ] = ...
     value_json: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        nested_key : typing.Optional[typing.Iterable[typing.Text]] = ...,
-        value_json : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"nested_key",b"nested_key",u"value_json",b"value_json"]) -> None: ...
+        key: typing.Text = ...,
+        nested_key: typing.Optional[typing.Iterable[typing.Text]] = ...,
+        value_json: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key", b"key", "nested_key", b"nested_key", "value_json", b"value_json"
+        ],
+    ) -> None: ...
+
 global___ConfigItem = ConfigItem
 
 class ConfigResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___ConfigResult = ConfigResult
 
 class SummaryRecord(google.protobuf.message.Message):
@@ -830,22 +1305,36 @@ class SummaryRecord(google.protobuf.message.Message):
     _INFO_FIELD_NUMBER: builtins.int
 
     @property
-    def update(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___SummaryItem]: ...
-
+    def update(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___SummaryItem
+    ]: ...
     @property
-    def remove(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___SummaryItem]: ...
-
+    def remove(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___SummaryItem
+    ]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        update : typing.Optional[typing.Iterable[global___SummaryItem]] = ...,
-        remove : typing.Optional[typing.Iterable[global___SummaryItem]] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"remove",b"remove",u"update",b"update"]) -> None: ...
+        update: typing.Optional[typing.Iterable[global___SummaryItem]] = ...,
+        remove: typing.Optional[typing.Iterable[global___SummaryItem]] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "remove", b"remove", "update", b"update"
+        ],
+    ) -> None: ...
+
 global___SummaryRecord = SummaryRecord
 
 class SummaryItem(google.protobuf.message.Message):
@@ -854,23 +1343,34 @@ class SummaryItem(google.protobuf.message.Message):
     NESTED_KEY_FIELD_NUMBER: builtins.int
     VALUE_JSON_FIELD_NUMBER: builtins.int
     key: typing.Text = ...
-    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[typing.Text] = ...
+    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        typing.Text
+    ] = ...
     value_json: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        nested_key : typing.Optional[typing.Iterable[typing.Text]] = ...,
-        value_json : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"nested_key",b"nested_key",u"value_json",b"value_json"]) -> None: ...
+        key: typing.Text = ...,
+        nested_key: typing.Optional[typing.Iterable[typing.Text]] = ...,
+        value_json: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key", b"key", "nested_key", b"nested_key", "value_json", b"value_json"
+        ],
+    ) -> None: ...
+
 global___SummaryItem = SummaryItem
 
 class SummaryResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___SummaryResult = SummaryResult
 
 class FilesRecord(google.protobuf.message.Message):
@@ -879,29 +1379,43 @@ class FilesRecord(google.protobuf.message.Message):
     _INFO_FIELD_NUMBER: builtins.int
 
     @property
-    def files(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___FilesItem]: ...
-
+    def files(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___FilesItem
+    ]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        files : typing.Optional[typing.Iterable[global___FilesItem]] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"files",b"files"]) -> None: ...
+        files: typing.Optional[typing.Iterable[global___FilesItem]] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal["_info", b"_info", "files", b"files"],
+    ) -> None: ...
+
 global___FilesRecord = FilesRecord
 
 class FilesItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    class _PolicyType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[PolicyType.V], builtins.type):
+
+    class _PolicyType(
+        google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[PolicyType.V],
+        builtins.type,
+    ):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         NOW = FilesItem.PolicyType.V(0)
         END = FilesItem.PolicyType.V(1)
         LIVE = FilesItem.PolicyType.V(2)
+
     class PolicyType(metaclass=_PolicyType):
-        V = typing.NewType('V', builtins.int)
+        V = typing.NewType("V", builtins.int)
     NOW = FilesItem.PolicyType.V(0)
     END = FilesItem.PolicyType.V(1)
     LIVE = FilesItem.PolicyType.V(2)
@@ -913,29 +1427,43 @@ class FilesItem(google.protobuf.message.Message):
     policy: global___FilesItem.PolicyType.V = ...
     external_path: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        path : typing.Text = ...,
-        policy : global___FilesItem.PolicyType.V = ...,
-        external_path : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"external_path",b"external_path",u"path",b"path",u"policy",b"policy"]) -> None: ...
+        path: typing.Text = ...,
+        policy: global___FilesItem.PolicyType.V = ...,
+        external_path: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "external_path", b"external_path", "path", b"path", "policy", b"policy"
+        ],
+    ) -> None: ...
+
 global___FilesItem = FilesItem
 
 class FilesResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___FilesResult = FilesResult
 
 class StatsRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    class _StatsType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[StatsType.V], builtins.type):
+
+    class _StatsType(
+        google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[StatsType.V],
+        builtins.type,
+    ):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         SYSTEM = StatsRecord.StatsType.V(0)
+
     class StatsType(metaclass=_StatsType):
-        V = typing.NewType('V', builtins.int)
+        V = typing.NewType("V", builtins.int)
     SYSTEM = StatsRecord.StatsType.V(0)
 
     STATS_TYPE_FIELD_NUMBER: builtins.int
@@ -946,22 +1474,42 @@ class StatsRecord(google.protobuf.message.Message):
 
     @property
     def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-
     @property
-    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StatsItem]: ...
-
+    def item(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___StatsItem
+    ]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        stats_type : global___StatsRecord.StatsType.V = ...,
-        timestamp : typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
-        item : typing.Optional[typing.Iterable[global___StatsItem]] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"timestamp",b"timestamp"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"item",b"item",u"stats_type",b"stats_type",u"timestamp",b"timestamp"]) -> None: ...
+        stats_type: global___StatsRecord.StatsType.V = ...,
+        timestamp: typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
+        item: typing.Optional[typing.Iterable[global___StatsItem]] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "timestamp", b"timestamp"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "item",
+            b"item",
+            "stats_type",
+            b"stats_type",
+            "timestamp",
+            b"timestamp",
+        ],
+    ) -> None: ...
+
 global___StatsRecord = StatsRecord
 
 class StatsItem(google.protobuf.message.Message):
@@ -971,12 +1519,19 @@ class StatsItem(google.protobuf.message.Message):
     key: typing.Text = ...
     value_json: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        value_json : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"value_json",b"value_json"]) -> None: ...
+        key: typing.Text = ...,
+        value_json: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key", b"key", "value_json", b"value_json"
+        ],
+    ) -> None: ...
+
 global___StatsItem = StatsItem
 
 class ArtifactRecord(google.protobuf.message.Message):
@@ -1009,7 +1564,9 @@ class ArtifactRecord(google.protobuf.message.Message):
     metadata: typing.Text = ...
     user_created: builtins.bool = ...
     use_after_commit: builtins.bool = ...
-    aliases: google.protobuf.internal.containers.RepeatedScalarFieldContainer[typing.Text] = ...
+    aliases: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        typing.Text
+    ] = ...
     distributed_id: typing.Text = ...
     finalize: builtins.bool = ...
     client_id: typing.Text = ...
@@ -1018,33 +1575,78 @@ class ArtifactRecord(google.protobuf.message.Message):
 
     @property
     def manifest(self) -> global___ArtifactManifest: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run_id : typing.Text = ...,
-        project : typing.Text = ...,
-        entity : typing.Text = ...,
-        type : typing.Text = ...,
-        name : typing.Text = ...,
-        digest : typing.Text = ...,
-        description : typing.Text = ...,
-        metadata : typing.Text = ...,
-        user_created : builtins.bool = ...,
-        use_after_commit : builtins.bool = ...,
-        aliases : typing.Optional[typing.Iterable[typing.Text]] = ...,
-        manifest : typing.Optional[global___ArtifactManifest] = ...,
-        distributed_id : typing.Text = ...,
-        finalize : builtins.bool = ...,
-        client_id : typing.Text = ...,
-        sequence_client_id : typing.Text = ...,
-        incremental_beta1 : builtins.bool = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"manifest",b"manifest"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"aliases",b"aliases",u"client_id",b"client_id",u"description",b"description",u"digest",b"digest",u"distributed_id",b"distributed_id",u"entity",b"entity",u"finalize",b"finalize",u"incremental_beta1",b"incremental_beta1",u"manifest",b"manifest",u"metadata",b"metadata",u"name",b"name",u"project",b"project",u"run_id",b"run_id",u"sequence_client_id",b"sequence_client_id",u"type",b"type",u"use_after_commit",b"use_after_commit",u"user_created",b"user_created"]) -> None: ...
+        run_id: typing.Text = ...,
+        project: typing.Text = ...,
+        entity: typing.Text = ...,
+        type: typing.Text = ...,
+        name: typing.Text = ...,
+        digest: typing.Text = ...,
+        description: typing.Text = ...,
+        metadata: typing.Text = ...,
+        user_created: builtins.bool = ...,
+        use_after_commit: builtins.bool = ...,
+        aliases: typing.Optional[typing.Iterable[typing.Text]] = ...,
+        manifest: typing.Optional[global___ArtifactManifest] = ...,
+        distributed_id: typing.Text = ...,
+        finalize: builtins.bool = ...,
+        client_id: typing.Text = ...,
+        sequence_client_id: typing.Text = ...,
+        incremental_beta1: builtins.bool = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "manifest", b"manifest"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "aliases",
+            b"aliases",
+            "client_id",
+            b"client_id",
+            "description",
+            b"description",
+            "digest",
+            b"digest",
+            "distributed_id",
+            b"distributed_id",
+            "entity",
+            b"entity",
+            "finalize",
+            b"finalize",
+            "incremental_beta1",
+            b"incremental_beta1",
+            "manifest",
+            b"manifest",
+            "metadata",
+            b"metadata",
+            "name",
+            b"name",
+            "project",
+            b"project",
+            "run_id",
+            b"run_id",
+            "sequence_client_id",
+            b"sequence_client_id",
+            "type",
+            b"type",
+            "use_after_commit",
+            b"use_after_commit",
+            "user_created",
+            b"user_created",
+        ],
+    ) -> None: ...
+
 global___ArtifactRecord = ArtifactRecord
 
 class ArtifactManifest(google.protobuf.message.Message):
@@ -1057,19 +1659,43 @@ class ArtifactManifest(google.protobuf.message.Message):
     storage_policy: typing.Text = ...
 
     @property
-    def storage_policy_config(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StoragePolicyConfigItem]: ...
-
+    def storage_policy_config(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___StoragePolicyConfigItem
+    ]: ...
     @property
-    def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactManifestEntry]: ...
-
-    def __init__(self,
+    def contents(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___ArtifactManifestEntry
+    ]: ...
+    def __init__(
+        self,
         *,
-        version : builtins.int = ...,
-        storage_policy : typing.Text = ...,
-        storage_policy_config : typing.Optional[typing.Iterable[global___StoragePolicyConfigItem]] = ...,
-        contents : typing.Optional[typing.Iterable[global___ArtifactManifestEntry]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"contents",b"contents",u"storage_policy",b"storage_policy",u"storage_policy_config",b"storage_policy_config",u"version",b"version"]) -> None: ...
+        version: builtins.int = ...,
+        storage_policy: typing.Text = ...,
+        storage_policy_config: typing.Optional[
+            typing.Iterable[global___StoragePolicyConfigItem]
+        ] = ...,
+        contents: typing.Optional[
+            typing.Iterable[global___ArtifactManifestEntry]
+        ] = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "contents",
+            b"contents",
+            "storage_policy",
+            b"storage_policy",
+            "storage_policy_config",
+            b"storage_policy_config",
+            "version",
+            b"version",
+        ],
+    ) -> None: ...
+
 global___ArtifactManifest = ArtifactManifest
 
 class ArtifactManifestEntry(google.protobuf.message.Message):
@@ -1091,20 +1717,45 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     birth_artifact_id: typing.Text = ...
 
     @property
-    def extra(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ExtraItem]: ...
-
-    def __init__(self,
+    def extra(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___ExtraItem
+    ]: ...
+    def __init__(
+        self,
         *,
-        path : typing.Text = ...,
-        digest : typing.Text = ...,
-        ref : typing.Text = ...,
-        size : builtins.int = ...,
-        mimetype : typing.Text = ...,
-        local_path : typing.Text = ...,
-        birth_artifact_id : typing.Text = ...,
-        extra : typing.Optional[typing.Iterable[global___ExtraItem]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"birth_artifact_id",b"birth_artifact_id",u"digest",b"digest",u"extra",b"extra",u"local_path",b"local_path",u"mimetype",b"mimetype",u"path",b"path",u"ref",b"ref",u"size",b"size"]) -> None: ...
+        path: typing.Text = ...,
+        digest: typing.Text = ...,
+        ref: typing.Text = ...,
+        size: builtins.int = ...,
+        mimetype: typing.Text = ...,
+        local_path: typing.Text = ...,
+        birth_artifact_id: typing.Text = ...,
+        extra: typing.Optional[typing.Iterable[global___ExtraItem]] = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "birth_artifact_id",
+            b"birth_artifact_id",
+            "digest",
+            b"digest",
+            "extra",
+            b"extra",
+            "local_path",
+            b"local_path",
+            "mimetype",
+            b"mimetype",
+            "path",
+            b"path",
+            "ref",
+            b"ref",
+            "size",
+            b"size",
+        ],
+    ) -> None: ...
+
 global___ArtifactManifestEntry = ArtifactManifestEntry
 
 class ExtraItem(google.protobuf.message.Message):
@@ -1114,12 +1765,19 @@ class ExtraItem(google.protobuf.message.Message):
     key: typing.Text = ...
     value_json: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        value_json : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"value_json",b"value_json"]) -> None: ...
+        key: typing.Text = ...,
+        value_json: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key", b"key", "value_json", b"value_json"
+        ],
+    ) -> None: ...
+
 global___ExtraItem = ExtraItem
 
 class StoragePolicyConfigItem(google.protobuf.message.Message):
@@ -1129,26 +1787,37 @@ class StoragePolicyConfigItem(google.protobuf.message.Message):
     key: typing.Text = ...
     value_json: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        value_json : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"value_json",b"value_json"]) -> None: ...
+        key: typing.Text = ...,
+        value_json: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key", b"key", "value_json", b"value_json"
+        ],
+    ) -> None: ...
+
 global___StoragePolicyConfigItem = StoragePolicyConfigItem
 
 class ArtifactResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___ArtifactResult = ArtifactResult
 
 class LinkArtifactResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___LinkArtifactResult = LinkArtifactResult
 
 class LinkArtifactRecord(google.protobuf.message.Message):
@@ -1165,23 +1834,46 @@ class LinkArtifactRecord(google.protobuf.message.Message):
     portfolio_name: typing.Text = ...
     portfolio_entity: typing.Text = ...
     portfolio_project: typing.Text = ...
-    portfolio_aliases: google.protobuf.internal.containers.RepeatedScalarFieldContainer[typing.Text] = ...
+    portfolio_aliases: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        typing.Text
+    ] = ...
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        client_id : typing.Text = ...,
-        server_id : typing.Text = ...,
-        portfolio_name : typing.Text = ...,
-        portfolio_entity : typing.Text = ...,
-        portfolio_project : typing.Text = ...,
-        portfolio_aliases : typing.Optional[typing.Iterable[typing.Text]] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"client_id",b"client_id",u"portfolio_aliases",b"portfolio_aliases",u"portfolio_entity",b"portfolio_entity",u"portfolio_name",b"portfolio_name",u"portfolio_project",b"portfolio_project",u"server_id",b"server_id"]) -> None: ...
+        client_id: typing.Text = ...,
+        server_id: typing.Text = ...,
+        portfolio_name: typing.Text = ...,
+        portfolio_entity: typing.Text = ...,
+        portfolio_project: typing.Text = ...,
+        portfolio_aliases: typing.Optional[typing.Iterable[typing.Text]] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "client_id",
+            b"client_id",
+            "portfolio_aliases",
+            b"portfolio_aliases",
+            "portfolio_entity",
+            b"portfolio_entity",
+            "portfolio_name",
+            b"portfolio_name",
+            "portfolio_project",
+            b"portfolio_project",
+            "server_id",
+            b"server_id",
+        ],
+    ) -> None: ...
+
 global___LinkArtifactRecord = LinkArtifactRecord
 
 class TBRecord(google.protobuf.message.Message):
@@ -1196,23 +1888,40 @@ class TBRecord(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        log_dir : typing.Text = ...,
-        save : builtins.bool = ...,
-        root_dir : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"log_dir",b"log_dir",u"root_dir",b"root_dir",u"save",b"save"]) -> None: ...
+        log_dir: typing.Text = ...,
+        save: builtins.bool = ...,
+        root_dir: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "log_dir",
+            b"log_dir",
+            "root_dir",
+            b"root_dir",
+            "save",
+            b"save",
+        ],
+    ) -> None: ...
+
 global___TBRecord = TBRecord
 
 class TBResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___TBResult = TBResult
 
 class AlertRecord(google.protobuf.message.Message):
@@ -1229,24 +1938,43 @@ class AlertRecord(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        title : typing.Text = ...,
-        text : typing.Text = ...,
-        level : typing.Text = ...,
-        wait_duration : builtins.int = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"level",b"level",u"text",b"text",u"title",b"title",u"wait_duration",b"wait_duration"]) -> None: ...
+        title: typing.Text = ...,
+        text: typing.Text = ...,
+        level: typing.Text = ...,
+        wait_duration: builtins.int = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "level",
+            b"level",
+            "text",
+            b"text",
+            "title",
+            b"title",
+            "wait_duration",
+            b"wait_duration",
+        ],
+    ) -> None: ...
+
 global___AlertRecord = AlertRecord
 
 class AlertResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___AlertResult = AlertResult
 
 class Request(google.protobuf.message.Message):
@@ -1276,98 +2004,203 @@ class Request(google.protobuf.message.Message):
 
     @property
     def stop_status(self) -> global___StopStatusRequest: ...
-
     @property
     def network_status(self) -> global___NetworkStatusRequest: ...
-
     @property
     def defer(self) -> global___DeferRequest: ...
-
     @property
     def get_summary(self) -> global___GetSummaryRequest: ...
-
     @property
     def login(self) -> global___LoginRequest: ...
-
     @property
     def pause(self) -> global___PauseRequest: ...
-
     @property
     def resume(self) -> global___ResumeRequest: ...
-
     @property
     def poll_exit(self) -> global___PollExitRequest: ...
-
     @property
     def sampled_history(self) -> global___SampledHistoryRequest: ...
-
     @property
     def partial_history(self) -> global___PartialHistoryRequest: ...
-
     @property
     def run_start(self) -> global___RunStartRequest: ...
-
     @property
     def check_version(self) -> global___CheckVersionRequest: ...
-
     @property
     def log_artifact(self) -> global___LogArtifactRequest: ...
-
     @property
     def artifact_send(self) -> global___ArtifactSendRequest: ...
-
     @property
     def artifact_poll(self) -> global___ArtifactPollRequest: ...
-
     @property
     def artifact_done(self) -> global___ArtifactDoneRequest: ...
-
     @property
     def keepalive(self) -> global___KeepaliveRequest: ...
-
     @property
     def shutdown(self) -> global___ShutdownRequest: ...
-
     @property
     def attach(self) -> global___AttachRequest: ...
-
     @property
     def status(self) -> global___StatusRequest: ...
-
     @property
     def server_info(self) -> global___ServerInfoRequest: ...
-
     @property
     def test_inject(self) -> global___TestInjectRequest: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        stop_status : typing.Optional[global___StopStatusRequest] = ...,
-        network_status : typing.Optional[global___NetworkStatusRequest] = ...,
-        defer : typing.Optional[global___DeferRequest] = ...,
-        get_summary : typing.Optional[global___GetSummaryRequest] = ...,
-        login : typing.Optional[global___LoginRequest] = ...,
-        pause : typing.Optional[global___PauseRequest] = ...,
-        resume : typing.Optional[global___ResumeRequest] = ...,
-        poll_exit : typing.Optional[global___PollExitRequest] = ...,
-        sampled_history : typing.Optional[global___SampledHistoryRequest] = ...,
-        partial_history : typing.Optional[global___PartialHistoryRequest] = ...,
-        run_start : typing.Optional[global___RunStartRequest] = ...,
-        check_version : typing.Optional[global___CheckVersionRequest] = ...,
-        log_artifact : typing.Optional[global___LogArtifactRequest] = ...,
-        artifact_send : typing.Optional[global___ArtifactSendRequest] = ...,
-        artifact_poll : typing.Optional[global___ArtifactPollRequest] = ...,
-        artifact_done : typing.Optional[global___ArtifactDoneRequest] = ...,
-        keepalive : typing.Optional[global___KeepaliveRequest] = ...,
-        shutdown : typing.Optional[global___ShutdownRequest] = ...,
-        attach : typing.Optional[global___AttachRequest] = ...,
-        status : typing.Optional[global___StatusRequest] = ...,
-        server_info : typing.Optional[global___ServerInfoRequest] = ...,
-        test_inject : typing.Optional[global___TestInjectRequest] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"keepalive",b"keepalive",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"server_info",b"server_info",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"keepalive",b"keepalive",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"server_info",b"server_info",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"request_type",b"request_type"]) -> typing_extensions.Literal["stop_status","network_status","defer","get_summary","login","pause","resume","poll_exit","sampled_history","partial_history","run_start","check_version","log_artifact","artifact_send","artifact_poll","artifact_done","keepalive","shutdown","attach","status","server_info","test_inject"]: ...
+        stop_status: typing.Optional[global___StopStatusRequest] = ...,
+        network_status: typing.Optional[global___NetworkStatusRequest] = ...,
+        defer: typing.Optional[global___DeferRequest] = ...,
+        get_summary: typing.Optional[global___GetSummaryRequest] = ...,
+        login: typing.Optional[global___LoginRequest] = ...,
+        pause: typing.Optional[global___PauseRequest] = ...,
+        resume: typing.Optional[global___ResumeRequest] = ...,
+        poll_exit: typing.Optional[global___PollExitRequest] = ...,
+        sampled_history: typing.Optional[global___SampledHistoryRequest] = ...,
+        partial_history: typing.Optional[global___PartialHistoryRequest] = ...,
+        run_start: typing.Optional[global___RunStartRequest] = ...,
+        check_version: typing.Optional[global___CheckVersionRequest] = ...,
+        log_artifact: typing.Optional[global___LogArtifactRequest] = ...,
+        artifact_send: typing.Optional[global___ArtifactSendRequest] = ...,
+        artifact_poll: typing.Optional[global___ArtifactPollRequest] = ...,
+        artifact_done: typing.Optional[global___ArtifactDoneRequest] = ...,
+        keepalive: typing.Optional[global___KeepaliveRequest] = ...,
+        shutdown: typing.Optional[global___ShutdownRequest] = ...,
+        attach: typing.Optional[global___AttachRequest] = ...,
+        status: typing.Optional[global___StatusRequest] = ...,
+        server_info: typing.Optional[global___ServerInfoRequest] = ...,
+        test_inject: typing.Optional[global___TestInjectRequest] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_done",
+            b"artifact_done",
+            "artifact_poll",
+            b"artifact_poll",
+            "artifact_send",
+            b"artifact_send",
+            "attach",
+            b"attach",
+            "check_version",
+            b"check_version",
+            "defer",
+            b"defer",
+            "get_summary",
+            b"get_summary",
+            "keepalive",
+            b"keepalive",
+            "log_artifact",
+            b"log_artifact",
+            "login",
+            b"login",
+            "network_status",
+            b"network_status",
+            "partial_history",
+            b"partial_history",
+            "pause",
+            b"pause",
+            "poll_exit",
+            b"poll_exit",
+            "request_type",
+            b"request_type",
+            "resume",
+            b"resume",
+            "run_start",
+            b"run_start",
+            "sampled_history",
+            b"sampled_history",
+            "server_info",
+            b"server_info",
+            "shutdown",
+            b"shutdown",
+            "status",
+            b"status",
+            "stop_status",
+            b"stop_status",
+            "test_inject",
+            b"test_inject",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_done",
+            b"artifact_done",
+            "artifact_poll",
+            b"artifact_poll",
+            "artifact_send",
+            b"artifact_send",
+            "attach",
+            b"attach",
+            "check_version",
+            b"check_version",
+            "defer",
+            b"defer",
+            "get_summary",
+            b"get_summary",
+            "keepalive",
+            b"keepalive",
+            "log_artifact",
+            b"log_artifact",
+            "login",
+            b"login",
+            "network_status",
+            b"network_status",
+            "partial_history",
+            b"partial_history",
+            "pause",
+            b"pause",
+            "poll_exit",
+            b"poll_exit",
+            "request_type",
+            b"request_type",
+            "resume",
+            b"resume",
+            "run_start",
+            b"run_start",
+            "sampled_history",
+            b"sampled_history",
+            "server_info",
+            b"server_info",
+            "shutdown",
+            b"shutdown",
+            "status",
+            b"status",
+            "stop_status",
+            b"stop_status",
+            "test_inject",
+            b"test_inject",
+        ],
+    ) -> None: ...
+    def WhichOneof(
+        self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]
+    ) -> typing_extensions.Literal[
+        "stop_status",
+        "network_status",
+        "defer",
+        "get_summary",
+        "login",
+        "pause",
+        "resume",
+        "poll_exit",
+        "sampled_history",
+        "partial_history",
+        "run_start",
+        "check_version",
+        "log_artifact",
+        "artifact_send",
+        "artifact_poll",
+        "artifact_done",
+        "keepalive",
+        "shutdown",
+        "attach",
+        "status",
+        "server_info",
+        "test_inject",
+    ]: ...
+
 global___Request = Request
 
 class Response(google.protobuf.message.Message):
@@ -1392,83 +2225,174 @@ class Response(google.protobuf.message.Message):
 
     @property
     def stop_status_response(self) -> global___StopStatusResponse: ...
-
     @property
     def network_status_response(self) -> global___NetworkStatusResponse: ...
-
     @property
     def login_response(self) -> global___LoginResponse: ...
-
     @property
     def get_summary_response(self) -> global___GetSummaryResponse: ...
-
     @property
     def poll_exit_response(self) -> global___PollExitResponse: ...
-
     @property
     def sampled_history_response(self) -> global___SampledHistoryResponse: ...
-
     @property
     def run_start_response(self) -> global___RunStartResponse: ...
-
     @property
     def check_version_response(self) -> global___CheckVersionResponse: ...
-
     @property
     def log_artifact_response(self) -> global___LogArtifactResponse: ...
-
     @property
     def artifact_send_response(self) -> global___ArtifactSendResponse: ...
-
     @property
     def artifact_poll_response(self) -> global___ArtifactPollResponse: ...
-
     @property
     def keepalive_response(self) -> global___KeepaliveResponse: ...
-
     @property
     def shutdown_response(self) -> global___ShutdownResponse: ...
-
     @property
     def attach_response(self) -> global___AttachResponse: ...
-
     @property
     def status_response(self) -> global___StatusResponse: ...
-
     @property
     def server_info_response(self) -> global___ServerInfoResponse: ...
-
     @property
     def test_inject_response(self) -> global___TestInjectResponse: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        stop_status_response : typing.Optional[global___StopStatusResponse] = ...,
-        network_status_response : typing.Optional[global___NetworkStatusResponse] = ...,
-        login_response : typing.Optional[global___LoginResponse] = ...,
-        get_summary_response : typing.Optional[global___GetSummaryResponse] = ...,
-        poll_exit_response : typing.Optional[global___PollExitResponse] = ...,
-        sampled_history_response : typing.Optional[global___SampledHistoryResponse] = ...,
-        run_start_response : typing.Optional[global___RunStartResponse] = ...,
-        check_version_response : typing.Optional[global___CheckVersionResponse] = ...,
-        log_artifact_response : typing.Optional[global___LogArtifactResponse] = ...,
-        artifact_send_response : typing.Optional[global___ArtifactSendResponse] = ...,
-        artifact_poll_response : typing.Optional[global___ArtifactPollResponse] = ...,
-        keepalive_response : typing.Optional[global___KeepaliveResponse] = ...,
-        shutdown_response : typing.Optional[global___ShutdownResponse] = ...,
-        attach_response : typing.Optional[global___AttachResponse] = ...,
-        status_response : typing.Optional[global___StatusResponse] = ...,
-        server_info_response : typing.Optional[global___ServerInfoResponse] = ...,
-        test_inject_response : typing.Optional[global___TestInjectResponse] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"artifact_poll_response",b"artifact_poll_response",u"artifact_send_response",b"artifact_send_response",u"attach_response",b"attach_response",u"check_version_response",b"check_version_response",u"get_summary_response",b"get_summary_response",u"keepalive_response",b"keepalive_response",u"log_artifact_response",b"log_artifact_response",u"login_response",b"login_response",u"network_status_response",b"network_status_response",u"poll_exit_response",b"poll_exit_response",u"response_type",b"response_type",u"run_start_response",b"run_start_response",u"sampled_history_response",b"sampled_history_response",u"server_info_response",b"server_info_response",u"shutdown_response",b"shutdown_response",u"status_response",b"status_response",u"stop_status_response",b"stop_status_response",u"test_inject_response",b"test_inject_response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_poll_response",b"artifact_poll_response",u"artifact_send_response",b"artifact_send_response",u"attach_response",b"attach_response",u"check_version_response",b"check_version_response",u"get_summary_response",b"get_summary_response",u"keepalive_response",b"keepalive_response",u"log_artifact_response",b"log_artifact_response",u"login_response",b"login_response",u"network_status_response",b"network_status_response",u"poll_exit_response",b"poll_exit_response",u"response_type",b"response_type",u"run_start_response",b"run_start_response",u"sampled_history_response",b"sampled_history_response",u"server_info_response",b"server_info_response",u"shutdown_response",b"shutdown_response",u"status_response",b"status_response",u"stop_status_response",b"stop_status_response",u"test_inject_response",b"test_inject_response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"response_type",b"response_type"]) -> typing_extensions.Literal["stop_status_response","network_status_response","login_response","get_summary_response","poll_exit_response","sampled_history_response","run_start_response","check_version_response","log_artifact_response","artifact_send_response","artifact_poll_response","keepalive_response","shutdown_response","attach_response","status_response","server_info_response","test_inject_response"]: ...
+        stop_status_response: typing.Optional[global___StopStatusResponse] = ...,
+        network_status_response: typing.Optional[global___NetworkStatusResponse] = ...,
+        login_response: typing.Optional[global___LoginResponse] = ...,
+        get_summary_response: typing.Optional[global___GetSummaryResponse] = ...,
+        poll_exit_response: typing.Optional[global___PollExitResponse] = ...,
+        sampled_history_response: typing.Optional[
+            global___SampledHistoryResponse
+        ] = ...,
+        run_start_response: typing.Optional[global___RunStartResponse] = ...,
+        check_version_response: typing.Optional[global___CheckVersionResponse] = ...,
+        log_artifact_response: typing.Optional[global___LogArtifactResponse] = ...,
+        artifact_send_response: typing.Optional[global___ArtifactSendResponse] = ...,
+        artifact_poll_response: typing.Optional[global___ArtifactPollResponse] = ...,
+        keepalive_response: typing.Optional[global___KeepaliveResponse] = ...,
+        shutdown_response: typing.Optional[global___ShutdownResponse] = ...,
+        attach_response: typing.Optional[global___AttachResponse] = ...,
+        status_response: typing.Optional[global___StatusResponse] = ...,
+        server_info_response: typing.Optional[global___ServerInfoResponse] = ...,
+        test_inject_response: typing.Optional[global___TestInjectResponse] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_poll_response",
+            b"artifact_poll_response",
+            "artifact_send_response",
+            b"artifact_send_response",
+            "attach_response",
+            b"attach_response",
+            "check_version_response",
+            b"check_version_response",
+            "get_summary_response",
+            b"get_summary_response",
+            "keepalive_response",
+            b"keepalive_response",
+            "log_artifact_response",
+            b"log_artifact_response",
+            "login_response",
+            b"login_response",
+            "network_status_response",
+            b"network_status_response",
+            "poll_exit_response",
+            b"poll_exit_response",
+            "response_type",
+            b"response_type",
+            "run_start_response",
+            b"run_start_response",
+            "sampled_history_response",
+            b"sampled_history_response",
+            "server_info_response",
+            b"server_info_response",
+            "shutdown_response",
+            b"shutdown_response",
+            "status_response",
+            b"status_response",
+            "stop_status_response",
+            b"stop_status_response",
+            "test_inject_response",
+            b"test_inject_response",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_poll_response",
+            b"artifact_poll_response",
+            "artifact_send_response",
+            b"artifact_send_response",
+            "attach_response",
+            b"attach_response",
+            "check_version_response",
+            b"check_version_response",
+            "get_summary_response",
+            b"get_summary_response",
+            "keepalive_response",
+            b"keepalive_response",
+            "log_artifact_response",
+            b"log_artifact_response",
+            "login_response",
+            b"login_response",
+            "network_status_response",
+            b"network_status_response",
+            "poll_exit_response",
+            b"poll_exit_response",
+            "response_type",
+            b"response_type",
+            "run_start_response",
+            b"run_start_response",
+            "sampled_history_response",
+            b"sampled_history_response",
+            "server_info_response",
+            b"server_info_response",
+            "shutdown_response",
+            b"shutdown_response",
+            "status_response",
+            b"status_response",
+            "stop_status_response",
+            b"stop_status_response",
+            "test_inject_response",
+            b"test_inject_response",
+        ],
+    ) -> None: ...
+    def WhichOneof(
+        self, oneof_group: typing_extensions.Literal["response_type", b"response_type"]
+    ) -> typing_extensions.Literal[
+        "stop_status_response",
+        "network_status_response",
+        "login_response",
+        "get_summary_response",
+        "poll_exit_response",
+        "sampled_history_response",
+        "run_start_response",
+        "check_version_response",
+        "log_artifact_response",
+        "artifact_send_response",
+        "artifact_poll_response",
+        "keepalive_response",
+        "shutdown_response",
+        "attach_response",
+        "status_response",
+        "server_info_response",
+        "test_inject_response",
+    ]: ...
+
 global___Response = Response
 
 class DeferRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    class _DeferState(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[DeferState.V], builtins.type):
+
+    class _DeferState(
+        google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[DeferState.V],
+        builtins.type,
+    ):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         BEGIN = DeferRequest.DeferState.V(0)
         FLUSH_STATS = DeferRequest.DeferState.V(1)
@@ -1483,8 +2407,9 @@ class DeferRequest(google.protobuf.message.Message):
         FLUSH_FS = DeferRequest.DeferState.V(10)
         FLUSH_FINAL = DeferRequest.DeferState.V(11)
         END = DeferRequest.DeferState.V(12)
+
     class DeferState(metaclass=_DeferState):
-        V = typing.NewType('V', builtins.int)
+        V = typing.NewType("V", builtins.int)
     BEGIN = DeferRequest.DeferState.V(0)
     FLUSH_STATS = DeferRequest.DeferState.V(1)
     FLUSH_PARTIAL_HISTORY = DeferRequest.DeferState.V(2)
@@ -1502,11 +2427,15 @@ class DeferRequest(google.protobuf.message.Message):
     STATE_FIELD_NUMBER: builtins.int
     state: global___DeferRequest.DeferState.V = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        state : global___DeferRequest.DeferState.V = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"state",b"state"]) -> None: ...
+        state: global___DeferRequest.DeferState.V = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["state", b"state"]
+    ) -> None: ...
+
 global___DeferRequest = DeferRequest
 
 class PauseRequest(google.protobuf.message.Message):
@@ -1515,20 +2444,27 @@ class PauseRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___PauseRequest = PauseRequest
 
 class PauseResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___PauseResponse = PauseResponse
 
 class ResumeRequest(google.protobuf.message.Message):
@@ -1537,20 +2473,27 @@ class ResumeRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___ResumeRequest = ResumeRequest
 
 class ResumeResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___ResumeResponse = ResumeResponse
 
 class LoginRequest(google.protobuf.message.Message):
@@ -1561,14 +2504,20 @@ class LoginRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        api_key : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"api_key",b"api_key"]) -> None: ...
+        api_key: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal["_info", b"_info", "api_key", b"api_key"],
+    ) -> None: ...
+
 global___LoginRequest = LoginRequest
 
 class LoginResponse(google.protobuf.message.Message):
@@ -1576,11 +2525,15 @@ class LoginResponse(google.protobuf.message.Message):
     ACTIVE_ENTITY_FIELD_NUMBER: builtins.int
     active_entity: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        active_entity : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"active_entity",b"active_entity"]) -> None: ...
+        active_entity: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["active_entity", b"active_entity"]
+    ) -> None: ...
+
 global___LoginResponse = LoginResponse
 
 class GetSummaryRequest(google.protobuf.message.Message):
@@ -1589,13 +2542,18 @@ class GetSummaryRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___GetSummaryRequest = GetSummaryRequest
 
 class GetSummaryResponse(google.protobuf.message.Message):
@@ -1603,13 +2561,20 @@ class GetSummaryResponse(google.protobuf.message.Message):
     ITEM_FIELD_NUMBER: builtins.int
 
     @property
-    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___SummaryItem]: ...
-
-    def __init__(self,
+    def item(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___SummaryItem
+    ]: ...
+    def __init__(
+        self,
         *,
-        item : typing.Optional[typing.Iterable[global___SummaryItem]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"item",b"item"]) -> None: ...
+        item: typing.Optional[typing.Iterable[global___SummaryItem]] = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["item", b"item"]
+    ) -> None: ...
+
 global___GetSummaryResponse = GetSummaryResponse
 
 class StatusRequest(google.protobuf.message.Message):
@@ -1618,13 +2583,18 @@ class StatusRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___StatusRequest = StatusRequest
 
 class StatusResponse(google.protobuf.message.Message):
@@ -1632,11 +2602,16 @@ class StatusResponse(google.protobuf.message.Message):
     RUN_SHOULD_STOP_FIELD_NUMBER: builtins.int
     run_should_stop: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run_should_stop : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"run_should_stop",b"run_should_stop"]) -> None: ...
+        run_should_stop: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal["run_should_stop", b"run_should_stop"],
+    ) -> None: ...
+
 global___StatusResponse = StatusResponse
 
 class StopStatusRequest(google.protobuf.message.Message):
@@ -1645,13 +2620,18 @@ class StopStatusRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___StopStatusRequest = StopStatusRequest
 
 class StopStatusResponse(google.protobuf.message.Message):
@@ -1659,11 +2639,16 @@ class StopStatusResponse(google.protobuf.message.Message):
     RUN_SHOULD_STOP_FIELD_NUMBER: builtins.int
     run_should_stop: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run_should_stop : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"run_should_stop",b"run_should_stop"]) -> None: ...
+        run_should_stop: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal["run_should_stop", b"run_should_stop"],
+    ) -> None: ...
+
 global___StopStatusResponse = StopStatusResponse
 
 class NetworkStatusRequest(google.protobuf.message.Message):
@@ -1672,13 +2657,18 @@ class NetworkStatusRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___NetworkStatusRequest = NetworkStatusRequest
 
 class NetworkStatusResponse(google.protobuf.message.Message):
@@ -1686,13 +2676,25 @@ class NetworkStatusResponse(google.protobuf.message.Message):
     NETWORK_RESPONSES_FIELD_NUMBER: builtins.int
 
     @property
-    def network_responses(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___HttpResponse]: ...
-
-    def __init__(self,
+    def network_responses(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___HttpResponse
+    ]: ...
+    def __init__(
+        self,
         *,
-        network_responses : typing.Optional[typing.Iterable[global___HttpResponse]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"network_responses",b"network_responses"]) -> None: ...
+        network_responses: typing.Optional[
+            typing.Iterable[global___HttpResponse]
+        ] = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "network_responses", b"network_responses"
+        ],
+    ) -> None: ...
+
 global___NetworkStatusResponse = NetworkStatusResponse
 
 class HttpResponse(google.protobuf.message.Message):
@@ -1702,12 +2704,22 @@ class HttpResponse(google.protobuf.message.Message):
     http_status_code: builtins.int = ...
     http_response_text: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        http_status_code : builtins.int = ...,
-        http_response_text : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"http_response_text",b"http_response_text",u"http_status_code",b"http_status_code"]) -> None: ...
+        http_status_code: builtins.int = ...,
+        http_response_text: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "http_response_text",
+            b"http_response_text",
+            "http_status_code",
+            b"http_status_code",
+        ],
+    ) -> None: ...
+
 global___HttpResponse = HttpResponse
 
 class PollExitRequest(google.protobuf.message.Message):
@@ -1716,13 +2728,18 @@ class PollExitRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___PollExitRequest = PollExitRequest
 
 class PollExitResponse(google.protobuf.message.Message):
@@ -1735,22 +2752,43 @@ class PollExitResponse(google.protobuf.message.Message):
 
     @property
     def exit_result(self) -> global___RunExitResult: ...
-
     @property
     def pusher_stats(self) -> global___FilePusherStats: ...
-
     @property
     def file_counts(self) -> global___FileCounts: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        done : builtins.bool = ...,
-        exit_result : typing.Optional[global___RunExitResult] = ...,
-        pusher_stats : typing.Optional[global___FilePusherStats] = ...,
-        file_counts : typing.Optional[global___FileCounts] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"pusher_stats",b"pusher_stats"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"done",b"done",u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"pusher_stats",b"pusher_stats"]) -> None: ...
+        done: builtins.bool = ...,
+        exit_result: typing.Optional[global___RunExitResult] = ...,
+        pusher_stats: typing.Optional[global___FilePusherStats] = ...,
+        file_counts: typing.Optional[global___FileCounts] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "exit_result",
+            b"exit_result",
+            "file_counts",
+            b"file_counts",
+            "pusher_stats",
+            b"pusher_stats",
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "done",
+            b"done",
+            "exit_result",
+            b"exit_result",
+            "file_counts",
+            b"file_counts",
+            "pusher_stats",
+            b"pusher_stats",
+        ],
+    ) -> None: ...
+
 global___PollExitResponse = PollExitResponse
 
 class ServerInfoRequest(google.protobuf.message.Message):
@@ -1759,13 +2797,18 @@ class ServerInfoRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___ServerInfoRequest = ServerInfoRequest
 
 class ServerInfoResponse(google.protobuf.message.Message):
@@ -1775,17 +2818,27 @@ class ServerInfoResponse(google.protobuf.message.Message):
 
     @property
     def local_info(self) -> global___LocalInfo: ...
-
     @property
     def server_messages(self) -> global___ServerMessages: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        local_info : typing.Optional[global___LocalInfo] = ...,
-        server_messages : typing.Optional[global___ServerMessages] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"local_info",b"local_info",u"server_messages",b"server_messages"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"local_info",b"local_info",u"server_messages",b"server_messages"]) -> None: ...
+        local_info: typing.Optional[global___LocalInfo] = ...,
+        server_messages: typing.Optional[global___ServerMessages] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "local_info", b"local_info", "server_messages", b"server_messages"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "local_info", b"local_info", "server_messages", b"server_messages"
+        ],
+    ) -> None: ...
+
 global___ServerInfoResponse = ServerInfoResponse
 
 class ServerMessages(google.protobuf.message.Message):
@@ -1793,13 +2846,20 @@ class ServerMessages(google.protobuf.message.Message):
     ITEM_FIELD_NUMBER: builtins.int
 
     @property
-    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerMessage]: ...
-
-    def __init__(self,
+    def item(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___ServerMessage
+    ]: ...
+    def __init__(
+        self,
         *,
-        item : typing.Optional[typing.Iterable[global___ServerMessage]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"item",b"item"]) -> None: ...
+        item: typing.Optional[typing.Iterable[global___ServerMessage]] = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["item", b"item"]
+    ) -> None: ...
+
 global___ServerMessages = ServerMessages
 
 class ServerMessage(google.protobuf.message.Message):
@@ -1815,15 +2875,31 @@ class ServerMessage(google.protobuf.message.Message):
     type: typing.Text = ...
     level: builtins.int = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        plain_text : typing.Text = ...,
-        utf_text : typing.Text = ...,
-        html_text : typing.Text = ...,
-        type : typing.Text = ...,
-        level : builtins.int = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"html_text",b"html_text",u"level",b"level",u"plain_text",b"plain_text",u"type",b"type",u"utf_text",b"utf_text"]) -> None: ...
+        plain_text: typing.Text = ...,
+        utf_text: typing.Text = ...,
+        html_text: typing.Text = ...,
+        type: typing.Text = ...,
+        level: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "html_text",
+            b"html_text",
+            "level",
+            b"level",
+            "plain_text",
+            b"plain_text",
+            "type",
+            b"type",
+            "utf_text",
+            b"utf_text",
+        ],
+    ) -> None: ...
+
 global___ServerMessage = ServerMessage
 
 class FileCounts(google.protobuf.message.Message):
@@ -1837,14 +2913,28 @@ class FileCounts(google.protobuf.message.Message):
     artifact_count: builtins.int = ...
     other_count: builtins.int = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        wandb_count : builtins.int = ...,
-        media_count : builtins.int = ...,
-        artifact_count : builtins.int = ...,
-        other_count : builtins.int = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_count",b"artifact_count",u"media_count",b"media_count",u"other_count",b"other_count",u"wandb_count",b"wandb_count"]) -> None: ...
+        wandb_count: builtins.int = ...,
+        media_count: builtins.int = ...,
+        artifact_count: builtins.int = ...,
+        other_count: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_count",
+            b"artifact_count",
+            "media_count",
+            b"media_count",
+            "other_count",
+            b"other_count",
+            "wandb_count",
+            b"wandb_count",
+        ],
+    ) -> None: ...
+
 global___FileCounts = FileCounts
 
 class FilePusherStats(google.protobuf.message.Message):
@@ -1856,13 +2946,25 @@ class FilePusherStats(google.protobuf.message.Message):
     total_bytes: builtins.int = ...
     deduped_bytes: builtins.int = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        uploaded_bytes : builtins.int = ...,
-        total_bytes : builtins.int = ...,
-        deduped_bytes : builtins.int = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"deduped_bytes",b"deduped_bytes",u"total_bytes",b"total_bytes",u"uploaded_bytes",b"uploaded_bytes"]) -> None: ...
+        uploaded_bytes: builtins.int = ...,
+        total_bytes: builtins.int = ...,
+        deduped_bytes: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "deduped_bytes",
+            b"deduped_bytes",
+            "total_bytes",
+            b"total_bytes",
+            "uploaded_bytes",
+            b"uploaded_bytes",
+        ],
+    ) -> None: ...
+
 global___FilePusherStats = FilePusherStats
 
 class LocalInfo(google.protobuf.message.Message):
@@ -1872,12 +2974,19 @@ class LocalInfo(google.protobuf.message.Message):
     version: typing.Text = ...
     out_of_date: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        version : typing.Text = ...,
-        out_of_date : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"out_of_date",b"out_of_date",u"version",b"version"]) -> None: ...
+        version: typing.Text = ...,
+        out_of_date: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "out_of_date", b"out_of_date", "version", b"version"
+        ],
+    ) -> None: ...
+
 global___LocalInfo = LocalInfo
 
 class ShutdownRequest(google.protobuf.message.Message):
@@ -1886,20 +2995,27 @@ class ShutdownRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___ShutdownRequest = ShutdownRequest
 
 class ShutdownResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___ShutdownResponse = ShutdownResponse
 
 class AttachRequest(google.protobuf.message.Message):
@@ -1910,14 +3026,22 @@ class AttachRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        attach_id : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"attach_id",b"attach_id"]) -> None: ...
+        attach_id: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "attach_id", b"attach_id"
+        ],
+    ) -> None: ...
+
 global___AttachRequest = AttachRequest
 
 class AttachResponse(google.protobuf.message.Message):
@@ -1927,17 +3051,21 @@ class AttachResponse(google.protobuf.message.Message):
 
     @property
     def run(self) -> global___RunRecord: ...
-
     @property
     def error(self) -> global___ErrorInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run : typing.Optional[global___RunRecord] = ...,
-        error : typing.Optional[global___ErrorInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"error",b"error",u"run",b"run"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"error",b"error",u"run",b"run"]) -> None: ...
+        run: typing.Optional[global___RunRecord] = ...,
+        error: typing.Optional[global___ErrorInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["error", b"error", "run", b"run"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["error", b"error", "run", b"run"]
+    ) -> None: ...
+
 global___AttachResponse = AttachResponse
 
 class TestInjectRequest(google.protobuf.message.Message):
@@ -1974,34 +3102,73 @@ class TestInjectRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        handler_exc : builtins.bool = ...,
-        handler_exit : builtins.bool = ...,
-        handler_abort : builtins.bool = ...,
-        sender_exc : builtins.bool = ...,
-        sender_exit : builtins.bool = ...,
-        sender_abort : builtins.bool = ...,
-        req_exc : builtins.bool = ...,
-        req_exit : builtins.bool = ...,
-        req_abort : builtins.bool = ...,
-        resp_exc : builtins.bool = ...,
-        resp_exit : builtins.bool = ...,
-        resp_abort : builtins.bool = ...,
-        msg_drop : builtins.bool = ...,
-        msg_hang : builtins.bool = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"handler_abort",b"handler_abort",u"handler_exc",b"handler_exc",u"handler_exit",b"handler_exit",u"msg_drop",b"msg_drop",u"msg_hang",b"msg_hang",u"req_abort",b"req_abort",u"req_exc",b"req_exc",u"req_exit",b"req_exit",u"resp_abort",b"resp_abort",u"resp_exc",b"resp_exc",u"resp_exit",b"resp_exit",u"sender_abort",b"sender_abort",u"sender_exc",b"sender_exc",u"sender_exit",b"sender_exit"]) -> None: ...
+        handler_exc: builtins.bool = ...,
+        handler_exit: builtins.bool = ...,
+        handler_abort: builtins.bool = ...,
+        sender_exc: builtins.bool = ...,
+        sender_exit: builtins.bool = ...,
+        sender_abort: builtins.bool = ...,
+        req_exc: builtins.bool = ...,
+        req_exit: builtins.bool = ...,
+        req_abort: builtins.bool = ...,
+        resp_exc: builtins.bool = ...,
+        resp_exit: builtins.bool = ...,
+        resp_abort: builtins.bool = ...,
+        msg_drop: builtins.bool = ...,
+        msg_hang: builtins.bool = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info",
+            b"_info",
+            "handler_abort",
+            b"handler_abort",
+            "handler_exc",
+            b"handler_exc",
+            "handler_exit",
+            b"handler_exit",
+            "msg_drop",
+            b"msg_drop",
+            "msg_hang",
+            b"msg_hang",
+            "req_abort",
+            b"req_abort",
+            "req_exc",
+            b"req_exc",
+            "req_exit",
+            b"req_exit",
+            "resp_abort",
+            b"resp_abort",
+            "resp_exc",
+            b"resp_exc",
+            "resp_exit",
+            b"resp_exit",
+            "sender_abort",
+            b"sender_abort",
+            "sender_exc",
+            b"sender_exc",
+            "sender_exit",
+            b"sender_exit",
+        ],
+    ) -> None: ...
+
 global___TestInjectRequest = TestInjectRequest
 
 class TestInjectResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___TestInjectResponse = TestInjectResponse
 
 class HistoryAction(google.protobuf.message.Message):
@@ -2009,11 +3176,15 @@ class HistoryAction(google.protobuf.message.Message):
     FLUSH_FIELD_NUMBER: builtins.int
     flush: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        flush : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"flush",b"flush"]) -> None: ...
+        flush: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["flush", b"flush"]
+    ) -> None: ...
+
 global___HistoryAction = HistoryAction
 
 class PartialHistoryRequest(google.protobuf.message.Message):
@@ -2024,33 +3195,47 @@ class PartialHistoryRequest(google.protobuf.message.Message):
     _INFO_FIELD_NUMBER: builtins.int
 
     @property
-    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___HistoryItem]: ...
-
+    def item(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___HistoryItem
+    ]: ...
     @property
     def step(self) -> global___HistoryStep: ...
-
     @property
     def action(self) -> global___HistoryAction: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        item : typing.Optional[typing.Iterable[global___HistoryItem]] = ...,
-        step : typing.Optional[global___HistoryStep] = ...,
-        action : typing.Optional[global___HistoryAction] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"action",b"action",u"step",b"step"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"action",b"action",u"item",b"item",u"step",b"step"]) -> None: ...
+        item: typing.Optional[typing.Iterable[global___HistoryItem]] = ...,
+        step: typing.Optional[global___HistoryStep] = ...,
+        action: typing.Optional[global___HistoryAction] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "action", b"action", "step", b"step"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "action", b"action", "item", b"item", "step", b"step"
+        ],
+    ) -> None: ...
+
 global___PartialHistoryRequest = PartialHistoryRequest
 
 class PartialHistoryResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___PartialHistoryResponse = PartialHistoryResponse
 
 class SampledHistoryRequest(google.protobuf.message.Message):
@@ -2059,13 +3244,18 @@ class SampledHistoryRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___SampledHistoryRequest = SampledHistoryRequest
 
 class SampledHistoryItem(google.protobuf.message.Message):
@@ -2075,18 +3265,38 @@ class SampledHistoryItem(google.protobuf.message.Message):
     VALUES_FLOAT_FIELD_NUMBER: builtins.int
     VALUES_INT_FIELD_NUMBER: builtins.int
     key: typing.Text = ...
-    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[typing.Text] = ...
-    values_float: google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.float] = ...
-    values_int: google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.int] = ...
+    nested_key: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        typing.Text
+    ] = ...
+    values_float: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        builtins.float
+    ] = ...
+    values_int: google.protobuf.internal.containers.RepeatedScalarFieldContainer[
+        builtins.int
+    ] = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        key : typing.Text = ...,
-        nested_key : typing.Optional[typing.Iterable[typing.Text]] = ...,
-        values_float : typing.Optional[typing.Iterable[builtins.float]] = ...,
-        values_int : typing.Optional[typing.Iterable[builtins.int]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"nested_key",b"nested_key",u"values_float",b"values_float",u"values_int",b"values_int"]) -> None: ...
+        key: typing.Text = ...,
+        nested_key: typing.Optional[typing.Iterable[typing.Text]] = ...,
+        values_float: typing.Optional[typing.Iterable[builtins.float]] = ...,
+        values_int: typing.Optional[typing.Iterable[builtins.int]] = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "key",
+            b"key",
+            "nested_key",
+            b"nested_key",
+            "values_float",
+            b"values_float",
+            "values_int",
+            b"values_int",
+        ],
+    ) -> None: ...
+
 global___SampledHistoryItem = SampledHistoryItem
 
 class SampledHistoryResponse(google.protobuf.message.Message):
@@ -2094,13 +3304,20 @@ class SampledHistoryResponse(google.protobuf.message.Message):
     ITEM_FIELD_NUMBER: builtins.int
 
     @property
-    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___SampledHistoryItem]: ...
-
-    def __init__(self,
+    def item(
+        self,
+    ) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[
+        global___SampledHistoryItem
+    ]: ...
+    def __init__(
+        self,
         *,
-        item : typing.Optional[typing.Iterable[global___SampledHistoryItem]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"item",b"item"]) -> None: ...
+        item: typing.Optional[typing.Iterable[global___SampledHistoryItem]] = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["item", b"item"]
+    ) -> None: ...
+
 global___SampledHistoryResponse = SampledHistoryResponse
 
 class RunStartRequest(google.protobuf.message.Message):
@@ -2110,24 +3327,30 @@ class RunStartRequest(google.protobuf.message.Message):
 
     @property
     def run(self) -> global___RunRecord: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        run : typing.Optional[global___RunRecord] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"run",b"run"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"run",b"run"]) -> None: ...
+        run: typing.Optional[global___RunRecord] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info", "run", b"run"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info", "run", b"run"]
+    ) -> None: ...
+
 global___RunStartRequest = RunStartRequest
 
 class RunStartResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___RunStartResponse = RunStartResponse
 
 class CheckVersionRequest(google.protobuf.message.Message):
@@ -2138,14 +3361,22 @@ class CheckVersionRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        current_version : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"current_version",b"current_version"]) -> None: ...
+        current_version: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "current_version", b"current_version"
+        ],
+    ) -> None: ...
+
 global___CheckVersionRequest = CheckVersionRequest
 
 class CheckVersionResponse(google.protobuf.message.Message):
@@ -2157,13 +3388,25 @@ class CheckVersionResponse(google.protobuf.message.Message):
     yank_message: typing.Text = ...
     delete_message: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        upgrade_message : typing.Text = ...,
-        yank_message : typing.Text = ...,
-        delete_message : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"delete_message",b"delete_message",u"upgrade_message",b"upgrade_message",u"yank_message",b"yank_message"]) -> None: ...
+        upgrade_message: typing.Text = ...,
+        yank_message: typing.Text = ...,
+        delete_message: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "delete_message",
+            b"delete_message",
+            "upgrade_message",
+            b"upgrade_message",
+            "yank_message",
+            b"yank_message",
+        ],
+    ) -> None: ...
+
 global___CheckVersionResponse = CheckVersionResponse
 
 class LogArtifactRequest(google.protobuf.message.Message):
@@ -2175,18 +3418,28 @@ class LogArtifactRequest(google.protobuf.message.Message):
 
     @property
     def artifact(self) -> global___ArtifactRecord: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        artifact : typing.Optional[global___ArtifactRecord] = ...,
-        history_step : builtins.int = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"artifact",b"artifact"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"artifact",b"artifact",u"history_step",b"history_step"]) -> None: ...
+        artifact: typing.Optional[global___ArtifactRecord] = ...,
+        history_step: builtins.int = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "artifact", b"artifact"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "artifact", b"artifact", "history_step", b"history_step"
+        ],
+    ) -> None: ...
+
 global___LogArtifactRequest = LogArtifactRequest
 
 class LogArtifactResponse(google.protobuf.message.Message):
@@ -2196,12 +3449,19 @@ class LogArtifactResponse(google.protobuf.message.Message):
     artifact_id: typing.Text = ...
     error_message: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        artifact_id : typing.Text = ...,
-        error_message : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_id",b"artifact_id",u"error_message",b"error_message"]) -> None: ...
+        artifact_id: typing.Text = ...,
+        error_message: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_id", b"artifact_id", "error_message", b"error_message"
+        ],
+    ) -> None: ...
+
 global___LogArtifactResponse = LogArtifactResponse
 
 class ArtifactSendRequest(google.protobuf.message.Message):
@@ -2211,17 +3471,27 @@ class ArtifactSendRequest(google.protobuf.message.Message):
 
     @property
     def artifact(self) -> global___ArtifactRecord: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        artifact : typing.Optional[global___ArtifactRecord] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"artifact",b"artifact"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"artifact",b"artifact"]) -> None: ...
+        artifact: typing.Optional[global___ArtifactRecord] = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "artifact", b"artifact"
+        ],
+    ) -> builtins.bool: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "_info", b"_info", "artifact", b"artifact"
+        ],
+    ) -> None: ...
+
 global___ArtifactSendRequest = ArtifactSendRequest
 
 class ArtifactSendResponse(google.protobuf.message.Message):
@@ -2229,11 +3499,15 @@ class ArtifactSendResponse(google.protobuf.message.Message):
     XID_FIELD_NUMBER: builtins.int
     xid: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        xid : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"xid",b"xid"]) -> None: ...
+        xid: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["xid", b"xid"]
+    ) -> None: ...
+
 global___ArtifactSendResponse = ArtifactSendResponse
 
 class ArtifactPollRequest(google.protobuf.message.Message):
@@ -2244,14 +3518,19 @@ class ArtifactPollRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        xid : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"xid",b"xid"]) -> None: ...
+        xid: typing.Text = ...,
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info", "xid", b"xid"]
+    ) -> None: ...
+
 global___ArtifactPollRequest = ArtifactPollRequest
 
 class ArtifactPollResponse(google.protobuf.message.Message):
@@ -2263,13 +3542,25 @@ class ArtifactPollResponse(google.protobuf.message.Message):
     error_message: typing.Text = ...
     ready: builtins.bool = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        artifact_id : typing.Text = ...,
-        error_message : typing.Text = ...,
-        ready : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_id",b"artifact_id",u"error_message",b"error_message",u"ready",b"ready"]) -> None: ...
+        artifact_id: typing.Text = ...,
+        error_message: typing.Text = ...,
+        ready: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_id",
+            b"artifact_id",
+            "error_message",
+            b"error_message",
+            "ready",
+            b"ready",
+        ],
+    ) -> None: ...
+
 global___ArtifactPollResponse = ArtifactPollResponse
 
 class ArtifactDoneRequest(google.protobuf.message.Message):
@@ -2281,13 +3572,25 @@ class ArtifactDoneRequest(google.protobuf.message.Message):
     error_message: typing.Text = ...
     xid: typing.Text = ...
 
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        artifact_id : typing.Text = ...,
-        error_message : typing.Text = ...,
-        xid : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_id",b"artifact_id",u"error_message",b"error_message",u"xid",b"xid"]) -> None: ...
+        artifact_id: typing.Text = ...,
+        error_message: typing.Text = ...,
+        xid: typing.Text = ...,
+    ) -> None: ...
+    def ClearField(
+        self,
+        field_name: typing_extensions.Literal[
+            "artifact_id",
+            b"artifact_id",
+            "error_message",
+            b"error_message",
+            "xid",
+            b"xid",
+        ],
+    ) -> None: ...
+
 global___ArtifactDoneRequest = ArtifactDoneRequest
 
 class KeepaliveRequest(google.protobuf.message.Message):
@@ -2296,18 +3599,25 @@ class KeepaliveRequest(google.protobuf.message.Message):
 
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+        _info: typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+    ) -> None: ...
+    def HasField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> builtins.bool: ...
+    def ClearField(
+        self, field_name: typing_extensions.Literal["_info", b"_info"]
+    ) -> None: ...
+
 global___KeepaliveRequest = KeepaliveRequest
 
 class KeepaliveResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___KeepaliveResponse = KeepaliveResponse
