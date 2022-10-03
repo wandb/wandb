@@ -4,7 +4,6 @@ import os
 import sys
 from typing import (
     TYPE_CHECKING,
-    Any,
     ClassVar,
     Optional,
     Sequence,
