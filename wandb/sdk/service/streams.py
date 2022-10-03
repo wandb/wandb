@@ -55,10 +55,10 @@ class StreamRecord:
     _iface: InterfaceRelay
     _thread: StreamThread
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
-    _active: bool
+    _started: bool
 
     def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
-        self._active = False
+        self._started = False
         self._mailbox = mailbox
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
@@ -99,11 +99,13 @@ class StreamRecord:
     def interface(self) -> InterfaceRelay:
         return self._iface
 
+    def start(self) -> None:
+        self._started = True
+
     def update(self, settings: Dict[str, Any]) -> None:
         # Note: Currently just overriding the _settings attribute
         # once we use Settings Class we might want to properly update it
         self._settings = SettingsStatic(settings)
-        self._active = True
 
 
 class StreamAction:
@@ -168,6 +170,11 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
+    def start_stream(self, stream_id: str) -> None:
+        action = StreamAction(action="start", stream_id=stream_id)
+        self._action_q.put(action)
+        action.wait_handled()
+
     def update_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
         action = StreamAction(action="update", stream_id=stream_id, data=settings)
         self._action_q.put(action)
@@ -224,6 +231,10 @@ class StreamMux:
         stream.start_thread(thread)
         with self._streams_lock:
             self._streams[action._stream_id] = stream
+
+    def _process_start(self, action: StreamAction) -> None:
+        with self._streams_lock:
+            self._streams[action._stream_id].start()
 
     def _process_update(self, action: StreamAction) -> None:
         with self._streams_lock:
@@ -288,7 +299,8 @@ class StreamMux:
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
         exit_handles = []
         for stream in streams.values():
-            if not stream._active:
+            # only finish started streams, non started streams failed early
+            if not stream._started:
                 continue
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
@@ -306,7 +318,8 @@ class StreamMux:
 
         # These could be done in parallel in the future
         for _sid, stream in streams.items():
-            if not stream._active:
+            # only finish started streams, non started streams failed early
+            if not stream._started:
                 continue
 
             # dispatch all our final requests
@@ -358,6 +371,9 @@ class StreamMux:
             return
         if action._action == "update":
             self._process_update(action)
+            return
+        if action._action == "start":
+            self._process_start(action)
             return
         if action._action == "del":
             self._process_del(action)
