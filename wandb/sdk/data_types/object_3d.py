@@ -61,8 +61,9 @@ if TYPE_CHECKING:  # pragma: no cover
             Point3D,
             Point3D,
         ]
-        label: str
+        label: Optional[str]
         color: RGBColor
+        score: Optional[numeric]
 
     class Vector3D(TypedDict):
         start: Sequence[Point3D]
@@ -82,7 +83,7 @@ class Object3D(BatchableMedia):
             Object3D can be initialized from a file or a numpy array.
 
             You can pass a path to a file or an io object and a file_type
-            which must be one of `"obj"`, `"gltf"`, `"glb"`, `"babylon"`, `"stl"`, `"pts.json"`.
+            which must be one of SUPPORTED_TYPES
 
     The shape of the numpy array must be one of either:
     ```
@@ -218,9 +219,11 @@ class Object3D(BatchableMedia):
             raise ValueError("data must be a numpy array, dict or a file object")
 
     @classmethod
-    def from_file(cls, data_or_path: Union[io.StringIO, FileFormat3D]) -> "Object3D":
+    def from_file(
+        cls, data_or_path: Union[io.StringIO, str], file_type: "FileFormat3D" = None
+    ) -> "Object3D":
 
-        return cls(data_or_path)
+        return cls(data_or_path, file_type=file_type)
 
     @classmethod
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":
@@ -240,10 +243,10 @@ class Object3D(BatchableMedia):
     @classmethod
     def from_point_cloud(
         cls,
-        points: Sequence[Point],
-        boxes: Sequence[Box3D],
-        vectors: Optional[Sequence[Vector3D]] = None,
-        point_cloud_type: PointCloudType = "lidar/beta",
+        points: Sequence["Point"],
+        boxes: Sequence["Box3D"],
+        vectors: Optional[Sequence["Vector3D"]] = None,
+        point_cloud_type: "PointCloudType" = "lidar/beta",
         # camera: Optional[Camera] = None,
     ) -> "Object3D":
         if point_cloud_type not in get_args(PointCloudType):
