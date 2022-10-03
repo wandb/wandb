@@ -15,6 +15,7 @@ service InternalService {
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse) {}
   rpc SampledHistory(SampledHistoryRequest) returns (SampledHistoryResponse) {}
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
+  rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
@@ -36,6 +37,8 @@ service InternalService {
   rpc ArtifactPoll(ArtifactPollRequest) returns (ArtifactPollResponse) {}
   // rpc ArtifactCancel(ArtifactCancelRequest) returns (ArtifactCancelResponse) {}
   // rpc ArtifactRelease(ArtifactReleaseRequest) returns (ArtifactReleaseResponse) {}
+
+  rpc Keepalive(KeepaliveRequest) returns (KeepaliveResponse) {}
 
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Pause(PauseRequest) returns (PauseResponse) {}

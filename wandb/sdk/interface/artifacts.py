@@ -13,12 +13,10 @@ from wandb.data_types import WBValue
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
+    import wandb.apis.public
+    from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress
-
-
-if TYPE_CHECKING:
-    import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 
 def md5_string(string: str) -> str:
