@@ -1229,7 +1229,6 @@ def test_object3d_from_file_with_textio(mock_run, assets_path, file_info):
 
 def test_object3d_from_file_with_textio_invalid_file_type(assets_path):
     with open(assets_path("point_cloud.pts.json")) as textio:
-        assert not hasattr(textio, "name")
         with pytest.raises(ValueError):
             _ = wandb.Object3D.from_file(textio, file_type="not a file type!")
 

@@ -1,5 +1,4 @@
 import codecs
-import io
 import json
 import os
 import sys
@@ -10,20 +9,16 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    TextIO,
     Tuple,
     Type,
     Union,
 )
 
 if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict, get_args
-elif sys.version_info >= (3, 7):
-    from typing_extensions import Literal, TypedDict, get_args
+    from typing import Literal, TypedDict
 else:
     from typing_extensions import Literal, TypedDict
-
-    def get_args(obj: Any) -> Optional[Any]:
-        return obj.__args__ if hasattr(obj, "__args__") else None
 
 
 import wandb
@@ -34,8 +29,6 @@ from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import TextIO
-
     import numpy as np  # type: ignore
 
     from ..wandb_artifacts import Artifact as LocalArtifact
@@ -54,6 +47,7 @@ if TYPE_CHECKING:  # pragma: no cover
     Point3DWithCategory = Tuple[numeric, numeric, numeric, numeric]
     Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
     Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
+    PointCloudType = Literal["lidar/beta"]
     RGBColor = Tuple[int, int, int]
 
     class Box3D(TypedDict):
@@ -78,9 +72,6 @@ if TYPE_CHECKING:  # pragma: no cover
     class Camera(TypedDict):
         viewpoint: Sequence[Point3D]
         target: Sequence[Point3D]
-
-
-PointCloudType = Literal["lidar/beta"]
 
 
 class Object3D(BatchableMedia):
@@ -110,6 +101,7 @@ class Object3D(BatchableMedia):
         "stl",
         "pts.json",
     }
+    SUPPORTED_POINT_CLOUD_TYPES: ClassVar[Set[str]] = {"lidar/beta"}
     _log_type: ClassVar[str] = "object3D-file"
 
     def __init__(
@@ -229,7 +221,7 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def from_file(
-        cls, data_or_path: Union[io.StringIO, str], file_type: "FileFormat3D" = None
+        cls, data_or_path: Union["TextIO", str], file_type: "FileFormat3D" = None
     ) -> "Object3D":
 
         return cls(data_or_path, file_type=file_type)
@@ -258,14 +250,19 @@ class Object3D(BatchableMedia):
         point_cloud_type: "PointCloudType" = "lidar/beta",
         # camera: Optional[Camera] = None,
     ) -> "Object3D":
-        if point_cloud_type not in get_args(PointCloudType):
+        if point_cloud_type not in cls.SUPPORTED_POINT_CLOUD_TYPES:
             raise ValueError("Point cloud type not supported")
+
+        numpy = wandb.util.get_module(
+            "numpy",
+            required="wandb.Object3D.from_point_cloud requires numpy. Install with `pip install numpy`",
+        )
 
         data = {
             "type": point_cloud_type,
-            "points": np.array(points),
-            "boxes": np.array(boxes),
-            "vectors": np.array(vectors) if vectors is not None else [],
+            "points": numpy.array(points),
+            "boxes": numpy.array(boxes),
+            "vectors": numpy.array(vectors) if vectors is not None else [],
         }
 
         return cls(data)
