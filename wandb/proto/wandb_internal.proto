@@ -43,7 +43,7 @@ message Record {
     FinalRecord     final = 20;
     HeaderRecord    header = 21;
     FooterRecord    footer = 22;
-    RunPreemptingRecord preempting = 23;    
+    RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     // request field does not belong here longterm
     Request         request = 100;
