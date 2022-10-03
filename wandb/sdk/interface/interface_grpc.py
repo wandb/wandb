@@ -282,7 +282,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(server_info)
         ret = self._stub.ServerInfo(server_info)
-        return ret
+        return ret  # type: ignore
 
     def _communicate_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
