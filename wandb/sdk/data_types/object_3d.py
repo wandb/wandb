@@ -5,6 +5,7 @@ import os
 import sys
 from typing import (
     TYPE_CHECKING,
+    Any,
     ClassVar,
     Optional,
     Sequence,
@@ -16,8 +17,14 @@ from typing import (
 
 if sys.version_info >= (3, 8):
     from typing import get_args, Literal, TypedDict
-else:
+elif sys.version_info >= (3, 7):
     from typing_extensions import get_args, Literal, TypedDict
+else:
+    from typing_extensions import Literal, TypedDict
+
+    def get_args(obj: Any) -> Optional[Any]:
+        return obj.__args__ if hasattr(obj, "__args__") else None
+
 
 import wandb
 from wandb import util
@@ -47,7 +54,6 @@ if TYPE_CHECKING:  # pragma: no cover
     Point3DWithCategory = Tuple[numeric, numeric, numeric, numeric]
     Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
     Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
-    PointCloudType = Literal["lidar/beta"]
     RGBColor = Tuple[int, int, int]
 
     class Box3D(TypedDict):
@@ -72,6 +78,9 @@ if TYPE_CHECKING:  # pragma: no cover
     class Camera(TypedDict):
         viewpoint: Sequence[Point3D]
         target: Sequence[Point3D]
+
+
+PointCloudType = Literal["lidar/beta"]
 
 
 class Object3D(BatchableMedia):
@@ -106,7 +115,7 @@ class Object3D(BatchableMedia):
     def __init__(
         self,
         data_or_path: Union["np.ndarray", str, "TextIO", dict],
-        **kwargs: str,
+        **kwargs: Optional[Union[str, "FileFormat3D"]],
     ) -> None:
         super().__init__()
 
