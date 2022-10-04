@@ -356,6 +356,20 @@ def test_artifact_download(runner, mock_server, api):
         assert os.listdir(path) == ["digits.h5"]
 
 
+@pytest.mark.asyncio
+async def test_artifact_download_async(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        future = art.download_async()
+        if platform.system() == "Windows":
+            part = "mnist-v0"
+        else:
+            part = "mnist:v0"
+        path = await future
+        assert path == os.path.join(".", "artifacts", part)
+        assert os.listdir(path) == ["digits.h5"]
+
+
 def test_artifact_delete(runner, mock_server, api):
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")

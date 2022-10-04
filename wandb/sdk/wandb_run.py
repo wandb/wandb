@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import traceback
+from asyncio import Future
 from collections.abc import Mapping
 from datetime import timedelta
 from enum import IntEnum
@@ -3772,6 +3773,11 @@ class _LazyArtifact(ArtifactInterface):
 
     def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
         return self._assert_instance().download(root, recursive)
+
+    def download_async(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> Future:
+        return self._assert_instance().download_async(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:
         return self._assert_instance().checkout(root)
