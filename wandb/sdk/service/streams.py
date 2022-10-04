@@ -204,14 +204,6 @@ class StreamMux:
         with self._streams_lock:
             return stream_id in self._streams
 
-    @staticmethod
-    def _started_streams(streams: Dict[str, StreamRecord]) -> Dict[str, StreamRecord]:
-        return {
-            stream_id: stream
-            for (stream_id, stream) in streams.items()
-            if stream._started
-        }
-
     def get_stream(self, stream_id: str) -> StreamRecord:
         with self._streams_lock:
             stream = self._streams[stream_id]
@@ -308,7 +300,10 @@ class StreamMux:
         exit_handles = []
 
         # only finish started streams, non started streams failed early
-        started_streams = self._started_streams(streams)
+        started_streams, not_started_streams = {}, {}
+        for stream_id, stream in streams.items():
+            d = started_streams if stream._started else not_started_streams
+            d[stream_id] = stream
 
         for stream in started_streams.values():
             handle = stream.interface.deliver_exit(exit_code)
@@ -358,6 +353,10 @@ class StreamMux:
                 settings=stream._settings,  # type: ignore
                 printer=printer,
             )
+            stream.join()
+
+        # not started streams need to be cleaned up
+        for stream in not_started_streams.values():
             stream.join()
 
     def _process_teardown(self, action: StreamAction) -> None:
