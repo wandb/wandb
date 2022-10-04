@@ -2382,9 +2382,18 @@ class QueuedRun:
         """
         mutation = gql(
             """
-            mutation DeleteFromRunQueueByName($queueName: ID!, $runQueueItemId: ID!)
+            mutation DeleteFromRunQueueByName(
+                $projectName: String!,
+                $entityName: String!,
+                $queueName: String!,
+                $runQueueItemID: ID!)
             {
-                deleteFromRunQueueByName(input: {queueName: $queueName, runQueueItemId: $runQueueItemId}) {
+                deleteFromRunQueueByName(input: {
+                    projectName: $projectName,
+                    entityName: $entityName,
+                    queueName: $queueName,
+                    runQueueItemID: $runQueueItemID
+                }) {
                     success
                     clientMutationId
                 }
@@ -2395,7 +2404,9 @@ class QueuedRun:
             mutation,
             variable_values={
                 "queueName": self.queue_name,
-                "runQueueItemId": self._run_queue_item_id,
+                "projectName": self.project,
+                "entityName": self.entity,
+                "runQueueItemID": self._run_queue_item_id,
             },
         )
 
