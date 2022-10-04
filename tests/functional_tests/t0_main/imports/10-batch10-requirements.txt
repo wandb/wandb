@@ -1,5 +1,4 @@
 timm
-git+https://github.com/pytorch/fairseq
 deepchecks
 mosaicml
 sparseml

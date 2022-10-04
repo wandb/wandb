@@ -8,6 +8,11 @@
 
   "editor.formatOnSave": true,
 
+  "python.analysis.extraPaths": [
+    "./wandb/vendor/gql-0.2.0",
+    "./wandb/vendor/graphql-core-1.1"
+  ],
+
   "python.linting.enabled": true,
   "python.linting.flake8Enabled": true,
   "python.linting.mypyEnabled": false,

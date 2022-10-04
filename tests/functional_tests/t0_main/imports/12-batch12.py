@@ -11,6 +11,7 @@ depend:
   pip_install_timeout: 1500  # 25m
   requirements:
     - tensorflow
+    - tensorflow_datasets
     - "-r 12-batch12-requirements.txt"
 assert:
   - :wandb:runs_len: 1
@@ -21,9 +22,13 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 81  # keras_cv
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 82  # mmengine
 """
 
 import keras_cv  # noqa: F401
+import mmengine  # noqa: F401
 import wandb
 
 run = wandb.init()

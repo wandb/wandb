@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 class MessageSockRouter(MessageRouter):
     _sock_client: SockClient
+    _mailbox: Mailbox
 
     def __init__(self, sock_client: SockClient, mailbox: Mailbox) -> None:
         self._sock_client = sock_client
