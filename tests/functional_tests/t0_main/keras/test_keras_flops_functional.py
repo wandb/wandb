@@ -26,4 +26,4 @@ def get_functional_model():
 
 
 model = get_functional_model()
-_ = model.fit(x, y, epochs=2, callbacks=[WandbCallback()])
+_ = model.fit(x, y, epochs=2, callbacks=[WandbCallback(compute_flops=True)])
