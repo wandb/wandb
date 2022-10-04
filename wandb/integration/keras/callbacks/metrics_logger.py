@@ -70,7 +70,7 @@ class WandbMetricsLogger(callbacks.Callback):
             logs = {f"batch/{k}": v for k, v in logs.items()} if logs else {}
             wandb.log(logs, commit=True)
 
-            self.global_batch += self.log_batch_frequency
+            self.global_batch += self.log_freq
 
     def on_train_batch_end(
         self, batch: int, logs: Optional[Dict[str, Any]] = None
