@@ -585,7 +585,7 @@ def build_image_from_project(
 
     builder = load_builder(builder_config)
     entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
-        name="main.py",
+        name=EntrypointDefaults.PYTHON[-1],
         command=EntrypointDefaults.PYTHON,
     )
 
