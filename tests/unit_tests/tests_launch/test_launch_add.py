@@ -106,9 +106,9 @@ def test_launch_build_push_job(
 
         assert rqi["runSpec"]["uri"] is None
         assert rqi["runSpec"]["job"] != "DELETE ME"
-        assert rqi["runSpec"]["job"] == f"job-{release_image}:v0"
+        assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{release_image}:v0"
 
-        job = public_api.job(f'{user}/{proj}/{rqi["runSpec"]["job"]}')
+        job = public_api.job(rqi["runSpec"]["job"])
 
         assert job._source_info["source"]["image"] == release_image
 
