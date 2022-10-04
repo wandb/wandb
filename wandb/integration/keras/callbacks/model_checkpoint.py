@@ -89,7 +89,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
 
         self.save_weights_only = save_weights_only
 
-        # User friendly warning when trying to save the best model.
+        # User-friendly warning when trying to save the best model.
         if self.save_best_only:
             self._check_filepath()
 
@@ -138,7 +138,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         except ValueError as e:
             # This error occurs when `save_best_only=True` and the model
             # checkpoint is not saved for that epoch/batch. Since TF/Keras
-            # is giving friendly log, we can avoid clutering the stdout.
+            # is giving friendly log, we can avoid clustering the stdout.
             pass
 
     def _check_filepath(self):
