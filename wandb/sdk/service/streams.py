@@ -300,7 +300,8 @@ class StreamMux:
         exit_handles = []
 
         # only finish started streams, non started streams failed early
-        started_streams, not_started_streams = {}, {}
+        started_streams: Dict[str, StreamRecord] = {}
+        not_started_streams: Dict[str, StreamRecord] = {}
         for stream_id, stream in streams.items():
             d = started_streams if stream._started else not_started_streams
             d[stream_id] = stream
