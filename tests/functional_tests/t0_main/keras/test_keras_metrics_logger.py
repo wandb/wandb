@@ -31,7 +31,7 @@ model.fit(
     y,
     epochs=2,
     validation_data=(x, y),
-    callbacks=[WandbMetricsLogger(log_batch_frequency=1)],
+    callbacks=[WandbMetricsLogger(log_freq=1)],
 )
 
 run.finish()
