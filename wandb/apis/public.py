@@ -14,6 +14,7 @@ import ast
 import datetime
 import json
 import logging
+import multiprocessing.dummy  # this uses threads
 import os
 import platform
 import re
@@ -26,6 +27,7 @@ from functools import partial
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     List,
     Mapping,
@@ -3984,6 +3986,42 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
         )
 
 
+class _ArtifactDownloadLogger:
+    def __init__(
+        self,
+        nfiles: int,
+        clock_for_testing: Callable[[], float] = time.monotonic,
+        termlog_for_testing=termlog,
+    ) -> None:
+        self._nfiles = nfiles
+        self._clock = clock_for_testing
+        self._termlog = termlog_for_testing
+
+        self._n_files_downloaded = 0
+        self._spinner_index = 0
+        self._last_log_time = self._clock()
+        self._lock = multiprocessing.dummy.Lock()
+
+    def notify_downloaded(self) -> None:
+        with self._lock:
+            self._n_files_downloaded += 1
+            if self._n_files_downloaded == self._nfiles:
+                self._termlog(
+                    f"  {self._nfiles} of {self._nfiles} files downloaded.  ",
+                    # ^ trailing spaces to wipe out ellipsis from previous logs
+                    newline=True,
+                )
+                self._last_log_time = self._clock()
+            elif self._clock() - self._last_log_time > 0.1:
+                self._spinner_index += 1
+                spinner = r"-\|/"[self._spinner_index % 4]
+                self._termlog(
+                    f"{spinner} {self._n_files_downloaded} of {self._nfiles} files downloaded...\r",
+                    newline=False,
+                )
+                self._last_log_time = self._clock()
+
+
 class Artifact(artifacts.Artifact):
     """
     A wandb Artifact.
@@ -4483,7 +4521,6 @@ class Artifact(artifacts.Artifact):
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles),
-                newline=False,
             )
             start_time = datetime.datetime.now()
 
@@ -4491,8 +4528,13 @@ class Artifact(artifacts.Artifact):
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
 
+        download_logger = _ArtifactDownloadLogger(nfiles=nfiles)
+
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        pool.map(
+            partial(self._download_file, root=dirpath, download_logger=download_logger),
+            manifest.entries,
+        )
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
@@ -4584,9 +4626,14 @@ class Artifact(artifacts.Artifact):
 
         return self._download_file(list(manifest.entries)[0], root=root)
 
-    def _download_file(self, name, root):
+    def _download_file(
+        self, name, root, download_logger: Optional[_ArtifactDownloadLogger] = None
+    ):
         # download file into cache and copy to target dir
-        return self.get_path(name).download(root)
+        downloaded_path = self.get_path(name).download(root)
+        if download_logger is not None:
+            download_logger.notify_downloaded()
+        return downloaded_path
 
     def _default_root(self, include_version=True):
         root = (
