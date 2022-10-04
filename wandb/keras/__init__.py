@@ -1,11 +1,13 @@
 """
 Compatibility keras module.
 
-In the future use:
+In the future use e.g.:
     from wandb.integration.keras import WandbCallback
 """
+__all__ = ("WandbCallback", "WandbMetricsLogger", "WandbModelCheckpoint")
 
-from wandb.integration.keras import WandbCallback  # type: ignore
-from wandb.integration.keras import WandbMetricsLogger  # type: ignore
-
-__all__ = ["WandbCallback", "WandbMetricsLogger"]
+from wandb.integration.keras import (
+    WandbCallback,
+    WandbMetricsLogger,
+    WandbModelCheckpoint,
+)

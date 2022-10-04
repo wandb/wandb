@@ -52,7 +52,7 @@ class WandbMetricsLogger(callbacks.Callback):
         self.global_batch = 0
 
         if isinstance(log_freq, int):
-            # define custom x axis for batch logging.
+            # define custom x-axis for batch logging.
             wandb.define_metric("batch/batch_step")
             # set all batch metrics to be logged against batch_step.
             wandb.define_metric("batch/*", step_metric="batch/batch_step")
