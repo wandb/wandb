@@ -222,10 +222,10 @@ class Object3D(BatchableMedia):
     def from_file(
         cls, data_or_path: Union["TextIO", str], file_type: "FileFormat3D" = None
     ) -> "Object3D":
-        if file_type not in cls.SUPPORTED_TYPES:
-            raise ValueError(
-                f"Unsupported file type: {file_type}. Supported types are: {cls.SUPPORTED_TYPES}"
-            )
+        # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
+        #     raise ValueError(
+        #         f"Unsupported file type: {file_type}. Supported types are: {cls.SUPPORTED_TYPES}"
+        #     )
         return cls(data_or_path, file_type=file_type)
 
     @classmethod
