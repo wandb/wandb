@@ -18,7 +18,7 @@ changelog:
     - title: ":books: Docs"
       labels:
         - cc-docs
-    - title: ":toolbox: Dev"
+    - title: ":gear: Dev"
       labels:
         - cc-build
         - cc-ci
