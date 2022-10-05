@@ -10,6 +10,7 @@ from google.protobuf import symbol_database as _symbol_database
 
 _sym_db = _symbol_database.Default()
 
+junk3
 
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 from wandb.proto import wandb_base_pb2 as wandb_dot_proto_dot_wandb__base__pb2
