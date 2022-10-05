@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.apis.public
 import wandb.util
 from wandb import Api
 
@@ -165,3 +166,39 @@ def test_override_base_url_passed_to_login():
         api = wandb.Api(api_key=None, overrides={"base_url": base_url})
         assert mock_login.call_args[1]["host"] == base_url
         assert api.settings["base_url"] == base_url
+
+
+def test_artifact_download_logger():
+    now = 0
+    termlog = mock.Mock()
+
+    nfiles = 10
+    logger = wandb.apis.public._ArtifactDownloadLogger(
+        nfiles=nfiles,
+        clock_for_testing=lambda: now,
+        termlog_for_testing=termlog,
+    )
+
+    times_calls = [
+        (0, None),
+        (0.001, None),
+        (1, mock.call("\\ 3 of 10 files downloaded...\r", newline=False)),
+        (1.001, None),
+        (2, mock.call("| 5 of 10 files downloaded...\r", newline=False)),
+        (2.001, None),
+        (3, mock.call("/ 7 of 10 files downloaded...\r", newline=False)),
+        (4, mock.call("- 8 of 10 files downloaded...\r", newline=False)),
+        (5, mock.call("\\ 9 of 10 files downloaded...\r", newline=False)),
+        (6, mock.call("  10 of 10 files downloaded.  ", newline=True)),
+    ]
+    assert len(times_calls) == nfiles
+
+    for t, call in times_calls:
+        now = t
+        termlog.reset_mock()
+        logger.notify_downloaded()
+        if call:
+            termlog.assert_called_once()
+            assert termlog.call_args == call
+        else:
+            termlog.assert_not_called()

@@ -263,6 +263,8 @@ class ArtifactSaver:
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = "wandb-artifact://{}/{}".format(
-                        util.b64_to_hex_id(artifact_id), artifact_file_path
+                    entry.ref = util.URIStr(
+                        "wandb-artifact://{}/{}".format(
+                            util.b64_to_hex_id(artifact_id), artifact_file_path
+                        )
                     )
