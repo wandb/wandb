@@ -1,3 +1,5 @@
-from .metrics_logger import WandbMetricsLogger
+__all__ = ("WandbMetricsLogger", "WandbModelCheckpoint", "WandbEvalCallback")
 
-__all__ = ["WandbMetricsLogger"]
+from .metrics_logger import WandbMetricsLogger
+from .model_checkpoint import WandbModelCheckpoint
+from .tables_builder import WandbEvalCallback
