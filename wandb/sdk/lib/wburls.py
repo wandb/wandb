@@ -28,6 +28,7 @@ class WBURLs:
             doc_run="https://wandb.me/run",
             doc_require="https://wandb.me/library-require",
             doc_start_err="https://docs.wandb.ai/library/init#init-start-error",
+            doc_artifacts_guide="https://docs.wandb.ai/guides/artifacts",
             upgrade_server="https://wandb.me/server-upgrade",
             multiprocess="http://wandb.me/init-multiprocess",
             wandb_init="https://wandb.me/wandb-init",
