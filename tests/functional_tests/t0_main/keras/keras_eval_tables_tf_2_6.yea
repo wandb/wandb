@@ -12,5 +12,5 @@ assert:
     - :wandb:runs_len: 1
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
-        - 40  # keras_model_checkpoint
+        - 40  # keras_wandb_eval_callback
     - :wandb:runs[0][exitcode]: 0
