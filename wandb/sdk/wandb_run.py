@@ -2158,7 +2158,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list, patch_path
         )
-        artifact = self.log_artifact(job_artifact)
+        artifact = self.use_artifact(job_artifact)
         return artifact
 
     def _create_artifact_job(
@@ -2194,7 +2194,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.log_artifact(job_artifact)
+        artifact = self.use_artifact(job_artifact)
         return artifact
 
     def _create_image_job(
@@ -2219,7 +2219,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.log_artifact(job_artifact)
+        artifact = self.use_artifact(job_artifact)
         return artifact
 
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
