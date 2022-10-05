@@ -700,6 +700,7 @@ def base_url(request):
 def wandb_server_tag(request):
     return request.config.getoption("--wandb-server-tag")
 
+
 @pytest.fixture(scope="session")
 def wandb_server_pull(request):
     if request.config.getoption("--wandb-server-pull"):
