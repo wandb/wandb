@@ -34,8 +34,23 @@ model.fit(
     callbacks=[
         WandbModelCheckpoint(
             filepath="wandb/model/model_{epoch}",
-            save_best_only=False,
+            save_best_only=True,
             save_weights_only=False,
+            save_freq=1,
+        )
+    ],
+)
+
+model.fit(
+    x,
+    y,
+    epochs=1,
+    validation_data=(x, y),
+    callbacks=[
+        WandbModelCheckpoint(
+            filepath="wandb/model/model_{epoch}_last.h5",
+            save_best_only=False,
+            save_weights_only=True,
             save_freq="epoch",
         )
     ],
