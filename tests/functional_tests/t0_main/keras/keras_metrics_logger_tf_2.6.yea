@@ -1,0 +1,22 @@
+id: 0.keras.metricslogger.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_metrics_logger.py
+depend:
+    requirements:
+        - tensorflow>=2.6.2
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary][accuracy]: 0.10000000149011612
+    - :wandb:runs[0][summary][batch/accuracy]: 0.10000000149011612
+    - :wandb:runs[0][summary][batch/batch_step]: 7
+    - :wandb:runs[0][summary][batch/loss]: 2.302401065826416
+    - :wandb:runs[0][summary][epoch]: 1
+    - :wandb:runs[0][summary][val_accuracy]: 0.14000000059604645
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 38  # keras
+    - :wandb:runs[0][exitcode]: 0
