@@ -59,6 +59,10 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         save_freq (Union[SaveStrategy, int]): `epoch` or integer. When using `'epoch'`,
             the callback saves the model after each epoch. When using an integer, the
             callback saves the model at end of this many batches.
+            Note that when monitoring validation metrics such as `val_acc` or `val_loss`,
+            save_freq must be set to "epoch" as those metrics are only available at the
+            end of an epoch.
+
         options (Optional[str]): Optional `tf.train.CheckpointOptions` object if
             `save_weights_only` is true or optional `tf.saved_model.SaveOptions`
             object if `save_weights_only` is false.

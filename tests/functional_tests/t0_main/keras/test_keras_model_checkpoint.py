@@ -25,7 +25,7 @@ model = get_model()
 model.compile(
     loss="sparse_categorical_crossentropy",
     optimizer="sgd",
-    metrics=["accuracy", "val_loss"],
+    metrics=["accuracy"],
 )
 
 model.fit(
@@ -36,6 +36,7 @@ model.fit(
     callbacks=[
         WandbModelCheckpoint(
             filepath="wandb/model/model_{epoch}",
+            monitor="accuracy",
             save_best_only=True,
             save_weights_only=False,
             save_freq=1,

@@ -150,6 +150,7 @@ message Feature {
   bool maybe_run_overwrite = 37; // Run might have been overwritten
   bool keras_metrics_logger = 38; // Keras WandbMetricsLogger used
   bool keras_model_checkpoint = 39; // Keras WandbModelCheckpoint used
+  bool keras_wandb_eval_callback = 40; // Keras WandbEvalCallback used
 }
 
 message Env {
