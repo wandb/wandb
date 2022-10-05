@@ -7,6 +7,7 @@ command:
     program: test_keras_eval_tables_builder.py
 depend:
     requirements:
+        - pillow
         - tensorflow>=2.6.2
 assert:
     - :wandb:runs_len: 1
