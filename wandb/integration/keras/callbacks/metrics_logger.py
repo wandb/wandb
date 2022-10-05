@@ -13,7 +13,7 @@ else:
     from typing_extensions import Literal
 
 
-LOG_STRATEGY = Literal["epoch", "batch"]
+LogStrategy = Literal["epoch", "batch"]
 
 
 patch_tf_keras()
@@ -33,7 +33,7 @@ class WandbMetricsLogger(callbacks.Callback):
     """
 
     def __init__(
-        self, log_freq: Union[LOG_STRATEGY, int] = "epoch", *args: Any, **kwargs: Any
+        self, log_freq: Union[LogStrategy, int] = "epoch", *args: Any, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
 
@@ -46,7 +46,7 @@ class WandbMetricsLogger(callbacks.Callback):
             tel.feature.keras_metrics_logger = True
 
         if log_freq == "batch":
-            self.log_freq: Union[LOG_STRATEGY, int] = 1
+            self.log_freq: Union[LogStrategy, int] = 1
         else:
             self.log_freq = log_freq
         self.global_batch = 0
