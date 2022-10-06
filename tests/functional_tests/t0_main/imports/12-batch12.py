@@ -11,6 +11,7 @@ depend:
   pip_install_timeout: 1500  # 25m
   requirements:
     - tensorflow
+    - tensorflow_datasets
     - "-r 12-batch12-requirements.txt"
 assert:
   - :wandb:runs_len: 1
