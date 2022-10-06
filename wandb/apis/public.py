@@ -2382,19 +2382,39 @@ class QueuedRun:
         """
         Deletes the given queued run from the wandb backend.
         """
+        query = gql(
+            """
+            query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueueName) {
+                        id
+                    }
+                }
+            }
+            """
+        )
+
+        res = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "runQueueName": self.queue_name,
+            },
+        )
+
+        if res["project"].get("runQueue") is not None:
+            queue_id = res["project"]["runQueue"]["id"]
+
         mutation = gql(
             """
-            mutation DeleteFromRunQueueByName(
-                $projectName: String!,
-                $entityName: String!,
-                $queueName: String!,
-                $runQueueItemID: ID!)
-            {
-                deleteFromRunQueueByName(input: {
-                    projectName: $projectName,
-                    entityName: $entityName,
-                    queueName: $queueName,
-                    runQueueItemID: $runQueueItemID
+            mutation DeleteFromRunQueue(
+                $queueID: ID!,
+                $runQueueItemId: ID!
+            ) {
+                deleteFromRunQueue(input: {
+                    queueID: $queueID
+                    runQueueItemId: $runQueueItemId
                 }) {
                     success
                     clientMutationId
@@ -2405,10 +2425,8 @@ class QueuedRun:
         self.client.execute(
             mutation,
             variable_values={
-                "queueName": self.queue_name,
-                "projectName": self.project,
-                "entityName": self.entity,
-                "runQueueItemID": self._run_queue_item_id,
+                "queueID": queue_id,
+                "runQueueItemId": self._run_queue_item_id,
             },
         )
 
