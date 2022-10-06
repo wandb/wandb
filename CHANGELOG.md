@@ -1,3 +1,46 @@
+## 0.13.4 (October 5, 2022)
+
+### :magic_wand: Enhancements
+* feat(launch): show entity and project in k8s job names by @KyleGoyette in https://github.com/wandb/wandb/pull/4216
+* feat(sweeps): add environment variable sweep command macro by @hu-po in https://github.com/wandb/wandb/pull/4200
+* feat(media): add `from_*` constructors and scene camera and bounding box confidence scores to `Object3D` data type by @dmitryduev in https://github.com/wandb/wandb/pull/4319
+* feat(artifacts): add simple progress indicator for artifact downloads by @speezepearson in https://github.com/wandb/wandb/pull/4255
+* feat(integrations): add `WandbMetricsLogger` callback - a `Keras` dedicated metrics logger callback by @ayulockin in https://github.com/wandb/wandb/pull/4244
+* feat(integrations): add `WandbModelCheckpoint` callback - a `Keras` model checkpointing callback by @ayulockin in https://github.com/wandb/wandb/pull/4245
+* feat(integrations): add `WandbEvalCallback` callback - a `Keras` callback for logging model predictions as W&B tables by @ayulockin in https://github.com/wandb/wandb/pull/4302
+### :hammer: Fixes
+* fix(launch): cast agent's config max_jobs attribute to integer by @KyleGoyette in https://github.com/wandb/wandb/pull/4262
+* fix(cli): correct the displayed path to the `debug-cli.log` (debug log) by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4271
+* fix(artifacts): catch retry-able request timeout when uploading artifacts to AWS by @nickpenaranda in https://github.com/wandb/wandb/pull/4304
+* fix(sdk): improve user feedback for long running calls: summary, finish by @raubitsj in https://github.com/wandb/wandb/pull/4169
+* fix(integrations): fix RuntimeError when using `keras.WandbCallback` with `tf.MirroredStrategy` by @ayulockin in https://github.com/wandb/wandb/pull/4310
+### :gear: Dev
+* ci(sdk): add code analysis/scanning with `codeql` by @dmitryduev in https://github.com/wandb/wandb/pull/4250
+* ci(sdk): validate PR titles to ensure compliance with Conventional Commits guidelines by @dmitryduev in https://github.com/wandb/wandb/pull/4268
+* chore(launch): harden launch by pining the build versions of `kaniko` and `launch-agent-dev` by @KyleGoyette in https://github.com/wandb/wandb/pull/4194
+* test(sdk): add telemetry for the `mmengine` package by @manangoel99 in https://github.com/wandb/wandb/pull/4273
+* chore(sdk): add the `build` type to our conventional commits setup by @dmitryduev in https://github.com/wandb/wandb/pull/4282
+* test(sdk): add `tensorflow_datasets` requirement to `imports12` shard by @dmitryduev in https://github.com/wandb/wandb/pull/4316
+* test(integrations): fix sb3 test by pinning upstream requirement by @dmitryduev in https://github.com/wandb/wandb/pull/4346
+* build(sdk): make the SDK compatible with protobuf v4 by @dmitryduev in https://github.com/wandb/wandb/pull/4279
+* chore(sdk): fix flake8 output coloring by @dmitryduev in https://github.com/wandb/wandb/pull/4347
+* test(artifacts): fix artifact reference test asset directory by @raubitsj in https://github.com/wandb/wandb/pull/4350
+### :nail_care: Cleanup
+* style(sdk): fix type hint for `filters` argument in `public_api.runs` by @epwalsh in https://github.com/wandb/wandb/pull/4256
+* style(artifacts): improve type annotations around artifact-file-creation by @speezepearson in https://github.com/wandb/wandb/pull/4259
+* style(sdk): improve type annotations and VSCode config for public API by @speezepearson in https://github.com/wandb/wandb/pull/4252
+* style(sdk): make type annotations more easily navigable in VSCode by @speezepearson in https://github.com/wandb/wandb/pull/4005
+* style(artifacts): introduce str NewTypes and use them for various Artifact fields by @speezepearson in https://github.com/wandb/wandb/pull/4326
+* style(artifacts): add type annotations to get better IDE hints for boto3 usage by @speezepearson in https://github.com/wandb/wandb/pull/4338
+
+## New Contributors
+* @epwalsh made their first contribution in https://github.com/wandb/wandb/pull/4256
+* @mjvanderboon made their first contribution in https://github.com/wandb/wandb/pull/4309
+* @jamie-rasmussen made their first contribution in https://github.com/wandb/wandb/pull/4271
+* @nickpenaranda made their first contribution in https://github.com/wandb/wandb/pull/4304
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.3...v0.13.4
+
 ## 0.13.3 (September 8, 2022)
 
 #### :nail_care: Enhancement
