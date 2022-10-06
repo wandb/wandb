@@ -110,7 +110,7 @@ class MetricsMonitor:
         # The number of samples to aggregate (e.g. average or compute max/min etc.)
         # before publishing; defaults to 15; valid range: [2:30]
         self.samples_to_aggregate: int = min(
-            30, max(2, settings._stats_samples_to_average)
+            30, max(1, settings._stats_samples_to_average)
         )
         # print(self.sampling_interval, self.samples_to_aggregate)
 

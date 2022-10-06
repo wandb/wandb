@@ -521,7 +521,7 @@ class Settings:
             },
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
-            _stats_sample_rate_seconds={"value": 2.0},
+            _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
             _tmp_code_dir={
