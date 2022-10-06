@@ -301,16 +301,12 @@ def mock_reference_get_responses():
 def test_image_refs(mock_reference_get_responses):
     mock_reference_get_responses.add(
         method="GET",
-        url="https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/puppy.jpg",
+        url="http://nonexistent/puppy.jpg",
         body=b"test",
     )
-
-    image_obj = wandb.Image(
-        "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/puppy.jpg"
-    )
-    art = wandb.Artifact("image_ref_test", "dataset")
+    image_obj = wandb.Image("http://nonexistent/puppy.jpg")
+    art = wandb.Artifact("image_ref_test", "images")
     art.add(image_obj, "image_ref")
-
     image_expected = {
         "_type": "image-file",
         "format": "jpg",
@@ -473,7 +469,7 @@ def test_audio_refs():
 
     audio_expected = {
         "_type": "audio-file",
-        "caption": None,
+        "caption": "Break",
     }
     assert subdict(audio_obj.to_json(art), audio_expected) == audio_expected
 
