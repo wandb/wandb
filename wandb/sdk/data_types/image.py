@@ -642,7 +642,7 @@ class Image(BatchableMedia):
     @property
     def image(self) -> Optional["PIL.Image"]:
         if self._image is None:
-            if self._path is None and not self.path_is_reference(self._path):
+            if self._path is not None and not self.path_is_reference(self._path):
                 pil_image = util.get_module(
                     "PIL.Image",
                     required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',

@@ -469,7 +469,7 @@ def test_audio_refs():
 
     audio_expected = {
         "_type": "audio-file",
-        "caption": "Break",
+        "caption": None,
     }
     assert subdict(audio_obj.to_json(art), audio_expected) == audio_expected
 
