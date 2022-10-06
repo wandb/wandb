@@ -1,5 +1,4 @@
 import os
-import time
 
 import wandb
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -17,7 +16,6 @@ def test_launch_delete_queued_run(relay_server, runner, user, monkeypatch):
 
     # create project
     run = wandb.init(project=proj)
-    time.sleep(1)
     run.finish()
 
     with relay_server():
