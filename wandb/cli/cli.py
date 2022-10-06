@@ -1105,7 +1105,7 @@ def sweep(
     "--build",
     "-b",
     is_flag=True,
-    help="Allow users to build image on queue then pushes a Job artifact. requires --queue to be set, default is false.",
+    help="Flag to build an associated job and push to queue as an image job.",
 )
 @display_error
 def launch(
