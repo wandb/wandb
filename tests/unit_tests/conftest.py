@@ -47,6 +47,7 @@ from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.mailbox import Mailbox
 
 try:
     from typing import Literal, TypedDict
@@ -410,11 +411,19 @@ class MockProcess:
 
 
 @pytest.fixture()
-def _internal_sender(internal_record_q, internal_result_q, internal_process):
+def _internal_mailbox():
+    return Mailbox()
+
+
+@pytest.fixture()
+def _internal_sender(
+    internal_record_q, internal_result_q, internal_process, _internal_mailbox
+):
     return InterfaceQueue(
         record_q=internal_record_q,
         result_q=internal_result_q,
         process=internal_process,
+        mailbox=_internal_mailbox,
     )
 
 
@@ -561,20 +570,18 @@ def _stop_backend(
 ):
     def stop_backend_func(threads=None):
         threads = threads or ()
-        done = False
-        _internal_sender.publish_exit(0)
-        for _ in range(30):
-            poll_exit_resp = _internal_sender.communicate_poll_exit()
-            if poll_exit_resp:
-                done = poll_exit_resp.done
-                if done:
-                    # collect_responses.local_info = poll_exit_resp.local_info
-                    break
-            time.sleep(1)
+        handle = _internal_sender.deliver_exit(0)
+        record = handle.wait(timeout=30)
+        assert record
+
+        server_info_handle = _internal_sender.deliver_request_server_info()
+        result = server_info_handle.wait(timeout=30)
+        assert result
+        # collect_responses.server_info_resp = result.response.server_info_response
+
         _internal_sender.join()
         for t in threads:
             t.join()
-        assert done, "backend didn't shut down"
 
     yield stop_backend_func
 
