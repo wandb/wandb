@@ -9,6 +9,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
 
 
+@pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
     [
@@ -21,7 +22,7 @@ from wandb.sdk.launch.launch_add import launch_add
             {"build": {"type": "docker"}},
             {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}},
         ),
-        ({"build": {"type": ""}}, {}),
+        ({"build": {"type": ""}}, {"repository": "testing123"}),
     ],
 )
 def test_launch_build_push_job(
@@ -39,7 +40,6 @@ def test_launch_build_push_job(
 
     # create project
     run = wandb.init(project=proj)
-    time.sleep(1)
 
     def patched_validate_docker_installation():
         return None

@@ -173,7 +173,7 @@ def _launch_add(
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
         job_name = job_artifact.wait().name
 
-        job_name_full = f"{entity}/{project}/{job_name}"
+        job_name_full = f"{launch_spec.get('entity')}/{project}/{job_name}"
         launch_spec["job"], job = job_name_full, job_name_full
         launch_spec["uri"] = None  # Remove given URI --> now in job
 

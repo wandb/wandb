@@ -545,7 +545,7 @@ def build_image_with_builder(
     """
     Helper for testing and logging
     """
-    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source.")
+    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
     image_uri: Optional[str] = builder.build_image(
         launch_project,
         repository,
@@ -572,15 +572,15 @@ def build_image_from_project(
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
 
-    repository = launch_project.git_repo
-    if not repository and launch_config:
+    # TODO(gst): launch_project.repository support w/ CLI arg (pref over config)
+    repository = None
+    if launch_config:
         repository = launch_config.get("repository")
-
     docker_args, builder_config, _ = construct_builder_args(launch_config)
     launch_project = fetch_and_validate_project(launch_project, api)
 
     if not builder_config.get("type"):
-        wandb.termlog("no builder found in config, defaulting to docker builder")
+        wandb.termlog(f"{LOG_PREFIX}No builder found, defaulting to docker")
         builder_config["type"] = default_builder_type
 
     builder = load_builder(builder_config)
