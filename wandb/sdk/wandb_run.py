@@ -33,7 +33,7 @@ from typing import (
 import requests
 
 import wandb
-from wandb import errors, trigger
+from wandb import errors, trigger, util
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
@@ -2158,7 +2158,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list, patch_path
         )
-        artifact = self.log_artifact(job_artifact)
+        artifact = self.use_artifact(job_artifact)
         return artifact
 
     def _create_artifact_job(
@@ -2194,7 +2194,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.log_artifact(job_artifact)
+        artifact = self.use_artifact(job_artifact)
         return artifact
 
     def _create_image_job(
@@ -2219,7 +2219,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.log_artifact(job_artifact)
+        artifact = self.use_artifact(job_artifact)
         return artifact
 
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
@@ -3770,7 +3770,9 @@ class _LazyArtifact(ArtifactInterface):
     def get(self, name: str) -> "WBValue":
         return self._assert_instance().get(name)
 
-    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> util.FilePathStr:
         return self._assert_instance().download(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:
