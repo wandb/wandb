@@ -62,7 +62,7 @@ message Imports {
   bool flash = 34;
   bool optuna = 35;
   bool recbole = 36;
-  bool mmcv = 37; 
+  bool mmcv = 37;
   bool mmdet = 38;
   bool torchdrug = 39;
   bool torchtext = 40;
@@ -148,6 +148,9 @@ message Feature {
   bool tensorboard_sync = 35; // wandb.init(sync_tensorboard=True)
   bool kfp_wandb_log = 36; // wandb.integration.kfp.wandb_log
   bool maybe_run_overwrite = 37; // Run might have been overwritten
+  bool keras_metrics_logger = 38; // Keras WandbMetricsLogger used
+  bool keras_model_checkpoint = 39; // Keras WandbModelCheckpoint used
+  bool keras_wandb_eval_callback = 40; // Keras WandbEvalCallback used
 }
 
 message Env {
