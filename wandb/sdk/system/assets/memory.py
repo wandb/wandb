@@ -138,4 +138,9 @@ class Memory:
 
     def probe(self) -> dict:
         """Return a dict of the hardware information"""
-        return {}
+        # total available memory in gigabytes
+        return {
+            "memory": {
+                "total": psutil.virtual_memory().total / 1024 / 1024 / 1024,
+            }
+        }

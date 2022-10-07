@@ -60,8 +60,8 @@ class TPU:
         shutdown_event: mp.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        service_addr = self.get_service_addr()
-        self.metrics = [TPUUtilization(service_addr)]
+        self.service_addr = self.get_service_addr()
+        self.metrics = [TPUUtilization(self.service_addr)]
 
         self.metrics_monitor = MetricsMonitor(
             self.metrics,
@@ -142,4 +142,4 @@ class TPU:
         return True
 
     def probe(self) -> dict:
-        return {}
+        return {self.name: {"service_address": self.service_addr}}

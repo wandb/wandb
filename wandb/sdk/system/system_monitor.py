@@ -1,9 +1,11 @@
+import logging
 import multiprocessing as mp
 import queue
 import threading
 import time
 from typing import TYPE_CHECKING, List, Optional, Union
 
+from wandb.sdk.system.system_info import SystemInfo
 from wandb.sdk.system.assets import asset_registry
 from wandb.sdk.system.assets.interfaces import Asset, Interface
 
@@ -13,10 +15,13 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
+logger = logging.getLogger(__name__)
+
+
 class AssetInterface:
     def __init__(self):
         self.metrics_queue: "queue.Queue[dict]" = queue.Queue()
-        self.telemetry_queue: "queue.Queue[dict]" = queue.Queue()
+        self.telemetry_queue: "queue.Queue[TelemetryRecord]" = queue.Queue()
 
     def publish_stats(self, stats: dict) -> None:
         self.metrics_queue.put(stats)
@@ -68,6 +73,7 @@ class SystemMonitor:
 
         self._start_time_stamp = time.monotonic()
 
+        # hardware assets
         self.assets: List["Asset"] = []
         for asset_class in asset_registry:
             self.assets.append(
@@ -78,50 +84,93 @@ class SystemMonitor:
                 )
             )
 
-        self.hardware: List[dict] = [asset.probe() for asset in self.assets]
+        # static system info, both hardware and software
+        self.system_info: SystemInfo = SystemInfo(
+            settings=settings, interface=interface
+        )
+
+    def aggregate_and_publish_asset_metrics(self) -> None:
+        # only extract as many items as are available in the queue at the moment
+        size = self.asset_interface.metrics_queue.qsize()
+        # print(f"WOKE UP, FELL OUT OF BED, DRAGGED A COMB ACROSS MY HEAD: {size}")
+
+        serialized_metrics = {}
+        for _ in range(size):
+            item = self.asset_interface.metrics_queue.get()
+            # print(f"::harvested:: {item}")
+            serialized_metrics.update(item)
+
+        if serialized_metrics:
+            self.backend_interface.publish_stats(serialized_metrics)
+
+    def publish_telemetry(self) -> None:
+        # get everything from the self.asset_interface.telemetry_queue,
+        # merge into a single dictionary and publish on the backend_interface
+        while not self.asset_interface.telemetry_queue.empty():
+            telemetry_record = self.asset_interface.telemetry_queue.get()
+            self.backend_interface._publish_telemetry(telemetry_record)
 
     def _start(self) -> None:
         for asset in self.assets:
             asset.start()
 
         # compatibility mode: join stats from different assets before publishing
-        if self.join_assets and self.asset_interface is not None:
-            # give the assets a chance to accumulate and publish their first stats
-            # this will provide a constant offset for the following accumulation events below
-            self._shutdown_event.wait(
-                self.publishing_interval * self.PUBLISHING_INTERVAL_DELAY_FACTOR
-            )
+        if not (self.join_assets and self.asset_interface is not None):
+            return None
 
-            def aggregate_and_publish_asset_metrics() -> None:
-                # only extract as many items as are available in the queue at the moment
-                size = self.asset_interface.metrics_queue.qsize()
-                # print(f"WOKE UP, FELL OUT OF BED, DRAGGED A COMB ACROSS MY HEAD: {size}")
+        # give the assets a chance to accumulate and publish their first stats
+        # this will provide a constant offset for the following accumulation events below
+        self._shutdown_event.wait(
+            self.publishing_interval * self.PUBLISHING_INTERVAL_DELAY_FACTOR
+        )
 
-                serialized_metrics = {}
-                for _ in range(size):
-                    item = self.asset_interface.metrics_queue.get()
-                    # print(f"::harvested:: {item}")
-                    serialized_metrics.update(item)
+        logger.debug("Starting system metrics aggregation loop")
 
-                if serialized_metrics:
-                    self.backend_interface.publish_stats(serialized_metrics)
+        while not self._shutdown_event.is_set():
+            self.publish_telemetry()
+            self.aggregate_and_publish_asset_metrics()
+            self._shutdown_event.wait(self.publishing_interval)
 
-            while not self._shutdown_event.is_set():
-                aggregate_and_publish_asset_metrics()
-                self._shutdown_event.wait(self.publishing_interval)
+        logger.debug("Finished system metrics aggregation loop")
 
-            # try to publish the last batch of metrics
-            aggregate_and_publish_asset_metrics()
+        # try to publish the last batch of metrics + telemetry
+        try:
+            logger.debug("Publishing last batch of metrics")
+            # publish telemetry
+            self.publish_telemetry()
+            self.aggregate_and_publish_asset_metrics()
+        except Exception as e:
+            logger.error(f"Error publishing last batch of metrics: {e}")
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
+            logger.info("Starting system monitor")
             # self._process = mp.Process(target=self._start)
             self._process = threading.Thread(target=self._start)
             self._process.start()
 
     def finish(self) -> None:
+        logger.info("Stopping system monitor")
         self._shutdown_event.set()
         for asset in self.assets:
             asset.finish()
         self._process.join()
         self._process = None
+
+    def probe(self, publish: bool = True) -> None:
+        logger.info("Collecting system info")
+        # collect static info about the hardware from registered assets
+        hardware_info: dict = {
+            k: v for d in [asset.probe() for asset in self.assets] for k, v in d.items()
+        }
+        # collect static info about the software environment
+        software_info: dict = self.system_info.probe()
+        # merge the two dictionaries
+        system_info = {**software_info, **hardware_info}
+        logger.debug(system_info)
+        logger.info("Finished collecting system info")
+
+        if publish:
+            logger.info("Publishing system info")
+            self.system_info.publish(system_info)
+            logger.info("Finished publishing system info")

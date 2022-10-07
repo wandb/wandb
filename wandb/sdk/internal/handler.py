@@ -678,13 +678,15 @@ class HandleManager:
         #     run_meta.probe()
         #     run_meta.write()
 
-        # new system monitor
+        # system monitor
+        self.system_monitor = SystemMonitor(
+            self._settings,
+            self._interface,
+        )
         if not self._settings._disable_stats:
-            self.system_monitor = SystemMonitor(
-                self._settings,
-                self._interface,
-            )
             self.system_monitor.start()
+        if not self._settings._disable_meta and not run_start.run.resumed:
+            self.system_monitor.probe(publish=True)
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run

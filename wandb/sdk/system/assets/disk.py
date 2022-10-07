@@ -55,7 +55,11 @@ class Disk:
         return True if psutil else False
 
     def probe(self) -> dict:
-        return {}
+        # total disk space:
+        total = psutil.disk_usage("/").total / 1024 / 1024 / 1024
+        # total disk space used:
+        used = psutil.disk_usage("/").used / 1024 / 1024 / 1024
+        return {self.name: {"total": total, "used": used}}
 
     def start(self) -> None:
         self.metrics_monitor.start()

@@ -91,4 +91,23 @@ class Network:
 
     def probe(self) -> dict:
         """Return a dict of the hardware information"""
-        return {}
+        net_if_addrs = psutil.net_if_addrs()
+
+        return {
+            self.name: {
+                "interfaces": {
+                    k: {
+                        "addresses": [
+                            {
+                                "address": v.address,
+                                "netmask": v.netmask,
+                                "broadcast": v.broadcast,
+                                "ptp": v.ptp,
+                            }
+                            for v in v
+                        ]
+                    }
+                    for k, v in net_if_addrs.items()
+                }
+            }
+        }

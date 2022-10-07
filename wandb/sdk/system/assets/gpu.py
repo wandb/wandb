@@ -323,20 +323,32 @@ class GPU:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        pynvml.nvmlInit()
-        device_count = pynvml.nvmlDeviceGetCount()
-        devices = []
-        for i in range(device_count):
-            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-            info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-            devices.append(
-                {
-                    "name": pynvml.nvmlDeviceGetName(handle),
-                    "memory": {
-                        "total": info.total,
-                        "used": info.used,
-                        "free": info.free,
-                    },
-                }
-            )
-        return {"type": "gpu", "devices": devices}
+        # pynvml.nvmlInit()
+        # device_count = pynvml.nvmlDeviceGetCount()
+        # devices = []
+        # for i in range(device_count):
+        #     handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+        #     info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        #     devices.append(
+        #         {
+        #             "name": pynvml.nvmlDeviceGetName(handle),
+        #             "memory": {
+        #                 "total": info.total,
+        #                 "used": info.used,
+        #                 "free": info.free,
+        #             },
+        #         }
+        #     )
+        # return {"type": "gpu", "devices": devices}
+
+        # todo: this is an adapter for the legacy stats system
+        info = {}
+        try:
+
+            pynvml.nvmlInit()
+            info["gpu"] = pynvml.nvmlDeviceGetName(pynvml.nvmlDeviceGetHandleByIndex(0))
+            info["gpu_count"] = pynvml.nvmlDeviceGetCount()
+        except pynvml.NVMLError:
+            pass
+
+        return info

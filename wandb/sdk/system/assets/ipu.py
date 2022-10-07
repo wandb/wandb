@@ -147,4 +147,5 @@ class IPU:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        return {"type": "ipu", "vendor": "Graphcore"}
+        num_devices = len(self._gc_ipu_info.getDevices())
+        return {"ipu": {"device_count": num_devices, "vendor": "Graphcore"}}

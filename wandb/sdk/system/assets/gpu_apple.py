@@ -120,4 +120,5 @@ class GPUApple:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        return {"type": "gpu", "vendor": "Apple"}
+        # todo: make this actually meaningful
+        return {self.name: {"type": "arm", "vendor": "Apple"}}
