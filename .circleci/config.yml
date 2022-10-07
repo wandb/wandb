@@ -709,13 +709,16 @@ jobs:
           command: |
             echo "Waiting for pods to finish"
             sleep 300
+            count_all_pods_terminated=0
             while true; do
               kubectl get pods
               terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>&1`
               all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
               if [ "$all_pods_terminated" -eq "1" ]; then
                 echo "All pods have terminated"
-                break
+                count_all_pods_terminated=$((count_all_pods_terminated + 1))
+                # make sure we have seen all pods terminated twice to give pod attach a chance to run
+                if [ count_all_pods_terminated -ge 2 ]; then break; fi
               fi
               sleep << parameters.sleep_time >>
             done
