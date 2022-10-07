@@ -34,7 +34,7 @@ from wandb.proto.wandb_internal_pb2 import (
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
 from ..system.system_monitor import SystemMonitor
-from . import meta, sample, stats, tb_watcher
+from . import sample, stats, tb_watcher
 from .settings_static import SettingsStatic
 
 if TYPE_CHECKING:

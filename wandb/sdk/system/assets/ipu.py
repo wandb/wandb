@@ -1,12 +1,12 @@
-from collections import deque
 import multiprocessing as mp
-from typing import Any, TYPE_CHECKING, Deque, Dict, Optional, Set, Tuple, Union, cast
+from collections import deque
+from typing import TYPE_CHECKING, Any, Deque, Dict, Optional, Set, Tuple, Union, cast
 
 import wandb
 import wandb.util
 
-from .interfaces import MetricType, MetricsMonitor
 from . import asset_registry
+from .interfaces import MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue

@@ -4,9 +4,8 @@ import os
 from collections import deque
 from typing import TYPE_CHECKING, Deque, Optional, cast
 
-from .interfaces import MetricType, MetricsMonitor
 from . import asset_registry
-
+from .interfaces import MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue

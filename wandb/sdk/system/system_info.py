@@ -6,10 +6,10 @@ import logging
 import os
 import subprocess
 import sys
+from shutil import copyfile
 from typing import Any, Dict, Optional
 from urllib.parse import unquote
 
-from shutil import copyfile
 from wandb import util
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -21,7 +21,6 @@ from ..lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from ..lib.git import GitRepo
-
 
 logger = logging.getLogger(__name__)
 

@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Deque, cast
 
 import psutil
 
-from .interfaces import MetricType, MetricsMonitor
 from . import asset_registry
+from .interfaces import MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class DiskUsage:
     # name = "disk_usage"
     name = "disk"
-    metric_type = cast("gauge", MetricType)
+    metric_type = cast(name, MetricType)
     samples: Deque[float]
 
     def __init__(self) -> None:

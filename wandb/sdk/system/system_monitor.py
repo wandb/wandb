@@ -5,9 +5,9 @@ import threading
 import time
 from typing import TYPE_CHECKING, List, Optional, Union
 
-from wandb.sdk.system.system_info import SystemInfo
 from wandb.sdk.system.assets import asset_registry
-from wandb.sdk.system.assets.interfaces import Asset, Interface
+from wandb.sdk.system.assets.interfaces import Asset
+from wandb.sdk.system.system_info import SystemInfo
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord

@@ -1,10 +1,10 @@
-from collections import deque
 import json
 import multiprocessing as mp
 import pathlib
 import platform
 import subprocess
 import sys
+from collections import deque
 from typing import TYPE_CHECKING, Deque, cast
 
 if sys.version_info >= (3, 8):
@@ -16,8 +16,8 @@ import wandb
 import wandb.util
 from wandb.sdk.lib import telemetry
 
-from .interfaces import MetricType, MetricsMonitor
 from . import asset_registry
+from .interfaces import MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue

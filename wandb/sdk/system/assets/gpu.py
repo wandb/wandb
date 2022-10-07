@@ -9,8 +9,8 @@ except ImportError:
 
 from wandb.vendor.pynvml import pynvml
 
-from .interfaces import MetricType, MetricsMonitor
 from . import asset_registry
+from .interfaces import MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue

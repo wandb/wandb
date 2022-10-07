@@ -2,7 +2,7 @@ import datetime
 import multiprocessing as mp
 import sys
 import threading
-from typing import List, Optional, TypeVar, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, List, Optional, TypeVar, Union
 
 if sys.version_info >= (3, 8):
     from typing import Literal, Protocol, runtime_checkable
