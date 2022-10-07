@@ -715,10 +715,10 @@ jobs:
               terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>&1`
               all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
               if [ "$all_pods_terminated" -eq "1" ]; then
-                echo "All pods have terminated"
                 count_all_pods_terminated=$((count_all_pods_terminated + 1))
+                echo "All pods have terminated ($count_all_pods_terminated)"
                 # make sure we have seen all pods terminated twice to give pod attach a chance to run
-                if [ count_all_pods_terminated -ge 2 ]; then break; fi
+                if [ $count_all_pods_terminated -ge 2 ]; then break; fi
               fi
               sleep << parameters.sleep_time >>
             done
