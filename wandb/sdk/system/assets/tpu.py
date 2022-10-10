@@ -115,9 +115,7 @@ class TPU:
 
     @classmethod
     def is_available(cls) -> bool:
-        import os
 
-        print(os.environ)
         if os.environ.get("TPU_NAME", False) is False:
             return False
 
