@@ -1122,7 +1122,7 @@ class Api:
             if queue_name == "default":
                 # TODO(gst): click.style('launch:', fg='magenta')
                 wandb.termlog(
-                    f"No default queue existing for {entity}/{project}, creating one."
+                    f"No default queue existing for entity: {entity} in project: {project}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
