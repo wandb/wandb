@@ -12,7 +12,7 @@ def test_launch_add_default(relay_server, user):
         "uri": uri,
         "project": proj,
         "entity": user,
-        "queue": "default",
+        "queue_name": "default",
         "entry_point": entry_point,
     }
 
@@ -25,7 +25,7 @@ def test_launch_add_default(relay_server, user):
     assert queued_run.state == "pending"
     assert queued_run.entity == args["entity"]
     assert queued_run.project == args["project"]
-    assert queued_run.queue_id == args["queue"]
+    assert queued_run.queue_name == args["queue_name"]
 
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
