@@ -1072,10 +1072,10 @@ class Api:
             "queueName": queue_name,
             "runSpec": run_spec,
         }
-
         result: Optional[Dict[str, Any]] = self.gql(mutation, variables).get(
             "pushToRunQueueByName"
         )
+
         return result
 
     @normalize_exceptions
@@ -1086,9 +1086,19 @@ class Api:
         project = launch_spec["project"]
         run_spec = json.dumps(launch_spec)
 
-        push_result = self.push_to_run_queue_by_name(
-            entity, project, queue_name, run_spec
-        )
+        try:
+            push_result = self.push_to_run_queue_by_name(
+                entity, project, queue_name, run_spec
+            )
+        except CommError as e:
+            # explicitly handle servers with no pushToRunQueueByName mutation
+            if (
+                'Cannot query field "pushToRunQueueByName" on type "Mutation"'
+                in e.message
+            ):
+                push_result = None
+            else:
+                raise e
 
         if push_result:
             return push_result
