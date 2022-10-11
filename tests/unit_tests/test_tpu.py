@@ -1,41 +1,5 @@
-import time
-
 import pytest
-import wandb
-from wandb.sdk.system.system_monitor import SystemMonitor
 from wandb.sdk.system.assets.tpu import TPUUtilization
-
-
-class MockTPUProfiler:
-    def __init__(self):
-        self.utilization = 22.1
-
-    def start(self):
-        pass
-
-    def stop(self):
-        pass
-
-    def get_tpu_utilization(self):
-        return self.utilization
-
-
-def test_tpu_system_stats(monkeypatch, mocked_interface, test_settings):
-
-    monkeypatch.setattr(wandb.sdk.system.assets.tpu.TPU, "is_available", lambda: True)
-    monkeypatch.setattr(
-        wandb.sdk.internal.stats.tpu, "TPU", lambda: MockTPUProfiler()
-    )
-    stats = SystemMonitor(settings=test_settings(), interface=mocked_interface)
-    # stats.start()
-    # time.sleep(1)
-    # stats.shutdown()
-    # assert mocked_interface.record_q.queue[0].stats.item
-    # record = {
-    #     item.key: item.value_json
-    #     for item in mocked_interface.record_q.queue[0].stats.item
-    # }
-    assert stats.stats()["tpu"] == MockTPUProfiler().utilization
 
 
 class MockProfilerClient:
@@ -70,7 +34,7 @@ def test_tpu_instance():
     )
     _ = pytest.importorskip("tensorflow.python.profiler.profiler_client")
     with pytest.raises(Exception) as e_info:
-        tpu_profiler = TPUUtilization(tpu="my-tpu")
+        TPUUtilization(service_addr="my-tpu")
         assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)
 
     tpu_profiler = TPUUtilization(service_addr="local")

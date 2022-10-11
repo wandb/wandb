@@ -1,8 +1,4 @@
-from unittest import mock
-
-import wandb
-from wandb.sdk.system.assets.ipu import IPUStats, IPU
-# from wandb.sdk.system.system_monitor import SystemMonitor
+from wandb.sdk.system.assets.ipu import IPUStats
 
 CURRENT_PID = 123
 OTHER_PID = 456
@@ -80,25 +76,3 @@ def test_profiler():
     }
     ipu_profiler.sample()
     assert ipu_profiler.samples[1] == changed_metrics
-
-
-class MockIPUProfiler:
-    def __init__(self, pid):
-        pass
-
-    def get_metrics(self):
-        return {"ipu.0.metric": 10}
-
-
-def test_ipu_system_stats(monkeypatch, mocked_interface, test_settings):
-    monkeypatch.setattr(wandb.sdk.system.assets.ipu.IPU, "is_available", lambda: True)
-    monkeypatch.setattr(wandb.sdk.system.assets.ipu, "IPUStats", MockIPUProfiler)
-    # monkeypatch.setattr(wandb.sdk.system.assets.ipu, "IPUStats", mock.MagicMock())
-    stats = IPU(settings=test_settings(), interface=mocked_interface)
-    expected_stats = {"ipu.0.metric": 10}
-    actual_stats = {
-        key: expected_stats[key]
-        for key in stats.stats().keys()
-        if key.startswith("ipu.")
-    }
-    assert actual_stats == expected_stats

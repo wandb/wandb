@@ -151,7 +151,7 @@ def test_metrics_monitor(capsys, test_settings):
     "join_assets,num_keys",
     [(True, 2), (False, 1)],
 )
-def test_system_monitor(capsys, test_settings, join_assets, num_keys):
+def test_system_monitor(test_settings, join_assets, num_keys):
     interface = AssetInterface()
     settings = SettingsStatic(
         test_settings(
