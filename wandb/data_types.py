@@ -22,7 +22,6 @@ import json
 import logging
 import os
 import pprint
-import re
 import tempfile
 from typing import Optional
 
@@ -1046,7 +1045,7 @@ class Audio(BatchableMedia):
         self._caption = caption
 
         if isinstance(data_or_path, str):
-            if Audio.path_is_reference(data_or_path):
+            if self.path_is_reference(data_or_path):
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
                 self._is_tmp = False
@@ -1070,10 +1069,6 @@ class Audio(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def path_is_reference(cls, path):
-        return bool(re.match(r"^(gs|s3|https?)://", path))
-
-    @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "audio")
 
@@ -1087,7 +1082,7 @@ class Audio(BatchableMedia):
     def bind_to_run(
         self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
     ):
-        if Audio.path_is_reference(self._path):
+        if self.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
@@ -1148,7 +1143,7 @@ class Audio(BatchableMedia):
             return ["" if c is None else c for c in captions]
 
     def resolve_ref(self):
-        if Audio.path_is_reference(self._path):
+        if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
         source_artifact = self._artifact_source.artifact
@@ -1162,7 +1157,7 @@ class Audio(BatchableMedia):
         return None
 
     def __eq__(self, other):
-        if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
+        if self.path_is_reference(self._path) or self.path_is_reference(other._path):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
             return (
