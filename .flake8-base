@@ -30,7 +30,7 @@ exclude =
     ./wandb/proto_check/
     ./wandb/env.py
     ./wandb/integration/magic.py
-    ./wandb/integration/keras/
+    ./wandb/integration/keras/keras.py
     ./wandb/integration/metaflow/
     ./wandb/sdk/internal/internal_api.py
     ./wandb/keras/

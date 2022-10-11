@@ -14,6 +14,7 @@ import ast
 import datetime
 import json
 import logging
+import multiprocessing.dummy  # this uses threads
 import os
 import platform
 import re
@@ -26,6 +27,7 @@ from functools import partial
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     List,
     Mapping,
@@ -866,7 +868,7 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_id, run_queue_item_id, container_job=False
+        self, entity, project, queue_name, run_queue_item_id, container_job=False
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -875,7 +877,7 @@ class Api:
             self.client,
             entity,
             project,
-            queue_id,
+            queue_name,
             run_queue_item_id,
             container_job=container_job,
         )
@@ -2261,22 +2263,22 @@ class QueuedRun:
         client,
         entity,
         project,
-        queue_id,
+        queue_name,
         run_queue_item_id,
         container_job=False,
     ):
         self.client = client
         self._entity = entity
         self._project = project
-        self._queue_id = queue_id
+        self._queue_name = queue_name
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
         self.container_job = container_job
 
     @property
-    def queue_id(self):
-        return self._queue_id
+    def queue_name(self):
+        return self._queue_name
 
     @property
     def id(self):
@@ -2297,7 +2299,7 @@ class QueuedRun:
             return item["state"].lower()
 
         raise ValueError(
-            f"Could not find QueuedRunItem associated with id: {self.id} on queue id {self.queue_id} at itemId: {self.id}"
+            f"Could not find QueuedRunItem associated with id: {self.id} on queue {self.queue_name} at itemId: {self.id}"
         )
 
     @normalize_exceptions
@@ -2324,7 +2326,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
         }
         res = self.client.execute(query, variable_values)
 
@@ -2352,7 +2354,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
             "itemId": self.id,
         }
         try:
@@ -2380,11 +2382,40 @@ class QueuedRun:
         """
         Deletes the given queued run from the wandb backend.
         """
+        query = gql(
+            """
+            query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueueName) {
+                        id
+                    }
+                }
+            }
+            """
+        )
+
+        res = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "runQueueName": self.queue_name,
+            },
+        )
+
+        if res["project"].get("runQueue") is not None:
+            queue_id = res["project"]["runQueue"]["id"]
+
         mutation = gql(
             """
-            mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
-            {
-                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+            mutation DeleteFromRunQueue(
+                $queueID: ID!,
+                $runQueueItemId: ID!
+            ) {
+                deleteFromRunQueue(input: {
+                    queueID: $queueID
+                    runQueueItemId: $runQueueItemId
+                }) {
                     success
                     clientMutationId
                 }
@@ -2394,8 +2425,8 @@ class QueuedRun:
         self.client.execute(
             mutation,
             variable_values={
-                "queueID": self.queue_id,
-                "runQueueItemID": self._run_queue_item_id,
+                "queueID": queue_id,
+                "runQueueItemId": self._run_queue_item_id,
             },
         )
 
@@ -2429,7 +2460,7 @@ class QueuedRun:
             time.sleep(3)
 
     def __repr__(self):
-        return f"<QueuedRun {self.queue_id} ({self.id})"
+        return f"<QueuedRun {self.queue_name} ({self.id})"
 
 
 class Sweep(Attrs):
@@ -3973,6 +4004,42 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
         )
 
 
+class _ArtifactDownloadLogger:
+    def __init__(
+        self,
+        nfiles: int,
+        clock_for_testing: Callable[[], float] = time.monotonic,
+        termlog_for_testing=termlog,
+    ) -> None:
+        self._nfiles = nfiles
+        self._clock = clock_for_testing
+        self._termlog = termlog_for_testing
+
+        self._n_files_downloaded = 0
+        self._spinner_index = 0
+        self._last_log_time = self._clock()
+        self._lock = multiprocessing.dummy.Lock()
+
+    def notify_downloaded(self) -> None:
+        with self._lock:
+            self._n_files_downloaded += 1
+            if self._n_files_downloaded == self._nfiles:
+                self._termlog(
+                    f"  {self._nfiles} of {self._nfiles} files downloaded.  ",
+                    # ^ trailing spaces to wipe out ellipsis from previous logs
+                    newline=True,
+                )
+                self._last_log_time = self._clock()
+            elif self._clock() - self._last_log_time > 0.1:
+                self._spinner_index += 1
+                spinner = r"-\|/"[self._spinner_index % 4]
+                self._termlog(
+                    f"{spinner} {self._n_files_downloaded} of {self._nfiles} files downloaded...\r",
+                    newline=False,
+                )
+                self._last_log_time = self._clock()
+
+
 class Artifact(artifacts.Artifact):
     """
     A wandb Artifact.
@@ -4472,7 +4539,6 @@ class Artifact(artifacts.Artifact):
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles),
-                newline=False,
             )
             start_time = datetime.datetime.now()
 
@@ -4480,8 +4546,13 @@ class Artifact(artifacts.Artifact):
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
 
+        download_logger = _ArtifactDownloadLogger(nfiles=nfiles)
+
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        pool.map(
+            partial(self._download_file, root=dirpath, download_logger=download_logger),
+            manifest.entries,
+        )
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
@@ -4573,9 +4644,14 @@ class Artifact(artifacts.Artifact):
 
         return self._download_file(list(manifest.entries)[0], root=root)
 
-    def _download_file(self, name, root):
+    def _download_file(
+        self, name, root, download_logger: Optional[_ArtifactDownloadLogger] = None
+    ):
         # download file into cache and copy to target dir
-        return self.get_path(name).download(root)
+        downloaded_path = self.get_path(name).download(root)
+        if download_logger is not None:
+            download_logger.notify_downloaded()
+        return downloaded_path
 
     def _default_root(self, include_version=True):
         root = (
