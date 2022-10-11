@@ -909,6 +909,8 @@ def make_safe_for_json(obj: Any) -> Any:
             return "Infinity"
         elif obj == float("-inf"):
             return "-Infinity"
+    elif is_numpy_array(obj):
+        return [make_safe_for_json(v) for v in obj.tolist()]
     return obj
 
 
