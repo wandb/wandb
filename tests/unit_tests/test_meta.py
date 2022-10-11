@@ -6,8 +6,8 @@ import unittest.mock
 
 import pytest
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal.meta import Meta
 from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.system.system_info import SystemInfo
 
 
 @pytest.fixture()
@@ -28,7 +28,7 @@ def interface(record_q):
 @pytest.fixture()
 def meta(interface):
     def meta_helper(settings):
-        return Meta(settings=settings, interface=interface)
+        return SystemInfo(settings=settings, interface=interface)
 
     yield meta_helper
 
@@ -50,7 +50,7 @@ def send_manager(
             interface=interface,
         )
 
-        meta._interface.publish_run(run)
+        meta.backend_interface.publish_run(run)
         sm.send(record_q.get())
         return sm
 
@@ -80,8 +80,8 @@ def test_meta_probe(
         run = mock_run(use_magic_mock=True, settings={"save_code": True})
         meta = meta(run.settings)
         sm = send_manager(run, meta)
-        meta.probe()
-        meta.write()
+        data = meta.probe()
+        meta.publish(data)
         sm.send(record_q.get())
         sm.finish()
 
@@ -99,23 +99,23 @@ def test_meta_probe(
 
 def test_executable_outside_cwd(meta, test_settings):
     meta = meta(test_settings(dict(program="asdf.py")))
-    meta.probe()
-    assert meta.data.get("codePath") is None
-    assert meta.data["program"] == "asdf.py"
+    data = meta.probe()
+    assert data.get("codePath") is None
+    assert data["program"] == "asdf.py"
 
 
 def test_jupyter_name(meta, test_settings, mocked_ipython):
     meta = meta(test_settings(dict(notebook_name="test_nb")))
-    meta.probe()
-    assert meta.data["program"] == "test_nb"
+    data = meta.probe()
+    assert data["program"] == "test_nb"
 
 
 def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     # not actually how jupyter setup works but just to test the meta paths
     meta = meta(test_settings(dict(_jupyter_path="dummy/path")))
-    meta.probe()
-    assert meta.data["program"] == "dummy/path"
-    assert meta.data.get("root") is not None
+    data = meta.probe()
+    assert data["program"] == "dummy/path"
+    assert data.get("root") is not None
 
 
 # TODO: test actual code saving
