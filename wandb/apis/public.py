@@ -14,6 +14,7 @@ import ast
 import datetime
 import json
 import logging
+import multiprocessing.dummy  # this uses threads
 import os
 import platform
 import re
@@ -23,7 +24,17 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Dict, List, Optional
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+)
 
 import requests
 from wandb_gql import Client, gql
@@ -43,6 +54,10 @@ from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
+
+if TYPE_CHECKING:
+    import wandb.apis.reports
+    import wandb.apis.reports.util
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +222,7 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client):
+    def __init__(self, client: Client):
         self._server_info = None
         self._client = client
 
@@ -409,7 +424,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.Block]" = None,
+        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
@@ -755,7 +770,14 @@ class Api:
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
+    def runs(
+        self,
+        path: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        order: str = "-created_at",
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         """
         Return a set of runs from a project that match the filters provided.
 
@@ -823,6 +845,7 @@ class Api:
                 filters=filters,
                 order=order,
                 per_page=per_page,
+                include_sweeps=include_sweeps,
             )
         return self._runs[key]
 
@@ -845,7 +868,7 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_id, run_queue_item_id, container_job=False
+        self, entity, project, queue_name, run_queue_item_id, container_job=False
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -854,7 +877,7 @@ class Api:
             self.client,
             entity,
             project,
-            queue_id,
+            queue_name,
             run_queue_item_id,
             container_job=container_job,
         )
@@ -926,7 +949,7 @@ class Api:
 
 
 class Attrs:
-    def __init__(self, attrs):
+    def __init__(self, attrs: MutableMapping[str, Any]):
         self._attrs = attrs
 
     def snake_to_camel(self, string):
@@ -964,7 +987,12 @@ class Attrs:
 class Paginator:
     QUERY = None
 
-    def __init__(self, client, variables, per_page=None):
+    def __init__(
+        self,
+        client: Client,
+        variables: MutableMapping[str, Any],
+        per_page: Optional[int] = None,
+    ):
         self.client = client
         self.variables = variables
         # We don't allow unbounded paging
@@ -1530,12 +1558,22 @@ class Runs(Paginator):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        filters: Optional[Dict[str, Any]] = None,
+        order: Optional[str] = None,
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         self.entity = entity
         self.project = project
         self.filters = filters or {}
         self.order = order
         self._sweeps = {}
+        self._include_sweeps = include_sweeps
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -1576,10 +1614,11 @@ class Runs(Paginator):
                 self.project,
                 run_response["node"]["name"],
                 run_response["node"],
+                include_sweeps=self._include_sweeps,
             )
             objs.append(run)
 
-            if run.sweep_name:
+            if self._include_sweeps and run.sweep_name:
                 if run.sweep_name in self._sweeps:
                     sweep = self._sweeps[run.sweep_name]
                 else:
@@ -1627,7 +1666,15 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs=None):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        run_id: str,
+        attrs: Optional[Mapping] = None,
+        include_sweeps: bool = True,
+    ):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
@@ -1640,6 +1687,7 @@ class Run(Attrs):
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
         self.sweep = None
+        self._include_sweeps = include_sweeps
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -1756,7 +1804,7 @@ class Run(Attrs):
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
 
-            if self.sweep_name and not self.sweep:
+            if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = Sweep.get(
@@ -2215,22 +2263,22 @@ class QueuedRun:
         client,
         entity,
         project,
-        queue_id,
+        queue_name,
         run_queue_item_id,
         container_job=False,
     ):
         self.client = client
         self._entity = entity
         self._project = project
-        self._queue_id = queue_id
+        self._queue_name = queue_name
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
         self.container_job = container_job
 
     @property
-    def queue_id(self):
-        return self._queue_id
+    def queue_name(self):
+        return self._queue_name
 
     @property
     def id(self):
@@ -2251,7 +2299,7 @@ class QueuedRun:
             return item["state"].lower()
 
         raise ValueError(
-            f"Could not find QueuedRunItem associated with id: {self.id} on queue id {self.queue_id} at itemId: {self.id}"
+            f"Could not find QueuedRunItem associated with id: {self.id} on queue {self.queue_name} at itemId: {self.id}"
         )
 
     @normalize_exceptions
@@ -2278,7 +2326,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
         }
         res = self.client.execute(query, variable_values)
 
@@ -2306,7 +2354,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
             "itemId": self.id,
         }
         try:
@@ -2334,11 +2382,40 @@ class QueuedRun:
         """
         Deletes the given queued run from the wandb backend.
         """
+        query = gql(
+            """
+            query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueueName) {
+                        id
+                    }
+                }
+            }
+            """
+        )
+
+        res = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "runQueueName": self.queue_name,
+            },
+        )
+
+        if res["project"].get("runQueue") is not None:
+            queue_id = res["project"]["runQueue"]["id"]
+
         mutation = gql(
             """
-            mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
-            {
-                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+            mutation DeleteFromRunQueue(
+                $queueID: ID!,
+                $runQueueItemId: ID!
+            ) {
+                deleteFromRunQueue(input: {
+                    queueID: $queueID
+                    runQueueItemId: $runQueueItemId
+                }) {
                     success
                     clientMutationId
                 }
@@ -2348,8 +2425,8 @@ class QueuedRun:
         self.client.execute(
             mutation,
             variable_values={
-                "queueID": self.queue_id,
-                "runQueueItemID": self._run_queue_item_id,
+                "queueID": queue_id,
+                "runQueueItemId": self._run_queue_item_id,
             },
         )
 
@@ -2383,7 +2460,7 @@ class QueuedRun:
             time.sleep(3)
 
     def __repr__(self):
-        return f"<QueuedRun {self.queue_id} ({self.id})"
+        return f"<QueuedRun {self.queue_name} ({self.id})"
 
 
 class Sweep(Attrs):
@@ -2444,7 +2521,7 @@ class Sweep(Attrs):
     def config(self):
         return util.load_yaml(self._attrs["config"])
 
-    def load(self, force=False):
+    def load(self, force: bool = False):
         if force or not self._attrs:
             sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:
@@ -2818,7 +2895,7 @@ class QueryGenerator:
         pass
 
     @classmethod
-    def format_order_key(cls, key):
+    def format_order_key(cls, key: str):
         if key.startswith("+") or key.startswith("-"):
             direction = key[0]
             key = key[1:]
@@ -3424,7 +3501,14 @@ class ProjectArtifactTypes(Paginator):
         % ARTIFACTS_TYPES_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, name=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: Optional[str] = None,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
 
@@ -3503,7 +3587,14 @@ class ProjectArtifactCollections(Paginator):
     """
     )
 
-    def __init__(self, client, entity, project, type_name, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
         self.type_name = type_name
@@ -3619,7 +3710,9 @@ class RunArtifacts(Paginator):
         % ARTIFACT_FRAGMENT
     )
 
-    def __init__(self, client, run, mode="logged", per_page=50):
+    def __init__(
+        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
+    ):
         self.run = run
         if mode == "logged":
             self.run_key = "outputArtifacts"
@@ -3679,7 +3772,14 @@ class RunArtifacts(Paginator):
 
 
 class ArtifactType:
-    def __init__(self, client, entity, project, type_name, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        attrs: Mapping[str, Any] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3707,7 +3807,7 @@ class ArtifactType:
         }
         """
         )
-        response = self.client.execute(
+        response: Optional[Mapping[str, Any]] = self.client.execute(
             query,
             variable_values={
                 "entityName": self.entity,
@@ -3749,7 +3849,15 @@ class ArtifactType:
 
 
 class ArtifactCollection:
-    def __init__(self, client, entity, project, name, type, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: str,
+        type: str,
+        attrs: Optional[Mapping[str, Any]] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3821,7 +3929,9 @@ class ArtifactCollection:
 
 
 class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
-    def __init__(self, name, entry, parent_artifact):
+    def __init__(
+        self, name: str, entry: "artifacts.ArtifactEntry", parent_artifact: "Artifact"
+    ):
         self.name = name
         self.entry = entry
         self._parent_artifact = parent_artifact
@@ -3892,6 +4002,42 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
             + "/"
             + self.name
         )
+
+
+class _ArtifactDownloadLogger:
+    def __init__(
+        self,
+        nfiles: int,
+        clock_for_testing: Callable[[], float] = time.monotonic,
+        termlog_for_testing=termlog,
+    ) -> None:
+        self._nfiles = nfiles
+        self._clock = clock_for_testing
+        self._termlog = termlog_for_testing
+
+        self._n_files_downloaded = 0
+        self._spinner_index = 0
+        self._last_log_time = self._clock()
+        self._lock = multiprocessing.dummy.Lock()
+
+    def notify_downloaded(self) -> None:
+        with self._lock:
+            self._n_files_downloaded += 1
+            if self._n_files_downloaded == self._nfiles:
+                self._termlog(
+                    f"  {self._nfiles} of {self._nfiles} files downloaded.  ",
+                    # ^ trailing spaces to wipe out ellipsis from previous logs
+                    newline=True,
+                )
+                self._last_log_time = self._clock()
+            elif self._clock() - self._last_log_time > 0.1:
+                self._spinner_index += 1
+                spinner = r"-\|/"[self._spinner_index % 4]
+                self._termlog(
+                    f"{spinner} {self._n_files_downloaded} of {self._nfiles} files downloaded...\r",
+                    newline=False,
+                )
+                self._last_log_time = self._clock()
 
 
 class Artifact(artifacts.Artifact):
@@ -3980,11 +4126,11 @@ class Artifact(artifacts.Artifact):
     )
 
     @classmethod
-    def from_id(cls, artifact_id, client):
+    def from_id(cls, artifact_id: str, client: Client):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(
+        response: Mapping[str, Any] = client.execute(
             Artifact.QUERY,
             variable_values={"id": artifact_id},
         )
@@ -4393,7 +4539,6 @@ class Artifact(artifacts.Artifact):
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles),
-                newline=False,
             )
             start_time = datetime.datetime.now()
 
@@ -4401,8 +4546,13 @@ class Artifact(artifacts.Artifact):
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
 
+        download_logger = _ArtifactDownloadLogger(nfiles=nfiles)
+
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        pool.map(
+            partial(self._download_file, root=dirpath, download_logger=download_logger),
+            manifest.entries,
+        )
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
@@ -4494,9 +4644,14 @@ class Artifact(artifacts.Artifact):
 
         return self._download_file(list(manifest.entries)[0], root=root)
 
-    def _download_file(self, name, root):
+    def _download_file(
+        self, name, root, download_logger: Optional[_ArtifactDownloadLogger] = None
+    ):
         # download file into cache and copy to target dir
-        return self.get_path(name).download(root)
+        downloaded_path = self.get_path(name).download(root)
+        if download_logger is not None:
+            download_logger.notify_downloaded()
+        return downloaded_path
 
     def _default_root(self, include_version=True):
         root = (
@@ -4824,14 +4979,14 @@ class ArtifactVersions(Paginator):
 
     def __init__(
         self,
-        client,
-        entity,
-        project,
-        collection_name,
-        type,
-        filters=None,
-        order=None,
-        per_page=50,
+        client: Client,
+        entity: str,
+        project: str,
+        collection_name: str,
+        type: str,
+        filters: Optional[Mapping[str, Any]] = None,
+        order: Optional[str] = None,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.collection_name = collection_name
@@ -4918,7 +5073,13 @@ class ArtifactFiles(Paginator):
         % ARTIFACT_FILES_FRAGMENT
     )
 
-    def __init__(self, client, artifact, names=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        artifact: Artifact,
+        names: Optional[Sequence[str]] = None,
+        per_page: int = 50,
+    ):
         self.artifact = artifact
         variables = {
             "entityName": artifact.entity,
@@ -4998,7 +5159,7 @@ class Job:
         self._entity = api.default_entity
 
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
-            self._source_info = json.load(f)
+            self._source_info: Mapping[str, Any] = json.load(f)
         self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
         self._args = self._source_info.get("source", {}).get("args")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")

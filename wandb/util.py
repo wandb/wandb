@@ -33,12 +33,14 @@ from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     Generator,
     List,
     Mapping,
+    NewType,
     Optional,
     Sequence,
     Set,
@@ -58,7 +60,33 @@ import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
 
+if TYPE_CHECKING:
+    import wandb.apis.public
+    import wandb.sdk.internal.settings_static
+    import wandb.sdk.wandb_artifacts
+    import wandb.sdk.wandb_settings
+
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+
+ETag = NewType("ETag", str)
+RawMD5 = NewType("RawMD5", bytes)
+HexMD5 = NewType("HexMD5", str)
+B64MD5 = NewType("B64MD5", str)
+
+# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
+# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
+# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
+LogicalFilePathStr = NewType("LogicalFilePathStr", str)
+
+# `FilePathStr` represents a path to a file on the local filesystem.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.Path
+FilePathStr = NewType("FilePathStr", str)
+
+# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
+URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -256,6 +284,10 @@ def sentry_set_scope(
         for tag, value in args.items():
             if value is not None and value != "":
                 scope.set_tag(tag, value)
+
+    # Track session so we can get metrics about error free rate
+    if sentry_hub:
+        sentry_hub.start_session()
 
 
 def vendor_setup() -> Callable:
@@ -1053,12 +1085,12 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def md5_file(path: str) -> str:
+def md5_file(path: str) -> B64MD5:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
+    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
 
 
 def get_log_file_path() -> str:
@@ -1418,14 +1450,14 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     return None
 
 
-def to_forward_slash_path(path: str) -> str:
+def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return path
+    return LogicalFilePathStr(path)
 
 
-def to_native_slash_path(path: str) -> str:
-    return path.replace("/", os.sep)
+def to_native_slash_path(path: str) -> FilePathStr:
+    return FilePathStr(path.replace("/", os.sep))
 
 
 def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
