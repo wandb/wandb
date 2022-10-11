@@ -2,8 +2,8 @@ import time
 
 import pytest
 import wandb
-from wandb.sdk.internal.stats import SystemStats
-from wandb.sdk.internal.tpu import TPUProfiler
+from wandb.sdk.system.system_monitor import SystemMonitor
+from wandb.sdk.system.assets.tpu import TPUUtilization
 
 
 class MockTPUProfiler:
@@ -22,11 +22,11 @@ class MockTPUProfiler:
 
 def test_tpu_system_stats(monkeypatch, mocked_interface, test_settings):
 
-    monkeypatch.setattr(wandb.sdk.internal.stats.tpu, "is_tpu_available", lambda: True)
+    monkeypatch.setattr(wandb.sdk.system.assets.tpu.TPU, "is_available", lambda: True)
     monkeypatch.setattr(
-        wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
+        wandb.sdk.internal.stats.tpu, "TPU", lambda: MockTPUProfiler()
     )
-    stats = SystemStats(settings=test_settings(), interface=mocked_interface)
+    stats = SystemMonitor(settings=test_settings(), interface=mocked_interface)
     # stats.start()
     # time.sleep(1)
     # stats.shutdown()
@@ -70,14 +70,18 @@ def test_tpu_instance():
     )
     _ = pytest.importorskip("tensorflow.python.profiler.profiler_client")
     with pytest.raises(Exception) as e_info:
-        tpu_profiler = TPUProfiler(tpu="my-tpu")
+        tpu_profiler = TPUUtilization(tpu="my-tpu")
         assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)
 
-    tpu_profiler = TPUProfiler(service_addr="local")
+    tpu_profiler = TPUUtilization(service_addr="local")
     tpu_profiler._profiler_client = MockProfilerClient()
-    time.sleep(1)
-    tpu_profiler.stop()
+    # For TPU local (i.e. TPU_VM), TF doesn't support monitoring.
+    with pytest.raises(Exception) as e_info:
+        tpu_profiler.sample()
+    assert len(tpu_profiler.samples) == 0
 
-    # For TPU local (i.e. TPU_VM), TF doesn't support monitoring. Hence to avoid reporting 0%,
-    # we return `None` instead for the utilization and filter out before sending to the backend
-    assert tpu_profiler.get_tpu_utilization() is None
+    tpu_profiler = TPUUtilization(service_addr="my-tpu")
+    tpu_profiler._profiler_client = MockProfilerClient()
+    tpu_profiler.sample()
+    assert len(tpu_profiler.samples) == 1
+    assert tpu_profiler.samples[0] == 10.1
