@@ -1,13 +1,14 @@
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, Deque, cast
+from typing import TYPE_CHECKING, List
 
 import psutil
 
-from . import asset_registry
-from .interfaces import MetricsMonitor, MetricType
+from wandb.sdk.system.assets.asset_registry import asset_registry
+from wandb.sdk.system.assets.interfaces import Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
+    from typing import Deque
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -15,8 +16,8 @@ if TYPE_CHECKING:
 class DiskUsage:
     # name = "disk_usage"
     name = "disk"
-    metric_type = cast(name, MetricType)
-    samples: Deque[float]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.samples = deque([])
@@ -38,10 +39,10 @@ class Disk:
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
-        shutdown_event: mp.Event,
+        shutdown_event: mp.synchronize.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics = [DiskUsage()]
+        self.metrics: List[Metric] = [DiskUsage()]
         self.metrics_monitor = MetricsMonitor(
             self.metrics,
             interface,

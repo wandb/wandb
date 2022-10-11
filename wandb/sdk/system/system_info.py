@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 from shutil import copyfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from wandb import util
@@ -35,18 +35,18 @@ class SystemInfo:
         self.backend_interface = interface
         self.git = GitRepo(
             root=self.settings.git_root,
-            remote=self.settings.git_remote,
+            remote=self.settings.git_remote,  # type: ignore
             remote_url=self.settings.git_remote_url,
             commit=self.settings.git_commit,
         )
         # Location under "code" directory in files where program was saved.
         self.saved_program: Optional[os.PathLike] = None
         # Locations under files directory where diff patches were saved.
-        self.saved_patches = []
+        self.saved_patches: List[str] = []
         logger.debug("System info init done")
 
     # todo: refactor these _save_* methods
-    def _save_pip(self):
+    def _save_pip(self) -> None:
         """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""
         logger.debug(
             "Saving list of pip packages installed into the current environment"
@@ -66,10 +66,10 @@ class SystemInfo:
             logger.exception(f"Error saving pip packages: {e}")
         logger.debug("Saving pip packages done")
 
-    def _save_conda(self):
+    def _save_conda(self) -> None:
         current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
         if not current_shell_is_conda:
-            return False
+            return None
 
         logger.debug(
             "Saving list of conda packages installed into the current environment"
@@ -85,11 +85,11 @@ class SystemInfo:
             logger.exception(f"Error saving conda packages: {e}")
         logger.debug("Saving conda packages done")
 
-    def _save_code(self):
+    def _save_code(self) -> None:
         logger.debug("Saving code")
         if self.settings.program_relpath is None:
             logger.warning("unable to save code -- program entry not found")
-            return
+            return None
 
         root: str = self.git.root or os.getcwd()
         program_relative: str = self.settings.program_relpath
@@ -101,15 +101,15 @@ class SystemInfo:
         program_absolute = os.path.join(root, program_relative)
         if not os.path.exists(program_absolute):
             logger.warning("unable to save code -- can't find %s" % program_absolute)
-            return
+            return None
         saved_program = os.path.join(self.settings.files_dir, "code", program_relative)
-        self.saved_program = program_relative
+        self.saved_program = program_relative  # type: ignore
 
         if not os.path.exists(saved_program):
             copyfile(program_absolute, saved_program)
         logger.debug("Saving code done")
 
-    def _save_patches(self):
+    def _save_patches(self) -> None:
         """Save the current state of this repository to one or more patches.
 
         Makes one patch against HEAD and another one against the most recent
@@ -122,7 +122,7 @@ class SystemInfo:
 
         """
         if not self.git.enabled:
-            return False
+            return None
 
         logger.debug("Saving git patches")
         try:
@@ -142,7 +142,7 @@ class SystemInfo:
                         os.path.relpath(patch_path, start=self.settings.files_dir)
                     )
 
-            upstream_commit = self.git.get_upstream_fork_point()
+            upstream_commit = self.git.get_upstream_fork_point()  # type: ignore
             if upstream_commit and upstream_commit != self.git.repo.head.commit:
                 sha = upstream_commit.hexsha
                 upstream_patch_path = os.path.join(
@@ -178,7 +178,7 @@ class SystemInfo:
             return {}
 
         logger.debug("Probing git")
-        data = dict()
+        data: Dict[str, Any] = dict()
 
         data["git"] = {
             "remote": self.git.remote_url,
@@ -194,7 +194,7 @@ class SystemInfo:
         """Probe the system for information about the current environment."""
         # todo: refactor this quality code 🤮🤮🤮🤮🤮
         logger.debug("Probing system")
-        data = dict()
+        data: Dict[str, Any] = dict()
 
         data["os"] = self.settings._os
         data["python"] = self.settings._python

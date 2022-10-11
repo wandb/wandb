@@ -2,7 +2,7 @@ from typing import List
 
 import requests
 
-from wandb.sdk.system.interfaces import Metric
+from wandb.sdk.system.assets.interfaces import Metric
 
 
 class Prometheus:
@@ -15,8 +15,8 @@ class Prometheus:
         self.url = url
         self.session = requests.Session()
 
-    def parse_prometheus_metrics_endpoint(self):
-        from prometheus_client.parser import text_string_to_metric_families
+    def parse_prometheus_metrics_endpoint(self) -> None:
+        from prometheus_client.parser import text_string_to_metric_families  # type: ignore
 
         response = self.session.get(self.url)
         # print(response.text)

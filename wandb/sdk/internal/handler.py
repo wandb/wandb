@@ -34,7 +34,7 @@ from wandb.proto.wandb_internal_pb2 import (
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
 from ..system.system_monitor import SystemMonitor
-from . import sample, stats, tb_watcher
+from . import sample, tb_watcher
 from .settings_static import SettingsStatic
 
 if TYPE_CHECKING:
@@ -70,7 +70,7 @@ class HandleManager:
     _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
-    _system_stats: Optional[stats.SystemStats]
+    _system_monitor: Optional[SystemMonitor]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
     _metric_defines: Dict[str, MetricRecord]
     _metric_globs: Dict[str, MetricRecord]
@@ -100,8 +100,7 @@ class HandleManager:
         self._interface = interface
 
         self._tb_watcher = None
-        self._system_stats = None
-        self.system_monitor: Optional[SystemMonitor] = None
+        self._system_monitor = None
         self._step = 0
 
         self._track_time = None
@@ -167,9 +166,9 @@ class HandleManager:
             #     # TODO(jhr): this could block so we dont really want to call shutdown
             #     # from handler thread
             #     self._system_stats.shutdown()
-            if self.system_monitor is not None:
+            if self._system_monitor is not None:
                 # from handler thread
-                self.system_monitor.finish()
+                self._system_monitor.finish()
         elif state == defer.FLUSH_TB:
             if self._tb_watcher:
                 # shutdown tensorboard workers so we get all metrics flushed
@@ -679,14 +678,14 @@ class HandleManager:
         #     run_meta.write()
 
         # system monitor
-        self.system_monitor = SystemMonitor(
+        self._system_monitor = SystemMonitor(
             self._settings,
             self._interface,
         )
         if not self._settings._disable_stats:
-            self.system_monitor.start()
+            self._system_monitor.start()
         if not self._settings._disable_meta and not run_start.run.resumed:
-            self.system_monitor.probe(publish=True)
+            self._system_monitor.probe(publish=True)
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
@@ -701,9 +700,9 @@ class HandleManager:
         # if self._system_stats is not None:
         #     logger.info("starting system metrics thread")
         #     self._system_stats.start()
-        if self.system_monitor is not None:
+        if self._system_monitor is not None:
             logger.info("starting system metrics process")
-            self.system_monitor.start()
+            self._system_monitor.start()
 
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
@@ -713,9 +712,9 @@ class HandleManager:
         # if self._system_stats is not None:
         #     logger.info("stopping system metrics thread")
         #     self._system_stats.shutdown()
-        if self.system_monitor is not None:
+        if self._system_monitor is not None:
             logger.info("stopping system metrics process")
-            self.system_monitor.finish()
+            self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
             self._track_time = None

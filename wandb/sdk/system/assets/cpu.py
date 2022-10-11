@@ -1,13 +1,14 @@
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, Callable, Deque, List, Optional, cast
+from typing import TYPE_CHECKING, List, Optional
 
 import psutil
 
-from . import asset_registry
-from .interfaces import Metric, MetricsMonitor, MetricType
+from wandb.sdk.system.assets.asset_registry import asset_registry
+from wandb.sdk.system.assets.interfaces import Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
+    from typing import Deque
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -18,9 +19,9 @@ if TYPE_CHECKING:
 class ProcessCpuPercent:
     # name = "process_cpu_percent"
     name = "cpu"
-    metric_type = cast("gauge", MetricType)
+    metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
-    samples: Deque[float]
+    samples: "Deque[float]"
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -52,15 +53,15 @@ class ProcessCpuPercent:
 
 class CpuPercent:
     name = "cpu.{i}.cpu_percent"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[List[float]]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[List[float]]"
 
     def __init__(self, interval: Optional[float] = None) -> None:
         self.samples = deque([])
         self.interval = interval
 
     def sample(self) -> None:
-        self.samples.append(psutil.cpu_percent(interval=self.interval, percpu=True))  # type: ignore
+        self.samples.append(psutil.cpu_percent(interval=self.interval, percpu=True))
 
     def clear(self) -> None:
         self.samples.clear()
@@ -79,8 +80,8 @@ class CpuPercent:
 
 class ProcessCpuThreads:
     name = "proc.cpu.threads"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[int]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[int]"
 
     def __init__(self, pid: int) -> None:
         self.samples = deque([])
@@ -126,7 +127,7 @@ class CPU:
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
-        shutdown_event: mp.Event,
+        shutdown_event: mp.synchronize.Event,
     ) -> None:
         self.name: str = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
@@ -143,7 +144,6 @@ class CPU:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Return a new instance of the CPU metrics"""
         return True if psutil else False
 
     def probe(self) -> dict:

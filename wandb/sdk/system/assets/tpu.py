@@ -2,12 +2,13 @@ import logging
 import multiprocessing as mp
 import os
 from collections import deque
-from typing import TYPE_CHECKING, Deque, Optional, cast
+from typing import TYPE_CHECKING, List, Optional
 
-from . import asset_registry
-from .interfaces import MetricsMonitor, MetricType
+from wandb.sdk.system.assets.asset_registry import asset_registry
+from wandb.sdk.system.assets.interfaces import Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
+    from typing import Deque
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -16,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 class TPUUtilization:
     name = "tpu"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[float]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[float]"
 
     def __init__(
         self,
@@ -29,7 +30,7 @@ class TPUUtilization:
         self.duration_ms = duration_ms
         self.service_addr = service_addr
 
-        from tensorflow.python.profiler import profiler_client
+        from tensorflow.python.profiler import profiler_client  # type: ignore
 
         self._profiler_client = profiler_client
 
@@ -56,11 +57,11 @@ class TPU:
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
-        shutdown_event: mp.Event,
+        shutdown_event: mp.synchronize.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.service_addr = self.get_service_addr()
-        self.metrics = [TPUUtilization(self.service_addr)]
+        self.metrics: List[Metric] = [TPUUtilization(self.service_addr)]
 
         self.metrics_monitor = MetricsMonitor(
             self.metrics,
@@ -120,10 +121,10 @@ class TPU:
             return False
 
         try:
-            from tensorflow.python.distribute.cluster_resolver import (  # type: ignore # noqa
+            from tensorflow.python.distribute.cluster_resolver import (  # noqa: F401
                 tpu_cluster_resolver,
             )
-            from tensorflow.python.profiler import (  # type: ignore # noqa
+            from tensorflow.python.profiler import (  # noqa: F401
                 profiler_client,
             )
 

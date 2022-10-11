@@ -1,22 +1,23 @@
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, Any, Deque, Dict, Optional, Set, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 import wandb
 import wandb.util
 
-from . import asset_registry
-from .interfaces import MetricsMonitor, MetricType
+from wandb.sdk.system.assets.asset_registry import asset_registry
+from wandb.sdk.system.assets.interfaces import Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
+    from typing import Deque
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
 class IPUStats:
     name = "ipu.{}.{}"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[dict]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[dict]"
 
     # The metrics that change over time.
     # Only these are returned on each invocation
@@ -31,7 +32,7 @@ class IPUStats:
     }
 
     def __init__(self, pid: int, gc_ipu_info: Any = None) -> None:
-        self.samples: Deque[dict] = deque()
+        self.samples: "Deque[dict]" = deque()
         self.pid = pid
 
         if gc_ipu_info is None:
@@ -106,7 +107,7 @@ class IPUStats:
     def serialize(self) -> dict:
         stats = {}
         for key in self.samples[0].keys():
-            samples = [s[key] for s in self.samples]  # type: ignore
+            samples = [s[key] for s in self.samples]
             aggregate = round(sum(samples) / len(samples), 2)
             stats[self.name.format(key)] = aggregate
         return stats
@@ -118,10 +119,10 @@ class IPU:
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
-        shutdown_event: mp.Event,
+        shutdown_event: mp.synchronize.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics = [
+        self.metrics: List[Metric] = [
             IPUStats(settings._stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
@@ -147,5 +148,5 @@ class IPU:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        num_devices = len(self._gc_ipu_info.getDevices())
+        num_devices = len(self.metrics[0]._gc_ipu_info.getDevices())  # type: ignore
         return {"ipu": {"device_count": num_devices, "vendor": "Graphcore"}}

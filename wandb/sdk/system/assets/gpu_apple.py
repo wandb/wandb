@@ -5,7 +5,7 @@ import platform
 import subprocess
 import sys
 from collections import deque
-from typing import TYPE_CHECKING, Deque, cast
+from typing import TYPE_CHECKING, List
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict
@@ -16,41 +16,42 @@ import wandb
 import wandb.util
 from wandb.sdk.lib import telemetry
 
-from . import asset_registry
-from .interfaces import MetricsMonitor, MetricType
+from wandb.sdk.system.assets.asset_registry import asset_registry
+from wandb.sdk.system.assets.interfaces import Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
+    from typing import Deque
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
 class _Stats(TypedDict):
     gpu: float
-    memoryAllocated: float
+    memoryAllocated: float  # noqa: N815
     temp: float
-    powerWatts: float
-    powerPercent: float
-    # cpuWaitMs: float
+    powerWatts: float  # noqa: N815
+    powerPercent: float  # noqa: N815
+    # cpuWaitMs: float  # noqa: N815
 
 
 class GPUAppleStats:
     name = "gpu.0.{}"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[_Stats]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[_Stats]"
 
     # TODO: hard coded max watts as 16.5, found this number in the SMC list.
     #  Eventually we can have the apple_gpu_stats binary query for this.
     MAX_POWER_WATTS = 16.5
 
     def __init__(self) -> None:
-        self.samples: Deque[_Stats] = deque()
+        self.samples = deque()
         self.binary_path = (pathlib.Path(__file__).parent / "apple_gpu_stats").resolve()
 
     def sample(self) -> None:
         try:
             # out = subprocess.check_output([self.binary_path, "--json"])
             # m1_stats = json.loads(out.split(b"\n")[0])
-            command = [self.binary_path, "--json"]
+            command = [str(self.binary_path), "--json"]
             output = (
                 subprocess.check_output(command, universal_newlines=True)
                 .strip()
@@ -93,10 +94,10 @@ class GPUApple:
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
-        shutdown_event: mp.Event,
+        shutdown_event: mp.synchronize.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics = [
+        self.metrics: List[Metric] = [
             GPUAppleStats(),
         ]
         self.metrics_monitor = MetricsMonitor(

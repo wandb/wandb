@@ -1,27 +1,23 @@
 import datetime
 import multiprocessing as mp
+from multiprocessing import synchronize
 import sys
 import threading
-from typing import TYPE_CHECKING, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, List, Optional, TypeVar, Union
 
 if sys.version_info >= (3, 8):
     from typing import Literal, Protocol, runtime_checkable
 else:
     from typing_extensions import Literal, Protocol, runtime_checkable
 
-if sys.version_info >= (3, 9):
-    from collections.abc import Sequence
-else:
-    from typing import Sequence
-
 if TYPE_CHECKING:
+    from typing import Deque
     from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 import wandb
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
-Sample = TypeVar("Sample", float, int, str, bytes, list, tuple, dict)
 MetricType = Literal["counter", "gauge", "histogram", "summary"]
 
 
@@ -34,7 +30,7 @@ class Metric(Protocol):
     # at first, we will only support the gauge type
     metric_type: MetricType
     # samples: Sequence[Tuple[TimeStamp, Sample]]
-    samples: Sequence[Sample]
+    samples: "Deque[Any]"
 
     def sample(self) -> None:
         ...
@@ -56,6 +52,9 @@ class Asset(Protocol):
     name: str
     metrics: List[Metric]
     metrics_monitor: "MetricsMonitor"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        ...
 
     @classmethod
     def is_available(cls) -> bool:
@@ -93,13 +92,13 @@ class MetricsMonitor:
         metrics: List[Metric],
         interface: Interface,
         settings: "SettingsStatic",
-        shutdown_event: mp.Event,
+        shutdown_event: synchronize.Event,
         # start_time,
     ) -> None:
         self.metrics = metrics
         self._interface = interface
         self._process: Optional[Union[mp.Process, threading.Thread]] = None
-        self._shutdown_event: mp.Event = shutdown_event
+        self._shutdown_event: synchronize.Event = shutdown_event
 
         self.sampling_interval: float = float(
             max(

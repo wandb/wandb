@@ -5,7 +5,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, List, Optional, Union
 
-from wandb.sdk.system.assets import asset_registry
+from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import Asset
 from wandb.sdk.system.system_info import SystemInfo
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class AssetInterface:
-    def __init__(self):
+    def __init__(self) -> None:
         self.metrics_queue: "queue.Queue[dict]" = queue.Queue()
         self.telemetry_queue: "queue.Queue[TelemetryRecord]" = queue.Queue()
 
@@ -42,7 +42,7 @@ class SystemMonitor:
         interface: "InterfaceQueue",
     ) -> None:
 
-        self._shutdown_event: mp.Event = mp.Event()
+        self._shutdown_event: mp.synchronize.Event = mp.Event()
         self._process: Optional[Union[mp.Process, threading.Thread]] = None
 
         # settings._stats_join_assets controls whether we should join stats from different assets
@@ -90,6 +90,8 @@ class SystemMonitor:
         )
 
     def aggregate_and_publish_asset_metrics(self) -> None:
+        if self.asset_interface is None:
+            return None
         # only extract as many items as are available in the queue at the moment
         size = self.asset_interface.metrics_queue.qsize()
         # print(f"WOKE UP, FELL OUT OF BED, DRAGGED A COMB ACROSS MY HEAD: {size}")
@@ -104,6 +106,8 @@ class SystemMonitor:
             self.backend_interface.publish_stats(serialized_metrics)
 
     def publish_telemetry(self) -> None:
+        if self.asset_interface is None:
+            return None
         # get everything from the self.asset_interface.telemetry_queue,
         # merge into a single dictionary and publish on the backend_interface
         while not self.asset_interface.telemetry_queue.empty():

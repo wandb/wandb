@@ -1,13 +1,14 @@
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, Deque, List, Optional, cast
+from typing import TYPE_CHECKING, List, Optional
 
 import psutil
 
-from . import asset_registry
-from .interfaces import MetricsMonitor, MetricType
+from wandb.sdk.system.assets.asset_registry import asset_registry
+from wandb.sdk.system.assets.interfaces import Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
+    from typing import Deque
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -16,8 +17,8 @@ class ProcessMemoryRSS:
     # name = "memory_rss"
     name = "proc.memory.rssMB"
 
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[float]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[float]"
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -41,8 +42,8 @@ class ProcessMemoryRSS:
 class ProcessMemoryPercent:
     # name = "process_memory_percent"
     name = "proc.memory.percent"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[float]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[float]"
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -66,8 +67,8 @@ class ProcessMemoryPercent:
 class MemoryPercent:
     # name = "memory_percent"
     name = "memory"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[List[float]]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.samples = deque([])
@@ -86,8 +87,8 @@ class MemoryPercent:
 class MemoryAvailable:
     # name = "memory_available"
     name = "proc.memory.availableMB"
-    metric_type = cast("gauge", MetricType)
-    samples: Deque[List[float]]
+    metric_type: MetricType = "gauge"
+    samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.samples = deque([])
@@ -109,10 +110,10 @@ class Memory:
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
-        shutdown_event: mp.Event,
+        shutdown_event: mp.synchronize.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics = [
+        self.metrics: List[Metric] = [
             MemoryAvailable(),
             MemoryPercent(),
             ProcessMemoryRSS(settings._stats_pid),
