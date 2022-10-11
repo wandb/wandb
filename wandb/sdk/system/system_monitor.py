@@ -150,6 +150,8 @@ class SystemMonitor:
             self._process.start()
 
     def finish(self) -> None:
+        if self._process is None:
+            return None
         logger.info("Stopping system monitor")
         self._shutdown_event.set()
         for asset in self.assets:
