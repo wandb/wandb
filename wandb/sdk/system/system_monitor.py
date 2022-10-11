@@ -6,12 +6,12 @@ import time
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import Asset
+from wandb.sdk.system.assets.interfaces import Asset, Interface
 from wandb.sdk.system.system_info import SystemInfo
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
-    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.interface.interface import FilesDict
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
@@ -29,6 +29,9 @@ class AssetInterface:
     def _publish_telemetry(self, telemetry: "TelemetryRecord") -> None:
         self.telemetry_queue.put(telemetry)
 
+    def publish_files(self, files_dict: "FilesDict") -> None:
+        pass
+
 
 class SystemMonitor:
     # SystemMonitor is responsible for managing system metrics data.
@@ -39,7 +42,7 @@ class SystemMonitor:
     def __init__(
         self,
         settings: "SettingsStatic",
-        interface: "InterfaceQueue",
+        interface: "Interface",
     ) -> None:
 
         self._shutdown_event: mp.synchronize.Event = mp.Event()

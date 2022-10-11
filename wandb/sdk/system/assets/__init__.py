@@ -1,5 +1,3 @@
-__all__ = ["asset_registry"]
-
 from .asset_registry import asset_registry
 from .cpu import CPU  # noqa: F401
 from .disk import Disk  # noqa: F401

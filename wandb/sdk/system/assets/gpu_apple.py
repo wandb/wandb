@@ -17,11 +17,15 @@ import wandb.util
 from wandb.sdk.lib import telemetry
 
 from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import Metric, MetricsMonitor, MetricType
+from wandb.sdk.system.assets.interfaces import (
+    Interface,
+    Metric,
+    MetricsMonitor,
+    MetricType,
+)
 
 if TYPE_CHECKING:
     from typing import Deque
-    from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
@@ -93,7 +97,7 @@ class GPUAppleStats:
 class GPUApple:
     def __init__(
         self,
-        interface: "InterfaceQueue",
+        interface: "Interface",
         settings: "SettingsStatic",
         shutdown_event: mp.synchronize.Event,
     ) -> None:

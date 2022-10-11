@@ -1,4 +1,4 @@
-# Information about the system and the environment (former Meta)
+# Information about the system and the environment
 import datetime
 import glob
 import json
@@ -7,12 +7,12 @@ import os
 import subprocess
 import sys
 from shutil import copyfile
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from wandb import util
-from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.system.assets.interfaces import Interface
 
 from ..lib.filenames import (
     CONDA_ENVIRONMENTS_FNAME,
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 class SystemInfo:
     # todo: this is mostly a copy of the legacy Meta class, but it should be refactored
-    def __init__(self, settings: SettingsStatic, interface: InterfaceQueue) -> None:
+    def __init__(self, settings: SettingsStatic, interface: Interface) -> None:
         logger.debug("System info init")
         self.settings = settings
 
