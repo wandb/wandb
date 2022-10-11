@@ -228,7 +228,7 @@ def test_sweep_api(user, relay_server, sweep_config):
     "sweep_config,expected_run_count",
     [
         (SWEEP_CONFIG_GRID, 3),
-        (SWEEP_CONFIG_GRID_NESTED, 9),
+        (SWEEP_CONFIG_GRID_NESTED, 9),  # fails because not implemented backend
         (SWEEP_CONFIG_BAYES, -1),
     ],
     ids=["test grid", "test grid nested", "test bayes"],
@@ -237,8 +237,13 @@ def test_sweep_api_expected_run_count(
     user, relay_server, sweep_config, expected_run_count
 ):
     _project = "test"
-    with relay_server():
+    with relay_server() as relay:
         sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    for comm in relay.context.raw_data:
+        q = comm["request"].get("query")
+        print(q)
+
     print(f"sweep_id{sweep_id}")
     sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
     assert sweep.expected_run_count == expected_run_count
