@@ -12,15 +12,14 @@ from urllib.parse import unquote
 
 from wandb import util
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets.interfaces import Interface
-
-from ..lib.filenames import (
+from wandb.sdk.lib.filenames import (
     CONDA_ENVIRONMENTS_FNAME,
     DIFF_FNAME,
     METADATA_FNAME,
     REQUIREMENTS_FNAME,
 )
-from ..lib.git import GitRepo
+from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.system.assets.interfaces import Interface
 
 logger = logging.getLogger(__name__)
 
