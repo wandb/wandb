@@ -14,6 +14,7 @@ from wandb.sdk.system.assets.interfaces import (
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 

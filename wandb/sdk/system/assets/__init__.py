@@ -1,4 +1,4 @@
-from .asset_registry import asset_registry
+from .asset_registry import asset_registry  # noqa: F401
 from .cpu import CPU  # noqa: F401
 from .disk import Disk  # noqa: F401
 from .gpu import GPU  # noqa: F401

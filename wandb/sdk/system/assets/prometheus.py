@@ -16,7 +16,9 @@ class Prometheus:
         self.session = requests.Session()
 
     def parse_prometheus_metrics_endpoint(self) -> None:
-        from prometheus_client.parser import text_string_to_metric_families  # type: ignore
+        from prometheus_client.parser import (  # type: ignore
+            text_string_to_metric_families,
+        )
 
         response = self.session.get(self.url)
         # print(response.text)

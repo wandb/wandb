@@ -1,18 +1,16 @@
-from collections import deque
 import multiprocessing as mp
 import time
+from collections import deque
 from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
 import wandb
-from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets import CPU, Disk, Memory, GPU, GPUApple, IPU, Network, TPU
-from wandb.sdk.system.assets.interfaces import MetricsMonitor, MetricType
 from wandb.sdk.internal.settings_static import SettingsStatic
-
+from wandb.sdk.system.assets import CPU, GPU, IPU, TPU, Disk, GPUApple, Memory, Network
+from wandb.sdk.system.assets.asset_registry import asset_registry
+from wandb.sdk.system.assets.interfaces import MetricsMonitor, MetricType
 from wandb.sdk.system.system_monitor import AssetInterface, SystemMonitor
-
 
 if TYPE_CHECKING:
     from typing import Deque

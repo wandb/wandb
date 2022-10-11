@@ -15,7 +15,6 @@ else:
 import wandb
 import wandb.util
 from wandb.sdk.lib import telemetry
-
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -26,6 +25,7 @@ from wandb.sdk.system.assets.interfaces import (
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 

@@ -14,6 +14,7 @@ from wandb.sdk.system.assets.interfaces import (
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 logger = logging.getLogger(__name__)
@@ -128,9 +129,7 @@ class TPU:
             from tensorflow.python.distribute.cluster_resolver import (  # noqa: F401
                 tpu_cluster_resolver,
             )
-            from tensorflow.python.profiler import (  # noqa: F401
-                profiler_client,
-            )
+            from tensorflow.python.profiler import profiler_client  # noqa: F401
 
             cls.get_service_addr()
         except (

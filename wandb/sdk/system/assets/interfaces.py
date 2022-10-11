@@ -1,8 +1,8 @@
 import datetime
 import multiprocessing as mp
-from multiprocessing import synchronize
 import sys
 import threading
+from multiprocessing import synchronize
 from typing import TYPE_CHECKING, Any, List, Optional, TypeVar, Union
 
 if sys.version_info >= (3, 8):

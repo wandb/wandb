@@ -8,8 +8,6 @@ try:
 except ImportError:
     psutil = None
 
-from wandb.vendor.pynvml import pynvml
-
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -17,9 +15,11 @@ from wandb.sdk.system.assets.interfaces import (
     MetricsMonitor,
     MetricType,
 )
+from wandb.vendor.pynvml import pynvml
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 

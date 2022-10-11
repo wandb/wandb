@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 from shutil import copyfile
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from wandb import util
