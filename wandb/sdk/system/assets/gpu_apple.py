@@ -81,10 +81,11 @@ class GPUAppleStats:
 
     def serialize(self) -> dict:
         stats = {}
-        for key in self.samples[0].keys():
-            samples = [s[key] for s in self.samples]  # type: ignore
-            aggregate = round(sum(samples) / len(samples), 2)
-            stats[self.name.format(key)] = aggregate
+        if self.samples:
+            for key in self.samples[0].keys():
+                samples = [s[key] for s in self.samples]  # type: ignore
+                aggregate = round(sum(samples) / len(samples), 2)
+                stats[self.name.format(key)] = aggregate
         return stats
 
 
