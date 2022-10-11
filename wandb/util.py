@@ -893,7 +893,8 @@ def make_json_if_not_number(
 
 
 def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Also converts to lists and dicts."""
+    """Replace invalid json floats with strings. Also converts to lists and dicts.
+    Converts numpy array to list. Used for artifact metadata"""
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
