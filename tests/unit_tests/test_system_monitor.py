@@ -182,5 +182,8 @@ def test_system_monitor(test_settings, join_assets, num_keys):
     max_num_keys = 0
     while not interface.metrics_queue.empty():
         metric_record = interface.metrics_queue.get()
+        # it's tricky to get the timing right, so we are looking at the
+        # maximum number of keys we've seen in the queue as it should be == num_keys;
+        # sometimes, due to timing we might see less than num_keys
         max_num_keys = max(max_num_keys, len(metric_record))
     assert max_num_keys == num_keys
