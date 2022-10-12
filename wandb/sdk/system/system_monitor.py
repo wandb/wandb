@@ -2,7 +2,6 @@ import logging
 import multiprocessing as mp
 import queue
 import threading
-import time
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from wandb.sdk.system.assets.asset_registry import asset_registry
@@ -73,8 +72,6 @@ class SystemMonitor:
         self.asset_interface: Optional[AssetInterface] = (
             AssetInterface() if self.join_assets else None
         )
-
-        self._start_time_stamp = time.monotonic()
 
         # hardware assets
         self.assets: List["Asset"] = []

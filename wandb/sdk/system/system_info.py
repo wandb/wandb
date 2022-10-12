@@ -12,15 +12,14 @@ from urllib.parse import unquote
 
 from wandb import util
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets.interfaces import Interface
-
-from ..lib.filenames import (
+from wandb.sdk.lib.filenames import (
     CONDA_ENVIRONMENTS_FNAME,
     DIFF_FNAME,
     METADATA_FNAME,
     REQUIREMENTS_FNAME,
 )
-from ..lib.git import GitRepo
+from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.system.assets.interfaces import Interface
 
 logger = logging.getLogger(__name__)
 
@@ -168,17 +167,16 @@ class SystemInfo:
             logger.error("Error generating diff: %s" % e)
         logger.debug("Saving git patches done")
 
-    def _probe_git(self) -> Dict[str, Any]:
+    def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
         if self.settings.disable_git:
-            return {}
+            return data
 
         # in case of manually passing the git repo info, `enabled` would be False,
         # but we still want to save the git repo info
         if not self.git.enabled and self.git.auto:
-            return {}
+            return data
 
         logger.debug("Probing git")
-        data: Dict[str, Any] = dict()
 
         data["git"] = {
             "remote": self.git.remote_url,
@@ -229,7 +227,7 @@ class SystemInfo:
                         data["program"] = self.settings._jupyter_path
                         data["root"] = self.settings._jupyter_root
             # get the git repo info
-            data.update(self._probe_git())
+            data = self._probe_git(data)
 
         if self.settings.anonymous != "true":
             data["host"] = self.settings.host
