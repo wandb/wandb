@@ -666,17 +666,6 @@ class HandleManager:
         else:
             self._accumulate_time = 0
 
-        # if not self._settings._disable_stats:
-        #     self._system_stats = stats.SystemStats(
-        #         settings=self._settings, interface=self._interface
-        #     )
-        #     self._system_stats.start()
-        #
-        # if not self._settings._disable_meta and not run_start.run.resumed:
-        #     run_meta = meta.Meta(settings=self._settings, interface=self._interface)
-        #     run_meta.probe()
-        #     run_meta.write()
-
         # system monitor
         self._system_monitor = SystemMonitor(
             self._settings,
