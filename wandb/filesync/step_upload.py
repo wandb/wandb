@@ -1,11 +1,13 @@
 """Batching file prepare requests to our API."""
 
+import asyncio
 import queue
 import sys
 import threading
 from typing import (
     TYPE_CHECKING,
     Any,
+    Awaitable,
     Callable,
     MutableMapping,
     MutableSequence,
@@ -14,6 +16,8 @@ from typing import (
     Optional,
     Union,
 )
+
+import wandb
 
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
@@ -38,7 +42,7 @@ if TYPE_CHECKING:
 PreCommitFn = Callable[[], None]
 PostCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
-SaveFn = Callable[["progress.ProgressFn"], Any]
+SaveFn = Callable[["progress.ProgressFn"], Awaitable[bool]]
 
 
 class RequestUpload(NamedTuple):
@@ -90,7 +94,13 @@ class StepUpload:
         self._running_jobs: MutableMapping[
             dir_watcher.SaveName, upload_job.UploadJob
         ] = {}
-        self._pending_jobs: MutableSequence[RequestUpload] = []
+        self._pending_jobs: MutableMapping[
+            dir_watcher.SaveName, RequestUpload
+        ] = {}
+
+        self._loop = asyncio.new_event_loop()
+        self._loop_thread = threading.Thread(target=self._loop.run_forever)
+        self._loop_thread.daemon = True
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
@@ -104,6 +114,7 @@ class StepUpload:
         finish_callback = None
         while True:
             event = self._event_queue.get()
+            wandb.termerror(f"SRP: StepUpload got event: {event}")
             if isinstance(event, RequestFinish):
                 finish_callback = event.callback
                 break
@@ -119,6 +130,7 @@ class StepUpload:
         while True:
             try:
                 event = self._event_queue.get(True, 0.2)
+                wandb.termerror(f"SRP: StepUpload got event (post-finish): {event}")
             except queue.Empty:
                 event = None
             if event:
@@ -127,12 +139,17 @@ class StepUpload:
                 # Queue was empty and no jobs left.
                 if finish_callback:
                     finish_callback()
+
+                def stop_loop():
+                    wandb.termerror("SRP: StepUpload stopping loop")
+                    self._loop.stop()
+                self._loop.call_soon_threadsafe(stop_loop)
                 break
+        wandb.termerror(f"SRP: UploadJob: terminating")
 
     def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
-            job.join()
             if job.artifact_id:
                 if event.success:
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
@@ -142,10 +159,8 @@ class StepUpload:
                         "Uploading artifact file failed. Artifact won't be committed."
                     )
             self._running_jobs.pop(job.save_name)
-            # If we have any pending jobs, start one now
-            if self._pending_jobs:
-                event = self._pending_jobs.pop(0)
-                self._start_upload_job(event)
+            if job.save_name in self._pending_jobs:
+                self._start_upload_job(self._pending_jobs.pop(job.save_name))
         elif isinstance(event, RequestCommitArtifact):
             if event.artifact_id not in self._artifacts:
                 self._init_artifact(event.artifact_id)
@@ -165,10 +180,7 @@ class StepUpload:
                 if event.artifact_id not in self._artifacts:
                     self._init_artifact(event.artifact_id)
                 self._artifacts[event.artifact_id]["pending_count"] += 1
-            if len(self._running_jobs) == self._max_jobs:
-                self._pending_jobs.append(event)
-            else:
-                self._start_upload_job(event)
+            self._start_upload_job(event)
         else:
             raise Exception("Programming error: unhandled event: %s" % str(event))
 
@@ -180,7 +192,7 @@ class StepUpload:
         # we're already uploading this file, put the event on the
         # end of the queue
         if event.save_name in self._running_jobs:
-            self._pending_jobs.append(event)
+            self._pending_jobs[event.save_name] = event
             return
 
         # Start it.
@@ -199,7 +211,7 @@ class StepUpload:
             event.digest,
         )
         self._running_jobs[event.save_name] = job
-        job.start()
+        self._loop.call_soon_threadsafe(lambda: self._loop.create_task(job.run()))
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
@@ -225,9 +237,10 @@ class StepUpload:
 
     def start(self) -> None:
         self._thread.start()
+        self._loop_thread.start()
 
     def is_alive(self) -> bool:
-        return self._thread.is_alive()
+        return self._thread.is_alive() or self._loop_thread.is_alive()
 
     def finish(self) -> None:
         self._finished = True

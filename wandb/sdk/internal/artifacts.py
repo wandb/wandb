@@ -3,7 +3,7 @@ import os
 import sys
 import tempfile
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     class SaveFn(Protocol):
         def __call__(
             self, entry: ArtifactEntry, progress_callback: "ProgressFn"
-        ) -> Any:
+        ) -> Awaitable[bool]:
             pass
 
 

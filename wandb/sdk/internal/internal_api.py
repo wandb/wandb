@@ -25,6 +25,7 @@ from typing import (
     Union,
 )
 
+import aiohttp  # type: ignore
 import click
 import requests
 import yaml
@@ -1690,6 +1691,96 @@ class Api:
         else:
             raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
 
+    # TODO: @normalize_exceptions
+    async def upload_urls_async(
+        self,
+        project: str,
+        files: Union[List[str], Dict[str, IO]],
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
+        """Generate temporary resumable upload urls
+
+        Arguments:
+            project (str): The project to download
+            files (list or dict): The filenames to upload
+
+        Returns:
+            (bucket_id, file_info)
+            bucket_id: id of bucket we uploaded to
+            file_info: A dict of filenames and urls, also indicates if this revision already has uploaded files.
+                {
+                    'weights.h5': { "url": "https://weights.url" },
+                    'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
+                }
+        """
+        wandb.termerror(f"SRP: in upload_urls_async")
+        def gql(s: str) -> str: return s
+        query = gql(
+            """
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
+            model(name: $name, entityName: $entity) {
+                bucket(name: $run, desc: $description) {
+                    id
+                    files(names: $files) {
+                        uploadHeaders
+                        edges {
+                            node {
+                                name
+                                url(upload: true)
+                                updatedAt
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+        import aiographql.client  # type: ignore
+        client = aiographql.client.GraphQLClient(
+            headers={
+                "Authorization": "Basic " + base64.b64encode(b":".join((b"api", (self.api_key or "").encode()))).strip().decode(),
+                "User-Agent": self.user_agent or '',
+                "X-WANDB-USERNAME": env.get_username(env=self._environ) or '',
+                "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ) or '',
+            },
+            endpoint=f"{self.settings('base_url')}/graphql",
+        )
+        run_id = run or self.current_run_id
+        assert run_id, "run must be specified"
+        entity = entity or self.settings("entity")
+
+        print('headers', client._headers)
+        wandb.termerror(f"SRP: about to send RunUploadUrls query for {files}")
+        query_result = await client.query(query, variables={
+                "name": project,
+                "run": run_id,
+                "entity": entity,
+                "description": description,
+                "files": [file for file in files],
+            })
+        wandb.termerror(f"SRP: done with RunUploadUrls query for {files}; got {query_result.json}")
+
+        if query_result.json.get("errors"):
+            raise CommError(str(query_result["errors"]))
+
+
+        data = query_result.json["data"]
+        try:
+            run_obj = data["model"]["bucket"]
+            if run_obj:
+                result = {
+                    file["name"]: file for file in self._flatten_edges(run_obj["files"])
+                }
+                return run_obj["id"], run_obj["files"]["uploadHeaders"], result
+            else:
+                raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
+        except Exception as e:
+            wandb.termerror(f"SRP: error in RunUploadUrls query for {files}: {e}")
+            raise
+
     @normalize_exceptions
     def download_urls(
         self,
@@ -1918,7 +2009,10 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = requests.put(
+                    url,
+                    data=progress, headers=extra_headers,
+                )
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -1950,6 +2044,81 @@ class Api:
                 util.sentry_reraise(e)
 
         return response
+
+    async def upload_file_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """Uploads a file to W&B with failure resumption
+
+        Arguments:
+            url: The url to download
+            file: The path to the file you want to upload
+            callback: A callback which is passed the number of
+            bytes uploaded since the last time it was called, used to report progress
+            extra_headers: A dictionary of extra headers to send with the request
+
+        Returns:
+            The `requests` library response object
+        """
+        wandb.termerror("SRP: in upload_file_async")
+        # import remote_pdb; remote_pdb.set_trace(port=56786)
+        extra_headers = extra_headers.copy() if extra_headers else {}
+        progress = Progress(file, callback=callback)
+        try:
+            if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
+                self.upload_file_azure(url, progress, extra_headers)
+            else:
+                if "x-ms-blob-type" in extra_headers:
+                    wandb.termwarn(
+                        "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
+                        repeat=False,
+                    )
+                import requests.utils
+                async with aiohttp.ClientSession() as session:
+                    wandb.termerror(f"SRP: about to PUT {url}")
+                    async with session.put(
+                        url,
+                        data=progress,
+                        headers={
+                            **extra_headers,
+                            "User-Agent": requests.utils.default_user_agent(),
+                            "Content-Length": str(len(progress)),
+                        }, skip_auto_headers=['content-type']) as response:
+                        response.raise_for_status()
+                    wandb.termerror(f"SRP: done with PUT {url}")
+        except Exception as e:
+            wandb.termerror(f"SRP: err in upload_file_async: {e}")
+            logger.error(f"upload_file exception {url}: {e}")
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error(f"upload_file request headers: {request_headers}")
+            response_content = e.response.content if e.response is not None else ""
+            logger.error(f"upload_file response body: {response_content}")
+            status_code = e.response.status_code if e.response is not None else 0
+            # S3 reports retryable request timeouts out-of-band
+            is_aws_retryable = (
+                "x-amz-meta-md5" in extra_headers
+                and status_code == 400
+                and "RequestTimeout" in response_content
+            )
+            # We need to rewind the file for the next retry (the file passed in is seeked to 0)
+            progress.rewind()
+            # Retry errors from cloud storage or local network issues
+            if (
+                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
+                or isinstance(
+                    e,
+                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                )
+                or is_aws_retryable
+            ):
+                _e = retry.TransientError(exc=e)
+                raise _e.with_traceback(sys.exc_info()[2])
+            else:
+                util.sentry_reraise(e)
 
     @normalize_exceptions
     def register_agent(

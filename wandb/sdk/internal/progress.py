@@ -2,9 +2,11 @@
 progress.
 """
 
+import io
 import os
 import sys
-from typing import IO, TYPE_CHECKING, Optional
+from typing import IO, TYPE_CHECKING, Any, Optional, Union, Iterable
+from types import TracebackType
 
 from wandb.errors import CommError
 
@@ -19,7 +21,7 @@ if TYPE_CHECKING:
             pass
 
 
-class Progress:
+class Progress(io.IOBase):
     """A helper class for displaying progress"""
 
     ITER_BYTES = 1024 * 1024
