@@ -89,7 +89,7 @@ def test_launch_build_push_job(
             uri=uri,
             entity=user,
             project=proj,
-            queue=queue,
+            queue_name=queue,
             build=True,
             job="DELETE ME",
             entry_point=entry_point,

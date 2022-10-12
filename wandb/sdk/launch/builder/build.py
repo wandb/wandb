@@ -25,7 +25,11 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
+from ..utils import (
+    LAUNCH_CONFIG_FILE,
+    LOG_PREFIX,
+    resolve_build_and_registry_config,
+)
 from .abstract import AbstractBuilder
 from .loader import load_builder
 
@@ -564,7 +568,7 @@ def build_image_from_project(
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec
-    object, with an optional launch_config to set git-things like repository
+    object, with an optional launch_config to set things like repository
     which is used in naming the output docker image, and build_type defaulting
     to docker (but could be used to build kube resource jobs w/ "kaniko")
 
@@ -573,12 +577,12 @@ def build_image_from_project(
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
 
-    # TODO(gst): launch_project.repository support w/ CLI arg (pref over config)
-    repository = None
-    if launch_config:
-        repository = launch_config.get("repository")
-    docker_args, builder_config, _ = construct_builder_args(launch_config)
+    docker_args, builder_config, registry_config = construct_builder_args(launch_config)
     launch_project = fetch_and_validate_project(launch_project, api)
+    # Currently support either url or repository keywords in registry
+    repository = registry_config.get("url") or registry_config.get("repository")
+
+    wandb.termwarn(f"{repository=}")
 
     if not builder_config.get("type"):
         wandb.termlog(f"{LOG_PREFIX}No builder found, defaulting to docker")

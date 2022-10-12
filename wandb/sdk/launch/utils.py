@@ -1,11 +1,12 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import logging
 import os
+import json
 import platform
 import re
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import click
 
@@ -122,6 +123,7 @@ def construct_launch_spec(
     launch_config: Optional[Dict[str, Any]],
     cuda: Optional[bool],
     run_id: Optional[str],
+    repository: Optional[str],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -180,6 +182,13 @@ def construct_launch_spec(
     if run_id is not None:
         launch_spec["run_id"] = run_id
 
+    if repository:
+        launch_config = launch_config or {}
+        if launch_config.get("registry"):
+            launch_config["registry"]["url"] = repository
+        else:
+            launch_config["registry"] = {"url": repository}
+
     return launch_spec
 
 
@@ -194,6 +203,17 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
         raise LaunchError("Found both uri and docker-image, only one can be set")
     elif sum(map(bool, [uri, job, docker_image])) > 1:
         raise LaunchError("Must specify exactly one of uri, job or image")
+
+
+def parse_launch_config(config: Optional[Union[str, Dict[str, Any]]]) -> Dict[str, Any]:
+    launch_config = {}
+    if config is not None:
+        if isinstance(config, str):
+            with open(config) as fp:
+                launch_config = json.load(fp)
+        elif isinstance(config, dict):
+            launch_config = config
+    return launch_config
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
@@ -453,7 +473,9 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
         try:
             repo.create_head(version, origin.refs[version])
             repo.heads[version].checkout()
-            wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
+            wandb.termlog(
+                f"{LOG_PREFIX}No git branch passed. Defaulted to branch: {version}"
+            )
         except (AttributeError, IndexError) as e:
             raise LaunchError(
                 "Unable to checkout default version '%s' of git repo %s "

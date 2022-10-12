@@ -115,6 +115,7 @@ def _run(
     cuda: Optional[bool],
     api: Api,
     run_id: Optional[str],
+    repository: Optional[str],
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     launch_spec = construct_launch_spec(
@@ -133,6 +134,7 @@ def _run(
         launch_config,
         cuda,
         run_id,
+        repository,
     )
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
@@ -141,6 +143,12 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
+
+    if repository:  # override existing registry with CLI arg
+        launch_config = launch_config or {}
+        registry = launch_config.get("registry", {})
+        registry["url"] = repository
+        launch_config["registry"] = registry
 
     given_docker_args, build_config, registry_config = construct_builder_args(
         launch_config,
@@ -158,9 +166,7 @@ def _run(
         return submitted_run
     else:
         raise ExecutionError(
-            "Unavailable backend {}, available backends: {}".format(
-                resource, ", ".join(loader.WANDB_RUNNERS)
-            )
+            f"Unavailable backend {resource}, available backends: {', '.join(loader.WANDB_RUNNERS)}"
         )
 
 
@@ -181,6 +187,7 @@ def run(
     synchronous: Optional[bool] = True,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
+    repository: Optional[str] = None,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
@@ -210,7 +217,7 @@ def run(
         error out as well.
     cuda: Whether to build a CUDA-enabled docker image or not
     run_id: ID for the run (To ultimately replace the :name: field)
-
+    repository: string name of repository path for remote registry
 
     Example:
         import wandb
@@ -250,6 +257,7 @@ def run(
         cuda=cuda,
         api=api,
         run_id=run_id,
+        repository=repository,
     )
 
     return submitted_run_obj

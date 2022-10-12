@@ -1,4 +1,3 @@
-import json
 import pprint
 from typing import Any, Dict, List, Optional, Union
 
@@ -12,6 +11,7 @@ from wandb.sdk.launch.utils import (
     LOG_PREFIX,
     construct_launch_spec,
     validate_launch_spec_source,
+    parse_launch_config,
 )
 
 
@@ -41,6 +41,7 @@ def launch_add(
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
+    repository: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -67,6 +68,8 @@ def launch_add(
     build: optional flag defaulting to false, requires queue to be set
         if build, an image is created, creates a job artifact, pushes a reference
             to that job artifact to queue
+    repository: optional string to control the name of the remote repository, used when
+        pushing images to a registry
 
 
     Example:
@@ -107,6 +110,7 @@ def launch_add(
         cuda,
         run_id=run_id,
         build=build,
+        repository=repository,
     )
 
 
@@ -128,20 +132,9 @@ def _launch_add(
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
+    repository: Optional[str] = None,
 ) -> "public.QueuedRun":
-
-    resource = resource or "local"  # TODO(gst): set new default
-    if config is not None:
-        if isinstance(config, str):
-            with open(config) as fp:
-                launch_config = json.load(fp)
-        elif isinstance(config, dict):
-            launch_config = config
-    else:
-        launch_config = {}
-
-    if queue_name is None:
-        queue_name = "default"
+    launch_config = parse_launch_config(config)
 
     launch_spec = construct_launch_spec(
         uri,
@@ -159,6 +152,7 @@ def _launch_add(
         launch_config,
         cuda,
         run_id,
+        repository,
     )
 
     if build:
@@ -173,9 +167,12 @@ def _launch_add(
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
         job_name = job_artifact.wait().name
 
-        job_name_full = f"{launch_spec.get('entity')}/{project}/{job_name}"
-        launch_spec["job"], job = job_name_full, job_name_full
+        job = f"{launch_spec.get('entity')}/{project}/{job_name}"
+        launch_spec["job"] = job
         launch_spec["uri"] = None  # Remove given URI --> now in job
+
+    if queue_name is None:
+        queue_name = "default"
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue_name, launch_spec)

@@ -2102,6 +2102,9 @@ class Run:
             artifact = job_creation_function(  # type: ignore
                 input_types, output_types, installed_packages_list
             )
+
+            artifact = self.use_artifact(artifact)
+
             if artifact:
                 logger.info(f"Created job using {job_creation_function.__name__}")
                 break
@@ -2167,8 +2170,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list, patch_path
         )
-        artifact = self.use_artifact(job_artifact)
-        return artifact
+        return job_artifact
 
     def _create_artifact_job(
         self,
@@ -2203,8 +2205,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.use_artifact(job_artifact)
-        return artifact
+        return job_artifact
 
     def _create_image_job(
         self,
@@ -2231,8 +2232,8 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.use_artifact(job_artifact)
-        return artifact
+
+        return job_artifact
 
     def _log_job_artifact_with_image(self, docker_image_name: str) -> Artifact:
         packages, in_types, out_types = self._make_job_source_reqs()
@@ -2240,10 +2241,12 @@ class Run:
             in_types, out_types, packages, docker_image_name
         )
 
-        if not job_artifact:
-            raise wandb.Error(f"Job Artifact log unsuccessful: {job_artifact}")
+        artifact = self.log_artifact(job_artifact)
+
+        if not artifact:
+            raise wandb.Error(f"Job Artifact log unsuccessful: {artifact}")
         else:
-            return job_artifact
+            return artifact
 
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()

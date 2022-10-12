@@ -1107,6 +1107,14 @@ def sweep(
     is_flag=True,
     help="Flag to build an associated job and push to queue as an image job.",
 )
+@click.option(
+    "--repository",
+    "-rg",
+    is_flag=False,
+    default=None,
+    help="Name of a remote repository. Will be used to push a built image to.",
+)
+# TODO(gst): fix above help message
 @display_error
 def launch(
     uri,
@@ -1125,6 +1133,7 @@ def launch(
     resource_args,
     cuda,
     build,
+    repository,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
@@ -1212,6 +1221,7 @@ def launch(
                 synchronous=(not run_async),
                 cuda=cuda,
                 run_id=run_id,
+                repository=repository,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1238,6 +1248,7 @@ def launch(
             cuda=cuda,
             build=build,
             run_id=run_id,
+            repository=repository,
         )
 
 
