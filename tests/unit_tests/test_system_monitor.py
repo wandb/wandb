@@ -35,7 +35,9 @@ class MockMetric:
         self.samples.clear()
 
     def serialize(self) -> dict:
-        return {self.name: self.samples[0]}
+        if self.samples:
+            return {self.name: self.samples[-1]}
+        return {}
 
 
 class MockAsset1:
@@ -174,9 +176,11 @@ def test_system_monitor(test_settings, join_assets, num_keys):
             settings=settings,
         )
         system_monitor.start()
-        time.sleep(1)
+        time.sleep(1.5)
         system_monitor.finish()
 
+    max_num_keys = 0
     while not interface.metrics_queue.empty():
         metric_record = interface.metrics_queue.get()
-        assert len(metric_record) == num_keys
+        max_num_keys = max(max_num_keys, len(metric_record))
+    assert max_num_keys == num_keys
