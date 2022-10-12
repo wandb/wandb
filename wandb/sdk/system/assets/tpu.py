@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 class TPUUtilization:
+    """
+    Google Cloud TPU utilization in percent.
+    """
+
     name = "tpu"
     metric_type: MetricType = "gauge"
     samples: "Deque[float]"
@@ -52,6 +56,8 @@ class TPUUtilization:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         return {self.name: aggregate}
 

@@ -19,6 +19,10 @@ if TYPE_CHECKING:
 
 
 class DiskUsage:
+    """
+    Total system disk usage in percent.
+    """
+
     # name = "disk_usage"
     name = "disk"
     metric_type: MetricType = "gauge"
@@ -34,6 +38,8 @@ class DiskUsage:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         return {self.name: aggregate}
 

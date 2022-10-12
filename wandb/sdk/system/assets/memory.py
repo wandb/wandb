@@ -19,6 +19,11 @@ if TYPE_CHECKING:
 
 
 class ProcessMemoryRSS:
+    """
+    Memory resident set size (RSS) in MB.
+    RSS is the portion of memory occupied by a process that is held in main memory (RAM).
+    """
+
     # name = "memory_rss"
     name = "proc.memory.rssMB"
 
@@ -40,11 +45,17 @@ class ProcessMemoryRSS:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         return {self.name: aggregate}
 
 
 class ProcessMemoryPercent:
+    """
+    Process memory usage in percent.
+    """
+
     # name = "process_memory_percent"
     name = "proc.memory.percent"
     metric_type: MetricType = "gauge"
@@ -65,11 +76,17 @@ class ProcessMemoryPercent:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         return {self.name: aggregate}
 
 
 class MemoryPercent:
+    """
+    Total system memory usage in percent.
+    """
+
     # name = "memory_percent"
     name = "memory"
     metric_type: MetricType = "gauge"
@@ -85,11 +102,17 @@ class MemoryPercent:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         return {self.name: aggregate}
 
 
 class MemoryAvailable:
+    """
+    Total system memory available in MB.
+    """
+
     # name = "memory_available"
     name = "proc.memory.availableMB"
     metric_type: MetricType = "gauge"
@@ -105,6 +128,8 @@ class MemoryAvailable:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         return {self.name: aggregate}
 

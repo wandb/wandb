@@ -105,6 +105,8 @@ class MockBrokenMetric:
 
 
 def test_asset_registry():
+    # test that the asset registry is populated with the correct assets
+    # should be updated if new assets are added
     registry = asset_registry._registry
     assert len(registry) == 8
     for asset in (CPU, Disk, Memory, GPU, GPUApple, IPU, Network, TPU):
@@ -112,6 +114,7 @@ def test_asset_registry():
 
 
 def test_metrics_monitor(capsys, test_settings):
+    # test that the metrics monitor is able to robustly sample metrics
     mock_metric = MockMetric()
     mock_broken_metric = MockBrokenMetric()
     metrics = [mock_metric, mock_broken_metric]
@@ -152,6 +155,9 @@ def test_metrics_monitor(capsys, test_settings):
     [(True, 2), (False, 1)],
 )
 def test_system_monitor(test_settings, join_assets, num_keys):
+    # - test compatibility mode where we join metrics from individual assets
+    #   before publishing them to the interface
+    # - test the future default mode where we publish metrics from individual assets
     interface = AssetInterface()
     settings = SettingsStatic(
         test_settings(

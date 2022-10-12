@@ -150,7 +150,7 @@ class SystemMonitor:
         if self._process is None and not self._shutdown_event.is_set():
             logger.info("Starting system monitor")
             # self._process = mp.Process(target=self._start)
-            self._process = threading.Thread(target=self._start)
+            self._process = threading.Thread(target=self._start, daemon=True)
             self._process.start()
 
     def finish(self) -> None:

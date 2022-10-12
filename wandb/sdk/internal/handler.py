@@ -686,9 +686,6 @@ class HandleManager:
         self._respond_result(result)
 
     def handle_request_resume(self, record: Record) -> None:
-        # if self._system_stats is not None:
-        #     logger.info("starting system metrics thread")
-        #     self._system_stats.start()
         if self._system_monitor is not None:
             logger.info("starting system metrics process")
             self._system_monitor.start()
@@ -698,9 +695,6 @@ class HandleManager:
         self._track_time = time.time()
 
     def handle_request_pause(self, record: Record) -> None:
-        # if self._system_stats is not None:
-        #     logger.info("stopping system metrics thread")
-        #     self._system_stats.shutdown()
         if self._system_monitor is not None:
             logger.info("stopping system metrics process")
             self._system_monitor.finish()

@@ -159,7 +159,7 @@ class MetricsMonitor:
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
-            self._process = threading.Thread(target=self.monitor)
+            self._process = threading.Thread(target=self.monitor, daemon=True)
             self._process.start()
 
     def finish(self) -> None:

@@ -22,6 +22,10 @@ if TYPE_CHECKING:
 
 
 class ProcessCpuPercent:
+    """
+    CPU usage of the process in percent normalized by the number of CPUs.
+    """
+
     # name = "process_cpu_percent"
     name = "cpu"
     metric_type: MetricType = "gauge"
@@ -52,11 +56,17 @@ class ProcessCpuPercent:
     def serialize(self) -> dict:
         # todo: create a statistics class with helper methods to compute
         #      mean, median, min, max, etc.
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         return {self.name: aggregate}
 
 
 class CpuPercent:
+    """
+    CPU usage of the system in percent per core.
+    """
+
     name = "cpu.{i}.cpu_percent"
     metric_type: MetricType = "gauge"
     samples: "Deque[List[float]]"
@@ -72,6 +82,8 @@ class CpuPercent:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         num_cpu = len(self.samples[0])
         cpu_metrics = {}
         for i in range(num_cpu):
@@ -84,6 +96,10 @@ class CpuPercent:
 
 
 class ProcessCpuThreads:
+    """
+    Number of threads used by the process.
+    """
+
     name = "proc.cpu.threads"
     metric_type: MetricType = "gauge"
     samples: "Deque[int]"
@@ -103,27 +119,9 @@ class ProcessCpuThreads:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         return {self.name: self.samples[-1]}
-
-
-# todo: more metrics to consider:
-# self._cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
-# self._cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
-# self._cpu_freq = psutil.cpu_freq(percpu=True)
-# self._cpu_count = psutil.cpu_count(logical=False)
-# self._cpu_count_logical = psutil.cpu_count(logical=True)
-# self._cpu_load_avg = os.getloadavg()
-# self._cpu_stats = psutil.cpu_stats()
-# self._cpu_times = psutil.cpu_times()
-# self._cpu_times_percent = psutil.cpu_times_percent()
-# self._cpu_times_percent_per_cpu = psutil.cpu_times_percent(percpu=True)
-# self._cpu_times_per_cpu = psutil.cpu_times(percpu=True)
-# self._cpu_freq = psutil.cpu_freq()
-# self._cpu_freq_per_cpu = psutil.cpu_freq(percpu=True)
-# self._cpu_percent = psutil.cpu_percent(interval=None)
-# self._cpu_percent_per_cpu = psutil.cpu_percent(interval=None, percpu=True)
-# self._cpu_percent_interval = psutil.cpu_percent(interval=1)
-# self._cpu_percent_interval_per_cpu = psutil.cpu_percent(interval=1, percpu=True)
 
 
 @asset_registry.register
@@ -156,6 +154,22 @@ class CPU:
             "cpu_count": psutil.cpu_count(logical=False),
             "cpu_count_logical": psutil.cpu_count(logical=True),
         }
+        try:
+            asset_info["cpu_freq"] = {
+                "current": psutil.cpu_freq().current,
+                "min": psutil.cpu_freq().min,
+                "max": psutil.cpu_freq().max,
+            }
+            asset_info["cpu_freq_per_core"] = [
+                {
+                    "current": freq.current,
+                    "min": freq.min,
+                    "max": freq.max,
+                }
+                for freq in psutil.cpu_freq(percpu=True)
+            ]
+        except Exception:
+            pass
         return asset_info
 
     def start(self) -> None:

@@ -19,6 +19,10 @@ if TYPE_CHECKING:
 
 
 class IPUStats:
+    """
+    Stats for Graphcore IPU devices
+    """
+
     name = "ipu.{}.{}"
     metric_type: MetricType = "gauge"
     samples: "Deque[dict]"
@@ -109,6 +113,8 @@ class IPUStats:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         stats = {}
         for key in self.samples[0].keys():
             samples = [s[key] for s in self.samples]

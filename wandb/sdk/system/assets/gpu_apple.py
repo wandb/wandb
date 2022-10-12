@@ -39,6 +39,10 @@ class _Stats(TypedDict):
 
 
 class GPUAppleStats:
+    """
+    Apple GPU stats available on Arm Macs.
+    """
+
     name = "gpu.0.{}"
     metric_type: MetricType = "gauge"
     samples: "Deque[_Stats]"
@@ -84,6 +88,8 @@ class GPUAppleStats:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         stats = {}
         if self.samples:
             for key in self.samples[0].keys():

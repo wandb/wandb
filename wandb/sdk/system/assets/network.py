@@ -19,6 +19,10 @@ if TYPE_CHECKING:
 
 
 class NetworkSent:
+    """
+    Network bytes sent.
+    """
+
     name = "network.sent"
     metric_type: MetricType = "gauge"
     samples: "Deque[float]"
@@ -34,6 +38,8 @@ class NetworkSent:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         # todo: this is an adapter for the legacy metrics system
         # return {"network": {self.name: aggregate}}
@@ -41,6 +47,10 @@ class NetworkSent:
 
 
 class NetworkRecv:
+    """
+    Network bytes received.
+    """
+
     name = "network.recv"
     metric_type: MetricType = "gauge"
     samples: "Deque[float]"
@@ -56,6 +66,8 @@ class NetworkRecv:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         aggregate = round(sum(self.samples) / len(self.samples), 2)
         # todo: this is an adapter for the legacy metrics system
         # return {"network": {self.name: aggregate}}

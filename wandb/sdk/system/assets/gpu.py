@@ -59,6 +59,10 @@ def gpu_in_use_by_this_process(gpu_handle: GPUHandle, pid: int) -> bool:
 
 
 class GPUMemoryUtilization:
+    """
+    GPU memory utilization in percent for each GPU.
+    """
+
     # name = "memory_utilization"
     name = "gpu.{}.memory"
     metric_type: MetricType = "gauge"
@@ -83,6 +87,8 @@ class GPUMemoryUtilization:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
@@ -98,6 +104,10 @@ class GPUMemoryUtilization:
 
 
 class GPUMemoryAllocated:
+    """
+    GPU memory allocated in percent for each GPU.
+    """
+
     # name = "memory_allocated"
     name = "gpu.{}.memoryAllocated"
     metric_type: MetricType = "gauge"
@@ -121,6 +131,8 @@ class GPUMemoryAllocated:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
@@ -136,6 +148,10 @@ class GPUMemoryAllocated:
 
 
 class GPUUtilization:
+    """
+    GPU utilization in percent for each GPU.
+    """
+
     # name = "gpu_utilization"
     name = "gpu.{}.gpu"
     metric_type: MetricType = "gauge"
@@ -160,6 +176,8 @@ class GPUUtilization:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
@@ -175,6 +193,10 @@ class GPUUtilization:
 
 
 class GPUTemperature:
+    """
+    GPU temperature in Celsius for each GPU.
+    """
+
     # name = "gpu_temperature"
     name = "gpu.{}.temp"
     metric_type: MetricType = "gauge"
@@ -202,6 +224,8 @@ class GPUTemperature:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
@@ -217,6 +241,10 @@ class GPUTemperature:
 
 
 class GPUPowerUsageWatts:
+    """
+    GPU power usage in Watts for each GPU.
+    """
+
     name = "gpu.{}.powerWatts"
     metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
@@ -254,6 +282,10 @@ class GPUPowerUsageWatts:
 
 
 class GPUPowerUsagePercent:
+    """
+    GPU power usage in percent for each GPU.
+    """
+
     name = "gpu.{}.powerPercent"
     metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
@@ -277,6 +309,8 @@ class GPUPowerUsagePercent:
         self.samples.clear()
 
     def serialize(self) -> dict:
+        if not self.samples:
+            return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
@@ -333,31 +367,26 @@ class GPU:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        # pynvml.nvmlInit()
-        # device_count = pynvml.nvmlDeviceGetCount()
-        # devices = []
-        # for i in range(device_count):
-        #     handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-        #     info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        #     devices.append(
-        #         {
-        #             "name": pynvml.nvmlDeviceGetName(handle),
-        #             "memory": {
-        #                 "total": info.total,
-        #                 "used": info.used,
-        #                 "free": info.free,
-        #             },
-        #         }
-        #     )
-        # return {"type": "gpu", "devices": devices}
-
-        # todo: this is an adapter for the legacy stats system
         info = {}
         try:
-
             pynvml.nvmlInit()  # type: ignore
+            # todo: this is an adapter for the legacy stats system:
             info["gpu"] = pynvml.nvmlDeviceGetName(pynvml.nvmlDeviceGetHandleByIndex(0))  # type: ignore
             info["gpu_count"] = pynvml.nvmlDeviceGetCount()  # type: ignore
+
+            device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
+            devices = []
+            for i in range(device_count):
+                handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
+                gpu_info = pynvml.nvmlDeviceGetMemoryInfo(handle)  # type: ignore
+                devices.append(
+                    {
+                        "name": pynvml.nvmlDeviceGetName(handle),
+                        "memory_total": gpu_info.total,
+                    }
+                )
+            info["gpu_devices"] = devices
+
         except pynvml.NVMLError:
             pass
 
