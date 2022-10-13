@@ -112,7 +112,14 @@ def test_ipu(test_settings):
         assert ipu.is_available()
         ipu.metrics[0]._pid = CURRENT_PID
         ipu.start()
-        assert ipu.probe() == {"ipu": {"device_count": 3, "vendor": "Graphcore"}}
+        ipu_info = ipu.probe()["ipu"]
+        devices = ipu_info.pop("devices")
+        assert ipu_info == {"device_count": 3, "vendor": "Graphcore"}
+        assert devices == [
+            {"id": "0", "board ipu index": "1", "board type": "C2"},
+            {"id": "1", "board ipu index": "1", "board type": "C2"},
+            {"id": "2", "board ipu index": "1", "board type": "C2"},
+        ]
         time.sleep(1)
         shutdown_event.set()
         ipu.finish()

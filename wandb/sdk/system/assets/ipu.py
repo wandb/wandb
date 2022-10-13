@@ -160,5 +160,22 @@ class IPU:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        num_devices = len(self.metrics[0]._gc_ipu_info.getDevices())  # type: ignore
-        return {"ipu": {"device_count": num_devices, "vendor": "Graphcore"}}
+        device_data = self.metrics[0]._gc_ipu_info.getDevices()  # type: ignore
+        device_count = len(device_data)
+        devices = []
+        for i, device in enumerate(device_data):
+            devices.append(
+                {
+                    "id": device.get("id") or i,
+                    "board ipu index": device.get("board ipu index"),
+                    "board type": device.get("board type") or "unknown",
+                }
+            )
+
+        return {
+            self.name: {
+                "device_count": device_count,
+                "devices": devices,
+                "vendor": "Graphcore",
+            }
+        }
