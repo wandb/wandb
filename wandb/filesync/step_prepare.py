@@ -86,7 +86,7 @@ class StepPrepare:
     def _thread_body(self) -> None:
         while True:
             request = self._request_queue.get()
-            wandb.termlog(f"SRP: PrepareRequest: got {request}")
+            # wandb.termlog(f"SRP: PrepareRequest: got {request}")
             if isinstance(request, RequestFinish):
                 break
             finish, batch = self._gather_batch(request)
@@ -94,7 +94,7 @@ class StepPrepare:
             # send responses
             for prepare_request in batch:
               try:
-                wandb.termlog(f"SRP: PrepareRequest: for {request}: gonna respond to {prepare_request.prepare_fn()}")
+                # wandb.termlog(f"SRP: PrepareRequest: for {request}: gonna respond to {prepare_request.prepare_fn()}")
                 name = prepare_request.prepare_fn()["name"]
                 response_file = prepare_response[name]
                 upload_url = response_file["uploadUrl"]
@@ -105,14 +105,14 @@ class StepPrepare:
                         upload_url, upload_headers, birth_artifact_id
                     )
                 def _respond(request=request, prepare_request=prepare_request, upload_url=upload_url,upload_headers=upload_headers,birth_artifact_id=birth_artifact_id):
-                    wandb.termlog(f"SRP: PrepareRequest: setting future-result")
+                    # wandb.termlog(f"SRP: PrepareRequest: setting future-result")
                     prepare_request.response.set_result(
                         ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
                     )
-                    wandb.termlog(f"SRP: PrepareRequest: for {request}: responded to {prepare_request.prepare_fn()}")
+                    # wandb.termlog(f"SRP: PrepareRequest: for {request}: responded to {prepare_request.prepare_fn()}")
                 prepare_request.response.get_loop().call_soon_threadsafe(_respond)
               except Exception as e:
-                wandb.termlog(f"SRP: PrepareRequest: for {request}: failed to respond to {prepare_request.prepare_fn()}: {e}")
+                # wandb.termlog(f"SRP: PrepareRequest: for {request}: failed to respond to {prepare_request.prepare_fn()}: {e}")
                 raise
             if finish:
                 break
@@ -156,12 +156,12 @@ class StepPrepare:
         return self._api.create_artifact_files(file_specs)
 
     async def prepare(self, prepare_fn: "DoPrepareFn") -> ResponsePrepare:
-        wandb.termlog(f"SRP: prepare({prepare_fn()})")
+        # wandb.termlog(f"SRP: prepare({prepare_fn()})")
         response = asyncio.Future()
         self._request_queue.put(RequestPrepare(prepare_fn, None, response))
-        wandb.termlog(f"SRP: prepare({prepare_fn()}): about to await")
+        # wandb.termlog(f"SRP: prepare({prepare_fn()}): about to await")
         res = await response
-        wandb.termlog(f"SRP: prepare({prepare_fn()}): done awaiting: {res}")
+        # wandb.termlog(f"SRP: prepare({prepare_fn()}): done awaiting: {res}")
         return res
 
     def start(self) -> None:

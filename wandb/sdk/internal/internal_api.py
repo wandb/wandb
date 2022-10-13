@@ -1715,7 +1715,7 @@ class Api:
                     'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
                 }
         """
-        wandb.termlog(f"SRP: in upload_urls_async")
+        # wandb.termlog(f"SRP: in upload_urls_async")
         def gql(s: str) -> str: return s
         query = gql(
             """
@@ -1753,7 +1753,7 @@ class Api:
         entity = entity or self.settings("entity")
 
         print('headers', client._headers)
-        wandb.termlog(f"SRP: about to send RunUploadUrls query for {files}")
+        # wandb.termlog(f"SRP: about to send RunUploadUrls query for {files}")
         query_result = await client.query(query, variables={
                 "name": project,
                 "run": run_id,
@@ -1761,7 +1761,7 @@ class Api:
                 "description": description,
                 "files": [file for file in files],
             })
-        wandb.termlog(f"SRP: done with RunUploadUrls query for {files}; got {query_result.json}")
+        # wandb.termlog(f"SRP: done with RunUploadUrls query for {files}; got {query_result.json}")
 
         if query_result.json.get("errors"):
             raise CommError(str(query_result["errors"]))
@@ -1778,7 +1778,7 @@ class Api:
             else:
                 raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
         except Exception as e:
-            wandb.termlog(f"SRP: error in RunUploadUrls query for {files}: {e}")
+            # wandb.termlog(f"SRP: error in RunUploadUrls query for {files}: {e}")
             raise
 
     @normalize_exceptions
@@ -2064,39 +2064,40 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        # import asyncio
-        # if not hasattr(self, "_upload_async_limiter"):
-        #     self._upload_async_limiter = asyncio.Semaphore(200)
-            
-        wandb.termlog("SRP: in upload_file_async")
-        # import remote_pdb; remote_pdb.set_trace(port=56786)
-        extra_headers = extra_headers.copy() if extra_headers else {}
-        progress = Progress(file, callback=callback)
-        try:
-            if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
-                self.upload_file_azure(url, progress, extra_headers)
-            else:
-                if "x-ms-blob-type" in extra_headers:
-                    wandb.termwarn(
-                        "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
-                        repeat=False,
-                    )
-                import requests.utils
-                async with aiohttp.ClientSession() as session:
-                    wandb.termlog(f"SRP: about to PUT {url}")
-                    async with session.put(
-                        url,
-                        data=progress,
-                        headers={
-                            **extra_headers,
-                            "User-Agent": requests.utils.default_user_agent(),
-                            "Content-Length": str(len(progress)),
-                        }, skip_auto_headers=['content-type']) as response:
-                        response.raise_for_status()
-                    wandb.termlog(f"SRP: done with PUT {url}")
-        except aiohttp.ClientResponseError as e:
-            wandb.termlog(f"SRP: err in upload_file_async: {e}")
-            raise
+        import asyncio
+        if not hasattr(self, "_upload_async_limiter"):
+            self._upload_async_limiter = asyncio.Semaphore(200)
+        async with self._upload_async_limiter:
+        # if True:
+            # wandb.termlog("SRP: in upload_file_async")
+            # import remote_pdb; remote_pdb.set_trace(port=56786)
+            extra_headers = extra_headers.copy() if extra_headers else {}
+            progress = Progress(file, callback=callback)
+            try:
+                if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
+                    self.upload_file_azure(url, progress, extra_headers)
+                else:
+                    if "x-ms-blob-type" in extra_headers:
+                        wandb.termwarn(
+                            "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
+                            repeat=False,
+                        )
+                    import requests.utils
+                    async with aiohttp.ClientSession() as session:
+                        # wandb.termlog(f"SRP: about to PUT {url}")
+                        async with session.put(
+                            url,
+                            data=progress,
+                            headers={
+                                **extra_headers,
+                                "User-Agent": requests.utils.default_user_agent(),
+                                "Content-Length": str(len(progress)),
+                            }, skip_auto_headers=['content-type']) as response:
+                            response.raise_for_status()
+                        # wandb.termlog(f"SRP: done with PUT {url}")
+            except aiohttp.ClientResponseError as e:
+                # wandb.termlog(f"SRP: err in upload_file_async: {e}")
+                raise
 
     @normalize_exceptions
     def register_agent(

@@ -61,23 +61,23 @@ class UploadJob:
         self.digest = digest
 
     async def run(self) -> None:
-        wandb.termlog("SRP: in wandb/filesync/upload_job.py:UploadJob.run()")
+        # wandb.termlog("SRP: in wandb/filesync/upload_job.py:UploadJob.run()")
         success = False
         try:
             success = await self.push()
         finally:
             # import remote_pdb; remote_pdb.set_trace(port=57855)
-            wandb.termlog(f"SRP: UploadJob: push completed, success={success}")
+            # wandb.termlog(f"SRP: UploadJob: push completed, success={success}")
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
             if success:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
-            wandb.termlog(f"SRP: UploadJob: pushing EventJobDone")
+            # wandb.termlog(f"SRP: UploadJob: pushing EventJobDone")
             self._done_queue.put(EventJobDone(self, success))
-            wandb.termlog(f"SRP: UploadJob: pushed EventJobDone")
+            # wandb.termlog(f"SRP: UploadJob: pushed EventJobDone")
 
     async def push(self) -> bool:
-      wandb.termlog(f"SRP: pushing {self.save_name} to {self.path}; art={self.artifact_id}, md5={self.md5}")
+      # wandb.termlog(f"SRP: pushing {self.save_name} to {self.path}; art={self.artifact_id}, md5={self.md5}")
       try:
         if self.save_fn:
             # Retry logic must happen in save_fn currently
@@ -121,9 +121,9 @@ class UploadJob:
             # then the backend handles the cloud storage metadata callback to create the
             # file entry. This flow has aged like a fine wine.
             project = self._api.get_project()
-            wandb.termlog(f"SRP: asking to upload {self.save_name}")
+            # wandb.termlog(f"SRP: asking to upload {self.save_name}")
             _, upload_headers, result = await self._api.upload_urls_async(project, [self.save_name])
-            wandb.termlog(f"SRP: finished asking to upload {self.save_name}")
+            # wandb.termlog(f"SRP: finished asking to upload {self.save_name}")
             file_info = result[self.save_name]
             upload_url = file_info["url"]
 
@@ -142,7 +142,7 @@ class UploadJob:
                 upload_url = f"{self._api.api_url}{upload_url}"
             try:
                 with open(self.save_path, "rb") as f:
-                    wandb.termlog(f"SRP: saving {self.save_path} / {f} to {upload_url}")
+                    # wandb.termlog(f"SRP: saving {self.save_path} / {f} to {upload_url}")
                     try:
                         # self._api.upload_file(
                         await self._api.upload_file_async(
@@ -151,9 +151,9 @@ class UploadJob:
                             lambda _, t: self.progress(t),
                             extra_headers=extra_headers,
                         )
-                        wandb.termlog(f"SRP: finished saving {self.save_path} / {f} to {upload_url}")
+                        # wandb.termlog(f"SRP: finished saving {self.save_path} / {f} to {upload_url}")
                     except Exception as e:
-                        wandb.termlog(f"SRP: failed to save {self.save_path} -- {e}")
+                        # wandb.termlog(f"SRP: failed to save {self.save_path} -- {e}")
                         raise
                 logger.info("Uploaded file %s", self.save_path)
             except Exception as e:

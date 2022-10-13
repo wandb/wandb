@@ -1000,7 +1000,7 @@ class WandbStoragePolicy(StoragePolicy):
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
       try:
-        wandb.termlog(f"SRP: store_file_async({entry.local_path})")
+        # wandb.termlog(f"SRP: store_file_async({entry.local_path})")
         # write-through cache
         cache_path, hit, cache_open = self._cache.check_md5_obj_path(
             util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
@@ -1019,9 +1019,9 @@ class WandbStoragePolicy(StoragePolicy):
                 "md5": entry.digest,
             }
 
-        wandb.termlog(f"SRP: store_file_async({entry.local_path}): about to await prepare")
+        # wandb.termlog(f"SRP: store_file_async({entry.local_path}): about to await prepare")
         resp = await preparer.prepare(_prepare_fn)
-        wandb.termlog(f"SRP: store_file_async({entry.local_path}): done awaiting prepare")
+        # wandb.termlog(f"SRP: store_file_async({entry.local_path}): done awaiting prepare")
 
         entry.birth_artifact_id = resp.birth_artifact_id
         exists = resp.upload_url is None
@@ -1030,7 +1030,7 @@ class WandbStoragePolicy(StoragePolicy):
                 with open(entry.local_path, "rb") as file:
                     # This fails if we don't send the first byte before the signed URL
                     # expires.
-                    wandb.termlog(f"SRP: store_file_async({entry.local_path}): about to call upload")
+                    # wandb.termlog(f"SRP: store_file_async({entry.local_path}): about to call upload")
                     await self._api.upload_file_async(
                         resp.upload_url,
                         file,
@@ -1045,7 +1045,7 @@ class WandbStoragePolicy(StoragePolicy):
         wandb.termerror(f"SRP: store_file_async({entry.local_path}) failed: {e}")
         raise
       else:
-        wandb.termlog(f"SRP: store_file_async({entry.local_path}) passed")
+        pass # wandb.termlog(f"SRP: store_file_async({entry.local_path}) passed")
 
 
 # Don't use this yet!
