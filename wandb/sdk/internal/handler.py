@@ -162,12 +162,9 @@ class HandleManager:
         logger.info(f"handle defer: {state}")
         # only handle flush tb (sender handles the rest)
         if state == defer.FLUSH_STATS:
-            # if self._system_stats:
-            #     # TODO(jhr): this could block so we dont really want to call shutdown
-            #     # from handler thread
-            #     self._system_stats.shutdown()
+            # TODO(jhr): this could block so we dont really want to call shutdown
+            # from handler thread
             if self._system_monitor is not None:
-                # from handler thread
                 self._system_monitor.finish()
         elif state == defer.FLUSH_TB:
             if self._tb_watcher:
@@ -687,7 +684,7 @@ class HandleManager:
 
     def handle_request_resume(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("starting system metrics process")
+            logger.info("starting system metrics thread or process")
             self._system_monitor.start()
 
         if self._track_time is not None:
@@ -696,7 +693,7 @@ class HandleManager:
 
     def handle_request_pause(self, record: Record) -> None:
         if self._system_monitor is not None:
-            logger.info("stopping system metrics process")
+            logger.info("stopping system metrics thread or process")
             self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time

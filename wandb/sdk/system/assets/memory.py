@@ -2,7 +2,10 @@ import multiprocessing as mp
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
@@ -165,7 +168,7 @@ class Memory:
     @classmethod
     def is_available(cls) -> bool:
         """Return a new instance of the CPU metrics"""
-        return True if psutil else False
+        return psutil is not None
 
     def probe(self) -> dict:
         """Return a dict of the hardware information"""

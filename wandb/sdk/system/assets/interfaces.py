@@ -97,7 +97,6 @@ class MetricsMonitor:
         interface: Interface,
         settings: "SettingsStatic",
         shutdown_event: synchronize.Event,
-        # start_time,
     ) -> None:
         self.metrics = metrics
         self._interface = interface
@@ -115,7 +114,6 @@ class MetricsMonitor:
         self.samples_to_aggregate: int = min(
             30, max(1, settings._stats_samples_to_average)
         )
-        # print(self.sampling_interval, self.samples_to_aggregate)
 
     def monitor(self) -> None:
         """Poll the Asset metrics"""
@@ -133,7 +131,6 @@ class MetricsMonitor:
 
     def serialize(self) -> dict:
         """Return a dict of metrics"""
-        # serialized_metrics = {"timestamp": time.monotonic() - self.start_time}
         serialized_metrics = {}
         for metric in self.metrics:
             try:

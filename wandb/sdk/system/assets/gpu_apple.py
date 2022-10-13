@@ -13,7 +13,6 @@ else:
     from typing_extensions import TypedDict
 
 import wandb
-import wandb.util
 from wandb.sdk.lib import telemetry
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (

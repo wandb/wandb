@@ -2,8 +2,10 @@ import multiprocessing as mp
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
-import psutil
-
+try:
+    import psutil
+except ImportError:
+    psutil = None
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -147,7 +149,7 @@ class CPU:
 
     @classmethod
     def is_available(cls) -> bool:
-        return True if psutil else False
+        return psutil is not None
 
     def probe(self) -> dict:
         asset_info = {

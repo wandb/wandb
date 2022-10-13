@@ -2,8 +2,12 @@ import multiprocessing as mp
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
+try:
+    import gcipuinfo  # type: ignore
+except ImportError:
+    gcipuinfo = None
+
 import wandb
-import wandb.util
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -16,8 +20,6 @@ if TYPE_CHECKING:
     from typing import Deque
 
     from wandb.sdk.internal.settings_static import SettingsStatic
-
-gcipuinfo = wandb.util.get_module("gcipuinfo")
 
 
 class IPUStats:
@@ -149,12 +151,7 @@ class IPU:
 
     @classmethod
     def is_available(cls) -> bool:
-        try:
-            import gcipuinfo  # type: ignore  # noqa: F401
-        except ImportError:
-            return False
-
-        return True
+        return gcipuinfo is not None
 
     def start(self) -> None:
         self.metrics_monitor.start()

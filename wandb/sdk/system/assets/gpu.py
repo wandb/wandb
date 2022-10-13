@@ -22,14 +22,13 @@ if TYPE_CHECKING:
 
     from wandb.sdk.internal.settings_static import SettingsStatic
 
+    GPUHandle = object
+
 
 logger = logging.getLogger(__name__)
 
 
-GPUHandle = object
-
-
-def gpu_in_use_by_this_process(gpu_handle: GPUHandle, pid: int) -> bool:
+def gpu_in_use_by_this_process(gpu_handle: "GPUHandle", pid: int) -> bool:
     if psutil is None:
         return False
 

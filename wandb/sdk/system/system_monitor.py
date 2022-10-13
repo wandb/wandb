@@ -94,12 +94,10 @@ class SystemMonitor:
             return None
         # only extract as many items as are available in the queue at the moment
         size = self.asset_interface.metrics_queue.qsize()
-        # print(f"WOKE UP, FELL OUT OF BED, DRAGGED A COMB ACROSS MY HEAD: {size}")
 
         serialized_metrics = {}
         for _ in range(size):
             item = self.asset_interface.metrics_queue.get()
-            # print(f"::harvested:: {item}")
             serialized_metrics.update(item)
 
         if serialized_metrics:
@@ -174,7 +172,7 @@ class SystemMonitor:
         # merge the two dictionaries
         system_info = {**software_info, **hardware_info}
         logger.debug(system_info)
-        logger.info("Finished collecting system info")
+        logger.info("Finished colle102cting system info")
 
         if publish:
             logger.info("Publishing system info")
