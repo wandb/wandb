@@ -21,7 +21,7 @@ from wandb.sdk.launch.launch_add import launch_add
             {"build": {"type": "docker"}},
             {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}},
         ),
-        ({"build": {"type": ""}}, {"repository": "testing123"}),
+        ({"build": {"type": ""}}, {}),
     ],
 )
 def test_launch_build_push_job(

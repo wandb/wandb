@@ -85,6 +85,10 @@ def test_launch_build_succeeds(
     run = wandb.init(project=proj)  # create project
 
     with runner.isolated_filesystem(), relay_server():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+            json.dump({"build": {"type": "docker"}}, f)
+
         result = runner.invoke(cli.launch, base_args + args)
 
         assert result.exit_code == 0
@@ -95,6 +99,7 @@ def test_launch_build_succeeds(
     run.finish()
 
 
+@pytest.mark.timeout(100)
 @pytest.mark.parametrize(
     "args",
     [(["--queue=no-exist", "--build"]), (["--build"]), (["--build=builder"])],
