@@ -1,4 +1,12 @@
+import multiprocessing as mp
+import time
+from unittest import mock
+
+import wandb
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.system.assets import IPU
 from wandb.sdk.system.assets.ipu import IPUStats
+from wandb.sdk.system.system_monitor import AssetInterface
 
 CURRENT_PID = 123
 OTHER_PID = 456
@@ -7,6 +15,9 @@ OTHER_PID = 456
 class MockGcIpuInfo:
     def setUpdateMode(self, update_mode: bool):  # noqa: N802
         pass
+
+    def gcipuinfo(self):
+        return self
 
     def getDevices(self):  # noqa: N802
         return [
@@ -76,3 +87,33 @@ def test_profiler():
     }
     ipu_profiler.sample()
     assert ipu_profiler.samples[1] == changed_metrics
+
+
+def test_ipu(test_settings):
+
+    with mock.patch.object(wandb.sdk.system.assets.ipu, "gcipuinfo", MockGcIpuInfo()):
+        interface = AssetInterface()
+        settings = SettingsStatic(
+            test_settings(
+                dict(
+                    _stats_sample_rate_seconds=0.1,
+                    _stats_samples_to_average=2,
+                )
+            ).make_static()
+        )
+        shutdown_event = mp.Event()
+
+        ipu = IPU(
+            interface=interface,
+            settings=settings,
+            shutdown_event=shutdown_event,
+        )
+
+        assert not ipu.is_available()
+        ipu.metrics[0]._pid = CURRENT_PID
+        ipu.start()
+        time.sleep(1)
+        shutdown_event.set()
+        ipu.finish()
+
+        assert not interface.metrics_queue.empty()

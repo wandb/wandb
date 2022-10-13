@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
     from wandb.sdk.internal.settings_static import SettingsStatic
 
+gcipuinfo = wandb.util.get_module("gcipuinfo")
+
 
 class IPUStats:
     """
@@ -41,10 +43,12 @@ class IPUStats:
 
     def __init__(self, pid: int, gc_ipu_info: Any = None) -> None:
         self.samples: "Deque[dict]" = deque()
-        self.pid = pid
 
         if gc_ipu_info is None:
-            import gcipuinfo  # type: ignore
+            if not gcipuinfo:
+                raise ImportError(
+                    "Monitoring IPU stats requires gcipuinfo to be installed"
+                )
 
             self._gc_ipu_info = gcipuinfo.gcipuinfo()
         else:
@@ -82,6 +86,7 @@ class IPUStats:
         try:
             stats = {}
             devices = self._gc_ipu_info.getDevices()
+
             for device in devices:
                 device_metrics: Dict[str, str] = dict(device)
 
@@ -117,9 +122,9 @@ class IPUStats:
             return {}
         stats = {}
         for key in self.samples[0].keys():
-            samples = [s[key] for s in self.samples]
+            samples = [s[key] for s in self.samples if key in s]
             aggregate = round(sum(samples) / len(samples), 2)
-            stats[self.name.format(key)] = aggregate
+            stats[key] = aggregate
         return stats
 
 
@@ -145,7 +150,7 @@ class IPU:
     @classmethod
     def is_available(cls) -> bool:
         try:
-            import gcipuinfo  # noqa
+            import gcipuinfo  # type: ignore  # noqa: F401
         except ImportError:
             return False
 
