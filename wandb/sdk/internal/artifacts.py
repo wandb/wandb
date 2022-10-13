@@ -181,7 +181,7 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file(
+            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
                 artifact_manifest_id,
                 entry,

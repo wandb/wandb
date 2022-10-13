@@ -97,7 +97,7 @@ class StepUpload:
         self._pending_jobs: MutableMapping[
             dir_watcher.SaveName, RequestUpload
         ] = {}
-
+        
         self._loop = asyncio.new_event_loop()
         self._loop_thread = threading.Thread(target=self._loop.run_forever)
         self._loop_thread.daemon = True
@@ -114,7 +114,7 @@ class StepUpload:
         finish_callback = None
         while True:
             event = self._event_queue.get()
-            wandb.termerror(f"SRP: StepUpload got event: {event}")
+            wandb.termlog(f"SRP: StepUpload got event: {event}")
             if isinstance(event, RequestFinish):
                 finish_callback = event.callback
                 break
@@ -130,7 +130,7 @@ class StepUpload:
         while True:
             try:
                 event = self._event_queue.get(True, 0.2)
-                wandb.termerror(f"SRP: StepUpload got event (post-finish): {event}")
+                wandb.termlog(f"SRP: StepUpload got event (post-finish): {event}")
             except queue.Empty:
                 event = None
             if event:
@@ -145,13 +145,15 @@ class StepUpload:
                     self._loop.stop()
                 self._loop.call_soon_threadsafe(stop_loop)
                 break
-        wandb.termerror(f"SRP: UploadJob: terminating")
+        wandb.termlog(f"SRP: UploadJob: terminating")
 
     def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
+            wandb.termlog(f"SRP: job done: {job.save_name}, artifact {job.artifact_id}, success {event.success}")
             if job.artifact_id:
                 if event.success:
+                    wandb.termlog(f"SRP: decreasing pending count for {job.artifact_id} because of {job.save_name} succeeded")
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
                     self._maybe_commit_artifact(job.artifact_id)
                 else:
@@ -179,7 +181,6 @@ class StepUpload:
             if event.artifact_id is not None:
                 if event.artifact_id not in self._artifacts:
                     self._init_artifact(event.artifact_id)
-                self._artifacts[event.artifact_id]["pending_count"] += 1
             self._start_upload_job(event)
         else:
             raise Exception("Programming error: unhandled event: %s" % str(event))
@@ -192,8 +193,15 @@ class StepUpload:
         # we're already uploading this file, put the event on the
         # end of the queue
         if event.save_name in self._running_jobs:
+            if event.artifact_id and event.save_name not in self._pending_jobs:
+                wandb.termlog(f"SRP: increasing pending count for {event.artifact_id} because of {event.save_name} (inserting into pending)")
+                self._artifacts[event.artifact_id]["pending_count"] += 1
             self._pending_jobs[event.save_name] = event
             return
+
+        if event.artifact_id:
+            wandb.termlog(f"SRP: increasing pending count for {event.artifact_id} because of {event.save_name} (running)")
+            self._artifacts[event.artifact_id]["pending_count"] += 1
 
         # Start it.
         job = upload_job.UploadJob(
@@ -223,17 +231,24 @@ class StepUpload:
         }
 
     def _maybe_commit_artifact(self, artifact_id: str) -> None:
+        wandb.termlog(f"SRP: maybe_commit_artifact({artifact_id})")
         artifact_status = self._artifacts[artifact_id]
         if (
             artifact_status["pending_count"] == 0
             and artifact_status["commit_requested"]
         ):
+            wandb.termlog(f"SRP: maybe_commit_artifact({artifact_id}): about to precommit")
             for callback in artifact_status["pre_commit_callbacks"]:
                 callback()
             if artifact_status["finalize"]:
+                wandb.termlog(f"SRP: maybe_commit_artifact({artifact_id}): about to api.commit")
                 self._api.commit_artifact(artifact_id)
+                wandb.termlog(f"SRP: maybe_commit_artifact({artifact_id}): done with api.commit")
             for callback in artifact_status["post_commit_callbacks"]:
                 callback()
+            wandb.termlog(f"SRP: maybe_commit_artifact({artifact_id}): done with postcommit")
+        else:
+            wandb.termlog(f"SRP: maybe_commit_artifact({artifact_id}): never mind, status = {artifact_status}")
 
     def start(self) -> None:
         self._thread.start()

@@ -1715,7 +1715,7 @@ class Api:
                     'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
                 }
         """
-        wandb.termerror(f"SRP: in upload_urls_async")
+        wandb.termlog(f"SRP: in upload_urls_async")
         def gql(s: str) -> str: return s
         query = gql(
             """
@@ -1753,7 +1753,7 @@ class Api:
         entity = entity or self.settings("entity")
 
         print('headers', client._headers)
-        wandb.termerror(f"SRP: about to send RunUploadUrls query for {files}")
+        wandb.termlog(f"SRP: about to send RunUploadUrls query for {files}")
         query_result = await client.query(query, variables={
                 "name": project,
                 "run": run_id,
@@ -1761,7 +1761,7 @@ class Api:
                 "description": description,
                 "files": [file for file in files],
             })
-        wandb.termerror(f"SRP: done with RunUploadUrls query for {files}; got {query_result.json}")
+        wandb.termlog(f"SRP: done with RunUploadUrls query for {files}; got {query_result.json}")
 
         if query_result.json.get("errors"):
             raise CommError(str(query_result["errors"]))
@@ -1778,7 +1778,7 @@ class Api:
             else:
                 raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
         except Exception as e:
-            wandb.termerror(f"SRP: error in RunUploadUrls query for {files}: {e}")
+            wandb.termlog(f"SRP: error in RunUploadUrls query for {files}: {e}")
             raise
 
     @normalize_exceptions
@@ -2064,7 +2064,11 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        wandb.termerror("SRP: in upload_file_async")
+        # import asyncio
+        # if not hasattr(self, "_upload_async_limiter"):
+        #     self._upload_async_limiter = asyncio.Semaphore(200)
+            
+        wandb.termlog("SRP: in upload_file_async")
         # import remote_pdb; remote_pdb.set_trace(port=56786)
         extra_headers = extra_headers.copy() if extra_headers else {}
         progress = Progress(file, callback=callback)
@@ -2079,7 +2083,7 @@ class Api:
                     )
                 import requests.utils
                 async with aiohttp.ClientSession() as session:
-                    wandb.termerror(f"SRP: about to PUT {url}")
+                    wandb.termlog(f"SRP: about to PUT {url}")
                     async with session.put(
                         url,
                         data=progress,
@@ -2089,36 +2093,10 @@ class Api:
                             "Content-Length": str(len(progress)),
                         }, skip_auto_headers=['content-type']) as response:
                         response.raise_for_status()
-                    wandb.termerror(f"SRP: done with PUT {url}")
-        except Exception as e:
-            wandb.termerror(f"SRP: err in upload_file_async: {e}")
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
-            response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content}")
-            status_code = e.response.status_code if e.response is not None else 0
-            # S3 reports retryable request timeouts out-of-band
-            is_aws_retryable = (
-                "x-amz-meta-md5" in extra_headers
-                and status_code == 400
-                and "RequestTimeout" in response_content
-            )
-            # We need to rewind the file for the next retry (the file passed in is seeked to 0)
-            progress.rewind()
-            # Retry errors from cloud storage or local network issues
-            if (
-                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
-                or isinstance(
-                    e,
-                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
-                )
-                or is_aws_retryable
-            ):
-                _e = retry.TransientError(exc=e)
-                raise _e.with_traceback(sys.exc_info()[2])
-            else:
-                util.sentry_reraise(e)
+                    wandb.termlog(f"SRP: done with PUT {url}")
+        except aiohttp.ClientResponseError as e:
+            wandb.termlog(f"SRP: err in upload_file_async: {e}")
+            raise
 
     @normalize_exceptions
     def register_agent(

@@ -137,6 +137,9 @@ class Api:
     def upload_file_retry(self, *args, **kwargs):
         return self.api.upload_file_retry(*args, **kwargs)
 
+    def upload_file_async(self, *args, **kwargs):
+        return self.api.upload_file_async(*args, **kwargs)
+
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
 

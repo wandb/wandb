@@ -1,5 +1,6 @@
 """Batching file prepare requests to our API."""
 
+import asyncio
 import queue
 import sys
 import threading
@@ -14,6 +15,7 @@ from typing import (
     Tuple,
     Union,
 )
+import wandb
 
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
@@ -41,7 +43,7 @@ if TYPE_CHECKING:
 class RequestPrepare(NamedTuple):
     prepare_fn: "DoPrepareFn"
     on_prepare: Optional["OnPrepareFn"]
-    response_queue: "queue.Queue[ResponsePrepare]"
+    response: "asyncio.Future[ResponsePrepare]"
 
 
 class RequestFinish(NamedTuple):
@@ -84,12 +86,15 @@ class StepPrepare:
     def _thread_body(self) -> None:
         while True:
             request = self._request_queue.get()
+            wandb.termlog(f"SRP: PrepareRequest: got {request}")
             if isinstance(request, RequestFinish):
                 break
             finish, batch = self._gather_batch(request)
             prepare_response = self._prepare_batch(batch)
             # send responses
             for prepare_request in batch:
+              try:
+                wandb.termlog(f"SRP: PrepareRequest: for {request}: gonna respond to {prepare_request.prepare_fn()}")
                 name = prepare_request.prepare_fn()["name"]
                 response_file = prepare_response[name]
                 upload_url = response_file["uploadUrl"]
@@ -99,9 +104,16 @@ class StepPrepare:
                     prepare_request.on_prepare(
                         upload_url, upload_headers, birth_artifact_id
                     )
-                prepare_request.response_queue.put(
-                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
-                )
+                def _respond(request=request, prepare_request=prepare_request, upload_url=upload_url,upload_headers=upload_headers,birth_artifact_id=birth_artifact_id):
+                    wandb.termlog(f"SRP: PrepareRequest: setting future-result")
+                    prepare_request.response.set_result(
+                        ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
+                    )
+                    wandb.termlog(f"SRP: PrepareRequest: for {request}: responded to {prepare_request.prepare_fn()}")
+                prepare_request.response.get_loop().call_soon_threadsafe(_respond)
+              except Exception as e:
+                wandb.termlog(f"SRP: PrepareRequest: for {request}: failed to respond to {prepare_request.prepare_fn()}: {e}")
+                raise
             if finish:
                 break
 
@@ -143,21 +155,14 @@ class StepPrepare:
             file_specs.append(file_spec)
         return self._api.create_artifact_files(file_specs)
 
-    def prepare_async(
-        self, prepare_fn: "DoPrepareFn", on_prepare: Optional["OnPrepareFn"] = None
-    ) -> "queue.Queue[ResponsePrepare]":
-        """Request the backend to prepare a file for upload.
-
-        Returns:
-            response_queue: a queue containing the prepare result. The prepare result is
-                either a file upload url, or None if the file doesn't need to be uploaded.
-        """
-        response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
-        self._request_queue.put(RequestPrepare(prepare_fn, on_prepare, response_queue))
-        return response_queue
-
-    def prepare(self, prepare_fn: "DoPrepareFn") -> ResponsePrepare:
-        return self.prepare_async(prepare_fn).get()
+    async def prepare(self, prepare_fn: "DoPrepareFn") -> ResponsePrepare:
+        wandb.termlog(f"SRP: prepare({prepare_fn()})")
+        response = asyncio.Future()
+        self._request_queue.put(RequestPrepare(prepare_fn, None, response))
+        wandb.termlog(f"SRP: prepare({prepare_fn()}): about to await")
+        res = await response
+        wandb.termlog(f"SRP: prepare({prepare_fn()}): done awaiting: {res}")
+        return res
 
     def start(self) -> None:
         self._thread.start()

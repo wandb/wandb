@@ -991,7 +991,7 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception(f"unrecognized storage layout: {storage_layout}")
 
-    def store_file(
+    async def store_file_async(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -999,6 +999,8 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
+      try:
+        wandb.termlog(f"SRP: store_file_async({entry.local_path})")
         # write-through cache
         cache_path, hit, cache_open = self._cache.check_md5_obj_path(
             util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
@@ -1017,7 +1019,9 @@ class WandbStoragePolicy(StoragePolicy):
                 "md5": entry.digest,
             }
 
-        resp = preparer.prepare(_prepare_fn)
+        wandb.termlog(f"SRP: store_file_async({entry.local_path}): about to await prepare")
+        resp = await preparer.prepare(_prepare_fn)
+        wandb.termlog(f"SRP: store_file_async({entry.local_path}): done awaiting prepare")
 
         entry.birth_artifact_id = resp.birth_artifact_id
         exists = resp.upload_url is None
@@ -1026,7 +1030,8 @@ class WandbStoragePolicy(StoragePolicy):
                 with open(entry.local_path, "rb") as file:
                     # This fails if we don't send the first byte before the signed URL
                     # expires.
-                    self._api.upload_file_retry(
+                    wandb.termlog(f"SRP: store_file_async({entry.local_path}): about to call upload")
+                    await self._api.upload_file_async(
                         resp.upload_url,
                         file,
                         progress_callback,
@@ -1036,6 +1041,11 @@ class WandbStoragePolicy(StoragePolicy):
                         },
                     )
         return exists
+      except Exception as e:
+        wandb.termerror(f"SRP: store_file_async({entry.local_path}) failed: {e}")
+        raise
+      else:
+        wandb.termlog(f"SRP: store_file_async({entry.local_path}) passed")
 
 
 # Don't use this yet!

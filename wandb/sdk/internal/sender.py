@@ -540,6 +540,7 @@ class SendManager:
         if self._pusher:
             _alive, status = self._pusher.get_status()
             file_counts = self._pusher.file_counts_by_category()
+            wandb.termlog(f"SRP: alive, status, file_counts = {(_alive, status, file_counts)}")
             resp = result.response.poll_exit_response
             resp.pusher_stats.uploaded_bytes = status.uploaded_bytes
             resp.pusher_stats.total_bytes = status.total_bytes

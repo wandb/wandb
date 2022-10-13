@@ -166,6 +166,7 @@ class FilePusher:
 
     def finish(self, callback: Optional[step_upload.OnRequestFinishFn] = None):
         logger.info("shutting down file pusher")
+        wandb.termlog("SRP: shutting down file pusher")
         self._incoming_queue.put(step_checksum.RequestFinish(callback))
 
     def join(self) -> None:
