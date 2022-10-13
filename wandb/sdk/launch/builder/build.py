@@ -559,7 +559,7 @@ def build_image_with_builder(
 def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
-    launch_config: Optional[Dict] = None,
+    launch_config: Optional[Dict[str, Any]] = None,
     default_builder_type: Optional[str] = "docker",
 ) -> str:
     """

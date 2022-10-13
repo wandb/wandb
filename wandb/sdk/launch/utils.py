@@ -1,12 +1,11 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
-import json
 import logging
 import os
 import platform
 import re
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
 
@@ -203,17 +202,6 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
         raise LaunchError("Found both uri and docker-image, only one can be set")
     elif sum(map(bool, [uri, job, docker_image])) > 1:
         raise LaunchError("Must specify exactly one of uri, job or image")
-
-
-def parse_launch_config(config: Optional[Union[str, Dict[str, Any]]]) -> Dict[str, Any]:
-    launch_config = {}
-    if config is not None:
-        if isinstance(config, str):
-            with open(config) as fp:
-                launch_config = json.load(fp)
-        elif isinstance(config, dict):
-            launch_config = config
-    return launch_config
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:

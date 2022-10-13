@@ -1,5 +1,5 @@
 import pprint
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import wandb
 import wandb.apis.public as public
@@ -10,7 +10,6 @@ from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
     LOG_PREFIX,
     construct_launch_spec,
-    parse_launch_config,
     validate_launch_spec_source,
 )
 
@@ -27,7 +26,7 @@ def push_to_queue(api: Api, queue_name: str, launch_spec: Dict[str, Any]) -> Any
 def launch_add(
     uri: Optional[str] = None,
     job: Optional[str] = None,
-    config: Optional[Union[str, Dict[str, Any]]] = None,
+    config: Optional[Dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     queue_name: Optional[str] = None,
@@ -118,7 +117,7 @@ def _launch_add(
     api: Api,
     uri: Optional[str],
     job: Optional[str],
-    config: Optional[Union[str, Dict[str, Any]]],
+    config: Optional[Dict[str, Any]],
     project: Optional[str],
     entity: Optional[str],
     queue_name: Optional[str],
@@ -134,8 +133,6 @@ def _launch_add(
     build: Optional[bool] = False,
     repository: Optional[str] = None,
 ) -> "public.QueuedRun":
-    launch_config = parse_launch_config(config)
-
     launch_spec = construct_launch_spec(
         uri,
         job,
@@ -149,7 +146,7 @@ def _launch_add(
         version,
         params,
         resource_args,
-        launch_config,
+        config,
         cuda,
         run_id,
         repository,
@@ -161,7 +158,7 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project, api, launch_config)
+        docker_image_uri = build_image_from_project(launch_project, api, config)
         run = wandb.run or wandb.init(project=project, job_type="launch_job")
 
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
