@@ -51,19 +51,16 @@ test-clean:
 	rm -rf .pytest_cache/
 
 test:
-	tox -e "pyupgrade,black,mypy,flake8,docstrings"
-
-test-full:
 	tox
 
 test-short:
-	tox -e "pyupgrade,black,mypy,flake8,docstrings,py36"
+	tox -e "pyupgrade,isort-format,format,mypy,flake8,docstrings,py38"
 
 format:
 	tox -e format
 
 lint:
-	tox -e "isort-format,format,flake8,mypy,docstrings"
+	tox -e "pyupgrade,isort-format,format,flake8,mypy,docstrings"
 
 proto:
 	tox -e proto3
