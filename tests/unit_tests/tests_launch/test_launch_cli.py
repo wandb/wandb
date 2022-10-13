@@ -10,7 +10,7 @@ from wandb.cli import cli
 @pytest.mark.parametrize(
     "args,override_config",
     [
-        (["--queue", "--build"], {"registry": {"repository": "testing123"}}),
+        (["--build", "--queue"], {"registry": {"repository": "testing123"}}),
         (
             ["--queue", "--build", "--repository", "testing-override"],
             {"registry": {"url": "testing123"}},
@@ -82,19 +82,15 @@ def test_launch_build_succeeds(
     )
 
     os.environ["WANDB_PROJECT"] = proj  # required for artifact query
-    run = wandb.init(project=proj)  # create project
-
+    run = wandb.init(project=proj, entity=user)  # create project
+    run.finish()
     with runner.isolated_filesystem(), relay_server():
         result = runner.invoke(cli.launch, base_args + args)
-
-        raise Exception(result.output)
 
         assert result.exit_code == 0
         assert "Launching run in docker with command" not in result.output
         assert "Added run to queue" in result.output
         assert f"'job': '{user}/{proj}/job-{image_name}:v0'" in result.output
-
-    run.finish()
 
 
 @pytest.mark.timeout(100)
@@ -147,11 +143,9 @@ def test_launch_build_fails(
 
     os.environ["WANDB_PROJECT"] = proj  # required for artifact query
     run = wandb.init(project=proj)  # create project
-
+    run.finish()
     with runner.isolated_filesystem(), relay_server():
         result = runner.invoke(cli.launch, base_args + args)
-
-        raise Exception(result.output)
 
         if "--queue=no-exist" in args:
             assert result.exit_code == 1
@@ -161,5 +155,4 @@ def test_launch_build_fails(
             assert "Build flag requires a queue to be set" in result.output
         elif args == ["--build=builder"]:
             assert result.exit_code == 2
-
-    run.finish()
+            assert "Option '--build' does not take a value" in result.output
