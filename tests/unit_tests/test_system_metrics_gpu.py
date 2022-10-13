@@ -33,12 +33,12 @@ class MockPynvml:
 
     def nvmlDeviceGetComputeRunningProcesses(  # noqa: N802
         self, handle: int
-    ) -> Tuple[int]:
+    ) -> Tuple[int, ...]:
         return -1, -2, -3
 
     def nvmlDeviceGetGraphicsRunningProcesses(  # noqa: N802
         self, handle: int
-    ) -> Tuple[int]:
+    ) -> Tuple[int, ...]:
         return -1, -2, -3
 
     #
