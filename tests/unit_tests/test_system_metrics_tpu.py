@@ -1,4 +1,4 @@
-import pytest
+import pytest  # type: ignore
 from wandb.sdk.system.assets.tpu import TPUUtilization
 
 
