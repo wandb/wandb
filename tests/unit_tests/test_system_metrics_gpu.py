@@ -31,14 +31,14 @@ class MockPynvml:
         info.total = 42
         return info
 
-    def nvmlDeviceGetComputeRunningProcesses(
+    def nvmlDeviceGetComputeRunningProcesses(  # noqa: N802
         self, handle: int
-    ) -> Tuple[int]:  # noqa: N802
+    ) -> Tuple[int]:
         return -1, -2, -3
 
-    def nvmlDeviceGetGraphicsRunningProcesses(
+    def nvmlDeviceGetGraphicsRunningProcesses(  # noqa: N802
         self, handle: int
-    ) -> Tuple[int]:  # noqa: N802
+    ) -> Tuple[int]:
         return -1, -2, -3
 
     #
@@ -48,9 +48,9 @@ class MockPynvml:
         rates.gpu = 24.0
         return rates
 
-    def nvmlDeviceGetTemperature(
+    def nvmlDeviceGetTemperature(  # noqa: N802
         self, handle: int, sensor_type: int
-    ) -> float:  # noqa: N802
+    ) -> float:
         return 420.0
 
     def nvmlDeviceGetPowerUsage(self, handle: int):  # noqa: N802
