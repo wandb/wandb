@@ -578,8 +578,6 @@ def build_image_from_project(
     # Currently support either url or repository keywords in registry
     repository = registry_config.get("url") or registry_config.get("repository")
 
-    wandb.termwarn(f"{repository=}")
-
     if not builder_config.get("type"):
         wandb.termlog(f"{LOG_PREFIX}No builder found, defaulting to docker")
         builder_config["type"] = default_builder_type

@@ -1194,6 +1194,7 @@ def launch(
         resource = config.get("resource")
     elif resource is None:
         resource = "local-container"
+
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
 
