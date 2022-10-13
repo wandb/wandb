@@ -1090,15 +1090,8 @@ class Api:
             push_result = self.push_to_run_queue_by_name(
                 entity, project, queue_name, run_spec
             )
-        except CommError as e:
-            # explicitly handle servers with no pushToRunQueueByName mutation
-            if (
-                'Cannot query field "pushToRunQueueByName" on type "Mutation"'
-                in e.message
-            ):
-                push_result = None
-            else:
-                raise e
+        except Exception:  # fallback to legacy method
+            push_result = None
 
         if push_result:
             return push_result
