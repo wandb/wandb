@@ -17,6 +17,21 @@ if TYPE_CHECKING:
 
     from wandb.sdk.internal.settings_static import SettingsStatic
 
+try:
+    from tensorflow.python.distribute.cluster_resolver import (  # type: ignore
+        tpu_cluster_resolver,
+    )
+    from tensorflow.python.profiler import profiler_client  # type: ignore
+except (
+    ImportError,
+    TypeError,
+    AttributeError,
+):  # Saw type error when iterating paths on colab...
+    # TODO: Saw error in sentry where module 'tensorflow.python.pywrap_tensorflow'
+    #  has no attribute 'TFE_DEVICE_PLACEMENT_EXPLICIT'
+    tpu_cluster_resolver = None
+    profiler_client = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,8 +53,6 @@ class TPUUtilization:
 
         self.duration_ms = duration_ms
         self.service_addr = service_addr
-
-        from tensorflow.python.profiler import profiler_client  # type: ignore
 
         self._profiler_client = profiler_client
 
@@ -101,10 +114,6 @@ class TPU:
             compute_zone = compute_zone or os.environ.get("CLOUDSDK_COMPUTE_ZONE")
             core_project = core_project or os.environ.get("CLOUDSDK_CORE_PROJECT")
             try:
-                from tensorflow.python.distribute.cluster_resolver import (  # type: ignore
-                    tpu_cluster_resolver,
-                )
-
                 service_addr = tpu_cluster_resolver.TPUClusterResolver(
                     [tpu_name], zone=compute_zone, project=core_project
                 ).get_master()
@@ -131,21 +140,12 @@ class TPU:
         if os.environ.get("TPU_NAME", False) is False:
             return False
 
-        try:
-            from tensorflow.python.distribute.cluster_resolver import (  # noqa: F401
-                tpu_cluster_resolver,
-            )
-            from tensorflow.python.profiler import profiler_client  # noqa: F401
+        if tpu_cluster_resolver is None or profiler_client is None:
+            return False
 
+        try:
             cls.get_service_addr()
-        except (
-            ImportError,
-            TypeError,
-            AttributeError,
-            ValueError,
-        ):  # Saw type error when iterating paths on colab...
-            # TODO: Saw error in sentry where module 'tensorflow.python.pywrap_tensorflow'
-            #  has no attribute 'TFE_DEVICE_PLACEMENT_EXPLICIT'
+        except ValueError:
             return False
 
         return True
