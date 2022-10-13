@@ -1045,6 +1045,17 @@ class Api:
         Queryless mutation, should be used before legacy fallback method
         """
 
+        def no_retry_4xx(e: Exception) -> bool:
+            if not isinstance(e, requests.HTTPError):
+                return True
+            if (
+                not (e.response.status_code >= 400 and e.response.status_code < 500)
+                or e.response.status_code == 429
+            ):
+                return True
+            body = json.loads(e.response.content)
+            raise UsageError(body["errors"][0]["message"])
+
         mutation = gql(
             """
         mutation pushToRunQueueByName(
@@ -1072,9 +1083,12 @@ class Api:
             "queueName": queue_name,
             "runSpec": run_spec,
         }
-        result: Optional[Dict[str, Any]] = self.gql(mutation, variables).get(
-            "pushToRunQueueByName"
-        )
+        try:
+            result: Optional[Dict[str, Any]] = self.gql(
+                mutation, variables, check_retry_fn=no_retry_4xx
+            ).get("pushToRunQueueByName")
+        except Exception:
+            result = None
 
         return result
 
@@ -1086,12 +1100,9 @@ class Api:
         project = launch_spec["project"]
         run_spec = json.dumps(launch_spec)
 
-        try:
-            push_result = self.push_to_run_queue_by_name(
-                entity, project, queue_name, run_spec
-            )
-        except Exception:  # fallback to legacy method
-            push_result = None
+        push_result = self.push_to_run_queue_by_name(
+            entity, project, queue_name, run_spec
+        )
 
         if push_result:
             return push_result

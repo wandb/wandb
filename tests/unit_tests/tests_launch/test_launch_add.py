@@ -1,6 +1,4 @@
-import pytest
 import wandb
-from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 
 
@@ -94,13 +92,7 @@ def test_push_to_default_runqueue_notexist(relay_server, user):
     run.finish()
 
 
-@pytest.mark.parametrize(
-    "exception",
-    [
-        CommError,
-    ],
-)
-def test_push_to_runqueue_old_server(relay_server, user, monkeypatch, exception):
+def test_push_to_runqueue_old_server(relay_server, user, monkeypatch):
     proj = "test_project"
     queue = "existing-queue"
     uri = "https://github.com/wandb/examples.git"
@@ -116,15 +108,9 @@ def test_push_to_runqueue_old_server(relay_server, user, monkeypatch, exception)
     run = wandb.init(project=proj)
     api = wandb.sdk.internal.internal_api.Api()
 
-    class MockConnectionError:
-        def __init__(self, *args, **kwargs):
-            raise exception(
-                'Cannot query field "pushToRunQueueByName" on type "Mutation"'
-            )
-
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.push_to_run_queue_by_name",
-        MockConnectionError,
+        lambda *args: None,
     )
 
     with relay_server():
