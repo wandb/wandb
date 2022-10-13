@@ -1097,7 +1097,6 @@ class Api:
             return push_result
 
         """ Legacy Method """
-        wandb.termlog("Using legacy run queue push.")
         queues_found = self.get_project_run_queues(entity, project)
         matching_queues = [
             q
