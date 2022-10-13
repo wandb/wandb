@@ -4,8 +4,8 @@ from unittest import mock
 
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets.gpu_apple import _Stats
 from wandb.sdk.system.assets import GPUApple
+from wandb.sdk.system.assets.gpu_apple import _Stats
 from wandb.sdk.system.system_monitor import AssetInterface
 
 

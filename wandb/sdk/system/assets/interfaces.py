@@ -34,13 +34,13 @@ class Metric(Protocol):
     samples: "Deque[Any]"
 
     def sample(self) -> None:
-        ...
+        ...  # pragma: no cover
 
     def clear(self) -> None:
-        ...
+        ...  # pragma: no cover
 
     def serialize(self) -> dict:
-        ...
+        ...  # pragma: no cover
 
 
 @runtime_checkable
@@ -55,35 +55,35 @@ class Asset(Protocol):
     metrics_monitor: "MetricsMonitor"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        ...
+        ...  # pragma: no cover
 
     @classmethod
     def is_available(cls) -> bool:
         """Check if the resource is available"""
-        ...
+        ...  # pragma: no cover
 
     def start(self) -> None:
         """Start monitoring the resource"""
-        ...
+        ...  # pragma: no cover
 
     def finish(self) -> None:
         """finish monitoring the resource"""
-        ...
+        ...  # pragma: no cover
 
     def probe(self) -> dict:
         """Get static information about the resource"""
-        ...
+        ...  # pragma: no cover
 
 
 class Interface(Protocol):
     def publish_stats(self, stats: dict) -> None:
-        ...
+        ...  # pragma: no cover
 
     def _publish_telemetry(self, telemetry: "TelemetryRecord") -> None:
-        ...
+        ...  # pragma: no cover
 
     def publish_files(self, files_dict: "FilesDict") -> None:
-        ...
+        ...  # pragma: no cover
 
 
 class MetricsMonitor:

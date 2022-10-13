@@ -112,6 +112,7 @@ def test_ipu(test_settings):
         assert ipu.is_available()
         ipu.metrics[0]._pid = CURRENT_PID
         ipu.start()
+        assert ipu.probe() == {"ipu": {"device_count": 3, "vendor": "Graphcore"}}
         time.sleep(1)
         shutdown_event.set()
         ipu.finish()

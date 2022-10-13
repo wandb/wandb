@@ -64,6 +64,23 @@ class MockPynvml:
 def test_gpu(test_settings):
     mock_pynvml = MockPynvml()
 
+    interface = AssetInterface()
+    settings = SettingsStatic(
+        test_settings(
+            dict(
+                _stats_sample_rate_seconds=0.1,
+                _stats_samples_to_average=2,
+            )
+        ).make_static()
+    )
+    shutdown_event = mp.Event()
+
+    gpu = GPU(
+        interface=interface,
+        settings=settings,
+        shutdown_event=shutdown_event,
+    )
+
     with mock.patch.object(
         wandb.sdk.system.assets.gpu,
         "pynvml",
@@ -73,26 +90,18 @@ def test_gpu(test_settings):
         "gpu_in_use_by_this_process",
         lambda *_: True,
     ):
-        interface = AssetInterface()
-        settings = SettingsStatic(
-            test_settings(
-                dict(
-                    _stats_sample_rate_seconds=0.1,
-                    _stats_samples_to_average=2,
-                )
-            ).make_static()
-        )
-        shutdown_event = mp.Event()
 
-        gpu = GPU(
-            interface=interface,
-            settings=settings,
-            shutdown_event=shutdown_event,
-        )
         assert gpu.is_available()
         gpu.start()
+        assert gpu.probe() == {
+            "gpu": "Mock GPU",
+            "gpu_count": 1,
+            "gpu_devices": [{"name": "Mock GPU", "memory_total": 42}],
+        }
         time.sleep(1)
         shutdown_event.set()
         gpu.finish()
 
         assert not interface.metrics_queue.empty()
+
+    assert gpu.probe() == {}
