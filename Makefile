@@ -62,6 +62,9 @@ test-short:
 format:
 	tox -e format
 
+lint:
+	tox -e "isort-format,format,flake8,mypy,docstrings"
+
 proto:
 	tox -e proto3
 	tox -e proto4
