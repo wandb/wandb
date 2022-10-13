@@ -2,7 +2,7 @@ import multiprocessing as mp
 import time
 from unittest import mock
 
-import pytest
+import pytest  # type: ignore
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.system.assets import TPU
