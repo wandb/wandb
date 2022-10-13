@@ -1,7 +1,7 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
+import json
 import logging
 import os
-import json
 import platform
 import re
 import subprocess

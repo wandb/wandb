@@ -10,8 +10,8 @@ from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
     LOG_PREFIX,
     construct_launch_spec,
-    validate_launch_spec_source,
     parse_launch_config,
+    validate_launch_spec_source,
 )
 
 
