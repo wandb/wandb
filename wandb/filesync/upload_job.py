@@ -67,7 +67,7 @@ class UploadJob:
             success = await self.push()
         finally:
             # import remote_pdb; remote_pdb.set_trace(port=57855)
-            # wandb.termlog(f"SRP: UploadJob: push completed, success={success}")
+            wandb.termlog(f"SRP: UploadJob: push completed, success={success}")
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
             if success:

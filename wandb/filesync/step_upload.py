@@ -101,6 +101,7 @@ class StepUpload:
         self._loop = asyncio.new_event_loop()
         self._loop_thread = threading.Thread(target=self._loop.run_forever)
         self._loop_thread.daemon = True
+        self._concurrency_limiter = asyncio.Semaphore(100, loop=self._loop)
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
@@ -219,7 +220,10 @@ class StepUpload:
             event.digest,
         )
         self._running_jobs[event.save_name] = job
-        self._loop.call_soon_threadsafe(lambda: self._loop.create_task(job.run()))
+        async def run_job():
+            async with self._concurrency_limiter:
+                return await job.run()
+        self._loop.call_soon_threadsafe(lambda: self._loop.create_task(run_job()))
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
