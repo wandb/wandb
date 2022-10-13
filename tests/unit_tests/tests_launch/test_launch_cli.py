@@ -34,7 +34,6 @@ def test_launch_build_succeeds(
         user,
         "--project",
         proj,
-        "--resource=local-process",
         "--entry-point",
         "python ./examples/launch/launch-quickstart/train.py",
         "-c",
@@ -87,6 +86,8 @@ def test_launch_build_succeeds(
 
     with runner.isolated_filesystem(), relay_server():
         result = runner.invoke(cli.launch, base_args + args)
+
+        raise Exception(result.output)
 
         assert result.exit_code == 0
         assert "Launching run in docker with command" not in result.output
@@ -149,6 +150,8 @@ def test_launch_build_fails(
 
     with runner.isolated_filesystem(), relay_server():
         result = runner.invoke(cli.launch, base_args + args)
+
+        raise Exception(result.output)
 
         if "--queue=no-exist" in args:
             assert result.exit_code == 1
