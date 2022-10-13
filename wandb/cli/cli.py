@@ -925,6 +925,9 @@ def sweep(
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
+                        launch_config.get("registry", {}).get(
+                            "url", None
+                        ),  # repository
                     )
                 ),
             }
