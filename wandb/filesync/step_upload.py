@@ -101,7 +101,7 @@ class StepUpload:
         self._loop = asyncio.new_event_loop()
         self._loop_thread = threading.Thread(target=self._loop.run_forever)
         self._loop_thread.daemon = True
-        self._concurrency_limiter = asyncio.Semaphore(100, loop=self._loop)
+        self._concurrency_limiter = asyncio.Semaphore(1000, loop=self._loop)
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
@@ -142,7 +142,7 @@ class StepUpload:
                     finish_callback()
 
                 def stop_loop():
-                    wandb.termerror("SRP: StepUpload stopping loop")
+                    # wandb.termerror("SRP: StepUpload stopping loop")
                     self._loop.stop()
                 self._loop.call_soon_threadsafe(stop_loop)
                 break

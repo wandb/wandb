@@ -43,7 +43,7 @@ from wandb.old.settings import Settings
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
-from .progress import Progress
+from .progress import AsyncProgress, Progress
 
 logger = logging.getLogger(__name__)
 
@@ -2067,7 +2067,7 @@ class Api:
         # wandb.termlog("SRP: in upload_file_async")
         # import remote_pdb; remote_pdb.set_trace(port=56786)
         extra_headers = extra_headers.copy() if extra_headers else {}
-        progress = Progress(file, callback=callback)
+        progress = AsyncProgress(Progress(file, callback=callback))
         try:
             if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
                 self.upload_file_azure(url, progress, extra_headers)
@@ -2078,7 +2078,29 @@ class Api:
                         repeat=False,
                     )
                 import requests.utils
-                async with aiohttp.ClientSession() as session:
+
+                use_httpx = True
+                if use_httpx:
+                    import httpx
+                    if not hasattr(self, '_httpx_client'):
+                        self._httpx_client = httpx.AsyncClient(http2=True)
+                        await self._httpx_client.__aenter__()
+                    client = self._httpx_client
+                    # import remote_pdb; remote_pdb.set_trace(port=56786)
+                    response = await client.put(
+                        url,
+                        content=progress,
+                        headers={
+                            **extra_headers,
+                            "User-Agent": requests.utils.default_user_agent(),
+                            "Content-Length": str(len(progress)),
+                        })
+                    response.raise_for_status()
+                else:
+                    if not hasattr(self, '_aiohttp_session'):
+                        self._aiohttp_session = aiohttp.ClientSession()
+                        await self._aiohttp_session.__aenter__()
+                    session = self._aiohttp_session
                     # wandb.termlog(f"SRP: about to PUT {url}")
                     async with session.put(
                         url,
