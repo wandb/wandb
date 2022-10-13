@@ -109,7 +109,7 @@ def test_ipu(test_settings):
             shutdown_event=shutdown_event,
         )
 
-        assert not ipu.is_available()
+        assert ipu.is_available()
         ipu.metrics[0]._pid = CURRENT_PID
         ipu.start()
         time.sleep(1)
