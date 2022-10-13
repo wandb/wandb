@@ -2103,9 +2103,8 @@ class Run:
                 input_types, output_types, installed_packages_list
             )
 
-            artifact = self.use_artifact(artifact)
-
             if artifact:
+                self.use_artifact(artifact)
                 logger.info(f"Created job using {job_creation_function.__name__}")
                 break
             else:
