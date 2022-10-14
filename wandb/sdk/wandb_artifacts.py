@@ -1390,6 +1390,7 @@ class S3Handler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
+            util.URIStr(manifest_entry.ref),
             util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1826,6 +1827,7 @@ class HTTPHandler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
+            util.URIStr(manifest_entry.ref),
             util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
