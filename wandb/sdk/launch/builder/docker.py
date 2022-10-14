@@ -38,24 +38,29 @@ class DockerBuilder(AbstractBuilder):
         entrypoint: EntryPoint,
         docker_args: Dict[str, Any],
     ) -> str:
-
         if repository:
             image_uri = f"{repository}:{launch_project.image_tag}"
         else:
             image_uri = launch_project.image_uri
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
-        dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, self.type
-        )
-        create_metadata_file(
-            launch_project,
-            image_uri,
-            sanitize_wandb_api_key(" ".join(entry_cmd)),
-            docker_args,
-            dockerfile_str,
-        )
-        build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-        dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
+        if launch_project.use_custom_dockerfile:
+            dockerfile = os.path.join(launch_project.project_dir, "Dockerfile")
+            build_ctx_path = launch_project.project_dir
+        else:
+            dockerfile_str = generate_dockerfile(
+                launch_project, entrypoint, launch_project.resource, self.type
+            )
+            entry_cmd = get_entry_point_command(
+                entrypoint, launch_project.override_args
+            )
+            create_metadata_file(
+                launch_project,
+                image_uri,
+                sanitize_wandb_api_key(" ".join(entry_cmd)),
+                docker_args,
+                dockerfile_str,
+            )
+            build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
+            dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
             docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
         except DockerError as e:

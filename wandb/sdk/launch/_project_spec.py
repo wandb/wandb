@@ -16,6 +16,8 @@ import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError, LaunchError
+from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.wandb_reference import WandbReference
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -64,6 +66,7 @@ class LaunchProject:
             _logger.info(f"{LOG_PREFIX}Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
+        # TODO: This doesn't seem that useful?
         wandb.termlog(f"{LOG_PREFIX}Launch project got job {job}")
         self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
@@ -73,7 +76,8 @@ class LaunchProject:
         self.name = name  # TODO: replace with run_id
         self.resource = resource
         self.resource_args = resource_args
-        self.build_image: bool = docker_config.get("build_image", False)
+        # JCR: I don't see this being used anywhere?
+        # self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
@@ -99,6 +103,7 @@ class LaunchProject:
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
 
+        self._initialize_default_entry_point()
         if overrides.get("entry_point"):
             _logger.info("Adding override entry point")
             self.override_entrypoint = self.add_entry_point(
@@ -111,10 +116,13 @@ class LaunchProject:
             self.source = LaunchSource.JOB
             self.project_dir = tempfile.mkdtemp()
         elif self.uri is not None and utils._is_wandb_uri(self.uri):
+            # TODO: _is_wandb_uri not going to work with server deployments
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
-        elif self.uri is not None and utils._is_git_uri(self.uri):
+        elif self.uri is not None and (
+            utils._is_https(self.uri) or utils._is_git_ssh(self.uri)
+        ):
             _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
@@ -125,19 +133,29 @@ class LaunchProject:
             self.uri = os.getcwd()
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
-        else:
-            _logger.info(f"URI {self.uri} indicates a local uri")
+        elif self.uri is not None:
             # assume local
-            if self.uri is not None and not os.path.exists(self.uri):
+            _logger.info(f"URI {self.uri} indicates a local uri")
+            uri = os.path.expanduser(self.uri)
+            if not os.path.exists(uri):
                 raise LaunchError(
                     "Assumed URI supplied is a local path but path is not valid"
                 )
             self.source = LaunchSource.LOCAL
-            self.project_dir = self.uri
+            self.project_dir = os.path.abspath(uri)
+            if os.path.isfile(self.project_dir):
+                self.project_dir = os.path.dirname(self.project_dir)
+        else:
+            raise LaunchError("Received a null URI")
         if launch_spec.get("resource_args"):
             self.resource_args = launch_spec["resource_args"]
 
-        self.aux_dir = tempfile.mkdtemp()
+        self.use_custom_dockerfile: bool = (
+            self.uri and os.path.basename(self.uri) == "Dockerfile"
+        )
+
+        # Jamie - I don't think this is used anywhere
+        # self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()
 
     @property
@@ -160,6 +178,8 @@ class LaunchProject:
         if self.docker_image is not None:
             return self.docker_image
         elif self.uri is not None:
+            # TODO: Now that we support more flexible URIs we may want to shorten
+            #       this more aggressively.
             cleaned_uri = self.uri.replace("https://", "/")
             first_sep = cleaned_uri.find("/")
             shortened_uri = cleaned_uri[first_sep:]
@@ -171,12 +191,34 @@ class LaunchProject:
 
     def _initialize_image_job_tag(self) -> Optional[str]:
         if self.job is not None:
-            job_name, alias = self.job.split(":")
+            job_parts = self.job.split(":", 1)
+            if len(job_parts) > 1:
+                job_name, alias = job_parts
+            else:
+                job_name = job_parts[0]
+                alias = "latest"
             # Alias is used to differentiate images between jobs of the same sequence
             _image_tag = f"{alias}-{job_name}"
             _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")
             return wandb.util.make_docker_image_name_safe(_image_tag)
         return None
+
+    def _initialize_default_entry_point(self) -> None:
+        if not self.uri:
+            assert self.job or self.docker_image
+            return
+        # TODO: Won't properly handle a directory name ending in .py
+        program_name = os.path.basename(self.uri) or "main.py"
+        _, ext = os.path.splitext(program_name)
+        if ext == ".py":
+            entry_point = ["python", program_name]
+            self.add_entry_point(entry_point)
+        elif ext == ".sh":
+            command = os.environ.get("SHELL", "bash")
+            entry_point = [command, program_name]
+            self.add_entry_point(entry_point)
+        else:
+            self.add_entry_point(["python", "main.py"])
 
     @property
     def image_uri(self) -> str:
@@ -186,7 +228,6 @@ class LaunchProject:
 
     @property
     def image_tag(self) -> str:
-
         return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
 
     @property
@@ -212,7 +253,7 @@ class LaunchProject:
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we want to support multiple entry points or not
         if not self._entry_points:
-            if not self.docker_image:
+            if not self.docker_image and not self.use_custom_dockerfile:
                 raise LaunchError(
                     "Project must have at least one entry point unless docker image is specified."
                 )
@@ -242,136 +283,142 @@ class LaunchProject:
         job.configure_launch_project(self)
         self._job_artifact = job._job_artifact
 
+    def _fetch_run(self, internal_api: Api) -> None:
+        source_entity, source_project, source_run_name = utils.parse_wandb_uri(self.uri)
+        run_info = utils.fetch_wandb_project_run_info(
+            source_entity, source_project, source_run_name, internal_api
+        )
+        program_name = run_info.get("codePath") or run_info["program"]
+
+        if run_info.get("cudaVersion"):
+            original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
+
+            if self.cuda is None:
+                # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
+                wandb.termlog(
+                    f"{LOG_PREFIX}Original wandb run {source_run_name} was run with cuda version {original_cuda_version}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False"
+                )
+                self.cuda_version = original_cuda_version
+                self.cuda = True
+            if (
+                self.cuda
+                and self.cuda_version
+                and self.cuda_version != original_cuda_version
+            ):
+                wandb.termlog(
+                    f"{LOG_PREFIX}Specified cuda version {self.cuda_version} differs from original cuda version {original_cuda_version}. Running with specified version {self.cuda_version}"
+                )
+        # Specify the python runtime for jupyter2docker
+        self.python_version = run_info.get("python", "3")
+
+        downloaded_code_artifact = utils.check_and_download_code_artifacts(
+            source_entity,
+            source_project,
+            source_run_name,
+            internal_api,
+            self.project_dir,
+        )
+        if downloaded_code_artifact:
+            self._image_tag = binascii.hexlify(
+                downloaded_code_artifact.digest.encode()
+            ).decode()
+        else:
+            if not run_info["git"]:
+                raise LaunchError(
+                    "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
+                )
+            branch_name = utils._fetch_git_repo(
+                self.project_dir,
+                run_info["git"]["remote"],
+                run_info["git"]["commit"],
+            )
+            if self.git_version is None:
+                self.git_version = branch_name
+            patch = utils.fetch_project_diff(
+                source_entity, source_project, source_run_name, internal_api
+            )
+            tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
+            if patch:
+                utils.apply_patch(patch, self.project_dir)
+                tag_string += patch
+
+            self._image_tag = binascii.hexlify(tag_string.encode()).decode()
+
+            # For cases where the entry point wasn't checked into git
+            if not os.path.exists(os.path.join(self.project_dir, program_name)):
+                downloaded_entrypoint = utils.download_entry_point(
+                    source_entity,
+                    source_project,
+                    source_run_name,
+                    internal_api,
+                    program_name,
+                    self.project_dir,
+                )
+                if not downloaded_entrypoint:
+                    raise LaunchError(
+                        f"Entrypoint file: {program_name} does not exist, "
+                        "and could not be downloaded. Please specify the entrypoint for this run."
+                    )
+
+        if (
+            "_session_history.ipynb" in os.listdir(self.project_dir)
+            or ".ipynb" in program_name
+        ):
+            program_name = utils.convert_jupyter_notebook_to_script(
+                program_name, self.project_dir
+            )
+
+        # Download any frozen requirements
+        utils.download_wandb_python_deps(
+            source_entity,
+            source_project,
+            source_run_name,
+            internal_api,
+            self.project_dir,
+        )
+
+        self.override_args = utils.merge_parameters(
+            self.override_args, run_info["args"]
+        )
+
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         # these asserts are all guaranteed to pass, but are required by mypy
         assert self.source != LaunchSource.LOCAL and self.source != LaunchSource.JOB
         assert isinstance(self.uri, str)
         assert self.project_dir is not None
+
         _logger.info("Fetching project locally...")
         if utils._is_wandb_uri(self.uri):
-            source_entity, source_project, source_run_name = utils.parse_wandb_uri(
-                self.uri
-            )
-            run_info = utils.fetch_wandb_project_run_info(
-                source_entity, source_project, source_run_name, internal_api
-            )
-            program_name = run_info.get("codePath") or run_info["program"]
-
-            if run_info.get("cudaVersion"):
-                original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
-
-                if self.cuda is None:
-                    # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Original wandb run {source_run_name} was run with cuda version {original_cuda_version}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False"
-                    )
-                    self.cuda_version = original_cuda_version
-                    self.cuda = True
-                if (
-                    self.cuda
-                    and self.cuda_version
-                    and self.cuda_version != original_cuda_version
-                ):
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Specified cuda version {self.cuda_version} differs from original cuda version {original_cuda_version}. Running with specified version {self.cuda_version}"
-                    )
-            # Specify the python runtime for jupyter2docker
-            self.python_version = run_info.get("python", "3")
-
-            downloaded_code_artifact = utils.check_and_download_code_artifacts(
-                source_entity,
-                source_project,
-                source_run_name,
-                internal_api,
-                self.project_dir,
-            )
-            if downloaded_code_artifact:
-                self._image_tag = binascii.hexlify(
-                    downloaded_code_artifact.digest.encode()
-                ).decode()
+            ref = WandbReference.parse(self.uri)
+            if ref and ref.is_job():
+                self.job = ref.job_reference_scoped()
+                self._fetch_job()
+            elif ref and ref.is_run():
+                self._fetch_run(internal_api)
             else:
-                if not run_info["git"]:
-                    raise LaunchError(
-                        "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
+                raise LaunchError(f"Don't know how to fetch {self.uri}")
+        else:
+            githubref = GitHubReference.parse(self.uri)
+            if githubref:
+                githubref.update_ref(self.git_version)
+                wandb.termlog(f"{LOG_PREFIX}Fetching code from {githubref.url_repo()}")
+                githubref.fetch(self.project_dir)
+                if githubref.directory:
+                    self.project_dir = os.path.join(
+                        self.project_dir, githubref.directory
                     )
+            else:
+                assert self._entry_points
                 branch_name = utils._fetch_git_repo(
-                    self.project_dir,
-                    run_info["git"]["remote"],
-                    run_info["git"]["commit"],
+                    self.project_dir, self.uri, self.git_version
                 )
                 if self.git_version is None:
                     self.git_version = branch_name
-                patch = utils.fetch_project_diff(
-                    source_entity, source_project, source_run_name, internal_api
-                )
-                tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
-                if patch:
-                    utils.apply_patch(patch, self.project_dir)
-                    tag_string += patch
 
-                self._image_tag = binascii.hexlify(tag_string.encode()).decode()
-
-                # For cases where the entry point wasn't checked into git
-                if not os.path.exists(os.path.join(self.project_dir, program_name)):
-                    downloaded_entrypoint = utils.download_entry_point(
-                        source_entity,
-                        source_project,
-                        source_run_name,
-                        internal_api,
-                        program_name,
-                        self.project_dir,
-                    )
-                    if not downloaded_entrypoint:
-                        raise LaunchError(
-                            f"Entrypoint file: {program_name} does not exist, "
-                            "and could not be downloaded. Please specify the entrypoint for this run."
-                        )
-
-            if (
-                "_session_history.ipynb" in os.listdir(self.project_dir)
-                or ".ipynb" in program_name
-            ):
-                program_name = utils.convert_jupyter_notebook_to_script(
-                    program_name, self.project_dir
-                )
-
-            # Download any frozen requirements
-            utils.download_wandb_python_deps(
-                source_entity,
-                source_project,
-                source_run_name,
-                internal_api,
-                self.project_dir,
-            )
-
-            if not self._entry_points:
-                _, ext = os.path.splitext(program_name)
-                if ext == ".py":
-                    entry_point = ["python", program_name]
-                elif ext == ".sh":
-                    command = os.environ.get("SHELL", "bash")
-                    entry_point = [command, program_name]
-                else:
-                    raise LaunchError(f"Unsupported entrypoint: {program_name}")
-                self.add_entry_point(entry_point)
-            self.override_args = utils.merge_parameters(
-                self.override_args, run_info["args"]
-            )
-        else:
-            assert utils._GIT_URI_REGEX.match(self.uri), (
-                "Non-wandb URI %s should be a Git URI" % self.uri
-            )
-            if not self._entry_points:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Entry point for repo not specified, defaulting to python main.py"
-                )
-                self.add_entry_point(["python", "main.py"])
-            branch_name = utils._fetch_git_repo(
-                self.project_dir, self.uri, self.git_version
-            )
-            if self.git_version is None:
-                self.git_version = branch_name
+            # If there is a Dockerfile in the downloaded dir, use it.
+            if os.path.isfile(os.path.join(self.project_dir, "Dockerfile")):
+                self.use_custom_dockerfile = True
 
 
 class EntryPoint:
@@ -468,7 +515,9 @@ def fetch_and_validate_project(
     if launch_project.source == LaunchSource.DOCKER:
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
-        if not launch_project._entry_points:
+        if os.path.exists(os.path.join(launch_project.project_dir, "Dockerfile")):
+            launch_project.use_custom_dockerfile = True
+        elif not launch_project._entry_points:
             wandb.termlog(
                 f"{LOG_PREFIX}Entry point for repo not specified, defaulting to `python main.py`"
             )
