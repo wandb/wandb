@@ -969,6 +969,10 @@ class ArtifactsCache:
     def _cache_opener(self, path):
         @contextlib.contextmanager
         def helper(mode="w"):
+
+            if "a" in mode:
+                raise ValueError("Appending to cache files is not supported")
+
             dirname = os.path.dirname(path)
             tmp_file = os.path.join(
                 dirname,
