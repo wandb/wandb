@@ -955,6 +955,15 @@ def mkdir_exists_ok(path: str) -> bool:
             raise
 
 
+def no_retry_4xx(e: Exception) -> bool:
+    if not isinstance(e, requests.HTTPError):
+        return True
+    if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
+        return True
+    body = json.loads(e.response.content)
+    raise UsageError(body["errors"][0]["message"])
+
+
 def no_retry_auth(e: Any) -> bool:
     if hasattr(e, "exception"):
         e = e.exception
