@@ -1387,6 +1387,8 @@ class S3Handler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
+        assert manifest_entry.ref is not None
+
         path, hit, cache_open = self._cache.check_etag_obj_path(
             util.URIStr(manifest_entry.ref),
             util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
@@ -1397,7 +1399,6 @@ class S3Handler(StorageHandler):
 
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
-        assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
@@ -1824,6 +1825,8 @@ class HTTPHandler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
+        assert manifest_entry.ref is not None
+
         path, hit, cache_open = self._cache.check_etag_obj_path(
             util.URIStr(manifest_entry.ref),
             util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
@@ -1832,7 +1835,6 @@ class HTTPHandler(StorageHandler):
         if hit:
             return path
 
-        assert manifest_entry.ref is not None
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
