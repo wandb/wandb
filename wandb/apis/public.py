@@ -868,7 +868,7 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_id, run_queue_item_id, container_job=False
+        self, entity, project, queue_name, run_queue_item_id, container_job=False
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -877,7 +877,7 @@ class Api:
             self.client,
             entity,
             project,
-            queue_id,
+            queue_name,
             run_queue_item_id,
             container_job=container_job,
         )
@@ -2263,22 +2263,22 @@ class QueuedRun:
         client,
         entity,
         project,
-        queue_id,
+        queue_name,
         run_queue_item_id,
         container_job=False,
     ):
         self.client = client
         self._entity = entity
         self._project = project
-        self._queue_id = queue_id
+        self._queue_name = queue_name
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
         self.container_job = container_job
 
     @property
-    def queue_id(self):
-        return self._queue_id
+    def queue_name(self):
+        return self._queue_name
 
     @property
     def id(self):
@@ -2299,7 +2299,7 @@ class QueuedRun:
             return item["state"].lower()
 
         raise ValueError(
-            f"Could not find QueuedRunItem associated with id: {self.id} on queue id {self.queue_id} at itemId: {self.id}"
+            f"Could not find QueuedRunItem associated with id: {self.id} on queue {self.queue_name} at itemId: {self.id}"
         )
 
     @normalize_exceptions
@@ -2326,7 +2326,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
         }
         res = self.client.execute(query, variable_values)
 
@@ -2354,7 +2354,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
             "itemId": self.id,
         }
         try:
@@ -2382,11 +2382,40 @@ class QueuedRun:
         """
         Deletes the given queued run from the wandb backend.
         """
+        query = gql(
+            """
+            query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueueName) {
+                        id
+                    }
+                }
+            }
+            """
+        )
+
+        res = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "runQueueName": self.queue_name,
+            },
+        )
+
+        if res["project"].get("runQueue") is not None:
+            queue_id = res["project"]["runQueue"]["id"]
+
         mutation = gql(
             """
-            mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
-            {
-                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+            mutation DeleteFromRunQueue(
+                $queueID: ID!,
+                $runQueueItemId: ID!
+            ) {
+                deleteFromRunQueue(input: {
+                    queueID: $queueID
+                    runQueueItemId: $runQueueItemId
+                }) {
                     success
                     clientMutationId
                 }
@@ -2396,8 +2425,8 @@ class QueuedRun:
         self.client.execute(
             mutation,
             variable_values={
-                "queueID": self.queue_id,
-                "runQueueItemID": self._run_queue_item_id,
+                "queueID": queue_id,
+                "runQueueItemId": self._run_queue_item_id,
             },
         )
 
@@ -2431,7 +2460,7 @@ class QueuedRun:
             time.sleep(3)
 
     def __repr__(self):
-        return f"<QueuedRun {self.queue_id} ({self.id})"
+        return f"<QueuedRun {self.queue_name} ({self.id})"
 
 
 class Sweep(Attrs):
