@@ -911,7 +911,7 @@ class ArtifactsCache:
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
         hexhash = hashlib.sha256(
             hashlib.sha256(url.encode("utf-8")).digest()
-            + hashlib.sha256(url.encode("utf-8")).digest()
+            + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
         opener = self._cache_opener(path)
