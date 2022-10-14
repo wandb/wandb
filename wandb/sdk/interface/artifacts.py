@@ -909,7 +909,10 @@ class ArtifactsCache:
         etag: util.ETag,
         size: int,
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
-        hexhash = hashlib.sha256(hashlib.sha256(url.encode('utf-8')).digest() + etag.encode('utf-8')).hexdigest()
+        hexhash = hashlib.sha256(
+            hashlib.sha256(url.encode("utf-8")).digest()
+            + hashlib.sha256(url.encode("utf-8")).digest()
+        ).hexdigest()
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:

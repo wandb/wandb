@@ -10,7 +10,7 @@ from wandb import wandb_sdk
 def _cache_writer(cache_path):
     etag = "abcdef"
     cache = wandb_sdk.wandb_artifacts.ArtifactsCache(cache_path)
-    _, _, opener = cache.check_etag_obj_path('http://wandb.example/foo', etag, 10)
+    _, _, opener = cache.check_etag_obj_path("http://wandb.example/foo", etag, 10)
     with opener() as f:
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
@@ -37,7 +37,9 @@ def test_check_etag_obj_path():
     cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
 
     etag = "abcdef"
-    path, exists, opener = cache.check_etag_obj_path('http://wandb.example/foo', etag, 10)
+    path, exists, opener = cache.check_etag_obj_path(
+        "http://wandb.example/foo", etag, 10
+    )
     expected_path = os.path.join("cache", "obj", "etag", "ab", "cdef")
     with opener() as f:
         f.write("hi")
