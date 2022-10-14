@@ -1045,17 +1045,6 @@ class Api:
         Queryless mutation, should be used before legacy fallback method
         """
 
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         mutation = gql(
             """
         mutation pushToRunQueueByName(
@@ -1085,7 +1074,7 @@ class Api:
         }
         try:
             result: Optional[Dict[str, Any]] = self.gql(
-                mutation, variables, check_retry_fn=no_retry_4xx
+                mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
         except Exception:
             result = None
@@ -1123,7 +1112,6 @@ class Api:
         if not matching_queues:
             # in the case of a missing default queue. create it
             if queue_name == "default":
-                # TODO(gst): click.style('launch:', fg='magenta')
                 wandb.termlog(
                     f"No default queue existing for entity: {entity} in project: {project}, creating one."
                 )
@@ -1136,7 +1124,7 @@ class Api:
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        f"Unable to create default queue for {entity}/{project}. Run could not be added to a queue"
+                        f"Unable to create default queue for entity: {entity} on project: {project}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
@@ -2007,18 +1995,6 @@ class Api:
         if project_name is None:
             project_name = self.settings("project")
 
-        # don't retry on validation or not found errors
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         response = self.gql(
             mutation,
             variable_values={
@@ -2027,7 +2003,7 @@ class Api:
                 "projectName": project_name,
                 "sweep": sweep_id,
             },
-            check_retry_fn=no_retry_4xx,
+            check_retry_fn=util.no_retry_4xx,
         )
         result: dict = response["createAgent"]["agent"]
         return result
@@ -2218,19 +2194,6 @@ class Api:
             )
         )
 
-        # don't retry on validation errors
-        # TODO(jhr): generalize error handling routines
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
 
@@ -2251,7 +2214,7 @@ class Api:
                         "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
-                    check_retry_fn=no_retry_4xx,
+                    check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
                 raise e
