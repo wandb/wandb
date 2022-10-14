@@ -1,5 +1,10 @@
-from collections.abc import Sequence
+import sys
 from typing import Union
+
+if sys.version_info >= (3, 9):
+    from collections.abc import Sequence
+else:
+    from typing import Sequence
 
 Number = Union[int, float]
 
