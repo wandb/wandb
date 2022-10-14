@@ -1,7 +1,5 @@
-id: 0.standalone.04-artifact-tests
 tag:
   shard: standalone-cpu
-  skip: true
   platforms:
     - linux
     - mac
@@ -9,4 +7,13 @@ tag:
 plugin:
   - wandb
 assert:
-  - :wandb:runs: None
+  - :yea:exit: 0
+  - :wandb:runs_len: 8
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[1][exitcode]: 0
+  - :wandb:runs[2][exitcode]: 0
+  - :wandb:runs[3][exitcode]: 0
+  - :wandb:runs[4][exitcode]: 0
+  - :wandb:runs[5][exitcode]: 0
+  - :wandb:runs[6][exitcode]: 0
+  - :wandb:runs[7][exitcode]: 0

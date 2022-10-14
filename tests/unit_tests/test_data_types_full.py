@@ -49,6 +49,21 @@ def test_table_logging(
     assert True
 
 
+def test_object3d_logging(relay_server, wandb_init, assets_path):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.log(
+            {
+                "point_cloud": wandb.Object3D.from_file(
+                    str(assets_path("point_cloud.pts.json"))
+                )
+            }
+        )
+        run.finish()
+        assert relay.context.summary["point_cloud"][0]["_type"] == "object3D-file"
+        assert relay.context.summary["point_cloud"][0]["path"].endswith(".pts.json")
+
+
 def test_partitioned_table_logging(wandb_init):
     run = wandb_init()
     run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
