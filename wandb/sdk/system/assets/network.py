@@ -7,6 +7,7 @@ try:
 except ImportError:
     psutil = None
 
+from wandb.sdk.system.assets.aggregators import aggregate_mean
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -40,10 +41,10 @@ class NetworkSent:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        aggregate = aggregate_mean(self.samples)
         # todo: this is an adapter for the legacy metrics system
         # return {"network": {self.name: aggregate}}
         return {self.name: aggregate}
@@ -68,10 +69,10 @@ class NetworkRecv:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        aggregate = aggregate_mean(self.samples)
         # todo: this is an adapter for the legacy metrics system
         # return {"network": {self.name: aggregate}}
 

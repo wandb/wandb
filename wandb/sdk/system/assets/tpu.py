@@ -4,6 +4,7 @@ import os
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
+from wandb.sdk.system.assets.aggregators import aggregate_mean
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -68,10 +69,10 @@ class TPUUtilization:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        aggregate = aggregate_mean(self.samples)
         return {self.name: aggregate}
 
 

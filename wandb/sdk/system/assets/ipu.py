@@ -8,6 +8,7 @@ except ImportError:
     gcipuinfo = None
 
 import wandb
+from wandb.sdk.system.assets.aggregators import aggregate_mean
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -119,13 +120,13 @@ class IPUStats:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
         stats = {}
         for key in self.samples[0].keys():
             samples = [s[key] for s in self.samples if key in s]
-            aggregate = round(sum(samples) / len(samples), 2)
+            aggregate = aggregate_mean(samples)
             stats[key] = aggregate
         return stats
 

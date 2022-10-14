@@ -39,7 +39,7 @@ class Metric(Protocol):
     def clear(self) -> None:
         ...  # pragma: no cover
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         ...  # pragma: no cover
 
 
@@ -129,26 +129,26 @@ class MetricsMonitor:
                     break
             self.publish()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         """Return a dict of metrics"""
-        serialized_metrics = {}
+        aggregated_metrics = {}
         for metric in self.metrics:
             try:
-                serialized_metric = metric.serialize()
-                serialized_metrics.update(serialized_metric)
-                # serialized_metrics = wandb.util.merge_dicts(
-                #     serialized_metrics, metric.serialize()
+                serialized_metric = metric.aggregate()
+                aggregated_metrics.update(serialized_metric)
+                # aggregated_metrics = wandb.util.merge_dicts(
+                #     aggregated_metrics, metric.serialize()
                 # )
             except Exception as e:
                 wandb.termerror(f"Failed to serialize metric: {e}", repeat=False)
-        return serialized_metrics
+        return aggregated_metrics
 
     def publish(self) -> None:
         """Publish the Asset metrics"""
         try:
-            serialized_metrics = self.serialize()
-            if serialized_metrics:
-                self._interface.publish_stats(serialized_metrics)
+            aggregated_metrics = self.aggregate()
+            if aggregated_metrics:
+                self._interface.publish_stats(aggregated_metrics)
             for metric in self.metrics:
                 metric.clear()
         except Exception as e:

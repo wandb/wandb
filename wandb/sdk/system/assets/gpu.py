@@ -8,6 +8,7 @@ try:
 except ImportError:
     psutil = None
 
+from wandb.sdk.system.assets.aggregators import aggregate_mean
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -85,14 +86,14 @@ class GPUMemoryUtilization:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
             samples = [sample[i] for sample in self.samples]
-            aggregate = round(sum(samples) / len(samples), 2)
+            aggregate = aggregate_mean(samples)
             stats[self.name.format(i)] = aggregate
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
@@ -129,14 +130,14 @@ class GPUMemoryAllocated:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
             samples = [sample[i] for sample in self.samples]
-            aggregate = round(sum(samples) / len(samples), 2)
+            aggregate = aggregate_mean(samples)
             stats[self.name.format(i)] = aggregate
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
@@ -174,14 +175,14 @@ class GPUUtilization:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
             samples = [sample[i] for sample in self.samples]
-            aggregate = round(sum(samples) / len(samples), 2)
+            aggregate = aggregate_mean(samples)
             stats[self.name.format(i)] = aggregate
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
@@ -222,14 +223,14 @@ class GPUTemperature:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
             samples = [sample[i] for sample in self.samples]
-            aggregate = round(sum(samples) / len(samples), 2)
+            aggregate = aggregate_mean(samples)
             stats[self.name.format(i)] = aggregate
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
@@ -265,12 +266,12 @@ class GPUPowerUsageWatts:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
             samples = [sample[i] for sample in self.samples]
-            aggregate = round(sum(samples) / len(samples), 2)
+            aggregate = aggregate_mean(samples)
             stats[self.name.format(i)] = aggregate
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
@@ -307,14 +308,14 @@ class GPUPowerUsagePercent:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
         stats = {}
         device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
         for i in range(device_count):
             samples = [sample[i] for sample in self.samples]
-            aggregate = round(sum(samples) / len(samples), 2)
+            aggregate = aggregate_mean(samples)
             stats[self.name.format(i)] = aggregate
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore

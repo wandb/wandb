@@ -319,7 +319,7 @@ def complete_leaf_value(return_type, result):
     # serialize = getattr(return_type, 'serialize', None)
     # assert serialize, 'Missing serialize method on type'
 
-    return return_type.serialize(result)
+    return return_type.aggregate(result)
 
 
 def complete_abstract_value(exe_context, return_type, field_asts, info, result):

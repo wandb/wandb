@@ -95,13 +95,13 @@ class SystemMonitor:
         # only extract as many items as are available in the queue at the moment
         size = self.asset_interface.metrics_queue.qsize()
 
-        serialized_metrics = {}
+        aggregated_metrics = {}
         for _ in range(size):
             item = self.asset_interface.metrics_queue.get()
-            serialized_metrics.update(item)
+            aggregated_metrics.update(item)
 
-        if serialized_metrics:
-            self.backend_interface.publish_stats(serialized_metrics)
+        if aggregated_metrics:
+            self.backend_interface.publish_stats(aggregated_metrics)
 
     def publish_telemetry(self) -> None:
         if self.asset_interface is None:

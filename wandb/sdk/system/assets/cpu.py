@@ -6,6 +6,7 @@ try:
     import psutil
 except ImportError:
     psutil = None
+from wandb.sdk.system.assets.aggregators import aggregate_last, aggregate_mean
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import (
     Interface,
@@ -31,12 +32,10 @@ class ProcessCpuPercent:
     # name = "process_cpu_percent"
     name = "cpu"
     metric_type: MetricType = "gauge"
-    # samples: Deque[Tuple[datetime.datetime, float]]
-    samples: "Deque[float]"
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
-        self.samples = deque([])
+        self.samples: "Deque[float]" = deque([])
         self.process: Optional[psutil.Process] = None
 
     def sample(self) -> None:
@@ -55,12 +54,12 @@ class ProcessCpuPercent:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         # todo: create a statistics class with helper methods to compute
         #      mean, median, min, max, etc.
         if not self.samples:
             return {}
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        aggregate = aggregate_mean(self.samples)
         return {self.name: aggregate}
 
 
@@ -71,10 +70,9 @@ class CpuPercent:
 
     name = "cpu.{i}.cpu_percent"
     metric_type: MetricType = "gauge"
-    samples: "Deque[List[float]]"
 
     def __init__(self, interval: Optional[float] = None) -> None:
-        self.samples = deque([])
+        self.samples: "Deque[List[float]]" = deque([])
         self.interval = interval
 
     def sample(self) -> None:
@@ -83,15 +81,13 @@ class CpuPercent:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
         num_cpu = len(self.samples[0])
         cpu_metrics = {}
         for i in range(num_cpu):
-            aggregate_i = round(
-                sum(sample[i] for sample in self.samples) / len(self.samples), 2
-            )
+            aggregate_i = aggregate_mean([sample[i] for sample in self.samples])
             cpu_metrics[self.name.format(i=i)] = aggregate_i
 
         return cpu_metrics
@@ -104,10 +100,9 @@ class ProcessCpuThreads:
 
     name = "proc.cpu.threads"
     metric_type: MetricType = "gauge"
-    samples: "Deque[int]"
 
     def __init__(self, pid: int) -> None:
-        self.samples = deque([])
+        self.samples: "Deque[int]" = deque([])
         self.pid = pid
         self.process: Optional[psutil.Process] = None
 
@@ -120,10 +115,10 @@ class ProcessCpuThreads:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if not self.samples:
             return {}
-        return {self.name: self.samples[-1]}
+        return {self.name: aggregate_last(self.samples)}
 
 
 @asset_registry.register

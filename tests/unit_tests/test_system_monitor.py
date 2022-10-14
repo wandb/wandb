@@ -34,7 +34,7 @@ class MockMetric:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if self.samples:
             return {self.name: self.samples[-1]}
         return {}
@@ -98,7 +98,7 @@ class MockBrokenMetric:
     def clear(self) -> None:
         self.samples.clear()
 
-    def serialize(self) -> dict:
+    def aggregate(self) -> dict:
         if self.samples:
             return {self.name: self.samples[0]}
         return {}
