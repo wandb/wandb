@@ -26,7 +26,6 @@ from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
 import urllib3
-
 import wandb
 import wandb.data_types as data_types
 from wandb import env, util
@@ -63,7 +62,6 @@ if TYPE_CHECKING:
     import boto3.s3  # type: ignore
     import boto3.session  # type: ignore
     import google.cloud.storage as gcs_module  # type: ignore
-
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.internal import internal_api

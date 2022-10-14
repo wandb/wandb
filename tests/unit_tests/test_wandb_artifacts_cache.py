@@ -5,7 +5,6 @@ import time
 from multiprocessing import Pool
 
 import pytest
-
 from wandb import wandb_sdk
 
 
@@ -72,7 +71,7 @@ def test_check_etag_obj_path_returns_not_exists_if_incomplete():
     assert not exists
 
     with opener() as f:
-        f.write((size-1) * "a")
+        f.write((size - 1) * "a")
 
     _, exists, _ = cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
@@ -92,11 +91,14 @@ def test_check_etag_obj_path_does_not_include_etag():
     assert "abcdef" not in path
 
 
-@pytest.mark.parametrize(["url1","url2","etag1","etag2","path_equal"], [
-    ("http://url/1", "http://url/1", "abc", "abc", True),
-    ("http://url/1", "http://url/1", "abc", "def", False),
-    ("http://url/1", "http://url/2", "abc", "abc", False),
-])
+@pytest.mark.parametrize(
+    ["url1", "url2", "etag1", "etag2", "path_equal"],
+    [
+        ("http://url/1", "http://url/1", "abc", "abc", True),
+        ("http://url/1", "http://url/1", "abc", "def", False),
+        ("http://url/1", "http://url/2", "abc", "abc", False),
+    ],
+)
 def test_check_etag_obj_path_hashes_url_and_etag(url1, url2, etag1, etag2, path_equal):
     os.mkdir("cache")
     cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
