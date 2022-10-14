@@ -13,6 +13,7 @@ from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_NESTED,
+    SWEEP_CONFIG_RANDOM,
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
@@ -228,10 +229,11 @@ def test_sweep_api(user, relay_server, sweep_config):
     "sweep_config,expected_run_count",
     [
         (SWEEP_CONFIG_GRID, 3),
-        (SWEEP_CONFIG_GRID_NESTED, 9),  # fails because not implemented backend
+        (SWEEP_CONFIG_GRID_NESTED, 9),
         (SWEEP_CONFIG_BAYES, -1),
+        (SWEEP_CONFIG_RANDOM, -1),
     ],
-    ids=["test grid", "test grid nested", "test bayes"],
+    ids=["test grid", "test grid nested", "test bayes", "test random"],
 )
 def test_sweep_api_expected_run_count(
     user, relay_server, sweep_config, expected_run_count
@@ -246,4 +248,5 @@ def test_sweep_api_expected_run_count(
 
     print(f"sweep_id{sweep_id}")
     sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
     assert sweep.expected_run_count == expected_run_count
