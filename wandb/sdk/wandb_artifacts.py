@@ -1840,7 +1840,7 @@ class HTTPHandler(StorageHandler):
 
         digest: Optional[Union[util.ETag, util.FilePathStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
-        digest = digest or path
+        digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
             raise ValueError(
                 "Digest mismatch for url %s: expected %s but found %s"
