@@ -145,8 +145,8 @@ def get_arg_serializer(arg_type):
         inner_serializer = get_arg_serializer(arg_type.of_type)
         return partial(serialize_list, inner_serializer)
     if isinstance(arg_type, GraphQLEnumType):
-        return lambda value: ast.EnumValue(value=arg_type.aggregate(value))
-    return arg_type.aggregate
+        return lambda value: ast.EnumValue(value=arg_type.serialize(value))
+    return arg_type.serialize
 
 
 def var(name):
