@@ -2570,7 +2570,10 @@ class Sweep(Attrs):
     @property
     def expected_run_count(self) -> int:
         "Returns the number of expected runs in the sweep or -1 for infinite runs."
-        return self._attrs.get("runCountExpected", -1)
+        expected_run_count = self._attrs.get("runCountExpected", -1)
+        if expected_run_count is None:
+            expected_run_count = -1
+        return expected_run_count
 
     @property
     def path(self):
