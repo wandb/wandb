@@ -1,5 +1,6 @@
 import base64
 import os
+import pathlib
 import random
 import time
 from multiprocessing import Pool
@@ -8,6 +9,8 @@ import pytest
 from wandb import wandb_sdk
 
 
+# This function should only be used in `test_check_write_parallel`,
+# but it needs to be a global function for multiprocessing.
 def _cache_writer(cache_path):
     etag = "abcdef"
     cache = wandb_sdk.wandb_artifacts.ArtifactsCache(cache_path)
@@ -125,8 +128,8 @@ def test_check_write_parallel(runner):
 
         # Regardless of the ordering, we should be left with one
         # file at the end.
-        path = os.path.join("cache", "obj", "etag", "ab")
-        assert os.listdir(path) == ["cdef"]
+        files = [f for f in (pathlib.Path(cache)/"obj"/"etag").rglob("*") if f.is_file()]
+        assert len(files) == 1
 
 
 def test_artifacts_cache_cleanup_empty():
