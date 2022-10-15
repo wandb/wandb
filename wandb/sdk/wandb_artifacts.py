@@ -26,6 +26,7 @@ from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
 import urllib3
+
 import wandb
 import wandb.data_types as data_types
 from wandb import env, util
@@ -62,6 +63,7 @@ if TYPE_CHECKING:
     import boto3.s3  # type: ignore
     import boto3.session  # type: ignore
     import google.cloud.storage as gcs_module  # type: ignore
+
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.internal import internal_api
@@ -1838,7 +1840,7 @@ class HTTPHandler(StorageHandler):
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
-        digest: Optional[Union[util.ETag, util.FilePathStr]]
+        digest: Optional[Union[util.ETag, util.FilePathStr, util.URIStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
