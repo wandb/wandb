@@ -128,7 +128,9 @@ def test_check_write_parallel(runner):
 
         # Regardless of the ordering, we should be left with one
         # file at the end.
-        files = [f for f in (pathlib.Path(cache)/"obj"/"etag").rglob("*") if f.is_file()]
+        files = [
+            f for f in (pathlib.Path(cache) / "obj" / "etag").rglob("*") if f.is_file()
+        ]
         assert len(files) == 1
 
 
