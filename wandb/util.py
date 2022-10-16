@@ -56,8 +56,8 @@ import yaml
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
-from wandb.sdk.lib.json_util import json_serializable
 
+# from wandb.sdk.lib.json_util import json_serializable
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -351,28 +351,6 @@ def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type:
 np = get_module("numpy")
 
 
-def maybe_compress_summary(obj: Any, h5_typename: str) -> Tuple[Any, bool]:
-
-    if np and isinstance(obj, np.ndarray) and obj.size > 32:
-        return (
-            {
-                "_type": h5_typename,  # may not be ndarray
-                "var": np.var(obj).item(),
-                "mean": np.mean(obj).item(),
-                "min": np.amin(obj).item(),
-                "max": np.amax(obj).item(),
-                "10%": np.percentile(obj, 10),
-                "25%": np.percentile(obj, 25),
-                "75%": np.percentile(obj, 75),
-                "90%": np.percentile(obj, 90),
-                "size": obj.size,
-            },
-            True,
-        )
-    else:
-        return obj, False
-
-
 def get_h5_typename(o: Any) -> Any:
     typename = get_full_typename(o)
     if is_tf_tensor_typename(typename):
@@ -383,59 +361,33 @@ def get_h5_typename(o: Any) -> Any:
         return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
 
 
-class WandBSummaryJSONEncoder(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types."""
+def maybe_compress_summary(obj: Any, **kwargs: Any) -> dict:
 
-    def default(self, o: Any) -> Any:
-        try:
-            obj = json_serializable(o)
-            obj, _ = maybe_compress_summary(obj, get_h5_typename(o))
-        except TypeError:
-            obj = o
-        else:
-            return obj
-        return json.JSONEncoder.default(self, obj)
-
-
-def maybe_compress_history(obj: Any) -> Any:
-    return wandb.Histogram(obj, num_bins=32).to_json()
-
-
-class WandBHistoryJSONEncoder(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types.
-    This encoder turns numpy like objects with a size > 32 into histograms"""
-
-    def default(self, o: Any) -> Any:
-        try:
-            obj = json_serializable(o, compression_fn=maybe_compress_history)
-        except TypeError:
-            pass
-        else:
-            return obj
-        return json.JSONEncoder.default(self, obj)
+    if np and isinstance(obj, np.ndarray) and obj.size > 32:
+        return {
+            "_type": get_h5_typename(kwargs.pop("source", obj)),  # may not be ndarray
+            "var": np.var(obj).item(),
+            "mean": np.mean(obj).item(),
+            "min": np.amin(obj).item(),
+            "max": np.amax(obj).item(),
+            "10%": np.percentile(obj, 10),
+            "25%": np.percentile(obj, 25),
+            "75%": np.percentile(obj, 75),
+            "90%": np.percentile(obj, 90),
+            "size": obj.size,
+        }
+    else:
+        raise TypeError("Unsupported type for summary compression")
 
 
-class WandBJSONEncoder(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types."""
-
-    def default(self, o: Any) -> Any:
-        try:
-            obj = json_serializable(o)
-        except TypeError:
-            pass
-        else:
-            return obj
-        return json.JSONEncoder.default(self, o)
-
-
-def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
-    """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
-
-
-def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
-    """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+def maybe_compress_history(obj: Any, **kwargs: Any) -> dict:
+    """
+    Used to turn numpy like objects with a size > 32 into histograms (when serializing to json)
+    """
+    if np and isinstance(obj, np.ndarray) and obj.size > 32:
+        return wandb.Histogram(obj, num_bins=32).to_json()
+    else:
+        raise TypeError("Unsupported type for history compression")
 
 
 def app_url(api_url: str) -> str:
@@ -1483,7 +1435,7 @@ def check_windows_valid_filename(path: Union[int, str]) -> bool:
 
 def artifact_to_json(
     artifact: Union["wandb.sdk.wandb_artifacts.Artifact", "wandb.apis.public.Artifact"]
-) -> Dict[str, Any]:
+) -> dict:
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
     if hasattr(artifact, "_sequence_name"):

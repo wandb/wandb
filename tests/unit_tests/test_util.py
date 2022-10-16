@@ -164,6 +164,10 @@ def test_bfloat16_to_float():
         ({np.int64(3): 4}, {3: 4}),  # top-level
         ({1: {np.int64(3): 4}}, {1: {3: 4}}),  # nested key
         ({1: {np.int32(2): 4}}, {1: {2: 4}}),  # nested key
+        (
+            {1: {datetime.date(2022, 10, 3): b"4"}},
+            {1: {"2022-10-03": "4"}},
+        ),  # nested key
     ],
 )
 def test_nested_keys_json(input_value, output_value):

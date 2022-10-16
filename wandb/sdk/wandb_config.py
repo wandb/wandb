@@ -5,15 +5,11 @@ config.
 import logging
 
 import wandb
-from wandb.util import (
-    _is_artifact_representation,
-    check_dict_contains_nested_artifact,
-)
-from .lib.json_util import json_serializable
-
+from wandb.util import _is_artifact_representation, check_dict_contains_nested_artifact
 
 from . import wandb_helper
 from .lib import config_util
+from .lib.json_util import json_serializable
 
 logger = logging.getLogger("wandb")
 

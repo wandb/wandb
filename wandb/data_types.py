@@ -27,7 +27,6 @@ from typing import Optional
 
 import wandb
 from wandb import util
-from wandb.sdk.lib.json_util import json_serializable
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
@@ -47,6 +46,7 @@ from .sdk.data_types.object_3d import Object3D
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
 from .sdk.data_types.video import Video
+from .sdk.lib.json_util import json_dump_safer, json_serializable
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
 # Once we fully type this file and move it all into sdk, then we will need to clean up the
@@ -524,7 +524,7 @@ class Table(Media):
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-            util.json_dump_safer(data, fp)
+            json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super().bind_to_run(*args, **kwargs)
 
@@ -1340,7 +1340,7 @@ class Bokeh(Media):
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-                util.json_dump_safer(b_json, fp)
+                json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
         elif not isinstance(data_or_path, bokeh.document.Document):
             raise TypeError(
@@ -1422,7 +1422,7 @@ class Graph(Media):
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-            util.json_dump_safer(data, fp)
+            json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return

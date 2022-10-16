@@ -1,20 +1,154 @@
 import json
+import math
 import os
 import time
+from datetime import date, datetime
+from sys import getsizeof
+from typing import Any, Callable, Dict, Generator, Set, Tuple, Union
 
 from wandb_gql import gql
 
 import wandb
 from wandb import util
-from wandb.sdk.lib.json_util import json_serializable
 from wandb.apis.internal import Api
 from wandb.sdk import lib as wandb_lib
 from wandb.sdk.data_types.utils import val_to_json
+from wandb.sdk.lib.json_util import json_dumps_safer
 
+# TODO: Revisit these limits
+VALUE_BYTES_LIMIT = 100000
 DEEP_SUMMARY_FNAME = "wandb.h5"
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
+
+
+def _numpy_generic_convert(obj: Any) -> Any:
+    obj = obj.item()
+    if isinstance(obj, float) and math.isnan(obj):
+        obj = None
+    elif isinstance(obj, np.generic) and (
+        obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+    ):
+        # obj is a numpy float with precision greater than that of native python float
+        # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+        # in these cases, obj.item() does not return a native
+        # python float (in the first case - to avoid loss of precision,
+        # so we need to explicitly cast this down to a 64bit float)
+        obj = float(obj)
+    return obj
+
+
+def _find_all_matching_keys(
+    d: Dict,
+    match_fn: Callable[[Any], bool],
+    visited: Set[int] = None,
+    key_path: Tuple[Any, ...] = (),
+) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
+    """Recursively find all keys that satisfies a match function.
+    Args:
+       d: The dict to search.
+       match_fn: The function to determine if the key is a match.
+       visited: Keep track of visited nodes so we dont recurse forever.
+       key_path: Keep track of all the keys to get to the current node.
+    Yields:
+       (key_path, key): The location where the key was found, and the key
+    """
+
+    if visited is None:
+        visited = set()
+    me = id(d)
+    if me not in visited:
+        visited.add(me)
+        for key, value in d.items():
+            if match_fn(key):
+                yield key_path, key
+            if isinstance(value, dict):
+                yield from _find_all_matching_keys(
+                    value,
+                    match_fn,
+                    visited=visited,
+                    key_path=tuple(list(key_path) + [key]),
+                )
+
+
+def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
+    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
+    if not np_keys:
+        return d, False
+    for key_path, key in np_keys:
+        ptr = d
+        for k in key_path:
+            ptr = ptr[k]
+        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
+    return d, True
+
+
+def json_friendly(  # noqa: C901
+    obj: Any,
+) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
+    """Convert an object into something that's more becoming of JSON"""
+    converted = True
+    typename = util.get_full_typename(obj)
+
+    if util.is_tf_eager_tensor_typename(typename):
+        obj = obj.numpy()
+    elif util.is_tf_tensor_typename(typename):
+        try:
+            obj = obj.eval()
+        except RuntimeError:
+            obj = obj.numpy()
+    elif util.is_pytorch_tensor_typename(typename) or util.is_fastai_tensor_typename(
+        typename
+    ):
+        try:
+            if obj.requires_grad:
+                obj = obj.detach()
+        except AttributeError:
+            pass  # before 0.4 is only present on variables
+
+        try:
+            obj = obj.data
+        except RuntimeError:
+            pass  # happens for Tensors before 0.4
+
+        if obj.size():
+            obj = obj.cpu().detach().numpy()
+        else:
+            return obj.item(), True
+    elif util.is_jax_tensor_typename(typename):
+        obj = util.get_jax_tensor(obj)
+
+    if util.is_numpy_array(obj):
+        if obj.size == 1:
+            obj = obj.flatten()[0]
+        elif obj.size <= 32:
+            obj = obj.tolist()
+    elif np and isinstance(obj, np.generic):
+        obj = _numpy_generic_convert(obj)
+    elif isinstance(obj, bytes):
+        obj = obj.decode("utf-8")
+    elif isinstance(obj, (datetime, date)):
+        obj = obj.isoformat()
+    elif callable(obj):
+        obj = (
+            f"{obj.__module__}.{obj.__qualname__}"
+            if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
+            else str(obj)
+        )
+    elif isinstance(obj, float) and math.isnan(obj):
+        obj = None
+    elif isinstance(obj, dict) and np:
+        obj, converted = _sanitize_numpy_keys(obj)
+    else:
+        converted = False
+    if getsizeof(obj) > VALUE_BYTES_LIMIT:
+        wandb.termwarn(
+            "Serializing object of type {} that is {} bytes".format(
+                type(obj).__name__, getsizeof(obj)
+            )
+        )
+    return obj, converted
 
 
 class SummarySubDict:
@@ -322,14 +456,17 @@ class Summary(SummarySubDict):
             return json_value
         else:
             path = ".".join(path_from_root)
-            friendly_value = json_serializable(
+
+            friendly_value, _ = json_friendly(
                 val_to_json(self._run, path, value, namespace="summary")
             )
-            json_value, compressed = util.maybe_compress_summary(
-                friendly_value, util.get_h5_typename(value)
-            )
-            if compressed:
+            try:
+                json_value = util.maybe_compress_summary(
+                    friendly_value, util.get_h5_typename(value)
+                )
                 self.write_h5(path_from_root, friendly_value)
+            except TypeError:
+                json_value = friendly_value
 
             return json_value
 
@@ -374,7 +511,7 @@ class FileSummary(Summary):
     def _write(self, commit=False):
         # TODO: we just ignore commit to ensure backward capability
         with open(self._fname, "w") as f:
-            f.write(util.json_dumps_safer(self._json_dict))
+            f.write(json_dumps_safer(self._json_dict))
             f.write("\n")
             f.flush()
             os.fsync(f.fileno())
@@ -423,7 +560,7 @@ class HTTPSummary(Summary):
                 mutation,
                 variable_values={
                     "id": self._run.storage_id,
-                    "summaryMetrics": util.json_dumps_safer(self._json_dict),
+                    "summaryMetrics": json_dumps_safer(self._json_dict),
                 },
             )
             assert res["upsertBucket"]["bucket"]["id"]

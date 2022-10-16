@@ -20,16 +20,9 @@ from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.lib.json_util import json_dumps_safer, json_serializable
+from wandb.util import maybe_compress_history, maybe_compress_summary
 
-from wandb.util import (
-    WandBSummaryJSONEncoder,
-    WandBHistoryJSONEncoder,
-    get_h5_typename,
-    json_dumps_safer,
-    maybe_compress_summary,
-)
-
-from wandb.sdk.lib.json_util import json_serializable
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from ..wandb_artifacts import Artifact
@@ -272,22 +265,17 @@ class InterfaceBase:
                 )
             return json_value
         else:
-            friendly_value = json_serializable(
-                val_to_json(self._run, path_from_root, value, namespace="summary")
-            )
-            json_value, compressed = maybe_compress_summary(
-                friendly_value, get_h5_typename(value)
-            )
-            if compressed:
-                # TODO(jhr): impleement me
-                pass
-                # self.write_h5(path_from_root, friendly_value)
+            value = val_to_json(self._run, path_from_root, value, namespace="summary")
+            json_value = json_serializable(value, compression_fn=maybe_compress_summary)  # type: ignore [assignment]
+            # if compressed:
+            #     # TODO(jhr): impleement me
+            #     pass
+            #     # self.write_h5(path_from_root, friendly_value)
 
             return json_value
 
     def _make_summary(self, summary_record: sr.SummaryRecord) -> pb.SummaryRecord:
         pb_summary_record = pb.SummaryRecord()
-
         for item in summary_record.update:
             pb_summary_item = pb_summary_record.update.add()
             key_length = len(item.key)
@@ -301,12 +289,7 @@ class InterfaceBase:
 
             path_from_root = ".".join(item.key)
             json_value = self._summary_encode(item.value, path_from_root)
-            json_value = json_serializable(json_value)  # type: ignore
-
-            pb_summary_item.value_json = json.dumps(
-                json_value,
-                cls=WandBSummaryJSONEncoder,
-            )
+            pb_summary_item.value_json = json_dumps_safer(json_value)
 
         for item in summary_record.remove:
             pb_summary_item = pb_summary_record.remove.add()
@@ -551,7 +534,7 @@ class InterfaceBase:
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
-            item.value_json = json.dumps(v, cls=WandBHistoryJSONEncoder)
+            item.value_json = json_dumps_safer(v, compression_fn=maybe_compress_history)
 
         if publish_step and step is not None:
             partial_history.step.num = step
@@ -576,7 +559,7 @@ class InterfaceBase:
         for k, v in data.items():
             item = history.item.add()
             item.key = k
-            item.value_json = json.dumps(v, cls=WandBHistoryJSONEncoder)
+            item.value_json = json_dumps_safer(v, compression_fn=maybe_compress_history)
         self._publish_history(history)
 
     @abstractmethod

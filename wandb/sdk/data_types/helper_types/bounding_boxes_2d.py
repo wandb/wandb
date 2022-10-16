@@ -315,7 +315,7 @@ class BoundingBoxes2D(JSONMetadata):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output
             # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
-            return self._val
+            return self._val  # type: ignore
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 

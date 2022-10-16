@@ -13,8 +13,7 @@ from typing import Any, Optional, cast
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
-
-from wandb.util import json_dumps_safer
+from wandb.sdk.lib.json_util import json_dumps_safer
 
 from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase

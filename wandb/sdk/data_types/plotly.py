@@ -3,6 +3,7 @@ import os
 from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib.json_util import json_dump_safer
 
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
@@ -68,7 +69,7 @@ class Plotly(Media):
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-            util.json_dump_safer(val, fp)
+            json_dump_safer(val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
     @classmethod

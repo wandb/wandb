@@ -29,7 +29,6 @@ from typing import (
 import click
 import requests
 import yaml
-from wandb.util import json_dumps_safer
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -40,6 +39,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.lib.json_util import json_dumps_safer
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
