@@ -60,7 +60,7 @@ parameters:
     default: false
   manual_nightly_git_branch:
     type: string
-    default: master
+    default: main
   manual_nightly_slack_notify:
     type: boolean
     default: false
@@ -588,7 +588,7 @@ jobs:
         default: "3.8"
       git_branch:
         type: string
-        default: "master"
+        default: "main"
       execute:
         type: boolean
         default: true
