@@ -10,7 +10,6 @@ import hashlib
 import importlib
 import json
 import logging
-import math
 import numbers
 import os
 import pathlib
@@ -27,9 +26,8 @@ import threading
 import time
 import traceback
 import urllib
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from importlib import import_module
-from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
     IO,
@@ -43,7 +41,6 @@ from typing import (
     NewType,
     Optional,
     Sequence,
-    Set,
     TextIO,
     Tuple,
     Type,
@@ -59,6 +56,8 @@ import yaml
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
+from wandb.sdk.lib.json_util import json_serializable
+
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -351,8 +350,92 @@ def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type:
 
 np = get_module("numpy")
 
-# TODO: Revisit these limits
-VALUE_BYTES_LIMIT = 100000
+
+def maybe_compress_summary(obj: Any, h5_typename: str) -> Tuple[Any, bool]:
+
+    if np and isinstance(obj, np.ndarray) and obj.size > 32:
+        return (
+            {
+                "_type": h5_typename,  # may not be ndarray
+                "var": np.var(obj).item(),
+                "mean": np.mean(obj).item(),
+                "min": np.amin(obj).item(),
+                "max": np.amax(obj).item(),
+                "10%": np.percentile(obj, 10),
+                "25%": np.percentile(obj, 25),
+                "75%": np.percentile(obj, 75),
+                "90%": np.percentile(obj, 90),
+                "size": obj.size,
+            },
+            True,
+        )
+    else:
+        return obj, False
+
+
+def get_h5_typename(o: Any) -> Any:
+    typename = get_full_typename(o)
+    if is_tf_tensor_typename(typename):
+        return "tensorflow.Tensor"
+    elif is_pytorch_tensor_typename(typename):
+        return "torch.Tensor"
+    else:
+        return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+
+
+class WandBSummaryJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types."""
+
+    def default(self, o: Any) -> Any:
+        try:
+            obj = json_serializable(o)
+            obj, _ = maybe_compress_summary(obj, get_h5_typename(o))
+        except TypeError:
+            obj = o
+        else:
+            return obj
+        return json.JSONEncoder.default(self, obj)
+
+
+def maybe_compress_history(obj: Any) -> Any:
+    return wandb.Histogram(obj, num_bins=32).to_json()
+
+
+class WandBHistoryJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, o: Any) -> Any:
+        try:
+            obj = json_serializable(o, compression_fn=maybe_compress_history)
+        except TypeError:
+            pass
+        else:
+            return obj
+        return json.JSONEncoder.default(self, obj)
+
+
+class WandBJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types."""
+
+    def default(self, o: Any) -> Any:
+        try:
+            obj = json_serializable(o)
+        except TypeError:
+            pass
+        else:
+            return obj
+        return json.JSONEncoder.default(self, o)
+
+
+def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
+
+
+def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
+    """Convert obj to json, with some extra encodable types."""
+    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
 
 def app_url(api_url: str) -> str:
@@ -383,16 +466,6 @@ def get_full_typename(o: Any) -> Any:
         return o.__name__
     else:
         return instance_name
-
-
-def get_h5_typename(o: Any) -> Any:
-    typename = get_full_typename(o)
-    if is_tf_tensor_typename(typename):
-        return "tensorflow.Tensor"
-    elif is_pytorch_tensor_typename(typename):
-        return "torch.Tensor"
-    else:
-        return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
 
 
 def is_uri(string: str) -> bool:
@@ -608,158 +681,6 @@ def matplotlib_contains_images(obj: Any) -> bool:
     return any(len(ax.images) > 0 for ax in obj.axes)
 
 
-def _numpy_generic_convert(obj: Any) -> Any:
-    obj = obj.item()
-    if isinstance(obj, float) and math.isnan(obj):
-        obj = None
-    elif isinstance(obj, np.generic) and (
-        obj.dtype.kind == "f" or obj.dtype == "bfloat16"
-    ):
-        # obj is a numpy float with precision greater than that of native python float
-        # (i.e., float96 or float128) or it is of custom type such as bfloat16.
-        # in these cases, obj.item() does not return a native
-        # python float (in the first case - to avoid loss of precision,
-        # so we need to explicitly cast this down to a 64bit float)
-        obj = float(obj)
-    return obj
-
-
-def _find_all_matching_keys(
-    d: Dict,
-    match_fn: Callable[[Any], bool],
-    visited: Set[int] = None,
-    key_path: Tuple[Any, ...] = (),
-) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
-    """Recursively find all keys that satisfies a match function.
-
-    Args:
-       d: The dict to search.
-       match_fn: The function to determine if the key is a match.
-       visited: Keep track of visited nodes so we dont recurse forever.
-       key_path: Keep track of all the keys to get to the current node.
-    Yields:
-       (key_path, key): The location where the key was found, and the key
-    """
-
-    if visited is None:
-        visited = set()
-    me = id(d)
-    if me not in visited:
-        visited.add(me)
-        for key, value in d.items():
-            if match_fn(key):
-                yield key_path, key
-            if isinstance(value, dict):
-                yield from _find_all_matching_keys(
-                    value,
-                    match_fn,
-                    visited=visited,
-                    key_path=tuple(list(key_path) + [key]),
-                )
-
-
-def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
-    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
-    if not np_keys:
-        return d, False
-    for key_path, key in np_keys:
-        ptr = d
-        for k in key_path:
-            ptr = ptr[k]
-        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
-    return d, True
-
-
-def json_friendly(  # noqa: C901
-    obj: Any,
-) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
-    """Convert an object into something that's more becoming of JSON"""
-    converted = True
-    typename = get_full_typename(obj)
-
-    if is_tf_eager_tensor_typename(typename):
-        obj = obj.numpy()
-    elif is_tf_tensor_typename(typename):
-        try:
-            obj = obj.eval()
-        except RuntimeError:
-            obj = obj.numpy()
-    elif is_pytorch_tensor_typename(typename) or is_fastai_tensor_typename(typename):
-        try:
-            if obj.requires_grad:
-                obj = obj.detach()
-        except AttributeError:
-            pass  # before 0.4 is only present on variables
-
-        try:
-            obj = obj.data
-        except RuntimeError:
-            pass  # happens for Tensors before 0.4
-
-        if obj.size():
-            obj = obj.cpu().detach().numpy()
-        else:
-            return obj.item(), True
-    elif is_jax_tensor_typename(typename):
-        obj = get_jax_tensor(obj)
-
-    if is_numpy_array(obj):
-        if obj.size == 1:
-            obj = obj.flatten()[0]
-        elif obj.size <= 32:
-            obj = obj.tolist()
-    elif np and isinstance(obj, np.generic):
-        obj = _numpy_generic_convert(obj)
-    elif isinstance(obj, bytes):
-        obj = obj.decode("utf-8")
-    elif isinstance(obj, (datetime, date)):
-        obj = obj.isoformat()
-    elif callable(obj):
-        obj = (
-            f"{obj.__module__}.{obj.__qualname__}"
-            if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
-            else str(obj)
-        )
-    elif isinstance(obj, float) and math.isnan(obj):
-        obj = None
-    elif isinstance(obj, dict) and np:
-        obj, converted = _sanitize_numpy_keys(obj)
-    else:
-        converted = False
-    if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        wandb.termwarn(
-            "Serializing object of type {} that is {} bytes".format(
-                type(obj).__name__, getsizeof(obj)
-            )
-        )
-    return obj, converted
-
-
-def json_friendly_val(val: Any) -> Any:
-    """Make any value (including dict, slice, sequence, etc) JSON friendly"""
-    converted: Union[dict, list]
-    if isinstance(val, dict):
-        converted = {}
-        for key, value in val.items():
-            converted[key] = json_friendly_val(value)
-        return converted
-    if isinstance(val, slice):
-        converted = dict(
-            slice_start=val.start, slice_step=val.step, slice_stop=val.stop
-        )
-        return converted
-    val, _ = json_friendly(val)
-    if isinstance(val, Sequence) and not isinstance(val, str):
-        converted = []
-        for value in val:
-            converted.append(json_friendly_val(value))
-        return converted
-    else:
-        if val.__class__.__module__ not in ("builtins", "__builtin__"):
-            val = str(val)
-        return val
-
-
 def convert_plots(obj: Any) -> Any:
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
@@ -775,34 +696,6 @@ def convert_plots(obj: Any) -> Any:
         return {"_type": "plotly", "plot": obj.to_plotly_json()}
     else:
         return obj
-
-
-def maybe_compress_history(obj: Any) -> Tuple[Any, bool]:
-    if np and isinstance(obj, np.ndarray) and obj.size > 32:
-        return wandb.Histogram(obj, num_bins=32).to_json(), True
-    else:
-        return obj, False
-
-
-def maybe_compress_summary(obj: Any, h5_typename: str) -> Tuple[Any, bool]:
-    if np and isinstance(obj, np.ndarray) and obj.size > 32:
-        return (
-            {
-                "_type": h5_typename,  # may not be ndarray
-                "var": np.var(obj).item(),
-                "mean": np.mean(obj).item(),
-                "min": np.amin(obj).item(),
-                "max": np.amax(obj).item(),
-                "10%": np.percentile(obj, 10),
-                "25%": np.percentile(obj, 25),
-                "75%": np.percentile(obj, 75),
-                "90%": np.percentile(obj, 90),
-                "size": obj.size,
-            },
-            True,
-        )
-    else:
-        return obj, False
 
 
 def launch_browser(attempt_launch_browser: bool = True) -> bool:
@@ -843,105 +736,6 @@ def parse_tfjob_config() -> Any:
             return False
     else:
         return False
-
-
-class WandBJSONEncoder(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types."""
-
-    def default(self, obj: Any) -> Any:
-        if hasattr(obj, "json_encode"):
-            return obj.json_encode()
-        # if hasattr(obj, 'to_json'):
-        #     return obj.to_json()
-        tmp_obj, converted = json_friendly(obj)
-        if converted:
-            return tmp_obj
-        return json.JSONEncoder.default(self, obj)
-
-
-class WandBJSONEncoderOld(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types."""
-
-    def default(self, obj: Any) -> Any:
-        tmp_obj, converted = json_friendly(obj)
-        tmp_obj, compressed = maybe_compress_summary(tmp_obj, get_h5_typename(obj))
-        if converted:
-            return tmp_obj
-        return json.JSONEncoder.default(self, tmp_obj)
-
-
-class WandBHistoryJSONEncoder(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types.
-    This encoder turns numpy like objects with a size > 32 into histograms"""
-
-    def default(self, obj: Any) -> Any:
-        obj, converted = json_friendly(obj)
-        obj, compressed = maybe_compress_history(obj)
-        if converted:
-            return obj
-        return json.JSONEncoder.default(self, obj)
-
-
-class JSONEncoderUncompressed(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types.
-    This encoder turns numpy like objects with a size > 32 into histograms"""
-
-    def default(self, obj: Any) -> Any:
-        if is_numpy_array(obj):
-            return obj.tolist()
-        elif np and isinstance(obj, np.generic):
-            obj = obj.item()
-        return json.JSONEncoder.default(self, obj)
-
-
-def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
-    """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
-
-
-def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
-    """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
-
-
-# This is used for dumping raw json into files
-def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
-    """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
-
-
-def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
-    """Convert obj to json, with some extra encodable types, including histograms"""
-    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
-
-
-def make_json_if_not_number(
-    v: Union[int, float, str, Mapping, Sequence]
-) -> Union[int, float, str]:
-    """If v is not a basic type convert it to json."""
-    if isinstance(v, (float, int)):
-        return v
-    return json_dumps_safer(v)
-
-
-def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Also converts to lists and dicts."""
-    if isinstance(obj, Mapping):
-        return {k: make_safe_for_json(v) for k, v in obj.items()}
-    elif isinstance(obj, str):
-        # str's are Sequence, so we need to short-circuit
-        return obj
-    elif isinstance(obj, Sequence):
-        return [make_safe_for_json(v) for v in obj]
-    elif isinstance(obj, float):
-        # W&B backend and UI handle these strings
-        if obj != obj:  # standard way to check for NaN
-            return "NaN"
-        elif obj == float("+inf"):
-            return "Infinity"
-        elif obj == float("-inf"):
-            return "-Infinity"
-    return obj
 
 
 def mkdir_exists_ok(path: str) -> bool:

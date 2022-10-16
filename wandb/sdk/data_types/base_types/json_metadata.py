@@ -33,7 +33,7 @@ class JSONMetadata(Media):
         ext = "." + self.type_name() + ".json"
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-            util.json_dump_uncompressed(self._val, fp)
+            util.json_dump_safer(self._val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     @classmethod

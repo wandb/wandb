@@ -53,6 +53,7 @@ from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
+from wandb.util import json_dumps_safer
 from wandb.sdk.wandb_require_helpers import requires
 
 if TYPE_CHECKING:
@@ -4698,7 +4699,7 @@ class Artifact(artifacts.Artifact):
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": util.json_dumps_safer(self.metadata),
+                "metadata": json_dumps_safer(self.metadata),
                 "aliases": [
                     {
                         "artifactCollectionName": self._sequence_name,

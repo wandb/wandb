@@ -13,7 +13,8 @@ from typing import Any, Optional, cast
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.util import json_dumps_safer, json_friendly
+
+from wandb.util import json_dumps_safer
 
 from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
@@ -103,7 +104,7 @@ class InterfaceShared(InterfaceBase):
         for k, v in stats_dict.items():
             item = stats.item.add()
             item.key = k
-            item.value_json = json_dumps_safer(json_friendly(v)[0])
+            item.value_json = json_dumps_safer(v)
         return stats
 
     def _make_login(self, api_key: str = None) -> pb.LoginRequest:

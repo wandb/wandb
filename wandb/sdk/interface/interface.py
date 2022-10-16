@@ -20,16 +20,16 @@ from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+
 from wandb.util import (
-    WandBJSONEncoderOld,
+    WandBSummaryJSONEncoder,
+    WandBHistoryJSONEncoder,
     get_h5_typename,
     json_dumps_safer,
-    json_dumps_safer_history,
-    json_friendly,
-    json_friendly_val,
     maybe_compress_summary,
 )
 
+from wandb.sdk.lib.json_util import json_serializable
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from ..wandb_artifacts import Artifact
@@ -157,7 +157,7 @@ class InterfaceBase:
             for k, v in data.items():
                 update = config.update.add()
                 update.key = k
-                update.value_json = json_dumps_safer(json_friendly(v)[0])
+                update.value_json = json_dumps_safer(v)
         if key:
             update = config.update.add()
             if isinstance(key, tuple):
@@ -165,7 +165,7 @@ class InterfaceBase:
                     update.nested_key.append(k)
             else:
                 update.key = key
-            update.value_json = json_dumps_safer(json_friendly(val)[0])
+            update.value_json = json_dumps_safer(val)
         return config
 
     def _make_run(self, run: "Run") -> pb.RunRecord:
@@ -272,7 +272,7 @@ class InterfaceBase:
                 )
             return json_value
         else:
-            friendly_value, converted = json_friendly(
+            friendly_value = json_serializable(
                 val_to_json(self._run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
@@ -301,11 +301,11 @@ class InterfaceBase:
 
             path_from_root = ".".join(item.key)
             json_value = self._summary_encode(item.value, path_from_root)
-            json_value, _ = json_friendly(json_value)  # type: ignore
+            json_value = json_serializable(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
                 json_value,
-                cls=WandBJSONEncoderOld,
+                cls=WandBSummaryJSONEncoder,
             )
 
         for item in summary_record.remove:
@@ -378,7 +378,7 @@ class InterfaceBase:
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+            proto_artifact.metadata = json_dumps_safer(artifact.metadata)
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -551,7 +551,7 @@ class InterfaceBase:
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)
+            item.value_json = json.dumps(v, cls=WandBHistoryJSONEncoder)
 
         if publish_step and step is not None:
             partial_history.step.num = step
@@ -576,7 +576,7 @@ class InterfaceBase:
         for k, v in data.items():
             item = history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)
+            item.value_json = json.dumps(v, cls=WandBHistoryJSONEncoder)
         self._publish_history(history)
 
     @abstractmethod

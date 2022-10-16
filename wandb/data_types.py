@@ -27,6 +27,7 @@ from typing import Optional
 
 import wandb
 from wandb import util
+from wandb.sdk.lib.json_util import json_serializable
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
@@ -142,7 +143,7 @@ def _json_helper(val, artifact):
     elif isinstance(val, (list, tuple)):
         return [_json_helper(i, artifact) for i in val]
     else:
-        return util.json_friendly(val)[0]
+        return json_serializable(val)
 
 
 class Table(Media):

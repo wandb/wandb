@@ -7,7 +7,6 @@ import os
 import re
 import socket
 import sys
-from abc import ABC
 from copy import deepcopy
 from typing import (
     IO,
@@ -30,6 +29,7 @@ from typing import (
 import click
 import requests
 import yaml
+from wandb.util import json_dumps_safer
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -2688,12 +2688,8 @@ class Api:
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
-                "labels": json.dumps(util.make_safe_for_json(labels))
-                if labels
-                else None,
-                "metadata": json.dumps(util.make_safe_for_json(metadata))
-                if metadata
-                else None,
+                "labels": json_dumps_safer(labels) if labels else None,
+                "metadata": json_dumps_safer(metadata) if metadata else None,
                 "distributedID": distributed_id,
                 "enableDigestDeduplication": enable_digest_deduplication,
                 "historyStep": history_step,

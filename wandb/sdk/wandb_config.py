@@ -8,8 +8,9 @@ import wandb
 from wandb.util import (
     _is_artifact_representation,
     check_dict_contains_nested_artifact,
-    json_friendly_val,
 )
+from .lib.json_util import json_serializable
+
 
 from . import wandb_helper
 from .lib import config_util
@@ -252,7 +253,7 @@ class Config:
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
         ):
-            val = json_friendly_val(val)
+            val = json_serializable(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(

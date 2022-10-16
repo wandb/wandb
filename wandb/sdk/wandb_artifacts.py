@@ -35,6 +35,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 from wandb.sdk.internal import progress
+from wandb.util import json_dumps_safer
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
@@ -94,9 +95,7 @@ def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         return {}
     if not isinstance(metadata, dict):
         raise TypeError(f"metadata must be dict, not {type(metadata)}")
-    return cast(
-        Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
-    )
+    return cast(Dict[str, Any], json.loads(json_dumps_safer(metadata)))
 
 
 class Artifact(ArtifactInterface):
