@@ -16,6 +16,7 @@ import requests
 import tensorflow as tf
 import wandb
 from wandb import util
+from wandb.sdk.lib.json_util import json_serializable
 
 try:
     import torch
@@ -24,7 +25,7 @@ except ImportError:
 
 
 ###############################################################################
-# Test util.json_friendly
+# Test json_serializable
 ###############################################################################
 
 
@@ -70,10 +71,10 @@ def assert_deep_lists_equal(a, b, indices=None):
                     print("Diff at index: %s" % list(reversed(indices)))
 
 
-def json_friendly_test(orig_data, obj):
-    data, converted = util.json_friendly(obj)
+def json_serializable_test(orig_data, obj):
+    data = json_serializable(obj)
     assert_deep_lists_equal(orig_data, data)
-    assert converted
+    # assert converted
 
 
 @pytest.mark.parametrize(
@@ -92,9 +93,9 @@ def json_friendly_test(orig_data, obj):
     ],
 )
 def test_pytorch_json_nd(array_shape):
-    a = nested_list(*array_shape)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
+    array = nested_list(*array_shape)
+    json_serializable_test(array, torch.Tensor(array))
+    json_serializable_test(array, pt_variable(array))
 
 
 @pytest.mark.parametrize(
@@ -113,10 +114,10 @@ def test_pytorch_json_nd(array_shape):
     ],
 )
 def test_tensorflow_json_nd(array_shape):
-    a = nested_list(*array_shape)
-    json_friendly_test(a, tf.convert_to_tensor(a))
-    v = tf.Variable(tf.convert_to_tensor(a))
-    json_friendly_test(a, v)
+    array = nested_list(*array_shape)
+    json_serializable_test(array, tf.convert_to_tensor(array))
+    variable = tf.Variable(tf.convert_to_tensor(array))
+    json_serializable_test(array, variable)
 
 
 @pytest.mark.skipif(
@@ -139,7 +140,7 @@ def test_jax_json(array_shape):
 
     orig_data = nested_list(*array_shape)
     jax_array = jnp.asarray(orig_data)
-    json_friendly_test(orig_data, jax_array)
+    json_serializable_test(orig_data, jax_array)
     assert util.is_jax_tensor_typename(util.get_full_typename(jax_array))
 
 
@@ -150,31 +151,50 @@ def test_bfloat16_to_float():
     import jax.numpy as jnp
 
     array = jnp.array(1.0, dtype=jnp.bfloat16)
-    # array to scalar bfloat16
-    array_cast = util.json_friendly(array)
-    assert array_cast[1] is True
-    assert array_cast[0].__class__.__name__ == "bfloat16"
-    # scalar bfloat16 to float
-    array_cast = util.json_friendly(array_cast[0])
-    assert array_cast[0] == 1.0
-    assert array_cast[1] is True
-    assert isinstance(array_cast[0], float)
+    serialized = json_serializable(array)
+    assert serialized == 1.0 and isinstance(serialized, float)
 
 
-###############################################################################
-# Test util.make_json_if_not_number
-###############################################################################
+@pytest.mark.parametrize(
+    "input_value, output_value",
+    [
+        ({}, {}),
+        ({1: 2}, {1: 2}),
+        ({1: np.int64(3)}, {1: 3}),  # dont care about values
+        ({np.int64(3): 4}, {3: 4}),  # top-level
+        ({1: {np.int64(3): 4}}, {1: {3: 4}}),  # nested key
+        ({1: {np.int32(2): 4}}, {1: {2: 4}}),  # nested key
+    ],
+)
+def test_nested_keys_json(input_value, output_value):
+    assert json_serializable(input_value) == output_value
 
 
-def test_make_json_if_not_number():
-    assert util.make_json_if_not_number(1) == 1
-    assert util.make_json_if_not_number(1.0) == 1.0
-    assert util.make_json_if_not_number("1") == '"1"'
-    assert util.make_json_if_not_number("1.0") == '"1.0"'
-    assert util.make_json_if_not_number({"a": 1}) == '{"a": 1}'
-    assert util.make_json_if_not_number({"a": 1.0}) == '{"a": 1.0}'
-    assert util.make_json_if_not_number({"a": "1"}) == '{"a": "1"}'
-    assert util.make_json_if_not_number({"a": "1.0"}) == '{"a": "1.0"}'
+# Compute circular reference
+x = {1: 2, 3: {4: 5}}
+x["_"] = x
+y = [1, 2, 3]
+y.append(y)
+z = [1, 2]
+w = [z, z]
+
+
+@pytest.mark.parametrize(
+    "input_value, output_value",
+    [
+        (x, None),  # recursive,
+        (y, None),  # recursive,
+        (w, [[1, 2], [1, 2]]),  # non-recursive,
+    ],
+)
+def test_circular_reference_json(input_value, output_value):
+    if output_value is None:
+        with pytest.raises(
+            TypeError, match="Recursive data structures are not supported"
+        ):
+            _ = json_serializable(input_value)
+    else:
+        assert json_serializable(input_value) == output_value
 
 
 ###############################################################################
@@ -229,32 +249,6 @@ def test_app_url():
     assert util.app_url("https://api.wandb.ai") == "https://wandb.ai"
     assert util.app_url("https://api.foo/bar") == "https://app.foo/bar"
     assert util.app_url("https://wandb.foo") == "https://wandb.foo"
-
-
-###############################################################################
-# Test util.make_safe_for_json
-###############################################################################
-
-
-def test_safe_for_json():
-    res = util.make_safe_for_json(
-        {
-            "nan": float("nan"),
-            "inf": float("+inf"),
-            "ninf": float("-inf"),
-            "str": "str",
-            "seq": [float("nan"), 1],
-            "map": {"foo": 1, "nan": float("nan")},
-        }
-    )
-    assert res == {
-        "inf": "Infinity",
-        "map": {"foo": 1, "nan": "NaN"},
-        "nan": "NaN",
-        "ninf": "-Infinity",
-        "seq": ["NaN", 1],
-        "str": "str",
-    }
 
 
 ###############################################################################
@@ -688,38 +682,3 @@ def test_resolve_aliases():
 
     aliases = util._resolve_aliases("boom")
     assert aliases == ["boom", "latest"]
-
-
-# Compute recursive dicts for tests
-d_recursive1i = {1: 2, 3: {4: 5}}
-d_recursive1i["_"] = d_recursive1i
-d_recursive2i = {1: 2, 3: {np.int64(44): 5}}
-d_recursive2i["_"] = d_recursive2i
-d_recursive2o = {1: 2, 3: {44: 5}}
-d_recursive2o["_"] = d_recursive2o
-
-
-@pytest.mark.parametrize(
-    "dict_input, dict_output",
-    [
-        ({}, None),
-        ({1: 2}, None),
-        ({1: np.int64(3)}, None),  # dont care about values
-        ({np.int64(3): 4}, {3: 4}),  # top-level
-        ({1: {np.int64(3): 4}}, {1: {3: 4}}),  # nested key
-        ({1: {np.int32(2): 4}}, {1: {2: 4}}),  # nested key
-        (d_recursive1i, None),  # recursive, no numpy
-        (d_recursive2i, d_recursive2o),  # recursive, numpy
-    ],
-)
-def test_sanitize_numpy_keys(dict_input, dict_output):
-    dict_output = dict_output.copy() if dict_output is not None else None
-    output, converted = util._sanitize_numpy_keys(dict_input)
-    assert converted == (dict_output is not None)
-
-    # pytest assert cant handle recursive dicts
-    if dict_output and "_" in dict_output:
-        output.pop("_")
-        dict_output.pop("_")
-
-    assert output == (dict_output or dict_input)
