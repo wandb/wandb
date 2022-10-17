@@ -50,6 +50,7 @@ class WandbMetricsLogger(callbacks.Callback):
         else:
             self.log_freq = log_freq
         self.global_batch = 0
+        self.global_step = 0
 
         if isinstance(log_freq, int):
             # define custom x-axis for batch logging.
@@ -57,17 +58,26 @@ class WandbMetricsLogger(callbacks.Callback):
             # set all batch metrics to be logged against batch_step.
             wandb.define_metric("batch/*", step_metric="batch/batch_step")
 
+    def _get_lr(self):
+        try:
+            return self.model.optimizer.learning_rate.numpy().item()
+        except AttributeError:
+            return self.model.optimizer.learning_rate(step=self.global_step).numpy()
+
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
         wandb.log({"epoch": epoch}, commit=False)
+        logs["learning_rate"] = self._get_lr()
         wandb.log(logs or {}, commit=True)
 
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
+        self.global_step += 1
         """An alias for `on_train_batch_end` for backwards compatibility."""
         if isinstance(self.log_freq, int) and batch % self.log_freq == 0:
             wandb.log({"batch/batch_step": self.global_batch}, commit=False)
 
             logs = {f"batch/{k}": v for k, v in logs.items()} if logs else {}
+            logs["batch/learning_rate"] = self._get_lr()
             wandb.log(logs, commit=True)
 
             self.global_batch += self.log_freq
