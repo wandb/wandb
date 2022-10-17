@@ -74,8 +74,8 @@ Please make sure to update the ToC when you update this page!
 3.  Develop you contribution.
     - Make sure your fork is in sync with the main repository:
     ```shell
-    git checkout master
-    git pull upstream master
+    git checkout main
+    git pull upstream main
     ```
     - Create a `git` branch where you will develop your contribution.
       Use a sensible name for the branch, for example:
@@ -510,7 +510,7 @@ We use codecov to ensure we're executing all branches of logic in our tests. Bel
 
 1. If you want to see the lines not covered you click on the “Diff” tab. then look for any “+” lines that have a red block for the line number
 2. If you want more context about the files, go to the “Files” tab, it will highlight diffs, but you have to do even more searching for the lines you might care about
-3. If you don't want to use codecov, you can use local coverage (I tend to do this for speeding things up a bit, run your tests then run tox -e cover ). This will give you the old school text output of missing lines (but not based on a diff from master)
+3. If you don't want to use codecov, you can use local coverage (I tend to do this for speeding things up a bit, run your tests then run tox -e cover ). This will give you the old school text output of missing lines (but not based on a diff from main)
 
 We currently have 8 categories of test coverage:
 
