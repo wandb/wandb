@@ -8,21 +8,17 @@ import tempfile
 import time
 from unittest import mock
 
+import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly
 import pytest
 import requests
 import tensorflow as tf
+import torch
 import wandb
 from wandb import util
 from wandb.sdk.lib.json_util import json_serializable
-
-try:
-    import torch
-except ImportError:
-    pass
-
 
 ###############################################################################
 # Test json_serializable
