@@ -8,7 +8,6 @@ import tempfile
 import time
 from unittest import mock
 
-import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly
@@ -19,6 +18,12 @@ import torch
 import wandb
 from wandb import util
 from wandb.sdk.lib.json_util import json_serializable
+
+try:
+    import jax.numpy as jnp
+except ImportError:
+    jnp = None
+
 
 ###############################################################################
 # Test json_serializable
@@ -132,7 +137,6 @@ def test_tensorflow_json_nd(array_shape):
     ],
 )
 def test_jax_json(array_shape):
-    from jax import numpy as jnp
 
     orig_data = nested_list(*array_shape)
     jax_array = jnp.asarray(orig_data)
@@ -144,7 +148,6 @@ def test_jax_json(array_shape):
     platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
 )
 def test_bfloat16_to_float():
-    import jax.numpy as jnp
 
     array = jnp.array(1.0, dtype=jnp.bfloat16)
     serialized = json_serializable(array)
