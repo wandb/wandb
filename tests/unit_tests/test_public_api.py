@@ -229,7 +229,13 @@ def test_sweep_api(user, relay_server, sweep_config):
     "sweep_config,expected_run_count",
     [
         (SWEEP_CONFIG_GRID, 3),
-        (SWEEP_CONFIG_GRID_NESTED, 9),
+        pytest.param(
+            SWEEP_CONFIG_GRID_NESTED,
+            9,
+            marks=pytest.mark.xfail(
+                reason="dummy sweep provider can't handle nested grid params"
+            ),
+        ),
         (SWEEP_CONFIG_BAYES, -1),
         (SWEEP_CONFIG_RANDOM, -1),
     ],
