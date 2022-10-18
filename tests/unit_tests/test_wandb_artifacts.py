@@ -1012,7 +1012,6 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     handler = wandb.wandb_sdk.wandb_artifacts.S3Handler()
     handler._cache = cache
 
-    art = wandb.Artifact("test", type="dataset")
     local_path = handler.load_path(
         wandb.Artifact("test", type="dataset"),
         wandb.wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
