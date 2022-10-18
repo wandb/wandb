@@ -67,7 +67,8 @@ class WandbMetricsLogger(callbacks.Callback):
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
         wandb.log({"epoch": epoch}, commit=False)
-        logs["learning_rate"] = self._get_lr()
+        if not isinstance(self.log_freq, int):
+            logs["learning_rate"] = self._get_lr()
         wandb.log(logs or {}, commit=True)
 
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
