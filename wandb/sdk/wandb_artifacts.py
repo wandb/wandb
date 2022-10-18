@@ -1389,7 +1389,10 @@ class S3Handler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
+        assert manifest_entry.ref is not None
+
         path, hit, cache_open = self._cache.check_etag_obj_path(
+            util.URIStr(manifest_entry.ref),
             util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1398,7 +1401,6 @@ class S3Handler(StorageHandler):
 
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
-        assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
@@ -1825,20 +1827,22 @@ class HTTPHandler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
+        assert manifest_entry.ref is not None
+
         path, hit, cache_open = self._cache.check_etag_obj_path(
+            util.URIStr(manifest_entry.ref),
             util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
             return path
 
-        assert manifest_entry.ref is not None
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
-        digest: Optional[Union[util.ETag, util.FilePathStr]]
+        digest: Optional[Union[util.ETag, util.FilePathStr, util.URIStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
-        digest = digest or path
+        digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
             raise ValueError(
                 "Digest mismatch for url %s: expected %s but found %s"
