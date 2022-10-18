@@ -155,6 +155,9 @@ class _WandbLogin:
 
             login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}"
         else:
+            wandb.termerror(
+                f"Your API key was not valid, please try to log in again through {click.style('`wandb login --relogin`', bold=True)}."
+            )
             login_state_str = "W&B API key is configured"
 
         login_info_str = (

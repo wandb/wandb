@@ -230,6 +230,17 @@ def write_key(settings, key, api=None, anonymous=False):
 
     write_netrc(settings.base_url, "user", key)
 
+    wl = wandb.setup(settings=settings)
+
+    if not anonymous:
+        username = wl._get_username()
+
+        if not username:
+            wandb.termerror(
+                "Unable to find username for given API key, please confirm your key and try again."
+            )
+            return None
+
 
 def api_key(settings=None):
     if not settings:
