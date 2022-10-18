@@ -36,13 +36,13 @@ class MockProfilerClient:
             raise Exception
 
 
-class MockTPUClusterResolver:
-    @staticmethod
-    def TPUClusterResolver(*args, **kwargs):  # noqa: N802
-        return MockTPUClusterResolver()
-
-    def get_master(self) -> str:
-        return "grpc://223.11.20.3:8470"
+# class MockTPUClusterResolver:
+#     @staticmethod
+#     def TPUClusterResolver(*args, **kwargs):  # noqa: N802
+#         return MockTPUClusterResolver()
+#
+#     def get_master(self) -> str:
+#         return "grpc://223.11.20.3:8470"
 
 
 def test_tpu_instance():
@@ -71,43 +71,43 @@ def test_tpu_instance():
 # @pytest.mark.skip(
 #     reason="This test causes (?) random test suite hangs, needs investigation"
 # )
-def test_tpu(test_settings):
-
-    with mock.patch.multiple(
-        wandb.sdk.system.assets.tpu,
-        profiler_client=MockProfilerClient(),
-        tpu_cluster_resolver=MockTPUClusterResolver(),
-    ), mock.patch.dict("os.environ", {"TPU_NAME": "my-tpu"}):
-        interface = AssetInterface()
-        settings = SettingsStatic(
-            test_settings(
-                dict(
-                    _stats_sample_rate_seconds=0.1,
-                    _stats_samples_to_average=2,
-                )
-            ).make_static()
-        )
-        shutdown_event = mp.Event()
-
-        tpu = TPU(
-            interface=interface,
-            settings=settings,
-            shutdown_event=shutdown_event,
-        )
-
-        assert tpu.is_available()
-        tpu.start()
-        assert tpu.probe() == {"tpu": {"service_address": "223.11.20.3:8466"}}
-        time.sleep(1)
-        shutdown_event.set()
-        tpu.finish()
-
-        assert not interface.metrics_queue.empty()
-
-    assert (
-        TPU.get_service_addr(service_addr="grpc://223.11.20.3:8470")
-        == "223.11.20.3:8466"
-    )
-
-    with pytest.raises(Exception, match="Required environment variable TPU_NAME."):
-        TPU.get_service_addr()
+# def test_tpu(test_settings):
+#
+#     with mock.patch.multiple(
+#         wandb.sdk.system.assets.tpu,
+#         profiler_client=MockProfilerClient(),
+#         tpu_cluster_resolver=MockTPUClusterResolver(),
+#     ), mock.patch.dict("os.environ", {"TPU_NAME": "my-tpu"}):
+#         interface = AssetInterface()
+#         settings = SettingsStatic(
+#             test_settings(
+#                 dict(
+#                     _stats_sample_rate_seconds=0.1,
+#                     _stats_samples_to_average=2,
+#                 )
+#             ).make_static()
+#         )
+#         shutdown_event = mp.Event()
+#
+#         tpu = TPU(
+#             interface=interface,
+#             settings=settings,
+#             shutdown_event=shutdown_event,
+#         )
+#
+#         assert tpu.is_available()
+#         tpu.start()
+#         assert tpu.probe() == {"tpu": {"service_address": "223.11.20.3:8466"}}
+#         time.sleep(1)
+#         shutdown_event.set()
+#         tpu.finish()
+#
+#         assert not interface.metrics_queue.empty()
+#
+#     assert (
+#         TPU.get_service_addr(service_addr="grpc://223.11.20.3:8470")
+#         == "223.11.20.3:8466"
+#     )
+#
+#     with pytest.raises(Exception, match="Required environment variable TPU_NAME."):
+#         TPU.get_service_addr()

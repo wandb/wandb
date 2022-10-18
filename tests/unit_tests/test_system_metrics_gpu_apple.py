@@ -62,23 +62,23 @@ def test_gpu_apple(test_settings):
 # @pytest.mark.skip(
 #     reason="This test causes (?) random test suite hangs, needs investigation"
 # )
-def test_gpu_apple_stats():
-    def mock_check_output(*args, **kwargs) -> str:
-        return json.dumps(
-            {"utilization": 30, "mem_used": 12, "temperature": 42.5, "power": 7.3}
-        )
-
-    with mock.patch.object(
-        wandb.sdk.system.assets.gpu_apple.subprocess,
-        "check_output",
-        mock_check_output,
-    ):
-        stats = GPUAppleStats()
-        stats.sample()
-        assert stats.samples[0] == {
-            "gpu": 30.0,
-            "memoryAllocated": 12.0,
-            "temp": 42.5,
-            "powerWatts": 7.3,
-            "powerPercent": (7.3 / stats.MAX_POWER_WATTS) * 100,
-        }
+# def test_gpu_apple_stats():
+#     def mock_check_output(*args, **kwargs) -> str:
+#         return json.dumps(
+#             {"utilization": 30, "mem_used": 12, "temperature": 42.5, "power": 7.3}
+#         )
+#
+#     with mock.patch.object(
+#         wandb.sdk.system.assets.gpu_apple.subprocess,
+#         "check_output",
+#         mock_check_output,
+#     ):
+#         stats = GPUAppleStats()
+#         stats.sample()
+#         assert stats.samples[0] == {
+#             "gpu": 30.0,
+#             "memoryAllocated": 12.0,
+#             "temp": 42.5,
+#             "powerWatts": 7.3,
+#             "powerPercent": (7.3 / stats.MAX_POWER_WATTS) * 100,
+#         }
