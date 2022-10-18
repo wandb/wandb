@@ -1889,8 +1889,3 @@ def make_docker_image_name_safe(name: str) -> str:
     trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
     trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
     return trimmed if trimmed else "image"
-
-
-def has_main_file(path: str) -> bool:
-    """Check if a directory has a main.py file"""
-    return path != "<python with no main file>"
