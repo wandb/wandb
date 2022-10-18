@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 import wandb
@@ -6,13 +7,38 @@ from wandb.cli import cli
 from wandb.sdk.launch.runner.local_container import LocalContainerRunner
 
 
+REPO_CONST = "test_repo"
+IMAGE_CONST = "fake_image"
+
+
+def patched_docker_push(repo, tag):
+    assert repo == REPO_CONST
+
+    raise Exception(str(repo) + " : " + str(tag))
+
+    return repo
+
+
+def patched_build_image_with_builder(
+    builder,
+    launch_project,
+    repository,
+    entry_point,
+    docker_args,
+):
+    assert builder
+    assert entry_point
+
+    return IMAGE_CONST
+
+
 @pytest.mark.timeout(200)  # builds an image
 @pytest.mark.parametrize(
     "args,override_config",
     [
-        (["--build", "--queue"], {"registry": {"url": "testing123"}}),
+        (["--build", "--queue"], {"registry": {"url": REPO_CONST}}),
         (
-            ["--queue", "--build", "--repository", "testing-override"],
+            ["--queue", "--build", "--repository", REPO_CONST],
             {
                 "registry": {"url": "testing123"},
                 "docker": {"args": ["--container_arg", "9-rams"]},
@@ -36,7 +62,6 @@ def test_launch_build_succeeds(
 ):
     proj = "testing123"
     settings = test_settings({"project": proj})
-    image_name = "fake-image123"
     base_args = [
         "https://github.com/wandb/examples.git",
         "--entity",
@@ -48,26 +73,6 @@ def test_launch_build_succeeds(
         "-c",
         json.dumps(override_config),
     ]
-
-    true_repository = override_config.get("registry") and (
-        override_config["registry"].get("repository")
-        or override_config["registry"].get("url")
-    )
-    if "--repository" in args:
-        true_repository = args[args.index("--repository") + 1]
-
-    def patched_build_image_with_builder(
-        builder,
-        launch_project,
-        repository,
-        entry_point,
-        docker_args,
-    ):
-        assert builder
-        assert entry_point
-        assert repository == true_repository
-
-        return image_name
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
@@ -87,15 +92,25 @@ def test_launch_build_succeeds(
         lambda *args, **kwargs: patched_build_image_with_builder(*args, **kwargs),
     )
 
-    with runner.isolated_filesystem(), relay_server():
+    with runner.isolated_filesystem(), relay_server() as relay:
         run = wandb_init(settings=settings)
+        time.sleep(1)
         result = runner.invoke(cli.launch, base_args + args)
-        run.finish()
+
+        for comm in relay.context.raw_data:
+            if comm["request"].get("query"):
+                print(comm["request"].get("query"), end="")
+                print("variables", comm["request"]["variables"])
+                print("response", comm["response"]["data"])
+                print("\n")
 
         assert result.exit_code == 0
         assert "Launching run in docker with command" not in result.output
         assert "Added run to queue" in result.output
-        assert f"'job': '{user}/{proj}/job-{image_name}:v0'" in result.output
+        assert f"'job': '{user}/{proj}/job-{IMAGE_CONST}:v0'" in result.output
+
+        time.sleep(1)
+        run.finish()
 
 
 @pytest.mark.timeout(100)
@@ -125,9 +140,6 @@ def test_launch_build_fails(
         "python ./examples/scikit/scikit-classification/train.py",
     ]
 
-    def patched_build_image_with_builder(*_):
-        return "fakeImage123"
-
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "validate_docker_installation",
@@ -148,9 +160,8 @@ def test_launch_build_fails(
 
     with runner.isolated_filesystem(), relay_server():
         run = wandb_init(settings=settings)
+        time.sleep(1)
         result = runner.invoke(cli.launch, base_args + args)
-
-        run.finish()
 
         if args == ["--build"]:
             assert result.exit_code == 1
@@ -165,6 +176,9 @@ def test_launch_build_fails(
                 "Option '--build' does not take a value" in result.output
                 or "Error: --build option does not take a value" in result.output
             )
+
+        time.sleep(1)
+        run.finish()
 
 
 @pytest.mark.timeout(300)
@@ -204,24 +218,40 @@ def test_launch_repository_arg(
         lambda *args, **kwargs: patched_run(*args, **kwargs),
     )
 
-    def patched_validate_docker_installation():
-        return None
-
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "validate_docker_installation",
-        lambda: patched_validate_docker_installation(),
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        wandb.docker,
+        "push",
+        lambda repo, tag: patched_docker_push(repo, tag),
+    )
+
+    monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
+
+    monkeypatch.setattr(
+        wandb.docker,
+        "run",
+        lambda *args, **kwargs: None,
     )
 
     settings = test_settings({"project": proj})
 
     with runner.isolated_filesystem(), relay_server():
         run = wandb_init(settings=settings)
+        time.sleep(1)
+
         result = runner.invoke(cli.launch, base_args + args)
+
+        # raise Exception(result.output)
 
         if "--respository=" in args:  # incorrect param
             assert result.exit_code == 2
         else:
             assert result.exit_code == 0
 
+        time.sleep(1)
         run.finish()
