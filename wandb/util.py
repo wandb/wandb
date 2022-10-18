@@ -33,12 +33,14 @@ from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     Generator,
     List,
     Mapping,
+    NewType,
     Optional,
     Sequence,
     Set,
@@ -58,7 +60,33 @@ import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
 
+if TYPE_CHECKING:
+    import wandb.apis.public
+    import wandb.sdk.internal.settings_static
+    import wandb.sdk.wandb_artifacts
+    import wandb.sdk.wandb_settings
+
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+
+ETag = NewType("ETag", str)
+RawMD5 = NewType("RawMD5", bytes)
+HexMD5 = NewType("HexMD5", str)
+B64MD5 = NewType("B64MD5", str)
+
+# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
+# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
+# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
+LogicalFilePathStr = NewType("LogicalFilePathStr", str)
+
+# `FilePathStr` represents a path to a file on the local filesystem.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.Path
+FilePathStr = NewType("FilePathStr", str)
+
+# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
+URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -66,6 +94,16 @@ _not_importable = set()
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
+
+# From https://docs.docker.com/engine/reference/commandline/tag/
+# "Name components may contain lowercase letters, digits and separators.
+# A separator is defined as a period, one or two underscores, or one or more dashes.
+# A name component may not start or end with a separator."
+DOCKER_IMAGE_NAME_SEPARATOR = "(?:__|[._]|[-]+)"
+RE_DOCKER_IMAGE_NAME_SEPARATOR_START = re.compile("^" + DOCKER_IMAGE_NAME_SEPARATOR)
+RE_DOCKER_IMAGE_NAME_SEPARATOR_END = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "$")
+RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "{2,}")
+RE_DOCKER_IMAGE_NAME_CHARS = re.compile(r"[^a-z0-9._\-]")
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -256,6 +294,10 @@ def sentry_set_scope(
         for tag, value in args.items():
             if value is not None and value != "":
                 scope.set_tag(tag, value)
+
+    # Track session so we can get metrics about error free rate
+    if sentry_hub:
+        sentry_hub.start_session()
 
 
 def vendor_setup() -> Callable:
@@ -923,6 +965,15 @@ def mkdir_exists_ok(path: str) -> bool:
             raise
 
 
+def no_retry_4xx(e: Exception) -> bool:
+    if not isinstance(e, requests.HTTPError):
+        return True
+    if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
+        return True
+    body = json.loads(e.response.content)
+    raise UsageError(body["errors"][0]["message"])
+
+
 def no_retry_auth(e: Any) -> bool:
     if hasattr(e, "exception"):
         e = e.exception
@@ -1050,12 +1101,12 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def md5_file(path: str) -> str:
+def md5_file(path: str) -> B64MD5:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
+    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
 
 
 def get_log_file_path() -> str:
@@ -1415,14 +1466,14 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     return None
 
 
-def to_forward_slash_path(path: str) -> str:
+def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return path
+    return LogicalFilePathStr(path)
 
 
-def to_native_slash_path(path: str) -> str:
-    return path.replace("/", os.sep)
+def to_native_slash_path(path: str) -> FilePathStr:
+    return FilePathStr(path.replace("/", os.sep))
 
 
 def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
@@ -1833,9 +1884,8 @@ def make_artifact_name_safe(name: str) -> str:
 
 def make_docker_image_name_safe(name: str) -> str:
     """Make a docker image name safe for use in artifacts"""
-    return re.sub(r"[^a-z0-9_\-.]", "", name)
-
-
-def has_main_file(path: str) -> bool:
-    """Check if a directory has a main.py file"""
-    return path != "<python with no main file>"
+    safe_chars = RE_DOCKER_IMAGE_NAME_CHARS.sub("__", name.lower())
+    deduped = RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT.sub("__", safe_chars)
+    trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
+    trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
+    return trimmed if trimmed else "image"

@@ -12,7 +12,7 @@ class Api:
 
     @property
     def api(self):
-        # This is a property in order ot delay construction of Internal API
+        # This is a property in order to delay construction of Internal API
         # for as long as possible. If constructed in constructor, then the
         # whole InternalAPI is started when simply importing wandb.
         if self._api is None:

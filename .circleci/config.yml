@@ -60,7 +60,7 @@ parameters:
     default: false
   manual_nightly_git_branch:
     type: string
-    default: master
+    default: main
   manual_nightly_slack_notify:
     type: boolean
     default: false
@@ -588,7 +588,7 @@ jobs:
         default: "3.8"
       git_branch:
         type: string
-        default: "master"
+        default: "main"
       execute:
         type: boolean
         default: true
@@ -709,13 +709,16 @@ jobs:
           command: |
             echo "Waiting for pods to finish"
             sleep 300
+            count_all_pods_terminated=0
             while true; do
               kubectl get pods
               terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>&1`
               all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
               if [ "$all_pods_terminated" -eq "1" ]; then
-                echo "All pods have terminated"
-                break
+                count_all_pods_terminated=$((count_all_pods_terminated + 1))
+                echo "All pods have terminated ($count_all_pods_terminated)"
+                # make sure we have seen all pods terminated twice to give pod attach a chance to run
+                if [ $count_all_pods_terminated -ge 2 ]; then break; fi
               fi
               sleep << parameters.sleep_time >>
             done
@@ -1091,7 +1094,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 8
-          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
+          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
       #
       # Unit tests with pytest on Linux, using real wandb server
       #
@@ -1168,6 +1171,7 @@ workflows:
                 - "imports9"
                 - "imports10"
                 - "imports11"
+                - "imports12"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
