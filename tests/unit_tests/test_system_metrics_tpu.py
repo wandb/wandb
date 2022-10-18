@@ -1,13 +1,15 @@
-import multiprocessing as mp
-import time
-from unittest import mock
+# import multiprocessing as mp
+# import time
+# from unittest import mock
 
 import pytest  # type: ignore
-import wandb
-from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets import TPU
+
+# import wandb
+# from wandb.sdk.internal.settings_static import SettingsStatic
+# from wandb.sdk.system.assets import TPU
 from wandb.sdk.system.assets.tpu import TPUUtilization
-from wandb.sdk.system.system_monitor import AssetInterface
+
+# from wandb.sdk.system.system_monitor import AssetInterface
 
 
 class MockProfilerClient:

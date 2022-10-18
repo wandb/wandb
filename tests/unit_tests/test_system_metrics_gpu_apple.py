@@ -1,13 +1,13 @@
-import json
+# import json
 import multiprocessing as mp
 import time
 from unittest import mock
 
-import pytest
+# import pytest
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.system.assets import GPUApple
-from wandb.sdk.system.assets.gpu_apple import GPUAppleStats, _Stats
+from wandb.sdk.system.assets.gpu_apple import _Stats  # GPUAppleStats, _Stats
 from wandb.sdk.system.system_monitor import AssetInterface
 
 
