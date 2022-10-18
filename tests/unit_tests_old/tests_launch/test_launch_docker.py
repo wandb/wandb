@@ -233,7 +233,7 @@ def test_gcp_uri(test_settings, live_mock_server, mocked_fetchable_git_repo):
         test_project, "test-repo", "test-project", "test-registry"
     )
     assert (
-        "test-registry/test-project/test-repo/wandb.aimock_server_entitytestruns1:68747470733a2f2f666f6f3a62617240"
+        "test-registry/test-project/test-repo/wandb.ai__mock_server_entity__test__runs__1:68747470733a2f2f666f6f3a62617240"
         in uri
     )
 
