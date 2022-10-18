@@ -68,9 +68,9 @@ def test_tpu_instance():
     assert tpu_profiler.samples[0] == 10.1
 
 
-@pytest.mark.skip(
-    reason="This test causes (?) random test suite hangs, needs investigation"
-)
+# @pytest.mark.skip(
+#     reason="This test causes (?) random test suite hangs, needs investigation"
+# )
 def test_tpu(test_settings):
 
     with mock.patch.multiple(

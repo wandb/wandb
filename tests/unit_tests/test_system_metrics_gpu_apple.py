@@ -59,9 +59,9 @@ def test_gpu_apple(test_settings):
         assert not interface.metrics_queue.empty()
 
 
-@pytest.mark.skip(
-    reason="This test causes (?) random test suite hangs, needs investigation"
-)
+# @pytest.mark.skip(
+#     reason="This test causes (?) random test suite hangs, needs investigation"
+# )
 def test_gpu_apple_stats():
     def mock_check_output(*args, **kwargs) -> str:
         return json.dumps(
