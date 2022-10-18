@@ -23,7 +23,10 @@ class WandbMetricsLogger(callbacks.Callback):
     """`WandbMetricsLogger` automatically logs the `logs` dictionary
     that callback methods take as argument to wandb.
 
-    It also logs the system metrics to wandb.
+    This callback logs events for TensorBoard, including:
+    * Metrics summary plots
+    * System metrics plots
+    * Learning rate (both for a fixed value or a learning rate scheduler)
 
     Arguments:
         log_freq ("epoch", "batch", or int): if "epoch", logs metrics
