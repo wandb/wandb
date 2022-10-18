@@ -19,6 +19,20 @@ def _cache_writer(cache_path):
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
+def test_opener_rejects_append_mode():
+    os.mkdir("cache")
+    cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
+    path, exists, opener = cache.check_md5_obj_path(base64.b64encode(b"abcdef"), 10)
+
+    with pytest.raises(ValueError):
+        with opener("a"):
+            pass
+
+    # make sure that the ValueError goes away if we use a valid mode
+    with opener("w"):
+        pass
+
+
 def test_check_md5_obj_path():
     os.mkdir("cache")
     cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
