@@ -1,6 +1,5 @@
 import logging
 import os
-import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
