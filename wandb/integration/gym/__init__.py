@@ -19,10 +19,10 @@ def monitor():
             key = "videos"
         wandb.log({key: wandb.Video(self.path)})
 
-    def __del__(self):
+    def del_(self):
         self.orig_close()
 
-    vcr.VideoRecorder.__del__ = __del__
+    vcr.VideoRecorder.__del__ = del_
     vcr.VideoRecorder.close = close
     wandb.patched["gym"].append(
         ["gym.wrappers.monitoring.video_recorder.VideoRecorder", "close"]
