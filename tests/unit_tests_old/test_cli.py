@@ -58,9 +58,12 @@ def test_artifact_upload(runner, git_repo, mock_server, mocker, mocked_run):
     with open("artifact.txt", "w") as f:
         f.write("My Artifact")
     mocker.patch("wandb.init", lambda *args, **kwargs: mocked_run)
-    mocker.patch("wandb.Artifact.wait", lambda *args, **kwargs: wandb_internal_pb2.LogArtifactResponse(
-        artifact_id='some-artifact-id',
-    ))
+    mocker.patch(
+        "wandb.Artifact.wait",
+        lambda *args, **kwargs: wandb_internal_pb2.LogArtifactResponse(
+            artifact_id="some-artifact-id",
+        ),
+    )
     result = runner.invoke(cli.artifact, ["put", "artifact.txt", "-n", "test/simple"])
     print(result.output)
     print(result.exception)
