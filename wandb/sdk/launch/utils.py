@@ -462,7 +462,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
             repo.create_head(version, origin.refs[version])
             repo.heads[version].checkout()
             wandb.termlog(
-                f"{LOG_PREFIX}No git branch passed. Defaulted to branch: {version}"
+                f"{LOG_PREFIX}No git branch passed, defaulted to branch: {version}"
             )
         except (AttributeError, IndexError) as e:
             raise LaunchError(

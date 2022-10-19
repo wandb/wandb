@@ -1,13 +1,12 @@
 import json
-import time
 import os
+import time
+from unittest import mock
 
 import pytest
 import wandb
-from unittest import mock
 from wandb.cli import cli
 from wandb.sdk.launch.runner.local_container import LocalContainerRunner
-
 
 REPO_CONST = "test_repo"
 IMAGE_CONST = "fake_image"
@@ -25,6 +24,8 @@ def mocked_fetchable_git_repo():
         return os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             os.pardir,
+            os.pardir,
+            "unit_tests_old",
             "assets",
             "fixtures",
             path,
@@ -138,10 +139,10 @@ def test_launch_build_succeeds(
         "build_image_with_builder",
         lambda *args, **kwargs: patched_build_image_with_builder(*args, **kwargs),
     )
-    run = wandb_init(settings=settings)
-    time.sleep(1)
-
     with runner.isolated_filesystem(), relay_server():
+        run = wandb_init(settings=settings)
+        time.sleep(1)
+
         result = runner.invoke(cli.launch, base_args + args)
 
         assert result.exit_code == 0
@@ -149,7 +150,7 @@ def test_launch_build_succeeds(
         assert "Added run to queue" in result.output
         assert f"'job': '{user}/{proj}/job-{IMAGE_CONST}:v0'" in result.output
 
-    run.finish()
+        run.finish()
 
 
 @pytest.mark.timeout(100)
@@ -195,10 +196,10 @@ def test_launch_build_fails(
         "build_image_with_builder",
         lambda *args, **kwargs: patched_build_image_with_builder(*args, **kwargs),
     )
-    run = wandb_init(settings=settings)
-    time.sleep(1)
 
     with runner.isolated_filesystem(), relay_server():
+        run = wandb_init(settings=settings)
+        time.sleep(1)
         result = runner.invoke(cli.launch, base_args + args)
 
         if args == ["--build"]:
@@ -214,7 +215,7 @@ def test_launch_build_fails(
                 "Option '--build' does not take a value" in result.output
                 or "Error: --build option does not take a value" in result.output
             )
-    run.finish()
+        run.finish()
 
 
 @pytest.mark.timeout(300)
@@ -231,10 +232,11 @@ def test_launch_repository_arg(
     args,
     test_settings,
     wandb_init,
+    mocked_fetchable_git_repo,
 ):
     proj = "testing123"
     base_args = [
-        "https://github.com/gtarpenning/wandb-launch-test",
+        "https://foo:bar@github.com/FooTest/Foo.git",
         "--entity",
         user,
         "--project",
@@ -273,10 +275,10 @@ def test_launch_repository_arg(
     )
 
     settings = test_settings({"project": proj})
-    run = wandb_init(settings=settings)
-    run.finish()
 
     with runner.isolated_filesystem(), relay_server():
+        run = wandb_init(settings=settings)
+        time.sleep(1)
         result = runner.invoke(cli.launch, base_args + args)
 
         # raise Exception(result.output)
@@ -285,3 +287,5 @@ def test_launch_repository_arg(
             assert result.exit_code == 2
         else:
             assert result.exit_code == 0
+
+        run.finish()
