@@ -2,10 +2,67 @@ import json
 import os
 
 import pytest
+from unittest import mock
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
+
+
+@pytest.fixture
+def mocked_fetchable_git_repo():
+    m = mock.Mock()
+
+    def fixture_open(path, mode="r"):
+        """Returns an opened fixture file"""
+        return open(fixture_path(path), mode)
+
+    def fixture_path(path):
+        print(
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                os.pardir,
+                os.pardir,
+                "unit_tests_old",
+                "assets",
+                "fixtures",
+                path,
+            )
+        )
+        return os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            os.pardir,
+            os.pardir,
+            "unit_tests_old",
+            "assets",
+            "fixtures",
+            path,
+        )
+
+    def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = mock.Mock()
+        reference.name = "master"
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return repo
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
 
 
 @pytest.mark.timeout(200)
@@ -25,13 +82,19 @@ from wandb.sdk.launch.launch_add import launch_add
     ],
 )
 def test_launch_build_push_job(
-    relay_server, user, monkeypatch, runner, launch_config, override_config
+    relay_server,
+    user,
+    monkeypatch,
+    runner,
+    launch_config,
+    override_config,
+    mocked_fetchable_git_repo,
 ):
     release_image = "THISISANIMAGETAG"
     queue = "test_queue"
     proj = "test"
-    uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    uri = "https://github.com/FooBar/examples.git"
+    entry_point = ["python", "train.py"]
 
     internal_api = InternalApi()
     public_api = PublicApi()
@@ -114,10 +177,10 @@ def test_launch_build_push_job(
     run.finish()
 
 
-def test_launch_add_default(relay_server, user):
+def test_launch_add_default(relay_server, user, mocked_fetchable_git_repo):
     proj = "test_project"
-    uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    uri = "https://github.com/FooBar/examples.git"
+    entry_point = ["python", "train.py"]
     args = {
         "uri": uri,
         "project": proj,
@@ -149,11 +212,11 @@ def test_launch_add_default(relay_server, user):
     run.finish()
 
 
-def test_push_to_runqueue_exists(relay_server, user):
+def test_push_to_runqueue_exists(relay_server, user, mocked_fetchable_git_repo):
     proj = "test_project"
     queue = "existing-queue"
-    uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    uri = "https://github.com/FooBar/examples.git"
+    entry_point = ["python", "train.py"]
     args = {
         "uri": uri,
         "project": proj,
@@ -182,11 +245,13 @@ def test_push_to_runqueue_exists(relay_server, user):
     run.finish()
 
 
-def test_push_to_default_runqueue_notexist(relay_server, user):
+def test_push_to_default_runqueue_notexist(
+    relay_server, user, mocked_fetchable_git_repo
+):
     api = wandb.sdk.internal.internal_api.Api()
     proj = "test_project"
-    uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    uri = "https://github.com/FooBar/examples.git"
+    entry_point = ["python", "train.py"]
 
     launch_spec = {
         "uri": uri,
@@ -204,11 +269,13 @@ def test_push_to_default_runqueue_notexist(relay_server, user):
     run.finish()
 
 
-def test_push_to_runqueue_old_server(relay_server, user, monkeypatch):
+def test_push_to_runqueue_old_server(
+    relay_server, user, monkeypatch, mocked_fetchable_git_repo
+):
     proj = "test_project"
     queue = "existing-queue"
-    uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    uri = "https://github.com/FooBar/examples.git"
+    entry_point = ["python", "train.py"]
     args = {
         "uri": uri,
         "project": proj,
