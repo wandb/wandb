@@ -1014,7 +1014,8 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
           context: slack-secrets
           notify_on_failure: true
           requires:
@@ -1102,7 +1103,8 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
+              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
+              python_version_minor: [6, 7, 8, 9, 10, 11-rc]
           name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1112,7 +1114,8 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
+              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
+              python_version_minor: [6, 7, 8, 9, 10, 11-rc]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
