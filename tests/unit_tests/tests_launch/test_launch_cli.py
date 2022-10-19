@@ -1,14 +1,59 @@
 import json
 import time
+import os
 
 import pytest
 import wandb
+from unittest import mock
 from wandb.cli import cli
 from wandb.sdk.launch.runner.local_container import LocalContainerRunner
 
 
 REPO_CONST = "test_repo"
 IMAGE_CONST = "fake_image"
+
+
+@pytest.fixture
+def mocked_fetchable_git_repo():
+    m = mock.Mock()
+
+    def fixture_open(path, mode="r"):
+        """Returns an opened fixture file"""
+        return open(fixture_path(path), mode)
+
+    def fixture_path(path):
+        return os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            os.pardir,
+            "assets",
+            "fixtures",
+            path,
+        )
+
+    def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = mock.Mock()
+        reference.name = "master"
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return repo
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
 
 
 def patched_docker_push(repo, tag):
@@ -32,11 +77,14 @@ def patched_build_image_with_builder(
     return IMAGE_CONST
 
 
-@pytest.mark.timeout(200)  # builds an image
+@pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "args,override_config",
     [
-        (["--build", "--queue"], {"registry": {"url": REPO_CONST}}),
+        (
+            ["--build", "--queue"],
+            {"registry": {"url": REPO_CONST}},
+        ),
         (
             ["--queue", "--build", "--repository", REPO_CONST],
             {
@@ -59,17 +107,16 @@ def test_launch_build_succeeds(
     override_config,
     test_settings,
     wandb_init,
+    mocked_fetchable_git_repo,
 ):
-    proj = "testing123"
+    proj = "testing_build_succeeds"
     settings = test_settings({"project": proj})
     base_args = [
-        "https://github.com/wandb/examples.git",
+        "https://foo:bar@github.com/FooTest/Foo.git",
         "--entity",
         user,
         "--project",
         proj,
-        "--entry-point",
-        "python ./examples/scikit/scikit-classification/train.py",
         "-c",
         json.dumps(override_config),
     ]
@@ -91,26 +138,18 @@ def test_launch_build_succeeds(
         "build_image_with_builder",
         lambda *args, **kwargs: patched_build_image_with_builder(*args, **kwargs),
     )
+    run = wandb_init(settings=settings)
+    time.sleep(1)
 
-    with runner.isolated_filesystem(), relay_server() as relay:
-        run = wandb_init(settings=settings)
-        time.sleep(1)
+    with runner.isolated_filesystem(), relay_server():
         result = runner.invoke(cli.launch, base_args + args)
-
-        for comm in relay.context.raw_data:
-            if comm["request"].get("query"):
-                print(comm["request"].get("query"), end="")
-                print("variables", comm["request"]["variables"])
-                print("response", comm["response"]["data"])
-                print("\n")
 
         assert result.exit_code == 0
         assert "Launching run in docker with command" not in result.output
         assert "Added run to queue" in result.output
         assert f"'job': '{user}/{proj}/job-{IMAGE_CONST}:v0'" in result.output
 
-        time.sleep(1)
-        run.finish()
+    run.finish()
 
 
 @pytest.mark.timeout(100)
@@ -127,17 +166,16 @@ def test_launch_build_fails(
     args,
     test_settings,
     wandb_init,
+    mocked_fetchable_git_repo,
 ):
     proj = "testing123"
     settings = test_settings({"project": proj})
     base_args = [
-        "https://github.com/wandb/examples.git",
+        "https://foo:bar@github.com/FooTest/Foo.git",
         "--entity",
         user,
         "--project",
         proj,
-        "--entry-point",
-        "python ./examples/scikit/scikit-classification/train.py",
     ]
 
     monkeypatch.setattr(
@@ -157,10 +195,10 @@ def test_launch_build_fails(
         "build_image_with_builder",
         lambda *args, **kwargs: patched_build_image_with_builder(*args, **kwargs),
     )
+    run = wandb_init(settings=settings)
+    time.sleep(1)
 
     with runner.isolated_filesystem(), relay_server():
-        run = wandb_init(settings=settings)
-        time.sleep(1)
         result = runner.invoke(cli.launch, base_args + args)
 
         if args == ["--build"]:
@@ -176,9 +214,7 @@ def test_launch_build_fails(
                 "Option '--build' does not take a value" in result.output
                 or "Error: --build option does not take a value" in result.output
             )
-
-        time.sleep(1)
-        run.finish()
+    run.finish()
 
 
 @pytest.mark.timeout(300)
@@ -198,13 +234,11 @@ def test_launch_repository_arg(
 ):
     proj = "testing123"
     base_args = [
-        "https://github.com/wandb/examples.git",
+        "https://github.com/gtarpenning/wandb-launch-test",
         "--entity",
         user,
         "--project",
         proj,
-        "--entry-point",
-        "python ./examples/scikit/scikit-classification/train.py",
     ]
 
     def patched_run(_, launch_project, builder, registry_config):
@@ -239,11 +273,10 @@ def test_launch_repository_arg(
     )
 
     settings = test_settings({"project": proj})
+    run = wandb_init(settings=settings)
+    run.finish()
 
     with runner.isolated_filesystem(), relay_server():
-        run = wandb_init(settings=settings)
-        time.sleep(1)
-
         result = runner.invoke(cli.launch, base_args + args)
 
         # raise Exception(result.output)
@@ -252,6 +285,3 @@ def test_launch_repository_arg(
             assert result.exit_code == 2
         else:
             assert result.exit_code == 0
-
-        time.sleep(1)
-        run.finish()
