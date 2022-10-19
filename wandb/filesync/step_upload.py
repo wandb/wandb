@@ -143,6 +143,7 @@ class StepUpload:
 
                 def stop_loop():
                     # wandb.termerror("SRP: StepUpload stopping loop")
+                    # TODO(spencerpearson): calling .stop() is CATASTROPHICALLY WRONG, it will halt any ongoing uploads!
                     self._loop.stop()
                 self._loop.call_soon_threadsafe(stop_loop)
                 break
