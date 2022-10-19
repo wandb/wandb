@@ -462,7 +462,7 @@ class Summary(SummarySubDict):
             )
             try:
                 json_value = util.maybe_compress_summary(
-                    friendly_value, util.get_h5_typename(value)
+                    friendly_value, source=util.get_h5_typename(value)
                 )
                 self.write_h5(path_from_root, friendly_value)
             except TypeError:

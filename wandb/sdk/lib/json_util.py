@@ -37,6 +37,17 @@ JSONTypes = Union[None, bool, int, float, str, list, dict]
 #     return decorator
 
 
+class Tensor:
+    def __init__(self, data: Any, source: Optional[Any] = None) -> None:
+        self.data = data
+        if source is None:
+            source = data
+        cls = source.__class__
+        self.source = ".".join([cls.__module__, cls.__name__])
+
+    def compress(self, compression_fn: Callable) -> dict:
+        return compression_fn(self.data, source=self.source)
+
 @contextlib.contextmanager
 def circular_reference_handler(visited: set, value: object) -> Generator:
     """Context manager to detect circular references in objects."""
@@ -110,6 +121,16 @@ def _(value: slice, **kwargs: Any) -> dict:
     # todo: why not convert it to a string?
     return dict(slice_start=value.start, slice_step=value.step, slice_stop=value.stop)
 
+@json_serializable.register(Tensor)
+def _(value, **kwargs: Any):
+    compression_fn = kwargs.pop("compression_fn", None)
+    if compression_fn:
+        try:
+            return value.compress(compression_fn)
+        except TypeError:
+            pass
+
+    return json_serializable(value.data, **kwargs)
 
 def register_numpy_post_import_hook(np: Any) -> None:
     @json_serializable.register(np.generic)
@@ -127,12 +148,9 @@ def register_numpy_post_import_hook(np: Any) -> None:
     @json_serializable.register(np.ndarray)
     def _(value, **kwargs):  # type: ignore [no-untyped-def]
         # todo: why are we compressing this?
-        compression_fn = kwargs.get("compression_fn")
+        compression_fn = kwargs.get("compression_fn", False)
         if compression_fn:
-            try:
-                return compression_fn(value)
-            except TypeError:
-                pass
+            return json_serializable(Tensor(value), **kwargs)
         # need to do this conversion (np.tolist converts bfloat16 to int for py3.6)
         obj = value.astype(float) if value.dtype == "bfloat16" else value
         return obj.tolist()
@@ -150,13 +168,7 @@ def register_tensorflow_post_import_hook(tf: Any) -> None:
             except ValueError:
                 obj = value.eval(session=tf.compat.v1.Session())
 
-        compression_fn = kwargs.get("compression_fn")
-        if compression_fn:
-            try:
-                return compression_fn(obj, source=value)
-            except TypeError:
-                pass
-
+        obj = Tensor(obj, source=value)
         return json_serializable(obj, **kwargs)
 
     # @json_serializable.register(tf.RaggedTensor)
@@ -186,13 +198,7 @@ def register_torch_post_import_hook(torch: Any) -> None:
         obj = value.detach().cpu()
         obj = obj.numpy() if obj.size() else obj.item()
 
-        compression_fn = kwargs.get("compression_fn")
-        if compression_fn:
-            try:
-                return compression_fn(obj, source=value)
-            except TypeError:
-                pass
-
+        obj = Tensor(obj, source=value)
         return json_serializable(obj, **kwargs)
 
 
@@ -201,12 +207,7 @@ def register_jax_post_import_hook(jax: Any) -> None:
     @json_serializable.register(jax.numpy.DeviceArray)
     def _(value, **kwargs):  # type: ignore [no-untyped-def]
         obj = jax.device_get(value)
-        compression_fn = kwargs.get("compression_fn")
-        if compression_fn:
-            try:
-                return compression_fn(obj, source=value)
-            except TypeError:
-                pass
+        obj = Tensor(obj, source=value)
         return json_serializable(obj, **kwargs)
 
 
@@ -242,3 +243,5 @@ def json_dumps_safer(
 ) -> str:
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(json_serializable(obj, compression_fn=compression_fn), **kwargs)
+
+

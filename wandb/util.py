@@ -365,7 +365,7 @@ def maybe_compress_summary(obj: Any, **kwargs: Any) -> dict:
 
     if np and isinstance(obj, np.ndarray) and obj.size > 32:
         return {
-            "_type": get_h5_typename(kwargs.pop("source", obj)),  # may not be ndarray
+            "_type": kwargs.pop("source", get_h5_typename(obj)),  # may not be ndarray
             "var": np.var(obj).item(),
             "mean": np.mean(obj).item(),
             "min": np.amin(obj).item(),
