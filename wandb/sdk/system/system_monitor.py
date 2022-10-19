@@ -84,6 +84,8 @@ class SystemMonitor:
                 )
             )
 
+        # todo: prometheus metrics
+
         # static system info, both hardware and software
         self.system_info: SystemInfo = SystemInfo(
             settings=settings, interface=interface

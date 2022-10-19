@@ -395,6 +395,7 @@ class Settings:
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
+    _stats_prometheus_endpoints: Sequence[str]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -481,7 +482,7 @@ class Settings:
     sync_file: str
     sync_symlink_latest: str
     system_sample: int
-    system_sample_seconds: int
+    system_sample_seconds: float
     timespec: str
     tmp_dir: str
     username: str
@@ -524,6 +525,7 @@ class Settings:
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
+            _stats_prometheus_endpoints={"value": ["https://localhost:9090/metrics"]},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -665,7 +667,7 @@ class Settings:
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
             system_sample={"value": 15},
-            system_sample_seconds={"value": 2},
+            system_sample_seconds={"value": 2.0, "preprocessor": float},
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
