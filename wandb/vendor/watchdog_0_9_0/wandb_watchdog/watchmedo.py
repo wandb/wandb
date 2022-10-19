@@ -37,8 +37,8 @@ except ImportError:
         from io import StringIO
 
 from argh import arg, aliases, ArghParser, expects_obj
-from watchdog.version import VERSION_STRING
-from watchdog.utils import load_class
+from wandb_watchdog.version import VERSION_STRING
+from wandb_watchdog.utils import load_class
 
 
 logging.basicConfig(level=logging.INFO)

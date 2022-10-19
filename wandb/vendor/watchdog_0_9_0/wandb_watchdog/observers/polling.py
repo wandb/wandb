@@ -38,16 +38,16 @@ from __future__ import with_statement
 import os
 import threading
 from functools import partial
-from watchdog.utils import stat as default_stat
-from watchdog.utils.dirsnapshot import DirectorySnapshot, DirectorySnapshotDiff
-from watchdog.observers.api import (
+from wandb_watchdog.utils import stat as default_stat
+from wandb_watchdog.utils.dirsnapshot import DirectorySnapshot, DirectorySnapshotDiff
+from wandb_watchdog.observers.api import (
     EventEmitter,
     BaseObserver,
     DEFAULT_OBSERVER_TIMEOUT,
     DEFAULT_EMITTER_TIMEOUT
 )
 
-from watchdog.events import (
+from wandb_watchdog.events import (
     DirMovedEvent,
     DirDeletedEvent,
     DirCreatedEvent,
