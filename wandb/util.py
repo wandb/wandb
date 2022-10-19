@@ -315,7 +315,7 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog-0.9.0")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:

@@ -19,15 +19,15 @@ from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 
 if TYPE_CHECKING:
-    import wandb.vendor.watchdog.events as wd_events
-    import wandb.vendor.watchdog.observers.api as wd_api
-    import wandb.vendor.watchdog.observers.polling as wd_polling
+    import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
+    import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
+    import wandb.vendor.watchdog_0_9_0.observers.polling as wd_polling
     from wandb.sdk import wandb_settings
     from wandb.sdk.interface.interface import PolicyName
     from wandb.sdk.internal.file_pusher import FilePusher
 else:
-    wd_polling = util.vendor_import("watchdog.observers.polling")
-    wd_events = util.vendor_import("watchdog.events")
+    wd_polling = util.vendor_import("wandb_watchdog.observers.polling")
+    wd_events = util.vendor_import("wandb_watchdog.events")
 
 PathStr = str  # TODO(spencerpearson): would be nice to use Path here
 SaveName = NewType("SaveName", str)
