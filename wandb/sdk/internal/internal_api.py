@@ -25,7 +25,6 @@ from typing import (
     Union,
 )
 
-import aiohttp  # type: ignore
 import click
 import requests
 import yaml
@@ -2079,40 +2078,22 @@ class Api:
                     )
                 import requests.utils
 
-                use_httpx = True
-                if use_httpx:
-                    import httpx
-                    if not hasattr(self, '_httpx_client'):
-                        self._httpx_client = httpx.AsyncClient(http2=True)
-                        await self._httpx_client.__aenter__()
-                    client = self._httpx_client
-                    # import remote_pdb; remote_pdb.set_trace(port=56786)
-                    response = await client.put(
-                        url,
-                        content=progress,
-                        headers={
-                            **extra_headers,
-                            "User-Agent": requests.utils.default_user_agent(),
-                            "Content-Length": str(len(progress)),
-                        })
-                    response.raise_for_status()
-                else:
-                    if not hasattr(self, '_aiohttp_session'):
-                        self._aiohttp_session = aiohttp.ClientSession()
-                        await self._aiohttp_session.__aenter__()
-                    session = self._aiohttp_session
-                    # wandb.termlog(f"SRP: about to PUT {url}")
-                    async with session.put(
-                        url,
-                        data=progress,
-                        headers={
-                            **extra_headers,
-                            "User-Agent": requests.utils.default_user_agent(),
-                            "Content-Length": str(len(progress)),
-                        }, skip_auto_headers=['content-type']) as response:
-                        response.raise_for_status()
-                    # wandb.termlog(f"SRP: done with PUT {url}")
-        except aiohttp.ClientResponseError as e:
+                import httpx
+                if not hasattr(self, '_httpx_client'):
+                    self._httpx_client = httpx.AsyncClient(http2=True)
+                    await self._httpx_client.__aenter__()
+                client = self._httpx_client
+                # import remote_pdb; remote_pdb.set_trace(port=56786)
+                response = await client.put(
+                    url,
+                    content=progress,
+                    headers={
+                        **extra_headers,
+                        "User-Agent": requests.utils.default_user_agent(),
+                        "Content-Length": str(len(progress)),
+                    })
+                response.raise_for_status()
+        except httpx.HTTPError as e:
             # wandb.termlog(f"SRP: err in upload_file_async: {e}")
             raise
 

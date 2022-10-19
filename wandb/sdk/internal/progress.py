@@ -21,8 +21,7 @@ if TYPE_CHECKING:
             pass
 
 
-import httpx
-class Progress(io.IOBase, httpx.AsyncByteStream):
+class Progress(io.IOBase):
     """A helper class for displaying progress"""
 
     ITER_BYTES = 1024 * 1024
