@@ -218,7 +218,7 @@ class DirWatcher:
     @property
     def emitter(self) -> Optional["wd_api.EventEmitter"]:
         try:
-            return next(iter(self._file_observer.emitters))  # type: ignore
+            return next(iter(self._file_observer.emitters))
         except StopIteration:
             return None
 
@@ -252,9 +252,9 @@ class DirWatcher:
     def _per_file_event_handler(self) -> "wd_events.FileSystemEventHandler":
         """Create a Watchdog file event handler that does different things for every file"""
         file_event_handler = wd_events.PatternMatchingEventHandler()
-        file_event_handler.on_created = self._on_file_created  # type: ignore[assignment]
-        file_event_handler.on_modified = self._on_file_modified  # type: ignore[assignment]
-        file_event_handler.on_moved = self._on_file_moved  # type: ignore[assignment]
+        file_event_handler.on_created = self._on_file_created
+        file_event_handler.on_modified = self._on_file_modified
+        file_event_handler.on_moved = self._on_file_moved
         file_event_handler._patterns = [os.path.join(self._dir, os.path.normpath("*"))]
         # Ignore hidden files/folders
         #  TODO: what other files should we skip?
