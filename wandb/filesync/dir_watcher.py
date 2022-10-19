@@ -19,9 +19,9 @@ from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 
 if TYPE_CHECKING:
-    import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
     import wandb.vendor.watchdog_0_9_0.observers.polling as wd_polling
+    import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
     from wandb.sdk import wandb_settings
     from wandb.sdk.interface.interface import PolicyName
     from wandb.sdk.internal.file_pusher import FilePusher
