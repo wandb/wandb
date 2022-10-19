@@ -10,15 +10,6 @@ REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
 
 
-def patched_fetch_and_val(launch_project, api):  # dont actuall fetch
-    launch_project._image_tag = IMAGE_CONST
-    return launch_project
-
-
-def patched_docker_push(reg, tag):
-    return "we fake pushed!"
-
-
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "args,override_config",
@@ -69,44 +60,24 @@ def test_launch_build_succeeds(
         lambda: None,
     )
 
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
-    )
+    def patched_launch_add(*args, **kwargs):
+        assert kwargs["build"]
+        if "--repository" in args:
+            assert kwargs["repository"]
+
+        if args[3]:  # config
+            assert args[3] == override_config
 
     monkeypatch.setattr(
-        "wandb.docker.build",
-        lambda *args, **kwargs: None,
+        "wandb.cli.cli._launch_add",
+        lambda *args, **kwargs: patched_launch_add(*args, **kwargs),
     )
 
-    monkeypatch.setattr(
-        "wandb.docker.push",
-        lambda reg, tag: patched_docker_push(reg, tag),
-    )
-
-    monkeypatch.setattr(
-        "wandb.docker.run",
-        lambda *args, **kwargs: "runnning",
-    )
-
-    with runner.isolated_filesystem(), relay_server() as relay:
+    with runner.isolated_filesystem(), relay_server():
         run = wandb_init(settings=settings)
         result = runner.invoke(cli.launch, base_args + args)
 
-        for comm in relay.context.raw_data:
-            if comm["request"].get("query"):
-                print(comm["request"].get("query"), end="")
-                print("variables", comm["request"]["variables"])
-                print("response", comm["response"]["data"])
-                print("\n")
-
         assert result.exit_code == 0
-        assert f"Pushing image {REPO_CONST}:{IMAGE_CONST}" in result.output
-        assert "Launching run in docker with command" not in result.output
-        assert "Added run to queue default." in result.output
-        assert "'uri': None" in result.output
-        assert f"'job': '{user}/{proj}/job-{REPO_CONST}_{IMAGE_CONST}" in result.output
 
         run.finish()
 
@@ -139,6 +110,9 @@ def test_launch_build_fails(
         lambda: None,
     )
 
+    def patched_fetch_and_val(launch_project, _):
+        return launch_project
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "fetch_and_validate_project",
@@ -152,7 +126,7 @@ def test_launch_build_fails(
 
     with runner.isolated_filesystem(), relay_server():
         run = wandb_init()
-        time.sleep(1)
+
         result = runner.invoke(cli.launch, base_args + args)
 
         if args == ["--build"]:
@@ -193,9 +167,28 @@ def test_launch_repository_arg(
         lambda *args, **kwargs: patched_run(*args, **kwargs),
     )
 
+    def patched_fetch_and_val(launch_project, _):
+        return launch_project
+
     monkeypatch.setattr(
         "wandb.sdk.launch.launch.fetch_and_validate_project",
         lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+    )
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        "wandb.docker.build",
+        lambda *args, **kwargs: None,
+    )
+
+    monkeypatch.setattr(
+        "wandb.docker.push",
+        lambda reg, tag: reg,
     )
 
     with runner.isolated_filesystem(), relay_server():
