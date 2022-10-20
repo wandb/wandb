@@ -300,3 +300,26 @@ def test_push_to_runqueue_old_server(
         assert result["runQueueItemId"]
 
     run.finish()
+
+
+def test_push_with_repository(relay_server, user, mocked_fetchable_git_repo):
+    api = wandb.sdk.internal.internal_api.Api()
+    proj = "test_project"
+    uri = "https://github.com/FooBar/examples.git"
+    entry_point = ["python", "train.py"]
+
+    launch_spec = {
+        "uri": uri,
+        "entity": user,
+        "project": proj,
+        "entry_point": entry_point,
+        "registry": {"url": "repo123"},
+    }
+    run = wandb.init(project=proj)
+
+    with relay_server():
+        res = api.push_to_run_queue("nonexistent-queue", launch_spec)
+
+        assert not res
+
+    run.finish()

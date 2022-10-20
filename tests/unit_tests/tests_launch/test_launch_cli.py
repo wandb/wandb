@@ -1,10 +1,8 @@
 import json
-import time
 
 import pytest
 import wandb
 from wandb.cli import cli
-from wandb.sdk.launch.runner.local_container import LocalContainerRunner
 
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
@@ -156,14 +154,31 @@ def test_launch_repository_arg(
 ):
     base_args = ["https://foo:bar@github.com/FooTest/Foo.git"]
 
-    def patched_run(_, launch_project, builder, registry_config):
-        assert registry_config.get("url") == "test_repo" or "--repository=" in args
+    def patched_run(
+        uri,
+        job,
+        api,
+        name,
+        project,
+        entity,
+        docker_image,
+        resource,
+        entry_point,
+        version,
+        parameters,
+        resource_args,
+        launch_config,
+        synchronous,
+        cuda,
+        run_id,
+        repository,
+    ):
+        assert repository or "--repository=" in args
 
         return "run"
 
     monkeypatch.setattr(
-        LocalContainerRunner,
-        "run",
+        "wandb.sdk.launch.launch._run",
         lambda *args, **kwargs: patched_run(*args, **kwargs),
     )
 
