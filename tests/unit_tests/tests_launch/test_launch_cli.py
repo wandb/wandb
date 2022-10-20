@@ -6,6 +6,7 @@ from wandb.cli import cli
 
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
+QUEUE_NAME = "test_queue"
 
 
 @pytest.mark.timeout(200)
@@ -13,7 +14,7 @@ IMAGE_CONST = "fake-image"
     "args,override_config",
     [
         (
-            ["--build", "--queue"],
+            ["--build", "--queue", QUEUE_NAME],
             {"registry": {"url": REPO_CONST}},
         ),
         (
@@ -42,7 +43,7 @@ def test_launch_build_succeeds(
     proj = "testing123"
     settings = test_settings({"project": proj})
     base_args = [
-        "https://foo:bar@github.com/FooTest/Foo.git",
+        "https://github.com/wandb/examples.git",
         "--entity",
         user,
         "--entry-point",
@@ -71,8 +72,13 @@ def test_launch_build_succeeds(
         lambda *args, **kwargs: patched_launch_add(*args, **kwargs),
     )
 
+    api = wandb.sdk.internal.internal_api.Api()
+
     with runner.isolated_filesystem(), relay_server():
         run = wandb_init(settings=settings)
+        api.create_run_queue(
+            entity=user, project=proj, queue_name=QUEUE_NAME, access="USER"
+        )
         result = runner.invoke(cli.launch, base_args + args)
 
         assert result.exit_code == 0
@@ -150,9 +156,14 @@ def test_launch_repository_arg(
     monkeypatch,
     runner,
     args,
+    user,
     wandb_init,
 ):
-    base_args = ["https://foo:bar@github.com/FooTest/Foo.git"]
+    base_args = [
+        "https://github.com/wandb/examples",
+        "--entity",
+        user,
+    ]
 
     def patched_run(
         uri,
@@ -194,16 +205,6 @@ def test_launch_repository_arg(
         wandb.sdk.launch.builder.build,
         "validate_docker_installation",
         lambda: None,
-    )
-
-    monkeypatch.setattr(
-        "wandb.docker.build",
-        lambda *args, **kwargs: None,
-    )
-
-    monkeypatch.setattr(
-        "wandb.docker.push",
-        lambda reg, tag: reg,
     )
 
     with runner.isolated_filesystem(), relay_server():
