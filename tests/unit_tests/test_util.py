@@ -728,3 +728,17 @@ def test_sanitize_numpy_keys(dict_input, dict_output):
         dict_output.pop("_")
 
     assert output == (dict_output or dict_input)
+
+
+def test_make_docker_image_name_safe():
+    assert util.make_docker_image_name_safe("this-name-is-fine") == "this-name-is-fine"
+    assert util.make_docker_image_name_safe("also__ok") == "also__ok"
+    assert (
+        util.make_docker_image_name_safe("github.com/MyUsername/my_repo")
+        == "github.com__myusername__my_repo"
+    )
+    assert (
+        util.make_docker_image_name_safe("./abc.123___def-456---_.")
+        == "abc.123__def-456"
+    )
+    assert util.make_docker_image_name_safe("......") == "image"
