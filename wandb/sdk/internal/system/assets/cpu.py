@@ -8,7 +8,7 @@ except ImportError:
     psutil = None
 from .aggregators import aggregate_last, aggregate_mean
 from .asset_registry import asset_registry
-from .interfaces import Interface, Metric, MetricsMonitor, MetricType
+from .interfaces import Interface, Metric, MetricsMonitor
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -26,7 +26,6 @@ class ProcessCpuPercent:
 
     # name = "process_cpu_percent"
     name = "cpu"
-    metric_type: MetricType = "gauge"
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -64,7 +63,6 @@ class CpuPercent:
     """
 
     name = "cpu.{i}.cpu_percent"
-    metric_type: MetricType = "gauge"
 
     def __init__(self, interval: Optional[float] = None) -> None:
         self.samples: "Deque[List[float]]" = deque([])
@@ -94,7 +92,6 @@ class ProcessCpuThreads:
     """
 
     name = "proc.cpu.threads"
-    metric_type: MetricType = "gauge"
 
     def __init__(self, pid: int) -> None:
         self.samples: "Deque[int]" = deque([])

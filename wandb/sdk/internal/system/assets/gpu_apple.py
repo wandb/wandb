@@ -17,7 +17,7 @@ from wandb.sdk.lib import telemetry
 
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
-from .interfaces import Interface, Metric, MetricsMonitor, MetricType
+from .interfaces import Interface, Metric, MetricsMonitor
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -40,7 +40,6 @@ class GPUAppleStats:
     """
 
     name = "gpu.0.{}"
-    metric_type: MetricType = "gauge"
     samples: "Deque[_Stats]"
 
     # TODO: hard coded max watts as 16.5, found this number in the SMC list.

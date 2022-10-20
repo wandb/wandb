@@ -7,9 +7,9 @@ from multiprocessing import synchronize
 from typing import TYPE_CHECKING, Any, List, Optional, TypeVar, Union
 
 if sys.version_info >= (3, 8):
-    from typing import Literal, Protocol, runtime_checkable
+    from typing import Protocol, runtime_checkable
 else:
-    from typing_extensions import Literal, Protocol, runtime_checkable
+    from typing_extensions import Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 import wandb
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
-MetricType = Literal["counter", "gauge", "histogram", "summary"]
 
 
 logger = logging.getLogger(__name__)
@@ -32,8 +31,6 @@ class Metric(Protocol):
     """
 
     name: str
-    # at first, we will only support the gauge type
-    metric_type: MetricType
     # samples: Sequence[Tuple[TimeStamp, Sample]]
     samples: "Deque[Any]"
 

@@ -9,7 +9,7 @@ except ImportError:
 
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
-from .interfaces import Interface, Metric, MetricsMonitor, MetricType
+from .interfaces import Interface, Metric, MetricsMonitor
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -25,8 +25,6 @@ class ProcessMemoryRSS:
 
     # name = "memory_rss"
     name = "proc.memory.rssMB"
-
-    metric_type: MetricType = "gauge"
     samples: "Deque[float]"
 
     def __init__(self, pid: int) -> None:
@@ -57,7 +55,6 @@ class ProcessMemoryPercent:
 
     # name = "process_memory_percent"
     name = "proc.memory.percent"
-    metric_type: MetricType = "gauge"
     samples: "Deque[float]"
 
     def __init__(self, pid: int) -> None:
@@ -88,7 +85,6 @@ class MemoryPercent:
 
     # name = "memory_percent"
     name = "memory"
-    metric_type: MetricType = "gauge"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
@@ -114,7 +110,6 @@ class MemoryAvailable:
 
     # name = "memory_available"
     name = "proc.memory.availableMB"
-    metric_type: MetricType = "gauge"
     samples: "Deque[float]"
 
     def __init__(self) -> None:

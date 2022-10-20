@@ -12,7 +12,7 @@ from wandb.vendor.pynvml import pynvml
 
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
-from .interfaces import Interface, Metric, MetricsMonitor, MetricType
+from .interfaces import Interface, Metric, MetricsMonitor
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -61,7 +61,6 @@ class GPUMemoryUtilization:
 
     # name = "memory_utilization"
     name = "gpu.{}.memory"
-    metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: "Deque[List[float]]"
 
@@ -106,7 +105,6 @@ class GPUMemoryAllocated:
 
     # name = "memory_allocated"
     name = "gpu.{}.memoryAllocated"
-    metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: "Deque[List[float]]"
 
@@ -150,7 +148,6 @@ class GPUUtilization:
 
     # name = "gpu_utilization"
     name = "gpu.{}.gpu"
-    metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: "Deque[List[float]]"
 
@@ -195,7 +192,6 @@ class GPUTemperature:
 
     # name = "gpu_temperature"
     name = "gpu.{}.temp"
-    metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: "Deque[List[float]]"
 
@@ -242,7 +238,6 @@ class GPUPowerUsageWatts:
     """
 
     name = "gpu.{}.powerWatts"
-    metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: "Deque[List[float]]"
 
@@ -283,7 +278,6 @@ class GPUPowerUsagePercent:
     """
 
     name = "gpu.{}.powerPercent"
-    metric_type: MetricType = "gauge"
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: "Deque[List[float]]"
 
