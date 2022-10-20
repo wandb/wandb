@@ -36,7 +36,7 @@ class SystemMonitor:
     # SystemMonitor is responsible for managing system metrics data.
 
     # if joining assets, wait for publishing_interval times this many seconds
-    PUBLISHING_INTERVAL_DELAY_FACTOR = 1.5
+    PUBLISHING_INTERVAL_DELAY_FACTOR = 2
 
     def __init__(
         self,
@@ -113,6 +113,7 @@ class SystemMonitor:
             self.backend_interface._publish_telemetry(telemetry_record)
 
     def _start(self) -> None:
+        logger.info("Starting system asset monitoring threads")
         for asset in self.assets:
             asset.start()
 
@@ -147,7 +148,7 @@ class SystemMonitor:
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
             logger.info("Starting system monitor")
-            # self._process = mp.Process(target=self._start)
+            # self._process = mp.Process(target=self._start, name="SystemMonitor")
             self._process = threading.Thread(
                 target=self._start, daemon=True, name="SystemMonitor"
             )
