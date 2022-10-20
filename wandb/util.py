@@ -315,7 +315,7 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -935,7 +935,8 @@ def make_json_if_not_number(
 
 
 def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Also converts to lists and dicts."""
+    """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
+    Converts numpy array to list. Used for artifact metadata"""
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
@@ -951,6 +952,10 @@ def make_safe_for_json(obj: Any) -> Any:
             return "Infinity"
         elif obj == float("-inf"):
             return "-Infinity"
+    elif is_numpy_array(obj):
+        return [make_safe_for_json(v) for v in obj.tolist()]
+    elif isinstance(obj, slice):
+        return dict(slice_start=obj.start, slice_step=obj.step, slice_stop=obj.stop)
     return obj
 
 

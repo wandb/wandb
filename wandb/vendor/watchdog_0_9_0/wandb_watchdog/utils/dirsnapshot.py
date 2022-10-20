@@ -47,7 +47,7 @@ Classes
 import errno
 import os
 from stat import S_ISDIR
-from watchdog.utils import stat as default_stat
+from wandb_watchdog.utils import stat as default_stat
 
 
 class DirectorySnapshotDiff(object):
