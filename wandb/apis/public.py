@@ -476,6 +476,7 @@ class Api:
             blocks = []
         return wandb.apis.reports.Report(
             project, entity, title, description, width, blocks
+        ).save()
 
     def create_project(self, name: str, entity: str):
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
