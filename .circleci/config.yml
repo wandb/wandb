@@ -1004,7 +1004,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10 ]
+              python_version_minor: [ 7, 8 ]
               shard:
                 - "imports1"
                 - "imports2"
@@ -1297,7 +1297,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10 ]
+              python_version_minor: [ 7, 8 ]
               shard:
                 - "imports1"
                 - "imports2"
