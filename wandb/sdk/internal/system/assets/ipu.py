@@ -8,14 +8,10 @@ except ImportError:
     gcipuinfo = None
 
 import wandb
+
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
-from .interfaces import (
-    Interface,
-    Metric,
-    MetricsMonitor,
-    MetricType,
-)
+from .interfaces import Interface, Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from typing import Deque
