@@ -12,4 +12,4 @@ You'll need to be a member of the W&B Apple Developer account, reach out to vanp
 
 Run `xcodebuild build` to build the binary, then copy the binary into vendor with:
 
-`cp build/Release/apple_gpu_stats ../wandb/sdk/system/assets`
+`cp build/Release/apple_gpu_stats ../wandb/bin/`

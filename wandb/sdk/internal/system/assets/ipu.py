@@ -8,14 +8,10 @@ except ImportError:
     gcipuinfo = None
 
 import wandb
-from wandb.sdk.system.assets.aggregators import aggregate_mean
-from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import (
-    Interface,
-    Metric,
-    MetricsMonitor,
-    MetricType,
-)
+
+from .aggregators import aggregate_mean
+from .asset_registry import asset_registry
+from .interfaces import Interface, Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -144,6 +140,7 @@ class IPU:
             IPUStats(settings._stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
+            self.name,
             self.metrics,
             interface,
             settings,

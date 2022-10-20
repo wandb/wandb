@@ -7,14 +7,9 @@ try:
 except ImportError:
     psutil = None
 
-from wandb.sdk.system.assets.aggregators import aggregate_mean
-from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import (
-    Interface,
-    Metric,
-    MetricsMonitor,
-    MetricType,
-)
+from .aggregators import aggregate_mean
+from .asset_registry import asset_registry
+from .interfaces import Interface, Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -93,6 +88,7 @@ class Network:
             NetworkRecv(),
         ]
         self.metrics_monitor = MetricsMonitor(
+            self.name,
             self.metrics,
             interface,
             settings,
@@ -112,23 +108,24 @@ class Network:
 
     def probe(self) -> dict:
         """Return a dict of the hardware information"""
-        net_if_addrs = psutil.net_if_addrs()
+        # net_if_addrs = psutil.net_if_addrs()
 
-        return {
-            self.name: {
-                "interfaces": {
-                    k: {
-                        "addresses": [
-                            {
-                                "address": v.address,
-                                "netmask": v.netmask,
-                                "broadcast": v.broadcast,
-                                "ptp": v.ptp,
-                            }
-                            for v in v
-                        ]
-                    }
-                    for k, v in net_if_addrs.items()
-                }
-            }
-        }
+        # return {
+        #     self.name: {
+        #         "interfaces": {
+        #             k: {
+        #                 "addresses": [
+        #                     {
+        #                         "address": v.address,
+        #                         "netmask": v.netmask,
+        #                         "broadcast": v.broadcast,
+        #                         "ptp": v.ptp,
+        #                     }
+        #                     for v in v
+        #                 ]
+        #             }
+        #             for k, v in net_if_addrs.items()
+        #         }
+        #     }
+        # }
+        return {}

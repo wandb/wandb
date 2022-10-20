@@ -5,8 +5,8 @@ from unittest import mock
 
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets import GPU
-from wandb.sdk.system.system_monitor import AssetInterface
+from wandb.sdk.internal.system.assets import GPU
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
 class MockPynvml:
@@ -82,11 +82,11 @@ def test_gpu(test_settings):
     )
 
     with mock.patch.object(
-        wandb.sdk.system.assets.gpu,
+        wandb.sdk.internal.system.assets.gpu,
         "pynvml",
         mock_pynvml,
     ), mock.patch.object(
-        wandb.sdk.system.assets.gpu,
+        wandb.sdk.internal.system.assets.gpu,
         "gpu_in_use_by_this_process",
         lambda *_: True,
     ):

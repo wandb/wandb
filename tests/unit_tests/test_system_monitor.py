@@ -7,10 +7,19 @@ from unittest import mock
 import pytest
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets import CPU, GPU, IPU, TPU, Disk, GPUApple, Memory, Network
-from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import MetricsMonitor, MetricType
-from wandb.sdk.system.system_monitor import AssetInterface, SystemMonitor
+from wandb.sdk.internal.system.assets import (
+    CPU,
+    GPU,
+    IPU,
+    TPU,
+    Disk,
+    GPUApple,
+    Memory,
+    Network,
+)
+from wandb.sdk.internal.system.assets.asset_registry import asset_registry
+from wandb.sdk.internal.system.assets.interfaces import MetricsMonitor, MetricType
+from wandb.sdk.internal.system.system_monitor import AssetInterface, SystemMonitor
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -42,11 +51,12 @@ class MockMetric:
 
 class MockAsset1:
     def __init__(self, interface, settings, shutdown_event) -> None:
+        self.name = self.__class__.__name__.lower()
         self.metrics = [
             MockMetric(name="mock_metric_1", value=42),
         ]
         self.metrics_monitor = MetricsMonitor(
-            self.metrics, interface, settings, shutdown_event
+            self.name, self.metrics, interface, settings, shutdown_event
         )
 
     @classmethod
@@ -65,11 +75,12 @@ class MockAsset1:
 
 class MockAsset2:
     def __init__(self, interface, settings, shutdown_event) -> None:
+        self.name = self.__class__.__name__.lower()
         self.metrics = [
             MockMetric(name="mock_metric_2", value=24),
         ]
         self.metrics_monitor = MetricsMonitor(
-            self.metrics, interface, settings, shutdown_event
+            self.name, self.metrics, interface, settings, shutdown_event
         )
 
     @classmethod
@@ -130,6 +141,7 @@ def test_metrics_monitor(capsys, test_settings):
     shutdown_event = mp.Event()
 
     metrics_monitor = MetricsMonitor(
+        asset_name="test_metrics_monitor",
         metrics=metrics,
         interface=interface,
         settings=settings,
@@ -173,7 +185,7 @@ def test_system_monitor(test_settings, join_assets, num_keys):
     mock_assets = [MockAsset1, MockAsset2]
 
     with mock.patch.object(
-        wandb.sdk.system.assets.asset_registry,
+        wandb.sdk.internal.system.assets.asset_registry,
         "_registry",
         mock_assets,
     ):

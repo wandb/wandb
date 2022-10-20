@@ -7,14 +7,9 @@ try:
 except ImportError:
     psutil = None
 
-from wandb.sdk.system.assets.aggregators import aggregate_mean
-from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import (
-    Interface,
-    Metric,
-    MetricsMonitor,
-    MetricType,
-)
+from .aggregators import aggregate_mean
+from .asset_registry import asset_registry
+from .interfaces import Interface, Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -59,6 +54,7 @@ class Disk:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [DiskUsage()]
         self.metrics_monitor = MetricsMonitor(
+            self.name,
             self.metrics,
             interface,
             settings,

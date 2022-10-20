@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, List
 
 import requests
 import wandb
-from wandb.sdk.system.assets.aggregators import aggregate_last
-from wandb.sdk.system.assets.interfaces import (
+from .aggregators import aggregate_last
+from .interfaces import (
     Interface,
     Metric,
     MetricType,

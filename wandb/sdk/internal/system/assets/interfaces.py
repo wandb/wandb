@@ -1,4 +1,5 @@
 import datetime
+import logging
 import multiprocessing as mp
 import sys
 import threading
@@ -20,6 +21,9 @@ import wandb
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 MetricType = Literal["counter", "gauge", "histogram", "summary"]
+
+
+logger = logging.getLogger(__name__)
 
 
 class Metric(Protocol):
@@ -90,12 +94,14 @@ class MetricsMonitor:
 
     def __init__(
         self,
+        asset_name: str,
         metrics: List[Metric],
         interface: Interface,
         settings: "SettingsStatic",
         shutdown_event: synchronize.Event,
     ) -> None:
         self.metrics = metrics
+        self.asset_name = asset_name
         self._interface = interface
         self._process: Optional[Union[mp.Process, threading.Thread]] = None
         self._shutdown_event: synchronize.Event = shutdown_event
@@ -153,10 +159,16 @@ class MetricsMonitor:
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
-            self._process = threading.Thread(target=self.monitor, daemon=True)
+            self._process = threading.Thread(
+                target=self.monitor,
+                daemon=True,
+                name=f"MetricsMonitor::{self.asset_name}",
+            )
             self._process.start()
+            logger.info(f"Started {self._process.name}")
 
     def finish(self) -> None:
         if self._process is not None:
             self._process.join()
+            logger.info(f"Joined {self._process.name}")
             self._process = None

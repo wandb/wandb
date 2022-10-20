@@ -4,14 +4,9 @@ import os
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
-from wandb.sdk.system.assets.aggregators import aggregate_mean
-from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import (
-    Interface,
-    Metric,
-    MetricsMonitor,
-    MetricType,
-)
+from .aggregators import aggregate_mean
+from .asset_registry import asset_registry
+from .interfaces import Interface, Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -83,6 +78,7 @@ class TPU:
         self.metrics: List[Metric] = [TPUUtilization(self.service_addr)]
 
         self.metrics_monitor = MetricsMonitor(
+            self.name,
             self.metrics,
             interface,
             settings,
