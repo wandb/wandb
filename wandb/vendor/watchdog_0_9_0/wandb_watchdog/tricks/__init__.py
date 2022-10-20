@@ -22,8 +22,8 @@ import signal
 import subprocess
 import time
 
-from watchdog.utils import echo, has_attribute
-from watchdog.events import PatternMatchingEventHandler
+from wandb_watchdog.utils import echo, has_attribute
+from wandb_watchdog.events import PatternMatchingEventHandler
 
 
 class Trick(PatternMatchingEventHandler):

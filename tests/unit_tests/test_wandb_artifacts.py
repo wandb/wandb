@@ -1000,6 +1000,31 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
+def test_s3_storage_handler_load_path_uses_cache(tmp_path):
+    uri = "s3://some-bucket/path/to/file.json"
+    etag = "some etag"
+
+    cache = wandb.wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
+    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
+    with opener() as f:
+        f.write(123 * "a")
+
+    handler = wandb.wandb_sdk.wandb_artifacts.S3Handler()
+    handler._cache = cache
+
+    local_path = handler.load_path(
+        wandb.Artifact("test", type="dataset"),
+        wandb.wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=etag,
+            size=123,
+        ),
+        local=True,
+    )
+    assert local_path == path
+
+
 def test_tracking_storage_handler():
     art = wandb.wandb_sdk.wandb_artifacts.Artifact("test", "dataset")
     handler = wandb.wandb_sdk.wandb_artifacts.TrackingHandler()
