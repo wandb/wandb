@@ -8,15 +8,11 @@ try:
 except ImportError:
     psutil = None
 
+from wandb.vendor.pynvml import pynvml
+
 from .aggregators import aggregate_mean
 from .asset_registry import asset_registry
-from .interfaces import (
-    Interface,
-    Metric,
-    MetricsMonitor,
-    MetricType,
-)
-from wandb.vendor.pynvml import pynvml
+from .interfaces import Interface, Metric, MetricsMonitor, MetricType
 
 if TYPE_CHECKING:
     from typing import Deque

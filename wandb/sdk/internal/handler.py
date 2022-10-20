@@ -33,9 +33,9 @@ from wandb.proto.wandb_internal_pb2 import (
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
-from .system.system_monitor import SystemMonitor
 from . import sample, tb_watcher
 from .settings_static import SettingsStatic
+from .system.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import ArtifactDoneRequest, MetricSummary
