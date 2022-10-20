@@ -142,6 +142,9 @@ class SweepScheduler(Scheduler):
         wandb.termlog(
             f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
         )
+
+        wandb.termlog(f">>> {self}\n {self._kwargs}")
+
         _ = self._add_to_launch_queue(
             run_id=run.id,
             entry_point=["python3", run.program] if run.program else None,

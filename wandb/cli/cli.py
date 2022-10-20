@@ -693,6 +693,12 @@ def sync(
     help="Resume a sweep to continue running new runs.",
 )
 @click.argument("config_yaml_or_sweep_id")
+@click.option(
+    "--run-cap",
+    "run_cap",
+    default=-1,
+    help="Control the total number of runs in a sweep.",
+)
 @display_error
 def sweep(
     ctx,
@@ -710,6 +716,7 @@ def sweep(
     pause,
     resume,
     config_yaml_or_sweep_id,
+    run_cap,
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -836,6 +843,8 @@ def sweep(
     if controller:
         config.setdefault("controller", {})
         config["controller"]["type"] = "local"
+    if run_cap:
+        config["run-cap"] = run_cap
 
     is_local = config.get("controller", {}).get("type") == "local"
     if is_local:
