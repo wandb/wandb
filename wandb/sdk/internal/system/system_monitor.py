@@ -36,7 +36,7 @@ class SystemMonitor:
     # SystemMonitor is responsible for managing system metrics data.
 
     # if joining assets, wait for publishing_interval times this many seconds
-    PUBLISHING_INTERVAL_DELAY_FACTOR = 2
+    PUBLISHING_INTERVAL_DELAY_FACTOR = 1.5
 
     def __init__(
         self,
