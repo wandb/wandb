@@ -395,7 +395,7 @@ class Settings:
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
-    _stats_prometheus_endpoints: Sequence[str]
+    _stats_prometheus_endpoints: Sequence[str]  # todo: add URL validation
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]

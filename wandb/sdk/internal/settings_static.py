@@ -1,7 +1,13 @@
 """
 static settings.
 """
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
+import sys
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
+
+if sys.version_info >= (3, 9):
+    from collections.abc import Sequence
+else:
+    from typing import Sequence
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
@@ -17,6 +23,7 @@ class SettingsStatic:
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: bool
+    _stats_prometheus_endpoints: Sequence[str]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str

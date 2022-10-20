@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, List, Optional, Union
 
 from wandb.sdk.system.assets.asset_registry import asset_registry
 from wandb.sdk.system.assets.interfaces import Asset, Interface
+from wandb.sdk.system.assets.prometheus import Prometheus
 from wandb.sdk.system.system_info import SystemInfo
 
 if TYPE_CHECKING:
@@ -85,6 +86,18 @@ class SystemMonitor:
             )
 
         # todo: prometheus metrics
+        prometheus_endpoints = settings._stats_prometheus_endpoints
+        for endpoint in prometheus_endpoints:
+            if Prometheus.is_available():
+                logger.debug(f"Monitoring Prometheus endpoint: {endpoint}")
+                self.assets.append(
+                    Prometheus(
+                        interface=self.asset_interface or self.backend_interface,
+                        settings=settings,
+                        shutdown_event=self._shutdown_event,
+                        url=endpoint,
+                    )
+                )
 
         # static system info, both hardware and software
         self.system_info: SystemInfo = SystemInfo(
@@ -165,16 +178,16 @@ class SystemMonitor:
 
     def probe(self, publish: bool = True) -> None:
         logger.info("Collecting system info")
-        # collect static info about the hardware from registered assets
-        hardware_info: dict = {
+        # collect static info about the registered assets
+        asset_info: dict = {
             k: v for d in [asset.probe() for asset in self.assets] for k, v in d.items()
         }
-        # collect static info about the software environment
-        software_info: dict = self.system_info.probe()
+        # collect static info about the environment
+        env_info: dict = self.system_info.probe()
         # merge the two dictionaries
-        system_info = {**software_info, **hardware_info}
+        system_info = {**env_info, **asset_info}
         logger.debug(system_info)
-        logger.info("Finished colle102cting system info")
+        logger.info("Finished collecting system info")
 
         if publish:
             logger.info("Publishing system info")

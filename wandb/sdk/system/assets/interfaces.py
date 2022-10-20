@@ -54,9 +54,6 @@ class Asset(Protocol):
     metrics: List[Metric]
     metrics_monitor: "MetricsMonitor"
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        ...  # pragma: no cover
-
     @classmethod
     def is_available(cls) -> bool:
         """Check if the resource is available"""
