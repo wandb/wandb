@@ -14,9 +14,9 @@ else:
 
 import wandb
 from wandb.sdk.lib import telemetry
-from wandb.sdk.system.assets.aggregators import aggregate_mean
-from wandb.sdk.system.assets.asset_registry import asset_registry
-from wandb.sdk.system.assets.interfaces import (
+from .aggregators import aggregate_mean
+from .asset_registry import asset_registry
+from .interfaces import (
     Interface,
     Metric,
     MetricsMonitor,
@@ -53,7 +53,9 @@ class GPUAppleStats:
 
     def __init__(self) -> None:
         self.samples = deque()
-        self.binary_path = (pathlib.Path(__file__).parent / "apple_gpu_stats").resolve()
+        self.binary_path = (
+            pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "apple_gpu_stats"
+        ).resolve()
 
     def sample(self) -> None:
         try:
@@ -110,6 +112,7 @@ class GPUApple:
             GPUAppleStats(),
         ]
         self.metrics_monitor = MetricsMonitor(
+            self.name,
             self.metrics,
             interface,
             settings,

@@ -6,9 +6,9 @@ from unittest import mock
 # import pytest
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets import GPUApple
-from wandb.sdk.system.assets.gpu_apple import _Stats  # GPUAppleStats, _Stats
-from wandb.sdk.system.system_monitor import AssetInterface
+from wandb.sdk.internal.system.assets import GPUApple
+from wandb.sdk.internal.system.assets.gpu_apple import _Stats  # GPUAppleStats, _Stats
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
 def mock_gpu_apple_stats_sample(self) -> None:
@@ -25,11 +25,11 @@ def mock_gpu_apple_stats_sample(self) -> None:
 def test_gpu_apple(test_settings):
 
     with mock.patch.object(
-        wandb.sdk.system.assets.gpu_apple.GPUAppleStats,
+        wandb.sdk.internal.system.assets.gpu_apple.GPUAppleStats,
         "sample",
         mock_gpu_apple_stats_sample,
     ), mock.patch.multiple(
-        "wandb.sdk.system.assets.gpu_apple.platform",
+        "wandb.sdk.internal.system.assets.gpu_apple.platform",
         system=lambda: "Darwin",
         processor=lambda: "arm",
     ):

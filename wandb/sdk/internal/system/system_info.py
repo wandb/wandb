@@ -19,7 +19,7 @@ from wandb.sdk.lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from wandb.sdk.lib.git import GitRepo
-from wandb.sdk.system.assets.interfaces import Interface
+from .assets.interfaces import Interface
 
 logger = logging.getLogger(__name__)
 
