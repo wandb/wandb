@@ -10,7 +10,7 @@ from typing import Optional, Union
 import wandb
 from wandb.sdk.lib import ipython
 
-from .mutations import CREATE_PROJECT, UPSERT_VIEW
+from .mutations import UPSERT_VIEW
 from .util import (
     Attr,
     Base,
