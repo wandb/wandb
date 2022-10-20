@@ -93,12 +93,14 @@ class MetricsMonitor:
 
     def __init__(
         self,
+        asset_name: str,
         metrics: List[Metric],
         interface: Interface,
         settings: "SettingsStatic",
         shutdown_event: synchronize.Event,
     ) -> None:
         self.metrics = metrics
+        self.asset_name = asset_name
         self._interface = interface
         self._process: Optional[Union[mp.Process, threading.Thread]] = None
         self._shutdown_event: synchronize.Event = shutdown_event
@@ -156,7 +158,11 @@ class MetricsMonitor:
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
-            self._process = threading.Thread(target=self.monitor, daemon=True)
+            self._process = threading.Thread(
+                target=self.monitor,
+                daemon=True,
+                name=f"MetricsMonitor::{self.asset_name}",
+            )
             self._process.start()
 
     def finish(self) -> None:

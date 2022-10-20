@@ -4,9 +4,9 @@ from unittest import mock
 
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.system.assets import IPU
-from wandb.sdk.system.assets.ipu import IPUStats
-from wandb.sdk.system.system_monitor import AssetInterface
+from wandb.sdk.internal.system.assets import IPU
+from wandb.sdk.internal.system.assets.ipu import IPUStats
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 CURRENT_PID = 123
 OTHER_PID = 456
@@ -91,7 +91,9 @@ def test_profiler():
 
 def test_ipu(test_settings):
 
-    with mock.patch.object(wandb.sdk.system.assets.ipu, "gcipuinfo", MockGcIpuInfo()):
+    with mock.patch.object(
+        wandb.sdk.internal.system.assets.ipu, "gcipuinfo", MockGcIpuInfo()
+    ):
         interface = AssetInterface()
         settings = SettingsStatic(
             test_settings(
