@@ -78,7 +78,7 @@ Collections and Utility Classes
 """
 
 from __future__ import with_statement
-from watchdog.utils import platform
+from wandb_watchdog.utils import platform
 
 import threading
 import errno
@@ -96,16 +96,16 @@ else:
 
 from pathtools.path import absolute_path
 
-from watchdog.observers.api import (
+from wandb_watchdog.observers.api import (
     BaseObserver,
     EventEmitter,
     DEFAULT_OBSERVER_TIMEOUT,
     DEFAULT_EMITTER_TIMEOUT
 )
 
-from watchdog.utils.dirsnapshot import DirectorySnapshot
+from wandb_watchdog.utils.dirsnapshot import DirectorySnapshot
 
-from watchdog.events import (
+from wandb_watchdog.events import (
     DirMovedEvent,
     DirDeletedEvent,
     DirCreatedEvent,

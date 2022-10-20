@@ -23,7 +23,7 @@ import threading
 import os.path
 import time
 
-from watchdog.events import (
+from wandb_watchdog.events import (
     DirCreatedEvent,
     DirMovedEvent,
     DirModifiedEvent,
@@ -35,14 +35,14 @@ from watchdog.events import (
     generate_sub_created_events,
 )
 
-from watchdog.observers.api import (
+from wandb_watchdog.observers.api import (
     EventEmitter,
     BaseObserver,
     DEFAULT_OBSERVER_TIMEOUT,
     DEFAULT_EMITTER_TIMEOUT
 )
 
-from watchdog.observers.winapi import (
+from wandb_watchdog.observers.winapi import (
     read_events,
     get_directory_handle,
     close_directory_handle,
