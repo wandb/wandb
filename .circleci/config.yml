@@ -1308,8 +1308,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:
