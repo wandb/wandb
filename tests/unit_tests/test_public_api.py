@@ -230,8 +230,8 @@ def test_sweep_api(user, relay_server, sweep_config):
     [
         (SWEEP_CONFIG_GRID, 3),
         (SWEEP_CONFIG_GRID_NESTED, 9),
-        (SWEEP_CONFIG_BAYES, -1),
-        (SWEEP_CONFIG_RANDOM, -1),
+        (SWEEP_CONFIG_BAYES, None),
+        (SWEEP_CONFIG_RANDOM, None),
     ],
     ids=["test grid", "test grid nested", "test bayes", "test random"],
 )
