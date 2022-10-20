@@ -162,7 +162,7 @@ class MetricsMonitor:
             self._process = threading.Thread(
                 target=self.monitor,
                 daemon=True,
-                name=f"MetricsMonitor::{self.asset_name}",
+                name=f"{self.asset_name}",
             )
             self._process.start()
             logger.info(f"Started {self._process.name}")

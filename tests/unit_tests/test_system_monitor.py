@@ -18,7 +18,7 @@ from wandb.sdk.internal.system.assets import (
     Network,
 )
 from wandb.sdk.internal.system.assets.asset_registry import asset_registry
-from wandb.sdk.internal.system.assets.interfaces import MetricsMonitor, MetricType
+from wandb.sdk.internal.system.assets.interfaces import MetricsMonitor
 from wandb.sdk.internal.system.system_monitor import AssetInterface, SystemMonitor
 
 if TYPE_CHECKING:
@@ -28,7 +28,6 @@ if TYPE_CHECKING:
 class MockMetric:
     name: str = "mock_metric"
     # at first, we will only support the gauge type
-    metric_type: MetricType = "gauge"
     samples: "Deque[Any]" = deque()
 
     def __init__(self, **kwargs):
@@ -100,7 +99,6 @@ class MockAsset2:
 class MockBrokenMetric:
     name: str = "mock_broken_metric"
     # at first, we will only support the gauge type
-    metric_type: MetricType = "gauge"
     samples: "Deque[Any]" = deque()
 
     def sample(self) -> None:
