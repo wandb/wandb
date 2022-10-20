@@ -1281,6 +1281,29 @@ workflows:
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
+      # import tests
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10 ]
+              shard:
+                - "imports1"
+                - "imports2"
+                - "imports3"
+                - "imports4"
+                - "imports5"
+                - "imports6"
+                - "imports7"
+                - "imports8"
+                - "imports9"
+                - "imports10"
+                - "imports11"
+                - "imports12"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # standalone GPU tests on Windows
       #
       - win:
