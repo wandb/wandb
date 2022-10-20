@@ -33,8 +33,8 @@ Classes
 import os
 import sys
 import threading
-from watchdog.utils import platform
-from watchdog.utils.compat import Event
+from wandb_watchdog.utils import platform
+from wandb_watchdog.utils.compat import Event
 
 
 if sys.version_info[0] == 2 and platform.is_windows():

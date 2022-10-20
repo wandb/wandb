@@ -24,8 +24,8 @@ import ctypes
 import ctypes.util
 from functools import reduce
 from ctypes import c_int, c_char_p, c_uint32
-from watchdog.utils import has_attribute
-from watchdog.utils import UnsupportedLibc
+from wandb_watchdog.utils import has_attribute
+from wandb_watchdog.utils import UnsupportedLibc
 
 
 def _load_libc():
