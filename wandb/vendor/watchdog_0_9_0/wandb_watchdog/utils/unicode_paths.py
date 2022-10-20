@@ -24,7 +24,7 @@
 
 import sys
 
-from watchdog.utils import platform
+from wandb_watchdog.utils import platform
 
 try:
     # Python 2

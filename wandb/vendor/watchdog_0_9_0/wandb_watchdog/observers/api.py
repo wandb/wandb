@@ -18,9 +18,9 @@
 
 from __future__ import with_statement
 import threading
-from watchdog.utils import BaseThread
-from watchdog.utils.compat import queue
-from watchdog.utils.bricks import SkipRepeatsQueue
+from wandb_watchdog.utils import BaseThread
+from wandb_watchdog.utils.compat import queue
+from wandb_watchdog.utils.bricks import SkipRepeatsQueue
 
 DEFAULT_EMITTER_TIMEOUT = 1    # in seconds.
 DEFAULT_OBSERVER_TIMEOUT = 1   # in seconds.
