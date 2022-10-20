@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 import wandb
@@ -37,11 +38,11 @@ def test_launch_build_succeeds(
     runner,
     args,
     override_config,
-    wandb_init,
+    # wandb_init,
     test_settings,
 ):
     proj = "testing123"
-    settings = test_settings({"project": proj})
+    # settings = test_settings({"project": proj})
     base_args = [
         "https://github.com/wandb/examples.git",
         "--entity",
@@ -73,17 +74,20 @@ def test_launch_build_succeeds(
     )
 
     api = wandb.sdk.internal.internal_api.Api()
+    run = wandb.init(project=proj)
+    time.sleep(2)
 
     with runner.isolated_filesystem(), relay_server():
-        run = wandb_init(settings=settings)
         api.create_run_queue(
             entity=user, project=proj, queue_name=QUEUE_NAME, access="USER"
         )
+        time.sleep(2)
         result = runner.invoke(cli.launch, base_args + args)
+        time.sleep(2)
 
         assert result.exit_code == 0
 
-        run.finish()
+    run.finish()
 
 
 @pytest.mark.timeout(100)
@@ -98,7 +102,7 @@ def test_launch_build_fails(
     monkeypatch,
     runner,
     args,
-    wandb_init,
+    # wandb_init,
 ):
     base_args = [
         "https://foo:bar@github.com/FooTest/Foo.git",
@@ -124,14 +128,15 @@ def test_launch_build_fails(
     )
 
     monkeypatch.setattr(
-        "wandb.docker.build",
-        lambda reg, tag: None,
+        "wandb.docker",
+        lambda: "ur mom",
     )
+    run = wandb.init()
+    time.sleep(2)
 
     with runner.isolated_filesystem(), relay_server():
-        run = wandb_init()
-
         result = runner.invoke(cli.launch, base_args + args)
+        time.sleep(2)
 
         if args == ["--build"]:
             assert result.exit_code == 1
@@ -142,7 +147,8 @@ def test_launch_build_fails(
                 "Option '--build' does not take a value" in result.output
                 or "Error: --build option does not take a value" in result.output
             )
-        run.finish()
+
+    run.finish()
 
 
 @pytest.mark.timeout(300)
@@ -157,7 +163,7 @@ def test_launch_repository_arg(
     runner,
     args,
     user,
-    wandb_init,
+    # wandb_init,
 ):
     base_args = [
         "https://github.com/wandb/examples",
@@ -207,13 +213,20 @@ def test_launch_repository_arg(
         lambda: None,
     )
 
+    monkeypatch.setattr(
+        "wandb.docker",
+        lambda: "ur mom",
+    )
+    run = wandb.init()
+    time.sleep(2)
+
     with runner.isolated_filesystem(), relay_server():
-        run = wandb_init()
         result = runner.invoke(cli.launch, base_args + args)
+        time.sleep(2)
 
         if "--respository=" in args:  # incorrect param
             assert result.exit_code == 2
         else:
             assert result.exit_code == 0
 
-        run.finish()
+    run.finish()
