@@ -13,8 +13,6 @@ class Cargo:
         pass
 
     def track_record(self, record: Record) -> None:
-        if not record.control.cancellable:
-            return
         pass
 
     def release_result(self, result: Result) -> None:
