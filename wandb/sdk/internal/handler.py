@@ -33,7 +33,7 @@ from wandb.proto.wandb_internal_pb2 import (
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
-from . import sample, tb_watcher
+from . import cargo, sample, tb_watcher
 from .settings_static import SettingsStatic
 from .system.system_monitor import SystemMonitor
 
@@ -80,6 +80,7 @@ class HandleManager:
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
+    _handler_cargo: cargo.Cargo
 
     def __init__(
         self,
@@ -119,10 +120,13 @@ class HandleManager:
         # TODO: implement release protocol to clean this up
         self._artifact_xid_done = dict()
 
+        self._handler_cargo = cargo.Cargo()
+
     def __len__(self) -> int:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
+        self._handler_cargo.track_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
@@ -150,10 +154,18 @@ class HandleManager:
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
+        self._handler_cargo.release_result(result)
         self._result_q.put(result)
 
     def debounce(self) -> None:
         pass
+
+    def handle_request_cancel(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_request_respond(self, record: Record) -> None:
+        result = record.request.respond.result
+        self._respond_result(result)
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer

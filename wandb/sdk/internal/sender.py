@@ -45,7 +45,7 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-from . import artifacts, file_stream, internal_api, update
+from . import artifacts, cargo, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 
@@ -161,6 +161,7 @@ class SendManager:
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
+    _sender_cargo: cargo.Cargo
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: "Optional[file_stream.FileStreamApi]"
@@ -244,6 +245,8 @@ class SendManager:
         self._output_raw_streams = dict()
         self._output_raw_file = None
 
+        self._sender_cargo = cargo.Cargo()
+
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
@@ -294,6 +297,7 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
+        self._sender_cargo.track_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -318,8 +322,12 @@ class SendManager:
         assert send_handler, f"unknown handle: {handler_str}"
         send_handler(record)
 
+    def send_request_cancel(self, record: "Record") -> None:
+        pass
+
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
+        self._sender_cargo.release_result(result)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
