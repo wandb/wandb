@@ -1,0 +1,29 @@
+name: Local Release
+
+defaults:
+  run:
+    # run shell in interactive mode
+    shell: bash -ieo pipefail {0}
+
+on:
+  workflow_dispatch:
+    inputs:
+      identifier:
+        type: string
+        required: false
+        description: Version Identifier
+        default: pre
+
+jobs:
+  nightly_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+      - name: OLOLO
+        run: |
+          python --version
+          echo OLOLO
