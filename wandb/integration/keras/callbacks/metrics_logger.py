@@ -63,9 +63,9 @@ class WandbMetricsLogger(callbacks.Callback):
 
     def _get_lr(self) -> float:
         try:
-            return self.model.optimizer.learning_rate.numpy().item()
+            return float(self.model.optimizer.learning_rate.numpy().item())
         except AttributeError:
-            return (
+            return float(
                 self.model.optimizer.learning_rate(step=self.global_step).numpy().item()
             )
 
