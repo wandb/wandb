@@ -1131,6 +1131,10 @@ class Report(Base):
         validators=[TypeValidator(Block, how="keys")],
     )
 
+    @classmethod
+    def from_url(self, url):
+        return wandb.Api().load_report(url)
+
     @blocks.getter
     def blocks(self):
         json_path = self._get_path("blocks")
