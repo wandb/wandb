@@ -61,11 +61,13 @@ class WandbMetricsLogger(callbacks.Callback):
             # set all batch metrics to be logged against batch_step.
             wandb.define_metric("batch/*", step_metric="batch/batch_step")
 
-    def _get_lr(self):
+    def _get_lr(self) -> float:
         try:
             return self.model.optimizer.learning_rate.numpy().item()
         except AttributeError:
-            return self.model.optimizer.learning_rate(step=self.global_step).numpy()
+            return (
+                self.model.optimizer.learning_rate(step=self.global_step).numpy().item()
+            )
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
