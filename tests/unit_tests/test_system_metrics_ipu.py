@@ -1,6 +1,12 @@
+import multiprocessing as mp
+import time
+from unittest import mock
+
 import wandb
-from wandb.sdk.internal.ipu import IPUProfiler
-from wandb.sdk.internal.stats import SystemStats
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.internal.system.assets import IPU
+from wandb.sdk.internal.system.assets.ipu import IPUStats
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 CURRENT_PID = 123
 OTHER_PID = 456
@@ -9,6 +15,9 @@ OTHER_PID = 456
 class MockGcIpuInfo:
     def setUpdateMode(self, update_mode: bool):  # noqa: N802
         pass
+
+    def gcipuinfo(self):
+        return self
 
     def getDevices(self):  # noqa: N802
         return [
@@ -52,7 +61,7 @@ class MockGcIpuInfo:
 
 def test_profiler():
     gc_ipu_info = MockGcIpuInfo()
-    ipu_profiler = IPUProfiler(pid=CURRENT_PID, gc_ipu_info=gc_ipu_info)
+    ipu_profiler = IPUStats(pid=CURRENT_PID, gc_ipu_info=gc_ipu_info)
 
     metrics = {
         "ipu.1.user process id": CURRENT_PID,
@@ -65,7 +74,8 @@ def test_profiler():
         "ipu.1.ipu utilisation (%)": 21.25,
         "ipu.1.ipu utilisation (session) (%)": 15.65,
     }
-    assert ipu_profiler.get_metrics() == metrics
+    ipu_profiler.sample()
+    assert ipu_profiler.samples[0] == metrics
 
     changed_metrics = {
         "ipu.1.average board temp (C)": 30,
@@ -75,25 +85,45 @@ def test_profiler():
         "ipu.1.ipu utilisation (%)": 21.25,
         "ipu.1.ipu utilisation (session) (%)": 15.65,
     }
-    assert ipu_profiler.get_metrics() == changed_metrics
+    ipu_profiler.sample()
+    assert ipu_profiler.samples[1] == changed_metrics
 
 
-class MockIPUProfiler:
-    def __init__(self, pid):
-        pass
+def test_ipu(test_settings):
 
-    def get_metrics(self):
-        return {"ipu.0.metric": 10}
+    with mock.patch.object(
+        wandb.sdk.internal.system.assets.ipu, "gcipuinfo", MockGcIpuInfo()
+    ):
+        interface = AssetInterface()
+        settings = SettingsStatic(
+            test_settings(
+                dict(
+                    _stats_sample_rate_seconds=0.1,
+                    _stats_samples_to_average=2,
+                )
+            ).make_static()
+        )
+        shutdown_event = mp.Event()
 
+        ipu = IPU(
+            interface=interface,
+            settings=settings,
+            shutdown_event=shutdown_event,
+        )
 
-def test_ipu_system_stats(monkeypatch, mocked_interface, test_settings):
-    monkeypatch.setattr(wandb.sdk.internal.stats.ipu, "is_ipu_available", lambda: True)
-    monkeypatch.setattr(wandb.sdk.internal.stats.ipu, "IPUProfiler", MockIPUProfiler)
-    stats = SystemStats(settings=test_settings(), interface=mocked_interface)
-    expected_stats = {"ipu.0.metric": 10}
-    actual_stats = {
-        key: expected_stats[key]
-        for key in stats.stats().keys()
-        if key.startswith("ipu.")
-    }
-    assert actual_stats == expected_stats
+        assert ipu.is_available()
+        ipu.metrics[0]._pid = CURRENT_PID
+        ipu.start()
+        ipu_info = ipu.probe()["ipu"]
+        devices = ipu_info.pop("devices")
+        assert ipu_info == {"device_count": 3, "vendor": "Graphcore"}
+        assert devices == [
+            {"id": "0", "board ipu index": "1", "board type": "C2"},
+            {"id": "1", "board ipu index": "1", "board type": "C2"},
+            {"id": "2", "board ipu index": "1", "board type": "C2"},
+        ]
+        time.sleep(1)
+        shutdown_event.set()
+        ipu.finish()
+
+        assert not interface.metrics_queue.empty()
