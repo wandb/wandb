@@ -1,0 +1,104 @@
+name: Cut Release
+run-name: cut sdk release triggered by ${{ github.actor }}
+
+defaults:
+  run:
+    # run shell in interactive mode
+    shell: bash -ieo pipefail {0}
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump-version-kind:
+        type: choice
+        required: true
+        description: How to bump the current version
+        default: devkind
+        options:
+          - "major"
+          - "minor"
+          - "patch"
+          - "dev"
+          - "devkind"
+          - "pre"
+          - "prekind"
+
+jobs:
+  testings:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sleep and Run
+        run: |
+          echo "Sleeping for 10"
+          sleep 1
+          # TODO
+  cut-release:
+    name: Create release branch and release notes
+    needs: testings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main for ${{ github.event.inputs.bump-version-kind }} release
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Setup git config
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Bump to release version
+        id: bump-version
+        run: |
+            python -m pip install --upgrade pip
+            pip install bump2version
+            new_version="$(bump2version ${{ github.event.inputs.bump-version-kind }} --list | grep new_version | cut -d'=' -f2)"
+            latest_tag="$(git tag -l --sort=committerdate 'v[0-9]*' | tail -n 1)"
+            
+            echo "release_branch=release-${new_version}" >> $GITHUB_ENV
+            echo "release_tag=v${new_version}" >> $GITHUB_ENV
+            echo "previous_release_tag=${latest_tag}" >> $GITHUB_ENV
+
+      - name: Create release branch
+        id: create-release-branch
+        run: |
+            git checkout -b "${{ env.release_branch }}"
+            git push --set-upstream origin "${{ env.release_branch }}"
+
+      - name: Create release notes
+        uses: "actions/github-script@v5"
+        with:
+          script: |
+            try {
+              await github.rest.repos.createRelease({
+                draft: true,
+                generate_release_notes: false,
+                owner: context.repo.owner,
+                prerelease: false,
+                repo: context.repo.repo,
+                tag_name: process.env.release_tag,
+                name: process.env.release_tag,
+                target_commitish: process.env.release_branch,
+                generate_release_notes: true,
+                previous_tag_name: process.env.previous_release_tag,
+              });
+            } catch (error) {
+              core.setFailed(error.message);
+            }
+
+      - name: Make release
+        run: |
+          # pip install twine
+          current_branch=$(git rev-parse --abbrev-ref HEAD)
+          if [ "${current_branch}" != "${{ env.release_branch }}" ]; then
+            exit 1
+          fi;
+
+          echo ${current_branch}
+          echo "${{ env.release_branch }}"
