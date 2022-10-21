@@ -1232,10 +1232,9 @@ class Report(Base):
             wandb.termwarn("Report has not been modified")
 
         # create project if not exists
-        r = self.client.execute(
-            CREATE_PROJECT, {"entityName": self.entity, "name": self.project}
-        )
+        wandb.Api().create_project(self.project, self.entity)
 
+        # save the report
         r = self.client.execute(
             UPSERT_VIEW,
             variable_values={
