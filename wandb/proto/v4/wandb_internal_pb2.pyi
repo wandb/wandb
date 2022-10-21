@@ -2750,14 +2750,9 @@ global___CancelRequest = CancelRequest
 class CancelResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    CANCELLED_FIELD_NUMBER: builtins.int
-    cancelled: builtins.bool
     def __init__(
         self,
-        *,
-        cancelled: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["cancelled", b"cancelled"]) -> None: ...
 
 global___CancelResponse = CancelResponse
 

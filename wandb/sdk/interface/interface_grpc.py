@@ -78,6 +78,11 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(run)
         _ = self._stub.RunUpdate(run)
 
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        assert self._stub
+        self._assign(cancel)
+        _ = self._stub.Cancel(cancel)
+
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         assert self._stub
         self._assign(cfg)

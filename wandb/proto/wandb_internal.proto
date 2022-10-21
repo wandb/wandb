@@ -856,7 +856,6 @@ message CancelRequest {
 }
 
 message CancelResponse {
-  bool cancelled = 1;
 }
 
 /*

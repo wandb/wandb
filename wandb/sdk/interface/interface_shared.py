@@ -69,6 +69,10 @@ class InterfaceShared(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        rec = self._make_request(cancel=cancel)
+        self._publish(rec)
+
     def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
         rec = pb.Record()
         rec.output_raw.CopyFrom(outdata)
@@ -134,6 +138,7 @@ class InterfaceShared(InterfaceBase):
         artifact_done: pb.ArtifactDoneRequest = None,
         server_info: pb.ServerInfoRequest = None,
         keepalive: pb.KeepaliveRequest = None,
+        cancel: pb.CancelRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -176,6 +181,8 @@ class InterfaceShared(InterfaceBase):
             request.server_info.CopyFrom(server_info)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
+        elif cancel:
+            request.cancel.CopyFrom(cancel)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)

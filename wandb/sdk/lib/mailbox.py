@@ -232,6 +232,7 @@ class MailboxHandle:
         on_probe: Callable[[MailboxProbe], None] = None,
         on_progress: Callable[[MailboxProgress], None] = None,
         release: bool = True,
+        cancel: bool = False,
     ) -> Optional[pb.Result]:
         probe_handle: Optional[MailboxProbe] = None
         progress_handle: Optional[MailboxProgress] = None
@@ -279,9 +280,16 @@ class MailboxHandle:
                 if progress_handle._is_stopped:
                     break
                 progress_sent = True
+        if not found and cancel:
+            self._cancel()
         if release:
             self._release()
         return found
+
+    def _cancel(self) -> None:
+        mailbox_slot = self.address
+        if self._interface:
+            self._interface.publish_cancel(mailbox_slot)
 
     def _release(self) -> None:
         self._mailbox._release_slot(self.address)
@@ -315,8 +323,9 @@ class Mailbox:
         *,
         timeout: float,
         on_progress: Callable[[MailboxProgress], None] = None,
+        cancel: bool = False,
     ) -> Optional[pb.Result]:
-        return handle.wait(timeout=timeout, on_progress=on_progress)
+        return handle.wait(timeout=timeout, on_progress=on_progress, cancel=cancel)
 
     def _time(self) -> float:
         return time.monotonic()
