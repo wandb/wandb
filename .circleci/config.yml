@@ -265,13 +265,8 @@ jobs:
             - when:
                 condition: << parameters.notify_on_failure >>
                 steps:
-                  - run:
-                      name: TESTO
-                      command: |
-                        echo << parameters.notify_on_failure_channel >>
-                        echo $SLACK_SDK_NIGHTLY_CI_CHANNEL
                   - slack/notify:
-                      event: fail
+                      event: success
                       template: basic_fail_1
                       mentions: "@channel"
                       # taken from slack-secrets context
@@ -1326,7 +1321,7 @@ workflows:
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           context: slack-secrets
           notify_on_failure: true
-          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
+          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
       #
       # standalone GPU tests on Windows
       #
