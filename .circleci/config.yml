@@ -269,6 +269,7 @@ jobs:
                       name: TESTO
                       command: |
                         echo << parameters.notify_on_failure_channel >>
+                        echo $SLACK_SDK_NIGHTLY_CI_CHANNEL
                   - slack/notify:
                       event: fail
                       template: basic_fail_1
