@@ -7,6 +7,7 @@ import os
 import re
 import socket
 import sys
+import threading
 from abc import ABC
 from copy import deepcopy
 from typing import (
@@ -1367,6 +1368,7 @@ class Api:
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
+        _cancel_event: Optional[threading.Event] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run
 
@@ -1517,6 +1519,7 @@ class Api:
             mutation,
             variable_values=variable_values,
             check_retry_fn=check_retry_fn,
+            retry_cancel_event=_cancel_event,
             **kwargs,
         )
 

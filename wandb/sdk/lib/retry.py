@@ -3,6 +3,7 @@ import functools
 import logging
 import os
 import random
+import threading
 import time
 from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
 
@@ -44,6 +45,7 @@ class Retry(Generic[_R]):
         self,
         call_fn: Callable[..., _R],
         retry_timedelta: Optional[datetime.timedelta] = None,
+        retry_cancel_event: Optional[threading.Event] = None,
         num_retries: Optional[int] = None,
         check_retry_fn: CheckRetryFnType = lambda e: True,
         retryable_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
@@ -59,6 +61,7 @@ class Retry(Generic[_R]):
         self._error_prefix = error_prefix
         self._last_print = datetime.datetime.now() - datetime.timedelta(minutes=1)
         self._retry_timedelta = retry_timedelta
+        self._retry_cancel_event = retry_cancel_event
         self._num_retries = num_retries
         if retryable_exceptions is not None:
             self._retryable_exceptions = retryable_exceptions
@@ -69,12 +72,18 @@ class Retry(Generic[_R]):
         self._sleep_fn = sleep_fn_for_testing
         self._datetime_now_fn = datetime_now_fn_for_testing
 
+    def _sleep_check_cancelled(
+        self, wait_seconds: float, cancel_event: threading.Event
+    ) -> bool:
+        cancelled = cancel_event.wait(wait_seconds)
+        return cancelled
+
     @property
     def num_iters(self) -> int:
         """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _R:
+    def __call__(self, *args: Any, **kwargs: Any) -> _R:  # noqa: C901
         """Call the wrapped function, with retries.
 
         Arguments:
@@ -86,6 +95,10 @@ class Retry(Generic[_R]):
         retry_timedelta = kwargs.pop("retry_timedelta", self._retry_timedelta)
         if retry_timedelta is None:
             retry_timedelta = datetime.timedelta(days=365)
+
+        retry_cancel_event = kwargs.pop("retry_cancel_event", self._retry_cancel_event)
+        if retry_cancel_event is None:
+            retry_cancel_event = threading.Event()
 
         num_retries = kwargs.pop("num_retries", self._num_retries)
         if num_retries is None:
@@ -169,7 +182,11 @@ class Retry(Generic[_R]):
                         )
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
-            self._sleep_fn(sleep + random.random() * 0.25 * sleep)
+            cancelled = self._sleep_check_cancelled(
+                sleep + random.random() * 0.25 * sleep, cancel_event=retry_cancel_event
+            )
+            if cancelled:
+                print("DEBUG: CANCELLED: TODO break")
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS

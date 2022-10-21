@@ -802,7 +802,8 @@ class SendManager:
             config_value_dict = self._config_format(None)
             self._config_save(config_value_dict)
 
-        self._init_run(run, config_value_dict)
+        cancel_event = None
+        self._init_run(run, config_value_dict, cancel_event=cancel_event)
         assert self._run  # self._run is configured in _init_run()
 
         if record.control.req_resp or record.control.mailbox_slot:
@@ -820,7 +821,10 @@ class SendManager:
             logger.info("updated run: %s", self._run.run_id)
 
     def _init_run(
-        self, run: "RunRecord", config_dict: Optional[DictWithValues]
+        self,
+        run: "RunRecord",
+        config_dict: Optional[DictWithValues],
+        cancel_event: Optional[threading.Event],
     ) -> None:
         # We subtract the previous runs runtime when resuming
         start_time = (
@@ -843,6 +847,7 @@ class SendManager:
             program_path=self._settings.program or None,
             repo=run.git.remote_url or None,
             commit=run.git.commit or None,
+            _cancel_event=cancel_event,
         )
         self._server_messages = server_messages or []
         self._run = run
