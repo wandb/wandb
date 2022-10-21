@@ -266,7 +266,7 @@ jobs:
                 condition: << parameters.notify_on_failure >>
                 steps:
                   - slack/notify:
-                      event: success
+                      event: pass
                       template: basic_fail_1
                       mentions: "@channel"
                       # taken from slack-secrets context
