@@ -16,7 +16,7 @@ assert:
     - :wandb:runs[0][summary][batch/loss]: 2.302401065826416
     - :wandb:runs[0][summary][epoch]: 1
     - :wandb:runs[0][summary][val_accuracy]: 0.14000000059604645
-    - :wandb:runs[0][summary][batch/learning_rate]: 0.0001
+    - :wandb:runs[0][summary][batch/learning_rate]: 0.009999999776482582
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
         - 38  # keras
