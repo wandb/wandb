@@ -151,7 +151,7 @@ class Retry(Generic[_R]):
                     raise
 
                 if self._num_iter == 2:
-                    logger.exception("Retry attempt failed:")
+                    logger.info("Retry attempt failed:", exc_info=e)
                     if (
                         isinstance(e, HTTPError)
                         and e.response is not None
