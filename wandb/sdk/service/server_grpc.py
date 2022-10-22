@@ -372,6 +372,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
+        self._mux.start_stream(stream_id)
         result = spb.ServerInformStartResponse()
         return result
 
