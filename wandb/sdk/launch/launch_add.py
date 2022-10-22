@@ -13,9 +13,9 @@ from wandb.sdk.launch.utils import (
 )
 
 
-def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
+def push_to_queue(api: Api, queue_name: str, launch_spec: Dict[str, Any]) -> Any:
     try:
-        res = api.push_to_run_queue(queue, launch_spec)
+        res = api.push_to_run_queue(queue_name, launch_spec)
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -28,7 +28,7 @@ def launch_add(
     config: Optional[Union[str, Dict[str, Any]]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
-    queue: Optional[str] = None,
+    queue_name: Optional[str] = None,
     resource: Optional[str] = None,
     entry_point: Optional[List[str]] = None,
     name: Optional[str] = None,
@@ -90,7 +90,7 @@ def launch_add(
         config,
         project,
         entity,
-        queue,
+        queue_name,
         resource,
         entry_point,
         name,
@@ -110,7 +110,7 @@ def _launch_add(
     config: Optional[Union[str, Dict[str, Any]]],
     project: Optional[str],
     entity: Optional[str],
-    queue: Optional[str],
+    queue_name: Optional[str],
     resource: Optional[str],
     entry_point: Optional[List[str]],
     name: Optional[str],
@@ -132,8 +132,8 @@ def _launch_add(
     else:
         launch_config = {}
 
-    if queue is None:
-        queue = "default"
+    if queue_name is None:
+        queue_name = "default"
 
     launch_spec = construct_launch_spec(
         uri,
@@ -153,11 +153,11 @@ def _launch_add(
         run_id,
     )
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue, launch_spec)
+    res = push_to_queue(api, queue_name, launch_spec)
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue}.")
+    wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     queued_run_entity = launch_spec.get("entity")
@@ -171,7 +171,7 @@ def _launch_add(
     queued_run = public_api.queued_run(
         queued_run_entity,
         queued_run_project,
-        queue,
+        queue_name,
         res["runQueueItemId"],
         container_job,
     )
