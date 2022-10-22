@@ -42,10 +42,10 @@ from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 
-from . import context
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
+from . import context
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
