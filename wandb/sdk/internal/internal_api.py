@@ -42,6 +42,7 @@ from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 
+from . import context
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
@@ -99,6 +100,13 @@ if TYPE_CHECKING:
 #     def __getitem__(self, name: str) -> Any: ...
 
 
+class _ThreadLocalData(threading.local):
+    context: Optional[context.Context]
+
+    def __init__(self) -> None:
+        self.context = None
+
+
 class Api:
     """W&B Internal Api wrapper
 
@@ -115,6 +123,8 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
+    _global_context: context.Context
+    _local_data: _ThreadLocalData
 
     def __init__(
         self,
@@ -132,6 +142,8 @@ class Api:
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
         self._environ = environ
+        self._global_context = context.Context()
+        self._local_data = _ThreadLocalData()
         self.default_settings: "DefaultSettings" = {
             "section": "default",
             "git_remote": "origin",
@@ -173,7 +185,7 @@ class Api:
             )
         )
         self.retry_callback = retry_callback
-        self.gql = retry.Retry(
+        self._retry_gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
@@ -196,6 +208,24 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
+
+    def gql(self, *args: Any, **kwargs: Any) -> Any:
+        ret = self._retry_gql(
+            *args,
+            retry_cancel_event=self.context.cancel_event,
+            **kwargs,
+        )
+        return ret
+
+    def set_local_context(self, api_context: Optional[context.Context]) -> None:
+        self._local_data.context = api_context
+
+    def clear_local_context(self) -> None:
+        self._local_data.context = None
+
+    @property
+    def context(self) -> context.Context:
+        return self._local_data.context or self._global_context
 
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
@@ -1368,7 +1398,6 @@ class Api:
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
-        _cancel_event: Optional[threading.Event] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run
 
@@ -1519,7 +1548,6 @@ class Api:
             mutation,
             variable_values=variable_values,
             check_retry_fn=check_retry_fn,
-            retry_cancel_event=_cancel_event,
             **kwargs,
         )
 
@@ -2740,7 +2768,7 @@ class Api:
             fallback_retry_fn=util.no_retry_auth,
         )
 
-        response: "_Response" = self.gql(  # type: ignore
+        response: "_Response" = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
             check_retry_fn=check_retry_fn,

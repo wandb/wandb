@@ -11,6 +11,7 @@ from requests import HTTPError
 
 import wandb
 from wandb.util import CheckRetryFnType
+from wandb.errors import ContextCancelledError
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,11 @@ class Retry(Generic[_R]):
         self._datetime_now_fn = datetime_now_fn_for_testing
 
     def _sleep_check_cancelled(
-        self, wait_seconds: float, cancel_event: threading.Event
+        self, wait_seconds: float, cancel_event: Optional[threading.Event]
     ) -> bool:
+        if not cancel_event:
+            self._sleep_fn(wait_seconds)
+            return False
         cancelled = cancel_event.wait(wait_seconds)
         return cancelled
 
@@ -97,8 +101,6 @@ class Retry(Generic[_R]):
             retry_timedelta = datetime.timedelta(days=365)
 
         retry_cancel_event = kwargs.pop("retry_cancel_event", self._retry_cancel_event)
-        if retry_cancel_event is None:
-            retry_cancel_event = threading.Event()
 
         num_retries = kwargs.pop("num_retries", self._num_retries)
         if num_retries is None:
@@ -186,7 +188,7 @@ class Retry(Generic[_R]):
                 sleep + random.random() * 0.25 * sleep, cancel_event=retry_cancel_event
             )
             if cancelled:
-                print("DEBUG: CANCELLED: TODO break")
+                raise ContextCancelledError("retry timeout")
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS

@@ -28,6 +28,7 @@ import requests
 
 import wandb
 from wandb import util
+from wandb.errors import ContextCancelledError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
@@ -45,7 +46,7 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-from . import artifacts, cargo, file_stream, internal_api, update
+from . import artifacts, context, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 
@@ -161,7 +162,7 @@ class SendManager:
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
-    _sender_cargo: cargo.Cargo
+    _context_manager: context.ContextManager
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: "Optional[file_stream.FileStreamApi]"
@@ -186,11 +187,13 @@ class SendManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         interface: InterfaceQueue,
+        context_manager: context.ContextManager,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
+        self._context_manager = context_manager
 
         self._fs = None
         self._pusher = None
@@ -245,8 +248,6 @@ class SendManager:
         self._output_raw_streams = dict()
         self._output_raw_file = None
 
-        self._sender_cargo = cargo.Cargo()
-
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
@@ -280,11 +281,13 @@ class SendManager:
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
+        context_manager = context.ContextManager()
         return SendManager(
             settings=settings,
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
+            context_manager=context_manager,
         )
 
     def __len__(self) -> int:
@@ -297,7 +300,10 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
-        self._sender_cargo.track_record(record)
+        api_context = self._context_manager.get_context_from_record(record)
+        # TODO: use a context manager or a decorator for methods that can be cancelled
+        self._api.set_local_context(api_context)
+
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -306,7 +312,14 @@ class SendManager:
         if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
-        send_handler(record)
+
+        try:
+            send_handler(record)
+        except ContextCancelledError:
+            # TODO(jhr): do something here?
+            pass
+
+        self._api.clear_local_context()
 
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
@@ -322,12 +335,9 @@ class SendManager:
         assert send_handler, f"unknown handle: {handler_str}"
         send_handler(record)
 
-    def send_request_cancel(self, record: "Record") -> None:
-        pass
-
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
-        self._sender_cargo.release_result(result)
+        self._context_manager.release_context_from_result(result)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
@@ -802,8 +812,7 @@ class SendManager:
             config_value_dict = self._config_format(None)
             self._config_save(config_value_dict)
 
-        cancel_event = None
-        self._init_run(run, config_value_dict, cancel_event=cancel_event)
+        self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
 
         if record.control.req_resp or record.control.mailbox_slot:
@@ -824,7 +833,6 @@ class SendManager:
         self,
         run: "RunRecord",
         config_dict: Optional[DictWithValues],
-        cancel_event: Optional[threading.Event],
     ) -> None:
         # We subtract the previous runs runtime when resuming
         start_time = (
@@ -847,7 +855,6 @@ class SendManager:
             program_path=self._settings.program or None,
             repo=run.git.remote_url or None,
             commit=run.git.commit or None,
-            _cancel_event=cancel_event,
         )
         self._server_messages = server_messages or []
         self._run = run

@@ -31,7 +31,7 @@ from wandb.util import sentry_exc, sentry_set_scope
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog
-from . import handler, internal_util, sender, settings_static, writer
+from . import context, handler, internal_util, sender, settings_static, writer
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -98,6 +98,8 @@ def wandb_internal(
     stopped = threading.Event()
     threads: "List[RecordLoopThread]" = []
 
+    context_manager = context.ContextManager()
+
     send_record_q: "Queue[Record]" = queue.Queue()
     tracelog.annotate_queue(send_record_q, "send_q")
     record_sender_thread = SenderThread(
@@ -107,6 +109,7 @@ def wandb_internal(
         stopped=stopped,
         interface=publish_interface,
         debounce_interval_ms=30000,
+        context_manager=context_manager,
     )
     threads.append(record_sender_thread)
 
@@ -129,6 +132,7 @@ def wandb_internal(
         sender_q=send_record_q,
         writer_q=write_record_q,
         interface=publish_interface,
+        context_manager=context_manager,
     )
     threads.append(record_handler_thread)
 
@@ -221,6 +225,7 @@ class HandlerThread(internal_util.RecordLoopThread):
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _stopped: "Event"
+    _context_manager: context.ContextManager
 
     def __init__(
         self,
@@ -231,6 +236,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: "InterfaceQueue",
+        context_manager: context.ContextManager,
         debounce_interval_ms: "float" = 1000,
     ) -> None:
         super().__init__(
@@ -247,6 +253,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
+        self._context_manager = context_manager
 
     def _setup(self) -> None:
         self._hm = handler.HandleManager(
@@ -257,6 +264,7 @@ class HandlerThread(internal_util.RecordLoopThread):
             sender_q=self._sender_q,
             writer_q=self._writer_q,
             interface=self._interface,
+            context_manager=self._context_manager,
         )
 
     def _process(self, record: "Record") -> None:
@@ -274,6 +282,7 @@ class SenderThread(internal_util.RecordLoopThread):
 
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
+    _context_manager: context.ContextManager
 
     def __init__(
         self,
@@ -282,6 +291,7 @@ class SenderThread(internal_util.RecordLoopThread):
         result_q: "Queue[Result]",
         stopped: "Event",
         interface: "InterfaceQueue",
+        context_manager: context.ContextManager,
         debounce_interval_ms: "float" = 5000,
     ) -> None:
         super().__init__(
@@ -295,6 +305,7 @@ class SenderThread(internal_util.RecordLoopThread):
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
+        self._context_manager = context_manager
 
     def _setup(self) -> None:
         self._sm = sender.SendManager(
@@ -302,6 +313,7 @@ class SenderThread(internal_util.RecordLoopThread):
             record_q=self._record_q,
             result_q=self._result_q,
             interface=self._interface,
+            context_manager=self._context_manager,
         )
 
     def _process(self, record: "Record") -> None:
