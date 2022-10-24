@@ -1,4 +1,4 @@
-"""Context Manager."""
+"""Context Keeper."""
 
 import threading
 from typing import Dict, Optional
@@ -12,31 +12,41 @@ class Context:
     def __init__(self) -> None:
         self._cancel_event = threading.Event()
 
+    def cancel(self) -> None:
+        self._cancel_event.set()
+
     @property
     def cancel_event(self) -> threading.Event:
         return self._cancel_event
 
 
-class ContextManager:
+def context_id_from_record(record: Record) -> str:
+    context_id = record.control.mailbox_slot
+    return context_id
+
+
+def context_id_from_result(result: Result) -> str:
+    context_id = result.control.mailbox_slot
+    return context_id
+
+
+class ContextKeeper:
     _active_items: Dict[str, Context]
 
     def __init__(self) -> None:
         self._active_items = {}
 
-    def add_context_from_record(self, record: Record) -> None:
-        mailbox_slot = record.control.mailbox_slot
-        self._active_items[mailbox_slot] = Context()
+    def add(self, context_id: str) -> None:
+        self._active_items[context_id] = Context()
 
-    def get_context_from_record(self, record: Record) -> Optional[Context]:
-        mailbox_slot = record.control.mailbox_slot
-        item = self._active_items.get(mailbox_slot)
+    def get(self, context_id: str) -> Optional[Context]:
+        item = self._active_items.get(context_id)
         return item
 
-    def release_context_from_result(self, result: Result) -> None:
+    def release(self, context_id: str) -> None:
         pass
 
-    def process_cancel_record(self, cancel_record: Record) -> None:
-        cancel_slot = cancel_record.request.cancel.cancel_slot
-        item = self._active_items.get(cancel_slot)
+    def cancel(self, context_id: str) -> None:
+        item = self.get(context_id)
         if item:
-            item._cancel_event.set()
+            item.cancel()

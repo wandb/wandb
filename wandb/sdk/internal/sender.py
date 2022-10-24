@@ -162,7 +162,7 @@ class SendManager:
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
-    _context_manager: context.ContextManager
+    _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: "Optional[file_stream.FileStreamApi]"
@@ -187,13 +187,13 @@ class SendManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         interface: InterfaceQueue,
-        context_manager: context.ContextManager,
+        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
-        self._context_manager = context_manager
+        self._context_keeper = context_keeper
 
         self._fs = None
         self._pusher = None
@@ -281,13 +281,13 @@ class SendManager:
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
-        context_manager = context.ContextManager()
+        context_keeper = context.ContextKeeper()
         return SendManager(
             settings=settings,
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
-            context_manager=context_manager,
+            context_keeper=context_keeper,
         )
 
     def __len__(self) -> int:
@@ -300,10 +300,6 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
-        api_context = self._context_manager.get_context_from_record(record)
-        # TODO: use a context manager or a decorator for methods that can be cancelled
-        self._api.set_local_context(api_context)
-
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -313,13 +309,16 @@ class SendManager:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
 
+        context_id = context.context_id_from_record(record)
+        api_context = self._context_keeper.get(context_id)
         try:
+            self._api.set_local_context(api_context)
             send_handler(record)
         except ContextCancelledError:
-            # TODO(jhr): do something here?
-            pass
-
-        self._api.clear_local_context()
+            logger.debug(f"Record cancelled: {record_type}")
+            self._context_keeper.release(context_id)
+        finally:
+            self._api.clear_local_context()
 
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
@@ -337,7 +336,8 @@ class SendManager:
 
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
-        self._context_manager.release_context_from_result(result)
+        context_id = context.context_id_from_result(result)
+        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:

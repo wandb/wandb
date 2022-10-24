@@ -80,7 +80,7 @@ class HandleManager:
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
-    _context_manaager: context.ContextManager
+    _context_manaager: context.ContextKeeper
 
     def __init__(
         self,
@@ -91,7 +91,7 @@ class HandleManager:
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: InterfaceQueue,
-        context_manager: context.ContextManager,
+        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -100,7 +100,7 @@ class HandleManager:
         self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
-        self._context_manager = context_manager
+        self._context_keeper = context_keeper
 
         self._tb_watcher = None
         self._system_monitor = None
@@ -126,7 +126,8 @@ class HandleManager:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
-        self._context_manager.add_context_from_record(record)
+        context_id = context.context_id_from_record(record)
+        self._context_keeper.add(context_id)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
@@ -154,14 +155,16 @@ class HandleManager:
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
-        self._context_manager.release_context_from_result(result)
+        context_id = context.context_id_from_result(result)
+        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def debounce(self) -> None:
         pass
 
     def handle_request_cancel(self, record: Record) -> None:
-        self._context_manager.process_cancel_record(record)
+        cancel_id = record.request.cancel.cancel_slot
+        self._context_keeper.cancel(cancel_id)
 
     def handle_request_respond(self, record: Record) -> None:
         result = record.request.respond.result
