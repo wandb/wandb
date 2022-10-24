@@ -126,8 +126,7 @@ class HandleManager:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
-        context_id = context.context_id_from_record(record)
-        self._context_keeper.add(context_id)
+        self._context_keeper.add_from_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
@@ -829,6 +828,7 @@ class HandleManager:
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+        self._context_keeper._debug_print_orphans()
 
     def __next__(self) -> Record:
         return self._record_q.get(block=True)
