@@ -4,8 +4,9 @@ import pathlib
 import platform
 import subprocess
 import sys
+import time
 from collections import deque
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict
@@ -15,7 +16,7 @@ else:
 import wandb
 from wandb.sdk.lib import telemetry
 
-from .aggregators import aggregate_mean
+from .aggregators import aggregate_mean, trapezoidal
 from .asset_registry import asset_registry
 from .interfaces import Interface, Metric, MetricsMonitor
 
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 
 
 class _Stats(TypedDict):
+    time_stamp: float
     gpu: float
     memoryAllocated: float  # noqa: N815
     temp: float
@@ -52,6 +54,10 @@ class GPUAppleStats:
             pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "apple_gpu_stats"
         ).resolve()
 
+        # these are for integral power stats
+        self.t_start: Optional[float] = None
+        self.p_start: Optional[float] = None
+
     def sample(self) -> None:
         try:
             command = [str(self.binary_path), "--json"]
@@ -63,6 +69,7 @@ class GPUAppleStats:
             raw_stats = json.loads(output)
 
             stats: _Stats = {
+                "time_stamp": time.time(),
                 "gpu": raw_stats["utilization"],
                 "memoryAllocated": raw_stats["mem_used"],
                 "temp": raw_stats["temperature"],
@@ -87,10 +94,28 @@ class GPUAppleStats:
             return {}
         stats = {}
         if self.samples:
-            for key in self.samples[0].keys():
+            time_stamps = [s["time_stamp"] for s in self.samples]
+            keys = [key for key in self.samples[0].keys() if key != "time_stamp"]
+            for key in keys:
                 samples = [s[key] for s in self.samples]  # type: ignore
                 aggregate = aggregate_mean(samples)
                 stats[self.name.format(key)] = aggregate
+
+                # energy consumption in kWh
+                if key == "powerWatts":
+                    if self.t_start is None and len(samples) == 1:
+                        self.t_start = time_stamps[-1]
+                        self.p_start = aggregate
+                        continue
+
+                    if self.t_start is not None and self.p_start is not None:
+                        time_stamps = [self.t_start] + time_stamps
+                        samples = [self.p_start] + samples
+                    aggregate = trapezoidal(samples, time_stamps)  # Watt-seconds
+                    stats[self.name.format("energyKiloWattHours")] = aggregate / 3600000
+
+                    self.t_start = time_stamps[-1]
+                    self.p_start = aggregate
         return stats
 
 

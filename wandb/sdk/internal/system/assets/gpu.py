@@ -1,7 +1,9 @@
+from collections import defaultdict
 import logging
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, List
+import time
+from typing import TYPE_CHECKING, Dict, List, Tuple
 
 try:
     import psutil
@@ -10,7 +12,7 @@ except ImportError:
 
 from wandb.vendor.pynvml import pynvml
 
-from .aggregators import aggregate_mean
+from .aggregators import aggregate_mean, trapezoidal
 from .asset_registry import asset_registry
 from .interfaces import Interface, Metric, MetricsMonitor
 
@@ -315,6 +317,64 @@ class GPUPowerUsagePercent:
         return stats
 
 
+class GPUEnergyKiloWattHours:
+    """
+    GPU energy consumption in kWh for each GPU.
+    """
+
+    name = "gpu.{}.energyKiloWattHours"
+    samples: "Deque[List[Tuple[float, float]]]"
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        # we'll store (time, instantaneous power) tuples
+        # and do the integration at aggregation time
+        self.samples = deque([])
+
+        self.t_start: Dict[int, float] = dict()
+        self.p_start: Dict[int, float] = dict()
+
+    def sample(self) -> None:
+        power_usage = []
+        device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
+            power_watts = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000  # type: ignore
+            power_usage.append((time.time(), power_watts))
+        self.samples.append(power_usage)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        stats = {}
+        device_count = pynvml.nvmlDeviceGetCount()  # type: ignore
+        for i in range(device_count):
+            samples = [sample[i] for sample in self.samples]
+            t = [sample[0] for sample in samples]
+            p = [sample[1] for sample in samples]
+
+            if not self.t_start.get(i) and len(t) == 1:
+                self.t_start[i] = t[-1]
+                self.p_start[i] = p[-1]
+                continue
+
+            if self.t_start and self.p_start:
+                t = [self.t_start[i]] + t
+                p = [self.p_start[i]] + p
+            aggregate = trapezoidal(p, t)
+            stats[self.name.format(i)] = aggregate / 3600000  # Watt-seconds to kWh
+
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
+            if gpu_in_use_by_this_process(handle, self.pid):
+                stats[self.name.format(f"process.{i}")] = aggregate
+
+            self.t_start[i] = t[-1]
+            self.p_start[i] = aggregate
+
+        return stats
+
+
 @asset_registry.register
 class GPU:
     def __init__(
@@ -331,6 +391,7 @@ class GPU:
             GPUTemperature(settings._stats_pid),
             GPUPowerUsageWatts(settings._stats_pid),
             GPUPowerUsagePercent(settings._stats_pid),
+            GPUEnergyKiloWattHours(settings._stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,

@@ -99,7 +99,7 @@ class SystemMonitor:
         for _ in range(size):
             item = self.asset_interface.metrics_queue.get()
             aggregated_metrics.update(item)
-
+        # print(aggregated_metrics)
         if aggregated_metrics:
             self.backend_interface.publish_stats(aggregated_metrics)
 

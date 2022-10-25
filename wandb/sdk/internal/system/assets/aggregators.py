@@ -35,3 +35,13 @@ def aggregate_sum(samples: Sequence[Number], precision: int = 2) -> Union[float,
     if isinstance(samples[-1], int):
         return sum(samples)
     return round(sum(samples), precision)
+
+
+def trapezoidal(y: Sequence[float], x: Sequence[float]) -> float:
+    """Trapezoidal rule for numerical integration."""
+    z = []
+    for i in range(1, len(y)):
+        z.append((y[i] + y[i - 1]) / 2 * (x[i] - x[i - 1]))
+    for i in range(1, len(z)):
+        z[i] += z[i - 1]
+    return z[-1]
