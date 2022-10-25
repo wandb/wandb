@@ -125,7 +125,7 @@ RUN python -m venv /env
 ENV PATH="/env/bin:$PATH"
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
-pip install jupyterlab==3.5.0
+{buildx_optional_prefix} pip install jupyterlab==3.5.0
 """
 
 # this goes into requirements_section in TEMPLATE
