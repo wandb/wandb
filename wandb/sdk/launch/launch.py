@@ -10,6 +10,7 @@ from wandb.errors import ExecutionError, LaunchError
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder import loader as builder_loader
+from .builder.build import construct_builder_args
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
@@ -17,7 +18,6 @@ from .utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
-    resolve_build_and_registry_config,
     validate_launch_spec_source,
 )
 
@@ -115,6 +115,7 @@ def _run(
     cuda: Optional[bool],
     api: Api,
     run_id: Optional[str],
+    repository: Optional[str],
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     launch_spec = construct_launch_spec(
@@ -133,6 +134,7 @@ def _run(
         launch_config,
         cuda,
         run_id,
+        repository,
     )
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
@@ -141,25 +143,19 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    build_config: Optional[Dict[str, Any]] = None
-    registry_config = None
-    if launch_config is not None:
-        given_docker_args = launch_config.get("docker", {}).get("args", {})
-        build_config = launch_config.get("build")
-        registry_config = launch_config.get("registry")
-        runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
-    else:
-        runner_config[PROJECT_DOCKER_ARGS] = {}
 
-    default_launch_config = None
+    if repository:  # override existing registry with CLI arg
+        launch_config = launch_config or {}
+        registry = launch_config.get("registry", {})
+        registry["url"] = repository
+        launch_config["registry"] = registry
 
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
-            default_launch_config = yaml.safe_load(f)
-
-    build_config, registry_config = resolve_build_and_registry_config(
-        default_launch_config, build_config, registry_config
+    given_docker_args, build_config, registry_config = construct_builder_args(
+        launch_config,
     )
+
+    runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
+
     builder = builder_loader.load_builder(build_config)
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
@@ -170,9 +166,7 @@ def _run(
         return submitted_run
     else:
         raise ExecutionError(
-            "Unavailable backend {}, available backends: {}".format(
-                resource, ", ".join(loader.WANDB_RUNNERS)
-            )
+            f"Unavailable backend {resource}, available backends: {', '.join(loader.WANDB_RUNNERS)}"
         )
 
 
@@ -193,6 +187,7 @@ def run(
     synchronous: Optional[bool] = True,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
+    repository: Optional[str] = None,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
@@ -222,7 +217,7 @@ def run(
         error out as well.
     cuda: Whether to build a CUDA-enabled docker image or not
     run_id: ID for the run (To ultimately replace the :name: field)
-
+    repository: string name of repository path for remote registry
 
     Example:
         import wandb
@@ -262,6 +257,7 @@ def run(
         cuda=cuda,
         api=api,
         run_id=run_id,
+        repository=repository,
     )
 
     return submitted_run_obj
