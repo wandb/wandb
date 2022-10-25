@@ -13,7 +13,6 @@ from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 
 import wandb
-from wandb.cli.cli import launch
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
@@ -126,7 +125,7 @@ RUN python -m venv /env
 ENV PATH="/env/bin:$PATH"
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
-{buildx_optional_prefix} pip install jupyterlab==3.5.0
+pip install jupyterlab==3.5.0
 """
 
 # this goes into requirements_section in TEMPLATE
