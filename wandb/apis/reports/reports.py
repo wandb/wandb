@@ -819,6 +819,16 @@ class WeavePanel(Panel):
         return "Weave"
 
 
+class WeavePythonPanel(Panel):
+    def __init__(self, spec, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._spec["config"] = {"panel2Config": {"exp": spec}}
+
+    @property
+    def view_type(self) -> str:
+        return "weave-python-panel"
+
+
 class RunSet(Base):
     def __init__(
         self,
@@ -1606,6 +1616,24 @@ class Image(Block):
             return {"type": "image", "children": [{"text": ""}], "url": self.url}
 
 
+class WeavePythonBlock(Block):
+    def __init__(self, panel: "weave.lazy.OutputNode", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.panel = panel
+
+    @property
+    def spec(self):
+        return {
+            "type": "weave-python-panel",
+            "children": [{"text": ""}],
+            "config": {"panelConfig": {"exp": self.panel.to_json()}},
+        }
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "WeaveBlock":
+        return cls(spec)
+
+
 class WeaveBlock(Block):
     def __init__(self, spec, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1803,6 +1831,7 @@ block_mapping = {
     "paragraph": P,
     "table-of-contents": TableOfContents,
     "weave-panel": WeaveBlock,
+    'weave-python-panel': WeavePythonBlock,
     "video": Video,
     "spotify": Spotify,
     "twitter": Twitter,
@@ -1829,4 +1858,5 @@ panel_mapping = {
     "Vega2": Vega2,
     "Vega3": Vega3,
     "Weave": WeavePanel,
+    # WeavePythonPanel
 }

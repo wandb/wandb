@@ -25,4 +25,5 @@ from .reports import (
     UnorderedList,
     Video,
     WeaveBlock,
+    WeavePythonBlock,
 )
