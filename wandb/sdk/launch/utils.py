@@ -356,6 +356,7 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
     except (AssertionError, ValueError, IndexError, KeyError) as e:
         raise LaunchError(f"Failed to parse pip requirements: {e}")
     diff: List[Tuple[str, str]] = []
+
     for item in set(req_1_dict.items()) ^ set(req_2_dict.items()):
         diff.append(item)
     # Parse through the diff to make it pretty

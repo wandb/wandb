@@ -13,6 +13,7 @@ from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 
 import wandb
+from wandb.cli.cli import launch
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
@@ -125,6 +126,7 @@ RUN python -m venv /env
 ENV PATH="/env/bin:$PATH"
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
+{buildx_optional_prefix} pip install jupyterlab==3.5.0
 """
 
 # this goes into requirements_section in TEMPLATE
@@ -273,6 +275,8 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         if launch_project.project_dir is not None and os.path.exists(
             os.path.join(launch_project.project_dir, "requirements.txt")
         ):
+            with open(os.path.join(launch_project.project_dir, "requirements.txt"), "a") as f:
+                f.write("\njupyterlab")
             requirements_files += ["src/requirements.txt"]
             pip_install_line = "pip install -r requirements.txt"
         if launch_project.project_dir is not None and os.path.exists(

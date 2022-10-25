@@ -2239,7 +2239,6 @@ class Run:
         job_artifact = self._create_image_job(
             in_types, out_types, packages, docker_image_name
         )
-
         artifact = self.log_artifact(job_artifact)
 
         if not artifact:

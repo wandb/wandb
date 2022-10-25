@@ -5,10 +5,11 @@ LABEL maintainer='Weights & Biases <support@wandb.com>'
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y git \
     && apt-get -qy autoremove \
+    && apt-get install -y gcc \
     && apt-get clean && rm -r /var/lib/apt/lists/*
 
 # required pip packages
-RUN pip install --no-cache-dir wandb[launch]
+RUN pip install --no-cache-dir git+https://github.com/wandb/wandb.git@hack/jupyter#egg=wandb[launch]
 # user set up
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 launch_agent
 USER launch_agent

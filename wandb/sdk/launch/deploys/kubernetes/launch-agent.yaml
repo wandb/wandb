@@ -16,7 +16,7 @@ spec:
       serviceAccountName: wandb-launch-serviceaccount
       containers:
       - name: launch-agent
-        image: wandb/launch-agent-dev:939c8c754b
+        image: gtarpenning/hack-launch-agent:latest
         resources:
           limits:
             memory: "2Gi"
@@ -35,6 +35,10 @@ spec:
             secretKeyRef:
               name: wandb-api-key
               key: password
+        - name: AWS_DEFAULT_REGION
+          value: us-east-2
+        - name: AWS_REGION
+          value: us-east-2
         volumeMounts:
         - name: wandb-launch-config
           mountPath: /home/launch_agent/.config/wandb

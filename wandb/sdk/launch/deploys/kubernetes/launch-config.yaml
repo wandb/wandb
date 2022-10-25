@@ -75,21 +75,28 @@ apiVersion: v1
 data:
   launch-config.yaml: |
     base_url: https://api.wandb.ai # TODO: SET YOUR WANDB BASE URL
-    project: launch-welcome # TODO: SET YOUR ML PROJECT
+    project: pluto # TODO: SET YOUR ML PROJECT
+    entity: drc-test
     max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
     registry:
-      url: # TODO: SET ECR REPOSITORY URL HERE
+      url: 305054156030.dkr.ecr.us-east-2.amazonaws.com/launch-jupyter # TODO: SET ECR REPOSITORY URL HERE
       ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
       credentials:
         secret-name: aws-secret # TODO: SET SECRET NAME HERE
-        secret-mount-path: /root/.aws/ # SET MOUNT PATH HERE for aws /root/.aws
+        secret-mount-path: /root/.aws # SET MOUNT PATH HERE for aws /root/.aws
+      config:
+        secret-name: aws-config
+        secret-mount-path: /root/.aws
     build:
       type: kaniko
       cloud-provider: AWS # TODO: SET CLOUD PROVIDER HERE
       credentials:
         secret-name: aws-secret
-        secret-mount-path: /root/.aws/
-      build-context-store: wandb-build # name here
+        secret-mount-path: /root/.aws
+      config:
+        secret-name: aws-config
+        secret-mount-path: /root/.aws
+      build-context-store: wandb-build-griffin # name here
     runner:
       type: kubernetes
       namespace: wandb # TODO: set namespace here
@@ -106,4 +113,23 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: ""  ### API KEY HERE
+  password: "40d97fb6a5c31c011bf2f5ba2d47b0943a00ebf9"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  namespace: wandb
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /testpath
+        pathType: Prefix
+        backend:
+          service:
+            name: test
+            port:
+              number: 80

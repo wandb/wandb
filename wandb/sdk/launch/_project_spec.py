@@ -398,6 +398,11 @@ def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
     arr: List[str] = []
     if parameters is None:
         return arr
+    
+    print(f"COMPUTE COMMAND WITH PARMS: {parameters}, {type(parameters)}")
+    if type(parameters) != dict:
+        parameters = {}
+    
     for key, value in parameters.items():
         if value is not None:
             arr.append(f"--{key}")

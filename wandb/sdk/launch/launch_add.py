@@ -159,12 +159,13 @@ def _launch_add(
 
         launch_project = create_project_from_spec(launch_spec, api)
         docker_image_uri = build_image_from_project(launch_project, api, config)
-        run = wandb.run or wandb.init(project=project, job_type="launch_job")
-
+        
+        run = wandb.run or wandb.init(project=project, entity=launch_spec.get('entity'), job_type="build-job")
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
         job_name = job_artifact.wait().name
+        
+        job = f"{launch_spec.get('entity')}/{launch_spec.get('project')}/{job_name}"
 
-        job = f"{launch_spec.get('entity')}/{project}/{job_name}"
         launch_spec["job"] = job
         launch_spec["uri"] = None  # Remove given URI --> now in job
 
@@ -183,7 +184,11 @@ def _launch_add(
     queued_run_project = launch_spec.get("project")
     container_job = False
     if job:
-        job_artifact = public_api.job(job)
+        try:
+            job_artifact = public_api.job(job)
+        except Exception as e:
+            raise e
+
         if job_artifact._source_info.get("source_type") == "image":
             container_job = True
 
