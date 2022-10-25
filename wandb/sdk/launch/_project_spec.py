@@ -58,12 +58,14 @@ class LaunchProject:
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
         run_id: Optional[str],
+        trigger_name: Optional[str],
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
             _logger.info(f"{LOG_PREFIX}Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
+        self.trigger_name = trigger_name
         wandb.termlog(f"{LOG_PREFIX}Launch project got job {job}")
         self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
@@ -449,6 +451,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource_args", {}),
         launch_spec.get("cuda", None),
         launch_spec.get("run_id", None),
+        launch_spec.get("triggerName", None),
     )
 
 

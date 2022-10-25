@@ -243,6 +243,9 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         env_vars["WANDB_ARGS"] = " ".join(
             compute_command_args(launch_project.override_args)
         )
+    if launch_project.trigger_name:
+        env_vars["WANDB_TRIGGER_NAME"] = launch_project.trigger_name
+
     return env_vars
 
 
