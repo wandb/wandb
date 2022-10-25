@@ -552,6 +552,12 @@ class Run:
                 {"triggerName": os.environ.get("WANDB_TRIGGER_NAME")},
                 allow_val_change=True,
             )
+
+        if os.environ.get("WANDB_JOB") != None:
+            self._config.update(
+                {"jobName": os.environ.get("WANDB_JOB")},
+                allow_val_change=True,
+            )
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
