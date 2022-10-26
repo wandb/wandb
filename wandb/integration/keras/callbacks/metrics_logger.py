@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Dict, Optional, Union, Callable
+from typing import Any, Callable, Dict, Optional, Union
 
 import tensorflow as tf
 from tensorflow.keras import callbacks  # type: ignore
