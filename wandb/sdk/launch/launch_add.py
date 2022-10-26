@@ -14,6 +14,28 @@ from wandb.sdk.launch.utils import (
 )
 
 
+
+JUPYTER_ENTRYPOINT = """
+import wandb
+import subprocess
+
+out = subprocess.run(["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"], capture_output=True)
+
+list1 = subprocess.run(["jupyter", "lab", "list", "--json"], )
+blob = json.loads(str(sys.stdin.read()).split(n)[0])
+
+
+"""
+
+
+
+
+
+
+
+
+
+
 def push_to_queue(api: Api, queue_name: str, launch_spec: Dict[str, Any]) -> Any:
     try:
         res = api.push_to_run_queue(queue_name, launch_spec)
@@ -132,6 +154,7 @@ def _launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    jupyter: Optional[bool] = False,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -151,7 +174,10 @@ def _launch_add(
         run_id,
         repository,
     )
-
+    
+    if jupyter:
+        launch_spec["jupyter"] = "pending"
+    
     if build:
         if launch_spec.get("job") is not None:
             wandb.termwarn("Build doesn't support setting a job. Overwriting job.")

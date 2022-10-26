@@ -115,21 +115,71 @@ type: kubernetes.io/basic-auth
 stringData:
   password: "40d97fb6a5c31c011bf2f5ba2d47b0943a00ebf9"
 ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: jupyter-test-pod
+
+# spec:
+#   clusterIP: None
+#   selector:
+#     app: jupyter-test-pod
+#     environment: test
+#   ports:
+#   - protocol: TCP
+#     port: 8888
+#     targetPort: 8888
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: jupyter-ingress
+#   annotations:
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+#     kubernetes.io/ingress.class: "nginx"
+#     ingress.kubernetes.io/force-ssl-redirect: "true"
+#     ingress.kubernetes.io/proxy-body-size: "800m"
+#     nginx.ingress.kubernetes.io/proxy-body-size: "800m"
+#     certmanager.k8s.io/issuer: "letsencrypt-prod"
+
+# spec:
+#   # tls:
+#   # # - hosts:
+#   # #   - jupyter.example.com
+#   # #   # secretName: jupyter-tls
+#   rules:
+#   # - host: jupyter.example.com
+#   - http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: jupyter-test-pod
+#             port: 
+#               number: 8888
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: minimal-ingress
-  namespace: wandb
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+  name: test-ingress
 spec:
-  rules:
-  - http:
-      paths:
-      - path: /testpath
-        pathType: Prefix
-        backend:
-          service:
-            name: test
-            port:
-              number: 80
+  defaultBackend:
+    service:
+      name: jupyter
+      port:
+        number: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: jupyter
+  name: jupyter
+spec:
+  ports:
+  - name: "80"
+    port: 8888
+    targetPort: 80
+  selector:
+    name: jupyter
+  type: NodePort

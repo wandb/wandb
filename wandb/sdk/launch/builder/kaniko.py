@@ -236,8 +236,6 @@ class KanikoBuilder(AbstractBuilder):
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, self.type
         )
-        print("DOCKERFILE STRING")
-        print(dockerfile_str)
 
         create_metadata_file(
             launch_project,
@@ -266,7 +264,7 @@ class KanikoBuilder(AbstractBuilder):
             image_uri,
             build_context,
         )
-        wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
+        wandb.termlog(f"{LOG_PREFIX}Created kaniko job: {build_job_name}")
 
         if launch_project.override_config.get("run_config", {}).get("jupyter"):
             juptyer_server = self._create_jupyter_server()
@@ -400,9 +398,3 @@ class KanikoBuilder(AbstractBuilder):
         )
 
         return job
-
-    def _create_jupyter_server():
-        import wandb 
-
-        wandb.termwarn("REEEE")
-        return "help"

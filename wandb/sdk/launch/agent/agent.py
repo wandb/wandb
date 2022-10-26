@@ -178,6 +178,28 @@ class LaunchAgent:
         override_build_config = launch_spec.get("build")
         override_registry_config = launch_spec.get("registry")
 
+        if launch_spec["jupyter"] == "pending":
+            override_registry_config["url"] = "gtarpenning/jupyter-server"
+            build_config, registry_config = resolve_build_and_registry_config(
+                self.default_config, override_build_config, override_registry_config
+            )
+            builder = load_builder(build_config)
+
+            default_runner = self.default_config.get("runner", {}).get("type")
+            if default_runner == resource:
+                backend_config["runner"] = self.default_config.get("runner")
+            backend = load_backend(resource, self._api, backend_config)
+            backend.verify()
+            _logger.info("Backend loaded...")
+
+            project._entry_points = {}
+            project.add_entry_point(["python", "-m", "jupyter", "lab", "--ip", "0.0.0.0", "--port=8888", "--no-browser", "--allow-root"])
+
+            run = backend.run(project, builder, registry_config)
+            if run:
+                self._jobs[run.id] = run
+                self._running += 1
+
         build_config, registry_config = resolve_build_and_registry_config(
             self.default_config, override_build_config, override_registry_config
         )

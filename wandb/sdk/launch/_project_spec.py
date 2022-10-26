@@ -102,6 +102,7 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
+        self.jupyter = launch_spec.get("jupyter")
 
         if overrides.get("entry_point"):
             _logger.info("Adding override entry point")

@@ -1126,6 +1126,12 @@ def sweep(
     default=None,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
+@click.option(
+    "--jupyter",
+    is_flag=True,
+    default=False,
+    help="Pass to launch a run with an optional interactive mode."
+)
 # TODO(gst): fix above help message
 @display_error
 def launch(
@@ -1146,6 +1152,7 @@ def launch(
     cuda,
     build,
     repository,
+    jupyter,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
@@ -1262,6 +1269,7 @@ def launch(
             build=build,
             run_id=run_id,
             repository=repository,
+            jupyter=jupyter,
         )
 
 
