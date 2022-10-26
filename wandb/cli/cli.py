@@ -1742,6 +1742,8 @@ def put(path, name, description, type, alias):
     artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
     # Re-create the artifact and actually upload any files needed
     run.log_artifact(artifact, aliases=alias)
+    artifact.wait()
+
     wandb.termlog(
         "Artifact uploaded, use this artifact in a run by adding:\n", prefix=False
     )

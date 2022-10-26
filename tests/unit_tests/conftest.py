@@ -965,31 +965,9 @@ class Context:
         self._summary: Optional[pd.DataFrame] = None
         self._config: Optional[Dict[str, Any]] = None
 
-    @classmethod
-    def _merge(
-        cls, source: Dict[str, Any], destination: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Recursively merge two dictionaries.
-        """
-        for key, value in source.items():
-            if isinstance(value, dict):
-                # get node or create one
-                node = destination.setdefault(key, {})
-                cls._merge(value, node)
-            else:
-                if isinstance(value, list):
-                    if key in destination:
-                        destination[key].extend(value)
-                    else:
-                        destination[key] = value
-                else:
-                    destination[key] = value
-        return destination
-
     def upsert(self, entry: Dict[str, Any]) -> None:
         entry_id: str = entry["name"]
-        self._entries[entry_id] = self._merge(entry, self._entries[entry_id])
+        self._entries[entry_id] = wandb.util.merge_dicts(entry, self._entries[entry_id])
 
     # mapping interface
     def __getitem__(self, key: str) -> Any:
