@@ -434,6 +434,9 @@ message LinkArtifactResult {
   string          portfolio_entity = 4;
   string          portfolio_project = 5;
   repeated string portfolio_aliases = 6;
+  string          initiator_entity_name = 7;
+  string          initiator_project_name = 8;
+  string          initiator_run_name = 9;
   _RecordInfo     _info = 200;
  }
 

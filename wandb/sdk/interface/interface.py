@@ -431,6 +431,9 @@ class InterfaceBase:
         link_artifact.portfolio_entity = entity or run.entity
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)
+        link_artifact.initiator_entity_name.extend(run.entity)
+        link_artifact.initiator_project_name.extend(run.project)
+        link_artifact.initiator_run_name.extend(run.name)
 
         self._publish_link_artifact(link_artifact)
 

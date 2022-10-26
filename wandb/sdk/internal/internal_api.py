@@ -2394,6 +2394,9 @@ class Api:
         entity: str,
         project: str,
         aliases: Sequence[str],
+        initiatorEntityName: str,
+        initiatorProjectName: str,
+        initiatorRunName: str,
     ) -> Dict[str, Any]:
         template = """
                 mutation LinkArtifact(
@@ -2431,10 +2434,6 @@ class Api:
         elif client_id:
             replace("ID_TYPE", "$clientID: ID")
             replace("ID_VALUE", "clientID: $clientID")
-
-        initiatorEntityName = self.settings("entity")
-        initiatorProjectName = self.settings("project")
-        initiatorRunName = self.current_run_id
 
         variable_values = {
             "clientID": client_id,
