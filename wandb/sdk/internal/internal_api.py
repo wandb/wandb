@@ -2415,7 +2415,7 @@ class Api:
                             projectName: $projectName,
                             aliases: $aliases,
                             initiatorEntityName: $initiatorEntityName,
-                            initiatorProjectName $initiatorProjectName,
+                            initiatorProjectName: $initiatorProjectName,
                             initiatorRunName: $initiatorRunName,
                             ID_VALUE
                         }) {
