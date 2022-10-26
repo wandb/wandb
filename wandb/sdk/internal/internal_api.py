@@ -2370,7 +2370,7 @@ class Api:
                             projectName: $projectName,
                             aliases: $aliases,
                             initiatorEntityName: $initiatorEntityName,
-                            initiatorProjectName $initiatorProjectName,
+                            initiatorProjectName: $initiatorProjectName,
                             initiatorRunName: $initiatorRunName,
                             ID_VALUE
                         }) {
@@ -2411,6 +2411,7 @@ class Api:
 
         mutation = gql(template)
         response = self.gql(mutation, variable_values=variable_values)
+        logger.info("RESPONSESSSS %s", response)
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
