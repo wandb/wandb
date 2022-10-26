@@ -2359,6 +2359,9 @@ class Api:
                     $entityName: String!,
                     $projectName: String!,
                     $aliases: [ArtifactAliasInput!],
+                    $initiatorEntityName: String,
+                    $initiatorProjectName: String,
+                    $initiatorRunName: String,
                     ID_TYPE
                     ) {
                         linkArtifact(input: {
@@ -2366,6 +2369,9 @@ class Api:
                             entityName: $entityName,
                             projectName: $projectName,
                             aliases: $aliases,
+                            initiatorEntityName: $initiatorEntityName,
+                            initiatorProjectName $initiatorProjectName,
+                            initiatorRunName: $initiatorRunName,
                             ID_VALUE
                         }) {
                             versionIndex
@@ -2384,12 +2390,19 @@ class Api:
             replace("ID_TYPE", "$clientID: ID")
             replace("ID_VALUE", "clientID: $clientID")
 
+        initiatorEntityName = self.settings("entity")
+        initiatorProjectName = self.settings("project")
+        initiatorRunName = self.current_run_id
+
         variable_values = {
             "clientID": client_id,
             "artifactID": server_id,
             "artifactPortfolioName": portfolio_name,
             "entityName": entity,
             "projectName": project,
+            "initiatorEntityName": initiatorEntityName,
+            "initiatorProjectName": initiatorProjectName,
+            "initiatorRunName": initiatorRunName,
             "aliases": [
                 {"alias": alias, "artifactCollectionName": portfolio_name}
                 for alias in aliases
