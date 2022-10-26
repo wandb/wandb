@@ -112,7 +112,9 @@ class GPUAppleStats:
                         time_stamps = [self.t_start] + time_stamps
                         samples = [self.p_start] + samples
                     aggregate = trapezoidal(samples, time_stamps)  # Watt-seconds
-                    stats[self.name.format("energyKiloWattHours")] = aggregate / 3600000
+                    stats[self.name.format("energyKiloWattHours")] = (
+                        aggregate + self.p_start
+                    ) / 3600000
 
                     self.t_start = time_stamps[-1]
                     self.p_start = aggregate
