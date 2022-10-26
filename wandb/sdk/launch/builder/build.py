@@ -324,11 +324,7 @@ def get_entrypoint_setup(
     # this check will always pass, since this is only called in the build case where
     # the project_dir is set
     assert launch_project.project_dir is not None
-
-    wandb.termlog("JUPYT: ", entry_point.command)
-    if "jupyter" in entry_point.command:
-        return JUPYTER_TEMPLATE
-
+    
     with open(os.path.join(launch_project.project_dir, DEFAULT_ENTRYPOINT), "w") as fp:
         fp.write(BASH_ENTRYPOINT)
     return ENTRYPOINT_TEMPLATE.format(

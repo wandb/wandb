@@ -160,6 +160,7 @@ class LaunchAgent:
             launch_spec["overrides"]["args"] = util._user_args_to_dict(
                 launch_spec["overrides"].get("args", [])
             )
+        print(f"{launch_spec=}")
         self._validate_and_fix_spec_project_entity(launch_spec)
 
         project = create_project_from_spec(launch_spec, self._api)
@@ -176,13 +177,14 @@ class LaunchAgent:
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
         override_build_config = launch_spec.get("build")
-        override_registry_config = launch_spec.get("registry")
+        override_registry_config = launch_spec.get("registry", {})
 
         if launch_spec["jupyter"] == "pending":
             override_registry_config["url"] = "gtarpenning/jupyter-server"
             build_config, registry_config = resolve_build_and_registry_config(
                 self.default_config, override_build_config, override_registry_config
             )
+            print(f"{build_config=}, {registry_config=}")
             builder = load_builder(build_config)
 
             default_runner = self.default_config.get("runner", {}).get("type")

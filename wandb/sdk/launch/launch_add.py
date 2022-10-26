@@ -14,28 +14,6 @@ from wandb.sdk.launch.utils import (
 )
 
 
-
-JUPYTER_ENTRYPOINT = """
-import wandb
-import subprocess
-
-out = subprocess.run(["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"], capture_output=True)
-
-list1 = subprocess.run(["jupyter", "lab", "list", "--json"], )
-blob = json.loads(str(sys.stdin.read()).split(n)[0])
-
-
-"""
-
-
-
-
-
-
-
-
-
-
 def push_to_queue(api: Api, queue_name: str, launch_spec: Dict[str, Any]) -> Any:
     try:
         res = api.push_to_run_queue(queue_name, launch_spec)
