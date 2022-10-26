@@ -433,7 +433,7 @@ class InterfaceBase:
         link_artifact.portfolio_aliases.extend(aliases)
         link_artifact.initiator_entity_name = run.entity
         link_artifact.initiator_project_name = run.project
-        link_artifact.initiator_run_name = run.name
+        link_artifact.initiator_run_name = run.id
 
         self._publish_link_artifact(link_artifact)
 
