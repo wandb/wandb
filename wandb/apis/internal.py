@@ -131,6 +131,9 @@ class Api:
     def create_artifact(self, *args, **kwargs):
         return self.api.create_artifact(*args, **kwargs)
 
+    def link_artifact(self, *args, **kwargs):
+        return self.api.link_artifact(*args, **kwargs)
+
     def run_config(self, *args, **kwargs):
         return self.api.run_config(*args, **kwargs)
 
