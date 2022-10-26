@@ -25,10 +25,18 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 82  # mmengine
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 83  # diffusers
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 84  # evaluate
 """
 
 import keras_cv  # noqa: F401
 import mmengine  # noqa: F401
+import diffusers  # noqa: F401
+import evaluate  # noqa: F401
 import wandb
 
 run = wandb.init()

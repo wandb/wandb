@@ -1,2 +1,4 @@
 keras-cv
 mmengine
+diffusers
+evaluate

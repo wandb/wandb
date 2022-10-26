@@ -108,6 +108,8 @@ message Imports {
   bool albumentations = 80;
   bool keras_cv = 81;
   bool mmengine = 82;
+  bool diffusers = 83;
+  bool evaluate = 84;
 }
 
 message Feature {
