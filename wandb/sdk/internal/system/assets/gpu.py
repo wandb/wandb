@@ -366,7 +366,7 @@ class GPUEnergyKiloWattHours:
             aggregate = trapezoidal(p, t)
             stats[self.name.format(i)] = (
                 aggregate + self.p_start[i]
-            ) / 3600000  # Watt-seconds to kWh
+            )  # / 3600000  # Watt-seconds to kWh
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
             if gpu_in_use_by_this_process(handle, self.pid):
