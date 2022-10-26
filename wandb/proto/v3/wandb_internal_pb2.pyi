@@ -1309,6 +1309,9 @@ class LinkArtifactRecord(google.protobuf.message.Message):
     PORTFOLIO_ENTITY_FIELD_NUMBER: builtins.int
     PORTFOLIO_PROJECT_FIELD_NUMBER: builtins.int
     PORTFOLIO_ALIASES_FIELD_NUMBER: builtins.int
+    INITIATOR_ENTITY_NAME_FIELD_NUMBER: builtins.int
+    INITIATOR_PROJECT_NAME_FIELD_NUMBER: builtins.int
+    INITIATOR_RUN_NAME_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     client_id: builtins.str
     server_id: builtins.str
@@ -1317,6 +1320,9 @@ class LinkArtifactRecord(google.protobuf.message.Message):
     portfolio_project: builtins.str
     @property
     def portfolio_aliases(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    initiator_entity_name: builtins.str
+    initiator_project_name: builtins.str
+    initiator_run_name: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -1328,10 +1334,13 @@ class LinkArtifactRecord(google.protobuf.message.Message):
         portfolio_entity: builtins.str = ...,
         portfolio_project: builtins.str = ...,
         portfolio_aliases: collections.abc.Iterable[builtins.str] | None = ...,
+        initiator_entity_name: builtins.str = ...,
+        initiator_project_name: builtins.str = ...,
+        initiator_run_name: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "initiator_entity_name", b"initiator_entity_name", "initiator_project_name", b"initiator_project_name", "initiator_run_name", b"initiator_run_name", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
 
 global___LinkArtifactRecord = LinkArtifactRecord
 
