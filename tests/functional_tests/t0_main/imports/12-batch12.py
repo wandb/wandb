@@ -33,10 +33,10 @@ assert:
     - 84  # evaluate
 """
 
-import keras_cv  # noqa: F401
-import mmengine  # noqa: F401
 import diffusers  # noqa: F401
 import evaluate  # noqa: F401
+import keras_cv  # noqa: F401
+import mmengine  # noqa: F401
 import wandb
 
 run = wandb.init()
