@@ -10,6 +10,7 @@ try:
 except ImportError:
     psutil = None
 
+import wandb
 from wandb.vendor.pynvml import pynvml
 
 from .aggregators import aggregate_mean, trapezoidal
@@ -363,7 +364,7 @@ class GPUEnergyKiloWattHours:
                 t = [self.t_start[i]] + t
                 p = [self.p_start[i]] + p
             aggregate = trapezoidal(p, t)
-            print(t, p, aggregate)
+            wandb.termwarn(f"{t}, {p}, {aggregate}")
             stats[self.name.format(i)] = aggregate / 3600000  # Watt-seconds to kWh
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
