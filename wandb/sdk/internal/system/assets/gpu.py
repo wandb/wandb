@@ -334,7 +334,7 @@ class GPUEnergyKiloWattHours:
 
         self.t_start: Dict[int, float] = dict()
         self.p_start: Dict[int, float] = dict()
-        self.p_total: Dict[int, float] = dict()
+        self.p_total: Dict[int, float] = defaultdict(float)
 
     def sample(self) -> None:
         power_usage = []
