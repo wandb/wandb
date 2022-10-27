@@ -220,14 +220,19 @@ class KanikoBuilder(AbstractBuilder):
         entrypoint: EntryPoint,
         docker_args: Dict[str, Any],
     ) -> str:
-
-        if repository is None:
+        if not repository:
             raise LaunchError("repository is required for kaniko builder")
+
+        if launch_project.jupyter == "pending":
+            entrypoint = EntryPoint(name="jupyter", command=["python", "-m", "jupyter", "lab", "--ip", "0.0.0.0", "--port=8888", "--no-browser", "--allow-root"])
+            launch_project.deps_type = "pip"
+            repository = "gtarpenning/jupyter-server"
 
         image_uri = f"{repository}:{launch_project.image_tag}"
         wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
         if not self.check_build_required(repository, launch_project):
             return image_uri
+
         entry_cmd = " ".join(
             get_entry_point_command(entrypoint, launch_project.override_args)
         )
@@ -250,8 +255,13 @@ class KanikoBuilder(AbstractBuilder):
         _, api_client = get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
+
         build_job_name = f"{self.build_job_name}-{run_id}"
         config_map_name = f"{self.config_map_name}-{run_id}"
+
+        if launch_project.jupyter == "pending":
+            build_job_name += "-jupyter"
+            config_map_name += "-jupyter"
 
         build_context = self._upload_build_context(run_id, context_path)
         dockerfile_config_map = _create_dockerfile_configmap(
@@ -265,10 +275,6 @@ class KanikoBuilder(AbstractBuilder):
             build_context,
         )
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job: {build_job_name}")
-
-        if launch_project.override_config.get("run_config", {}).get("jupyter"):
-            juptyer_server = self._create_jupyter_server()
-            print(juptyer_server)
 
         # TODO: use same client as kuberentes.py
         batch_v1 = client.BatchV1Api(api_client)
@@ -396,5 +402,27 @@ class KanikoBuilder(AbstractBuilder):
             ),
             spec=spec,
         )
+
+        ## HACK JUPYTER 
+
+        # template = client.V1PodTemplateSpec(
+        #     metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
+        #     spec=client.V1PodSpec(
+        #         restart_policy="Never",
+        #         active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
+        #         containers=[container],
+        #         volumes=volumes,
+        #     ),
+        # )
+        # # Create the specification of job
+        # spec = client.V1JobSpec(template=template, backoff_limit=1)
+        # job = client.V1Job(
+        #     api_version="batch/v1",
+        #     kind="Job",
+        #     metadata=client.V1ObjectMeta(
+        #         name=job_name, namespace="wandb", labels={"wandb": "launch"}
+        #     ),
+        #     spec=spec,
+        # )
 
         return job
