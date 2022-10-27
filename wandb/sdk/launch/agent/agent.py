@@ -180,7 +180,7 @@ class LaunchAgent:
         override_registry_config = launch_spec.get("registry", {})
 
         if launch_spec["jupyter"] == "pending":
-            override_registry_config["url"] = "gtarpenning/jupyter-server"
+            # override_registry_config["url"] = "gtarpenning/jupyter-server"
             build_config, registry_config = resolve_build_and_registry_config(
                 self.default_config, override_build_config, override_registry_config
             )
