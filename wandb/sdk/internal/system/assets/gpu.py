@@ -334,6 +334,7 @@ class GPUEnergyKiloWattHours:
 
         self.t_start: Dict[int, float] = dict()
         self.p_start: Dict[int, float] = dict()
+        self.p_total: Dict[int, float] = dict()
 
     def sample(self) -> None:
         power_usage = []
@@ -363,8 +364,10 @@ class GPUEnergyKiloWattHours:
             if self.t_start and self.p_start:
                 t = [self.t_start[i]] + t
                 p = [self.p_start[i]] + p
-            aggregate = trapezoidal(p, t) + self.p_start[i]
-            stats[self.name.format(i)] = aggregate / 3600000  # Watt-seconds to kWh
+            aggregate = trapezoidal(p, t)
+            stats[self.name.format(i)] = (
+                aggregate + self.p_start[i]
+            ) / 3600000  # Watt-seconds to kWh
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
             if gpu_in_use_by_this_process(handle, self.pid):
@@ -372,6 +375,7 @@ class GPUEnergyKiloWattHours:
 
             self.t_start[i] = t[-1]
             self.p_start[i] = aggregate
+            self.p_total[i] += aggregate
 
         return stats
 
