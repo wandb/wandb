@@ -226,7 +226,7 @@ class KanikoBuilder(AbstractBuilder):
         if launch_project.jupyter == "pending":
             entrypoint = EntryPoint(name="jupyter", command=["python", "-m", "jupyter", "lab", "--ip", "0.0.0.0", "--port=8888", "--no-browser", "--allow-root"])
             launch_project.deps_type = "pip"
-            repository = "gtarpenning/jupyter-server"
+            # repository = "gtarpenning/jupyter-server"
 
         image_uri = f"{repository}:{launch_project.image_tag}"
         wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
