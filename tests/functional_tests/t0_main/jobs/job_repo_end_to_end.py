@@ -59,4 +59,4 @@ assert (
 )
 assert "requirements.frozen.txt" in os.listdir(lp.project_dir)
 print(command)
-assert lp.override_args == ["--log-test"]
+assert lp.override_args == {"--log-test": True}
