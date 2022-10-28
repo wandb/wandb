@@ -4195,6 +4195,7 @@ class Artifact(artifacts.Artifact):
             if not re.match(r"^v\d+$", a["alias"])
             and a["artifactCollectionName"] == self._sequence_name
         ]
+        self._better_aliases = [a for a in self._attrs["aliases"] if not re.match(r"^v\d+$", a["alias"])]
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4708,10 +4709,10 @@ class Artifact(artifacts.Artifact):
                 "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
                 "aliases": [
                     {
-                        "artifactCollectionName": self._sequence_name,
-                        "alias": alias,
+                        "artifactCollectionName": alias["artifactCollectionName"],
+                        "alias": alias["alias"],
                     }
-                    for alias in self._aliases
+                    for alias in self._better_aliases
                 ],
             },
         )
