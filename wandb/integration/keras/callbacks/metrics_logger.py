@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import tensorflow as tf
 from tensorflow.keras import callbacks  # type: ignore
@@ -72,28 +72,38 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.define_metric("batch/batch_step")
             # set all batch metrics to be logged against batch_step.
             wandb.define_metric("batch/*", step_metric="batch/batch_step")
+        else:
+            # define custom x-axis for epoch-wise logging.
+            wandb.define_metric("epoch/epoch")
+            # set all epoch-wise metrics to be logged against epoch.
+            wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
     def _get_lr(self) -> Union[float, None]:
         if isinstance(self.model.optimizer.learning_rate, tf.Variable):
             return float(self.model.optimizer.learning_rate.numpy().item())
-        elif isinstance(self.model.optimizer.learning_rate, Callable):
-            float(
+        try:
+            return float(
                 self.model.optimizer.learning_rate(step=self.global_step).numpy().item()
             )
-        wandb.termerror("Unable to log learning rate.")
-        return None
+        except Exception:
+            wandb.termerror("Unable to log learning rate.", repeat=False)
+            return None
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
-        wandb.log({"epoch": epoch}, commit=False)
-
         if logs is None:
             logs = dict()
+        else:
+            logs = {f"epoch/{k}": v for k, v in logs.items()}
+
+        logs["epoch/epoch"] = epoch
+
         if not isinstance(self.log_freq, int):
             lr = self._get_lr()
             if lr is not None:
-                logs["learning_rate"] = lr
-        wandb.log(logs or {}, commit=True)
+                logs["epoch/learning_rate"] = lr
+
+        wandb.log(logs)
 
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         self.global_step += 1
@@ -106,7 +116,7 @@ class WandbMetricsLogger(callbacks.Callback):
             if lr is not None:
                 logs["batch/learning_rate"] = lr
 
-            wandb.log(logs, commit=True)
+            wandb.log(logs)
 
             self.global_batch += self.log_freq
 
@@ -114,4 +124,4 @@ class WandbMetricsLogger(callbacks.Callback):
         self, batch: int, logs: Optional[Dict[str, Any]] = None
     ) -> None:
         """Called at the end of a training batch in `fit` methods."""
-        self.on_batch_end(batch, logs or {})
+        self.on_batch_end(batch, logs if logs else {})
