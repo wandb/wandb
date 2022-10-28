@@ -316,8 +316,12 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
             if line.startswith("#"):  # Ignore comments
                 continue
             elif "git+" in line or "hg+" in line:
-                _name = line.split("#egg=")[1]
-                _version = line.split("@")[-1].split("#")[0]
+                if " @ git+" in line:
+                    _name = line.split(" ")[0]
+                    _version = line.split("@")[-1]
+                else:
+                    _name = line.split("#egg=")[1]
+                    _version = line.split("@")[-1].split("#")[0]
             elif "==" in line:
                 _s = line.split("==")
                 _name = _s[0].lower()
