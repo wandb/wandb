@@ -356,12 +356,12 @@ class GPUEnergyKiloWattHours:
             t = [sample[0] for sample in samples]
             p = [sample[1] for sample in samples]
 
-            if not self.t_start.get(i) and len(t) == 1:
+            if self.t_start.get(i) is None and len(t) == 1:
                 self.t_start[i] = t[-1]
                 self.p_start[i] = p[-1]
                 continue
 
-            if self.t_start and self.p_start:
+            if self.t_start.get(i) is not None:
                 t = [self.t_start[i]] + t
                 p = [self.p_start[i]] + p
             aggregate = trapezoidal(p, t)
@@ -371,7 +371,9 @@ class GPUEnergyKiloWattHours:
 
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)  # type: ignore
             if gpu_in_use_by_this_process(handle, self.pid):
-                stats[self.name.format(f"process.{i}")] = aggregate
+                stats[self.name.format(f"process.{i}")] = (
+                    aggregate + self.p_total[i]
+                ) / 3600000
 
             self.t_start[i] = t[-1]
             self.p_start[i] = aggregate
