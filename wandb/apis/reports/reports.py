@@ -922,6 +922,7 @@ class RunSet(Base):
     @staticmethod
     def _default_runset_spec():
         return {
+            "id": generate_name(),
             "runFeed": {
                 "version": 2,
                 "columnVisible": {"run:name": False},
