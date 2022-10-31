@@ -159,12 +159,16 @@ def _launch_add(
 
         launch_project = create_project_from_spec(launch_spec, api)
         docker_image_uri = build_image_from_project(launch_project, api, config)
-        run = wandb.run or wandb.init(project=project, job_type="launch_job")
+        run = wandb.run or wandb.init(
+            project=launch_spec["project"],
+            entity=launch_spec["entity"],
+            job_type="launch_job",
+        )
 
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
         job_name = job_artifact.wait().name
 
-        job = f"{launch_spec.get('entity')}/{project}/{job_name}"
+        job = f"{launch_spec['entity']}/{launch_spec['project']}/{job_name}"
         launch_spec["job"] = job
         launch_spec["uri"] = None  # Remove given URI --> now in job
 
@@ -179,8 +183,6 @@ def _launch_add(
     wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
-    queued_run_entity = launch_spec.get("entity")
-    queued_run_project = launch_spec.get("project")
     container_job = False
     if job:
         job_artifact = public_api.job(job)
@@ -188,8 +190,8 @@ def _launch_add(
             container_job = True
 
     queued_run = public_api.queued_run(
-        queued_run_entity,
-        queued_run_project,
+        launch_spec["entity"],
+        launch_spec["project"],
         queue_name,
         res["runQueueItemId"],
         container_job,

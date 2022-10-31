@@ -1,5 +1,4 @@
 import json
-import time
 
 import pytest
 import wandb
@@ -38,11 +37,11 @@ def test_launch_build_succeeds(
     runner,
     args,
     override_config,
-    # wandb_init,
+    wandb_init,
     test_settings,
 ):
     proj = "testing123"
-    # settings = test_settings({"project": proj})
+    settings = test_settings({"project": proj})
     base_args = [
         "https://github.com/wandb/examples.git",
         "--entity",
@@ -73,21 +72,16 @@ def test_launch_build_succeeds(
         lambda *args, **kwargs: patched_launch_add(*args, **kwargs),
     )
 
-    api = wandb.sdk.internal.internal_api.Api()
-    run = wandb.init(project=proj)
-    time.sleep(2)
-
     with runner.isolated_filesystem(), relay_server():
+        api = wandb.sdk.internal.internal_api.Api(default_settings=settings)
+        run = wandb_init(settings=settings)
         api.create_run_queue(
             entity=user, project=proj, queue_name=QUEUE_NAME, access="USER"
         )
-        time.sleep(2)
         result = runner.invoke(cli.launch, base_args + args)
-        time.sleep(2)
+        run.finish()
 
         assert result.exit_code == 0
-
-    run.finish()
 
 
 @pytest.mark.timeout(100)
@@ -102,7 +96,7 @@ def test_launch_build_fails(
     monkeypatch,
     runner,
     args,
-    # wandb_init,
+    wandb_init,
 ):
     base_args = [
         "https://foo:bar@github.com/FooTest/Foo.git",
@@ -131,12 +125,11 @@ def test_launch_build_fails(
         "wandb.docker",
         lambda: "ur mom",
     )
-    run = wandb.init()
-    time.sleep(2)
 
     with runner.isolated_filesystem(), relay_server():
+        run = wandb_init()
         result = runner.invoke(cli.launch, base_args + args)
-        time.sleep(2)
+        run.finish()
 
         if args == ["--build"]:
             assert result.exit_code == 1
@@ -147,8 +140,6 @@ def test_launch_build_fails(
                 "Option '--build' does not take a value" in result.output
                 or "Error: --build option does not take a value" in result.output
             )
-
-    run.finish()
 
 
 @pytest.mark.timeout(300)
@@ -163,12 +154,17 @@ def test_launch_repository_arg(
     runner,
     args,
     user,
-    # wandb_init,
+    wandb_init,
+    test_settings,
 ):
+    proj = "testing123"
+    settings = test_settings({"project": proj})
     base_args = [
         "https://github.com/wandb/examples",
         "--entity",
         user,
+        "--project",
+        proj,
     ]
 
     def patched_run(
@@ -217,16 +213,13 @@ def test_launch_repository_arg(
         "wandb.docker",
         lambda: "ur mom",
     )
-    run = wandb.init()
-    time.sleep(2)
 
     with runner.isolated_filesystem(), relay_server():
+        run = wandb_init(settings=settings)
         result = runner.invoke(cli.launch, base_args + args)
-        time.sleep(2)
+        run.finish()
 
         if "--respository=" in args:  # incorrect param
             assert result.exit_code == 2
         else:
             assert result.exit_code == 0
-
-    run.finish()
