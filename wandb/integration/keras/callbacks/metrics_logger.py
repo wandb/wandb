@@ -122,6 +122,8 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.log(logs)
 
             self.global_batch += self.log_freq
+
+        if self.log_freq == "batch" or isinstance(self.log_freq, int):
             wandb.log({})
 
     def on_train_batch_end(
