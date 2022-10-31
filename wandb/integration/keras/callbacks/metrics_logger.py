@@ -105,6 +105,9 @@ class WandbMetricsLogger(callbacks.Callback):
 
         wandb.log(logs)
 
+        if self.log_freq == "epoch":
+            wandb.log({})
+
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         self.global_step += 1
         """An alias for `on_train_batch_end` for backwards compatibility."""
@@ -119,6 +122,7 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.log(logs)
 
             self.global_batch += self.log_freq
+            wandb.log({})
 
     def on_train_batch_end(
         self, batch: int, logs: Optional[Dict[str, Any]] = None
