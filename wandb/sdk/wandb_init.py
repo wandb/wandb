@@ -25,6 +25,7 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
+from wandb.integration.mlflow import hook_mlflow
 from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
@@ -1114,4 +1115,10 @@ def init(
             if except_exit:
                 os._exit(-1)
             raise Exception("problem") from error_seen
+    try:
+        import mlflow
+
+        hook_mlflow(mlflow)
+    except ImportError:
+        pass
     return run
