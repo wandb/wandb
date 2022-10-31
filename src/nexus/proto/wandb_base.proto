@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+/*
+ * _RecordInfo, _RequestInfo: extra info for all records and requests
+ */
+message _RecordInfo {
+  string stream_id = 1;
+  string _tracelog_id = 100;
+}
+
+message _RequestInfo {
+  string stream_id = 1;
+}
+
+/*
+ * _ResultInfo: extra info for all results
+ */
+message _ResultInfo {
+  string _tracelog_id = 100;
+}

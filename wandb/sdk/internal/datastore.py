@@ -23,6 +23,9 @@ import zlib
 
 import wandb
 
+# TODO: make this optional?
+import google_crc32c
+
 logger = logging.getLogger(__name__)
 
 LEVELDBLOG_HEADER_LEN = 7
@@ -38,7 +41,9 @@ LEVELDBLOG_HEADER_IDENT = ":W&B"
 LEVELDBLOG_HEADER_MAGIC = (
     0xBEE1  # zlib.crc32(bytes("Weights & Biases", 'iso8859-1')) & 0xffff
 )
-LEVELDBLOG_HEADER_VERSION = 0
+LEVELDBLOG_HEADER_VERSION_0 = 0  # Original crc32 checksum
+LEVELDBLOG_HEADER_VERSION_1 = 1  # Use crc32c extended leveldb checksum
+LEVELDBLOG_HEADER_VERSIONS = {LEVELDBLOG_HEADER_VERSION_0, LEVELDBLOG_HEADER_VERSION_1}
 
 try:
     bytes("", "ascii")
@@ -65,6 +70,12 @@ class DataStore:
         self._crc = [0] * (LEVELDBLOG_LAST + 1)
         for x in range(1, LEVELDBLOG_LAST + 1):
             self._crc[x] = zlib.crc32(strtobytes(chr(x))) & 0xFFFFFFFF
+
+        self._crc32c = [0] * (LEVELDBLOG_LAST + 1)
+        for x in range(1, LEVELDBLOG_LAST + 1):
+            self._crc32c[x] = google_crc32c.value(strtobytes(chr(x))) & 0xFFFFFFFF
+
+        self._use_crc32c_ext = False
 
         assert (
             wandb._assert_is_internal_process
@@ -115,7 +126,15 @@ class DataStore:
         # check len, better fit in the block
         self._index += LEVELDBLOG_HEADER_LEN
         data = self._fp.read(dlength)
-        checksum_computed = zlib.crc32(data, self._crc[dtype]) & 0xFFFFFFFF
+
+        if self._use_crc32c_ext:
+            checksum_computed_crc32c = google_crc32c.extend(self._crc32c[dtype], data) & 0xFFFFFFFF
+            checksum_computed = ((
+                    ((checksum_computed_crc32c >> 15) & 0xFFFFFFFF) |
+                    ((checksum_computed_crc32c << 17) & 0xFFFFFFFF)
+                    ) + 0xa282ead8) & 0xFFFFFFFF
+        else:
+            checksum_computed = zlib.crc32(data, self._crc[dtype]) & 0xFFFFFFFF
         assert (
             checksum == checksum_computed
         ), "record checksum is invalid, data may be corrupt"
@@ -162,11 +181,14 @@ class DataStore:
         return data
 
     def _write_header(self):
+        # default to version 0 for now
+        leveldblog_version = LEVELDBLOG_HEADER_VERSION_0
+
         data = struct.pack(
             "<4sHB",
             strtobytes(LEVELDBLOG_HEADER_IDENT),
             LEVELDBLOG_HEADER_MAGIC,
-            LEVELDBLOG_HEADER_VERSION,
+            leveldblog_version,
         )
         assert (
             len(data) == LEVELDBLOG_HEADER_LEN
@@ -188,8 +210,10 @@ class DataStore:
             raise Exception("Invalid header")
         if magic != LEVELDBLOG_HEADER_MAGIC:
             raise Exception("Invalid header")
-        if version != LEVELDBLOG_HEADER_VERSION:
-            raise Exception("Invalid header")
+        if version not in LEVELDBLOG_HEADER_VERSIONS:
+            raise Exception(f"Unsupported wandb log version ({version})")
+        if version == LEVELDBLOG_HEADER_VERSION_1:
+            self._use_crc32c_ext = True
         self._index += len(header)
 
     def _write_record(self, s, dtype=None):

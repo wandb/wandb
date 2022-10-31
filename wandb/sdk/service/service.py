@@ -86,9 +86,16 @@ class _Service:
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
-            service_args = [
-                "wandb",
-                "service",
+
+            wbservice = os.environ.get("WBSERVICE")
+            service_args = []
+            if wbservice:
+                exec_cmd_list = []
+                service_args += [ wbservice ]
+            else:
+                service_args += [ "wandb", "service", ]
+
+            service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
