@@ -150,7 +150,11 @@ def test_launch_build_fails(
 @pytest.mark.timeout(300)
 @pytest.mark.parametrize(
     "args",
-    [(["--repository=test_repo", "--resource=local"]), (["--repository="]), (["--repository"])],
+    [
+        (["--repository=test_repo", "--resource=local"]),
+        (["--repository="]),
+        (["--repository"]),
+    ],
     ids=["set repository", "set repository empty", "set repository empty2"],
 )
 def test_launch_repository_arg(
