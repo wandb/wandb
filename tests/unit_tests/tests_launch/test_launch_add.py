@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from unittest import mock
 
 import pytest
@@ -89,19 +90,17 @@ def test_launch_build_push_job(
     launch_config,
     override_config,
     mocked_fetchable_git_repo,
+    wandb_init,
+    test_settings,
 ):
     release_image = "THISISANIMAGETAG"
     queue = "test_queue"
-    proj = "test"
+    proj = "test8"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
-
+    settings = test_settings({"project": proj})
     internal_api = InternalApi()
     public_api = PublicApi()
-    os.environ["WANDB_PROJECT"] = proj  # required for artifact query
-
-    # create project
-    run = wandb.init(project=proj)
 
     def patched_validate_docker_installation():
         return None
@@ -140,6 +139,10 @@ def test_launch_build_push_job(
     )
 
     with relay_server(), runner.isolated_filesystem():
+        # create project
+        run = wandb_init(settings=settings)
+        time.sleep(2)
+
         os.makedirs(os.path.expanduser("./config/wandb"))
         with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
             json.dump(launch_config, f)
@@ -171,14 +174,15 @@ def test_launch_build_push_job(
         assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{release_image}:v0"
 
         job = public_api.job(rqi["runSpec"]["job"])
+        run.finish()
 
         assert job._source_info["source"]["image"] == release_image
 
-    run.finish()
 
-
-def test_launch_add_default(relay_server, user, mocked_fetchable_git_repo):
-    proj = "test_project"
+def test_launch_add_default(
+    relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
+):
+    proj = "test_project1"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
     args = {
@@ -188,11 +192,12 @@ def test_launch_add_default(relay_server, user, mocked_fetchable_git_repo):
         "queue_name": "default",
         "entry_point": entry_point,
     }
-
-    run = wandb.init(project=proj)
+    settings = test_settings({"project": proj})
 
     with relay_server() as relay:
+        run = wandb_init(settings=settings)
         queued_run = launch_add(**args)
+        run.finish()
 
     assert queued_run.id
     assert queued_run.state == "pending"
@@ -209,11 +214,11 @@ def test_launch_add_default(relay_server, user, mocked_fetchable_git_repo):
         elif q and "mutation pushToRunQueue(" in str(q):
             assert comm["response"]["data"]["pushToRunQueue"] is not None
 
-    run.finish()
 
-
-def test_push_to_runqueue_exists(relay_server, user, mocked_fetchable_git_repo):
-    proj = "test_project"
+def test_push_to_runqueue_exists(
+    relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
+):
+    proj = "test_project2"
     queue = "existing-queue"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
@@ -225,15 +230,18 @@ def test_push_to_runqueue_exists(relay_server, user, mocked_fetchable_git_repo):
         "entry_point": entry_point,
     }
 
-    run = wandb.init(project=proj)
-    api = wandb.sdk.internal.internal_api.Api()
+    settings = test_settings({"project": proj})
 
     with relay_server() as relay:
+        run = wandb_init(settings=settings)
+        api = wandb.sdk.internal.internal_api.Api()
         api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
 
         result = api.push_to_run_queue(queue, args)
 
         assert result["runQueueItemId"]
+
+        run.finish()
 
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
@@ -242,16 +250,16 @@ def test_push_to_runqueue_exists(relay_server, user, mocked_fetchable_git_repo):
         elif q and "mutation pushToRunQueue(" in str(q):
             raise Exception("should not be falling back to legacy here")
 
-    run.finish()
-
 
 def test_push_to_default_runqueue_notexist(
-    relay_server, user, mocked_fetchable_git_repo
+    relay_server, user, mocked_fetchable_git_repo, test_settings, wandb_init
 ):
     api = wandb.sdk.internal.internal_api.Api()
-    proj = "test_project"
+    proj = "test_project54"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
+
+    settings = test_settings({"project": proj})
 
     launch_spec = {
         "uri": uri,
@@ -259,20 +267,24 @@ def test_push_to_default_runqueue_notexist(
         "project": proj,
         "entry_point": entry_point,
     }
-    run = wandb.init(project=proj)
 
     with relay_server():
+        run = wandb_init(settings=settings)
         res = api.push_to_run_queue("nonexistent-queue", launch_spec)
+        run.finish()
 
         assert not res
 
-    run.finish()
-
 
 def test_push_to_runqueue_old_server(
-    relay_server, user, monkeypatch, mocked_fetchable_git_repo
+    relay_server,
+    user,
+    monkeypatch,
+    mocked_fetchable_git_repo,
+    test_settings,
+    wandb_init,
 ):
-    proj = "test_project"
+    proj = "test_project0"
     queue = "existing-queue"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
@@ -283,9 +295,7 @@ def test_push_to_runqueue_old_server(
         "queue": "default",
         "entry_point": entry_point,
     }
-
-    run = wandb.init(project=proj)
-    api = wandb.sdk.internal.internal_api.Api()
+    settings = test_settings({"project": proj})
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.push_to_run_queue_by_name",
@@ -293,18 +303,22 @@ def test_push_to_runqueue_old_server(
     )
 
     with relay_server():
+        run = wandb_init(settings=settings)
+        api = wandb.sdk.internal.internal_api.Api()
+
         api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
 
         result = api.push_to_run_queue(queue, args)
+        run.finish()
 
         assert result["runQueueItemId"]
 
-    run.finish()
 
-
-def test_push_with_repository(relay_server, user, mocked_fetchable_git_repo):
+def test_push_with_repository(
+    relay_server, user, mocked_fetchable_git_repo, test_settings, wandb_init
+):
     api = wandb.sdk.internal.internal_api.Api()
-    proj = "test_project"
+    proj = "test_project99"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
 
@@ -315,11 +329,11 @@ def test_push_with_repository(relay_server, user, mocked_fetchable_git_repo):
         "entry_point": entry_point,
         "registry": {"url": "repo123"},
     }
-    run = wandb.init(project=proj)
+    settings = test_settings({"project": proj})
 
     with relay_server():
+        run = wandb_init(settings=settings)
         res = api.push_to_run_queue("nonexistent-queue", launch_spec)
+        run.finish()
 
         assert not res
-
-    run.finish()

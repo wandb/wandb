@@ -1,24 +1,21 @@
-import os
 
-import wandb
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
 
 
-def test_launch_delete_queued_run(relay_server, runner, user, monkeypatch):
+def test_launch_delete_queued_run(
+    relay_server, runner, user, monkeypatch, wandb_init, test_settings
+):
     queue = "default"
-    proj = "test"
+    proj = "test2"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    settings = test_settings({"project": proj})
 
     api = InternalApi()
-    os.environ["WANDB_PROJECT"] = proj  # required for artifact query
-
-    # create project
-    run = wandb.init(project=proj)
-    run.finish()
 
     with relay_server():
+        run = wandb_init(settings=settings)
         api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
@@ -35,21 +32,21 @@ def test_launch_delete_queued_run(relay_server, runner, user, monkeypatch):
 
         queued_run.delete()
 
+        run.finish()
 
-def test_launch_repository(relay_server, runner, user, monkeypatch):
+
+def test_launch_repository(
+    relay_server, runner, user, monkeypatch, wandb_init, test_settings
+):
     queue = "default"
-    proj = "test"
+    proj = "test1"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
-
+    settings = test_settings({"project": proj})
     api = InternalApi()
-    os.environ["WANDB_PROJECT"] = proj  # required for artifact query
-
-    # create project
-    run = wandb.init(project=proj)
-    run.finish()
 
     with relay_server():
+        run = wandb_init(settings=settings)
         api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
@@ -66,3 +63,4 @@ def test_launch_repository(relay_server, runner, user, monkeypatch):
         assert queued_run.state == "pending"
 
         queued_run.delete()
+        run.finish()

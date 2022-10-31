@@ -41,7 +41,7 @@ def test_launch_build_succeeds(
     wandb_init,
     test_settings,
 ):
-    proj = "testing123"
+    proj = "testing1234"
     settings = test_settings({"project": proj})
     base_args = [
         "https://github.com/wandb/examples.git",
@@ -61,9 +61,12 @@ def test_launch_build_succeeds(
     )
 
     def patched_launch_add(*args, **kwargs):
-        assert kwargs["build"]
+        if not kwargs.get("build"):
+            raise Exception(kwargs)
+
         if "--repository" in args:
-            assert kwargs["repository"]
+            if not kwargs.get("repository"):
+                raise Exception(kwargs)
 
         if args[3]:  # config
             assert args[3] == override_config
@@ -80,9 +83,7 @@ def test_launch_build_succeeds(
         api.create_run_queue(
             entity=user, project=proj, queue_name=QUEUE_NAME, access="USER"
         )
-        time.sleep(1)
         result = runner.invoke(cli.launch, base_args + args)
-        time.sleep(1)
         run.finish()
 
         assert result.exit_code == 0
@@ -100,7 +101,6 @@ def test_launch_build_fails(
     monkeypatch,
     runner,
     args,
-    wandb_init,
 ):
     base_args = [
         "https://foo:bar@github.com/FooTest/Foo.git",
@@ -131,10 +131,7 @@ def test_launch_build_fails(
     )
 
     with runner.isolated_filesystem(), relay_server():
-        run = wandb_init()
-        time.sleep(2)
         result = runner.invoke(cli.launch, base_args + args)
-        run.finish()
 
         if args == ["--build"]:
             assert result.exit_code == 1
@@ -166,14 +163,10 @@ def test_launch_repository_arg(
     wandb_init,
     test_settings,
 ):
-    proj = "testing123"
-    settings = test_settings({"project": proj})
     base_args = [
         "https://github.com/wandb/examples",
         "--entity",
         user,
-        "--project",
-        proj,
     ]
 
     def patched_run(
@@ -224,11 +217,7 @@ def test_launch_repository_arg(
     )
 
     with runner.isolated_filesystem(), relay_server():
-        run = wandb_init(settings=settings)
-        time.sleep(2)
         result = runner.invoke(cli.launch, base_args + args)
-        time.sleep(1)
-        run.finish()
 
         if "--respository=" in args or "--repository" in args:  # incorrect param
             assert result.exit_code == 2
