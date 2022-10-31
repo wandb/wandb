@@ -838,6 +838,7 @@ class RunSet(Base):
         self.pm_query_generator = wandb.apis.public.PythonMongoishQueryGenerator(self)
 
         # self.entity = entity if entity != "" else wandb.Api().default_entity
+        self.id = generate_name()
         self.entity = coalesce(entity, wandb.Api().default_entity, "")
         self.project = project
         self.name = name
