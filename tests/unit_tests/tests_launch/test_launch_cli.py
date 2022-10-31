@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 import wandb
@@ -75,10 +76,13 @@ def test_launch_build_succeeds(
     with runner.isolated_filesystem(), relay_server():
         api = wandb.sdk.internal.internal_api.Api(default_settings=settings)
         run = wandb_init(settings=settings)
+        time.sleep(2)
         api.create_run_queue(
             entity=user, project=proj, queue_name=QUEUE_NAME, access="USER"
         )
+        time.sleep(1)
         result = runner.invoke(cli.launch, base_args + args)
+        time.sleep(1)
         run.finish()
 
         assert result.exit_code == 0
@@ -123,11 +127,12 @@ def test_launch_build_fails(
 
     monkeypatch.setattr(
         "wandb.docker",
-        lambda: "ur mom",
+        lambda: "docker",
     )
 
     with runner.isolated_filesystem(), relay_server():
         run = wandb_init()
+        time.sleep(2)
         result = runner.invoke(cli.launch, base_args + args)
         run.finish()
 
@@ -145,8 +150,8 @@ def test_launch_build_fails(
 @pytest.mark.timeout(300)
 @pytest.mark.parametrize(
     "args",
-    [(["--repository=test_repo", "--resource=local"]), (["--repository="])],
-    ids=["set repository", "set repository empty"],
+    [(["--repository=test_repo", "--resource=local"]), (["--repository="]), (["--repository"])],
+    ids=["set repository", "set repository empty", "set repository empty2"],
 )
 def test_launch_repository_arg(
     relay_server,
@@ -186,7 +191,7 @@ def test_launch_repository_arg(
         run_id,
         repository,
     ):
-        assert repository or "--repository=" in args
+        assert repository or "--repository=" in args or "--repository" in args
 
         return "run"
 
@@ -211,15 +216,17 @@ def test_launch_repository_arg(
 
     monkeypatch.setattr(
         "wandb.docker",
-        lambda: "ur mom",
+        lambda: "testing",
     )
 
     with runner.isolated_filesystem(), relay_server():
         run = wandb_init(settings=settings)
+        time.sleep(2)
         result = runner.invoke(cli.launch, base_args + args)
+        time.sleep(1)
         run.finish()
 
-        if "--respository=" in args:  # incorrect param
+        if "--respository=" in args or "--repository" in args:  # incorrect param
             assert result.exit_code == 2
         else:
             assert result.exit_code == 0
