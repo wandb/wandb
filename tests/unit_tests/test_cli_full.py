@@ -73,12 +73,11 @@ def debug_result(result, prefix=None):
     )
 
 
-def test_init_reinit(runner, empty_netrc, user, local_settings):
+def test_init_reinit(runner, empty_netrc, user):
     print("TESTING INIT REINIT", user)
     with runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.lib.apikey.len", return_value=40
     ):
-        print("<<<<<<<<<<<<<<<", os.getcwd())
         result = runner.invoke(cli.login, [user])
         debug_result(result, "login")
         result = runner.invoke(cli.init, input="y\n\n\n")
@@ -92,12 +91,11 @@ def test_init_reinit(runner, empty_netrc, user, local_settings):
         assert user in generated_wandb
 
 
-def test_init_add_login(runner, empty_netrc, user, local_settings):
+def test_init_add_login(runner, empty_netrc, user):
     print("TESTING INIT ADD LOGIN", user)
     with runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.lib.apikey.len", return_value=40
     ):
-        print(">>>>>>>>>>>>>", os.getcwd())
         with open("netrc", "w") as f:
             f.write("previous config")
         result = runner.invoke(cli.login, [user])
@@ -108,9 +106,7 @@ def test_init_add_login(runner, empty_netrc, user, local_settings):
         with open("netrc") as f:
             generated_netrc = f.read()
         with open("wandb/settings") as f:
-            print(">>>>>>>>>>>>>", os.path.abspath(f.name))
             generated_wandb = f.read()
-            print(generated_wandb)
         assert user in generated_netrc
         assert user in generated_wandb
 
@@ -609,8 +605,15 @@ def test_sync_tensorboard(
 
 
 def test_sync_wandb_run(runner, relay_server, user, copy_asset):
-    with relay_server() as relay, runner.isolated_filesystem():
-        # breakpoint()
+    # note: we have to mock out ArtifactSaver.save
+    # because the artifact does not actually exist
+    # among assets listed in the .wandb file.
+    # this a problem for a real backend that we use now
+    # (as we used to use a mock backend)
+    # todo: create a new test asset that will contain an artifact
+    with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.internal.artifacts.ArtifactSaver.save", return_value=None
+    ):
         copy_asset("wandb")
 
         result = runner.invoke(cli.sync, ["--sync-all"])
@@ -627,9 +630,10 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
         assert "wandb: ERROR Nothing to sync." in result.output
 
 
-@pytest.mark.xfail(reason="TODO: fix this test")
 def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
-    with relay_server() as relay, runner.isolated_filesystem():
+    with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.internal.artifacts.ArtifactSaver.save", return_value=None
+    ):
         run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
         copy_asset("wandb")
         tb_file_name = "events.out.tfevents.1585769947.cvp"
