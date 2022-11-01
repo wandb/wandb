@@ -113,6 +113,7 @@ def test_init_add_login(runner, empty_netrc, user):
         assert user in generated_wandb
 
 
+@pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_existing_login(runner, user):
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
