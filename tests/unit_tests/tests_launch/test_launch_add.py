@@ -1,6 +1,5 @@
 import json
 import os
-import time
 from unittest import mock
 
 import pytest
@@ -141,7 +140,6 @@ def test_launch_build_push_job(
     with relay_server(), runner.isolated_filesystem():
         # create project
         run = wandb_init(settings=settings)
-        time.sleep(2)
 
         os.makedirs(os.path.expanduser("./config/wandb"))
         with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:

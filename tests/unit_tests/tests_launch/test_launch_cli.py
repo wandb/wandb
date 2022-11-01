@@ -78,13 +78,12 @@ def test_launch_build_succeeds(
 
     with runner.isolated_filesystem(), relay_server():
         api = wandb.sdk.internal.internal_api.Api(default_settings=settings)
-        run = wandb_init(settings=settings)
-        time.sleep(2)
+        wandb_init(settings=settings).finish()
         api.create_run_queue(
             entity=user, project=proj, queue_name=QUEUE_NAME, access="USER"
         )
         result = runner.invoke(cli.launch, base_args + args)
-        run.finish()
+        # run.finish()
 
         assert result.exit_code == 0
 
