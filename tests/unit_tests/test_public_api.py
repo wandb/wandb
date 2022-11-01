@@ -212,6 +212,11 @@ def test_artifact_download_logger():
             termlog.assert_not_called()
 
 
+def test_update_aliases_on_artifact(user, relay_server):
+    _project = "test"
+    # TODO: Test api.artifact(...) and use_artifact(...)
+
+
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_api(user, relay_server, sweep_config):
     _project = "test"

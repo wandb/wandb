@@ -4189,12 +4189,15 @@ class Artifact(artifacts.Artifact):
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
         self._version_index = self._attrs.get("versionIndex", None)
+        # We will only show aliases under the Collection this artifact version is fetched from
         self._aliases = [
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
-            and a["artifactCollectionName"] == self._sequence_name
+            and a["artifactCollectionName"] == self._artifact_name
         ]
+        self._aliases_to_add = []
+        self._aliases_to_remove = []
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4353,6 +4356,20 @@ class Artifact(artifacts.Artifact):
     def _use_as(self, use_as):
         self._attrs["_use_as"] = use_as
         return use_as
+
+    @normalize_exceptions
+    def update_aliases(self, add: List[str], remove: List[str]):
+        # edit aliases locally
+        # .save() will persist these changes to backend
+        # TODO: Print out a message in the SDK on finish if the user has 
+        # unfinished changes in their artifact (such as updating the aliases).
+        for alias in add:
+            if alias not in self._aliases_to_add:
+                self._aliases_to_add.append(alias)
+
+        for alias in remove:
+            if alias not in self._aliases_to_remove:
+                self._aliases_to_remove.append(alias)
 
     @normalize_exceptions
     def link(self, target_path: str, aliases=None):
@@ -4715,10 +4732,105 @@ class Artifact(artifacts.Artifact):
                 ],
             },
         )
+        # Save locally modified aliases
+        self._save_alias_changes()
         return True
 
     def wait(self):
         return self
+
+    @normalize_exceptions
+    def _save_alias_changes(self):
+        """
+        Convenience function called by artifact.save() to persist alias changes 
+        on this artifact to the wandb backend.
+        """
+
+        # Introspect
+        introspect_query = gql(
+                """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType") or None
+        if not valid:
+            return
+
+        if len(self._aliases_to_add) > 0:
+            add_mutation = gql(
+                """
+            mutation addAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                addAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                )
+            }
+            """
+            )
+            self.client.execute(
+                add_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project
+                        }
+                        for alias in self._aliases_to_add
+                    ],
+                },
+            )
+
+        if len(self._aliases_to_remove) > 0:
+            delete_mutation = gql(
+                """
+            mutation deleteAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                deleteAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                )
+            }
+            """
+            )
+            self.client.execute(
+                delete_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project
+                        }
+                        for alias in self._aliases_to_remove
+                    ],
+                },
+            )
+        # reset local state
+        self._aliases_to_add = []
+        self._aliases_to_remove = []
+        return True
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
