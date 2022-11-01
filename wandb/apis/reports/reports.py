@@ -900,7 +900,6 @@ class RunSet(Base):
 
     @property
     def _runs_config(self) -> dict:
-        # breakpoint()
         return {k: v for run in self.runs for k, v in run.config.items()}
 
     @property

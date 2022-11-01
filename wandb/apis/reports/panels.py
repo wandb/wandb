@@ -1,6 +1,6 @@
 # flake8: noqa
 
-from .reports import (  # ConfusionMatrix,; DataFrames,; MultiRunTable,; Vega,; Vega2,; Vega3,; WeavePanel,
+from .reports import (
     BarPlot,
     CodeComparer,
     LinePlot,

@@ -457,7 +457,6 @@ class Api:
             r = self.client.execute(
                 self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
             )
-            # breakpoint()
             viewspec = r["view"]
             viewspec["spec"] = json.loads(viewspec["spec"])
             return wandb.apis.reports.Report.from_json(viewspec)
