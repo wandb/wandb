@@ -2713,6 +2713,7 @@ class Api:
         return av, latest
 
     def commit_artifact(self, artifact_id: str) -> "_Response":
+        json.dumps(1)
         mutation = gql(
             """
         mutation CommitArtifact(
