@@ -1154,6 +1154,16 @@ workflows:
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
+      # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+      #
       # Functional tests with yea on Linux (base only)
       #
       - tox-base:
