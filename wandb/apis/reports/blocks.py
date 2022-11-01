@@ -24,5 +24,5 @@ from .reports import (
     Twitter,
     UnorderedList,
     Video,
-    WeaveBlock,
+    WeaveTableBlock,
 )

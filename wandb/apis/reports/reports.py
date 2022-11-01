@@ -848,7 +848,187 @@ class Vega3(Panel):
         return "Vega3"
 
 
-class WeavePanel(Panel):
+class WeaveTablePanel(Panel):
+    table_name: Optional[str] = Attr(
+        json_path="spec.config.panel2Config.exp.fromOp.inputs.key.val"
+    )
+
+    def __init__(self, table_name="", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._spec["config"] = {
+            "panel2Config": {
+                "exp": {
+                    "nodeType": "output",
+                    "type": {
+                        "type": "tagged",
+                        "tag": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "entityName": "string",
+                                    "projectName": "string",
+                                },
+                            },
+                            "value": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "project": "project",
+                                    "filter": "string",
+                                    "order": "string",
+                                },
+                            },
+                        },
+                        "value": {
+                            "type": "list",
+                            "objectType": {
+                                "type": "tagged",
+                                "tag": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {"run": "run"},
+                                },
+                                "value": {
+                                    "type": "union",
+                                    "members": [
+                                        {
+                                            "type": "file",
+                                            "extension": "json",
+                                            "wbObjectType": {
+                                                "type": "table",
+                                                "columnTypes": {},
+                                            },
+                                        },
+                                        "none",
+                                    ],
+                                },
+                            },
+                            "maxLength": 50,
+                        },
+                    },
+                    "fromOp": {
+                        "name": "pick",
+                        "inputs": {
+                            "obj": {
+                                "nodeType": "output",
+                                "type": {
+                                    "type": "tagged",
+                                    "tag": {
+                                        "type": "tagged",
+                                        "tag": {
+                                            "type": "typedDict",
+                                            "propertyTypes": {
+                                                "entityName": "string",
+                                                "projectName": "string",
+                                            },
+                                        },
+                                        "value": {
+                                            "type": "typedDict",
+                                            "propertyTypes": {
+                                                "project": "project",
+                                                "filter": "string",
+                                                "order": "string",
+                                            },
+                                        },
+                                    },
+                                    "value": {
+                                        "type": "list",
+                                        "objectType": {
+                                            "type": "tagged",
+                                            "tag": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {"run": "run"},
+                                            },
+                                            "value": {
+                                                "type": "union",
+                                                "members": [
+                                                    {
+                                                        "type": "typedDict",
+                                                        "propertyTypes": {
+                                                            "_wandb": {
+                                                                "type": "typedDict",
+                                                                "propertyTypes": {
+                                                                    "runtime": "number"
+                                                                },
+                                                            }
+                                                        },
+                                                    },
+                                                    {
+                                                        "type": "typedDict",
+                                                        "propertyTypes": {
+                                                            "_step": "number",
+                                                            "table": {
+                                                                "type": "file",
+                                                                "extension": "json",
+                                                                "wbObjectType": {
+                                                                    "type": "table",
+                                                                    "columnTypes": {},
+                                                                },
+                                                            },
+                                                            "_wandb": {
+                                                                "type": "typedDict",
+                                                                "propertyTypes": {
+                                                                    "runtime": "number"
+                                                                },
+                                                            },
+                                                            "_runtime": "number",
+                                                            "_timestamp": "number",
+                                                        },
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                        "maxLength": 50,
+                                    },
+                                },
+                                "fromOp": {
+                                    "name": "run-summary",
+                                    "inputs": {
+                                        "run": {
+                                            "nodeType": "var",
+                                            "type": {
+                                                "type": "tagged",
+                                                "tag": {
+                                                    "type": "tagged",
+                                                    "tag": {
+                                                        "type": "typedDict",
+                                                        "propertyTypes": {
+                                                            "entityName": "string",
+                                                            "projectName": "string",
+                                                        },
+                                                    },
+                                                    "value": {
+                                                        "type": "typedDict",
+                                                        "propertyTypes": {
+                                                            "project": "project",
+                                                            "filter": "string",
+                                                            "order": "string",
+                                                        },
+                                                    },
+                                                },
+                                                "value": {
+                                                    "type": "list",
+                                                    "objectType": "run",
+                                                    "maxLength": 50,
+                                                },
+                                            },
+                                            "varName": "runs",
+                                        }
+                                    },
+                                },
+                            },
+                            "key": {
+                                "nodeType": "const",
+                                "type": "string",
+                                "val": "blah",
+                            },
+                        },
+                    },
+                    "__userInput": True,
+                }
+            }
+        }
+        self.table_name = table_name
+
     @property
     def view_type(self) -> str:
         return "Weave"
@@ -1638,16 +1818,254 @@ class Image(Block):
             return {"type": "image", "children": [{"text": ""}], "url": self.url}
 
 
-class WeaveBlock(Block):
-    def __init__(self, spec, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.spec = spec
+# class WeaveBlock(Block):
+#     def __init__(self, spec, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.spec = spec
 
-    spec: dict = Attr()
+#     spec: dict = Attr()
+
+#     @classmethod
+#     def from_json(cls, spec: dict) -> "WeaveBlock":
+#         return cls(spec)
+
+
+class WeaveTableBlock(Block):
+    """This is a hacky solution to support the most common way of getting Weave tables for now..."""
+
+    def __init__(self, entity, project, table_name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.entity = entity
+        self.project = project
+        self.table_name = table_name
+
+    entity: str = Attr()
+    project: str = Attr()
+    table_name: str = Attr()
 
     @classmethod
-    def from_json(cls, spec: dict) -> "WeaveBlock":
-        return cls(spec)
+    def from_json(cls, spec: dict) -> "WeaveTableBlock":
+        entity = spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]["obj"][
+            "fromOp"
+        ]["inputs"]["run"]["fromOp"]["inputs"]["project"]["fromOp"]["inputs"][
+            "entityName"
+        ][
+            "val"
+        ]
+        project = spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]["obj"][
+            "fromOp"
+        ]["inputs"]["run"]["fromOp"]["inputs"]["project"]["fromOp"]["inputs"][
+            "projectName"
+        ][
+            "val"
+        ]
+        table_name = spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]["key"][
+            "val"
+        ]
+        return cls(entity, project, table_name)
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "weave-panel",
+            "children": [{"text": ""}],
+            "config": {
+                "panelConfig": {
+                    "exp": {
+                        "nodeType": "output",
+                        "type": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "tagged",
+                                "tag": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {
+                                        "entityName": "string",
+                                        "projectName": "string",
+                                    },
+                                },
+                                "value": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {"project": "project"},
+                                },
+                            },
+                            "value": {
+                                "type": "list",
+                                "objectType": {
+                                    "type": "tagged",
+                                    "tag": {
+                                        "type": "typedDict",
+                                        "propertyTypes": {"run": "run"},
+                                    },
+                                    "value": {
+                                        "type": "union",
+                                        "members": [
+                                            {
+                                                "type": "file",
+                                                "extension": "json",
+                                                "wbObjectType": {
+                                                    "type": "table",
+                                                    "columnTypes": {},
+                                                },
+                                            },
+                                            "none",
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                        "fromOp": {
+                            "name": "pick",
+                            "inputs": {
+                                "obj": {
+                                    "nodeType": "output",
+                                    "type": {
+                                        "type": "tagged",
+                                        "tag": {
+                                            "type": "tagged",
+                                            "tag": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {
+                                                    "entityName": "string",
+                                                    "projectName": "string",
+                                                },
+                                            },
+                                            "value": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {"project": "project"},
+                                            },
+                                        },
+                                        "value": {
+                                            "type": "list",
+                                            "objectType": {
+                                                "type": "tagged",
+                                                "tag": {
+                                                    "type": "typedDict",
+                                                    "propertyTypes": {"run": "run"},
+                                                },
+                                                "value": {
+                                                    "type": "union",
+                                                    "members": [
+                                                        {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "_wandb": {
+                                                                    "type": "typedDict",
+                                                                    "propertyTypes": {
+                                                                        "runtime": "number"
+                                                                    },
+                                                                }
+                                                            },
+                                                        },
+                                                        {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "_step": "number",
+                                                                "table": {
+                                                                    "type": "file",
+                                                                    "extension": "json",
+                                                                    "wbObjectType": {
+                                                                        "type": "table",
+                                                                        "columnTypes": {},
+                                                                    },
+                                                                },
+                                                                "_wandb": {
+                                                                    "type": "typedDict",
+                                                                    "propertyTypes": {
+                                                                        "runtime": "number"
+                                                                    },
+                                                                },
+                                                                "_runtime": "number",
+                                                                "_timestamp": "number",
+                                                            },
+                                                        },
+                                                        {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {},
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "fromOp": {
+                                        "name": "run-summary",
+                                        "inputs": {
+                                            "run": {
+                                                "nodeType": "output",
+                                                "type": {
+                                                    "type": "tagged",
+                                                    "tag": {
+                                                        "type": "tagged",
+                                                        "tag": {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "entityName": "string",
+                                                                "projectName": "string",
+                                                            },
+                                                        },
+                                                        "value": {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "project": "project"
+                                                            },
+                                                        },
+                                                    },
+                                                    "value": {
+                                                        "type": "list",
+                                                        "objectType": "run",
+                                                    },
+                                                },
+                                                "fromOp": {
+                                                    "name": "project-runs",
+                                                    "inputs": {
+                                                        "project": {
+                                                            "nodeType": "output",
+                                                            "type": {
+                                                                "type": "tagged",
+                                                                "tag": {
+                                                                    "type": "typedDict",
+                                                                    "propertyTypes": {
+                                                                        "entityName": "string",
+                                                                        "projectName": "string",
+                                                                    },
+                                                                },
+                                                                "value": "project",
+                                                            },
+                                                            "fromOp": {
+                                                                "name": "root-project",
+                                                                "inputs": {
+                                                                    "entityName": {
+                                                                        "nodeType": "const",
+                                                                        "type": "string",
+                                                                        "val": self.entity,
+                                                                    },
+                                                                    "projectName": {
+                                                                        "nodeType": "const",
+                                                                        "type": "string",
+                                                                        "val": self.project,
+                                                                    },
+                                                                },
+                                                            },
+                                                        }
+                                                    },
+                                                },
+                                            }
+                                        },
+                                    },
+                                },
+                                "key": {
+                                    "nodeType": "const",
+                                    "type": "string",
+                                    "val": self.table_name,
+                                },
+                            },
+                        },
+                        "__userInput": True,
+                    }
+                }
+            },
+        }
 
 
 class HorizontalRule(Block):
@@ -1834,7 +2252,7 @@ block_mapping = {
     "panel-grid": PanelGrid,
     "paragraph": P,
     "table-of-contents": TableOfContents,
-    "weave-panel": WeaveBlock,
+    "weave-panel": WeaveTableBlock,
     "video": Video,
     "spotify": Spotify,
     "twitter": Twitter,
@@ -1860,5 +2278,5 @@ panel_mapping = {
     "Vega": Vega,
     "Vega2": CustomChart,
     "Vega3": Vega3,
-    "Weave": WeavePanel,
+    "Weave": WeaveTablePanel,
 }
