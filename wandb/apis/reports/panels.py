@@ -11,4 +11,5 @@ from .reports import (
     RunComparer,
     ScalarChart,
     ScatterPlot,
+    CustomChart,
 )
