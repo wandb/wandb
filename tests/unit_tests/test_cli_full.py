@@ -73,6 +73,7 @@ def debug_result(result, prefix=None):
     )
 
 
+@pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_reinit(runner, empty_netrc, user):
     print("TESTING INIT REINIT", user)
     with runner.isolated_filesystem(), mock.patch(
@@ -91,6 +92,7 @@ def test_init_reinit(runner, empty_netrc, user):
         assert user in generated_wandb
 
 
+@pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_add_login(runner, empty_netrc, user):
     print("TESTING INIT ADD LOGIN", user)
     with runner.isolated_filesystem(), mock.patch(
@@ -115,7 +117,7 @@ def test_init_existing_login(runner, user):
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write(f"machine localhost\n\tlogin {user}\tpassword {user}")
-        result = runner.invoke(cli.init, input="vanpelt\nfoo\n")
+        result = runner.invoke(cli.init, input="y\nvanpelt\nfoo\n")
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
