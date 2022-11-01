@@ -73,10 +73,13 @@ def debug_result(result, prefix=None):
     )
 
 
-def test_init_reinit(runner, empty_netrc, user):
-    with runner.isolated_filesystem():
-        with mock.patch("wandb.sdk.lib.apikey.len", return_value=40):
-            result = runner.invoke(cli.login, [user])
+def test_init_reinit(runner, empty_netrc, user, local_settings):
+    print("TESTING INIT REINIT", user)
+    with runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.lib.apikey.len", return_value=40
+    ):
+        print("<<<<<<<<<<<<<<<", os.getcwd())
+        result = runner.invoke(cli.login, [user])
         debug_result(result, "login")
         result = runner.invoke(cli.init, input="y\n\n\n")
         debug_result(result, "init")
@@ -89,12 +92,15 @@ def test_init_reinit(runner, empty_netrc, user):
         assert user in generated_wandb
 
 
-def test_init_add_login(runner, empty_netrc, user):
-    with runner.isolated_filesystem():
+def test_init_add_login(runner, empty_netrc, user, local_settings):
+    print("TESTING INIT ADD LOGIN", user)
+    with runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.lib.apikey.len", return_value=40
+    ):
+        print(">>>>>>>>>>>>>", os.getcwd())
         with open("netrc", "w") as f:
             f.write("previous config")
-        with mock.patch("wandb.sdk.lib.apikey.len", return_value=40):
-            result = runner.invoke(cli.login, [user])
+        result = runner.invoke(cli.login, [user])
         debug_result(result, "login")
         result = runner.invoke(cli.init, input=f"y\n{user}\nvanpelt\n")
         debug_result(result, "init")
@@ -102,7 +108,9 @@ def test_init_add_login(runner, empty_netrc, user):
         with open("netrc") as f:
             generated_netrc = f.read()
         with open("wandb/settings") as f:
+            print(">>>>>>>>>>>>>", os.path.abspath(f.name))
             generated_wandb = f.read()
+            print(generated_wandb)
         assert user in generated_netrc
         assert user in generated_wandb
 
@@ -602,6 +610,7 @@ def test_sync_tensorboard(
 
 def test_sync_wandb_run(runner, relay_server, user, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem():
+        # breakpoint()
         copy_asset("wandb")
 
         result = runner.invoke(cli.sync, ["--sync-all"])
