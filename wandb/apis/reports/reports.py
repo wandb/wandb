@@ -806,11 +806,11 @@ class CustomChart(Panel):
     chart_name: str = Attr(json_path='spec.config.panelDefId')
     user_fields: dict = Attr(json_path='spec.config.fieldSettings')
     
-    def __init__(self, query={}, chart_name="", user_fields={}, *args, **kwargs):
+    def __init__(self, query=None, chart_name="", user_fields=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.query = query
+        self.query = coalesce(query, {})
         self.chart_name = chart_name
-        self.user_fields = user_fields
+        self.user_fields = coalesce(user_fields, {})
     
     @property
     def view_type(self) -> str:
