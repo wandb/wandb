@@ -214,29 +214,27 @@ def test_artifact_download_logger():
 
 def test_update_aliases_on_artifact(user, relay_server, wandb_init):
     project = "test"
+    run = wandb_init(entity=user, project=project)
+    artifact = wandb.Artifact("test-artifact", "test-type")
+    with open("boom.txt", "w") as f:
+        f.write("testing")
+    artifact.add_file("boom.txt", "test-name")
+    run.log_artifact(artifact, aliases=["best"])
+    artifact.wait()
+    run.finish()
 
-    with relay_server():
-        run = wandb_init(entity=user, project=project)
-        artifact = wandb.Artifact("test-artifact", "test-type")
-        with open("boom.txt", "w") as f:
-            f.write("testing")
-        artifact.add_file("boom.txt", "test-name")
-        run.log_artifact(artifact, aliases=["best"])
-        artifact.wait()
-        run.finish()
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    artifact.update_aliases(add=["staging"], remove=["best"])
+    artifact.save()
 
-        artifact = Api().artifact(
-            name=f"{user}/{project}/test-artifact:v0", type="test-type"
-        )
-        artifact.update_aliases(add=["staging"], remove=["best"])
-        artifact.save()
-
-        artifact = Api().artifact(
-            name=f"{user}/{project}/test-artifact:v0", type="test-type"
-        )
-        aliases = artifact.aliases
-        assert "staging" in aliases
-        assert "best" not in aliases
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "staging" in aliases
+    assert "best" not in aliases
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
