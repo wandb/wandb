@@ -57,12 +57,12 @@ class LineKey:
         return cls(key)
 
     @classmethod
-    def from_panel_agg(cls, runset: "RunSet", panel: "Panel", metric: str) -> "LineKey":
+    def from_panel_agg(cls, runset: "Runset", panel: "Panel", metric: str) -> "LineKey":
         key = f"{runset.id}-config:group:{panel.groupby}:null:{metric}"
         return cls(key)
 
     @classmethod
-    def from_runset_agg(cls, runset: "RunSet", metric: str) -> "LineKey":
+    def from_runset_agg(cls, runset: "Runset", metric: str) -> "LineKey":
         groupby = runset.groupby
         if runset.groupby is None:
             groupby = "null"
@@ -1034,7 +1034,7 @@ class WeaveTablePanel(Panel):
         return "Weave"
 
 
-class RunSet(Base):
+class Runset(Base):
     def __init__(
         self,
         entity=None,
@@ -1170,7 +1170,7 @@ class PanelGrid(Block):
     def runsets(self):
         json_path = self._get_path("runsets")
         specs = nested_get(self, json_path)
-        return [RunSet.from_json(spec) for spec in specs]
+        return [Runset.from_json(spec) for spec in specs]
 
     @runsets.setter
     def runsets(self, new_runsets):
@@ -1287,7 +1287,7 @@ class PanelGrid(Block):
 
     @staticmethod
     def _default_runsets():
-        return [RunSet()]
+        return [Runset()]
 
     @staticmethod
     def _default_panels():
@@ -1427,7 +1427,7 @@ class Report(Base):
         return [b for b in self.blocks if isinstance(b, PanelGrid)]
 
     @property
-    def runsets(self) -> "LList[RunSet]":
+    def runsets(self) -> "LList[Runset]":
         return [rs for pg in self.panel_grids for rs in pg.runsets]
 
     @property
