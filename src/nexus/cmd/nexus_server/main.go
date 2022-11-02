@@ -7,6 +7,7 @@ import (
 )
 
 func main() {
+    fmt.Println("hello")
     portFilename := flag.String("port-filename", "portfile.txt", "filename")    
     pid := flag.Int("pid", 0, "pid")    
     debug := flag.Bool("debug", false, "debug")
