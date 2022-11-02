@@ -15,7 +15,7 @@ from wandb.apis.reports.validators import (
     TypeValidator,
 )
 
-wandb.require("report-editing")
+# wandb.require("report-editing")
 
 
 @pytest.fixture
@@ -30,11 +30,11 @@ def attr():
 #     del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
 
 
-@pytest.fixture
-def disable_report_editing():
-    del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
-    yield
-    wandb.require("report-editing")
+# @pytest.fixture
+# def disable_report_editing():
+#     del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
+#     yield
+#     wandb.require("report-editing")
 
 
 @pytest.fixture
