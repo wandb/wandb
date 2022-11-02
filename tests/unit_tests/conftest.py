@@ -1,4 +1,5 @@
 import dataclasses
+import io
 import json
 import logging
 import os
@@ -259,6 +260,47 @@ def runner(patch_apikey, patch_prompt):
 @pytest.fixture
 def api():
     return Api()
+
+
+@pytest.fixture
+def mock_sagemaker():
+    config_path = "/opt/ml/input/config/hyperparameters.json"
+    resource_path = "/opt/ml/input/config/resourceconfig.json"
+    secrets_path = "secrets.env"
+
+    orig_exist = os.path.exists
+
+    def exists(path):
+        if path in (config_path, secrets_path, resource_path):
+            return True
+        else:
+            return orig_exist(path)
+
+    def magic_factory(original):
+        def magic(path, *args, **kwargs):
+            if path == config_path:
+                return io.StringIO('{"foo": "bar"}')
+            elif path == resource_path:
+                return io.StringIO('{"hosts":["a", "b"]}')
+            elif path == secrets_path:
+                return io.StringIO("WANDB_TEST_SECRET=TRUE")
+            else:
+                return original(path, *args, **kwargs)
+
+        return magic
+
+    with unittest.mock.patch.dict(
+        os.environ,
+        {
+            "TRAINING_JOB_NAME": "sage",
+            "CURRENT_HOST": "maker",
+        },
+    ), unittest.mock.patch("wandb.util.os.path.exists", exists,), unittest.mock.patch(
+        "builtins.open",
+        magic_factory(open),
+        create=True,
+    ):
+        yield
 
 
 # --------------------------------
