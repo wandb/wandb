@@ -4182,6 +4182,7 @@ class Artifact(artifacts.Artifact):
         self._entity = entity
         self._project = project
         self._artifact_name = name
+        self._artifact_collection_name = name.split(":")[0] if ":" in name else name
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -4194,7 +4195,7 @@ class Artifact(artifacts.Artifact):
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
-            and a["artifactCollectionName"] == self._artifact_name
+            and a["artifactCollectionName"] == self._artifact_collection_name
         ]
         self._aliases_to_add = []
         self._aliases_to_remove = []
@@ -4361,7 +4362,7 @@ class Artifact(artifacts.Artifact):
     def update_aliases(self, add: List[str], remove: List[str]):
         # edit aliases locally
         # .save() will persist these changes to backend
-        # TODO: Print out a message in the SDK on finish if the user has 
+        # TODO: Print out a message in the SDK on finish if the user has
         # unfinished changes in their artifact (such as updating the aliases).
         for alias in add:
             if alias not in self._aliases_to_add:
@@ -4742,13 +4743,13 @@ class Artifact(artifacts.Artifact):
     @normalize_exceptions
     def _save_alias_changes(self):
         """
-        Convenience function called by artifact.save() to persist alias changes 
+        Convenience function called by artifact.save() to persist alias changes
         on this artifact to the wandb backend.
         """
 
         # Introspect
         introspect_query = gql(
-                """
+            """
             query ProbeServerAddAliasesInput {
                AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
                    name
@@ -4776,7 +4777,9 @@ class Artifact(artifacts.Artifact):
                         artifactID: $artifactID,
                         aliases: $aliases,
                     }
-                )
+                ) {
+                    success
+                }
             }
             """
             )
@@ -4786,10 +4789,10 @@ class Artifact(artifacts.Artifact):
                     "artifactID": self.id,
                     "aliases": [
                         {
-                            "artifactCollectionName": self._artifact_name,
+                            "artifactCollectionName": self._artifact_collection_name,
                             "alias": alias,
                             "entityName": self._entity,
-                            "projectName": self._project
+                            "projectName": self._project,
                         }
                         for alias in self._aliases_to_add
                     ],
@@ -4808,7 +4811,9 @@ class Artifact(artifacts.Artifact):
                         artifactID: $artifactID,
                         aliases: $aliases,
                     }
-                )
+                ) {
+                    success
+                }
             }
             """
             )
@@ -4818,10 +4823,10 @@ class Artifact(artifacts.Artifact):
                     "artifactID": self.id,
                     "aliases": [
                         {
-                            "artifactCollectionName": self._artifact_name,
+                            "artifactCollectionName": self._artifact_collection_name,
                             "alias": alias,
                             "entityName": self._entity,
-                            "projectName": self._project
+                            "projectName": self._project,
                         }
                         for alias in self._aliases_to_remove
                     ],

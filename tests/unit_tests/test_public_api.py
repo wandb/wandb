@@ -213,10 +213,10 @@ def test_artifact_download_logger():
 
 
 def test_update_aliases_on_artifact(user, relay_server, wandb_init):
-    _project = "test"
+    project = "test"
 
     with relay_server():
-        run = wandb_init(entity=user, project=_project)
+        run = wandb_init(entity=user, project=project)
         artifact = wandb.Artifact("test-artifact", "test-type")
         with open("boom.txt", "w") as f:
             f.write("testing")
@@ -225,16 +225,18 @@ def test_update_aliases_on_artifact(user, relay_server, wandb_init):
         artifact.wait()
         run.finish()
 
-        artifact = Api().artifact(f"{_project}/test-artifact:v0")
+        artifact = Api().artifact(
+            name=f"{user}/{project}/test-artifact:v0", type="test-type"
+        )
         artifact.update_aliases(add=["staging"], remove=["best"])
         artifact.save()
 
-        artifact = Api().artifact("test-artifact:v0")
+        artifact = Api().artifact(
+            name=f"{user}/{project}/test-artifact:v0", type="test-type"
+        )
         aliases = artifact.aliases
         assert "staging" in aliases
         assert "best" not in aliases
-
-    # TODO: Test api.artifact(...) and use_artifact(...)
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
