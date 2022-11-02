@@ -4191,14 +4191,14 @@ class Artifact(artifacts.Artifact):
         self._sequence_name = self._attrs["artifactSequence"]["name"]
         self._version_index = self._attrs.get("versionIndex", None)
         # We will only show aliases under the Collection this artifact version is fetched from
+        # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
             and a["artifactCollectionName"] == self._artifact_collection_name
         ]
-        self._aliases_to_add = []
-        self._aliases_to_remove = []
+        self._frozen_aliases = [a for a in self._aliases]
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4357,20 +4357,6 @@ class Artifact(artifacts.Artifact):
     def _use_as(self, use_as):
         self._attrs["_use_as"] = use_as
         return use_as
-
-    @normalize_exceptions
-    def update_aliases(self, add: List[str], remove: List[str]):
-        # edit aliases locally
-        # .save() will persist these changes to backend
-        # TODO: Print out a message in the SDK on finish if the user has
-        # unfinished changes in their artifact (such as updating the aliases).
-        for alias in add:
-            if alias not in self._aliases_to_add:
-                self._aliases_to_add.append(alias)
-
-        for alias in remove:
-            if alias not in self._aliases_to_remove:
-                self._aliases_to_remove.append(alias)
 
     @normalize_exceptions
     def link(self, target_path: str, aliases=None):
@@ -4724,13 +4710,6 @@ class Artifact(artifacts.Artifact):
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
-                "aliases": [
-                    {
-                        "artifactCollectionName": self._sequence_name,
-                        "alias": alias,
-                    }
-                    for alias in self._aliases
-                ],
             },
         )
         # Save locally modified aliases
@@ -4746,6 +4725,9 @@ class Artifact(artifacts.Artifact):
         Convenience function called by artifact.save() to persist alias changes
         on this artifact to the wandb backend.
         """
+
+        aliases_to_add = set(self._aliases) - set(self._frozen_aliases)
+        aliases_to_remove = set(self._frozen_aliases) - set(self._aliases)
 
         # Introspect
         introspect_query = gql(
@@ -4765,7 +4747,7 @@ class Artifact(artifacts.Artifact):
         if not valid:
             return
 
-        if len(self._aliases_to_add) > 0:
+        if len(aliases_to_add) > 0:
             add_mutation = gql(
                 """
             mutation addAliases(
@@ -4794,12 +4776,12 @@ class Artifact(artifacts.Artifact):
                             "entityName": self._entity,
                             "projectName": self._project,
                         }
-                        for alias in self._aliases_to_add
+                        for alias in aliases_to_add
                     ],
                 },
             )
 
-        if len(self._aliases_to_remove) > 0:
+        if len(aliases_to_remove) > 0:
             delete_mutation = gql(
                 """
             mutation deleteAliases(
@@ -4828,13 +4810,13 @@ class Artifact(artifacts.Artifact):
                             "entityName": self._entity,
                             "projectName": self._project,
                         }
-                        for alias in self._aliases_to_remove
+                        for alias in aliases_to_remove
                     ],
                 },
             )
+
         # reset local state
-        self._aliases_to_add = []
-        self._aliases_to_remove = []
+        self._frozen_aliases = self._aliases
         return True
 
     # TODO: not yet public, but we probably want something like this.
