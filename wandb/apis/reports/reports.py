@@ -1038,7 +1038,7 @@ class RunSet(Base):
     def __init__(
         self,
         entity=None,
-        project="",
+        project=None,
         name="Run set",
         query="",
         filters=None,
@@ -1054,15 +1054,15 @@ class RunSet(Base):
 
         # self.entity = entity if entity != "" else wandb.Api().default_entity
         self.entity = coalesce(entity, wandb.Api().default_entity, "")
-        self.project = project
+        self.project = project  # If the project is None, it will be updated to the report's project on save.  See: Report.save
         self.name = name
         self.query = query
         self.filters = coalesce(filters, self._default_filters())
         self.groupby = coalesce(groupby, self._default_groupby())
         self.order = coalesce(order, self._default_order())
 
-    entity: str = Attr(json_path="spec.project.entityName")
-    project: str = Attr(json_path="spec.project.name")
+    entity: Optional[str] = Attr(json_path="spec.project.entityName")
+    project: Optional[str] = Attr(json_path="spec.project.name")
     name: str = Attr(json_path="spec.name")
     query: str = Attr(json_path="spec.search.query")
     filters: dict = Attr(json_path="spec.filters")
@@ -1428,7 +1428,7 @@ class Report(Base):
 
     @property
     def runsets(self) -> "LList[RunSet]":
-        return [pg.runset for pg in self.panel_grids]
+        return [rs for pg in self.panel_grids for rs in pg.runsets]
 
     @property
     def url(self) -> str:
@@ -1446,6 +1446,12 @@ class Report(Base):
         r = self.client.execute(
             CREATE_PROJECT, {"entityName": self.entity, "name": self.project}
         )
+        
+        # Check runsets with `None` for project and replace with the report's project.
+        # We have to do this here because RunSets don't know about their report until they're added to it.
+        for rs in self.runsets:
+            if rs.project is None:
+                rs.project = self.project
 
         r = self.client.execute(
             UPSERT_VIEW,
