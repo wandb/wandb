@@ -233,13 +233,22 @@ def write_key(settings, key, api=None, anonymous=False):
     wl = wandb.setup(settings=settings)
 
     if not anonymous:
+        if wl._server is None:
+            wl._load_viewer()
+
+        if wl._server._error_network:
+            wandb.termerror(
+                f"Could not connect to host {settings.base_url}, please confirm host address and try again."
+            )
+            return
+
         username = wl._get_username()
 
         if not username:
             wandb.termerror(
                 "Unable to find username for given API key, please confirm your key and try again."
             )
-            return None
+            return
 
 
 def api_key(settings=None):
