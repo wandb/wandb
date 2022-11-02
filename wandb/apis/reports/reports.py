@@ -108,69 +108,6 @@ class UnknownPanel(Panel):
 
 
 class LinePlot(Panel):
-    def __init__(
-        self,
-        title: Optional[str] = None,
-        x: Optional[str] = None,
-        y: Optional[list] = None,
-        range_x: Union[list, tuple] = (None, None),
-        range_y: Union[list, tuple] = (None, None),
-        log_x: Optional[bool] = None,
-        log_y: Optional[bool] = None,
-        title_x: Optional[str] = None,
-        title_y: Optional[str] = None,
-        ignore_outliers: Optional[bool] = None,
-        groupby: Optional[str] = None,
-        groupby_aggfunc: Optional[str] = None,
-        groupby_rangefunc: Optional[str] = None,
-        smoothing_factor: Optional[float] = None,
-        smoothing_type: Optional[str] = None,
-        smoothing_show_original: Optional[bool] = None,
-        max_runs_to_show: Optional[int] = None,
-        custom_expressions: Optional[str] = None,
-        plot_type: Optional[str] = None,
-        font_size: Optional[str] = None,
-        legend_position: Optional[str] = None,
-        legend_template: Optional[str] = None,
-        aggregate: Optional[bool] = None,
-        xaxis_expression: Optional[str] = None,
-        line_titles: Optional[dict] = None,
-        line_marks: Optional[dict] = None,
-        line_colors: Optional[dict] = None,
-        line_widths: Optional[dict] = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.title = title
-        self.x = x
-        self.y = y
-        self.range_x = range_x
-        self.range_y = range_y
-        self.log_x = log_x
-        self.log_y = log_y
-        self.title_x = title_x
-        self.title_y = title_y
-        self.ignore_outliers = ignore_outliers
-        self.groupby = groupby
-        self.groupby_aggfunc = groupby_aggfunc
-        self.groupby_rangefunc = groupby_rangefunc
-        self.smoothing_factor = smoothing_factor
-        self.smoothing_type = smoothing_type
-        self.smoothing_show_original = smoothing_show_original
-        self.max_runs_to_show = max_runs_to_show
-        self.custom_expressions = custom_expressions
-        self.plot_type = plot_type
-        self.font_size = font_size
-        self.legend_position = legend_position
-        self.legend_template = legend_template
-        self.aggregate = aggregate
-        self.xaxis_expression = xaxis_expression
-        self.line_titles = line_titles
-        self.line_marks = line_marks
-        self.line_colors = line_colors
-        self.line_widths = line_widths
-
     title: Optional[str] = Attr(
         json_path="spec.config.chartTitle",
     )
@@ -271,6 +208,69 @@ class LinePlot(Panel):
         ],
     )
 
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        x: Optional[str] = None,
+        y: Optional[list] = None,
+        range_x: Union[list, tuple] = (None, None),
+        range_y: Union[list, tuple] = (None, None),
+        log_x: Optional[bool] = None,
+        log_y: Optional[bool] = None,
+        title_x: Optional[str] = None,
+        title_y: Optional[str] = None,
+        ignore_outliers: Optional[bool] = None,
+        groupby: Optional[str] = None,
+        groupby_aggfunc: Optional[str] = None,
+        groupby_rangefunc: Optional[str] = None,
+        smoothing_factor: Optional[float] = None,
+        smoothing_type: Optional[str] = None,
+        smoothing_show_original: Optional[bool] = None,
+        max_runs_to_show: Optional[int] = None,
+        custom_expressions: Optional[str] = None,
+        plot_type: Optional[str] = None,
+        font_size: Optional[str] = None,
+        legend_position: Optional[str] = None,
+        legend_template: Optional[str] = None,
+        aggregate: Optional[bool] = None,
+        xaxis_expression: Optional[str] = None,
+        line_titles: Optional[dict] = None,
+        line_marks: Optional[dict] = None,
+        line_colors: Optional[dict] = None,
+        line_widths: Optional[dict] = None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.x = x
+        self.y = y
+        self.range_x = range_x
+        self.range_y = range_y
+        self.log_x = log_x
+        self.log_y = log_y
+        self.title_x = title_x
+        self.title_y = title_y
+        self.ignore_outliers = ignore_outliers
+        self.groupby = groupby
+        self.groupby_aggfunc = groupby_aggfunc
+        self.groupby_rangefunc = groupby_rangefunc
+        self.smoothing_factor = smoothing_factor
+        self.smoothing_type = smoothing_type
+        self.smoothing_show_original = smoothing_show_original
+        self.max_runs_to_show = max_runs_to_show
+        self.custom_expressions = custom_expressions
+        self.plot_type = plot_type
+        self.font_size = font_size
+        self.legend_position = legend_position
+        self.legend_template = legend_template
+        self.aggregate = aggregate
+        self.xaxis_expression = xaxis_expression
+        self.line_titles = line_titles
+        self.line_marks = line_marks
+        self.line_colors = line_colors
+        self.line_widths = line_widths
+
     @x.getter
     def x(self):
         json_path = self._get_path("x")
@@ -304,47 +304,6 @@ class LinePlot(Panel):
 
 
 class ScatterPlot(Panel):
-    def __init__(
-        self,
-        title=None,
-        x=None,
-        y=None,
-        z=None,
-        range_x=(None, None),
-        range_y=(None, None),
-        range_z=(None, None),
-        log_x=None,
-        log_y=None,
-        log_z=None,
-        running_ymin=None,
-        running_ymax=None,
-        running_ymean=None,
-        legend_template=None,
-        gradient=None,
-        font_size=None,
-        regression=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.title = title
-        self.x = x
-        self.y = y
-        self.z = z
-        self.range_x = range_x
-        self.range_y = range_y
-        self.range_z = range_z
-        self.log_x = log_x
-        self.log_y = log_y
-        self.log_z = log_z
-        self.running_ymin = running_ymin
-        self.running_ymax = running_ymax
-        self.running_ymean = running_ymean
-        self.legend_template = legend_template
-        self.gradient = gradient
-        self.font_size = font_size
-        self.regression = regression
-
     title: Optional[str] = Attr(json_path="spec.config.chartTitle")
     x: Optional[str] = Attr(json_path="spec.config.xAxis")
     y: Optional[str] = Attr(json_path="spec.config.yAxis")
@@ -396,6 +355,47 @@ class ScatterPlot(Panel):
     # Attr(json_path="spec.config.yAxisLineSmoothingWeight")
     regression: Optional[bool] = Attr(json_path="spec.config.showLinearRegression")
 
+    def __init__(
+        self,
+        title=None,
+        x=None,
+        y=None,
+        z=None,
+        range_x=(None, None),
+        range_y=(None, None),
+        range_z=(None, None),
+        log_x=None,
+        log_y=None,
+        log_z=None,
+        running_ymin=None,
+        running_ymax=None,
+        running_ymean=None,
+        legend_template=None,
+        gradient=None,
+        font_size=None,
+        regression=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.x = x
+        self.y = y
+        self.z = z
+        self.range_x = range_x
+        self.range_y = range_y
+        self.range_z = range_z
+        self.log_x = log_x
+        self.log_y = log_y
+        self.log_z = log_z
+        self.running_ymin = running_ymin
+        self.running_ymax = running_ymax
+        self.running_ymean = running_ymean
+        self.legend_template = legend_template
+        self.gradient = gradient
+        self.font_size = font_size
+        self.regression = regression
+
     @x.getter
     def x(self):
         json_path = self._get_path("x")
@@ -438,45 +438,6 @@ class ScatterPlot(Panel):
 
 
 class BarPlot(Panel):
-    def __init__(
-        self,
-        title=None,
-        metrics=None,
-        vertical=None,
-        range_x=(None, None),
-        title_x=None,
-        title_y=None,
-        groupby=None,
-        groupby_aggfunc=None,
-        groupby_rangefunc=None,
-        max_runs_to_show=None,
-        max_bars_to_show=None,
-        custom_expressions=None,
-        legend_template=None,
-        font_size=None,
-        line_titles=None,
-        line_colors=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.title = title
-        self.metrics = metrics
-        self.vertical = vertical
-        self.range_x = range_x
-        self.title_x = title_x
-        self.title_y = title_y
-        self.groupby = groupby
-        self.groupby_aggfunc = groupby_aggfunc
-        self.groupby_rangefunc = groupby_rangefunc
-        self.max_runs_to_show = max_runs_to_show
-        self.max_bars_to_show = max_bars_to_show
-        self.custom_expressions = custom_expressions
-        self.legend_template = legend_template
-        self.font_size = font_size
-        self.line_titles = line_titles
-        self.line_colors = line_colors
-
     title: Optional[str] = Attr(json_path="spec.config.chartTitle")
     metrics: Optional[list] = Attr(
         json_path="spec.config.metrics",
@@ -533,6 +494,45 @@ class BarPlot(Panel):
         ],
     )
 
+    def __init__(
+        self,
+        title=None,
+        metrics=None,
+        vertical=None,
+        range_x=(None, None),
+        title_x=None,
+        title_y=None,
+        groupby=None,
+        groupby_aggfunc=None,
+        groupby_rangefunc=None,
+        max_runs_to_show=None,
+        max_bars_to_show=None,
+        custom_expressions=None,
+        legend_template=None,
+        font_size=None,
+        line_titles=None,
+        line_colors=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.metrics = metrics
+        self.vertical = vertical
+        self.range_x = range_x
+        self.title_x = title_x
+        self.title_y = title_y
+        self.groupby = groupby
+        self.groupby_aggfunc = groupby_aggfunc
+        self.groupby_rangefunc = groupby_rangefunc
+        self.max_runs_to_show = max_runs_to_show
+        self.max_bars_to_show = max_bars_to_show
+        self.custom_expressions = custom_expressions
+        self.legend_template = legend_template
+        self.font_size = font_size
+        self.line_titles = line_titles
+        self.line_colors = line_colors
+
     @metrics.getter
     def metrics(self):
         json_path = self._get_path("metrics")
@@ -554,27 +554,6 @@ class BarPlot(Panel):
 
 
 class ScalarChart(Panel):
-    def __init__(
-        self,
-        title=None,
-        metric=None,
-        groupby_aggfunc=None,
-        groupby_rangefunc=None,
-        custom_expressions=None,
-        legend_template=None,
-        font_size=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.title = title
-        self.metric = coalesce(metric, "")
-        self.groupby_aggfunc = groupby_aggfunc
-        self.groupby_rangefunc = groupby_rangefunc
-        self.custom_expressions = custom_expressions
-        self.legend_template = legend_template
-        self.font_size = font_size
-
     title: Optional[str] = Attr(json_path="spec.config.chartTitle")
     metric: str = Attr(json_path="spec.config.metrics")
     groupby_aggfunc: Optional[str] = Attr(
@@ -599,6 +578,27 @@ class ScalarChart(Panel):
         validators=[OneOf(FONT_SIZES)],
     )
 
+    def __init__(
+        self,
+        title=None,
+        metric=None,
+        groupby_aggfunc=None,
+        groupby_rangefunc=None,
+        custom_expressions=None,
+        legend_template=None,
+        font_size=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.metric = coalesce(metric, "")
+        self.groupby_aggfunc = groupby_aggfunc
+        self.groupby_rangefunc = groupby_rangefunc
+        self.custom_expressions = custom_expressions
+        self.legend_template = legend_template
+        self.font_size = font_size
+
     @metric.getter
     def metric(self):
         json_path = self._get_path("metric")
@@ -617,14 +617,14 @@ class ScalarChart(Panel):
 
 
 class CodeComparer(Panel):
-    def __init__(self, diff=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.diff = diff
-
     diff: Optional[str] = Attr(
         json_path="spec.config.diff",
         validators=[OneOf(CODE_COMPARE_DIFF)],
     )
+
+    def __init__(self, diff=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.diff = diff
 
     @property
     def view_type(self) -> str:
@@ -632,6 +632,11 @@ class CodeComparer(Panel):
 
 
 class PCColumn(Base):
+    metric: str = Attr(json_path="spec.accessor")
+    name: Optional[str] = Attr(json_path="spec.displayName")
+    ascending: Optional[bool] = Attr(json_path="spec.inverted")
+    log_scale: Optional[bool] = Attr(json_path="spec.log")
+
     def __init__(
         self, metric, name=None, ascending=None, log_scale=None, *args, **kwargs
     ):
@@ -641,11 +646,6 @@ class PCColumn(Base):
         self.ascending = ascending
         self.log_scale = log_scale
 
-    metric: str = Attr(json_path="spec.accessor")
-    name: Optional[str] = Attr(json_path="spec.displayName")
-    ascending: Optional[bool] = Attr(json_path="spec.inverted")
-    log_scale: Optional[bool] = Attr(json_path="spec.log")
-
     @classmethod
     def from_json(cls, spec):
         obj = cls(metric=spec["accessor"])
@@ -654,12 +654,6 @@ class PCColumn(Base):
 
 
 class ParallelCoordinatesPlot(Panel):
-    def __init__(self, columns=None, title=None, font_size=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.columns = coalesce(columns, [])
-        self.title = title
-        self.font_size = font_size
-
     columns: list = Attr(
         json_path="spec.config.columns",
         validators=[TypeValidator(PCColumn, how="keys")],
@@ -674,6 +668,12 @@ class ParallelCoordinatesPlot(Panel):
         json_path="spec.config.fontSize",
         validators=[OneOf(FONT_SIZES)],
     )
+
+    def __init__(self, columns=None, title=None, font_size=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.columns = coalesce(columns, [])
+        self.title = title
+        self.font_size = font_size
 
     @columns.getter
     def columns(self):
@@ -693,11 +693,11 @@ class ParallelCoordinatesPlot(Panel):
 
 
 class ParameterImportancePlot(Panel):
+    with_respect_to: str = Attr(json_path="spec.config.targetKey")
+
     def __init__(self, with_respect_to=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.with_respect_to = coalesce(with_respect_to, "Created Timestamp")
-
-    with_respect_to: str = Attr(json_path="spec.config.targetKey")
 
     @with_respect_to.getter
     def with_respect_to(self):
@@ -732,14 +732,8 @@ class RunComparer(Panel):
 
 
 class MediaBrowser(Panel):
-    def __init__(self, num_columns=None, media_keys=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.num_columns = num_columns
-        self.media_keys = media_keys
-
     num_columns: Optional[int] = Attr(json_path="spec.config.columnCount")
     media_keys: Optional[str] = Attr(json_path="spec.config.media_keys")
-
     # Attr(json_path="spec.config.chartTitle")
     # Attr(json_path="spec.config.stepIndex")
     # Attr(json_path="spec.config.mediaIndex")
@@ -760,17 +754,22 @@ class MediaBrowser(Panel):
     # Attr(json_path="spec.config.segmentationMaskConfig")
     # Attr(json_path="spec.config.boundingBoxConfig")
 
+    def __init__(self, num_columns=None, media_keys=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_columns = num_columns
+        self.media_keys = media_keys
+
     @property
     def view_type(self) -> str:
         return "Media Browser"
 
 
 class MarkdownPanel(Panel):
+    markdown: Optional[str] = Attr(json_path="spec.config.value")
+
     def __init__(self, markdown=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.markdown = markdown
-
-    markdown: Optional[str] = Attr(json_path="spec.config.value")
 
     @property
     def view_type(self) -> str:
@@ -803,44 +802,54 @@ class Vega(Panel):
 
 class CustomChart(Panel):
     query: dict = Attr(json_path="spec.config.userQuery.queryFields")
-    chart_name: str = Attr(json_path='spec.config.panelDefId')
-    user_fields: dict = Attr(json_path='spec.config.fieldSettings')
-    
+    chart_name: str = Attr(json_path="spec.config.panelDefId")
+    user_fields: dict = Attr(json_path="spec.config.fieldSettings")
+
     def __init__(self, query=None, chart_name="", user_fields=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.query = coalesce(query, {})
         self.chart_name = chart_name
         self.user_fields = coalesce(user_fields, {})
-    
+
     @property
     def view_type(self) -> str:
         return "Vega2"
-    
+
     @query.getter
     def query(self):
-        d = nested_get(self, self._get_path('query'))
-        fields = d[0]['fields']
-        query = {o['name']: o.get('args') for o in fields} 
-        query = {k: v[0]['value'] if v is not None else None for k, v in query.items()}
+        d = nested_get(self, self._get_path("query"))
+        fields = d[0]["fields"]
+        query = {o["name"]: o.get("args") for o in fields}
+        query = {k: v[0]["value"] if v is not None else None for k, v in query.items()}
         return query
-    
+
     @query.setter
     def query(self, d):
         def make_fields(d):
             fields = []
-            for k,v in d.items():
+            for k, v in d.items():
                 if v is None:
-                    field = {'name': k, 'fields': []}
+                    field = {"name": k, "fields": []}
                 else:
-                    field = {'name': k, 'fields': [], 'args': [{'name': 'keys', 'value': v}]}
+                    field = {
+                        "name": k,
+                        "fields": [],
+                        "args": [{"name": "keys", "value": v}],
+                    }
                 fields.append(field)
             return fields
-        query = {'args': [{'name': 'runSets', 'value': '${runSets}'},{'name': 'limit', 'value': 500}],
-                'name': 'runSets'}
-        query['fields'] = make_fields(d)
+
+        query = {
+            "args": [
+                {"name": "runSets", "value": "${runSets}"},
+                {"name": "limit", "value": 500},
+            ],
+            "name": "runSets",
+        }
+        query["fields"] = make_fields(d)
         query = [query]
-        nested_set(self, self._get_path('query'), query)
-    
+        nested_set(self, self._get_path("query"), query)
+
 
 class Vega3(Panel):
     @property
@@ -1035,6 +1044,14 @@ class WeaveTablePanel(Panel):
 
 
 class Runset(Base):
+    entity: Optional[str] = Attr(json_path="spec.project.entityName")
+    project: Optional[str] = Attr(json_path="spec.project.name")
+    name: str = Attr(json_path="spec.name")
+    query: str = Attr(json_path="spec.search.query")
+    filters: dict = Attr(json_path="spec.filters")
+    groupby: list = Attr(json_path="spec.grouping")
+    order: list = Attr(json_path="spec.sort")
+
     def __init__(
         self,
         entity=None,
@@ -1060,14 +1077,6 @@ class Runset(Base):
         self.filters = coalesce(filters, self._default_filters())
         self.groupby = coalesce(groupby, self._default_groupby())
         self.order = coalesce(order, self._default_order())
-
-    entity: Optional[str] = Attr(json_path="spec.project.entityName")
-    project: Optional[str] = Attr(json_path="spec.project.name")
-    name: str = Attr(json_path="spec.name")
-    query: str = Attr(json_path="spec.search.query")
-    filters: dict = Attr(json_path="spec.filters")
-    groupby: list = Attr(json_path="spec.grouping")
-    order: list = Attr(json_path="spec.sort")
 
     @filters.getter
     def filters(self):
@@ -1119,7 +1128,9 @@ class Runset(Base):
 
     @property
     def runs(self) -> wandb.apis.public.Runs:
-        return wandb.Api().runs(path=f"{self.entity}/{self.project}", filters=self.filters)
+        return wandb.Api().runs(
+            path=f"{self.entity}/{self.project}", filters=self.filters
+        )
 
     @staticmethod
     def _default_filters():
@@ -1157,26 +1168,14 @@ class UnknownBlock(Block):
 
 
 class PanelGrid(Block):
-    def __init__(self, runsets=None, panels=None, *args, **kwargs):
+    runsets: list = Attr(json_path="spec.metadata.runSets")
+    panels: list = Attr(json_path="spec.metadata.panelBankSectionConfig.panels")
+
+    def __init__(self, runsets=None,panels=None,  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._spec = self._default_panel_grid_spec()
         self.runsets = coalesce(runsets, self._default_runsets())
         self.panels = coalesce(panels, self._default_panels())
-
-    runsets: list = Attr(json_path="spec.metadata.runSets")
-    panels: list = Attr(json_path="spec.metadata.panelBankSectionConfig.panels")
-
-    @runsets.getter
-    def runsets(self):
-        json_path = self._get_path("runsets")
-        specs = nested_get(self, json_path)
-        return [Runset.from_json(spec) for spec in specs]
-
-    @runsets.setter
-    def runsets(self, new_runsets):
-        json_path = self._get_path("runsets")
-        new_specs = [rs.spec for rs in new_runsets]
-        nested_set(self, json_path, new_specs)
 
     @panels.getter
     def panels(self):
@@ -1209,6 +1208,18 @@ class PanelGrid(Block):
         new_panels = self._get_specific_keys_for_certain_plots(new_panels, setting=True)
 
         new_specs = [p.spec for p in fix_collisions(new_panels)]
+        nested_set(self, json_path, new_specs)
+
+    @runsets.getter
+    def runsets(self):
+        json_path = self._get_path("runsets")
+        specs = nested_get(self, json_path)
+        return [Runset.from_json(spec) for spec in specs]
+
+    @runsets.setter
+    def runsets(self, new_runsets):
+        json_path = self._get_path("runsets")
+        new_specs = [rs.spec for rs in new_runsets]
         nested_set(self, json_path, new_specs)
 
     @staticmethod
@@ -1311,6 +1322,19 @@ class PanelGrid(Block):
 
 
 class Report(Base):
+    project: str = Attr(json_path="viewspec.project.name")
+    entity: str = Attr(json_path="viewspec.project.entityName")
+    title: str = Attr(json_path="viewspec.displayName")
+    description: str = Attr(json_path="viewspec.description")
+    width: str = Attr(
+        json_path="viewspec.spec.width",
+        validators=[OneOf(["readable", "fixed", "fluid"])],
+    )
+    blocks: list = Attr(
+        json_path="viewspec.spec.blocks",
+        validators=[TypeValidator(Block, how="keys")],
+    )
+
     def __init__(
         self,
         project,
@@ -1332,19 +1356,6 @@ class Report(Base):
         self.description = description
         self.width = width
         self.blocks = coalesce(blocks, [])
-
-    project: str = Attr(json_path="viewspec.project.name")
-    entity: str = Attr(json_path="viewspec.project.entityName")
-    title: str = Attr(json_path="viewspec.displayName")
-    description: str = Attr(json_path="viewspec.description")
-    width: str = Attr(
-        json_path="viewspec.spec.width",
-        validators=[OneOf(["readable", "fixed", "fluid"])],
-    )
-    blocks: list = Attr(
-        json_path="viewspec.spec.blocks",
-        validators=[TypeValidator(Block, how="keys")],
-    )
 
     @blocks.getter
     def blocks(self):
@@ -1446,7 +1457,7 @@ class Report(Base):
         r = self.client.execute(
             CREATE_PROJECT, {"entityName": self.entity, "name": self.project}
         )
-        
+
         # Check runsets with `None` for project and replace with the report's project.
         # We have to do this here because RunSets don't know about their report until they're added to it.
         for rs in self.runsets:
@@ -1518,13 +1529,13 @@ class List(Base):
 
 
 class CheckedList(Block, List):
+    items: list = Attr()
+    checked: list = Attr()
+
     def __init__(self, items, checked, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.items = items
         self.checked = checked
-
-    items: list = Attr()
-    checked: list = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1542,11 +1553,11 @@ class CheckedList(Block, List):
 
 
 class OrderedList(Block, List):
+    items: list = Attr()
+
     def __init__(self, items, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.items = items
-
-    items: list = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1565,11 +1576,11 @@ class OrderedList(Block, List):
 
 
 class UnorderedList(Block, List):
+    items: list = Attr()
+
     def __init__(self, items, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.items = items
-
-    items: list = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1600,11 +1611,11 @@ class Heading(Base):
 
 
 class H1(Block, Heading):
+    text: str = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
-
-    text: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1616,11 +1627,11 @@ class H1(Block, Heading):
 
 
 class H2(Block, Heading):
+    text: str = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
-
-    text: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1632,11 +1643,11 @@ class H2(Block, Heading):
 
 
 class H3(Block, Heading):
+    text: str = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
-
-    text: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1648,11 +1659,11 @@ class H3(Block, Heading):
 
 
 class BlockQuote(Block):
+    text: str = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
-
-    text: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "BlockQuote":
@@ -1665,11 +1676,11 @@ class BlockQuote(Block):
 
 
 class CalloutBlock(Block):
+    text: Union[str, list] = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
-
-    text: Union[str, list] = Attr()
 
     def __post_init__(self) -> None:
         if isinstance(self.text, str):
@@ -1692,13 +1703,13 @@ class CalloutBlock(Block):
 
 
 class CodeBlock(Block):
+    code: Union[str, list] = Attr()
+    language: str = Attr()
+
     def __init__(self, code, language=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.code = code
         self.language = coalesce(language, "python")
-
-    code: Union[str, list] = Attr()
-    language: str = Attr()
 
     def __post_init__(self) -> None:
         if isinstance(self.code, str):
@@ -1728,13 +1739,13 @@ class CodeBlock(Block):
 
 
 class MarkdownBlock(Block):
+    text: Union[str, list] = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
         if isinstance(self.text, list):
             self.text = "\n".join(self.text)
-
-    text: Union[str, list] = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "MarkdownBlock":
@@ -1751,13 +1762,13 @@ class MarkdownBlock(Block):
 
 
 class LaTeXBlock(Block):
+    text: Union[str, list] = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
         if isinstance(self.text, list):
             self.text = "\n".join(self.text)
-
-    text: Union[str, list] = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "LaTeXBlock":
@@ -1775,11 +1786,11 @@ class LaTeXBlock(Block):
 
 
 class Gallery(Block):
+    ids: list = Attr()
+
     def __init__(self, ids, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ids = ids
-
-    ids: list = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Gallery":
@@ -1797,13 +1808,13 @@ class Gallery(Block):
 
 
 class Image(Block):
+    url: str = Attr()
+    caption: str = Attr()
+
     def __init__(self, url, caption, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.url = url
         self.caption = caption
-
-    url: str = Attr()
-    caption: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Image":
@@ -1839,15 +1850,15 @@ class Image(Block):
 class WeaveTableBlock(Block):
     """This is a hacky solution to support the most common way of getting Weave tables for now..."""
 
+    entity: str = Attr()
+    project: str = Attr()
+    table_name: str = Attr()
+
     def __init__(self, entity, project, table_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.entity = entity
         self.project = project
         self.table_name = table_name
-
-    entity: str = Attr()
-    project: str = Attr()
-    table_name: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "WeaveTableBlock":
@@ -2095,11 +2106,11 @@ class TableOfContents(Block):
 
 
 class SoundCloud(Block):
+    url: str = Attr()
+
     def __init__(self, url, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.url = url
-
-    url: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "SoundCloud":
@@ -2118,14 +2129,14 @@ class SoundCloud(Block):
 
 
 class Twitter(Block):
+    embed_html: str = Attr()
+
     def __init__(self, embed_html, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.embed_html = embed_html
         if self.embed_html:
             pattern = r" <script[\s\S]+?/script>"
             self.embed_html = re.sub(pattern, "\n", self.embed_html)
-
-    embed_html: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Twitter":
@@ -2138,11 +2149,11 @@ class Twitter(Block):
 
 
 class Spotify(Block):
+    spotify_id: str = Attr()
+
     def __init__(self, spotify_id, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.spotify_id = spotify_id
-
-    spotify_id: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Spotify":
@@ -2164,11 +2175,11 @@ class Spotify(Block):
 
 
 class Video(Block):
+    url: str = Attr()
+
     def __init__(self, url, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.url = url
-
-    url: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Video":
@@ -2184,11 +2195,11 @@ class Video(Block):
 
 
 class InlineLaTeX(Base):
+    latex: str = Attr()
+
     def __init__(self, latex, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.latex = latex
-
-    latex: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -2196,11 +2207,11 @@ class InlineLaTeX(Base):
 
 
 class InlineCode(Base):
+    code: str = Attr()
+
     def __init__(self, code, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.code = code
-
-    code: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -2208,11 +2219,11 @@ class InlineCode(Base):
 
 
 class P(Block):
+    text: Union[str, InlineLaTeX, InlineCode, list] = Attr()
+
     def __init__(self, text, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
-
-    text: Union[str, InlineLaTeX, InlineCode, list] = Attr()
 
     @classmethod
     def from_json(cls, spec):
