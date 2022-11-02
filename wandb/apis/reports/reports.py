@@ -1119,7 +1119,7 @@ class Runset(Base):
 
     @property
     def runs(self) -> wandb.apis.public.Runs:
-        return wandb.apis.public.Runs(wandb.Api().client, self.entity, self.project)
+        return wandb.Api().runs(path=f"{self.entity}/{self.project}", filters=self.filters)
 
     @staticmethod
     def _default_filters():
