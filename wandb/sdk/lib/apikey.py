@@ -230,6 +230,12 @@ def write_key(settings, key, api=None, anonymous=False):
 
     write_netrc(settings.base_url, "user", key)
 
+    if prefix == "local" and settings.base_url == "https://api.wandb.ai":
+        wandb.termerror(
+            "Host mismatch : Using an API key for a self-hosted instance on wandb.ai, please specify --host flag to log in."
+        )
+        return
+
     wl = wandb.setup(settings=settings)
 
     if not anonymous:
