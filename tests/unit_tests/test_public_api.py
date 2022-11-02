@@ -227,12 +227,14 @@ def test_update_aliases_on_artifact(user, relay_server, wandb_init):
         name=f"{user}/{project}/test-artifact:v0", type="test-type"
     )
     artifact.aliases = ["staging"]
+    artifact.aliases.append("boom")
     artifact.save()
 
     artifact = Api().artifact(
         name=f"{user}/{project}/test-artifact:v0", type="test-type"
     )
     aliases = artifact.aliases
+    assert "boom" in aliases
     assert "staging" in aliases
     assert "best" not in aliases
 
