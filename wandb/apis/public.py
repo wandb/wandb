@@ -4182,7 +4182,7 @@ class Artifact(artifacts.Artifact):
         self._entity = entity
         self._project = project
         self._artifact_name = name
-        self._artifact_collection_name = name.split(":")[0] if ":" in name else name
+        self._artifact_collection_name = name.split(":")[0]
         self._attrs = attrs
         if self._attrs is None:
             self._load()
