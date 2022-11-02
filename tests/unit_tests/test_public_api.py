@@ -212,8 +212,28 @@ def test_artifact_download_logger():
             termlog.assert_not_called()
 
 
-def test_update_aliases_on_artifact(user, relay_server):
+def test_update_aliases_on_artifact(user, relay_server, wandb_init):
     _project = "test"
+
+    with relay_server():
+        run = wandb_init(entity=user, project=_project)
+        artifact = wandb.Artifact("test-artifact", "test-type")
+        with open("boom.txt", "w") as f:
+            f.write("testing")
+        artifact.add_file("boom.txt", "test-name")
+        run.log_artifact(artifact, aliases=["best"])
+        artifact.wait()
+        run.finish()
+
+        artifact = Api().artifact(f"{_project}/test-artifact:v0")
+        artifact.update_aliases(add=["staging"], remove=["best"])
+        artifact.save()
+
+        artifact = Api().artifact("test-artifact:v0")
+        aliases = artifact.aliases
+        assert "staging" in aliases
+        assert "best" not in aliases
+
     # TODO: Test api.artifact(...) and use_artifact(...)
 
 
