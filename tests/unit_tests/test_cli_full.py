@@ -73,10 +73,12 @@ def debug_result(result, prefix=None):
     )
 
 
+@pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_reinit(runner, empty_netrc, user):
-    with runner.isolated_filesystem():
-        with mock.patch("wandb.sdk.lib.apikey.len", return_value=40):
-            result = runner.invoke(cli.login, [user])
+    with runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.lib.apikey.len", return_value=40
+    ):
+        result = runner.invoke(cli.login, [user])
         debug_result(result, "login")
         result = runner.invoke(cli.init, input="y\n\n\n")
         debug_result(result, "init")
@@ -89,12 +91,14 @@ def test_init_reinit(runner, empty_netrc, user):
         assert user in generated_wandb
 
 
+@pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_add_login(runner, empty_netrc, user):
-    with runner.isolated_filesystem():
+    with runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.lib.apikey.len", return_value=40
+    ):
         with open("netrc", "w") as f:
             f.write("previous config")
-        with mock.patch("wandb.sdk.lib.apikey.len", return_value=40):
-            result = runner.invoke(cli.login, [user])
+        result = runner.invoke(cli.login, [user])
         debug_result(result, "login")
         result = runner.invoke(cli.init, input=f"y\n{user}\nvanpelt\n")
         debug_result(result, "init")
@@ -107,11 +111,12 @@ def test_init_add_login(runner, empty_netrc, user):
         assert user in generated_wandb
 
 
+@pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_existing_login(runner, user):
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write(f"machine localhost\n\tlogin {user}\tpassword {user}")
-        result = runner.invoke(cli.init, input="vanpelt\nfoo\n")
+        result = runner.invoke(cli.init, input="y\nvanpelt\nfoo\n")
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -601,7 +606,15 @@ def test_sync_tensorboard(
 
 
 def test_sync_wandb_run(runner, relay_server, user, copy_asset):
-    with relay_server() as relay, runner.isolated_filesystem():
+    # note: we have to mock out ArtifactSaver.save
+    # because the artifact does not actually exist
+    # among assets listed in the .wandb file.
+    # this a problem for a real backend that we use now
+    # (as we used to use a mock backend)
+    # todo: create a new test asset that will contain an artifact
+    with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.internal.artifacts.ArtifactSaver.save", return_value=None
+    ):
         copy_asset("wandb")
 
         result = runner.invoke(cli.sync, ["--sync-all"])
@@ -618,9 +631,10 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
         assert "wandb: ERROR Nothing to sync." in result.output
 
 
-@pytest.mark.xfail(reason="TODO: fix this test")
 def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
-    with relay_server() as relay, runner.isolated_filesystem():
+    with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.internal.artifacts.ArtifactSaver.save", return_value=None
+    ):
         run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
         copy_asset("wandb")
         tb_file_name = "events.out.tfevents.1585769947.cvp"
