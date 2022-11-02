@@ -324,11 +324,6 @@ def vendor_setup() -> Callable:
     return reset_import_path
 
 
-def apple_gpu_stats_binary() -> str:
-    parent_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
-
-
 def vendor_import(name: str) -> Any:
     reset_path = vendor_setup()
     module = import_module(name)
@@ -1894,3 +1889,23 @@ def make_docker_image_name_safe(name: str) -> str:
     trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
     trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
     return trimmed if trimmed else "image"
+
+
+def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively merge two dictionaries.
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            if isinstance(value, list):
+                if key in destination:
+                    destination[key].extend(value)
+                else:
+                    destination[key] = value
+            else:
+                destination[key] = value
+    return destination
