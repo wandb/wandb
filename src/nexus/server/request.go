@@ -11,19 +11,68 @@ import (
 
 // import "wandb.ai/wandb/wbserver/wandb_internal":
 
-func handleInformInit(stream *Stream, msg *service.ServerInformInitRequest) {
-    fmt.Println("PROCESS: INIT")
+type Stream struct {
+    exit chan struct{}
+    done chan bool
+    // process chan service.ServerRequest
+    respond chan service.Result
+    // respond chan service.ServerResponse
+    writer chan service.Record
+    ctx context.Context
+    server *NexusServer
+    shutdown bool
 }
 
-func handleInformStart(stream *Stream, msg *service.ServerInformStartRequest) {
+func (ns *Stream) init() {
+    ns.exit = make(chan struct{})
+    ns.done = make(chan bool, 1)
+    ns.ctx = context.Background()
+    ns.respond = make(chan service.Result)
+}
+
+func (ns *Stream) responder(nc *NexusConn) {
+    for {
+        select {
+        case result := <-ns.respond:
+            // fmt.Println("GOT", result)
+            //respondServerResponse(nc, &msg)
+            resp := &service.ServerResponse{
+                ServerResponseType: &service.ServerResponse_ResultCommunicate{&result},
+            }
+            nc.respondChan <-*resp
+        case <-ns.done:
+            fmt.Println("PROCESS: DONE")
+            return
+        }
+    }
+}
+
+func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
+    fmt.Println("PROCESS: INIT")
+
+    // TODO make this a mapping
+    fmt.Println("STREAM init")
+    nc.mux = &Stream{}
+    nc.mux.init()
+    go nc.mux.responder(nc)
+}
+
+func handleInformStart(nc *NexusConn, msg *service.ServerInformStartRequest) {
     fmt.Println("PROCESS: START")
 }
 
-func handleInformFinish(stream *Stream, msg *service.ServerInformFinishRequest) {
+func handleInformFinish(nc *NexusConn, msg *service.ServerInformFinishRequest) {
     fmt.Println("PROCESS: FIN")
 }
 
-func handleCommunicate(stream *Stream, msg *service.Record) {
+
+func getStream(nc *NexusConn) (*Stream) {
+    return nc.mux
+}
+
+func handleCommunicate(nc *NexusConn, msg *service.Record) {
+    stream := getStream(nc)
+
     ref := msg.ProtoReflect()
     desc := ref.Descriptor()
     num := ref.WhichOneof(desc.Oneofs().ByName("record_type")).Number()
@@ -49,10 +98,7 @@ func handleRun(stream *Stream, rec *service.Record, run *service.RunRecord) {
         Control: rec.Control,
         Uuid: rec.Uuid,
     }
-    resp := &service.ServerResponse{
-        ServerResponseType: &service.ServerResponse_ResultCommunicate{result},
-    }
-    stream.respond <-*resp
+    stream.respond <-*result
 }
 
 func handleRunExit(stream *Stream, rec *service.Record, runExit *service.RunExitRecord) {
@@ -63,10 +109,7 @@ func handleRunExit(stream *Stream, rec *service.Record, runExit *service.RunExit
         Control: rec.Control,
         Uuid: rec.Uuid,
     }
-    resp := &service.ServerResponse{
-        ServerResponseType: &service.ServerResponse_ResultCommunicate{result},
-    }
-    stream.respond <-*resp
+    stream.respond <-*result
 }
 
 func handleRequest(stream *Stream, rec *service.Record, req *service.Request) {
@@ -81,13 +124,12 @@ func handleRequest(stream *Stream, rec *service.Record, req *service.Request) {
         Control: rec.Control,
         Uuid: rec.Uuid,
     }
-    resp := &service.ServerResponse{
-        ServerResponseType: &service.ServerResponse_ResultCommunicate{result},
-    }
-    stream.respond <-*resp
+    stream.respond <-*result
 }
 
-func handlePublish(stream *Stream, msg *service.Record) {
+func handlePublish(nc *NexusConn, msg *service.Record) {
+    stream := getStream(nc)
+
     ref := msg.ProtoReflect()
     desc := ref.Descriptor()
     num := ref.WhichOneof(desc.Oneofs().ByName("record_type")).Number()
@@ -124,10 +166,10 @@ func handlePublish(stream *Stream, msg *service.Record) {
     }
 }
 
-func handleInformTeardown(stream *Stream, msg *service.ServerInformTeardownRequest) {
+func handleInformTeardown(nc *NexusConn, msg *service.ServerInformTeardownRequest) {
     fmt.Println("PROCESS: TEARDOWN")
-    stream.done <-true
-    _, cancelCtx := context.WithCancel(stream.ctx)
+    nc.done <-true
+    _, cancelCtx := context.WithCancel(nc.ctx)
 
     fmt.Println("PROCESS: TEARDOWN *****1")
     cancelCtx()
@@ -135,27 +177,27 @@ func handleInformTeardown(stream *Stream, msg *service.ServerInformTeardownReque
     // TODO: remove this?
     //os.Exit(1)
 
-    stream.server.shutdown = true
-    stream.server.listen.Close()
+    nc.server.shutdown = true
+    nc.server.listen.Close()
 }
 
 func handleLogWriter(stream Stream, msg service.Record) {
 }
 
-func handleServerRequest(stream *Stream, msg service.ServerRequest) {
+func handleServerRequest(nc *NexusConn, msg service.ServerRequest) {
     switch x := msg.ServerRequestType.(type) {
     case *service.ServerRequest_InformInit:
-        handleInformInit(stream, x.InformInit)
+        handleInformInit(nc, x.InformInit)
     case *service.ServerRequest_InformStart:
-        handleInformStart(stream, x.InformStart)
+        handleInformStart(nc, x.InformStart)
     case *service.ServerRequest_InformFinish:
-        handleInformFinish(stream, x.InformFinish)
+        handleInformFinish(nc, x.InformFinish)
     case *service.ServerRequest_RecordPublish:
-        handlePublish(stream, x.RecordPublish)
+        handlePublish(nc, x.RecordPublish)
     case *service.ServerRequest_RecordCommunicate:
-        handleCommunicate(stream, x.RecordCommunicate)
+        handleCommunicate(nc, x.RecordCommunicate)
     case *service.ServerRequest_InformTeardown:
-        handleInformTeardown(stream, x.InformTeardown)
+        handleInformTeardown(nc, x.InformTeardown)
     case nil:
         // The field is not set.
         panic("bad2")

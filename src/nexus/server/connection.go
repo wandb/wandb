@@ -17,17 +17,6 @@ import (
 
 // import "wandb.ai/wandb/wbserver/wandb_internal":
 
-type Stream struct {
-    exit chan struct{}
-    done chan bool
-    process chan service.ServerRequest
-    respond chan service.ServerResponse
-    writer chan service.Record
-    ctx context.Context
-    server *NexusServer
-    shutdown bool
-}
-
 type Header struct {
     Magic      uint8
     DataLength uint32
@@ -84,6 +73,12 @@ func (x *Tokenizer) split(data []byte, atEOF bool) (retAdvance int, retToken []b
     return
 }
 
+/*
+    resp := &service.ServerResponse{
+        ServerResponseType: &service.ServerResponse_ResultCommunicate{result},
+    }
+*/
+
 func respondServerResponse(nc *NexusConn, msg *service.ServerResponse) {
     // fmt.Println("respond")
     out, err := proto.Marshal(msg)
@@ -107,19 +102,26 @@ func respondServerResponse(nc *NexusConn, msg *service.ServerResponse) {
 
 type NexusConn struct {
     conn net.Conn
-    stream Stream
     server *NexusServer
+    done chan bool
+    ctx context.Context
+
+    mux *Stream
+    processChan chan service.ServerRequest
+    respondChan chan service.ServerResponse
 }
 
 func (nc *NexusConn) init() {
-    exit := make(chan struct{})
-    done := make(chan bool, 1)
     process := make(chan service.ServerRequest)
     respond := make(chan service.ServerResponse)
-    writer := make(chan service.Record)
-    ctx := context.Background()
-    stream := Stream{exit: exit, done: done, process: process, respond: respond, writer: writer, ctx: ctx, server: nc.server}
-    nc.stream = stream
+    nc.processChan = process
+    nc.respondChan = respond
+    nc.done = make(chan bool)
+    nc.ctx = context.Background()
+    // writer := make(chan service.Record)
+    // stream := Stream{exit: exit, done: done, process: process, respond: respond, writer: writer, ctx: ctx, server: nc.server}
+    // stream := Stream{exit: exit, done: done, process: process, respond: respond, ctx: ctx, server: nc.server}
+    // nc.stream = stream
 }
 
 func (nc *NexusConn) reader() {
@@ -135,19 +137,19 @@ func (nc *NexusConn) reader() {
             log.Fatal("unmarshaling error: ", err)
         }
         // fmt.Println("gotmsg")
-        nc.stream.process <- *msg
+        nc.processChan <- *msg
         // fmt.Println("data2 ", msg)
     }
     fmt.Println("SOCKETREADER: DONE")
-    nc.stream.done <- true
+    nc.done <- true
 }
 
 func (nc *NexusConn) writer() {
     for {
         select {
-        case msg := <-nc.stream.respond:
+        case msg := <-nc.respondChan:
             respondServerResponse(nc, &msg)
-        case <-nc.stream.done:
+        case <-nc.done:
             fmt.Println("PROCESS: DONE")
             return
         }
@@ -157,9 +159,9 @@ func (nc *NexusConn) writer() {
 func (nc *NexusConn) process() {
     for {
         select {
-        case msg := <-nc.stream.process:
-            handleServerRequest(&nc.stream, msg)
-        case <-nc.stream.done:
+        case msg := <-nc.processChan:
+            handleServerRequest(nc, msg)
+        case <-nc.done:
             fmt.Println("PROCESS: DONE")
             return
         }
@@ -170,10 +172,10 @@ func (nc *NexusConn) wait() {
     fmt.Println("WAIT1")
     for {
         select {
-        case <- nc.stream.done:
+        case <- nc.done:
             fmt.Println("WAIT done")
             return
-        case <-nc.stream.ctx.Done():
+        case <-nc.ctx.Done():
             fmt.Println("WAIT ctx done")
 			return
         }
