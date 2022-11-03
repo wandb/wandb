@@ -1309,7 +1309,7 @@ class PanelGrid(Block):
         """
         gen = self.runsets[0].pm_query_generator
         for p in panels:
-            if isinstance(p, (ParallelCoordinatesPlot, ScatterPlot)):
+            if isinstance(p, ParallelCoordinatesPlot):
                 wandb.termlog(
                     "INFO: PCColumn metrics will be have special naming applied -- no change from you is required."
                 )
@@ -1317,6 +1317,17 @@ class PanelGrid(Block):
                 if p.columns:
                     for col in p.columns:
                         col.metric = transform(col.metric)
+            if isinstance(p, ScatterPlot):
+                wandb.termlog(
+                    "INFO: Scatter metrics will be have special naming applied -- no change from you is required."
+                )
+                transform = gen.pc_front_to_back if setting else gen.pc_front_to_back
+                if p.x:
+                    p.x = transform(p.x)
+                if p.y:
+                    p.y = transform(p.y)
+                if p.z:
+                    p.z = transform(p.z)
         return panels
 
 
