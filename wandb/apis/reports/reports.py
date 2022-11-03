@@ -71,36 +71,6 @@ class LineKey:
         return cls(key)
 
 
-class RGBA(Base):
-    r: int = Attr(validators=[Between(0, 255)])
-    g: int = Attr(validators=[Between(0, 255)])
-    b: int = Attr(validators=[Between(0, 255)])
-    a: Union[int, float] = Attr(validators=[Between(0, 1)])
-
-    def __init__(
-        self, r: int, g: int, b: int, a: Union[int, float] = None, *args, **kwargs
-    ):
-        super().__init__(*args, **kwargs)
-        self.r = r
-        self.g = g
-        self.b = b
-        self.a = a
-
-    @classmethod
-    def from_json(cls, d: Dict[str, Any]) -> "RGBA":
-        color = d.get("transparentColor").replace(" ", "")
-        r, g, b, a = re.split(r"\(|\)|,", color)[1:-1]
-        r, g, b, a = int(r), int(g), int(b), float(a)
-        return cls(r, g, b, a)
-
-    @property
-    def spec(self) -> Dict[str, Any]:
-        return {
-            "color": f"rgb({self.r}, {self.g}, {self.b})",
-            "transparentColor": f"rgba({self.r}, {self.g}, {self.b}, {self.a})",
-        }
-
-
 class UnknownPanel(Panel):
     @property
     def view_type(self) -> str:
@@ -196,7 +166,6 @@ class LinePlot(Panel):
         json_path="spec.config.overrideColors",
         validators=[
             TypeValidator(LineKey, how="keys"),
-            TypeValidator(RGBA, how="values"),
         ],
     )
     line_widths: Optional[dict] = Attr(
@@ -338,7 +307,6 @@ class ScatterPlot(Panel):
     legend_template: Optional[str] = Attr(json_path="spec.config.legendTemplate")
     gradient: Optional[dict] = Attr(
         json_path="spec.config.customGradient",
-        validators=[TypeValidator(RGBA, how="values")],
     )
     # color: ... = Attr(json_path="spec.config.color")
     # range_color: ... = Attr(
@@ -490,7 +458,6 @@ class BarPlot(Panel):
         json_path="spec.config.overrideColors",
         validators=[
             TypeValidator(LineKey, how="keys"),
-            TypeValidator(RGBA, how="values"),
         ],
     )
 
@@ -1342,7 +1309,7 @@ class PanelGrid(Block):
         """
         gen = self.runsets[0].pm_query_generator
         for p in panels:
-            if isinstance(p, ParallelCoordinatesPlot):
+            if isinstance(p, (ParallelCoordinatesPlot, ScatterPlot)):
                 wandb.termlog(
                     "INFO: PCColumn metrics will be have special naming applied -- no change from you is required."
                 )
