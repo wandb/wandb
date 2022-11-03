@@ -1170,12 +1170,16 @@ class UnknownBlock(Block):
 class PanelGrid(Block):
     runsets: list = Attr(json_path="spec.metadata.runSets")
     panels: list = Attr(json_path="spec.metadata.panelBankSectionConfig.panels")
+    custom_run_colors: dict = Attr(json_path="spec.metadata.customRunColors")
 
-    def __init__(self, runsets=None,panels=None,  *args, **kwargs):
+    def __init__(
+        self, runsets=None, panels=None, custom_run_colors=None, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self._spec = self._default_panel_grid_spec()
         self.runsets = coalesce(runsets, self._default_runsets())
         self.panels = coalesce(panels, self._default_panels())
+        self.custom_run_colors = coalesce(custom_run_colors, {})
 
     @panels.getter
     def panels(self):
@@ -1221,6 +1225,34 @@ class PanelGrid(Block):
         json_path = self._get_path("runsets")
         new_specs = [rs.spec for rs in new_runsets]
         nested_set(self, json_path, new_specs)
+
+    @custom_run_colors.getter
+    def custom_run_colors(self):
+        json_path = self._get_path("custom_run_colors")
+        id_colors = nested_get(self, json_path)
+        if "ref" in id_colors:
+            del id_colors["ref"]
+        return {self._run_id_to_name(id): c for id, c in id_colors.items()}
+
+    @custom_run_colors.setter
+    def custom_run_colors(self, new_custom_run_colors):
+        json_path = self._get_path("custom_run_colors")
+        new_custom_run_colors = {
+            self._run_name_to_id(name): c for name, c in new_custom_run_colors.items()
+        }
+        nested_set(self, json_path, new_custom_run_colors)
+
+    def _run_id_to_name(self, id):
+        for rs in self.runsets:
+            for run in rs.runs:
+                if run.id == id:
+                    return run.name
+
+    def _run_name_to_id(self, name):
+        for rs in self.runsets:
+            for run in rs.runs:
+                if run.name == name:
+                    return run.id
 
     @staticmethod
     def _default_panel_grid_spec():
