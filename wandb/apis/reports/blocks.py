@@ -1,6 +1,4 @@
-# flake8: noqa
-
-from .reports import (
+from ._blocks import (
     H1,
     H2,
     H3,

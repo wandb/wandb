@@ -1,8 +1,7 @@
-# flake8: noqa
-
-from .reports import (
+from ._panels import (
     BarPlot,
     CodeComparer,
+    CustomChart,
     LinePlot,
     MarkdownPanel,
     MediaBrowser,
@@ -12,5 +11,4 @@ from .reports import (
     ScalarChart,
     ScatterPlot,
     WeaveTablePanel,
-    CustomChart,
 )

@@ -1,10 +1,13 @@
 # flake8: noqa
-
-from .blocks import *
-from .panels import *
-from .reports import LineKey, PCColumn, Report, Runset
-from ... import termlog
 from inspect import cleandoc
+
+from ... import termlog
+from . import blocks, helpers, panels
+from .blocks import *
+from .helpers import LineKey, PCColumn
+from .panels import *
+from .report import Report
+from .runset import Runset
 
 termlog(
     cleandoc(
