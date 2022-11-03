@@ -65,7 +65,7 @@ func logWriter(stream Stream) {
         select {
         case msg := <-stream.writer:
             fmt.Println("write")
-            handleLogWriter(stream, msg)
+            // handleLogWriter(stream, msg)
 
             rec, err := records.Next()
             check(err)
