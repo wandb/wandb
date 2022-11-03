@@ -33,8 +33,9 @@ from wandb.proto.wandb_internal_pb2 import (
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
-from . import meta, sample, stats, tb_watcher
+from . import sample, tb_watcher
 from .settings_static import SettingsStatic
+from .system.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import ArtifactDoneRequest, MetricSummary
@@ -69,7 +70,7 @@ class HandleManager:
     _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
-    _system_stats: Optional[stats.SystemStats]
+    _system_monitor: Optional[SystemMonitor]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
     _metric_defines: Dict[str, MetricRecord]
     _metric_globs: Dict[str, MetricRecord]
@@ -99,7 +100,7 @@ class HandleManager:
         self._interface = interface
 
         self._tb_watcher = None
-        self._system_stats = None
+        self._system_monitor = None
         self._step = 0
 
         self._track_time = None
@@ -161,10 +162,10 @@ class HandleManager:
         logger.info(f"handle defer: {state}")
         # only handle flush tb (sender handles the rest)
         if state == defer.FLUSH_STATS:
-            if self._system_stats:
-                # TODO(jhr): this could block so we dont really want to call shutdown
-                # from handler thread
-                self._system_stats.shutdown()
+            # TODO(jhr): this could block so we dont really want to call shutdown
+            # from handler thread
+            if self._system_monitor is not None:
+                self._system_monitor.finish()
         elif state == defer.FLUSH_TB:
             if self._tb_watcher:
                 # shutdown tensorboard workers so we get all metrics flushed
@@ -662,16 +663,15 @@ class HandleManager:
         else:
             self._accumulate_time = 0
 
+        # system monitor
+        self._system_monitor = SystemMonitor(
+            self._settings,
+            self._interface,
+        )
         if not self._settings._disable_stats:
-            self._system_stats = stats.SystemStats(
-                settings=self._settings, interface=self._interface
-            )
-            self._system_stats.start()
-
+            self._system_monitor.start()
         if not self._settings._disable_meta and not run_start.run.resumed:
-            run_meta = meta.Meta(settings=self._settings, interface=self._interface)
-            run_meta.probe()
-            run_meta.write()
+            self._system_monitor.probe(publish=True)
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
@@ -683,18 +683,18 @@ class HandleManager:
         self._respond_result(result)
 
     def handle_request_resume(self, record: Record) -> None:
-        if self._system_stats is not None:
-            logger.info("starting system metrics thread")
-            self._system_stats.start()
+        if self._system_monitor is not None:
+            logger.info("starting system metrics thread or process")
+            self._system_monitor.start()
 
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
         self._track_time = time.time()
 
     def handle_request_pause(self, record: Record) -> None:
-        if self._system_stats is not None:
-            logger.info("stopping system metrics thread")
-            self._system_stats.shutdown()
+        if self._system_monitor is not None:
+            logger.info("stopping system metrics thread or process")
+            self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
             self._track_time = None

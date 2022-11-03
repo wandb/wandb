@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import platform
 import random
@@ -245,16 +246,20 @@ def test_safe_for_json():
             "str": "str",
             "seq": [float("nan"), 1],
             "map": {"foo": 1, "nan": float("nan")},
+            "numpyArr": np.array([0] * 33),
         }
     )
-    assert res == {
+    expected = {
         "inf": "Infinity",
         "map": {"foo": 1, "nan": "NaN"},
         "nan": "NaN",
         "ninf": "-Infinity",
         "seq": ["NaN", 1],
         "str": "str",
+        "numpyArr": [0] * 33,
     }
+    assert json.dumps(res)
+    assert_deep_lists_equal(res, expected)
 
 
 ###############################################################################
@@ -362,12 +367,6 @@ def test_matplotlib_to_plotly():
     fig = matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(plt)) == plotly.graph_objs._figure.Figure
     plt.close()
-
-
-def test_apple_gpu_stats_binary():
-    assert util.apple_gpu_stats_binary().endswith(
-        os.path.join("bin", "apple_gpu_stats")
-    )
 
 
 def test_convert_plots():
