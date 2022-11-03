@@ -1172,12 +1172,6 @@ class PanelGrid(Block):
     @panels.setter
     def panels(self, new_panels):
         json_path = self._get_path("panels")
-
-        # For PC and Scatter, we need to use slightly different values, so update if possible.
-        # This only happens on set, and only when assigned to a panel grid because that is
-        # the earliest time that we have a runset to check what kind of metric is being assigned.
-        new_panels = self._get_specific_keys_for_certain_plots(new_panels, setting=True)
-
         new_specs = [p.spec for p in fix_collisions(new_panels)]
         nested_set(self, json_path, new_specs)
 
@@ -1475,6 +1469,23 @@ class Report(Base):
         for rs in self.runsets:
             if rs.project is None:
                 rs.project = self.project
+
+        # For PC and Scatter, we need to use slightly different values, so update if possible.
+        # This only happens on set, and only when assigned to a panel grid because that is
+        # the earliest time that we have a runset to check what kind of metric is being assigned.
+        transform = self.runsets[0].pm_query_generator.pc_front_to_back
+        for pg in self.panel_grids:
+            for p in pg.panels:
+                if isinstance(p, ParallelCoordinatesPlot) and p.columns:
+                    for col in p.columns:
+                        col.metric = transform(col.metric)
+                if isinstance(p, ScatterPlot):
+                    if p.x:
+                        px = transform(p.x)
+                    if p.y:
+                        py = transform(p.y)
+                    if p.z:
+                        pz = transform(p.z)
 
         r = self.client.execute(
             UPSERT_VIEW,
