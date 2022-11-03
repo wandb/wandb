@@ -2,8 +2,10 @@ import glob
 import os
 import string
 import sys
+from pkg_resources import parse_version
 from typing import Any, Dict, List, Optional, Union
 
+import tensorflow as tf
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
@@ -113,9 +115,12 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             # Save the model
             self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
             # Get filepath where the model checkpoint is saved.
-            filepath = self._get_file_path(
-                epoch=self._current_epoch, batch=batch, logs=logs
-            )
+            if parse_version(tf.keras.__version__) <= parse_version("2.6.0"):
+                filepath = self._get_file_path(epoch=self._current_epoch, logs=logs)
+            else:
+                filepath = self._get_file_path(
+                    epoch=self._current_epoch, batch=batch, logs=logs
+                )
             # Log the model as artifact
             aliases = ["latest", f"epoch_{self._current_epoch}_batch_{batch}"]
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
@@ -125,7 +130,10 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         # Check if model checkpoint is created at the end of epoch.
         if self.save_freq == "epoch":
             # Get filepath where the model checkpoint is saved.
-            filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
+            if parse_version(tf.keras.__version__) <= parse_version("2.6.0"):
+                filepath = self._get_file_path(epoch=epoch, logs=logs)
+            else:
+                filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
             # Log the model as artifact
             aliases = ["latest", f"epoch_{epoch}"]
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
