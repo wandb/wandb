@@ -1468,9 +1468,7 @@ class Report(Base):
             wandb.termwarn("Report has not been modified")
 
         # create project if not exists
-        r = self.client.execute(
-            CREATE_PROJECT, {"entityName": self.entity, "name": self.project}
-        )
+        wandb.Api().create_project(self.project, self.entity)
 
         # Check runsets with `None` for project and replace with the report's project.
         # We have to do this here because RunSets don't know about their report until they're added to it.
