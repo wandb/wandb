@@ -4704,12 +4704,39 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType") or None
+        aliases = None
+        if not valid:
+            # Note: dangerous for artifacts linked to multiple collections
+            # This risk only exists for clients with old wandb backends.
+            aliases = [
+                {
+                    "artifactCollectionName": self._sequence_name,
+                    "alias": alias,
+                }
+            for alias in self._aliases
+            ]
+
         self.client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
+                "aliases": aliases
             },
         )
         # Save locally modified aliases
