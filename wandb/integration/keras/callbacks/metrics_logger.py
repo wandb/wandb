@@ -64,10 +64,11 @@ class WandbMetricsLogger(callbacks.Callback):
             self.log_freq: Union[LogStrategy, int] = 1
         else:
             self.log_freq = log_freq
+        self.logging_batch_wise = log_freq == "batch" or isinstance(log_freq, int)
         self.global_batch = 0
         self.global_step = initial_global_step
 
-        if isinstance(log_freq, int):
+        if self.logging_batch_wise:
             # define custom x-axis for batch logging.
             wandb.define_metric("batch/batch_step")
             # set all batch metrics to be logged against batch_step.
@@ -111,7 +112,7 @@ class WandbMetricsLogger(callbacks.Callback):
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         self.global_step += 1
         """An alias for `on_train_batch_end` for backwards compatibility."""
-        if isinstance(self.log_freq, int) and batch % self.log_freq == 0:
+        if self.logging_batch_wise and batch % self.log_freq == 0:
             logs = {f"batch/{k}": v for k, v in logs.items()} if logs else {}
             logs["batch/batch_step"] = self.global_batch
 
