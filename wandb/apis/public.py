@@ -4727,7 +4727,7 @@ class Artifact(artifacts.Artifact):
                     "artifactCollectionName": self._sequence_name,
                     "alias": alias,
                 }
-            for alias in self._aliases
+                for alias in self._aliases
             ]
 
         self.client.execute(
@@ -4736,7 +4736,7 @@ class Artifact(artifacts.Artifact):
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
-                "aliases": aliases
+                "aliases": aliases,
             },
         )
         # Save locally modified aliases
