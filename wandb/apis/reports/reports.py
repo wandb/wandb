@@ -1366,10 +1366,10 @@ class Report(Base):
         self.description = description
         self.width = width
         self.blocks = coalesce(blocks, [])
-        `
+
     @classmethod
     def from_url(self, url):
-        return wandb.Api().load_report(url)`
+        return wandb.Api().load_report(url)
 
     @blocks.getter
     def blocks(self):

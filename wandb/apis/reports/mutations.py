@@ -44,4 +44,3 @@ UPSERT_VIEW = gql(
     }
 """
 )
-
