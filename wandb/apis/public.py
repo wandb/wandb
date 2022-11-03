@@ -2479,7 +2479,6 @@ class Sweep(Attrs):
         project: (str) name of project
         config: (str) dictionary of sweep configuration
         state: (str) the state of the sweep
-        expected_run_count: (int) number of expected runs for the sweep
     """
 
     QUERY = gql(
@@ -2490,7 +2489,6 @@ class Sweep(Attrs):
                 id
                 name
                 state
-                runCountExpected
                 bestLoss
                 config
             }
@@ -2566,11 +2564,6 @@ class Sweep(Attrs):
             )[0]
         except IndexError:
             return None
-
-    @property
-    def expected_run_count(self) -> Optional[int]:
-        "Returns the number of expected runs in the sweep or None for infinite runs."
-        return self._attrs.get("runCountExpected")
 
     @property
     def path(self):
