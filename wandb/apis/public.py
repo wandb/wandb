@@ -370,6 +370,49 @@ class Api:
         }
         """
     )
+    CREATE_PROJECT = gql(
+        """
+        mutation upsertModel(
+            $description: String
+            $entityName: String
+            $id: String
+            $name: String
+            $framework: String
+            $access: String
+            $views: JSONString
+        ) {
+            upsertModel(
+            input: {
+                description: $description
+                entityName: $entityName
+                id: $id
+                name: $name
+                framework: $framework
+                access: $access
+                views: $views
+            }
+            ) {
+            project {
+                id
+                name
+                entityName
+                description
+                access
+                views
+            }
+            model {
+                id
+                name
+                entityName
+                description
+                access
+                views
+            }
+            inserted
+            }
+        }
+    """
+    )
 
     def __init__(
         self,
@@ -432,6 +475,8 @@ class Api:
         return wandb.apis.reports.Report(
             project, entity, title, description, width, blocks
         )
+    def create_project(self, name: str, entity: str):
+        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """
