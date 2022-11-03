@@ -5,35 +5,11 @@ import (
     "context"
     "fmt"
     // "io"
-    "bufio"
-    "encoding/binary"
-    "google.golang.org/protobuf/proto"
     // "google.golang.org/protobuf/reflect/protoreflect"
     "github.com/wandb/wandb/nexus/service"
 )
 
 // import "wandb.ai/wandb/wbserver/wandb_internal":
-
-func respondServerResponse(stream Stream, msg *service.ServerResponse) {
-    // fmt.Println("respond")
-    out, err := proto.Marshal(msg)
-    check(err)
-    // fmt.Println("respond", len(out), out)
-
-    writer := bufio.NewWriter(stream.conn)
-
-    header := Header{Magic: byte('W')}
-    header.DataLength = uint32(len(out))
-
-    err = binary.Write(writer, binary.LittleEndian, &header)
-    check(err)
-
-    _, err = writer.Write(out)
-    check(err)
-
-    err = writer.Flush()
-    check(err)
-}
 
 func handleInformInit(stream *Stream, msg *service.ServerInformInitRequest) {
     fmt.Println("PROCESS: INIT")

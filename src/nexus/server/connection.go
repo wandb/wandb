@@ -18,7 +18,6 @@ import (
 // import "wandb.ai/wandb/wbserver/wandb_internal":
 
 type Stream struct {
-    conn net.Conn
     exit chan struct{}
     done chan bool
     process chan service.ServerRequest
@@ -36,8 +35,6 @@ type Header struct {
 
 type Tokenizer struct {
     data []byte
-    exit chan struct{}
-    done chan bool
     header Header
     headerLength int
     headerValid bool
@@ -87,6 +84,27 @@ func (x *Tokenizer) split(data []byte, atEOF bool) (retAdvance int, retToken []b
     return
 }
 
+func respondServerResponse(nc *NexusConn, msg *service.ServerResponse) {
+    // fmt.Println("respond")
+    out, err := proto.Marshal(msg)
+    check(err)
+    // fmt.Println("respond", len(out), out)
+
+    writer := bufio.NewWriter(nc.conn)
+
+    header := Header{Magic: byte('W')}
+    header.DataLength = uint32(len(out))
+
+    err = binary.Write(writer, binary.LittleEndian, &header)
+    check(err)
+
+    _, err = writer.Write(out)
+    check(err)
+
+    err = writer.Flush()
+    check(err)
+}
+
 type NexusConn struct {
     conn net.Conn
     stream Stream
@@ -100,13 +118,13 @@ func (nc *NexusConn) init() {
     respond := make(chan service.ServerResponse)
     writer := make(chan service.Record)
     ctx := context.Background()
-    stream := Stream{exit: exit, done: done, process: process, respond: respond, writer: writer, ctx: ctx, server: nc.server, conn: nc.conn}
+    stream := Stream{exit: exit, done: done, process: process, respond: respond, writer: writer, ctx: ctx, server: nc.server}
     nc.stream = stream
 }
 
 func (nc *NexusConn) reader() {
-    scanner := bufio.NewScanner(nc.stream.conn)
-    tokenizer := Tokenizer{exit: nc.stream.exit, done: nc.stream.done}
+    scanner := bufio.NewScanner(nc.conn)
+    tokenizer := Tokenizer{}
 
     scanner.Split(tokenizer.split)
     for scanner.Scan() {
@@ -128,7 +146,7 @@ func (nc *NexusConn) writer() {
     for {
         select {
         case msg := <-nc.stream.respond:
-            respondServerResponse(nc.stream, &msg)
+            respondServerResponse(nc, &msg)
         case <-nc.stream.done:
             fmt.Println("PROCESS: DONE")
             return
