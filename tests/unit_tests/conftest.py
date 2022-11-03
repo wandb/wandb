@@ -918,9 +918,9 @@ def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
     ):
         yield username
 
-        if not wandb_debug:
-            command = UserFixtureCommand(command="down", username=username)
-            fixture_fn(command)
+        # if not wandb_debug:
+        #     command = UserFixtureCommand(command="down", username=username)
+        #     fixture_fn(command)
 
 
 @pytest.fixture(scope="session", autouse=True)
