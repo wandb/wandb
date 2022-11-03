@@ -2499,6 +2499,22 @@ class Sweep(Attrs):
     """
     )
 
+    LEGACY_QUERY = gql(
+        """
+    query Sweep($project: String, $entity: String, $name: String!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                state
+                bestLoss
+                config
+            }
+        }
+    }
+    """
+    )
+
     def __init__(self, client, entity, project, sweep_id, attrs=None):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
@@ -2612,7 +2628,12 @@ class Sweep(Attrs):
         }
         variables.update(kwargs)
 
-        response = client.execute(query, variable_values=variables)
+        try:
+            response = client.execute(query, variable_values=variables)
+        except Exception:
+            # Don't handle exception here, rely on legacy query
+            query = cls.LEGACY_QUERY
+
         if response.get("project") is None:
             return None
         elif response["project"].get("sweep") is None:
