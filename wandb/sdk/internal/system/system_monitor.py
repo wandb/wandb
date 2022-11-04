@@ -84,7 +84,6 @@ class SystemMonitor:
                     shutdown_event=self._shutdown_event,
                 )
             )
-            wandb.termerror(self.assets[-1].name)
 
         # static system info, both hardware and software
         self.system_info: SystemInfo = SystemInfo(
@@ -163,7 +162,8 @@ class SystemMonitor:
         self._shutdown_event.set()
         for asset in self.assets:
             asset.finish()
-        self._process.join()
+        if self._process.is_alive():
+            self._process.join()
         self._process = None
 
     def probe(self, publish: bool = True) -> None:

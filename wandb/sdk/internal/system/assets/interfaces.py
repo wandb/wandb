@@ -168,7 +168,9 @@ class MetricsMonitor:
             logger.info(f"Started {self._process.name}")
 
     def finish(self) -> None:
-        if self._process is not None:
+        if self._process is None:
+            return None
+        if self._process.is_alive():
             self._process.join()
             logger.info(f"Joined {self._process.name}")
-            self._process = None
+        self._process = None
