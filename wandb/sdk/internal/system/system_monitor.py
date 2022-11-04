@@ -4,7 +4,6 @@ import queue
 import threading
 from typing import TYPE_CHECKING, List, Optional, Union
 
-import wandb
 from .assets.asset_registry import asset_registry
 from .assets.interfaces import Asset, Interface
 from .system_info import SystemInfo
