@@ -4,6 +4,7 @@ import queue
 import threading
 from typing import TYPE_CHECKING, List, Optional, Union
 
+import wandb
 from .assets.asset_registry import asset_registry
 from .assets.interfaces import Asset, Interface
 from .system_info import SystemInfo
@@ -83,7 +84,7 @@ class SystemMonitor:
                     shutdown_event=self._shutdown_event,
                 )
             )
-            print(self.assets[-1].name)
+            wandb.termerror(self.assets[-1].name)
 
         # static system info, both hardware and software
         self.system_info: SystemInfo = SystemInfo(
