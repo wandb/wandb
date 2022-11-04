@@ -1,7 +1,7 @@
 import sys
 from typing import Any, Dict, Optional, Union
 
-import tensorflow as tf
+import tensorflow as tf # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
@@ -60,11 +60,14 @@ class WandbMetricsLogger(callbacks.Callback):
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras_metrics_logger = True
 
-        if log_freq == "batch":
-            self.log_freq: Union[LogStrategy, int] = 1
-        else:
-            self.log_freq = log_freq
-        self.logging_batch_wise = log_freq == "batch" or isinstance(log_freq, int)
+        self.logging_batch_wise = False
+        if log_freq == "batch" or isinstance(log_freq, int):
+            self.logging_batch_wise = True
+            if log_freq == "batch":
+                self.log_freq = 1
+            else:
+                self.log_freq = log_freq
+
         self.global_batch = 0
         self.global_step = initial_global_step
 
@@ -99,15 +102,12 @@ class WandbMetricsLogger(callbacks.Callback):
 
         logs["epoch/epoch"] = epoch
 
-        if not isinstance(self.log_freq, int):
+        if not self.logging_batch_wise:
             lr = self._get_lr()
             if lr is not None:
                 logs["epoch/learning_rate"] = lr
 
         wandb.log(logs)
-
-        if self.log_freq == "epoch":
-            wandb.log({})
 
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         self.global_step += 1
@@ -123,9 +123,6 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.log(logs)
 
             self.global_batch += self.log_freq
-
-        if isinstance(self.log_freq, int):
-            wandb.log({})
 
     def on_train_batch_end(
         self, batch: int, logs: Optional[Dict[str, Any]] = None
