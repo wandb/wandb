@@ -1,4 +1,3 @@
-# flake8: noqa
 from inspect import cleandoc
 
 from ... import termlog
@@ -11,11 +10,12 @@ from .runset import Runset
 
 termlog(
     cleandoc(
-        """
-        Thanks for trying out the Report API!
-          ∟ see panels:          \033[92m`wr.panels.<tab>`
-          ∟ see blocks:          \033[92m`wr.blocks.<tab>`
-          ∟ see everything else: \033[92m`wr.<tab>`
+        f"""
+        Thanks for trying out the Report API!  Try out tab completion to see what's available.
+          ∟ everything:  `wr.<tab>`
+              ∟ panels:  `wr.panels.<tab>`
+              ∟ blocks:  `wr.blocks.<tab>`
+              ∟ helpers: `wr.helpers.<tab>`
         
         If you have issues, please make a ticket on JIRA.
         """
