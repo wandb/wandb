@@ -1,7 +1,7 @@
 import sys
 from typing import Any, Dict, Optional, Union
 
-import tensorflow as tf # type: ignore
+import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
