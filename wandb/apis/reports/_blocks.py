@@ -5,8 +5,8 @@ from typing import List as LList
 from typing import Union
 
 from ... import __version__ as wandb_ver
-from ... import termlog, termwarn
-from ._panels import ParallelCoordinatesPlot, ScatterPlot, UnknownPanel, panel_mapping
+from ... import termwarn
+from ._panels import UnknownPanel, panel_mapping
 from .runset import Runset
 from .util import (
     Attr,
@@ -194,32 +194,6 @@ class PanelGrid(Block):
     def _default_panels():
         return []
 
-    def _get_specific_keys_for_certain_plots(self, panels, setting=False):
-        """
-        Helper function to map names for certain plots
-        """
-        gen = self.runsets[0].pm_query_generator
-        for p in panels:
-            if isinstance(p, ParallelCoordinatesPlot):
-                termlog(
-                    "INFO: PCColumn metrics will be have special naming applied -- no change from you is required."
-                )
-                transform = gen.pc_front_to_back if setting else gen.pc_back_to_front
-                if p.columns:
-                    for col in p.columns:
-                        col.metric = transform(col.metric)
-            if isinstance(p, ScatterPlot):
-                termlog(
-                    "INFO: Scatter metrics will be have special naming applied -- no change from you is required."
-                )
-                transform = gen.pc_front_to_back if setting else gen.pc_front_to_back
-                if p.x:
-                    p.x = transform(p.x)
-                if p.y:
-                    p.y = transform(p.y)
-                if p.z:
-                    p.z = transform(p.z)
-        return panels
 
 
 class List(Base):
@@ -319,10 +293,7 @@ class Heading(Base):
     @classmethod
     def from_json(cls, spec: dict) -> "Union[H1,H2,H3]":
         level = spec["level"]
-        text = spec["children"][0]["text"]
-
         level_mapping = {1: H1, 2: H2, 3: H3}
-
         if level not in level_mapping:
             raise ValueError(f"`level` must be one of {list(level_mapping.keys())}")
 

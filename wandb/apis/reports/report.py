@@ -9,7 +9,6 @@ from ... import termlog, termwarn
 from ...sdk.lib import ipython
 from ..public import Api, RetryingClient
 from ._blocks import P, PanelGrid, UnknownBlock, block_mapping
-from ._panels import ParallelCoordinatesPlot, ScatterPlot
 from .mutations import UPSERT_VIEW
 from .runset import Runset
 from .util import Attr, Base, Block, coalesce, generate_name, nested_get, nested_set
@@ -162,22 +161,6 @@ class Report(Base):
                 if rs.project is None:
                     rs.project = self.project
 
-            # For PC and Scatter, we need to use slightly different values, so update if possible.
-            # This only happens on set, and only when assigned to a panel grid because that is
-            # the earliest time that we have a runset to check what kind of metric is being assigned.
-            transform = self.runsets[0].pm_query_generator.pc_front_to_back
-            for pg in self.panel_grids:
-                for p in pg.panels:
-                    if isinstance(p, ParallelCoordinatesPlot) and p.columns:
-                        for col in p.columns:
-                            col.metric = transform(col.metric)
-                    if isinstance(p, ScatterPlot):
-                        if p.x:
-                            p.x = transform(p.x)
-                        if p.y:
-                            p.y = transform(p.y)
-                        if p.z:
-                            p.z = transform(p.z)
 
         r = self.client.execute(
             UPSERT_VIEW,

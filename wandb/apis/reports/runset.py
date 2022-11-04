@@ -30,7 +30,6 @@ class Runset(Base):
         self.query_generator = QueryGenerator()
         self.pm_query_generator = PythonMongoishQueryGenerator(self)
 
-        # self.entity = entity if entity != "" else wandb.Api().default_entity
         self.entity = coalesce(entity, Api().default_entity, "")
         self.project = project  # If the project is None, it will be updated to the report's project on save.  See: Report.save
         self.name = name

@@ -41,13 +41,6 @@ def generate_name(length: int = 12) -> str:
     return rand36.lower()[:length]
 
 
-def tuple_factory(value=None, size=1) -> Func:
-    def _tuple_factory():
-        return tuple(value for _ in range(size))
-
-    return _tuple_factory
-
-
 def coalesce(*arg: Any) -> Any:
     return next((a for a in arg if a is not None), None)
 
