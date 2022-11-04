@@ -158,6 +158,8 @@ class Report(Base):
             # Check runsets with `None` for project and replace with the report's project.
             # We have to do this here because RunSets don't know about their report until they're added to it.
             for rs in self.runsets:
+                if rs.entity is None:
+                    rs.entity = Api().default_entity
                 if rs.project is None:
                     rs.project = self.project
 

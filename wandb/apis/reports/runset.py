@@ -1,7 +1,9 @@
-from typing import Optional
+from typing import Any, Dict, Optional, TypeVar
 
 from ..public import Api, PythonMongoishQueryGenerator, QueryGenerator, Runs
 from .util import Attr, Base, coalesce, generate_name, nested_get, nested_set
+
+T = TypeVar("T")
 
 
 class Runset(Base):
@@ -37,6 +39,27 @@ class Runset(Base):
         self.filters = coalesce(filters, self._default_filters())
         self.groupby = coalesce(groupby, self._default_groupby())
         self.order = coalesce(order, self._default_order())
+
+    @classmethod
+    def from_json(cls, spec: Dict[str, Any]) -> T:
+        """
+        This has a custom implementation because sometimes runsets are missing the project field.
+        """
+        obj = cls()
+        obj._spec = spec
+
+        project = spec.get("project")
+        if project:
+            if not project.get("entity"):
+                obj.entity = coalesce(Api().default_entity, "")
+            if not project.get("name"):
+                obj.project = None
+
+        if not project:
+            obj.entity = coalesce(Api().default_entity, "")
+            obj.project = None
+
+        return obj
 
     @filters.getter
     def filters(self):
