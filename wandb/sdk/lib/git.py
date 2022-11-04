@@ -62,7 +62,11 @@ class GitRepo:
     def root(self) -> Optional[str]:
         if not self.repo:
             return None
-        return self.repo.git.rev_parse("--show-toplevel")
+        try:
+            return self.repo.git.rev_parse("--show-toplevel")
+        except exc.GitCommandError as e:
+            logger.error(f"git root error: {e}")
+            return None
 
     @property
     def dirty(self) -> bool:
