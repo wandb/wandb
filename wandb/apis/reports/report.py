@@ -172,11 +172,11 @@ class Report(Base):
                         col.metric = transform(col.metric)
                 if isinstance(p, ScatterPlot):
                     if p.x:
-                        px = transform(p.x)
+                        p.x = transform(p.x)
                     if p.y:
-                        py = transform(p.y)
+                        p.y = transform(p.y)
                     if p.z:
-                        pz = transform(p.z)
+                        p.z = transform(p.z)
 
         r = self.client.execute(
             UPSERT_VIEW,
