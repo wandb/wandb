@@ -63,7 +63,7 @@ func logWriter(stream Stream) {
 
     for done := false; !done; {
         select {
-        case msg := <-stream.writer:
+        case msg := <-stream.writerChan:
             fmt.Println("write")
             // handleLogWriter(stream, msg)
 
