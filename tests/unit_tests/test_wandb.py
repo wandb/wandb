@@ -31,6 +31,17 @@ def test_sagemaker_key():
     assert wandb.api.api_key == "S" * 40
 
 
+def test_sagemaker(wandb_init, git_repo, mock_sagemaker):
+    run = wandb_init()
+    run.finish()
+    assert run.config.foo == "bar"
+    assert run.id.startswith("sage-")
+    assert run.id.endswith("-maker")
+    assert run.group == "sage"
+    # TODO: add test for secret, but for now there is no env or setting for it so its not added.
+    # assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
+
+
 @pytest.mark.wandb_args(
     tf_config={
         "cluster": {"master": ["trainer-4dsl7-master-0:2222"]},
