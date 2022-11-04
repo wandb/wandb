@@ -83,6 +83,7 @@ class SystemMonitor:
                     shutdown_event=self._shutdown_event,
                 )
             )
+            print(self.assets[-1].name)
 
         # static system info, both hardware and software
         self.system_info: SystemInfo = SystemInfo(
