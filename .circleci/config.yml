@@ -235,6 +235,9 @@ jobs:
       execute:
         type: boolean
         default: true
+      test_path:
+        type: string
+        default: tests/unit_tests_old
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -259,7 +262,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> << parameters.test_path >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
