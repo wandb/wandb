@@ -1,3 +1,4 @@
+import random
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, get_type_hints
 
 from ..public import PanelMetricsHelper
@@ -15,11 +16,28 @@ def generate_name(length: int = 12) -> str:
     https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
     """
 
-    import numpy as np
+    # Borrowed from numpy: https://github.com/numpy/numpy/blob/v1.23.0/numpy/core/numeric.py#L2069-L2123
+    def base_repr(number: int, base: int, padding: int = 0) -> str:
+        digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        if base > len(digits):
+            raise ValueError("Bases greater than 36 not handled in base_repr.")
+        elif base < 2:
+            raise ValueError("Bases less than 2 not handled in base_repr.")
 
-    rand = np.random.random()
+        num = abs(number)
+        res = []
+        while num:
+            res.append(digits[num % base])
+            num //= base
+        if padding:
+            res.append("0" * padding)
+        if number < 0:
+            res.append("-")
+        return "".join(reversed(res or "0"))
+
+    rand = random.random()
     rand = int(float(str(rand)[2:]))
-    rand36 = np.base_repr(rand, 36)
+    rand36 = base_repr(rand, 36)
     return rand36.lower()[:length]
 
 
