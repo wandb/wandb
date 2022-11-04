@@ -3,6 +3,7 @@ package server
 import (
     "context"
     "fmt"
+    "sync"
     "github.com/wandb/wandb/nexus/service"
 )
 
@@ -18,6 +19,7 @@ type Stream struct {
     ctx context.Context
     server *NexusServer
     shutdown bool
+    wg sync.WaitGroup
 }
 
 func (ns *Stream) init() {
@@ -49,6 +51,11 @@ func (ns *Stream) responder(nc *NexusConn) {
     }
 }
 
+func (ns *Stream) shutdownWriter() {
+    close(ns.writerChan)
+    ns.wg.Wait()
+}
+
 func handleRun(stream *Stream, rec *service.Record, run *service.RunRecord) {
     runResult := &service.RunUpdateResult{Run: run}
     result := &service.Result{
@@ -67,6 +74,7 @@ func handleRunExit(stream *Stream, rec *service.Record, runExit *service.RunExit
         Control: rec.Control,
         Uuid: rec.Uuid,
     }
+    stream.shutdownWriter()
     stream.respond <-*result
 }
 

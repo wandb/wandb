@@ -53,8 +53,10 @@ func logHeader(f *os.File) {
 }
 
 func (ns *Stream) writer() {
+    ns.wg.Add(1)
     f, err := os.Create("run-data.wandb")
     check(err)
+    defer ns.wg.Done()
     defer f.Close()
 
     logHeader(f)
@@ -67,6 +69,7 @@ func (ns *Stream) writer() {
         case msg, ok := <-ns.writerChan:
             if !ok {
                 fmt.Println("NOMORE")
+                done = true
                 break
             }
             fmt.Println("WRITE *******")
