@@ -82,7 +82,8 @@ class _Service:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
             pid_str = str(os.getpid())
-            exec_cmd_list = [sys.executable, "-m"]
+            executable = os.environ.get("PEX") or sys.executable
+            exec_cmd_list = [executable, "-m"]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
