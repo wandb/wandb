@@ -13,11 +13,13 @@ func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
 
     // TODO make this a mapping
     fmt.Println("STREAM init")
-    nc.mux = &Stream{}
-    nc.mux.init()
+    // streamId := "thing"
+    streamId := msg.XInfo.StreamId
+    nc.mux[streamId] = &Stream{}
+    nc.mux[streamId].init()
 
     // read from mux and write to nc
-    go nc.mux.responder(nc)
+    go nc.mux[streamId].responder(nc)
 }
 
 func handleInformStart(nc *NexusConn, msg *service.ServerInformStartRequest) {
@@ -29,12 +31,14 @@ func handleInformFinish(nc *NexusConn, msg *service.ServerInformFinishRequest) {
 }
 
 
-func getStream(nc *NexusConn) (*Stream) {
-    return nc.mux
+func getStream(nc *NexusConn, streamId string) (*Stream) {
+    //streamId := "thing"
+    return nc.mux[streamId]
 }
 
 func handleInformRecord(nc *NexusConn, msg *service.Record) {
-    stream := getStream(nc)
+    streamId := msg.XInfo.StreamId
+    stream := getStream(nc, streamId)
 
     ref := msg.ProtoReflect()
     desc := ref.Descriptor()

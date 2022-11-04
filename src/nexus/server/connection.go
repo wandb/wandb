@@ -29,6 +29,31 @@ type Tokenizer struct {
     headerValid bool
 }
 
+type NexusConn struct {
+    conn net.Conn
+    server *NexusServer
+    done chan bool
+    ctx context.Context
+
+    mux map[string]*Stream
+    processChan chan service.ServerRequest
+    respondChan chan service.ServerResponse
+}
+
+func (nc *NexusConn) init() {
+    process := make(chan service.ServerRequest)
+    respond := make(chan service.ServerResponse)
+    nc.processChan = process
+    nc.respondChan = respond
+    nc.done = make(chan bool)
+    nc.ctx = context.Background()
+    nc.mux = make(map[string]*Stream)
+    // writer := make(chan service.Record)
+    // stream := Stream{exit: exit, done: done, process: process, respond: respond, writer: writer, ctx: ctx, server: nc.server}
+    // stream := Stream{exit: exit, done: done, process: process, respond: respond, ctx: ctx, server: nc.server}
+    // nc.stream = stream
+}
+
 func check(e error) {
     if e != nil {
         panic(e)
@@ -98,30 +123,6 @@ func respondServerResponse(nc *NexusConn, msg *service.ServerResponse) {
 
     err = writer.Flush()
     check(err)
-}
-
-type NexusConn struct {
-    conn net.Conn
-    server *NexusServer
-    done chan bool
-    ctx context.Context
-
-    mux *Stream
-    processChan chan service.ServerRequest
-    respondChan chan service.ServerResponse
-}
-
-func (nc *NexusConn) init() {
-    process := make(chan service.ServerRequest)
-    respond := make(chan service.ServerResponse)
-    nc.processChan = process
-    nc.respondChan = respond
-    nc.done = make(chan bool)
-    nc.ctx = context.Background()
-    // writer := make(chan service.Record)
-    // stream := Stream{exit: exit, done: done, process: process, respond: respond, writer: writer, ctx: ctx, server: nc.server}
-    // stream := Stream{exit: exit, done: done, process: process, respond: respond, ctx: ctx, server: nc.server}
-    // nc.stream = stream
 }
 
 func (nc *NexusConn) reader() {
