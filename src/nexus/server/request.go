@@ -1,11 +1,8 @@
 package server
 
 import (
-    // "flag"
-    "context"
+    //"context"
     "fmt"
-    // "io"
-    // "google.golang.org/protobuf/reflect/protoreflect"
     "github.com/wandb/wandb/nexus/service"
 )
 
@@ -51,10 +48,10 @@ func handleInformRecord(nc *NexusConn, msg *service.Record) {
 func handleInformTeardown(nc *NexusConn, msg *service.ServerInformTeardownRequest) {
     fmt.Println("PROCESS: TEARDOWN")
     nc.done <-true
-    _, cancelCtx := context.WithCancel(nc.ctx)
+    // _, cancelCtx := context.WithCancel(nc.ctx)
 
     fmt.Println("PROCESS: TEARDOWN *****1")
-    cancelCtx()
+    //cancelCtx()
     fmt.Println("PROCESS: TEARDOWN *****2")
     // TODO: remove this?
     //os.Exit(1)

@@ -29,6 +29,7 @@ func (ns *Stream) init() {
     ns.writerChan = make(chan service.Record)
 
     go ns.handler()
+    go ns.writer()
 }
 
 func (ns *Stream) responder(nc *NexusConn) {
@@ -92,6 +93,7 @@ func (ns *Stream) storeRecord(msg *service.Record) {
         // The field is not set.
         panic("bad3rec")
     default:
+        ns.writerChan <-*msg
     }
 }
 
@@ -131,9 +133,11 @@ func (ns *Stream) handler() {
         select {
         case record := <-ns.handlerChan:
             fmt.Println("HANDLER rec", record)
+            ns.storeRecord(&record)
             ns.handleRecord(&record)
         case <-ns.done:
             fmt.Println("PROCESS: DONE")
+            close(ns.writerChan)
             return
         }
     }

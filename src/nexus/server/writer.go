@@ -52,7 +52,7 @@ func logHeader(f *os.File) {
     f.Write(buf.Bytes())
 }
 
-func logWriter(stream Stream) {
+func (ns *Stream) writer() {
     f, err := os.Create("run-data.wandb")
     check(err)
     defer f.Close()
@@ -61,11 +61,16 @@ func logWriter(stream Stream) {
 
     records := record.NewWriter(f)
 
+    fmt.Println("WRITER: OPEN")
     for done := false; !done; {
         select {
-        case msg := <-stream.writerChan:
-            fmt.Println("write")
-            // handleLogWriter(stream, msg)
+        case msg, ok := <-ns.writerChan:
+            if !ok {
+                fmt.Println("NOMORE")
+                break
+            }
+            fmt.Println("WRITE *******")
+            // handleLogWriter(ns, msg)
 
             rec, err := records.Next()
             check(err)
@@ -75,7 +80,7 @@ func logWriter(stream Stream) {
 
             _, err = rec.Write(out)
             check(err)
-        case <-stream.done:
+        case <-ns.done:
             fmt.Println("WRITER: DONE")
             done = true
             break
