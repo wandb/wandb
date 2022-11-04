@@ -7,7 +7,7 @@ import (
     "net"
 )
 
-func writePortfile(portfile string) {
+func writePortfile(portfile string, port int) {
     // TODO
     // GRPC_TOKEN = "grpc="
     // SOCK_TOKEN = "sock="
@@ -26,7 +26,7 @@ func writePortfile(portfile string) {
     check(err)
     defer f.Close()
 
-    _, err = f.WriteString(fmt.Sprintf("sock=%d\n", 9999))
+    _, err = f.WriteString(fmt.Sprintf("sock=%d\n", port))
     check(err)
     _, err = f.WriteString("EOF")
     check(err)
@@ -43,7 +43,7 @@ type NexusServer struct {
 }
 
 func tcp_server(portfile string) {
-    addr := "localhost:9999"
+    addr := "localhost:0"
     listen, err := net.Listen("tcp", addr)
     if err != nil {
         log.Fatalln(err)
@@ -52,9 +52,12 @@ func tcp_server(portfile string) {
 
     serverState := NexusServer{listen: listen}
 
-    writePortfile(portfile)
 
     log.Println("Server is running on:", addr)
+    port := listen.Addr().(*net.TCPAddr).Port
+    log.Println("PORT", port)
+
+    writePortfile(portfile, port)
 
     for {
         conn, err := listen.Accept()
