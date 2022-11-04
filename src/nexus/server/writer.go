@@ -2,7 +2,6 @@ package server
 
 import (
     // "flag"
-    "fmt"
     "os"
     // "io"
     "bytes"
@@ -10,6 +9,7 @@ import (
     "google.golang.org/protobuf/proto"
     // "google.golang.org/protobuf/reflect/protoreflect"
     "github.com/golang/leveldb/record"
+    log "github.com/sirupsen/logrus"
 )
 
 /*
@@ -63,16 +63,16 @@ func (ns *Stream) writer() {
 
     records := record.NewWriter(f)
 
-    fmt.Println("WRITER: OPEN")
+    log.Debug("WRITER: OPEN")
     for done := false; !done; {
         select {
         case msg, ok := <-ns.writerChan:
             if !ok {
-                fmt.Println("NOMORE")
+                log.Debug("NOMORE")
                 done = true
                 break
             }
-            fmt.Println("WRITE *******")
+            log.Debug("WRITE *******")
             // handleLogWriter(ns, msg)
 
             rec, err := records.Next()
@@ -84,12 +84,12 @@ func (ns *Stream) writer() {
             _, err = rec.Write(out)
             check(err)
         case <-ns.done:
-            fmt.Println("WRITER: DONE")
+            log.Debug("WRITER: DONE")
             done = true
             break
         }
     }
-    fmt.Println("WRITER: CLOSE")
+    log.Debug("WRITER: CLOSE")
     records.Close()
-    fmt.Println("WRITER: FIN")
+    log.Debug("WRITER: FIN")
 }

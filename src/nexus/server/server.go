@@ -2,10 +2,48 @@ package server
 
 import (
     "fmt"
+    "io"
     "os"
-    "log"
     "net"
+    log "github.com/sirupsen/logrus"
 )
+
+func InitLogging() {
+    /*
+
+    InfoLogger = log.New(file, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+    WarningLogger = log.New(file, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
+    ErrorLogger = log.New(file, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+
+    InfoLogger.Println("Starting the application...")
+    InfoLogger.Println("Something noteworthy happened")
+    WarningLogger.Println("There is something you should know about")
+    ErrorLogger.Println("Something went wrong")
+    */
+
+    logFile, err := os.OpenFile("logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    logToConsole := false
+    // logToConsole = true
+    if logToConsole {
+        mw := io.MultiWriter(os.Stderr, logFile)
+        log.SetOutput(mw)
+    } else {
+        log.SetOutput(logFile)
+    }
+
+    log.SetFormatter(&log.JSONFormatter{})
+    log.SetLevel(log.DebugLevel)
+    /*
+    log.Debug("Useful debugging information.")
+    log.Info("Something noteworthy happened!")
+    log.Warn("You should probably take a look at this.")
+    log.Error("Something failed but I'm not quitting.")
+    */
+}
 
 func writePortfile(portfile string, port int) {
     // TODO

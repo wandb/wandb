@@ -5,6 +5,7 @@ import (
     "fmt"
     "sync"
     "github.com/wandb/wandb/nexus/service"
+    log "github.com/sirupsen/logrus"
 )
 
 
@@ -45,7 +46,7 @@ func (ns *Stream) responder(nc *NexusConn) {
             }
             nc.respondChan <-*resp
         case <-ns.done:
-            fmt.Println("PROCESS: DONE")
+            log.Debug("PROCESS: DONE")
             return
         }
     }
@@ -82,7 +83,7 @@ func handleRequest(stream *Stream, rec *service.Record, req *service.Request) {
     ref := req.ProtoReflect()
     desc := ref.Descriptor()
     num := ref.WhichOneof(desc.Oneofs().ByName("request_type")).Number()
-    fmt.Printf("PROCESS: REQUEST %d\n", num)
+    log.WithFields(log.Fields{"type": num}).Debug("PROCESS: REQUEST")
 
     response := &service.Response{}
     result := &service.Result{
@@ -110,7 +111,7 @@ func (ns *Stream) handleRecord(msg *service.Record) {
     case *service.Record_Header:
         // fmt.Println("headgot:", x)
     case *service.Record_Request:
-        fmt.Println("reqgot:", x)
+        log.WithFields(log.Fields{"req": x}).Debug("reqgot")
         handleRequest(ns, msg, x.Request)
     case *service.Record_Summary:
         // fmt.Println("sumgot:", x)
@@ -136,18 +137,18 @@ func (ns *Stream) handleRecord(msg *service.Record) {
 }
 
 func (ns *Stream) handler() {
-    fmt.Println("HANDLER")
+    log.Debug("HANDLER")
     for {
         select {
         case record := <-ns.handlerChan:
-            fmt.Println("HANDLER rec", record)
+            log.WithFields(log.Fields{"rec": record}).Debug("HANDLER")
             ns.storeRecord(&record)
             ns.handleRecord(&record)
         case <-ns.done:
-            fmt.Println("PROCESS: DONE")
+            log.Debug("PROCESS: DONE")
             close(ns.writerChan)
             return
         }
     }
-    fmt.Println("HANDLER OUT")
+    log.Debug("HANDLER OUT")
 }

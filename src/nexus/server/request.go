@@ -4,15 +4,16 @@ import (
     //"context"
     "fmt"
     "github.com/wandb/wandb/nexus/service"
+    log "github.com/sirupsen/logrus"
 )
 
 // import "wandb.ai/wandb/wbserver/wandb_internal":
 
 func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
-    fmt.Println("PROCESS: INIT")
+    log.Debug("PROCESS: INIT")
 
     // TODO make this a mapping
-    fmt.Println("STREAM init")
+    log.Debug("STREAM init")
     // streamId := "thing"
     streamId := msg.XInfo.StreamId
     nc.mux[streamId] = &Stream{}
@@ -23,11 +24,11 @@ func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
 }
 
 func handleInformStart(nc *NexusConn, msg *service.ServerInformStartRequest) {
-    fmt.Println("PROCESS: START")
+    log.Debug("PROCESS: START")
 }
 
 func handleInformFinish(nc *NexusConn, msg *service.ServerInformFinishRequest) {
-    fmt.Println("PROCESS: FIN")
+    log.Debug("PROCESS: FIN")
 }
 
 
@@ -43,20 +44,21 @@ func handleInformRecord(nc *NexusConn, msg *service.Record) {
     ref := msg.ProtoReflect()
     desc := ref.Descriptor()
     num := ref.WhichOneof(desc.Oneofs().ByName("record_type")).Number()
-    fmt.Printf("PROCESS: COMM/PUBLISH %d\n", num)
+    // fmt.Printf("PROCESS: COMM/PUBLISH %d\n", num)
+    log.WithFields(log.Fields{"type": num}).Debug("PROCESS: COMM/PUBLISH")
 
     stream.handlerChan <-*msg
-    fmt.Printf("PROCESS: COMM/PUBLISH %d 2\n", num)
+    // fmt.Printf("PROCESS: COMM/PUBLISH %d 2\n", num)
 }
 
 func handleInformTeardown(nc *NexusConn, msg *service.ServerInformTeardownRequest) {
-    fmt.Println("PROCESS: TEARDOWN")
+    log.Debug("PROCESS: TEARDOWN")
     nc.done <-true
     // _, cancelCtx := context.WithCancel(nc.ctx)
 
-    fmt.Println("PROCESS: TEARDOWN *****1")
+    log.Debug("PROCESS: TEARDOWN *****1")
     //cancelCtx()
-    fmt.Println("PROCESS: TEARDOWN *****2")
+    log.Debug("PROCESS: TEARDOWN *****2")
     // TODO: remove this?
     //os.Exit(1)
 

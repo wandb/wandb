@@ -3,9 +3,7 @@ package server
 import (
     // "flag"
     "context"
-    "fmt"
     // "io"
-    "log"
     "net"
     "bufio"
     "bytes"
@@ -13,6 +11,7 @@ import (
     "google.golang.org/protobuf/proto"
     // "google.golang.org/protobuf/reflect/protoreflect"
     "github.com/wandb/wandb/nexus/service"
+    log "github.com/sirupsen/logrus"
 )
 
 // import "wandb.ai/wandb/wbserver/wandb_internal":
@@ -141,7 +140,7 @@ func (nc *NexusConn) reader() {
         nc.processChan <- *msg
         // fmt.Println("data2 ", msg)
     }
-    fmt.Println("SOCKETREADER: DONE")
+    log.Debug("SOCKETREADER: DONE")
     nc.done <- true
 }
 
@@ -151,7 +150,7 @@ func (nc *NexusConn) writer() {
         case msg := <-nc.respondChan:
             respondServerResponse(nc, &msg)
         case <-nc.done:
-            fmt.Println("PROCESS: DONE")
+            log.Debug("PROCESS: DONE")
             return
         }
     }
@@ -163,25 +162,25 @@ func (nc *NexusConn) process() {
         case msg := <-nc.processChan:
             handleServerRequest(nc, msg)
         case <-nc.done:
-            fmt.Println("PROCESS: DONE")
+            log.Debug("PROCESS: DONE")
             return
         }
     }
 }
 
 func (nc *NexusConn) wait() {
-    fmt.Println("WAIT1")
+    log.Debug("WAIT1")
     for {
         select {
         case <- nc.done:
-            fmt.Println("WAIT done")
+            log.Debug("WAIT done")
             return
         case <-nc.ctx.Done():
-            fmt.Println("WAIT ctx done")
+            log.Debug("WAIT ctx done")
 			return
         }
     }
-    fmt.Println("WAIT2")
+    log.Debug("WAIT2")
 }
 
 func handleConnection(serverState *NexusServer, conn net.Conn) {
@@ -197,5 +196,5 @@ func handleConnection(serverState *NexusServer, conn net.Conn) {
     go connection.process()
     connection.wait()
 
-    fmt.Println("WAIT3 done handle con")
+    log.Debug("WAIT3 done handle con")
 }
