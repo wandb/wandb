@@ -130,7 +130,9 @@ def check_run(api: Api) -> bool:
     f.write("test")
     f.close()
 
-    with wandb.init(id=nice_id("check_run"), reinit=True, config=config, project=PROJECT_NAME) as run:
+    with wandb.init(
+        id=nice_id("check_run"), reinit=True, config=config, project=PROJECT_NAME
+    ) as run:
         run_id = run.id
         entity = run.entity
         logged = True
@@ -268,7 +270,10 @@ def log_use_download_artifact(
     add_extra_file: bool,
 ) -> Tuple[bool, Optional["ArtifactAPI"], List[str]]:
     with wandb.init(
-        id=nice_id("log_artifact"), reinit=True, project=PROJECT_NAME, config={"test": "artifact log"}
+        id=nice_id("log_artifact"),
+        reinit=True,
+        project=PROJECT_NAME,
+        config={"test": "artifact log"},
     ) as log_art_run:
 
         if add_extra_file:
@@ -371,7 +376,10 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     f.write("test2")
     f.close()
     with wandb.init(
-        id=nice_id("graphql_put"), reinit=True, project=PROJECT_NAME, config={"test": "put to graphql"}
+        id=nice_id("graphql_put"),
+        reinit=True,
+        project=PROJECT_NAME,
+        config={"test": "put to graphql"},
     ) as run:
         wandb.save(gql_fp)
     public_api = wandb.Api()
