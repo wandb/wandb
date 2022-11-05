@@ -1,56 +1,51 @@
 package server
 
 import (
+    "fmt"
+    "strconv"
     "github.com/wandb/wandb/nexus/service"
 //    log "github.com/sirupsen/logrus"
 )
 
-/*
-    def _flush_partial_history(
-        self,
-        step: Optional[int] = None,
-    ) -> None:
-        if self._partial_history:
-            history = HistoryRecord()
-            for k, v in self._partial_history.items():
-                item = history.item.add()
-                item.key = k
-                item.value_json = json.dumps(v)
-            if step is not None:
-                history.step.num = step
-            self.handle_history(Record(history=history))
-            self._partial_history = {}
+func (ns *Stream) handleRunStart(rec *service.Record, req *service.RunStartRequest) {
+    ns.startTime = float64(req.Run.StartTime.AsTime().UnixMicro()) / 1e6
+}
 
-    def handle_request_partial_history(self, record: Record) -> None:
-        partial_history = record.request.partial_history
+func (ns *Stream) handlePartialHistory(rec *service.Record, req *service.PartialHistoryRequest) {
 
-        flush = None
-        if partial_history.HasField("action"):
-            flush = partial_history.action.flush
+    step_num := ns.currentStep
+    ns.currentStep += 1
+    s := service.HistoryStep{Num: step_num}
+    items := req.Item
 
-        step = None
-        if partial_history.HasField("step"):
-            step = partial_history.step.num
 
-        history_dict = proto_util.dict_from_proto_list(partial_history.item)
-        if step is not None:
-            if step < self._step:
-                logger.warning(
-                    f"Step {step} < {self._step}. Dropping entry: {history_dict}."
-                )
-                return
-            elif step > self._step:
-                self._flush_partial_history()
-                self._step = step
-        elif flush is None:
-            flush = True
+    var runTime float64
+    runTime = 0
 
-        self._partial_history.update(history_dict)
+    // walk through items looking for _timestamp
+    for i := 0; i < len(items); i++ {
+        if items[i].Key == "_timestamp" {
+            val, err := strconv.ParseFloat(items[i].ValueJson, 64)
+            check(err)
+            runTime = val - ns.startTime
+        }
+    }
+    items2 := append(items,
+        &service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
+        &service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", step_num)},
+    )
 
-        if flush:
-            self._flush_partial_history(self._step)
- */
-func (ns *Stream) handlePartialHistory(rec *service.Record, req *service.Request_PartialHistory) {
+    h := service.HistoryRecord{Step: &s, Item: items2}
+
+    // TODO: add _runtime and _step
+
+    // from runstartrequest
+    //    self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
+
+    r := service.Record{
+        RecordType: &service.Record_History{&h},
+    }
+    ns.storeRecord(&r)
 }
 
 

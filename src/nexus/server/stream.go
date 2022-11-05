@@ -21,6 +21,8 @@ type Stream struct {
     server *NexusServer
     shutdown bool
     wg sync.WaitGroup
+    currentStep int64
+    startTime float64
 }
 
 func (ns *Stream) init() {
@@ -88,7 +90,10 @@ func handleRequest(stream *Stream, rec *service.Record, req *service.Request) {
     switch x := req.RequestType.(type) {
     case *service.Request_PartialHistory:
         log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got partial")
-        stream.handlePartialHistory(rec, x)
+        stream.handlePartialHistory(rec, x.PartialHistory)
+    case *service.Request_RunStart:
+        log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got start")
+        stream.handleRunStart(rec, x.RunStart)
     default:
     }
 
