@@ -88,29 +88,85 @@ class PanelGrid(Block):
     def custom_run_colors(self):
         json_path = self._get_path("custom_run_colors")
         id_colors = nested_get(self, json_path)
-        if "ref" in id_colors:
-            del id_colors["ref"]
-        return {self._run_id_to_name(id): c for id, c in id_colors.items()}
+
+        def is_groupid(s):
+            for rs in self.runsets:
+                if rs.spec["id"] in s:
+                    return True
+            return False
+
+        def groupid_to_ordertuple(groupid):
+            rs = self.runsets[0]
+            id, rest = groupid.split("-run:")
+            kvs = rest.split("-")
+            kvs = [rs.pm_query_generator.pc_back_to_front(v) for v in kvs]
+            keys, ordertuple = zip(*[kv.split(":") for kv in kvs])
+            rs_name = self._rs_id_to_name(id)
+            return rs_name, *ordertuple
+
+        def run_id_to_name(id):
+            for rs in self.runsets:
+                for run in rs.runs:
+                    if run.id == id:
+                        return run.name
+
+        color_settings = {}
+        for id, c in id_colors.items():
+            if id == "ref":
+                continue
+            if is_groupid(id):
+                key = groupid_to_ordertuple(id)
+            else:
+                key = run_id_to_name(id)
+            color_settings[key] = c
+        return color_settings
 
     @custom_run_colors.setter
     def custom_run_colors(self, new_custom_run_colors):
         json_path = self._get_path("custom_run_colors")
-        new_custom_run_colors = {
-            self._run_name_to_id(name): c for name, c in new_custom_run_colors.items()
-        }
-        nested_set(self, json_path, new_custom_run_colors)
+        color_settings = {}
 
-    def _run_id_to_name(self, id):
-        for rs in self.runsets:
-            for run in rs.runs:
-                if run.id == id:
-                    return run.name
+        def ordertuple_to_groupid(ordertuple):
+            rs = self.runsets[0]
+            rs_name, rest = ordertuple[0], ordertuple[1:]
+            id = self._rs_name_to_id(rs_name)
+            keys = [rs.pm_query_generator.pc_front_to_back(k) for k in rs.groupby]
+            kvs = [f"{k}:{v}" for k, v in zip(keys, rest)]
+            linked = "-".join(kvs)
+            return f"{id}-run:{linked}"
 
-    def _run_name_to_id(self, name):
+        def run_name_to_id(name):
+            for rs in self.runsets:
+                for run in rs.runs:
+                    if run.name == name:
+                        return run.id
+
+        for name, c in new_custom_run_colors.items():
+            if isinstance(id, tuple):
+                key = ordertuple_to_groupid(name)
+            else:
+                key = run_name_to_id(name)
+            color_settings[key] = c
+        nested_set(self, json_path, color_settings)
+
+    def _rs_id_to_name(self, id):
         for rs in self.runsets:
-            for run in rs.runs:
-                if run.name == name:
-                    return run.id
+            if rs.spec["id"] == id:
+                return rs.name
+
+    def _rs_name_to_id(self, name):
+        for rs in self.runsets:
+            if rs.name == name:
+                return rs.spec["id"]
+
+    def _groupid_to_ordertuple(self, groupid):
+        rs = self.runsets[0]
+        id, rest = groupid.split("-run:")
+        kvs = rest.split("-")
+        kvs = [rs.pm_query_generator.pc_back_to_front(v) for v in kvs]
+        keys, ordertuple = zip(*[kv.split(":") for kv in kvs])
+        rs_name = self._rs_id_to_name(id)
+        return rs_name, *ordertuple
 
     @staticmethod
     def _default_panel_grid_spec():
