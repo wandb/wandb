@@ -85,6 +85,13 @@ func handleRequest(stream *Stream, rec *service.Record, req *service.Request) {
     num := ref.WhichOneof(desc.Oneofs().ByName("request_type")).Number()
     log.WithFields(log.Fields{"type": num}).Debug("PROCESS: REQUEST")
 
+    switch x := req.RequestType.(type) {
+    case *service.Request_PartialHistory:
+        log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got partial")
+        stream.handlePartialHistory(rec, x)
+    default:
+    }
+
     response := &service.Response{}
     result := &service.Result{
         ResultType: &service.Result_Response{response},
