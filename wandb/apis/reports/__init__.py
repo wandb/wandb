@@ -11,7 +11,10 @@ from .runset import Runset
 termlog(
     cleandoc(
         f"""
-        Thanks for trying out the Report API!  Try out tab completion to see what's available.
+        Thanks for trying out the Report API!
+        For a tutorial, check out https://colab.research.google.com/drive/1jm3GgVSZLwb9S4BG1091Vy-LIDGuqw8i
+        
+        Try out tab completion to see what's available.
           ∟ everything:  `wr.<tab>`
               ∟ panels:  `wr.panels.<tab>`
               ∟ blocks:  `wr.blocks.<tab>`
