@@ -7,11 +7,34 @@ import (
     "bytes"
     "encoding/binary"
     "google.golang.org/protobuf/proto"
+    "github.com/wandb/wandb/nexus/service"
     // "google.golang.org/protobuf/reflect/protoreflect"
     "github.com/golang/leveldb/record"
     log "github.com/sirupsen/logrus"
 )
 
+type Writer struct {
+    writerChan chan service.Record
+    wgDone func()
+}
+
+func (ns *Stream) NewWriter() (*Writer) {
+    writer := Writer{}
+    writer.writerChan = make(chan service.Record)
+    writer.wgDone = ns.wg.Done
+
+    ns.wg.Add(1)
+    go writer.writerGo()
+    return &writer
+}
+
+func (writer *Writer) Stop() {
+    close(writer.writerChan)
+}
+
+func (writer *Writer) WriteRecord(rec *service.Record) {
+    writer.writerChan <-*rec
+}
 /*
 
 func write(w io.Writer, ss []string) error {
@@ -52,11 +75,10 @@ func logHeader(f *os.File) {
     f.Write(buf.Bytes())
 }
 
-func (ns *Stream) writer() {
-    ns.wg.Add(1)
+func (w *Writer) writerGo() {
     f, err := os.Create("run-data.wandb")
     check(err)
-    defer ns.wg.Done()
+    defer w.wgDone()
     defer f.Close()
 
     logHeader(f)
@@ -66,14 +88,14 @@ func (ns *Stream) writer() {
     log.Debug("WRITER: OPEN")
     for done := false; !done; {
         select {
-        case msg, ok := <-ns.writerChan:
+        case msg, ok := <-w.writerChan:
             if !ok {
                 log.Debug("NOMORE")
                 done = true
                 break
             }
             log.Debug("WRITE *******")
-            // handleLogWriter(ns, msg)
+            // handleLogWriter(w, msg)
 
             rec, err := records.Next()
             check(err)
@@ -83,10 +105,6 @@ func (ns *Stream) writer() {
 
             _, err = rec.Write(out)
             check(err)
-        case <-ns.done:
-            log.Debug("WRITER: DONE")
-            done = true
-            break
         }
     }
     log.Debug("WRITER: CLOSE")

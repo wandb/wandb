@@ -1,8 +1,8 @@
 package server
 
 import (
-    "fmt"
     "io"
+    "fmt"
     "os"
     "net"
     log "github.com/sirupsen/logrus"

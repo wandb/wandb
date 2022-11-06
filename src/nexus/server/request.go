@@ -16,11 +16,10 @@ func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
     log.Debug("STREAM init")
     // streamId := "thing"
     streamId := msg.XInfo.StreamId
-    nc.mux[streamId] = &Stream{}
-    nc.mux[streamId].init()
+    nc.mux[streamId] = NewStream(nc)
 
     // read from mux and write to nc
-    go nc.mux[streamId].responder(nc)
+    // go nc.mux[streamId].responder(nc)
 }
 
 func handleInformStart(nc *NexusConn, msg *service.ServerInformStartRequest) {
@@ -47,7 +46,7 @@ func handleInformRecord(nc *NexusConn, msg *service.Record) {
     // fmt.Printf("PROCESS: COMM/PUBLISH %d\n", num)
     log.WithFields(log.Fields{"type": num}).Debug("PROCESS: COMM/PUBLISH")
 
-    stream.handlerChan <-*msg
+    stream.ProcessRecord(msg)
     // fmt.Printf("PROCESS: COMM/PUBLISH %d 2\n", num)
 }
 

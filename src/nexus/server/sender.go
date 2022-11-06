@@ -8,15 +8,62 @@ import (
     "context"
     "fmt"
     "os"
+    "encoding/base64"
     "net/http"
     "github.com/wandb/wandb/nexus/service"
-
     "github.com/Khan/genqlient/graphql"
+
     log "github.com/sirupsen/logrus"
 )
 
 
-func (ns *Stream) senderInit() {
+type Sender struct {
+    senderChan chan service.Record
+    wgDone func()
+    graphqlClient graphql.Client
+    respondResult func(result *service.Result)
+}
+
+func (ns *Stream) NewSender(respondResult func(result *service.Result)) (*Sender) {
+    sender := Sender{}
+    sender.senderChan = make(chan service.Record)
+    sender.wgDone = ns.wg.Done
+    sender.respondResult = respondResult
+
+    ns.wg.Add(1)
+    go sender.senderGo()
+    return &sender
+}
+
+func (sender *Sender) Stop() {
+    close(sender.senderChan)
+}
+
+func (sender *Sender) SendRecord(rec *service.Record) {
+    sender.senderChan <-*rec
+}
+
+type authedTransport struct {
+	key     string
+	wrapped http.RoundTripper
+}
+
+func basicAuth(username, password string) string {
+  auth := username + ":" + password
+  return base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// req.Header.Set("Authorization", "bearer "+t.key)
+	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
+	//req.Header.Set("Authorization", "api "+t.key)
+    req.Header.Set("User-Agent", "wandb-nexus")
+    // req.Header.Set("X-WANDB-USERNAME", "jeff")
+    // req.Header.Set("X-WANDB-USER-EMAIL", "jeff@wandb.com")
+	return t.wrapped.RoundTrip(req)
+}
+
+func (sender *Sender) senderInit() {
     key := os.Getenv("WANDB_API_KEY")
     if key == "" {
         err := fmt.Errorf("must set WANDB_API_KEY=<wandb api key>")
@@ -31,15 +78,15 @@ func (ns *Stream) senderInit() {
         },
     }
 
-    ns.graphqlClient = graphql.NewClient("https://api.wandb.ai/graphql", &httpClient)
+    sender.graphqlClient = graphql.NewClient("https://api.wandb.ai/graphql", &httpClient)
 
 }
 
-func (ns *Stream) networkSendRecord(msg *service.Record) {
+func (sender *Sender) networkSendRecord(msg *service.Record) {
     switch x := msg.RecordType.(type) {
     case *service.Record_Run:
         // fmt.Println("rungot:", x)
-        ns.networkSendRun(msg, x.Run)
+        sender.networkSendRun(msg, x.Run)
     case nil:
         // The field is not set.
         panic("bad2rec")
@@ -49,17 +96,17 @@ func (ns *Stream) networkSendRecord(msg *service.Record) {
     }
 }
 
-func (ns *Stream) networkSendRun(msg *service.Record, record *service.RunRecord) {
+func (sender *Sender) networkSendRun(msg *service.Record, record *service.RunRecord) {
 
     keepRun := *record
 
     // fmt.Println("SEND", record)
     ctx := context.Background()
-    // resp, err := Viewer(ctx, ns.graphqlClient)
+    // resp, err := Viewer(ctx, sender.graphqlClient)
     // fmt.Println(resp, err)
     tags := []string{}
     resp, err := UpsertBucket(
-	    ctx, ns.graphqlClient,
+	    ctx, sender.graphqlClient,
         nil, // id
         &record.RunId, // name
         nil, // project
@@ -120,18 +167,17 @@ func (ns *Stream) networkSendRun(msg *service.Record, record *service.RunRecord)
         Control: msg.Control,
         Uuid: msg.Uuid,
     }
-    ns.respond <-*result
+    sender.respondResult(result)
 }
 
-func (ns *Stream) sender() {
-    ns.wg.Add(1)
-    defer ns.wg.Done()
+func (sender *Sender) senderGo() {
+    defer sender.wgDone()
 
     log.Debug("SENDER: OPEN")
-    ns.senderInit()
+    sender.senderInit()
     for done := false; !done; {
         select {
-        case msg, ok := <-ns.senderChan:
+        case msg, ok := <-sender.senderChan:
             if !ok {
                 log.Debug("SENDER: NOMORE")
                 done = true
@@ -139,12 +185,8 @@ func (ns *Stream) sender() {
             }
             log.Debug("SENDER *******")
             log.WithFields(log.Fields{"record": msg}).Debug("SENDER: got msg")
-            ns.networkSendRecord(&msg)
-            // handleLogWriter(ns, msg)
-        case <-ns.done:
-            log.Debug("SENDER: DONE")
-            done = true
-            break
+            sender.networkSendRecord(&msg)
+            // handleLogWriter(sender, msg)
         }
     }
     log.Debug("SENDER: FIN")

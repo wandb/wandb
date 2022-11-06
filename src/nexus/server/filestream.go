@@ -20,7 +20,7 @@ func (ns *Stream) NewFileStream() (*FileStream) {
     return &fs
 }
 
-func (ns *Stream) fstreamStart() {
+func (ns *Stream) fileStreamStart() {
     ns.wg.Add(1)
     go ns.fstreamGo()
 }
