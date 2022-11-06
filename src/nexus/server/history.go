@@ -7,10 +7,6 @@ import (
 	// log "github.com/sirupsen/logrus"
 )
 
-func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartRequest) {
-	h.startTime = float64(req.Run.StartTime.AsTime().UnixMicro()) / 1e6
-}
-
 func (h *Handler) handlePartialHistory(rec *service.Record, req *service.PartialHistoryRequest) {
 
 	step_num := h.currentStep

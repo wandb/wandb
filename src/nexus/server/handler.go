@@ -15,9 +15,10 @@ type Handler struct {
 	startTime   float64
 
 	wg      *sync.WaitGroup
+	writer  *Writer
 	sender  *Sender
 	fstream *FileStream
-	writer  *Writer
+	run     service.RunRecord
 
 	respondResult func(result *service.Result)
 }
@@ -26,12 +27,10 @@ func NewHandler(respondResult func(result *service.Result)) *Handler {
 	wg := sync.WaitGroup{}
 	writer := NewWriter(&wg)
 	sender := NewSender(&wg, respondResult)
-	fstream := NewFileStream(&wg)
 	handler := Handler{
 		wg:            &wg,
 		writer:        writer,
 		sender:        sender,
-		fstream:       fstream,
 		respondResult: respondResult,
 		handlerChan:   make(chan service.Record)}
 
@@ -43,6 +42,12 @@ func (handler *Handler) Stop() {
 	close(handler.handlerChan)
 }
 
+func (h *Handler) startRunWorkers() {
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		"https://api.wandb.ai", h.run.Entity, h.run.Project, h.run.RunId)
+	h.fstream = NewFileStream(h.wg, fsPath)
+}
+
 func (handler *Handler) HandleRecord(rec *service.Record) {
 	handler.handlerChan <- *rec
 }
@@ -50,8 +55,20 @@ func (handler *Handler) HandleRecord(rec *service.Record) {
 func (h *Handler) shutdownStream() {
 	h.writer.Stop()
 	h.sender.Stop()
-	h.fstream.Stop()
+	if h.fstream != nil {
+		h.fstream.Stop()
+	}
 	h.wg.Wait()
+}
+
+func (h *Handler) captureRunInfo(run *service.RunRecord) {
+	h.startTime = float64(run.StartTime.AsTime().UnixMicro()) / 1e6
+	h.run = *run
+}
+
+func (h *Handler) handleRunStart(rec *service.Record, req *service.RunStartRequest) {
+	h.captureRunInfo(req.Run)
+	h.startRunWorkers()
 }
 
 func (h *Handler) handleRun(rec *service.Record, run *service.RunRecord) {
