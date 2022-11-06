@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import rdkit.Chem
+import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
@@ -289,6 +290,47 @@ def test_max_images(mock_run):
     path = os.path.join(run.dir, "media/images/test2_0_0.png")
     assert subdict(meta, expected) == expected
     assert os.path.exists(path)
+
+
+@pytest.fixture
+def mock_reference_get_responses():
+    with responses.RequestsMock() as rsps:
+        yield rsps
+
+
+def test_image_refs(mock_reference_get_responses):
+    mock_reference_get_responses.add(
+        method="GET",
+        url="http://nonexistent/puppy.jpg",
+        body=b"test",
+        headers={"etag": "testEtag", "content-length": "200"},
+    )
+    image_obj = wandb.Image("http://nonexistent/puppy.jpg")
+    art = wandb.Artifact("image_ref_test", "images")
+    art.add(image_obj, "image_ref")
+    image_expected = {
+        "path": "media/images/75c13e5a637fb8052da9/puppy.jpg",
+        "sha256": "75c13e5a637fb8052da99792fca8323c06b138966cd30482e84d62c83adc01ee",
+        "_type": "image-file",
+        "format": "jpg",
+    }
+    manifest_expected = {
+        "image_ref.image-file.json": {
+            "digest": "SZvdv5ouAEq2DEOgVBwOog==",
+            "size": 173,
+        },
+        "media/images/75c13e5a637fb8052da9/puppy.jpg": {
+            "digest": "testEtag",
+            "ref": "http://nonexistent/puppy.jpg",
+            "extra": {"etag": "testEtag"},
+            "size": 200,
+        },
+    }
+    assert subdict(image_obj.to_json(art), image_expected) == image_expected
+    assert (
+        subdict(art.manifest.to_manifest_json()["contents"], manifest_expected)
+        == manifest_expected
+    )
 
 
 def test_guess_mode():

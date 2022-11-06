@@ -60,7 +60,7 @@ parameters:
     default: false
   manual_nightly_git_branch:
     type: string
-    default: master
+    default: main
   manual_nightly_slack_notify:
     type: boolean
     default: false
@@ -80,6 +80,9 @@ parameters:
     type: boolean
     default: false
   manual_nightly_execute_shard_standalone_gpu_win:
+    type: boolean
+    default: false
+  manual_nightly_execute_shard_imports:
     type: boolean
     default: false
   wandb_server_tag:
@@ -223,9 +226,15 @@ jobs:
       notify_on_failure:
         type: boolean
         default: false
+      notify_on_failure_channel:
+        type: string
+        default: "$SLACK_SDK_NIGHTLY_CI_CHANNEL"
       parallelism:
         type: integer
         default: 1
+      execute:
+        type: boolean
+        default: true
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -233,32 +242,35 @@ jobs:
     working_directory: /mnt/ramdisk
     steps:
       - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - run:
-          name: Install python dependencies
-          command: |
-            pip install tox==<< pipeline.parameters.tox_version >>
-            pip install -U pip
-          no_output_timeout: 5m
-      - run:
-          name: Run tests
-          no_output_timeout: 10m
-          command: |
-            CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
-      - save-test-results
-      # conditionally post a notification to slack if the job failed
       - when:
-          condition: << parameters.notify_on_failure >>
+          condition: << parameters.execute >>
           steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update && apt-get install -y libsndfile1 ffmpeg
+            - run:
+                name: Install python dependencies
+                command: |
+                  pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install -U pip
+                no_output_timeout: 5m
+            - run:
+                name: Run tests
+                no_output_timeout: 10m
+                command: |
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+            - save-test-results
+            # conditionally post a notification to slack if the job failed
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      mentions: "@channel"
+                      # taken from slack-secrets context
+                      channel: << parameters.notify_on_failure_channel >>
 
   pytest:
     parameters:
@@ -588,7 +600,7 @@ jobs:
         default: "3.8"
       git_branch:
         type: string
-        default: "master"
+        default: "main"
       execute:
         type: boolean
         default: true
@@ -709,13 +721,16 @@ jobs:
           command: |
             echo "Waiting for pods to finish"
             sleep 300
+            count_all_pods_terminated=0
             while true; do
               kubectl get pods
               terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>&1`
               all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
               if [ "$all_pods_terminated" -eq "1" ]; then
-                echo "All pods have terminated"
-                break
+                count_all_pods_terminated=$((count_all_pods_terminated + 1))
+                echo "All pods have terminated ($count_all_pods_terminated)"
+                # make sure we have seen all pods terminated twice to give pod attach a chance to run
+                if [ $count_all_pods_terminated -ge 2 ]; then break; fi
               fi
               sleep << parameters.sleep_time >>
             done
@@ -986,6 +1001,32 @@ workflows:
           context: slack-secrets
           notify_on_failure: true
       #
+      # import tests
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8 ]
+              shard:
+                - "imports1"
+                - "imports2"
+                - "imports3"
+                - "imports4"
+                - "imports5"
+                - "imports6"
+                - "imports7"
+                - "imports8"
+                - "imports9"
+                - "imports10"
+                - "imports11"
+                - "imports12"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          context: slack-secrets
+          notify_on_failure: true
+          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1149,29 +1190,6 @@ workflows:
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
       #
-      # import tests
-      #
-      - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              shard:
-                - "imports1"
-                - "imports2"
-                - "imports3"
-                - "imports4"
-                - "imports5"
-                - "imports6"
-                - "imports7"
-                - "imports8"
-                - "imports9"
-                - "imports10"
-                - "imports11"
-                - "imports12"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #
       # Functional tests with yea on Windows
       #
       - win:
@@ -1278,6 +1296,33 @@ workflows:
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
+      # import tests
+      #
+      - tox-base:
+          execute: << pipeline.parameters.manual_nightly_execute_shard_imports >>
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8 ]
+              shard:
+                - "imports1"
+                - "imports2"
+                - "imports3"
+                - "imports4"
+                - "imports5"
+                - "imports6"
+                - "imports7"
+                - "imports8"
+                - "imports9"
+                - "imports10"
+                - "imports11"
+                - "imports12"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          context: slack-secrets
+          notify_on_failure: true
+          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1305,7 +1350,8 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:
