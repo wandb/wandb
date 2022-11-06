@@ -1,47 +1,46 @@
 package server
 
 import (
-    // "flag"
-    // "io"
-    // "google.golang.org/protobuf/reflect/protoreflect"
-    "sync"
+	// "flag"
+	// "io"
+	// "google.golang.org/protobuf/reflect/protoreflect"
+	"sync"
 
-    "context"
-    "fmt"
-    "os"
-    "encoding/base64"
-    "net/http"
-    "github.com/wandb/wandb/nexus/service"
-    "github.com/Khan/genqlient/graphql"
+	"context"
+	"encoding/base64"
+	"fmt"
+	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/nexus/service"
+	"net/http"
+	"os"
 
-    log "github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
-
 type Sender struct {
-    senderChan chan service.Record
-    wg *sync.WaitGroup
-    graphqlClient graphql.Client
-    respondResult func(result *service.Result)
+	senderChan    chan service.Record
+	wg            *sync.WaitGroup
+	graphqlClient graphql.Client
+	respondResult func(result *service.Result)
 }
 
-func NewSender(wg *sync.WaitGroup, respondResult func(result *service.Result)) (*Sender) {
-    sender := Sender{}
-    sender.senderChan = make(chan service.Record)
-    sender.respondResult = respondResult
-    sender.wg = wg
+func NewSender(wg *sync.WaitGroup, respondResult func(result *service.Result)) *Sender {
+	sender := Sender{}
+	sender.senderChan = make(chan service.Record)
+	sender.respondResult = respondResult
+	sender.wg = wg
 
-    sender.wg.Add(1)
-    go sender.senderGo()
-    return &sender
+	sender.wg.Add(1)
+	go sender.senderGo()
+	return &sender
 }
 
 func (sender *Sender) Stop() {
-    close(sender.senderChan)
+	close(sender.senderChan)
 }
 
 func (sender *Sender) SendRecord(rec *service.Record) {
-    sender.senderChan <-*rec
+	sender.senderChan <- *rec
 }
 
 type authedTransport struct {
@@ -50,36 +49,36 @@ type authedTransport struct {
 }
 
 func basicAuth(username, password string) string {
-  auth := username + ":" + password
-  return base64.StdEncoding.EncodeToString([]byte(auth))
+	auth := username + ":" + password
+	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
 func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// req.Header.Set("Authorization", "bearer "+t.key)
 	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
 	//req.Header.Set("Authorization", "api "+t.key)
-    req.Header.Set("User-Agent", "wandb-nexus")
-    // req.Header.Set("X-WANDB-USERNAME", "jeff")
-    // req.Header.Set("X-WANDB-USER-EMAIL", "jeff@wandb.com")
+	req.Header.Set("User-Agent", "wandb-nexus")
+	// req.Header.Set("X-WANDB-USERNAME", "jeff")
+	// req.Header.Set("X-WANDB-USER-EMAIL", "jeff@wandb.com")
 	return t.wrapped.RoundTrip(req)
 }
 
 func (sender *Sender) senderInit() {
-    key := os.Getenv("WANDB_API_KEY")
-    if key == "" {
-        err := fmt.Errorf("must set WANDB_API_KEY=<wandb api key>")
-        panic(err)
-        return
-    }
+	key := os.Getenv("WANDB_API_KEY")
+	if key == "" {
+		err := fmt.Errorf("must set WANDB_API_KEY=<wandb api key>")
+		panic(err)
+		return
+	}
 
-    httpClient := http.Client{
-        Transport: &authedTransport{
-            key:     key,
-            wrapped: http.DefaultTransport,
-        },
-    }
+	httpClient := http.Client{
+		Transport: &authedTransport{
+			key:     key,
+			wrapped: http.DefaultTransport,
+		},
+	}
 
-    sender.graphqlClient = graphql.NewClient("https://api.wandb.ai/graphql", &httpClient)
+	sender.graphqlClient = graphql.NewClient("https://api.wandb.ai/graphql", &httpClient)
 
 }
 
@@ -87,121 +86,121 @@ func (sender *Sender) sendRunStartRequest(msg *service.RunStartRequest) {
 }
 
 func (sender *Sender) sendRequest(msg *service.Record, req *service.Request) {
-    switch x := req.RequestType.(type) {
-    case *service.Request_RunStart:
-        sender.sendRunStartRequest(x.RunStart)
-    default:
-    }
+	switch x := req.RequestType.(type) {
+	case *service.Request_RunStart:
+		sender.sendRunStartRequest(x.RunStart)
+	default:
+	}
 }
 
 func (sender *Sender) networkSendRecord(msg *service.Record) {
-    switch x := msg.RecordType.(type) {
-    case *service.Record_Run:
-        // fmt.Println("rungot:", x)
-        sender.networkSendRun(msg, x.Run)
-    case *service.Record_Request:
-        sender.sendRequest(msg, x.Request)
-    case nil:
-        // The field is not set.
-        panic("bad2rec")
-    default:
-        bad := fmt.Sprintf("REC UNKNOWN type %T", x)
-        panic(bad)
-    }
+	switch x := msg.RecordType.(type) {
+	case *service.Record_Run:
+		// fmt.Println("rungot:", x)
+		sender.networkSendRun(msg, x.Run)
+	case *service.Record_Request:
+		sender.sendRequest(msg, x.Request)
+	case nil:
+		// The field is not set.
+		panic("bad2rec")
+	default:
+		bad := fmt.Sprintf("REC UNKNOWN type %T", x)
+		panic(bad)
+	}
 }
 
 func (sender *Sender) networkSendRun(msg *service.Record, record *service.RunRecord) {
 
-    keepRun := *record
+	keepRun := *record
 
-    // fmt.Println("SEND", record)
-    ctx := context.Background()
-    // resp, err := Viewer(ctx, sender.graphqlClient)
-    // fmt.Println(resp, err)
-    tags := []string{}
-    resp, err := UpsertBucket(
-	    ctx, sender.graphqlClient,
-        nil, // id
-        &record.RunId, // name
-        nil, // project
-	    nil, // entity
-	    nil, // groupName
-	    nil, // description
-	    nil, // displayName
-	    nil, // notes
-	    nil, // commit
-	    nil, // config
-	    nil, // host
-	    nil, // debug
-	    nil, // program
-	    nil, // repo
-	    nil, // jobType
-	    nil, // state
-	    nil, // sweep
-	    tags, // tags []string,
-	    nil, // summaryMetrics
-    )
-    check(err)
+	// fmt.Println("SEND", record)
+	ctx := context.Background()
+	// resp, err := Viewer(ctx, sender.graphqlClient)
+	// fmt.Println(resp, err)
+	tags := []string{}
+	resp, err := UpsertBucket(
+		ctx, sender.graphqlClient,
+		nil,           // id
+		&record.RunId, // name
+		nil,           // project
+		nil,           // entity
+		nil,           // groupName
+		nil,           // description
+		nil,           // displayName
+		nil,           // notes
+		nil,           // commit
+		nil,           // config
+		nil,           // host
+		nil,           // debug
+		nil,           // program
+		nil,           // repo
+		nil,           // jobType
+		nil,           // state
+		nil,           // sweep
+		tags,          // tags []string,
+		nil,           // summaryMetrics
+	)
+	check(err)
 
-    displayName := *resp.UpsertBucket.Bucket.DisplayName
-    projectName := resp.UpsertBucket.Bucket.Project.Name
-    entityName := resp.UpsertBucket.Bucket.Project.Entity.Name
-    keepRun.DisplayName = displayName
-    keepRun.Project = projectName
-    keepRun.Entity = entityName
+	displayName := *resp.UpsertBucket.Bucket.DisplayName
+	projectName := resp.UpsertBucket.Bucket.Project.Name
+	entityName := resp.UpsertBucket.Bucket.Project.Entity.Name
+	keepRun.DisplayName = displayName
+	keepRun.Project = projectName
+	keepRun.Entity = entityName
 
-    // fmt.Println("RESP::", keepRun)
+	// fmt.Println("RESP::", keepRun)
 
-    // (*UpsertBucketResponse, error) {
-    /*
-	id *string,
-	name *string,
-	project *string,
-	entity *string,
-	groupName *string,
-	description *string,
-	displayName *string,
-	notes *string,
-	commit *string,
-	config *string,
-	host *string,
-	debug *bool,
-	program *string,
-	repo *string,
-	jobType *string,
-	state *string,
-	sweep *string,
-	tags []string,
-	summaryMetrics *string,
-    */
+	// (*UpsertBucketResponse, error) {
+	/*
+		id *string,
+		name *string,
+		project *string,
+		entity *string,
+		groupName *string,
+		description *string,
+		displayName *string,
+		notes *string,
+		commit *string,
+		config *string,
+		host *string,
+		debug *bool,
+		program *string,
+		repo *string,
+		jobType *string,
+		state *string,
+		sweep *string,
+		tags []string,
+		summaryMetrics *string,
+	*/
 
-    runResult := &service.RunUpdateResult{Run: &keepRun}
-    result := &service.Result{
-        ResultType: &service.Result_RunResult{runResult},
-        Control: msg.Control,
-        Uuid: msg.Uuid,
-    }
-    sender.respondResult(result)
+	runResult := &service.RunUpdateResult{Run: &keepRun}
+	result := &service.Result{
+		ResultType: &service.Result_RunResult{runResult},
+		Control:    msg.Control,
+		Uuid:       msg.Uuid,
+	}
+	sender.respondResult(result)
 }
 
 func (sender *Sender) senderGo() {
-    defer sender.wg.Done()
+	defer sender.wg.Done()
 
-    log.Debug("SENDER: OPEN")
-    sender.senderInit()
-    for done := false; !done; {
-        select {
-        case msg, ok := <-sender.senderChan:
-            if !ok {
-                log.Debug("SENDER: NOMORE")
-                done = true
-                break
-            }
-            log.Debug("SENDER *******")
-            log.WithFields(log.Fields{"record": msg}).Debug("SENDER: got msg")
-            sender.networkSendRecord(&msg)
-            // handleLogWriter(sender, msg)
-        }
-    }
-    log.Debug("SENDER: FIN")
+	log.Debug("SENDER: OPEN")
+	sender.senderInit()
+	for done := false; !done; {
+		select {
+		case msg, ok := <-sender.senderChan:
+			if !ok {
+				log.Debug("SENDER: NOMORE")
+				done = true
+				break
+			}
+			log.Debug("SENDER *******")
+			log.WithFields(log.Fields{"record": msg}).Debug("SENDER: got msg")
+			sender.networkSendRecord(&msg)
+			// handleLogWriter(sender, msg)
+		}
+	}
+	log.Debug("SENDER: FIN")
 }
