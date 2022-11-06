@@ -1,5 +1,5 @@
 # Run
-        mutation UpsertBucket(
+mutation UpsertBucket(
             $id: String,
             $name: String,
             $project: String,
@@ -61,7 +61,8 @@
             }
         }
 # Viewer
-        query Viewer{
+# @genqlient(omitempty: true)
+query Viewer{
             viewer {
                 id
                 entity

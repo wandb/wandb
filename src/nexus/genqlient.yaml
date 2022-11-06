@@ -5,6 +5,8 @@ operations:
 - genqlient.graphql
 generated: server/generated.go
 package: server
+# optional: value
+optional: pointer
 bindings:
   JSONString:
     type: string

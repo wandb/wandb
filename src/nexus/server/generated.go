@@ -10,37 +10,37 @@ import (
 
 // UpsertBucketResponse is returned by UpsertBucket on success.
 type UpsertBucketResponse struct {
-	UpsertBucket UpsertBucketUpsertBucketUpsertBucketPayload `json:"upsertBucket"`
+	UpsertBucket *UpsertBucketUpsertBucketUpsertBucketPayload `json:"upsertBucket"`
 }
 
 // GetUpsertBucket returns UpsertBucketResponse.UpsertBucket, and is useful for accessing the field via an interface.
-func (v *UpsertBucketResponse) GetUpsertBucket() UpsertBucketUpsertBucketUpsertBucketPayload {
+func (v *UpsertBucketResponse) GetUpsertBucket() *UpsertBucketUpsertBucketUpsertBucketPayload {
 	return v.UpsertBucket
 }
 
 // UpsertBucketUpsertBucketUpsertBucketPayload includes the requested fields of the GraphQL type UpsertBucketPayload.
 type UpsertBucketUpsertBucketUpsertBucketPayload struct {
-	Bucket   UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun `json:"bucket"`
-	Inserted bool                                                 `json:"inserted"`
+	Bucket   *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun `json:"bucket"`
+	Inserted *bool                                                 `json:"inserted"`
 }
 
 // GetBucket returns UpsertBucketUpsertBucketUpsertBucketPayload.Bucket, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetBucket() UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun {
+func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetBucket() *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun {
 	return v.Bucket
 }
 
 // GetInserted returns UpsertBucketUpsertBucketUpsertBucketPayload.Inserted, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetInserted() bool { return v.Inserted }
+func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetInserted() *bool { return v.Inserted }
 
 // UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun includes the requested fields of the GraphQL type Run.
 type UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun struct {
-	Id          string                                                      `json:"id"`
-	Name        string                                                      `json:"name"`
-	DisplayName string                                                      `json:"displayName"`
-	Description string                                                      `json:"description"`
-	Config      string                                                      `json:"config"`
-	SweepName   string                                                      `json:"sweepName"`
-	Project     UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject `json:"project"`
+	Id          string                                                       `json:"id"`
+	Name        string                                                       `json:"name"`
+	DisplayName *string                                                      `json:"displayName"`
+	Description *string                                                      `json:"description"`
+	Config      *string                                                      `json:"config"`
+	SweepName   *string                                                      `json:"sweepName"`
+	Project     *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject `json:"project"`
 }
 
 // GetId returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Id, and is useful for accessing the field via an interface.
@@ -50,25 +50,25 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetId() string { 
 func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetName() string { return v.Name }
 
 // GetDisplayName returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.DisplayName, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetDisplayName() string {
+func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetDisplayName() *string {
 	return v.DisplayName
 }
 
 // GetDescription returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Description, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetDescription() string {
+func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetDescription() *string {
 	return v.Description
 }
 
 // GetConfig returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Config, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetConfig() string { return v.Config }
+func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetConfig() *string { return v.Config }
 
 // GetSweepName returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.SweepName, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetSweepName() string {
+func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetSweepName() *string {
 	return v.SweepName
 }
 
 // GetProject returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Project, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetProject() UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject {
+func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetProject() *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject {
 	return v.Project
 }
 
@@ -108,31 +108,31 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetN
 
 // ViewerResponse is returned by Viewer on success.
 type ViewerResponse struct {
-	Viewer ViewerViewerUser `json:"viewer"`
+	Viewer *ViewerViewerUser `json:"viewer"`
 }
 
 // GetViewer returns ViewerResponse.Viewer, and is useful for accessing the field via an interface.
-func (v *ViewerResponse) GetViewer() ViewerViewerUser { return v.Viewer }
+func (v *ViewerResponse) GetViewer() *ViewerViewerUser { return v.Viewer }
 
 // ViewerViewerUser includes the requested fields of the GraphQL type User.
 type ViewerViewerUser struct {
-	Id     string                                `json:"id"`
-	Entity string                                `json:"entity"`
-	Flags  string                                `json:"flags"`
-	Teams  ViewerViewerUserTeamsEntityConnection `json:"teams"`
+	Id     string                                 `json:"id"`
+	Entity *string                                `json:"entity"`
+	Flags  *string                                `json:"flags"`
+	Teams  *ViewerViewerUserTeamsEntityConnection `json:"teams"`
 }
 
 // GetId returns ViewerViewerUser.Id, and is useful for accessing the field via an interface.
 func (v *ViewerViewerUser) GetId() string { return v.Id }
 
 // GetEntity returns ViewerViewerUser.Entity, and is useful for accessing the field via an interface.
-func (v *ViewerViewerUser) GetEntity() string { return v.Entity }
+func (v *ViewerViewerUser) GetEntity() *string { return v.Entity }
 
 // GetFlags returns ViewerViewerUser.Flags, and is useful for accessing the field via an interface.
-func (v *ViewerViewerUser) GetFlags() string { return v.Flags }
+func (v *ViewerViewerUser) GetFlags() *string { return v.Flags }
 
 // GetTeams returns ViewerViewerUser.Teams, and is useful for accessing the field via an interface.
-func (v *ViewerViewerUser) GetTeams() ViewerViewerUserTeamsEntityConnection { return v.Teams }
+func (v *ViewerViewerUser) GetTeams() *ViewerViewerUserTeamsEntityConnection { return v.Teams }
 
 // ViewerViewerUserTeamsEntityConnection includes the requested fields of the GraphQL type EntityConnection.
 type ViewerViewerUserTeamsEntityConnection struct {
@@ -146,11 +146,11 @@ func (v *ViewerViewerUserTeamsEntityConnection) GetEdges() []ViewerViewerUserTea
 
 // ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge includes the requested fields of the GraphQL type EntityEdge.
 type ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge struct {
-	Node ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity `json:"node"`
+	Node *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity `json:"node"`
 }
 
 // GetNode returns ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge.Node, and is useful for accessing the field via an interface.
-func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge) GetNode() ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity {
+func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge) GetNode() *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity {
 	return v.Node
 }
 
@@ -166,107 +166,107 @@ func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName
 
 // __UpsertBucketInput is used internally by genqlient
 type __UpsertBucketInput struct {
-	Id             string   `json:"id"`
-	Name           string   `json:"name"`
-	Project        string   `json:"project"`
-	Entity         string   `json:"entity"`
-	GroupName      string   `json:"groupName"`
-	Description    string   `json:"description"`
-	DisplayName    string   `json:"displayName"`
-	Notes          string   `json:"notes"`
-	Commit         string   `json:"commit"`
-	Config         string   `json:"config"`
-	Host           string   `json:"host"`
-	Debug          bool     `json:"debug"`
-	Program        string   `json:"program"`
-	Repo           string   `json:"repo"`
-	JobType        string   `json:"jobType"`
-	State          string   `json:"state"`
-	Sweep          string   `json:"sweep"`
-	Tags           []string `json:"tags"`
-	SummaryMetrics string   `json:"summaryMetrics"`
+	Id             *string  `json:"id,omitempty"`
+	Name           *string  `json:"name,omitempty"`
+	Project        *string  `json:"project,omitempty"`
+	Entity         *string  `json:"entity,omitempty"`
+	GroupName      *string  `json:"groupName,omitempty"`
+	Description    *string  `json:"description,omitempty"`
+	DisplayName    *string  `json:"displayName,omitempty"`
+	Notes          *string  `json:"notes,omitempty"`
+	Commit         *string  `json:"commit,omitempty"`
+	Config         *string  `json:"config,omitempty"`
+	Host           *string  `json:"host,omitempty"`
+	Debug          *bool    `json:"debug,omitempty"`
+	Program        *string  `json:"program,omitempty"`
+	Repo           *string  `json:"repo,omitempty"`
+	JobType        *string  `json:"jobType,omitempty"`
+	State          *string  `json:"state,omitempty"`
+	Sweep          *string  `json:"sweep,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	SummaryMetrics *string  `json:"summaryMetrics,omitempty"`
 }
 
 // GetId returns __UpsertBucketInput.Id, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetId() string { return v.Id }
+func (v *__UpsertBucketInput) GetId() *string { return v.Id }
 
 // GetName returns __UpsertBucketInput.Name, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetName() string { return v.Name }
+func (v *__UpsertBucketInput) GetName() *string { return v.Name }
 
 // GetProject returns __UpsertBucketInput.Project, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetProject() string { return v.Project }
+func (v *__UpsertBucketInput) GetProject() *string { return v.Project }
 
 // GetEntity returns __UpsertBucketInput.Entity, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetEntity() string { return v.Entity }
+func (v *__UpsertBucketInput) GetEntity() *string { return v.Entity }
 
 // GetGroupName returns __UpsertBucketInput.GroupName, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetGroupName() string { return v.GroupName }
+func (v *__UpsertBucketInput) GetGroupName() *string { return v.GroupName }
 
 // GetDescription returns __UpsertBucketInput.Description, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetDescription() string { return v.Description }
+func (v *__UpsertBucketInput) GetDescription() *string { return v.Description }
 
 // GetDisplayName returns __UpsertBucketInput.DisplayName, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetDisplayName() string { return v.DisplayName }
+func (v *__UpsertBucketInput) GetDisplayName() *string { return v.DisplayName }
 
 // GetNotes returns __UpsertBucketInput.Notes, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetNotes() string { return v.Notes }
+func (v *__UpsertBucketInput) GetNotes() *string { return v.Notes }
 
 // GetCommit returns __UpsertBucketInput.Commit, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetCommit() string { return v.Commit }
+func (v *__UpsertBucketInput) GetCommit() *string { return v.Commit }
 
 // GetConfig returns __UpsertBucketInput.Config, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetConfig() string { return v.Config }
+func (v *__UpsertBucketInput) GetConfig() *string { return v.Config }
 
 // GetHost returns __UpsertBucketInput.Host, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetHost() string { return v.Host }
+func (v *__UpsertBucketInput) GetHost() *string { return v.Host }
 
 // GetDebug returns __UpsertBucketInput.Debug, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetDebug() bool { return v.Debug }
+func (v *__UpsertBucketInput) GetDebug() *bool { return v.Debug }
 
 // GetProgram returns __UpsertBucketInput.Program, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetProgram() string { return v.Program }
+func (v *__UpsertBucketInput) GetProgram() *string { return v.Program }
 
 // GetRepo returns __UpsertBucketInput.Repo, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetRepo() string { return v.Repo }
+func (v *__UpsertBucketInput) GetRepo() *string { return v.Repo }
 
 // GetJobType returns __UpsertBucketInput.JobType, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetJobType() string { return v.JobType }
+func (v *__UpsertBucketInput) GetJobType() *string { return v.JobType }
 
 // GetState returns __UpsertBucketInput.State, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetState() string { return v.State }
+func (v *__UpsertBucketInput) GetState() *string { return v.State }
 
 // GetSweep returns __UpsertBucketInput.Sweep, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetSweep() string { return v.Sweep }
+func (v *__UpsertBucketInput) GetSweep() *string { return v.Sweep }
 
 // GetTags returns __UpsertBucketInput.Tags, and is useful for accessing the field via an interface.
 func (v *__UpsertBucketInput) GetTags() []string { return v.Tags }
 
 // GetSummaryMetrics returns __UpsertBucketInput.SummaryMetrics, and is useful for accessing the field via an interface.
-func (v *__UpsertBucketInput) GetSummaryMetrics() string { return v.SummaryMetrics }
+func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetrics }
 
 // Run
 func UpsertBucket(
 	ctx context.Context,
 	client graphql.Client,
-	id string,
-	name string,
-	project string,
-	entity string,
-	groupName string,
-	description string,
-	displayName string,
-	notes string,
-	commit string,
-	config string,
-	host string,
-	debug bool,
-	program string,
-	repo string,
-	jobType string,
-	state string,
-	sweep string,
+	id *string,
+	name *string,
+	project *string,
+	entity *string,
+	groupName *string,
+	description *string,
+	displayName *string,
+	notes *string,
+	commit *string,
+	config *string,
+	host *string,
+	debug *bool,
+	program *string,
+	repo *string,
+	jobType *string,
+	state *string,
+	sweep *string,
 	tags []string,
-	summaryMetrics string,
+	summaryMetrics *string,
 ) (*UpsertBucketResponse, error) {
 	req := &graphql.Request{
 		OpName: "UpsertBucket",
