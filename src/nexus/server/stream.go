@@ -22,7 +22,6 @@ type Stream struct {
     handlerChan chan service.Record
     writerChan chan service.Record
     senderChan chan service.Record
-    fstreamChan chan service.Record
     ctx context.Context
     server *NexusServer
     shutdown bool
@@ -31,6 +30,12 @@ type Stream struct {
     startTime float64
 
     graphqlClient graphql.Client
+
+    // handler *Handler
+    // sender *Sender
+    // writer *Writer
+
+    fstream *FileStream
 }
 
 func (ns *Stream) init() {
@@ -41,15 +46,13 @@ func (ns *Stream) init() {
     ns.handlerChan = make(chan service.Record)
     ns.writerChan = make(chan service.Record)
     ns.senderChan = make(chan service.Record)
-    ns.fstreamChan = make(chan service.Record)
 
     go ns.handler()
 
     // move wg Add out of goroutine
     go ns.writer()
     go ns.sender()
-
-    ns.fstreamStart()
+    // ns.fstream = ns.newFileStream()
 }
 
 func (ns *Stream) responder(nc *NexusConn) {
@@ -72,7 +75,9 @@ func (ns *Stream) responder(nc *NexusConn) {
 func (ns *Stream) shutdownWriter() {
     close(ns.senderChan)
     close(ns.writerChan)
-    ns.fstreamStop()
+    if ns.fstream != nil {
+        ns.fstream.Stop()
+    }
     ns.wg.Wait()
 }
 

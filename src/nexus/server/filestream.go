@@ -5,19 +5,28 @@ import (
     // "io"
     // "google.golang.org/protobuf/reflect/protoreflect"
 
-    // "github.com/wandb/wandb/nexus/service"
+    "github.com/wandb/wandb/nexus/service"
 
     log "github.com/sirupsen/logrus"
 )
 
+type FileStream struct {
+    fstreamChan chan service.Record
+}
+
+func (ns *Stream) NewFileStream() (*FileStream) {
+    fs := FileStream{}
+    fs.fstreamChan = make(chan service.Record)
+    return &fs
+}
 
 func (ns *Stream) fstreamStart() {
     ns.wg.Add(1)
     go ns.fstreamGo()
 }
 
-func (ns *Stream) fstreamStop() {
-    close(ns.fstreamChan)
+func (fs *FileStream) Stop() {
+    close(fs.fstreamChan)
 }
 
 func (ns *Stream) fstreamInit() {
