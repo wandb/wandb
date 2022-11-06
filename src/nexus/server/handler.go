@@ -26,7 +26,14 @@ func NewHandler(respondResult func(result *service.Result)) *Handler {
 	wg := sync.WaitGroup{}
 	writer := NewWriter(&wg)
 	sender := NewSender(&wg, respondResult)
-	handler := Handler{wg: &wg, writer: writer, sender: sender, respondResult: respondResult, handlerChan: make(chan service.Record)}
+	fstream := NewFileStream(&wg)
+	handler := Handler{
+		wg:            &wg,
+		writer:        writer,
+		sender:        sender,
+		fstream:       fstream,
+		respondResult: respondResult,
+		handlerChan:   make(chan service.Record)}
 
 	go handler.handlerGo()
 	return &handler
@@ -41,15 +48,9 @@ func (handler *Handler) HandleRecord(rec *service.Record) {
 }
 
 func (h *Handler) shutdownStream() {
-	if h.writer != nil {
-		h.writer.Stop()
-	}
-	if h.sender != nil {
-		h.sender.Stop()
-	}
-	if h.fstream != nil {
-		h.fstream.Stop()
-	}
+	h.writer.Stop()
+	h.sender.Stop()
+	h.fstream.Stop()
 	h.wg.Wait()
 }
 
