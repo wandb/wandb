@@ -106,17 +106,19 @@ func (ns *Stream) sendRecord(rec *service.Record) {
 }
 
 func handleRun(stream *Stream, rec *service.Record, run *service.RunRecord) {
-    runResult := &service.RunUpdateResult{Run: run}
+    // runResult := &service.RunUpdateResult{Run: run}
 
     // let sender take care of it
     stream.sendRecord(rec)
 
+    /*
     result := &service.Result{
         ResultType: &service.Result_RunResult{runResult},
         Control: rec.Control,
         Uuid: rec.Uuid,
     }
     stream.respond <-*result
+    */
 }
 
 func handleRunExit(stream *Stream, rec *service.Record, runExit *service.RunExitRecord) {

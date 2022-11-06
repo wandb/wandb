@@ -39,7 +39,7 @@ func (ns *Stream) networkSendRecord(msg *service.Record) {
     switch x := msg.RecordType.(type) {
     case *service.Record_Run:
         // fmt.Println("rungot:", x)
-        ns.networkSendRun(x.Run)
+        ns.networkSendRun(msg, x.Run)
     case nil:
         // The field is not set.
         panic("bad2rec")
@@ -49,8 +49,11 @@ func (ns *Stream) networkSendRecord(msg *service.Record) {
     }
 }
 
-func (ns *Stream) networkSendRun(record *service.RunRecord) {
-    fmt.Println("SEND", record)
+func (ns *Stream) networkSendRun(msg *service.Record, record *service.RunRecord) {
+
+    keepRun := *record
+
+    // fmt.Println("SEND", record)
     ctx := context.Background()
     // resp, err := Viewer(ctx, ns.graphqlClient)
     // fmt.Println(resp, err)
@@ -77,7 +80,17 @@ func (ns *Stream) networkSendRun(record *service.RunRecord) {
 	    tags, // tags []string,
 	    nil, // summaryMetrics
     )
-    fmt.Println(resp, err)
+    check(err)
+
+    displayName := *resp.UpsertBucket.Bucket.DisplayName
+    projectName := resp.UpsertBucket.Bucket.Project.Name
+    entityName := resp.UpsertBucket.Bucket.Project.Entity.Name
+    keepRun.DisplayName = displayName
+    keepRun.Project = projectName
+    keepRun.Entity = entityName
+
+    // fmt.Println("RESP::", keepRun)
+
     // (*UpsertBucketResponse, error) {
     /*
 	id *string,
@@ -100,6 +113,14 @@ func (ns *Stream) networkSendRun(record *service.RunRecord) {
 	tags []string,
 	summaryMetrics *string,
     */
+
+    runResult := &service.RunUpdateResult{Run: &keepRun}
+    result := &service.Result{
+        ResultType: &service.Result_RunResult{runResult},
+        Control: msg.Control,
+        Uuid: msg.Uuid,
+    }
+    ns.respond <-*result
 }
 
 func (ns *Stream) sender() {
