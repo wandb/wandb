@@ -20,19 +20,19 @@ type Stream struct {
     responder *Responder
 }
 
-func NewStream(nexusConn *NexusConn) (*Stream) {
+func NewStream(respondServerResponse func(*service.ServerResponse)) (*Stream) {
     stream := Stream{}
 
-    stream.responder = stream.NewResponder(nexusConn)
+    stream.responder = NewResponder(respondServerResponse)
     respondResult := stream.responder.RespondResult
 
-    stream.writer = stream.NewWriter()
+    stream.writer = NewWriter(&stream.wg)
     writeRecord := stream.writer.WriteRecord
 
-    stream.sender = stream.NewSender(respondResult)
+    stream.sender = NewSender(&stream.wg, respondResult)
     sendRecord := stream.sender.SendRecord
 
-    stream.handler = stream.NewHandler(writeRecord, sendRecord, respondResult)
+    stream.handler = NewHandler(&stream.wg, writeRecord, sendRecord, respondResult, stream.shutdownStream)
     return &stream
 }
 

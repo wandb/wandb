@@ -16,7 +16,7 @@ func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
     log.Debug("STREAM init")
     // streamId := "thing"
     streamId := msg.XInfo.StreamId
-    nc.mux[streamId] = NewStream(nc)
+    nc.mux[streamId] = NewStream(nc.RespondServerResponse)
 
     // read from mux and write to nc
     // go nc.mux[streamId].responder(nc)

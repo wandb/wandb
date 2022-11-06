@@ -10,21 +10,13 @@ import (
 
 
 type Responder struct {
-    // exit chan struct{}
-    // done chan bool
-    // process chan service.ServerRequest
     responderChan chan service.Result
-    // respond chan service.ServerResponse
-    // senderChan chan service.Record
-    // ctx context.Context
-    // server *NexusServer
-    // shutdown bool
 }
 
-func (ns *Stream) NewResponder(nexusConn *NexusConn) (*Responder) {
+func NewResponder(respondServerResponse func(result *service.ServerResponse)) (*Responder) {
     responder := Responder{}
     responder.responderChan = make(chan service.Result)
-    go responder.responderGo(nexusConn)
+    go responder.responderGo(respondServerResponse)
     return &responder
 }
 
@@ -32,7 +24,7 @@ func (resp *Responder) RespondResult(rec *service.Result) {
     resp.responderChan <-*rec
 }
 
-func (resp *Responder) responderGo(nc *NexusConn) {
+func (resp *Responder) responderGo(respondServerResponse func(result *service.ServerResponse)) {
     for {
         select {
         case result := <-resp.responderChan:
@@ -41,7 +33,7 @@ func (resp *Responder) responderGo(nc *NexusConn) {
             resp := &service.ServerResponse{
                 ServerResponseType: &service.ServerResponse_ResultCommunicate{&result},
             }
-            nc.respondChan <-*resp
+            respondServerResponse(resp)
             /*
         case <-ns.done:
             log.Debug("PROCESS: DONE")

@@ -4,6 +4,7 @@ import (
     // "flag"
     // "io"
     // "google.golang.org/protobuf/reflect/protoreflect"
+    "sync"
 
     "context"
     "fmt"
@@ -19,18 +20,18 @@ import (
 
 type Sender struct {
     senderChan chan service.Record
-    wgDone func()
+    wg *sync.WaitGroup
     graphqlClient graphql.Client
     respondResult func(result *service.Result)
 }
 
-func (ns *Stream) NewSender(respondResult func(result *service.Result)) (*Sender) {
+func NewSender(wg *sync.WaitGroup, respondResult func(result *service.Result)) (*Sender) {
     sender := Sender{}
     sender.senderChan = make(chan service.Record)
-    sender.wgDone = ns.wg.Done
     sender.respondResult = respondResult
+    sender.wg = wg
 
-    ns.wg.Add(1)
+    sender.wg.Add(1)
     go sender.senderGo()
     return &sender
 }
@@ -171,7 +172,7 @@ func (sender *Sender) networkSendRun(msg *service.Record, record *service.RunRec
 }
 
 func (sender *Sender) senderGo() {
-    defer sender.wgDone()
+    defer sender.wg.Done()
 
     log.Debug("SENDER: OPEN")
     sender.senderInit()

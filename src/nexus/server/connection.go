@@ -168,6 +168,10 @@ func (nc *NexusConn) process() {
     }
 }
 
+func (nc *NexusConn) RespondServerResponse(serverResponse *service.ServerResponse) {
+    nc.respondChan <-*serverResponse
+}
+
 func (nc *NexusConn) wait() {
     log.Debug("WAIT1")
     for {

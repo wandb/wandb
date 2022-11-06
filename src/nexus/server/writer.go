@@ -5,6 +5,7 @@ import (
     "os"
     // "io"
     "bytes"
+    "sync"
     "encoding/binary"
     "google.golang.org/protobuf/proto"
     "github.com/wandb/wandb/nexus/service"
@@ -15,15 +16,15 @@ import (
 
 type Writer struct {
     writerChan chan service.Record
-    wgDone func()
+    wg *sync.WaitGroup
 }
 
-func (ns *Stream) NewWriter() (*Writer) {
+func NewWriter(wg *sync.WaitGroup) (*Writer) {
     writer := Writer{}
     writer.writerChan = make(chan service.Record)
-    writer.wgDone = ns.wg.Done
+    writer.wg = wg
 
-    ns.wg.Add(1)
+    wg.Add(1)
     go writer.writerGo()
     return &writer
 }
@@ -78,7 +79,7 @@ func logHeader(f *os.File) {
 func (w *Writer) writerGo() {
     f, err := os.Create("run-data.wandb")
     check(err)
-    defer w.wgDone()
+    defer w.wg.Done()
     defer f.Close()
 
     logHeader(f)

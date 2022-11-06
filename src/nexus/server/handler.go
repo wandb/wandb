@@ -2,6 +2,7 @@ package server
 
 import (
     "fmt"
+    "sync"
     "github.com/wandb/wandb/nexus/service"
 
     log "github.com/sirupsen/logrus"
@@ -9,7 +10,7 @@ import (
 
 type Handler struct {
     handlerChan chan service.Record
-    wgDone func()
+    wg *sync.WaitGroup
     shutdownStream func()
     writeRecord func(record *service.Record)
     sendRecord func(record *service.Record)
@@ -19,16 +20,18 @@ type Handler struct {
     startTime float64
 }
 
-func (ns *Stream) NewHandler(
+func NewHandler(
+    wg *sync.WaitGroup,
     writeRecord func(record *service.Record),
     sendRecord func(record *service.Record),
     respondResult func(result *service.Result),
+    shutdownStream func(),
     ) (*Handler) {
 
     handler := Handler{}
     handler.handlerChan = make(chan service.Record)
-    handler.wgDone = ns.wg.Done
-    handler.shutdownStream = ns.shutdownStream
+    handler.wg = wg
+    handler.shutdownStream = shutdownStream
 
     handler.writeRecord = writeRecord
     handler.sendRecord = sendRecord
