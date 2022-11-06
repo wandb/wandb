@@ -102,7 +102,7 @@ class PanelGrid(Block):
             kvs = [rs.pm_query_generator.pc_back_to_front(v) for v in kvs]
             keys, ordertuple = zip(*[kv.split(":") for kv in kvs])
             rs_name = self._rs_id_to_name(id)
-            return rs_name, *ordertuple
+            return (rs_name, *ordertuple)
 
         def run_id_to_name(id):
             for rs in self.runsets:
@@ -166,7 +166,7 @@ class PanelGrid(Block):
         kvs = [rs.pm_query_generator.pc_back_to_front(v) for v in kvs]
         keys, ordertuple = zip(*[kv.split(":") for kv in kvs])
         rs_name = self._rs_id_to_name(id)
-        return rs_name, *ordertuple
+        return (rs_name, *ordertuple)
 
     @staticmethod
     def _default_panel_grid_spec():
