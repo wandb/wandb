@@ -106,6 +106,64 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetN
 	return v.Name
 }
 
+// ViewerResponse is returned by Viewer on success.
+type ViewerResponse struct {
+	Viewer ViewerViewerUser `json:"viewer"`
+}
+
+// GetViewer returns ViewerResponse.Viewer, and is useful for accessing the field via an interface.
+func (v *ViewerResponse) GetViewer() ViewerViewerUser { return v.Viewer }
+
+// ViewerViewerUser includes the requested fields of the GraphQL type User.
+type ViewerViewerUser struct {
+	Id     string                                `json:"id"`
+	Entity string                                `json:"entity"`
+	Flags  string                                `json:"flags"`
+	Teams  ViewerViewerUserTeamsEntityConnection `json:"teams"`
+}
+
+// GetId returns ViewerViewerUser.Id, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetId() string { return v.Id }
+
+// GetEntity returns ViewerViewerUser.Entity, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetEntity() string { return v.Entity }
+
+// GetFlags returns ViewerViewerUser.Flags, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetFlags() string { return v.Flags }
+
+// GetTeams returns ViewerViewerUser.Teams, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetTeams() ViewerViewerUserTeamsEntityConnection { return v.Teams }
+
+// ViewerViewerUserTeamsEntityConnection includes the requested fields of the GraphQL type EntityConnection.
+type ViewerViewerUserTeamsEntityConnection struct {
+	Edges []ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge `json:"edges"`
+}
+
+// GetEdges returns ViewerViewerUserTeamsEntityConnection.Edges, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUserTeamsEntityConnection) GetEdges() []ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge {
+	return v.Edges
+}
+
+// ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge includes the requested fields of the GraphQL type EntityEdge.
+type ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge struct {
+	Node ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity `json:"node"`
+}
+
+// GetNode returns ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge.Node, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdge) GetNode() ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity {
+	return v.Node
+}
+
+// ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity includes the requested fields of the GraphQL type Entity.
+type ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity struct {
+	Name string `json:"name"`
+}
+
+// GetName returns ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity.Name, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName() string {
+	return v.Name
+}
+
 // __UpsertBucketInput is used internally by genqlient
 type __UpsertBucketInput struct {
 	Id             string   `json:"id"`
@@ -186,6 +244,7 @@ func (v *__UpsertBucketInput) GetTags() []string { return v.Tags }
 // GetSummaryMetrics returns __UpsertBucketInput.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *__UpsertBucketInput) GetSummaryMetrics() string { return v.SummaryMetrics }
 
+// Run
 func UpsertBucket(
 	ctx context.Context,
 	client graphql.Client,
@@ -259,6 +318,44 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 	var err error
 
 	var data UpsertBucketResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// Viewer
+func Viewer(
+	ctx context.Context,
+	client graphql.Client,
+) (*ViewerResponse, error) {
+	req := &graphql.Request{
+		OpName: "Viewer",
+		Query: `
+query Viewer {
+	viewer {
+		id
+		entity
+		flags
+		teams {
+			edges {
+				node {
+					name
+				}
+			}
+		}
+	}
+}
+`,
+	}
+	var err error
+
+	var data ViewerResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

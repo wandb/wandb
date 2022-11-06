@@ -2,9 +2,13 @@ package server
 
 import (
     "context"
+    "encoding/base64"
     "fmt"
     "sync"
+    "net/http"
     "github.com/wandb/wandb/nexus/service"
+    "github.com/Khan/genqlient/graphql"
+
     log "github.com/sirupsen/logrus"
 )
 
@@ -17,12 +21,15 @@ type Stream struct {
     // respond chan service.ServerResponse
     handlerChan chan service.Record
     writerChan chan service.Record
+    senderChan chan service.Record
     ctx context.Context
     server *NexusServer
     shutdown bool
     wg sync.WaitGroup
     currentStep int64
     startTime float64
+
+    graphqlClient graphql.Client
 }
 
 func (ns *Stream) init() {
@@ -32,9 +39,13 @@ func (ns *Stream) init() {
     ns.respond = make(chan service.Result)
     ns.handlerChan = make(chan service.Record)
     ns.writerChan = make(chan service.Record)
+    ns.senderChan = make(chan service.Record)
 
     go ns.handler()
+
+    // move wg Add out of goroutine
     go ns.writer()
+    go ns.sender()
 }
 
 func (ns *Stream) responder(nc *NexusConn) {
@@ -55,12 +66,41 @@ func (ns *Stream) responder(nc *NexusConn) {
 }
 
 func (ns *Stream) shutdownWriter() {
+    close(ns.senderChan)
     close(ns.writerChan)
     ns.wg.Wait()
 }
 
+type authedTransport struct {
+	key     string
+	wrapped http.RoundTripper
+}
+
+func basicAuth(username, password string) string {
+  auth := username + ":" + password
+  return base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// req.Header.Set("Authorization", "bearer "+t.key)
+	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
+	//req.Header.Set("Authorization", "api "+t.key)
+    req.Header.Set("User-Agent", "wandb-nexus")
+    // req.Header.Set("X-WANDB-USERNAME", "jeff")
+    // req.Header.Set("X-WANDB-USER-EMAIL", "jeff@wandb.com")
+	return t.wrapped.RoundTrip(req)
+}
+
+func (ns *Stream) sendRecord(rec *service.Record) {
+    ns.senderChan <-*rec
+}
+
 func handleRun(stream *Stream, rec *service.Record, run *service.RunRecord) {
     runResult := &service.RunUpdateResult{Run: run}
+
+    // let sender take care of it
+    stream.sendRecord(rec)
+
     result := &service.Result{
         ResultType: &service.Result_RunResult{runResult},
         Control: rec.Control,
@@ -157,8 +197,10 @@ func (ns *Stream) handler() {
             ns.storeRecord(&record)
             ns.handleRecord(&record)
         case <-ns.done:
-            log.Debug("PROCESS: DONE")
-            close(ns.writerChan)
+            log.Debug("PROCESS: DONE ----- CLOSE chans")
+            // close(ns.writerChan)
+            // close(ns.senderChan)
+            log.Debug("PROCESS: DONE ----- CLOSE chans done")
             return
         }
     }

@@ -1,4 +1,4 @@
-
+# Run
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -60,4 +60,18 @@
                 inserted
             }
         }
-
+# Viewer
+        query Viewer{
+            viewer {
+                id
+                entity
+                flags
+                teams {
+                    edges {
+                        node {
+                            name
+                        }
+                    }
+                }
+            }
+        }
