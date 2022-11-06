@@ -10,34 +10,31 @@ import (
 
 type Handler struct {
     handlerChan chan service.Record
-    wg *sync.WaitGroup
-    shutdownStream func()
-    writeRecord func(record *service.Record)
-    sendRecord func(record *service.Record)
-    respondResult func(result *service.Result)
 
     currentStep int64
     startTime float64
+
+    wg *sync.WaitGroup
+    sender *Sender
+    fstream *FileStream
+    writer *Writer
+
+    respondResult func(result *service.Result)
 }
 
-func NewHandler(
-    wg *sync.WaitGroup,
-    writeRecord func(record *service.Record),
-    sendRecord func(record *service.Record),
-    respondResult func(result *service.Result),
-    shutdownStream func(),
-    ) (*Handler) {
+func NewHandler(respondResult func(result *service.Result)) (*Handler) {
 
     handler := Handler{}
     handler.handlerChan = make(chan service.Record)
-    handler.wg = wg
-    handler.shutdownStream = shutdownStream
 
-    handler.writeRecord = writeRecord
-    handler.sendRecord = sendRecord
+    wg := sync.WaitGroup{}
+    writer := NewWriter(&wg)
+    sender := NewSender(&wg, respondResult)
+    handler.wg = &wg
+    handler.writer = writer
+    handler.sender = sender
     handler.respondResult = respondResult
 
-    // ns.wg.Add(1)
     go handler.handlerGo()
     return &handler
 }
@@ -50,11 +47,24 @@ func (handler *Handler) HandleRecord(rec *service.Record) {
     handler.handlerChan <-*rec
 }
 
+func (h *Handler) shutdownStream() {
+    if h.writer != nil {
+        h.writer.Stop()
+    }
+    if h.sender != nil {
+        h.sender.Stop()
+    }
+    if h.fstream != nil {
+        h.fstream.Stop()
+    }
+    h.wg.Wait()
+}
+
 func (h *Handler) handleRun(rec *service.Record, run *service.RunRecord) {
     // runResult := &service.RunUpdateResult{Run: run}
 
     // let sender take care of it
-    h.sendRecord(rec)
+    h.sender.SendRecord(rec)
 
     /*
     result := &service.Result{
@@ -91,6 +101,7 @@ func (h *Handler) handleRequest(rec *service.Record, req *service.Request) {
     case *service.Request_RunStart:
         log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got start")
         h.handleRunStart(rec, x.RunStart)
+        h.sender.SendRecord(rec)
     default:
     }
 
@@ -142,7 +153,7 @@ func (h *Handler) storeRecord(msg *service.Record) {
         // The field is not set.
         panic("bad3rec")
     default:
-        h.writeRecord(msg)
+        h.writer.WriteRecord(msg)
     }
 }
 

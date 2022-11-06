@@ -83,11 +83,24 @@ func (sender *Sender) senderInit() {
 
 }
 
+func (sender *Sender) sendRunStartRequest(msg *service.RunStartRequest) {
+}
+
+func (sender *Sender) sendRequest(msg *service.Record, req *service.Request) {
+    switch x := req.RequestType.(type) {
+    case *service.Request_RunStart:
+        sender.sendRunStartRequest(x.RunStart)
+    default:
+    }
+}
+
 func (sender *Sender) networkSendRecord(msg *service.Record) {
     switch x := msg.RecordType.(type) {
     case *service.Record_Run:
         // fmt.Println("rungot:", x)
         sender.networkSendRun(msg, x.Run)
+    case *service.Record_Request:
+        sender.sendRequest(msg, x.Request)
     case nil:
         // The field is not set.
         panic("bad2rec")

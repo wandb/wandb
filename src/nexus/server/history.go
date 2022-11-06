@@ -45,8 +45,7 @@ func (h *Handler) handlePartialHistory(rec *service.Record, req *service.Partial
     r := service.Record{
         RecordType: &service.Record_History{&hrecord},
     }
-    // FIXME FIXME FIXME h.storeRecord(&r)
-    _ = r
+    h.storeRecord(&r)
 }
 
 

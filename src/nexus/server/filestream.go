@@ -5,6 +5,7 @@ import (
     // "io"
     // "google.golang.org/protobuf/reflect/protoreflect"
 
+    "sync"
     "github.com/wandb/wandb/nexus/service"
 
     log "github.com/sirupsen/logrus"
@@ -12,17 +13,17 @@ import (
 
 type FileStream struct {
     fstreamChan chan service.Record
+    wg *sync.WaitGroup
 }
 
-func (ns *Stream) NewFileStream() (*FileStream) {
+func NewFileStream(wg *sync.WaitGroup) (*FileStream) {
     fs := FileStream{}
     fs.fstreamChan = make(chan service.Record)
-    return &fs
-}
+    fs.wg = wg
 
-func (ns *Stream) fileStreamStart() {
-    ns.wg.Add(1)
-    go ns.fstreamGo()
+    fs.wg.Add(1)
+    go fs.fstreamGo()
+    return &fs
 }
 
 func (fs *FileStream) Stop() {
@@ -49,11 +50,11 @@ func (ns *Stream) fstreamInit() {
     */
 }
 
-func (ns *Stream) fstreamPush(fname string, data string) {
+func (fs *FileStream) fstreamPush(fname string, data string) {
 }
 
-func (ns *Stream) fstreamGo() {
-    defer ns.wg.Done()
+func (fs *FileStream) fstreamGo() {
+    defer fs.wg.Done()
 
     log.Debug("FSTREAM: OPEN")
 /*
