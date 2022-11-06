@@ -22,6 +22,7 @@ type Stream struct {
     handlerChan chan service.Record
     writerChan chan service.Record
     senderChan chan service.Record
+    fstreamChan chan service.Record
     ctx context.Context
     server *NexusServer
     shutdown bool
@@ -40,12 +41,15 @@ func (ns *Stream) init() {
     ns.handlerChan = make(chan service.Record)
     ns.writerChan = make(chan service.Record)
     ns.senderChan = make(chan service.Record)
+    ns.fstreamChan = make(chan service.Record)
 
     go ns.handler()
 
     // move wg Add out of goroutine
     go ns.writer()
     go ns.sender()
+
+    ns.fstreamStart()
 }
 
 func (ns *Stream) responder(nc *NexusConn) {
@@ -68,6 +72,7 @@ func (ns *Stream) responder(nc *NexusConn) {
 func (ns *Stream) shutdownWriter() {
     close(ns.senderChan)
     close(ns.writerChan)
+    ns.fstreamStop()
     ns.wg.Wait()
 }
 
