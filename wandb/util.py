@@ -94,6 +94,16 @@ MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
+# From https://docs.docker.com/engine/reference/commandline/tag/
+# "Name components may contain lowercase letters, digits and separators.
+# A separator is defined as a period, one or two underscores, or one or more dashes.
+# A name component may not start or end with a separator."
+DOCKER_IMAGE_NAME_SEPARATOR = "(?:__|[._]|[-]+)"
+RE_DOCKER_IMAGE_NAME_SEPARATOR_START = re.compile("^" + DOCKER_IMAGE_NAME_SEPARATOR)
+RE_DOCKER_IMAGE_NAME_SEPARATOR_END = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "$")
+RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "{2,}")
+RE_DOCKER_IMAGE_NAME_CHARS = re.compile(r"[^a-z0-9._\-]")
+
 # these match the environments for gorilla
 if IS_GIT:
     SENTRY_ENV = "development"
@@ -304,18 +314,13 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
             sys.path.insert(1, p)
 
     return reset_import_path
-
-
-def apple_gpu_stats_binary() -> str:
-    parent_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
 
 
 def vendor_import(name: str) -> Any:
@@ -1620,9 +1625,28 @@ def make_artifact_name_safe(name: str) -> str:
 
 def make_docker_image_name_safe(name: str) -> str:
     """Make a docker image name safe for use in artifacts"""
-    return re.sub(r"[^a-z0-9_\-.]", "", name)
+    safe_chars = RE_DOCKER_IMAGE_NAME_CHARS.sub("__", name.lower())
+    deduped = RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT.sub("__", safe_chars)
+    trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
+    trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
+    return trimmed if trimmed else "image"
 
 
-def has_main_file(path: str) -> bool:
-    """Check if a directory has a main.py file"""
-    return path != "<python with no main file>"
+def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively merge two dictionaries.
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            if isinstance(value, list):
+                if key in destination:
+                    destination[key].extend(value)
+                else:
+                    destination[key] = value
+            else:
+                destination[key] = value
+    return destination

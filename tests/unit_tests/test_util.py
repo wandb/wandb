@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import platform
 import random
@@ -361,12 +362,6 @@ def test_matplotlib_to_plotly():
     plt.close()
 
 
-def test_apple_gpu_stats_binary():
-    assert util.apple_gpu_stats_binary().endswith(
-        os.path.join("bin", "apple_gpu_stats")
-    )
-
-
 def test_convert_plots():
     fig = matplotlib_without_image()
     obj = util.convert_plots(fig)
@@ -685,3 +680,17 @@ def test_resolve_aliases():
 
     aliases = util._resolve_aliases("boom")
     assert aliases == ["boom", "latest"]
+
+
+def test_make_docker_image_name_safe():
+    assert util.make_docker_image_name_safe("this-name-is-fine") == "this-name-is-fine"
+    assert util.make_docker_image_name_safe("also__ok") == "also__ok"
+    assert (
+        util.make_docker_image_name_safe("github.com/MyUsername/my_repo")
+        == "github.com__myusername__my_repo"
+    )
+    assert (
+        util.make_docker_image_name_safe("./abc.123___def-456---_.")
+        == "abc.123__def-456"
+    )
+    assert util.make_docker_image_name_safe("......") == "image"

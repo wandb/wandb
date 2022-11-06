@@ -48,6 +48,7 @@ class Tensor:
     def compress(self, compression_fn: Callable) -> dict:
         return compression_fn(self.data, source=self.source)
 
+
 @contextlib.contextmanager
 def circular_reference_handler(visited: set, value: object) -> Generator:
     """Context manager to detect circular references in objects."""
@@ -121,6 +122,7 @@ def _(value: slice, **kwargs: Any) -> dict:
     # todo: why not convert it to a string?
     return dict(slice_start=value.start, slice_step=value.step, slice_stop=value.stop)
 
+
 @json_serializable.register(Tensor)
 def _(value, **kwargs: Any):
     compression_fn = kwargs.pop("compression_fn", None)
@@ -131,6 +133,7 @@ def _(value, **kwargs: Any):
             pass
 
     return json_serializable(value.data, **kwargs)
+
 
 def register_numpy_post_import_hook(np: Any) -> None:
     @json_serializable.register(np.generic)
@@ -243,5 +246,3 @@ def json_dumps_safer(
 ) -> str:
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(json_serializable(obj, compression_fn=compression_fn), **kwargs)
-
-

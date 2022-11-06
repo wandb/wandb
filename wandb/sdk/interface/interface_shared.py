@@ -99,7 +99,7 @@ class InterfaceShared(InterfaceBase):
     def _make_stats(self, stats_dict: dict) -> pb.StatsRecord:
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
-        stats.timestamp.GetCurrentTime()
+        stats.timestamp.GetCurrentTime()  # todo: fix this, this is wrong :)
         for k, v in stats_dict.items():
             item = stats.item.add()
             item.key = k
