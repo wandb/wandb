@@ -109,10 +109,9 @@ class WandbMetricsLogger(callbacks.Callback):
 
         logs["epoch/epoch"] = epoch
 
-        if not self.logging_batch_wise:
-            lr = self._get_lr()
-            if lr is not None:
-                logs["epoch/learning_rate"] = lr
+        lr = self._get_lr()
+        if lr is not None:
+            logs["epoch/learning_rate"] = lr
 
         wandb.log(logs)
 
