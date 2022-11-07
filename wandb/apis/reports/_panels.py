@@ -699,6 +699,7 @@ class CustomChart(Panel):
 
     def __init__(self, query=None, chart_name="", user_fields=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.spec['config'] = {'transform': {'name': 'tableWithLeafColNames'}}
         self.query = coalesce(query, {})
         self.chart_name = chart_name
         self.user_fields = coalesce(user_fields, {})
@@ -712,7 +713,7 @@ class CustomChart(Panel):
         d = nested_get(self, self._get_path("query"))
         fields = d[0]["fields"]
         query = {o["name"]: o.get("args") for o in fields}
-        query = {k: v[0]["value"] if v is not None else None for k, v in query.items()}
+        query = {k: v[0]["value"] if v is not None else None for k, v in query.items() if k not in ('id', 'name')}
         return query
 
     @query.setter
@@ -729,6 +730,10 @@ class CustomChart(Panel):
                         "args": [{"name": "keys", "value": v}],
                     }
                 fields.append(field)
+            if 'id' not in d:
+                fields.append({'name': 'id', 'fields': []})
+            if 'name' not in d:
+                fields.append({'name': 'name', 'fields': []})
             return fields
 
         query = {
