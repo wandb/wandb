@@ -84,6 +84,11 @@ func (fs *FileStream) fstreamGo() {
 	defer fs.wg.Done()
 
 	log.Debug("FSTREAM: OPEN")
+
+	if fs.settings.Offline {
+		return
+	}
+
 	fs.fstreamInit()
 	for done := false; !done; {
 		select {

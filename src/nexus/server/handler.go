@@ -114,7 +114,6 @@ func (h *Handler) handleRequest(rec *service.Record, req *service.Request) {
 	case *service.Request_RunStart:
 		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got start")
 		h.handleRunStart(rec, x.RunStart)
-		h.sender.SendRecord(rec)
 	default:
 	}
 

@@ -42,6 +42,9 @@ func (sender *Sender) Stop() {
 }
 
 func (sender *Sender) SendRecord(rec *service.Record) {
+	if sender.settings.Offline {
+		return
+	}
 	sender.senderChan <- *rec
 }
 
@@ -74,13 +77,13 @@ func (sender *Sender) senderInit() {
 	sender.graphqlClient = graphql.NewClient(url, &httpClient)
 }
 
-func (sender *Sender) sendRunStartRequest(msg *service.RunStartRequest) {
+func (sender *Sender) sendNetworkStatusRequest(msg *service.NetworkStatusRequest) {
 }
 
 func (sender *Sender) sendRequest(msg *service.Record, req *service.Request) {
 	switch x := req.RequestType.(type) {
-	case *service.Request_RunStart:
-		sender.sendRunStartRequest(x.RunStart)
+	case *service.Request_NetworkStatus:
+		sender.sendNetworkStatusRequest(x.NetworkStatus)
 	default:
 	}
 }
