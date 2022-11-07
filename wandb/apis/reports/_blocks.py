@@ -136,7 +136,7 @@ class PanelGrid(Block):
             keys = [rs.pm_query_generator.pc_front_to_back(k) for k in rs.groupby]
             kvs = [f"{k}:{v}" for k, v in zip(keys, rest)]
             linked = "-".join(kvs)
-            return f"{id}-run:{linked}"
+            return f"{id}-{linked}"
 
         def run_name_to_id(name):
             for rs in self.runsets:
@@ -145,7 +145,7 @@ class PanelGrid(Block):
                         return run.id
 
         for name, c in new_custom_run_colors.items():
-            if isinstance(id, tuple):
+            if isinstance(name, tuple):
                 key = ordertuple_to_groupid(name)
             else:
                 key = run_name_to_id(name)
