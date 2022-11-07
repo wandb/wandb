@@ -7,6 +7,7 @@ from .helpers import LineKey, PCColumn
 from .panels import *
 from .report import Report
 from .runset import Runset
+from .templates import *
 
 termlog(
     cleandoc(

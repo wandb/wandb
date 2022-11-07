@@ -22,8 +22,6 @@ from .util import (
 )
 
 
-
-
 class InlineLaTeX(Base):
     latex: str = Attr()
 
@@ -46,18 +44,17 @@ class InlineCode(Base):
     @property
     def spec(self) -> dict:
         return {"text": self.code, "inlineCode": True}
-    
-    
+
+
 class Link(Base):
     text: str = Attr()
     url: str = Attr()
-    
 
     def __init__(self, text, url, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
         self.url = url
-        
+
     @property
     def spec(self) -> dict:
         return {"type": "link", "url": self.url, "children": [{"text": self.text}]}
@@ -186,9 +183,13 @@ class PanelGrid(Block):
 
         def run_name_to_id(name):
             for rs in self.runsets:
-                runs = public_api.runs(path=f"{rs.entity}/{rs.project}", filters={"display_name": name})
+                runs = public_api.runs(
+                    path=f"{rs.entity}/{rs.project}", filters={"display_name": name}
+                )
                 if len(runs) > 1:
-                    termwarn("Multiple runs with the same name found! Using the first one.")
+                    termwarn(
+                        "Multiple runs with the same name found! Using the first one."
+                    )
                 for run in runs:
                     if run.name == name:
                         return run.id
@@ -295,7 +296,6 @@ class PanelGrid(Block):
         return []
 
 
-
 class List(Base):
     @classmethod
     def from_json(cls, spec: dict) -> "Union[CheckedList, OrderedList, UnorderedList]":
@@ -399,9 +399,9 @@ class Heading(Base):
         level_mapping = {1: H1, 2: H2, 3: H3}
         if level not in level_mapping:
             raise ValueError(f"`level` must be one of {list(level_mapping.keys())}")
-        
-        if isinstance(spec['children'], str):
-            text = spec['children']
+
+        if isinstance(spec["children"], str):
+            text = spec["children"]
         else:
             text = []
             for elem in spec["children"]:
@@ -428,7 +428,9 @@ class H1(Block, Heading):
     @property
     def spec(self) -> dict:
         if isinstance(self.text, list):
-            content = [t.spec if not isinstance(t, str) else {"text": t} for t in self.text]
+            content = [
+                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
+            ]
         else:
             content = [{"text": self.text}]
         return {
@@ -448,7 +450,9 @@ class H2(Block, Heading):
     @property
     def spec(self) -> dict:
         if isinstance(self.text, list):
-            content = [t.spec if not isinstance(t, str) else {"text": t} for t in self.text]
+            content = [
+                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
+            ]
         else:
             content = [{"text": self.text}]
         return {
@@ -468,7 +472,9 @@ class H3(Block, Heading):
     @property
     def spec(self) -> dict:
         if isinstance(self.text, list):
-            content = [t.spec if not isinstance(t, str) else {"text": t} for t in self.text]
+            content = [
+                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
+            ]
         else:
             content = [{"text": self.text}]
         return {
@@ -1012,7 +1018,6 @@ class Video(Block):
             "url": self.url,
             "children": [{"text": ""}],
         }
-
 
 
 class P(Block):

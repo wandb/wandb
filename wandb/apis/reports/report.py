@@ -172,7 +172,6 @@ class Report(Base):
                 if rs.project is None:
                     rs.project = self.project
 
-
         r = self.client.execute(
             UPSERT_VIEW,
             variable_values={
@@ -192,8 +191,8 @@ class Report(Base):
         if clone:
             return Report.from_json(viewspec)
         else:
-            self._viewspec['id'] = viewspec['id']
-            self._viewspec['name'] = viewspec['name']
+            self._viewspec["id"] = viewspec["id"]
+            self._viewspec["name"] = viewspec["name"]
             return self
 
     def to_html(self, height: int = 1024, hidden: bool = False) -> str:

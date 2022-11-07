@@ -1,7 +1,8 @@
 import random
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, get_type_hints
 
-from ..public import PanelMetricsHelper, Api as PublicApi
+from ..public import Api as PublicApi
+from ..public import PanelMetricsHelper
 from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
 Func = TypeVar("Func")
@@ -300,9 +301,7 @@ class Block(Base, SubclassOnlyABC):
     pass
 
 
-def fix_collisions(
-    panels: "List[Panel]",
-) -> "List[Panel]":
+def fix_collisions(panels: List[Panel]) -> List[Panel]:
     x_max = 24
 
     for i, p1 in enumerate(panels):
@@ -323,10 +322,7 @@ def fix_collisions(
     return panels
 
 
-def collides(
-    p1: "Panel",
-    p2: "Panel",
-) -> bool:
+def collides(p1: Panel, p2: Panel) -> bool:
     l1, l2 = p1.layout, p2.layout
 
     if (
@@ -341,10 +337,7 @@ def collides(
     return True
 
 
-def shift(
-    p1: "Panel",
-    p2: "Panel",
-) -> "Tuple[Panel, Panel]":
+def shift(p1: Panel, p2: Panel) -> Tuple[Panel, Panel]:
     l1, l2 = p1.layout, p2.layout
 
     x = l1["x"] + l1["w"] - l2["x"]

@@ -12,6 +12,7 @@ from ._blocks import (
     InlineCode,
     InlineLaTeX,
     LaTeXBlock,
+    Link,
     MarkdownBlock,
     OrderedList,
     P,
@@ -23,5 +24,4 @@ from ._blocks import (
     UnorderedList,
     Video,
     WeaveTableBlock,
-    Link
 )

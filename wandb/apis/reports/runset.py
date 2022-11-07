@@ -58,8 +58,10 @@ class Runset(Base):
 
         project = spec.get("project")
         if project:
-            obj.entity = project.get('entityName', coalesce(public_api.default_entity, ""))
-            obj.project = project.get('name')
+            obj.entity = project.get(
+                "entityName", coalesce(public_api.default_entity, "")
+            )
+            obj.project = project.get("name")
         else:
             obj.entity = coalesce(public_api.default_entity, "")
             obj.project = None
@@ -116,7 +118,9 @@ class Runset(Base):
 
     @property
     def runs(self) -> Runs:
-        return public_api.runs(path=f"{self.entity}/{self.project}", filters=self.filters)
+        return public_api.runs(
+            path=f"{self.entity}/{self.project}", filters=self.filters
+        )
 
     @staticmethod
     def _default_filters():
