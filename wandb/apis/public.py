@@ -4992,7 +4992,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters or {}
+        self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.order = order
         variables = {
             "project": self.project,
