@@ -6,6 +6,9 @@ from .util import Attr, Base, coalesce, generate_name, nested_get, nested_set
 T = TypeVar("T")
 
 
+public_api = Api()
+
+
 class Runset(Base):
     entity: Optional[str] = Attr(json_path="spec.project.entityName")
     project: Optional[str] = Attr(json_path="spec.project.name")
@@ -32,7 +35,7 @@ class Runset(Base):
         self.query_generator = QueryGenerator()
         self.pm_query_generator = PythonMongoishQueryGenerator(self)
 
-        self.entity = coalesce(entity, Api().default_entity, "")
+        self.entity = coalesce(entity, public_api.default_entity, "")
         self.project = project  # If the project is None, it will be updated to the report's project on save.  See: Report.save
         self.name = name
         self.query = query
@@ -51,12 +54,12 @@ class Runset(Base):
         project = spec.get("project")
         if project:
             if not project.get("entity"):
-                obj.entity = coalesce(Api().default_entity, "")
+                obj.entity = coalesce(public_api.default_entity, "")
             if not project.get("name"):
                 obj.project = None
 
         if not project:
-            obj.entity = coalesce(Api().default_entity, "")
+            obj.entity = coalesce(public_api.default_entity, "")
             obj.project = None
 
         return obj
@@ -111,7 +114,7 @@ class Runset(Base):
 
     @property
     def runs(self) -> Runs:
-        return Api().runs(path=f"{self.entity}/{self.project}", filters=self.filters)
+        return public_api.runs(path=f"{self.entity}/{self.project}", filters=self.filters)
 
     @staticmethod
     def _default_filters():

@@ -14,6 +14,8 @@ from .runset import Runset
 from .util import Attr, Base, Block, coalesce, generate_name, nested_get, nested_set
 from .validators import OneOf, TypeValidator
 
+public_api = Api()
+
 
 class Report(Base):
     project: str = Attr(json_path="viewspec.project.name")
@@ -45,7 +47,7 @@ class Report(Base):
         self._orig_viewspec = deepcopy(self._viewspec)
 
         self.project = project
-        self.entity = coalesce(entity, Api().default_entity, "")
+        self.entity = coalesce(entity, public_api.default_entity, "")
         self.title = title
         self.description = description
         self.width = width
@@ -53,7 +55,7 @@ class Report(Base):
 
     @classmethod
     def from_url(self, url):
-        return Api().load_report(url)
+        return public_api.load_report(url)
 
     @blocks.getter
     def blocks(self):
@@ -121,7 +123,7 @@ class Report(Base):
 
     @property
     def client(self) -> "RetryingClient":
-        return Api().client
+        return public_api.client
 
     @property
     def id(self) -> str:
@@ -152,14 +154,14 @@ class Report(Base):
             termwarn("Report has not been modified")
 
         # create project if not exists
-        Api().create_project(self.project, self.entity)
+        public_api.create_project(self.project, self.entity)
 
         if self.runsets:
             # Check runsets with `None` for project and replace with the report's project.
             # We have to do this here because RunSets don't know about their report until they're added to it.
             for rs in self.runsets:
                 if rs.entity is None:
-                    rs.entity = Api().default_entity
+                    rs.entity = public_api.default_entity
                 if rs.project is None:
                     rs.project = self.project
 
