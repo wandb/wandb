@@ -12,9 +12,10 @@ import (
 // import "wandb.ai/wandb/wbserver/wandb_internal":
 
 type Settings struct {
-	BaseURL string
-	ApiKey  string
-	Offline bool
+	BaseURL  string
+	ApiKey   string
+	Offline  bool
+	SyncFile string
 }
 
 func (s *Settings) parseNetrc() {
@@ -40,9 +41,10 @@ func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
 
 	s := msg.XSettingsMap
 	settings := &Settings{
-		BaseURL: s["base_url"].GetStringValue(),
-		ApiKey:  s["api_key"].GetStringValue(),
-		Offline: s["_offline"].GetBoolValue()}
+		BaseURL:  s["base_url"].GetStringValue(),
+		ApiKey:   s["api_key"].GetStringValue(),
+		SyncFile: s["sync_file"].GetStringValue(),
+		Offline:  s["_offline"].GetBoolValue()}
 
 	settings.parseNetrc()
 

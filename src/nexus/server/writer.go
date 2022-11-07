@@ -1,17 +1,14 @@
 package server
 
 import (
-	// "flag"
-	"os"
-	// "io"
 	"bytes"
 	"encoding/binary"
-	"github.com/wandb/wandb/nexus/service"
-	"google.golang.org/protobuf/proto"
-	"sync"
-	// "google.golang.org/protobuf/reflect/protoreflect"
 	"github.com/golang/leveldb/record"
 	log "github.com/sirupsen/logrus"
+	"github.com/wandb/wandb/nexus/service"
+	"google.golang.org/protobuf/proto"
+	"os"
+	"sync"
 )
 
 type Writer struct {
@@ -40,32 +37,6 @@ func (writer *Writer) WriteRecord(rec *service.Record) {
 	writer.writerChan <- *rec
 }
 
-/*
-
-func write(w io.Writer, ss []string) error {
-    records := record.NewWriter(w)
-    for _, s := range ss {
-        rec, err := records.Next()
-        if err != nil {
-            return err
-        }
-        if _, err := rec.Write([]byte(s)), err != nil {
-            return err
-        }
-    }
-    return records.Close()
-}
-
-
-LEVELDBLOG_HEADER_IDENT = ":W&B"
-LEVELDBLOG_HEADER_MAGIC = (
-    0xBEE1  # zlib.crc32(bytes("Weights & Biases", 'iso8859-1')) & 0xffff
-)
-LEVELDBLOG_HEADER_VERSION = 0
-        ident, magic, version = struct.unpack("<4sHB", header)
-
-*/
-
 func logHeader(f *os.File) {
 	type logHeader struct {
 		ident   [4]byte
@@ -81,7 +52,7 @@ func logHeader(f *os.File) {
 }
 
 func (w *Writer) writerGo() {
-	f, err := os.Create("run-data.wandb")
+	f, err := os.Create(w.settings.SyncFile)
 	check(err)
 	defer w.wg.Done()
 	defer f.Close()
