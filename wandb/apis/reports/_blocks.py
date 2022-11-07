@@ -97,7 +97,10 @@ class PanelGrid(Block):
 
         def groupid_to_ordertuple(groupid):
             rs = self.runsets[0]
-            id, rest = groupid.split("-run:")
+            if "-run:" in groupid:
+                id, rest = groupid.split("-run:")
+            else:
+                id, rest = groupid.split("-", 1)
             kvs = rest.split("-")
             kvs = [rs.pm_query_generator.pc_back_to_front(v) for v in kvs]
             keys, ordertuple = zip(*[kv.split(":") for kv in kvs])
