@@ -53,7 +53,7 @@ class Runset(Base):
 
         project = spec.get("project")
         if project:
-            if not project.get("entity"):
+            if not project.get("entityName"):
                 obj.entity = coalesce(public_api.default_entity, "")
             if not project.get("name"):
                 obj.project = None
