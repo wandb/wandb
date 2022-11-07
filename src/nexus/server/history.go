@@ -41,4 +41,8 @@ func (h *Handler) handlePartialHistory(rec *service.Record, req *service.Partial
 		RecordType: &service.Record_History{&hrecord},
 	}
 	h.storeRecord(&r)
+
+	if h.fstream != nil {
+		h.fstream.StreamRecord(&r)
+	}
 }
