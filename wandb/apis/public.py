@@ -4724,7 +4724,7 @@ class Artifact(artifacts.Artifact):
             # This risk only exists for clients with old wandb backends.
             aliases = [
                 {
-                    "artifactCollectionName": self._sequence_name,
+                    "artifactCollectionName": self._artifact_collection_name,
                     "alias": alias,
                 }
                 for alias in self._aliases
