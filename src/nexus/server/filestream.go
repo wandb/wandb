@@ -48,7 +48,7 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 	if fs.settings.Offline {
 		return
 	}
-	fs.fstreamChan <-*rec
+	fs.fstreamChan <- *rec
 }
 
 func (fs *FileStream) fstreamInit() {
@@ -103,7 +103,7 @@ func (fs *FileStream) send(fsdata interface{}) {
     "exitcode": int(finished.exitcode),
     "dropped": self._dropped_chunks,
     "uploaded": list(uploaded),
- */
+*/
 
 func (fs *FileStream) sendFinish() {
 	type FsFinishedData struct {
@@ -115,7 +115,7 @@ func (fs *FileStream) sendFinish() {
 	fs.send(fsdata)
 }
 
-func jsonify(msg *service.HistoryRecord) string{
+func jsonify(msg *service.HistoryRecord) string {
 	data := map[string]any{}
 
 	var err error
@@ -138,7 +138,7 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 	fname := "wandb-history.jsonl"
 
 	type FsChunkData struct {
-		Offset int `json:"offset"`
+		Offset  int      `json:"offset"`
 		Content []string `json:"content"`
 	}
 
@@ -146,10 +146,10 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 		Files map[string]FsChunkData `json:"files"`
 	}
 	j := jsonify(msg)
-	
+
 	content := []string{j}
 	chunk := FsChunkData{
-		Offset: fs.offset,
+		Offset:  fs.offset,
 		Content: content}
 	fs.offset += 1
 	files := map[string]FsChunkData{

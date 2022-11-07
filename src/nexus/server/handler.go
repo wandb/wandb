@@ -20,6 +20,8 @@ type Handler struct {
 	fstream *FileStream
 	run     service.RunRecord
 
+	summary map[string]string
+
 	settings      *Settings
 	respondResult func(result *service.Result)
 }
@@ -34,6 +36,7 @@ func NewHandler(respondResult func(result *service.Result), settings *Settings) 
 		sender:        sender,
 		respondResult: respondResult,
 		settings:      settings,
+		summary:       make(map[string]string),
 		handlerChan:   make(chan service.Record)}
 
 	go handler.handlerGo()
@@ -101,11 +104,31 @@ func (h *Handler) handleRunExit(rec *service.Record, runExit *service.RunExitRec
 	h.shutdownStream()
 }
 
+func (h *Handler) handleGetSummary(rec *service.Record, msg *service.GetSummaryRequest, resp *service.Response) {
+	items := []*service.SummaryItem{}
+
+	for key, element := range h.summary {
+		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
+	}
+
+	r := service.GetSummaryResponse{Item: items}
+	resp.ResponseType = &service.Response_GetSummaryResponse{GetSummaryResponse: &r}
+}
+
+func (h *Handler) updateSummary(msg *service.HistoryRecord) {
+	items := msg.Item
+	for i := 0; i < len(items); i++ {
+		h.summary[items[i].Key] = items[i].ValueJson
+	}
+}
+
 func (h *Handler) handleRequest(rec *service.Record, req *service.Request) {
 	ref := req.ProtoReflect()
 	desc := ref.Descriptor()
 	num := ref.WhichOneof(desc.Oneofs().ByName("request_type")).Number()
 	log.WithFields(log.Fields{"type": num}).Debug("PROCESS: REQUEST")
+
+	response := &service.Response{}
 
 	switch x := req.RequestType.(type) {
 	case *service.Request_PartialHistory:
@@ -114,10 +137,11 @@ func (h *Handler) handleRequest(rec *service.Record, req *service.Request) {
 	case *service.Request_RunStart:
 		log.WithFields(log.Fields{"req": x}).Debug("PROCESS: got start")
 		h.handleRunStart(rec, x.RunStart)
+	case *service.Request_GetSummary:
+		h.handleGetSummary(rec, x.GetSummary, response)
 	default:
 	}
 
-	response := &service.Response{}
 	result := &service.Result{
 		ResultType: &service.Result_Response{response},
 		Control:    rec.Control,
