@@ -159,15 +159,6 @@ class PanelGrid(Block):
             if rs.name == name:
                 return rs.spec["id"]
 
-    def _groupid_to_ordertuple(self, groupid):
-        rs = self.runsets[0]
-        id, rest = groupid.split("-run:")
-        kvs = rest.split("-")
-        kvs = [rs.pm_query_generator.pc_back_to_front(v) for v in kvs]
-        keys, ordertuple = zip(*[kv.split(":") for kv in kvs])
-        rs_name = self._rs_id_to_name(id)
-        return (rs_name, *ordertuple)
-
     @staticmethod
     def _default_panel_grid_spec():
         return {
