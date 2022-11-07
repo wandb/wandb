@@ -81,6 +81,17 @@ def test_launch_incorrect_backend(
         lambda _1, _2: "something",
     )
 
+    monkeypatch.setattr(
+        "wandb.sdk.launch.builder.build",
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        "wandb.docker",
+        lambda: None,
+    )
+
     with relay_server():
         r = wandb_init(settings=settings)
 
