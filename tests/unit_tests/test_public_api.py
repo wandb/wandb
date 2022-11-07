@@ -202,8 +202,8 @@ def test_artifact_download_logger():
             assert termlog.call_args == call
         else:
             termlog.assert_not_called()
-            
-            
+
+
 def test_update_aliases_on_artifact(user, relay_server, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
