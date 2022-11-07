@@ -1,8 +1,8 @@
-from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.launch.launch_add import launch_add
-from wandb.sdk.launch.launch import run
 import pytest
 from wandb.errors import LaunchError
+from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.launch.launch import run
+from wandb.sdk.launch.launch_add import launch_add
 
 
 def test_launch_delete_queued_run(
