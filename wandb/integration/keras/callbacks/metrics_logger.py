@@ -95,10 +95,7 @@ class WandbMetricsLogger(callbacks.Callback):
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
-        if logs is None:
-            logs = dict()
-        else:
-            logs = {f"epoch/{k}": v for k, v in logs.items()}
+        logs = dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
 
         logs["epoch/epoch"] = epoch
 
