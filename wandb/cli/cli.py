@@ -99,11 +99,7 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error("".join(lines))
-            wandb.termerror(
-                "Find detailed error logs at: {}".format(
-                    os.path.join(_wandb_dir, "debug-cli.log")
-                )
-            )
+            wandb.termerror(f"Find detailed error logs at: {_wandb_log_path}")
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
             raise click_exc.with_traceback(sys.exc_info()[2])
@@ -1746,6 +1742,8 @@ def put(path, name, description, type, alias):
     artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
     # Re-create the artifact and actually upload any files needed
     run.log_artifact(artifact, aliases=alias)
+    artifact.wait()
+
     wandb.termlog(
         "Artifact uploaded, use this artifact in a run by adding:\n", prefix=False
     )

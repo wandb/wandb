@@ -1,4 +1,5 @@
 import dataclasses
+import io
 import json
 import logging
 import os
@@ -47,6 +48,7 @@ from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.mailbox import Mailbox
 
 try:
     from typing import Literal, TypedDict
@@ -260,6 +262,47 @@ def api():
     return Api()
 
 
+@pytest.fixture
+def mock_sagemaker():
+    config_path = "/opt/ml/input/config/hyperparameters.json"
+    resource_path = "/opt/ml/input/config/resourceconfig.json"
+    secrets_path = "secrets.env"
+
+    orig_exist = os.path.exists
+
+    def exists(path):
+        if path in (config_path, secrets_path, resource_path):
+            return True
+        else:
+            return orig_exist(path)
+
+    def magic_factory(original):
+        def magic(path, *args, **kwargs):
+            if path == config_path:
+                return io.StringIO('{"foo": "bar"}')
+            elif path == resource_path:
+                return io.StringIO('{"hosts":["a", "b"]}')
+            elif path == secrets_path:
+                return io.StringIO("WANDB_TEST_SECRET=TRUE")
+            else:
+                return original(path, *args, **kwargs)
+
+        return magic
+
+    with unittest.mock.patch.dict(
+        os.environ,
+        {
+            "TRAINING_JOB_NAME": "sage",
+            "CURRENT_HOST": "maker",
+        },
+    ), unittest.mock.patch("wandb.util.os.path.exists", exists,), unittest.mock.patch(
+        "builtins.open",
+        magic_factory(open),
+        create=True,
+    ):
+        yield
+
+
 # --------------------------------
 # Fixtures for user test point
 # --------------------------------
@@ -410,11 +453,19 @@ class MockProcess:
 
 
 @pytest.fixture()
-def _internal_sender(internal_record_q, internal_result_q, internal_process):
+def _internal_mailbox():
+    return Mailbox()
+
+
+@pytest.fixture()
+def _internal_sender(
+    internal_record_q, internal_result_q, internal_process, _internal_mailbox
+):
     return InterfaceQueue(
         record_q=internal_record_q,
         result_q=internal_result_q,
         process=internal_process,
+        mailbox=_internal_mailbox,
     )
 
 
@@ -561,20 +612,18 @@ def _stop_backend(
 ):
     def stop_backend_func(threads=None):
         threads = threads or ()
-        done = False
-        _internal_sender.publish_exit(0)
-        for _ in range(30):
-            poll_exit_resp = _internal_sender.communicate_poll_exit()
-            if poll_exit_resp:
-                done = poll_exit_resp.done
-                if done:
-                    # collect_responses.local_info = poll_exit_resp.local_info
-                    break
-            time.sleep(1)
+        handle = _internal_sender.deliver_exit(0)
+        record = handle.wait(timeout=30)
+        assert record
+
+        server_info_handle = _internal_sender.deliver_request_server_info()
+        result = server_info_handle.wait(timeout=30)
+        assert result
+        # collect_responses.server_info_resp = result.response.server_info_response
+
         _internal_sender.join()
         for t in threads:
             t.join()
-        assert done, "backend didn't shut down"
 
     yield stop_backend_func
 
@@ -958,31 +1007,9 @@ class Context:
         self._summary: Optional[pd.DataFrame] = None
         self._config: Optional[Dict[str, Any]] = None
 
-    @classmethod
-    def _merge(
-        cls, source: Dict[str, Any], destination: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Recursively merge two dictionaries.
-        """
-        for key, value in source.items():
-            if isinstance(value, dict):
-                # get node or create one
-                node = destination.setdefault(key, {})
-                cls._merge(value, node)
-            else:
-                if isinstance(value, list):
-                    if key in destination:
-                        destination[key].extend(value)
-                    else:
-                        destination[key] = value
-                else:
-                    destination[key] = value
-        return destination
-
     def upsert(self, entry: Dict[str, Any]) -> None:
         entry_id: str = entry["name"]
-        self._entries[entry_id] = self._merge(entry, self._entries[entry_id])
+        self._entries[entry_id] = wandb.util.merge_dicts(entry, self._entries[entry_id])
 
     # mapping interface
     def __getitem__(self, key: str) -> Any:

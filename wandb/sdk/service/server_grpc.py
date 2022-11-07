@@ -88,6 +88,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert result  # TODO: handle errors
         return result
 
+    def ServerInfo(  # noqa: N802
+        self, poll_exit: pb.ServerInfoRequest, context: grpc.ServicerContext
+    ) -> pb.ServerInfoResponse:
+        stream_id = poll_exit._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        result = iface.communicate_server_info()
+        assert result  # TODO: handle errors
+        return result
+
     def GetSummary(  # noqa: N802
         self, get_summary: pb.GetSummaryRequest, context: grpc.ServicerContext
     ) -> pb.GetSummaryResponse:
@@ -170,6 +179,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         resp = iface._communicate_artifact_poll(art_poll)
         assert resp
         return resp
+
+    def Keepalive(  # noqa: N802
+        self, keepalive: pb.KeepaliveRequest, context: grpc.ServicerContext
+    ) -> pb.KeepaliveResponse:
+        stream_id = keepalive._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_keepalive(keepalive)
+        response = pb.KeepaliveResponse()
+        return response
 
     def TBSend(  # noqa: N802
         self, tb_data: pb.TBRecord, context: grpc.ServicerContext

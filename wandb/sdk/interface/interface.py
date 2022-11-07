@@ -26,7 +26,7 @@ from wandb.util import (
     json_dumps_safer,
     json_dumps_safer_history,
     json_friendly,
-    json_friendly_val,
+    make_safe_for_json,
     maybe_compress_summary,
 )
 
@@ -378,7 +378,7 @@ class InterfaceBase:
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+            proto_artifact.metadata = json.dumps(make_safe_for_json(artifact.metadata))
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -686,6 +686,25 @@ class InterfaceBase:
     ) -> Optional[pb.PollExitResponse]:
         raise NotImplementedError
 
+    def publish_keepalive(self) -> None:
+        keepalive = pb.KeepaliveRequest()
+        self._publish_keepalive(keepalive)
+
+    @abstractmethod
+    def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
+        raise NotImplementedError
+
+    def communicate_server_info(self) -> Optional[pb.ServerInfoResponse]:
+        server_info = pb.ServerInfoRequest()
+        resp = self._communicate_server_info(server_info)
+        return resp
+
+    @abstractmethod
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -702,4 +721,48 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_summary(self) -> MailboxHandle:
+        get_summary = pb.GetSummaryRequest()
+        return self._deliver_get_summary(get_summary)
+
+    @abstractmethod
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:
+        exit_data = self._make_exit(exit_code)
+        return self._deliver_exit(exit_data)
+
+    @abstractmethod
+    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_poll_exit(self) -> MailboxHandle:
+        poll_exit = pb.PollExitRequest()
+        return self._deliver_poll_exit(poll_exit)
+
+    @abstractmethod
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_server_info(self) -> MailboxHandle:
+        server_info = pb.ServerInfoRequest()
+        return self._deliver_request_server_info(server_info)
+
+    @abstractmethod
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_sampled_history(self) -> MailboxHandle:
+        sampled_history = pb.SampledHistoryRequest()
+        return self._deliver_request_sampled_history(sampled_history)
+
+    @abstractmethod
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
