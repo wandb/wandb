@@ -17,12 +17,15 @@ import (
 type Writer struct {
 	writerChan chan service.Record
 	wg         *sync.WaitGroup
+	settings   *Settings
 }
 
-func NewWriter(wg *sync.WaitGroup) *Writer {
-	writer := Writer{}
-	writer.writerChan = make(chan service.Record)
-	writer.wg = wg
+func NewWriter(wg *sync.WaitGroup, settings *Settings) *Writer {
+	writer := Writer{
+		wg:         wg,
+		settings:   settings,
+		writerChan: make(chan service.Record),
+	}
 
 	wg.Add(1)
 	go writer.writerGo()

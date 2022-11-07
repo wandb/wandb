@@ -9,9 +9,10 @@ type Stream struct {
 	responder *Responder
 }
 
-func NewStream(respondServerResponse func(*service.ServerResponse)) *Stream {
+func NewStream(respondServerResponse func(*service.ServerResponse),
+	settings *Settings) *Stream {
 	responder := NewResponder(respondServerResponse)
-	handler := NewHandler(responder.RespondResult)
+	handler := NewHandler(responder.RespondResult, settings)
 	return &Stream{responder: responder, handler: handler}
 }
 

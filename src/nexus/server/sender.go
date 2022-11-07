@@ -12,7 +12,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/service"
 	"net/http"
-	"os"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -22,13 +21,16 @@ type Sender struct {
 	wg            *sync.WaitGroup
 	graphqlClient graphql.Client
 	respondResult func(result *service.Result)
+	settings      *Settings
 }
 
-func NewSender(wg *sync.WaitGroup, respondResult func(result *service.Result)) *Sender {
-	sender := Sender{}
-	sender.senderChan = make(chan service.Record)
-	sender.respondResult = respondResult
-	sender.wg = wg
+func NewSender(wg *sync.WaitGroup, respondResult func(result *service.Result), settings *Settings) *Sender {
+	sender := Sender{
+		senderChan:    make(chan service.Record),
+		wg:            wg,
+		respondResult: respondResult,
+		settings:      settings,
+	}
 
 	sender.wg.Add(1)
 	go sender.senderGo()
@@ -54,9 +56,7 @@ func basicAuth(username, password string) string {
 }
 
 func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// req.Header.Set("Authorization", "bearer "+t.key)
 	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
-	//req.Header.Set("Authorization", "api "+t.key)
 	req.Header.Set("User-Agent", "wandb-nexus")
 	// req.Header.Set("X-WANDB-USERNAME", "jeff")
 	// req.Header.Set("X-WANDB-USER-EMAIL", "jeff@wandb.com")
@@ -64,22 +64,14 @@ func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (sender *Sender) senderInit() {
-	key := os.Getenv("WANDB_API_KEY")
-	if key == "" {
-		err := fmt.Errorf("must set WANDB_API_KEY=<wandb api key>")
-		panic(err)
-		return
-	}
-
 	httpClient := http.Client{
 		Transport: &authedTransport{
-			key:     key,
+			key:     sender.settings.ApiKey,
 			wrapped: http.DefaultTransport,
 		},
 	}
-
-	sender.graphqlClient = graphql.NewClient("https://api.wandb.ai/graphql", &httpClient)
-
+	url := fmt.Sprintf("%s/graphql", sender.settings.BaseURL)
+	sender.graphqlClient = graphql.NewClient(url, &httpClient)
 }
 
 func (sender *Sender) sendRunStartRequest(msg *service.RunStartRequest) {

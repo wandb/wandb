@@ -4,19 +4,53 @@ import (
 	//"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"github.com/wandb/wandb/nexus/auth"
 	"github.com/wandb/wandb/nexus/service"
+	"strings"
 )
 
 // import "wandb.ai/wandb/wbserver/wandb_internal":
 
+type Settings struct {
+	BaseURL string
+	ApiKey  string
+	Offline bool
+}
+
+func (s *Settings) parseNetrc() {
+	if s.ApiKey != "" {
+		return
+	}
+	host := strings.TrimPrefix(s.BaseURL, "https://")
+	host = strings.TrimPrefix(host, "http://")
+
+	netlist, err := auth.ReadNetrc()
+	check(err)
+
+	for i := 0; i < len(netlist); i++ {
+		if netlist[i].Machine == host {
+			s.ApiKey = netlist[i].Password
+			break
+		}
+	}
+}
+
 func handleInformInit(nc *NexusConn, msg *service.ServerInformInitRequest) {
 	log.Debug("PROCESS: INIT")
+
+	s := msg.XSettingsMap
+	settings := &Settings{
+		BaseURL: s["base_url"].GetStringValue(),
+		ApiKey:  s["api_key"].GetStringValue(),
+		Offline: s["_offline"].GetBoolValue()}
+
+	settings.parseNetrc()
 
 	// TODO make this a mapping
 	log.Debug("STREAM init")
 	// streamId := "thing"
 	streamId := msg.XInfo.StreamId
-	nc.mux[streamId] = NewStream(nc.RespondServerResponse)
+	nc.mux[streamId] = NewStream(nc.RespondServerResponse, settings)
 
 	// read from mux and write to nc
 	// go nc.mux[streamId].responder(nc)

@@ -20,18 +20,20 @@ type Handler struct {
 	fstream *FileStream
 	run     service.RunRecord
 
+	settings      *Settings
 	respondResult func(result *service.Result)
 }
 
-func NewHandler(respondResult func(result *service.Result)) *Handler {
+func NewHandler(respondResult func(result *service.Result), settings *Settings) *Handler {
 	wg := sync.WaitGroup{}
-	writer := NewWriter(&wg)
-	sender := NewSender(&wg, respondResult)
+	writer := NewWriter(&wg, settings)
+	sender := NewSender(&wg, respondResult, settings)
 	handler := Handler{
 		wg:            &wg,
 		writer:        writer,
 		sender:        sender,
 		respondResult: respondResult,
+		settings:      settings,
 		handlerChan:   make(chan service.Record)}
 
 	go handler.handlerGo()
@@ -44,8 +46,8 @@ func (handler *Handler) Stop() {
 
 func (h *Handler) startRunWorkers() {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-		"https://api.wandb.ai", h.run.Entity, h.run.Project, h.run.RunId)
-	h.fstream = NewFileStream(h.wg, fsPath)
+		h.settings.BaseURL, h.run.Entity, h.run.Project, h.run.RunId)
+	h.fstream = NewFileStream(h.wg, fsPath, h.settings)
 }
 
 func (handler *Handler) HandleRecord(rec *service.Record) {

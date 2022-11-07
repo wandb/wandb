@@ -21,13 +21,15 @@ type FileStream struct {
 	fstreamChan chan service.Record
 	fstreamPath string
 
+	settings   *Settings
 	httpClient http.Client
 }
 
-func NewFileStream(wg *sync.WaitGroup, fstreamPath string) *FileStream {
+func NewFileStream(wg *sync.WaitGroup, fstreamPath string, settings *Settings) *FileStream {
 	fs := FileStream{
 		wg:          wg,
 		fstreamPath: fstreamPath,
+		settings:    settings,
 		fstreamChan: make(chan service.Record)}
 	wg.Add(1)
 	go fs.fstreamGo()
@@ -40,16 +42,9 @@ func (fs *FileStream) Stop() {
 }
 
 func (fs *FileStream) fstreamInit() {
-	key := os.Getenv("WANDB_API_KEY")
-	if key == "" {
-		err := fmt.Errorf("must set WANDB_API_KEY=<wandb api key>")
-		panic(err)
-		return
-	}
-
 	httpClient := http.Client{
 		Transport: &authedTransport{
-			key:     key,
+			key:     fs.settings.ApiKey,
 			wrapped: http.DefaultTransport,
 		},
 	}
