@@ -2628,13 +2628,17 @@ class Sweep(Attrs):
         }
         variables.update(kwargs)
 
+        response = None
         try:
             response = client.execute(query, variable_values=variables)
         except Exception:
-            # Don't handle exception here, rely on legacy query
+            # Don't handle exception, rely on legacy query
             query = cls.LEGACY_QUERY
+            response = client.execute(query, variable_values=variables)
 
-        if response.get("project") is None:
+        if response is None:
+            return None
+        elif response.get("project") is None:
             return None
         elif response["project"].get("sweep") is None:
             return None
