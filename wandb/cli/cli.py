@@ -1201,7 +1201,10 @@ def launch(
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
 
-    check_logged_in(api)
+    try:
+        check_logged_in(api)
+    except Exception as e:
+        print(e)
 
     run_id = config.get("run_id")
 

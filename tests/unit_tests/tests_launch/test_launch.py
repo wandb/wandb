@@ -1,4 +1,5 @@
 import pytest
+import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run
@@ -82,7 +83,7 @@ def test_launch_incorrect_backend(
     )
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.builder.build",
+        wandb.sdk.launch.builder.build,
         "validate_docker_installation",
         lambda: None,
     )
