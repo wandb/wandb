@@ -606,3 +606,17 @@ def check_logged_in(api: Api) -> bool:
         )
 
     return True
+
+
+def validate_job_name(name: str) -> Tuple[str, str]:
+    """
+    Validate that we have a complete name reference, return a Tuple of name and alias.
+    """
+    name_parts = name.split(":", 1)
+    job_name = name_parts[0]
+    if job_name.count("/") != 2:
+        raise LaunchError(
+            "Job must be specified in the format entity/project/job_name[:alias]"
+        )
+    alias = name_parts[1] if len(name_parts) > 1 else "latest"
+    return (job_name, alias)

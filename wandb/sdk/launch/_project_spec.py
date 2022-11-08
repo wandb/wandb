@@ -171,7 +171,7 @@ class LaunchProject:
 
     def _initialize_image_job_tag(self) -> Optional[str]:
         if self.job is not None:
-            job_name, alias = self.job.split(":")
+            job_name, alias = utils.validate_job_name(self.job)
             # Alias is used to differentiate images between jobs of the same sequence
             _image_tag = f"{alias}-{job_name}"
             _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")

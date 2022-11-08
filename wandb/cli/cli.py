@@ -994,7 +994,7 @@ def sweep(
     "-j",
     metavar="<str>",
     default=None,
-    help="Name of the job to launch. If passed in, launch does not require a uri.",
+    help="Job to launch in the format entity/project/job_name[:alias]. If passed in, launch does not require a uri.",
 )
 @click.option(
     "--entry-point",
@@ -1032,7 +1032,7 @@ def sweep(
     "-e",
     metavar="<str>",
     default=None,
-    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder. "
     "If passed in, will override the entity value passed in using a config file.",
 )
 @click.option(
@@ -1056,16 +1056,17 @@ def sweep(
     "--docker-image",
     "-d",
     default=None,
-    metavar="DOCKER IMAGE",
-    help="Specific docker image you'd like to use. In the form name:tag."
-    " If passed in, will override the docker image value passed in using a config file.",
+    metavar="IMAGE",
+    help="Specific docker image you'd like to use in the form name:tag."
+    " If passed in, will override the docker image value passed in using a config file"
+    " and launch does not require a uri.",
 )
 @click.option(
     "--config",
     "-c",
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as a launch config. Dictation how the launched run will be configured. ",
+    "as a launch config. Dictates how the launched run will be configured. ",
 )
 @click.option(
     "--queue",
@@ -1098,6 +1099,7 @@ def sweep(
     is_flag=False,
     flag_value=True,
     default=None,
+    metavar="BOOLEAN",
     help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
     "built by default and you must set --cuda=False to build a CPU-only image.",
 )
@@ -1142,6 +1144,9 @@ def launch(
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
+
+    if job and ":" not in job:
+        job += ":latest"
 
     # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
     if cuda is not None:
