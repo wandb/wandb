@@ -3098,6 +3098,9 @@ class PythonMongoishQueryGenerator:
     def __init__(self, run_set):
         self.run_set = run_set
         self.panel_metrics_helper = PanelMetricsHelper()
+        
+    SPACER = '----------'
+    DECIMAL_SPACER = ';;;'
 
     FRONTEND_NAME_MAPPING = {
         "ID": "name",
@@ -3177,12 +3180,12 @@ class PythonMongoishQueryGenerator:
         return self.AST_OPERATORS.get(type(node))
 
     def _convert(self, filterstr):
-        _conversion = filterstr.replace(".", "__________")  # this is so silly
+        _conversion = filterstr.replace(".", self.SPACER)  # this is so silly
         # return _conversion
         return "(" + _conversion + ")"  # wrap expr to make it eval-able
 
     def _unconvert(self, field_name):
-        return field_name.replace("__________", ".")  # maximum silly, but it works!
+        return field_name.replace(self.SPACER, ".")  # maximum silly, but it works!
 
     def python_to_mongo(self, filterstr):
         try:
