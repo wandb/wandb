@@ -145,9 +145,10 @@ class PanelGrid(Block):
 
         def run_name_to_id(name):
             for rs in self.runsets:
-                for run in public_api.runs(
-                    path=f"{rs.entity}/{rs.project}", filters={"display_name": name}
-                ):
+                runs = public_api.runs(path=f"{rs.entity}/{rs.project}", filters={"display_name": name})
+                if len(runs) > 1:
+                    termwarn("Multiple runs with the same name found! Using the first one.")
+                for run in runs:
                     if run.name == name:
                         return run.id
             raise ValueError("Unable to find this run!")
