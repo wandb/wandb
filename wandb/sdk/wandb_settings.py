@@ -1397,9 +1397,10 @@ class Settings:
 
         # one special case here is running inside a PEX environment,
         # see https://pex.readthedocs.io/en/latest/index.html for more info about PEX
-        settings["_executable"] = (
-            self._executable or os.environ.get("PEX") or sys.executable
-        )
+        _executable = self._executable or os.environ.get("PEX") or sys.executable
+        if _executable is None or _executable == "":
+            _executable = "python3"
+        settings["_executable"] = _executable
 
         settings["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
 

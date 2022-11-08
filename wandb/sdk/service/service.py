@@ -23,7 +23,9 @@ class _Service:
     _internal_proc: Optional[subprocess.Popen]
 
     def __init__(
-        self, _use_grpc: bool = False, _python_executable: Optional[str] = None
+        self,
+        _python_executable: str,
+        _use_grpc: bool = False,
     ) -> None:
         self._use_grpc = _use_grpc
         self._python_executable = _python_executable
@@ -85,7 +87,7 @@ class _Service:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
             pid_str = str(os.getpid())
-            executable = self._python_executable or sys.executable
+            executable = self._python_executable
             exec_cmd_list = [executable, "-m"]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):

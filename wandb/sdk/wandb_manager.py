@@ -102,7 +102,8 @@ class _Manager:
         self._hooks = None
 
         self._service = service._Service(
-            _use_grpc=_use_grpc, _python_executable=settings._executable
+            _python_executable=settings._executable,
+            _use_grpc=_use_grpc,
         )
 
         token = _ManagerToken.from_environment()
