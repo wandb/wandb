@@ -6,7 +6,6 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 import os
 import platform
 import subprocess
-import sys
 import tempfile
 import time
 from typing import Any, Dict, Optional
