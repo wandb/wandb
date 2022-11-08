@@ -361,7 +361,7 @@ jobs:
           command: |
             pip install -U pip
             pip install pex
-            while ! curl http://localhost:8080/healthz; do sleep 1; done
+#            while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
           name: Run pex test
