@@ -1,8 +1,8 @@
 from typing import Optional
 
-from ..public import Run
+from ..public import PanelMetricsHelper, Run
 from .runset import Runset
-from .util import Attr, Base, Panel
+from .util import Attr, Base, Panel, nested_get, nested_set
 
 
 class LineKey:
@@ -45,6 +45,7 @@ class PCColumn(Base):
         self, metric, name=None, ascending=None, log_scale=None, *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
+        self.panel_metrics_helper = PanelMetricsHelper()
         self.metric = metric
         self.name = name
         self.ascending = ascending
@@ -55,3 +56,15 @@ class PCColumn(Base):
         obj = cls(metric=spec["accessor"])
         obj._spec = spec
         return obj
+
+    @metric.getter
+    def metric(self):
+        json_path = self._get_path("metric")
+        value = nested_get(self, json_path)
+        return self.panel_metrics_helper.special_back_to_front(value)
+
+    @metric.setter
+    def metric(self, value):
+        json_path = self._get_path("metric")
+        value = self.panel_metrics_helper.special_front_to_back(value)
+        nested_set(self, json_path, value)
