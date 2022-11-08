@@ -94,6 +94,7 @@ class ArtifactSaver:
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
+        skip_dedupe: bool = False,
     ) -> Optional[Dict]:
         aliases = aliases or []
         alias_specs = []
@@ -138,7 +139,11 @@ class ArtifactSaver:
         #   do
         assert self._server_artifact is not None  # mypy optionality unwrapper
         artifact_id = self._server_artifact["id"]
-        latest_artifact_id = latest["id"] if latest else None
+        latest_artifact_id = None
+        if skip_dedupe:
+            latest_artifact_id = artifact_id
+        elif latest:
+            latest_artifact_id = latest
         if (
             self._server_artifact["state"] == "COMMITTED"
             or self._server_artifact["state"] == "COMMITTING"

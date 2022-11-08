@@ -1264,7 +1264,9 @@ class SendManager:
             )
 
     def _send_artifact(
-        self, artifact: "ArtifactRecord", history_step: Optional[int] = None
+        self,
+        artifact: "ArtifactRecord",
+        history_step: Optional[int] = None,
     ) -> Optional[Dict]:
         from pkg_resources import parse_version
 
@@ -1302,6 +1304,7 @@ class SendManager:
             finalize=artifact.finalize,
             incremental=artifact.incremental_beta1,
             history_step=history_step,
+            skip_dedupe=artifact.skip_dedupe,
         )
 
     def send_alert(self, record: "Record") -> None:

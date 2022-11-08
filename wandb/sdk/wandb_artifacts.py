@@ -155,6 +155,7 @@ class Artifact(ArtifactInterface):
         metadata: Optional[dict] = None,
         incremental: Optional[bool] = None,
         use_as: Optional[str] = None,
+        skip_dedupe: Optional[bool] = False,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -195,10 +196,12 @@ class Artifact(ArtifactInterface):
         self._sequence_client_id = util.generate_id(128)
         self._cache.store_client_artifact(self)
         self._use_as = use_as
+        self._skip_dedupe = skip_dedupe
 
         if incremental:
             self._incremental = incremental
             wandb.termwarn("Using experimental arg `incremental`")
+        print(self._manifest.to_manifest_json())
 
     @property
     def id(self) -> Optional[str]:
@@ -743,6 +746,7 @@ class Artifact(ArtifactInterface):
 
         self._manifest.add_entry(entry)
         self._added_local_paths[path] = entry
+        print("ADD FILE: ", self._manifest.to_manifest_json())
         return entry
 
     def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactEntry:

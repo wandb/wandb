@@ -386,6 +386,7 @@ message ArtifactRecord {
   bool                          finalize=14;
   string                        client_id=15;
   string                        sequence_client_id=16;
+  bool                          skip_dedupe=17;
   bool                          incremental_beta1=100;
   _RecordInfo                   _info = 200;
 }
