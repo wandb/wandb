@@ -341,17 +341,10 @@ jobs:
         default: 8
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-#      - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-#        auth:
-#          username: _json_key
-#          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-#        environment:
-#          CI: 1
-#          WANDB_ENABLE_TEST_CONTAINER: true
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
-#      - checkout
+      - checkout
       - run:
           name: Install system deps
           command: |
@@ -361,14 +354,12 @@ jobs:
           command: |
             pip install -U pip
             pip install pex
-#            while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
           name: Run pex test
           no_output_timeout: 5m
           command: |
-            pex wandb==0.13.4 -o wandb.pex
-            # pex . -o wandb.pex
+            pex . -o wandb.pex
             ./wandb.pex -c "import wandb; wandb.init(mode='offline'); wandb.finish()"
       - save-test-results
 
