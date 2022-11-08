@@ -351,7 +351,7 @@ jobs:
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
-#      - checkout
+      - checkout
       - run:
           name: Install system deps
           command: |
@@ -367,7 +367,7 @@ jobs:
           name: Run pex test
           no_output_timeout: 5m
           command: |
-            pex wandb==0.13.4 -o wandb.pex
+            pex . -o wandb.pex
             ./wandb.pex -c "import wandb; wandb.init(); wandb.finish()"
       - save-test-results
 
