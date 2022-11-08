@@ -224,13 +224,14 @@ def test_artifact_wait_failure(wandb_init, timeout):
 
 def test_artifact_metadata_save(wandb_init, relay_server):
     # Test artifact metadata sucessfully saved for len(numpy) > 32
+    dummy_metadata = np.array([0] * 33)
     with relay_server():
         run = wandb_init()
         artifact = wandb.Artifact(
-            name="art", type="dataset", metadata={"initMetadata": "some stuff"}
+            name="art", type="dataset", metadata={"initMetadata": dummy_metadata}
         )
         run.log_artifact(artifact)
-        artifact.wait().metadata.update({"updateMetadata": "some stuff"})
+        artifact.wait().metadata.update({"updateMetadata": dummy_metadata})
         artifact.save()
         saved_artifact = run.use_artifact("art:latest")
         art_metadata = saved_artifact.metadata
