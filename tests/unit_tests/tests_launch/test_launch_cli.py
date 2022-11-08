@@ -6,7 +6,7 @@ def test_launch_bad_api_key(runner, monkeypatch):
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entity",
         "mock_server_entity",
-        "--queue",
+        "--queue=default",
     ]
     monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
     monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
