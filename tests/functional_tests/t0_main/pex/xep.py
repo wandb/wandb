@@ -21,17 +21,16 @@ def build_and_run_pex():
         {
             "command": [
                 "pex",
-                ".",
+                # ".",
                 "-r",
                 "requirements.txt",
-                "-c",
-                "main.py",
                 "-o",
-                "test.pex",
+                "tes.pex",
             ],
         },
         {
-            "command": ["./test.pex"],
+            "command": ["./lol.pex", "--", "main.py"],
+            # "command": ["./test.pex"],
         },
         # {
         #     "command": ["sed", "-i", "-e", f"s/{current_branch}/main/g", "requirements.txt"],
