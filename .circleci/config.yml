@@ -339,8 +339,8 @@ jobs:
       python_version_minor:
         type: integer
         default: 8
-#    docker:
-#      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
 #      - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
 #        auth:
 #          username: _json_key
