@@ -2,10 +2,10 @@ import glob
 import os
 import string
 import sys
-from pkg_resources import parse_version
 from typing import Any, Dict, List, Optional, Union
 
-import tensorflow as tf
+import tensorflow as tf  # type: ignore
+from pkg_resources import parse_version
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
