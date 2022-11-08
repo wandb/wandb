@@ -1,12 +1,17 @@
 from typing import Any, Dict, Optional, TypeVar
 
 from ..public import Api, PythonMongoishQueryGenerator, QueryGenerator, Runs
-from .util import Attr, Base, coalesce, generate_name, nested_get, nested_set
+from .util import (
+    Attr,
+    Base,
+    coalesce,
+    generate_name,
+    nested_get,
+    nested_set,
+    public_api,
+)
 
 T = TypeVar("T")
-
-
-public_api = Api()
 
 
 class Runset(Base):

@@ -1,12 +1,15 @@
 import random
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, get_type_hints
 
-from ..public import PanelMetricsHelper
+from ..public import PanelMetricsHelper, Api as PublicApi
 from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
 Func = TypeVar("Func")
 T = TypeVar("T")
 V = TypeVar("V")
+
+
+public_api = PublicApi()
 
 
 def generate_name(length: int = 12) -> str:
