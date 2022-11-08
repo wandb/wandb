@@ -324,11 +324,6 @@ def vendor_setup() -> Callable:
     return reset_import_path
 
 
-def apple_gpu_stats_binary() -> str:
-    parent_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
-
-
 def vendor_import(name: str) -> Any:
     reset_path = vendor_setup()
     module = import_module(name)
@@ -935,7 +930,8 @@ def make_json_if_not_number(
 
 
 def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Also converts to lists and dicts."""
+    """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
+    Converts numpy array to list. Used for artifact metadata"""
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
@@ -951,6 +947,10 @@ def make_safe_for_json(obj: Any) -> Any:
             return "Infinity"
         elif obj == float("-inf"):
             return "-Infinity"
+    elif is_numpy_array(obj):
+        return [make_safe_for_json(v) for v in obj.tolist()]
+    elif isinstance(obj, slice):
+        return dict(slice_start=obj.start, slice_step=obj.step, slice_stop=obj.stop)
     return obj
 
 
@@ -1889,3 +1889,23 @@ def make_docker_image_name_safe(name: str) -> str:
     trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
     trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
     return trimmed if trimmed else "image"
+
+
+def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively merge two dictionaries.
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            if isinstance(value, list):
+                if key in destination:
+                    destination[key].extend(value)
+                else:
+                    destination[key] = value
+            else:
+                destination[key] = value
+    return destination

@@ -4708,7 +4708,7 @@ class Artifact(artifacts.Artifact):
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": util.json_dumps_safer(self.metadata),
+                "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
                 "aliases": [
                     {
                         "artifactCollectionName": self._sequence_name,
@@ -5002,7 +5002,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters or {}
+        self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.order = order
         variables = {
             "project": self.project,
