@@ -4763,7 +4763,7 @@ class Artifact(artifacts.Artifact):
             """
         )
         res = self.client.execute(introspect_query)
-        valid = res.get("AddAliasesInputInfoType") or None
+        valid = res.get("AddAliasesInputInfoType")
         if not valid:
             return
 
