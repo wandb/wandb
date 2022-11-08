@@ -37,18 +37,13 @@ def test_launch_build_succeeds(
     runner,
     args,
     override_config,
-    wandb_init,
-    test_settings,
 ):
-    proj = "testing1234"
-    settings = test_settings({"project": proj})
     base_args = [
         "https://github.com/wandb/examples.git",
         "--entity",
         user,
         "--entry-point",
         "python main.py",
-        f"--project={proj}",
         "-c",
         json.dumps(override_config),
     ]
@@ -76,7 +71,6 @@ def test_launch_build_succeeds(
     )
 
     with runner.isolated_filesystem(), relay_server():
-        wandb_init(settings=settings).finish()
         result = runner.invoke(cli.launch, base_args + args)
 
         assert result.exit_code == 0
