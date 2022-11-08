@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, TypeVar
 
-from ..public import Api, PythonMongoishQueryGenerator, QueryGenerator, Runs
+from ..public import PythonMongoishQueryGenerator, QueryGenerator, Runs
 from .util import (
     Attr,
     Base,
@@ -58,12 +58,9 @@ class Runset(Base):
 
         project = spec.get("project")
         if project:
-            if not project.get("entityName"):
-                obj.entity = coalesce(public_api.default_entity, "")
-            if not project.get("name"):
-                obj.project = None
-
-        if not project:
+            obj.entity = project.get('entityName', coalesce(public_api.default_entity, ""))
+            obj.project = project.get('name')
+        else:
             obj.entity = coalesce(public_api.default_entity, "")
             obj.project = None
 

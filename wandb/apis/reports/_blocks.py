@@ -99,7 +99,7 @@ class PanelGrid(Block):
         def groupid_to_ordertuple(groupid):
             rs = self.runsets[0]
             if "-run:" in groupid:
-                id, rest = groupid.split("-run:")
+                id, rest = groupid.split("-run:", 1)
             else:
                 id, rest = groupid.split("-", 1)
             kvs = rest.split("-")

@@ -3177,12 +3177,11 @@ class PythonMongoishQueryGenerator:
         return self.AST_OPERATORS.get(type(node))
 
     def _convert(self, filterstr):
-        _conversion = filterstr.replace(".", self.SPACER)  # this is so silly
-        # return _conversion
-        return "(" + _conversion + ")"  # wrap expr to make it eval-able
+        _conversion = filterstr.replace(".", self.SPACER)  # Allow dotted fields
+        return "(" + _conversion + ")"
 
     def _unconvert(self, field_name):
-        return field_name.replace(self.SPACER, ".")  # maximum silly, but it works!
+        return field_name.replace(self.SPACER, ".")  # Allow dotted fields
 
     def python_to_mongo(self, filterstr):
         try:
