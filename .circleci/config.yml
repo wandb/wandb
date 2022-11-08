@@ -1298,7 +1298,6 @@ workflows:
       #
       - pex-shmex:
           name: "pex-shmex"
-          toxenv: "pex-shmex"
 
   # todo: needs love
   #  manual_test:
