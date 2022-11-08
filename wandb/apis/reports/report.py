@@ -192,7 +192,8 @@ class Report(Base):
         if clone:
             return Report.from_json(viewspec)
         else:
-            self._viewspec = viewspec
+            self._viewspec['id'] = viewspec['id']
+            self._viewspec['name'] = viewspec['name']
             return self
 
     def to_html(self, height: int = 1024, hidden: bool = False) -> str:
