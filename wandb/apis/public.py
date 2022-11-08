@@ -3093,8 +3093,9 @@ class QueryGenerator:
 
 class PythonMongoishQueryGenerator:
     from pkg_resources import parse_version
-    SPACER = '----------'
-    DECIMAL_SPACER = ';;;'
+
+    SPACER = "----------"
+    DECIMAL_SPACER = ";;;"
     FRONTEND_NAME_MAPPING = {
         "ID": "name",
         "Name": "displayName",
@@ -3148,7 +3149,7 @@ class PythonMongoishQueryGenerator:
             ast.Tuple: "elts",
             ast.NameConstant: "value",
         }
-        
+
     def __init__(self, run_set):
         self.run_set = run_set
         self.panel_metrics_helper = PanelMetricsHelper()
@@ -3176,8 +3177,37 @@ class PythonMongoishQueryGenerator:
     def _handle_ops(self, node):
         return self.AST_OPERATORS.get(type(node))
 
+    def _replace_numeric_dots(self, s):
+        numeric_dots = []
+        for i, (l, m, r) in enumerate(zip(s, s[1:], s[2:]), 1):
+            if m == ".":
+                if (
+                    l.isdigit()
+                    and r.isdigit()  # 1.2
+                    or l.isdigit()
+                    and r == " "  # 1.
+                    or l == " "
+                    and r.isdigit()  #  .2
+                ):
+                    numeric_dots.append(i)
+        # Edge: Catch number ending in dot at end of string
+        if s[-2].isdigit() and s[-1] == ".":
+            numeric_dots.append(len(s) - 1)
+        numeric_dots = [-1] + numeric_dots + [len(s)]
+
+        substrs = []
+        for start, stop in zip(numeric_dots, numeric_dots[1:]):
+            substrs.append(s[start + 1 : stop])
+            substrs.append(self.DECIMAL_SPACER)
+        substrs = substrs[:-1]
+        return "".join(substrs)
+
     def _convert(self, filterstr):
-        _conversion = filterstr.replace(".", self.SPACER)  # Allow dotted fields
+        _conversion = (
+            self._replace_numeric_dots(filterstr)  # temporarily sub numeric dots
+            .replace(".", self.SPACER)  # Allow dotted fields
+            .replace(self.DECIMAL_SPACER, ".")  # add them back
+        )
         return "(" + _conversion + ")"
 
     def _unconvert(self, field_name):
