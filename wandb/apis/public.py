@@ -3290,6 +3290,19 @@ class PanelMetricsHelper:
 
     # ScatterPlot and ParallelCoords have weird conventions
     def special_front_to_back(self, name):
+        if name is not None:
+            name, *rest = name.split(".")
+            rest = "." + ".".join(rest) if rest else ""
+            # special case for config
+            if name.startswith("c::"):
+                name = name[3:]
+                return f"config:{name}.value{rest}"
+
+            # special case for summary
+            if name.startswith("s::"):
+                name = name[3:]
+                return "summary:" + self.FRONTEND_NAME_MAPPING[name]
+
         if name is None:
             return name
         elif name in self.RUN_MAPPING:
