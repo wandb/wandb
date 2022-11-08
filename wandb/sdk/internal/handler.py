@@ -67,7 +67,6 @@ class HandleManager:
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _stopped: Event
-    _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
     _system_monitor: Optional[SystemMonitor]
@@ -87,7 +86,6 @@ class HandleManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: Event,
-        sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: InterfaceQueue,
     ) -> None:
@@ -95,7 +93,6 @@ class HandleManager:
         self._record_q = record_q
         self._result_q = result_q
         self._stopped = stopped
-        self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
 
@@ -142,8 +139,11 @@ class HandleManager:
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
-            tracelog.log_message_queue(record, self._sender_q)
-            self._sender_q.put(record)
+            # FIXME: audit this
+            # tracelog.log_message_queue(record, self._sender_q)
+            # self._sender_q.put(record)
+            tracelog.log_message_queue(record, self._writer_q)
+            self._writer_q.put(record)
         if not record.control.local and self._writer_q:
             tracelog.log_message_queue(record, self._writer_q)
             self._writer_q.put(record)
@@ -219,8 +219,11 @@ class HandleManager:
         if flush:
             self._dispatch_record(record)
         elif not self._settings._offline:
-            tracelog.log_message_queue(record, self._sender_q)
-            self._sender_q.put(record)
+            # FIXME: audit this
+            # tracelog.log_message_queue(record, self._sender_q)
+            # self._sender_q.put(record)
+            tracelog.log_message_queue(record, self._writer_q)
+            self._writer_q.put(record)
 
     def _save_history(
         self,
