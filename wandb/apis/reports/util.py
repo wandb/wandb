@@ -283,6 +283,18 @@ class Panel(Base, SubclassOnlyABC):
     def _default_panel_layout() -> Dict[str, int]:
         return {"x": 0, "y": 0, "w": 8, "h": 6}
 
+    @layout.setter
+    def layout(self, d: Dict[str, int]) -> None:
+        d["x"] = coalesce(d.get("x"), self._default_panel_layout()["x"])
+        d["y"] = coalesce(d.get("y"), self._default_panel_layout()["y"])
+        d["w"] = coalesce(d.get("w"), self._default_panel_layout()["w"])
+        d["h"] = coalesce(d.get("h"), self._default_panel_layout()["h"])
+
+        # json_path = self._get_path("layout")
+        # can't use _get_path because it's not on the obj... if only we had dataclass...
+        json_path = "spec.layout"
+        nested_set(self, json_path, d)
+
 
 class Block(Base, SubclassOnlyABC):
     pass
