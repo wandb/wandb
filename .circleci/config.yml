@@ -331,7 +331,7 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  pex-shmex:
+  pex:
     parameters:
       python_version_major:
         type: integer
@@ -351,13 +351,13 @@ jobs:
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
-      - checkout
+#      - checkout
       - run:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
       - run:
-          name: Install pex and do some shmex
+          name: Install pex
           command: |
             pip install -U pip
             pip install pex
@@ -367,7 +367,7 @@ jobs:
           name: Run pex test
           no_output_timeout: 5m
           command: |
-            pex . -o wandb.pex
+            pex wandb==0.13.4 -o wandb.pex
             ./wandb.pex -c "import wandb; wandb.init(); wandb.finish()"
       - save-test-results
 
