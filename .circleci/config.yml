@@ -351,7 +351,7 @@ jobs:
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
-      - checkout
+#      - checkout
       - run:
           name: Install system deps
           command: |
