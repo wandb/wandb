@@ -110,9 +110,13 @@ class PanelGrid(Block):
 
         def run_id_to_name(id):
             for rs in self.runsets:
-                for run in rs.runs:
-                    if run.id == id:
-                        return run.name
+                try:
+                    run = public_api.run(f"{rs.entity}/{rs.project}/{id}")
+                except:
+                    pass
+                finally:
+                    return run.name
+            raise ValueError("Unable to find this run!")
 
         color_settings = {}
         for id, c in id_colors.items():
@@ -141,9 +145,12 @@ class PanelGrid(Block):
 
         def run_name_to_id(name):
             for rs in self.runsets:
-                for run in rs.runs:
+                for run in public_api.runs(
+                    path=f"{rs.entity}/{rs.project}", filters={"display_name": name}
+                ):
                     if run.name == name:
                         return run.id
+            raise ValueError("Unable to find this run!")
 
         for name, c in new_custom_run_colors.items():
             if isinstance(name, tuple):
