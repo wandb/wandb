@@ -419,17 +419,21 @@ def _make_refspec_from_version(version: Optional[str]) -> List[str]:
     Helper to create a refspec that checks for the existence of origin/main
     and the version, if provided.
     """
-    refspec = [
+
+    def _is_sha1(version: str):
+        if len(version) == 40:
+            return True
+        return False
+
+    if version:
+        if _is_sha1(version):
+            return [f"+{version}"]
+        else:
+            return [f"+refs/heads/{version}*:refs/remotes/origin/{version}*"]
+    return [
         "+refs/heads/main*:refs/remotes/origin/main*",
         "+refs/heads/master*:refs/remotes/origin/master*",
     ]
-    if not version or version in ["main", "master"]:
-        return refspec
-    elif len(version) == 40:  # if hash, only return hash
-        # TODO(gst): need better check for SHA here
-        return [f"+{version}"]
-    else:
-        return refspec + [f"+refs/heads/{version}*:refs/remotes/origin/{version}*"]
 
 
 def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
@@ -443,11 +447,17 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     # executable is available on the PATH, so we only want to fail if we actually need it.
     import git  # type: ignore
 
+    import time
+
     _logger.info("Fetching git repo")
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
     refspec = _make_refspec_from_version(version)
+
+    tic = time.perf_counter()
     origin.fetch(refspec=refspec, depth=1)
+    toc = time.perf_counter()
+    wandb.termlog(f"fetched: {[x.name for x in origin.refs]} in {toc-tic:0.4f} seconds")
 
     if version is not None:
         try:
