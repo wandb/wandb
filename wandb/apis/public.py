@@ -3092,16 +3092,9 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
-
     from pkg_resources import parse_version
-
-    def __init__(self, run_set):
-        self.run_set = run_set
-        self.panel_metrics_helper = PanelMetricsHelper()
-        
     SPACER = '----------'
     DECIMAL_SPACER = ';;;'
-
     FRONTEND_NAME_MAPPING = {
         "ID": "name",
         "Name": "displayName",
@@ -3155,6 +3148,10 @@ class PythonMongoishQueryGenerator:
             ast.Tuple: "elts",
             ast.NameConstant: "value",
         }
+        
+    def __init__(self, run_set):
+        self.run_set = run_set
+        self.panel_metrics_helper = PanelMetricsHelper()
 
     def _handle_compare(self, node):
         # only left side can be a col
