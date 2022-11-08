@@ -1296,8 +1296,8 @@ workflows:
       #
       # pex test
       #
-      - pex-shmex:
-          name: "pex-shmex"
+      - pex:
+          name: "pex"
 
   # todo: needs love
   #  manual_test:
