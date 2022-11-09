@@ -71,7 +71,10 @@ class WriteManager:
         self._ds = datastore.DataStore()
         self._ds.open_for_write(self._settings.sync_file)
 
-    def _process_control_record(self, record) -> bool:
+    def _is_control_record(self, record) -> bool:
+        return False
+
+    def _process_record(self, record) -> bool:
         record_type = record.WhichOneof("record_type")
         if record_type == "sender_update_seen":
             # sender_position_update (result from sender_position_req
@@ -95,10 +98,6 @@ class WriteManager:
         # send message asking sender to read from last_read_offset to current_offset
 
     def _write_record(self, record):
-        is_control_record = self._process_control_record(record)
-        if is_control_record:
-            return
-
         ret = self._ds.write(record)
         assert ret is not None
         (file_offset, data_length, _, _) = ret
@@ -119,6 +118,8 @@ class WriteManager:
         # if self._collection_blocknum != self._next_blocknum:
         #    self._collection_reset()
         pass
+        if self.is_control_record(record):
+            return
 
     def _blocks_behind(self) -> int:
         return 0
@@ -144,7 +145,9 @@ class WriteManager:
         if not self._ds:
             self.open()
 
-        self._write_record(record)
+        self._process_record(record)
+        if not self._is_control_record(record):
+            self._write_record(record)
 
         # Transition sending state machine
         if self._state == _SendState.ACTIVE:
@@ -153,6 +156,9 @@ class WriteManager:
             self._maybe_restart()
         elif self._state == _SendState.RESTARTING:
             self._maybe_active()
+
+        if self._is_control_record(record):
+            return
 
         # Execute sending state machine actions
         if self._state == _SendState.ACTIVE:
