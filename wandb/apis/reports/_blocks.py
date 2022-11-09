@@ -22,6 +22,47 @@ from .util import (
 )
 
 
+
+
+class InlineLaTeX(Base):
+    latex: str = Attr()
+
+    def __init__(self, latex="", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.latex = latex
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
+
+
+class InlineCode(Base):
+    code: str = Attr()
+
+    def __init__(self, code="", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.code = code
+
+    @property
+    def spec(self) -> dict:
+        return {"text": self.code, "inlineCode": True}
+    
+    
+class Link(Base):
+    text: str = Attr()
+    url: str = Attr()
+    
+
+    def __init__(self, text, url, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+        self.url = url
+        
+    @property
+    def spec(self) -> dict:
+        return {"type": "link", "url": self.url, "children": [{"text": self.text}]}
+
+
 class UnknownBlock(Block):
     pass
 
@@ -358,12 +399,27 @@ class Heading(Base):
         level_mapping = {1: H1, 2: H2, 3: H3}
         if level not in level_mapping:
             raise ValueError(f"`level` must be one of {list(level_mapping.keys())}")
-
+        
+        if isinstance(spec['children'], str):
+            text = spec['children']
+        else:
+            text = []
+            for elem in spec["children"]:
+                if elem.get("type") == "latex":
+                    text.append(InlineLaTeX(elem["content"]))
+                elif elem.get("type") == "link":
+                    text.append(Link(elem["children"][0]["text"], elem["url"]))
+                elif elem.get("inlineCode"):
+                    text.append(InlineCode(elem["text"]))
+                else:
+                    text.append(elem["text"])
+        if not isinstance(text, list):
+            text = [text]
         return level_mapping[level](text)
 
 
 class H1(Block, Heading):
-    text: str = Attr()
+    text: Union[str, list, Link] = Attr()
 
     def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -371,15 +427,19 @@ class H1(Block, Heading):
 
     @property
     def spec(self) -> dict:
+        if isinstance(self.text, list):
+            content = [t.spec if not isinstance(t, str) else {"text": t} for t in self.text]
+        else:
+            content = [{"text": self.text}]
         return {
             "type": "heading",
-            "children": [{"text": self.text}],
+            "children": content,
             "level": 1,
         }
 
 
 class H2(Block, Heading):
-    text: str = Attr()
+    text: Union[str, list, Link] = Attr()
 
     def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -387,6 +447,10 @@ class H2(Block, Heading):
 
     @property
     def spec(self) -> dict:
+        if isinstance(self.text, list):
+            content = [t.spec if not isinstance(t, str) else {"text": t} for t in self.text]
+        else:
+            content = [{"text": self.text}]
         return {
             "type": "heading",
             "children": [{"text": self.text}],
@@ -395,7 +459,7 @@ class H2(Block, Heading):
 
 
 class H3(Block, Heading):
-    text: str = Attr()
+    text: Union[str, list, Link] = Attr()
 
     def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -403,6 +467,10 @@ class H3(Block, Heading):
 
     @property
     def spec(self) -> dict:
+        if isinstance(self.text, list):
+            content = [t.spec if not isinstance(t, str) else {"text": t} for t in self.text]
+        else:
+            content = [{"text": self.text}]
         return {
             "type": "heading",
             "children": [{"text": self.text}],
@@ -946,32 +1014,9 @@ class Video(Block):
         }
 
 
-class InlineLaTeX(Base):
-    latex: str = Attr()
-
-    def __init__(self, latex="", *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.latex = latex
-
-    @property
-    def spec(self) -> dict:
-        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
-
-
-class InlineCode(Base):
-    code: str = Attr()
-
-    def __init__(self, code="", *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.code = code
-
-    @property
-    def spec(self) -> dict:
-        return {"text": self.code, "inlineCode": True}
-
 
 class P(Block):
-    text: Union[str, InlineLaTeX, InlineCode, list] = Attr()
+    text: Union[str, InlineLaTeX, InlineCode, Link, list] = Attr()
 
     def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -986,6 +1031,8 @@ class P(Block):
             for elem in spec["children"]:
                 if elem.get("type") == "latex":
                     text.append(InlineLaTeX(elem["content"]))
+                elif elem.get("type") == "link":
+                    text.append(Link(elem["children"][0]["text"], elem["url"]))
                 elif elem.get("inlineCode"):
                     text.append(InlineCode(elem["text"]))
                 else:
