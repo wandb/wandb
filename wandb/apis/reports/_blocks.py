@@ -309,7 +309,7 @@ class List(Base):
                     text.append(Link(elem["children"][0]["text"], elem["url"]))
                 elif elem.get("inlineCode"):
                     text.append(InlineCode(elem["text"]))
-                else:
+                elif elem.get("text"):
                     text.append(elem["text"])
             items.append(text)
         checked = [item.get("checked") for item in spec["children"]]
@@ -438,7 +438,7 @@ class Heading(Base):
                     text.append(Link(elem["children"][0]["text"], elem["url"]))
                 elif elem.get("inlineCode"):
                     text.append(InlineCode(elem["text"]))
-                else:
+                elif elem.get("text"):
                     text.append(elem["text"])
         if not isinstance(text, list):
             text = [text]
@@ -1067,7 +1067,7 @@ class P(Block):
                     text.append(Link(elem["children"][0]["text"], elem["url"]))
                 elif elem.get("inlineCode"):
                     text.append(InlineCode(elem["text"]))
-                else:
+                elif elem.get("text"):
                     text.append(elem["text"])
 
         if not isinstance(text, list):
