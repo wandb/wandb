@@ -69,6 +69,101 @@ def create_customer_landing_page(project_name, company_name, main_contact):
                     )
                 ]
             ),
+            wr.PanelGrid(
+                runsets=[
+                    wr.Runset(
+                        entity="megatruong",
+                        project="whirlwind_test4",
+                        name="Run set",
+                        query="",
+                        filters={
+                            "$or": [
+                                {
+                                    "$and": [
+                                        {"state": {"$ne": "crashed"}},
+                                        {
+                                            "config.Learner.value.opt_func": {
+                                                "$ne": None
+                                            }
+                                        },
+                                    ]
+                                }
+                            ]
+                        },
+                        groupby=["Learner.opt_func"],
+                        order=["-CreatedTimestamp"],
+                    )
+                ],
+                panels=[
+                    wr.LinePlot(
+                        y=["gradients/layers.0.4.0.bn1.bias"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 16, "y": 12, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["gradients/layers.0.1.weight"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 8, "y": 12, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["gradients/layers.0.1.bias"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 0, "y": 12, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["train_loss"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 16, "y": 0, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["valid_loss"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 16, "y": 6, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["top_k_accuracy"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 8, "y": 0, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["mom_0"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 0, "y": 6, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["lr_0"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 8, "y": 6, "w": 8, "h": 6},
+                    ),
+                    wr.LinePlot(
+                        y=["accuracy"],
+                        log_y=False,
+                        groupby="None",
+                        layout={"x": 0, "y": 0, "w": 8, "h": 6},
+                    ),
+                ],
+                custom_run_colors={
+                    ("Run set", "megatruong"): "rgb(83, 135, 221)",
+                    ("Run set", "fastai.optimizer.ranger"): "rgb(83, 135, 221)",
+                    ("Run set", "fastai.optimizer.Adam"): "rgb(229, 116, 57)",
+                },
+            ),
+            wr.P(
+                text=[
+                    wr.Link(
+                        text="",
+                        url="https://assets.website-files.com/5ac6b7f2924c656f2b13a88c/6066c22135b8983b61ad7939_weights-and-biases-logo.svg",
+                    )
+                ]
+            ),
             wr.H3(
                 text=[
                     wr.Link(
@@ -77,6 +172,13 @@ def create_customer_landing_page(project_name, company_name, main_contact):
                     )
                 ]
             ),
+            wr.P(
+                text=[
+                    "Sorry, this panel doesn't work.  It used to be the Artifact panel...",
+                    wr.Link(text="", url="https://wandb.ai/site/artifacts"),
+                ]
+            ),
+            wr.P(),
             wr.H3(
                 text=[
                     wr.Link(
@@ -84,6 +186,35 @@ def create_customer_landing_page(project_name, company_name, main_contact):
                         url="https://wandb.ai/site/sweeps",
                     )
                 ]
+            ),
+            wr.P(text=[wr.Link(text="", url="https://wandb.ai/site/sweeps")]),
+            wr.PanelGrid(
+                runsets=[
+                    wr.Runset(
+                        entity="wandb",
+                        project="cartpole",
+                        name="Run set",
+                        query="sweep",
+                        filters={"$or": [{"$and": []}]},
+                        order=["-CreatedTimestamp"],
+                    )
+                ],
+                panels=[
+                    wr.MediaBrowser(layout={"x": 0, "y": 10, "w": 24, "h": 10}),
+                    wr.ParallelCoordinatesPlot(
+                        columns=[
+                            wr.PCColumn(metric="c::activation"),
+                            wr.PCColumn(metric="c::lr", log_scale=True),
+                            wr.PCColumn(
+                                metric="c::target_model_update",
+                                log_scale=True,
+                            ),
+                            wr.PCColumn(metric="c::n_hidden", log_scale=True),
+                            wr.PCColumn(metric="test_reward"),
+                        ],
+                        layout={"x": 0, "y": 0, "w": 24, "h": 10},
+                    ),
+                ],
             ),
             wr.H3(
                 text=[
@@ -93,6 +224,59 @@ def create_customer_landing_page(project_name, company_name, main_contact):
                     )
                 ]
             ),
+            wr.P(text=[wr.Link(text="", url="https://wandb.ai/site/tables")]),
+            wr.PanelGrid(
+                runsets=[
+                    wr.Runset(
+                        entity="megatruong",
+                        project="whirlwind_test4",
+                        name="Run set",
+                        query="",
+                        filters={"$or": [{"$and": []}]},
+                        order=["-CreatedTimestamp"],
+                    )
+                ],
+                panels=[
+                    wr.WeaveTablePanel(
+                        table_name="valid_table",
+                        layout={"x": 7, "y": 0, "w": 7, "h": 13},
+                    ),
+                    wr.WeaveTablePanel(
+                        table_name="img_table",
+                        layout={"x": 0, "y": 0, "w": 7, "h": 13},
+                    ),
+                    wr.WeaveTablePanel(
+                        table_name="image_table",
+                        layout={"x": 14, "y": 0, "w": 10, "h": 13},
+                    ),
+                ],
+            ),
+            wr.P(),
+            wr.PanelGrid(
+                runsets=[
+                    wr.Runset(
+                        entity="wandb",
+                        project="wandb_spacy_integration",
+                        name="Run set",
+                        query="",
+                        filters={"$or": [{"$and": []}]},
+                        order=["-CreatedTimestamp"],
+                    )
+                ],
+                panels=[
+                    wr.WeaveTablePanel(
+                        table_name="spaCy NER table",
+                        layout={"x": 0, "y": 0, "w": 24, "h": 10},
+                    ),
+                    wr.WeaveTablePanel(
+                        table_name="per annotation scores",
+                        layout={"x": 7, "y": 10, "w": 17, "h": 8},
+                    ),
+                    wr.WeaveTablePanel(
+                        table_name="metrics", layout={"x": 0, "y": 10, "w": 7, "h": 8}
+                    ),
+                ],
+            ),
             wr.H3(
                 text=[
                     wr.Link(
@@ -101,103 +285,6 @@ def create_customer_landing_page(project_name, company_name, main_contact):
                     )
                 ]
             ),
-            wr.P(),
-            wr.UnorderedList(
-                items=[
-                    [
-                        wr.Link(
-                            text="Experiment tracking",
-                            url="https://wandb.ai/site/experiment-tracking",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="Dataset and model versioning, evaluation, and reproduction",
-                            url="https://wandb.ai/site/artifacts",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="Hyperparameter optimization",
-                            url="https://wandb.ai/site/sweeps",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="Model visualization and analysis",
-                            url="https://wandb.ai/site/tables",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="ML team collaboration and sharing results",
-                            url="https://wandb.ai/site/reports",
-                        )
-                    ],
-                ]
-            ),
-            wr.P(),
-            wr.P(
-                text=[
-                    "If you use a popular framework or library, W&B has integrations that make logging even easier.  In many cases, integrations are in just one line of code (yes, really!)"
-                ]
-            ),
-            wr.UnorderedList(
-                items=[
-                    [
-                        wr.Link(
-                            text="PyTorch",
-                            url="https://docs.wandb.ai/guides/integrations/pytorch",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="Keras",
-                            url="https://docs.wandb.ai/guides/integrations/keras",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="Kubeflow Pipelines",
-                            url="https://docs.wandb.ai/guides/integrations/other/kubeflow-pipelines-kfp",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="HuggingFace Transformers",
-                            url="https://docs.wandb.ai/guides/integrations/huggingface",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="Scikit-Learn",
-                            url="https://docs.wandb.ai/guides/integrations/scikit",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="XGBoost",
-                            url="https://docs.wandb.ai/guides/integrations/xgboost",
-                        )
-                    ],
-                    [
-                        wr.Link(
-                            text="More integrations here",
-                            url="https://docs.wandb.ai/guides/integrations",
-                        )
-                    ],
-                ]
-            ),
-            wr.P(),
-            wr.P(
-                text=[
-                    wr.Link(text="", url="https://wandb.ai/site/reports"),
-                    "You're looking at it -- reports!  In addition to what you see here, you can actually hover over text and leave comments ",
-                    "like this",
-                    "!",
-                ]
-            ),
-            wr.P(),
             wr.H2(text=["How do I get access?"]),
             wr.P(text=["Ask Matthew Schirmer to help:"]),
             wr.OrderedList(
