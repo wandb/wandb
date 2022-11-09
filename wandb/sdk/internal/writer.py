@@ -226,6 +226,7 @@ class WriteManager:
             self._maybe_transition_restart()
             self._maybe_transition_reading()
         elif self._state == _SendState.READING:
+            self._maybe_transition_active()
             self._maybe_transition_restart()
         elif self._state == _SendState.RESTARTING:
             self._maybe_transition_active()
@@ -238,6 +239,8 @@ class WriteManager:
             self._send_record(record)
             self._maybe_send_mark()
         elif self._state == _SendState.PAUSED:
+            self._collect_record(record)
+        elif self._state == _SendState.READING:
             self._collect_record(record)
         elif self.__state == _SendState.RESTARTING:
             self._collect_record(record)
