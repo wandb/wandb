@@ -2,10 +2,10 @@ import glob
 import os
 import string
 import sys
+from pkg_resources import parse_version
 from typing import Any, Dict, List, Optional, Union
 
-import tensorflow as tf  # type: ignore
-from pkg_resources import parse_version
+import tensorflow as tf
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
@@ -110,13 +110,18 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self.save_best_only:
             self._check_filepath()
 
+        self.is_old_tf_keras_version: bool = parse_version(
+            tf.keras.__version__
+        ) <= parse_version("2.6.0")
+
     def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None) -> None:
         if self._should_save_on_batch(batch):
-            if parse_version(tf.keras.__version__) <= parse_version("2.6.0"):
-                self._save_model(epoch=self._current_epoch, logs=logs)
+            # Save the model
+            self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
+            # Get filepath where the model checkpoint is saved.
+            if self.is_old_tf_keras_version:
                 filepath = self._get_file_path(epoch=self._current_epoch, logs=logs)
             else:
-                self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
                 filepath = self._get_file_path(
                     epoch=self._current_epoch, batch=batch, logs=logs
                 )
@@ -129,7 +134,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         # Check if model checkpoint is created at the end of epoch.
         if self.save_freq == "epoch":
             # Get filepath where the model checkpoint is saved.
-            if parse_version(tf.keras.__version__) <= parse_version("2.6.0"):
+            if self.is_old_tf_keras_version:
                 filepath = self._get_file_path(epoch=epoch, logs=logs)
             else:
                 filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
