@@ -284,10 +284,13 @@ class CheckedList(Block, List):
     items: list = Attr()
     checked: list = Attr()
 
-    def __init__(self, items, checked, *args, **kwargs):
+    def __init__(self, items=None, checked=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.items = items
-        self.checked = checked
+        if items is not None and checked is not None and len(items) != len(checked):
+            raise ValueError("Items and checked lists must be the same length!")
+
+        self.items = coalesce(items, [""])
+        self.checked = coalesce(checked, [False for _ in self.items])
 
     @property
     def spec(self) -> dict:
@@ -307,9 +310,9 @@ class CheckedList(Block, List):
 class OrderedList(Block, List):
     items: list = Attr()
 
-    def __init__(self, items, *args, **kwargs):
+    def __init__(self, items=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.items = items
+        self.items = coalesce(items, [""])
 
     @property
     def spec(self) -> dict:
@@ -330,9 +333,9 @@ class OrderedList(Block, List):
 class UnorderedList(Block, List):
     items: list = Attr()
 
-    def __init__(self, items, *args, **kwargs):
+    def __init__(self, items=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.items = items
+        self.items = coalesce(items, [""])
 
     @property
     def spec(self) -> dict:
@@ -362,7 +365,7 @@ class Heading(Base):
 class H1(Block, Heading):
     text: str = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
 
@@ -378,7 +381,7 @@ class H1(Block, Heading):
 class H2(Block, Heading):
     text: str = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
 
@@ -394,7 +397,7 @@ class H2(Block, Heading):
 class H3(Block, Heading):
     text: str = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
 
@@ -410,7 +413,7 @@ class H3(Block, Heading):
 class BlockQuote(Block):
     text: str = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
 
@@ -427,7 +430,7 @@ class BlockQuote(Block):
 class CalloutBlock(Block):
     text: Union[str, list] = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text=" ", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
 
@@ -455,7 +458,7 @@ class CodeBlock(Block):
     code: Union[str, list] = Attr()
     language: str = Attr()
 
-    def __init__(self, code, language=None, *args, **kwargs):
+    def __init__(self, code=" ", language=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.code = code
         self.language = coalesce(language, "python")
@@ -490,7 +493,7 @@ class CodeBlock(Block):
 class MarkdownBlock(Block):
     text: Union[str, list] = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
         if isinstance(self.text, list):
@@ -513,7 +516,7 @@ class MarkdownBlock(Block):
 class LaTeXBlock(Block):
     text: Union[str, list] = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
         if isinstance(self.text, list):
@@ -946,7 +949,7 @@ class Video(Block):
 class InlineLaTeX(Base):
     latex: str = Attr()
 
-    def __init__(self, latex, *args, **kwargs):
+    def __init__(self, latex="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.latex = latex
 
@@ -958,7 +961,7 @@ class InlineLaTeX(Base):
 class InlineCode(Base):
     code: str = Attr()
 
-    def __init__(self, code, *args, **kwargs):
+    def __init__(self, code="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.code = code
 
@@ -970,7 +973,7 @@ class InlineCode(Base):
 class P(Block):
     text: Union[str, InlineLaTeX, InlineCode, list] = Attr()
 
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
 
