@@ -904,9 +904,16 @@ class ArtifactsCache:
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
     def check_etag_obj_path(
-        self, etag: util.ETag, size: int
+        self,
+        url: util.URIStr,
+        etag: util.ETag,
+        size: int,
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
-        path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
+        hexhash = hashlib.sha256(
+            hashlib.sha256(url.encode("utf-8")).digest()
+            + hashlib.sha256(etag.encode("utf-8")).digest()
+        ).hexdigest()
+        path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
@@ -962,6 +969,10 @@ class ArtifactsCache:
     def _cache_opener(self, path):
         @contextlib.contextmanager
         def helper(mode="w"):
+
+            if "a" in mode:
+                raise ValueError("Appending to cache files is not supported")
+
             dirname = os.path.dirname(path)
             tmp_file = os.path.join(
                 dirname,

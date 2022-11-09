@@ -1,4 +1,5 @@
 import dataclasses
+import io
 import json
 import logging
 import os
@@ -259,6 +260,47 @@ def runner(patch_apikey, patch_prompt):
 @pytest.fixture
 def api():
     return Api()
+
+
+@pytest.fixture
+def mock_sagemaker():
+    config_path = "/opt/ml/input/config/hyperparameters.json"
+    resource_path = "/opt/ml/input/config/resourceconfig.json"
+    secrets_path = "secrets.env"
+
+    orig_exist = os.path.exists
+
+    def exists(path):
+        if path in (config_path, secrets_path, resource_path):
+            return True
+        else:
+            return orig_exist(path)
+
+    def magic_factory(original):
+        def magic(path, *args, **kwargs):
+            if path == config_path:
+                return io.StringIO('{"foo": "bar"}')
+            elif path == resource_path:
+                return io.StringIO('{"hosts":["a", "b"]}')
+            elif path == secrets_path:
+                return io.StringIO("WANDB_TEST_SECRET=TRUE")
+            else:
+                return original(path, *args, **kwargs)
+
+        return magic
+
+    with unittest.mock.patch.dict(
+        os.environ,
+        {
+            "TRAINING_JOB_NAME": "sage",
+            "CURRENT_HOST": "maker",
+        },
+    ), unittest.mock.patch("wandb.util.os.path.exists", exists,), unittest.mock.patch(
+        "builtins.open",
+        magic_factory(open),
+        create=True,
+    ):
+        yield
 
 
 # --------------------------------
@@ -981,31 +1023,9 @@ class Context:
         self._summary: Optional[pd.DataFrame] = None
         self._config: Optional[Dict[str, Any]] = None
 
-    @classmethod
-    def _merge(
-        cls, source: Dict[str, Any], destination: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Recursively merge two dictionaries.
-        """
-        for key, value in source.items():
-            if isinstance(value, dict):
-                # get node or create one
-                node = destination.setdefault(key, {})
-                cls._merge(value, node)
-            else:
-                if isinstance(value, list):
-                    if key in destination:
-                        destination[key].extend(value)
-                    else:
-                        destination[key] = value
-                else:
-                    destination[key] = value
-        return destination
-
     def upsert(self, entry: Dict[str, Any]) -> None:
         entry_id: str = entry["name"]
-        self._entries[entry_id] = self._merge(entry, self._entries[entry_id])
+        self._entries[entry_id] = wandb.util.merge_dicts(entry, self._entries[entry_id])
 
     # mapping interface
     def __getitem__(self, key: str) -> Any:
