@@ -5,11 +5,11 @@ def analysis(title, text):
     return [wr.H1(title), wr.P(text)]
 
 
-def create_customer_landing_page(project_name, company_name, main_contact):
+def create_customer_landing_page(project_name, company_name, main_contact, slack_link):
     return wr.Report(
         project_name,
         title=f"Weights & Biases @ {company_name}",
-        description=f"The developer-first MLOps platform is now available at {company_name}!\nReach out to {main_contact} for an account",
+        description=f"The developer-first MLOps platform is now available at {company_name}!\nReach out to {main_contact} for an account, and join your dedicated slack channel at:\n{slack_link}",
         blocks=[
             wr.P(),
             wr.HorizontalRule(),
@@ -295,7 +295,7 @@ def create_customer_landing_page(project_name, company_name, main_contact):
                 ]
             ),
             wr.H2(text=["How do I get access?"]),
-            wr.P(text=["Ask Matthew Schirmer to help:"]),
+            wr.P(text=[f"Ask {main_contact} to help:"]),
             wr.OrderedList(
                 items=[
                     ["Set up your account"],
@@ -303,7 +303,7 @@ def create_customer_landing_page(project_name, company_name, main_contact):
                         "Get added to the ",
                         wr.Link(
                             text="joint slack channel",
-                            url="https://rbc-to.slack.com/archives/C031XE9S537",
+                            url=slack_link,
                         ),
                     ],
                 ]
