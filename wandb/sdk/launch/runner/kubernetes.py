@@ -367,7 +367,7 @@ class KubernetesRunner(AbstractRunner):
         for cont in containers:
             cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
         pod_spec["containers"] = containers
-        if 
+
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:
