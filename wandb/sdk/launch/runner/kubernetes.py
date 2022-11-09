@@ -169,6 +169,8 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
+        if resource_args.get("volumes"):
+            pod_spec["volumes"] = resource_args.get("volumes")
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -365,6 +367,7 @@ class KubernetesRunner(AbstractRunner):
         for cont in containers:
             cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
         pod_spec["containers"] = containers
+        if 
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:
