@@ -302,6 +302,7 @@ class SenderThread(internal_util.RecordLoopThread):
             settings=self._settings,
             record_q=self._record_q,
             result_q=self._result_q,
+            writer_q=self._writer_q,
             interface=self._interface,
         )
 

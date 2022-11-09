@@ -158,6 +158,7 @@ class SendManager:
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
+    _writer_q: "Queue[Result]"
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
@@ -184,11 +185,13 @@ class SendManager:
         settings: SettingsStatic,
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
+        writer_q: "Queue[Result]",
         interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
+        self._writer_q = writer_q
         self._interface = interface
 
         self._fs = None
@@ -307,6 +310,9 @@ class SendManager:
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
+
+    def send_request_sender_mark(self, record: "Record") -> None:
+        pass
 
     def send_request(self, record: "Record") -> None:
         request_type = record.request.WhichOneof("request_type")

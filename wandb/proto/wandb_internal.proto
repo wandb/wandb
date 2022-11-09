@@ -494,6 +494,9 @@ message Request {
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
     ServerInfoRequest     server_info = 67;
+    SenderMarkRequest       sender_mark = 68;
+    SenderMarkReportRequest sender_mark_report = 69;
+    SenderReadRequest       sender_read = 70;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -633,6 +636,18 @@ message PollExitResponse {
   RunExitResult   exit_result = 2;
   FilePusherStats pusher_stats = 3;
   FileCounts      file_counts = 4;
+}
+
+/*
+ * Sender requests
+ */
+message SenderMarkRequest {
+}
+
+message SenderMarkReportRequest {
+}
+
+message SenderReadRequest {
 }
 
 /*

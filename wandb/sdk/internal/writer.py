@@ -25,6 +25,8 @@ New messages:
 import enum
 import logging
 
+from wandb.proto import wandb_internal_pb2 as pb
+
 from ..lib import tracelog
 from . import datastore
 
@@ -61,8 +63,8 @@ class WriteManager:
 
         # track last written request
         self._written_offset = None
-        self._written_block_start = None
-        self._written_block_end = None
+        self._written_block_start = 0
+        self._written_block_end = 0
 
         # state machine ACTIVE -> PAUSED -> RESTARTING -> ACTIVE ...
         self._state = _SendState.ACTIVE
@@ -90,6 +92,20 @@ class WriteManager:
         # sender_position_report
         pass
 
+    def _send_mark(self):
+        sender_mark = pb.SenderMarkRequest()
+        request = pb.Request()
+        request.sender_mark.CopyFrom(sender_mark)
+        record = pb.Record()
+        record.request.CopyFrom(request)
+        self._send_record(record)
+
+    def _maybe_send_mark(self):
+        """Send mark if we are writting the first record in a block."""
+        if self._last_block_end == self._written_block_end:
+            return
+        self._send_mark()
+
     def _maybe_request_read(self):
         pass
         # if we are paused
@@ -102,6 +118,7 @@ class WriteManager:
         assert ret is not None
         (file_offset, data_length, _, _) = ret
 
+        self._last_block_end = self._written_block_end
         self._written_offset = file_offset
         self._written_block_start = file_offset // datastore.LEVELDBLOG_BLOCK_LEN
         self._written_block_end = (
@@ -124,18 +141,20 @@ class WriteManager:
     def _blocks_behind(self) -> int:
         return 0
 
-    def _maybe_pause(self):
+    def _maybe_transition_pause(self):
         """Stop sending data to the sender if it is backed up."""
         if self._blocks_behind() < self._threshold_block_high:
             return
         self._state = _SendState.PAUSED
+        # self._send_mark()
 
-    def _maybe_restart(self):
+    def _maybe_transition_restart(self):
         """Start looking for a good opportunity to actively use sender."""
         pass
         # self._mark_position()
+        # self._send_mark()
 
-    def _maybe_active(self):
+    def _maybe_transition_active(self):
         """Transition to the active state by sending collected records."""
         pass
         # if mark_position received
@@ -151,11 +170,11 @@ class WriteManager:
 
         # Transition sending state machine
         if self._state == _SendState.ACTIVE:
-            self._maybe_pause()
+            self._maybe_transition_pause()
         elif self._state == _SendState.PAUSED:
-            self._maybe_restart()
+            self._maybe_transition_restart()
         elif self._state == _SendState.RESTARTING:
-            self._maybe_active()
+            self._maybe_transition_active()
 
         if self._is_control_record(record):
             return
@@ -163,6 +182,7 @@ class WriteManager:
         # Execute sending state machine actions
         if self._state == _SendState.ACTIVE:
             self._send_record(record)
+            self._maybe_send_mark()
         elif self._state == _SendState.PAUSED:
             self._collect_record(record)
         elif self.__state == _SendState.RESTARTING:
