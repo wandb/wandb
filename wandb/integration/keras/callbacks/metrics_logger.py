@@ -84,7 +84,7 @@ class WandbMetricsLogger(callbacks.Callback):
             # set all epoch-wise metrics to be logged against epoch.
             wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
-    def _get_lr(self) -> Union[float, None]:
+    def _get_lr(self) -> Optional[float]:
         if isinstance(self.model.optimizer.learning_rate, tf.Variable):
             return float(self.model.optimizer.learning_rate.numpy().item())
         try:
