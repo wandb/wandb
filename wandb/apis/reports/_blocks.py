@@ -73,7 +73,13 @@ class PanelGrid(Block):
         json_path="spec.metadata.panelBankSectionConfig.panels",
         validators=[TypeValidator(Panel, how="keys")],
     )
-    custom_run_colors: dict = Attr(json_path="spec.metadata.customRunColors")
+    custom_run_colors: dict = Attr(
+        json_path="spec.metadata.customRunColors",
+        validators=[
+            TypeValidator(Union[str, tuple], how="keys"),
+            TypeValidator(str, how="values"),
+        ],
+    )
 
     def __init__(
         self, runsets=None, panels=None, custom_run_colors=None, *args, **kwargs
