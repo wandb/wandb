@@ -1,1 +1,1 @@
-from ._templates import *
+from ._templates import create_customer_landing_page
