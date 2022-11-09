@@ -65,14 +65,11 @@ class WandbMetricsLogger(callbacks.Callback):
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras_metrics_logger = True
 
-        self.logging_batch_wise = False
-        if log_freq == "batch" or isinstance(log_freq, int):
-            self.logging_batch_wise = True
-            if log_freq == "batch":
-                self.log_freq = 1
-            else:
-                self.log_freq = log_freq
+        if log_freq == "batch":
+            log_freq = 1
 
+        self.log_freq = log_freq
+        self.logging_batch_wise = isinstance(self.log_freq, int)
         self.global_batch = 0
         self.global_step = initial_global_step
 
