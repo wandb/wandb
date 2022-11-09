@@ -22,11 +22,11 @@ New messages:
 
 """
 
-import logging
 import enum
+import logging
 
-from . import datastore
 from ..lib import tracelog
+from . import datastore
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,9 @@ class WriteManager:
 
         self._written_offset = file_offset
         self._written_block_start = file_offset // datastore.LEVELDBLOG_BLOCK_LEN
-        self._written_block_end = (file_offset + data_length) // datastore.LEVELDBLOG_BLOCK_LEN
+        self._written_block_end = (
+            file_offset + data_length
+        ) // datastore.LEVELDBLOG_BLOCK_LEN
 
     def _send_record(self, record):
         tracelog.log_message_queue(record, self._sender_q)
