@@ -2241,7 +2241,8 @@ class Run:
         if not result:
             return
         self._footer_file_pusher_status_info(
-            result.response.poll_exit_response, printer=self._printer
+            result.response.poll_exit_response, final=progress_handle.final,
+            printer=self._printer
         )
 
     def _on_finish(self) -> None:
@@ -3179,13 +3180,14 @@ class Run:
             Union[PollExitResponse, List[Optional[PollExitResponse]]]
         ] = None,
         *,
+        final: bool,
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         if not poll_exit_responses:
             return
         if isinstance(poll_exit_responses, PollExitResponse):
             Run._footer_single_run_file_pusher_status_info(
-                poll_exit_responses, printer=printer
+                poll_exit_responses, final=final, printer=printer
             )
         elif isinstance(poll_exit_responses, list):
             poll_exit_responses_list = poll_exit_responses
@@ -3213,6 +3215,7 @@ class Run:
     def _footer_single_run_file_pusher_status_info(
         poll_exit_response: Optional[PollExitResponse] = None,
         *,
+        final: bool,
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         # todo: is this same as settings._offline?
@@ -3220,6 +3223,7 @@ class Run:
             return
 
         progress = poll_exit_response.pusher_stats
+        # done = poll_exit_response.done or final
         done = poll_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]

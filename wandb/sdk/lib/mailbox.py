@@ -153,6 +153,7 @@ class MailboxProbe:
 
 class MailboxProgress:
     _percent_done: float
+    _final: bool
     _handle: "MailboxHandle"
     _probe_handles: List[MailboxProbe]
     _stopped: bool
@@ -162,13 +163,21 @@ class MailboxProgress:
         self._percent_done = 0.0
         self._probe_handles = []
         self._stopped = False
+        self._final = False
 
     @property
     def percent_done(self) -> float:
         return self._percent_done
 
+    @property
+    def final(self) -> bool:
+        return self._final
+
     def set_percent_done(self, percent_done: float) -> None:
         self._percent_done = percent_done
+
+    def set_final(self) -> None:
+        self._final = True
 
     def add_probe_handle(self, probe_handle: MailboxProbe) -> None:
         self._probe_handles.append(probe_handle)
@@ -263,6 +272,7 @@ class MailboxHandle:
                 # Always update progress to 100% when done
                 if on_progress and progress_handle and progress_sent:
                     progress_handle.set_percent_done(100)
+                    progress_handle.set_final()
                     on_progress(progress_handle)
                 break
             now = self._time()
