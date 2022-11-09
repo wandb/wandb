@@ -80,6 +80,7 @@ class PanelGrid(Block):
             TypeValidator(str, how="values"),
         ],
     )
+    active_runset: Union[str, None] = Attr(json_path="spec.metadata.openRunSet")
 
     def __init__(
         self, runsets=None, panels=None, custom_run_colors=None, *args, **kwargs
@@ -89,7 +90,26 @@ class PanelGrid(Block):
         self.runsets = coalesce(runsets, self._default_runsets())
         self.panels = coalesce(panels, self._default_panels())
         self.custom_run_colors = coalesce(custom_run_colors, {})
-
+        
+    @active_runset.getter
+    def active_runset(self):
+        json_path = self._get_path("active_runset")
+        index = nested_get(self, json_path)
+        if index is None:
+            return None
+        else:
+            return self.runsets[index].name
+    
+    @active_runset.setter
+    def active_runset(self, name):
+        json_path = self._get_path("active_runset")
+        index = None
+        for i, rs in enumerate(self.runsets):
+            if rs.name == name:
+                index = i
+                break
+        nested_set(self, json_path, index)
+    
     @panels.getter
     def panels(self):
         json_path = self._get_path("panels")
