@@ -23,4 +23,5 @@ from ._blocks import (
     UnorderedList,
     Video,
     WeaveTableBlock,
+    Link
 )
