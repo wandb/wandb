@@ -130,19 +130,19 @@ class Object3D(BatchableMedia):
                     + ", ".join(Object3D.SUPPORTED_TYPES)
                 )
 
-            tmp_path = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + extension
-            )
+            extension = "." + extension
+
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + extension)
             with open(tmp_path, "w") as f:
                 f.write(object_3d)
 
-            self._set_file(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True, extension=extension)
         elif isinstance(data_or_path, str):
             path = data_or_path
             extension = None
             for supported_type in Object3D.SUPPORTED_TYPES:
                 if path.endswith(supported_type):
-                    extension = supported_type
+                    extension = "." + supported_type
                     break
 
             if not extension:
@@ -153,7 +153,7 @@ class Object3D(BatchableMedia):
                     + ", ".join(Object3D.SUPPORTED_TYPES)
                 )
 
-            self._set_file(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False, extension=extension)
         # Supported different types and scene for 3D scenes
         elif isinstance(data_or_path, dict) and "type" in data_or_path:
             if data_or_path["type"] == "lidar/beta":

@@ -479,6 +479,7 @@ def _create_docker_build_ctx(
         src=launch_project.project_dir,
         dst=dst_path,
         symlinks=True,
+        ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
     )
     shutil.copy(
         os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
