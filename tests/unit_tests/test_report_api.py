@@ -1,13 +1,15 @@
-import inspect
 from typing import Optional, Union
-from unittest import mock
 
 import pytest
-import wandb
 import wandb.apis.reports as wr
-from wandb import Api
-from wandb.apis.reports.testing import Attr, Base
-from wandb.apis.reports.util import Block, Panel, generate_name, collides
+from wandb.apis.reports.util import (
+    Attr,
+    Base,
+    Block,
+    Panel,
+    PanelMetricsHelper,
+    collides,
+)
 from wandb.apis.reports.validators import Between, OneOf, TypeValidator
 
 
@@ -153,6 +155,8 @@ def saved_report():
     report = wr.Report(project="example-project").save()
     # check to see if report was created
     return report
+
+
 _inline_content = [
     wr.Link("Hello", "https://url.com"),
     wr.InlineLaTeX("e=mc^2"),
@@ -568,10 +572,98 @@ class TestPanelGrids:
 
 
 class TestRunsets:
-    @pytest.mark.skip(reason="TBD")
+    @pytest.mark.skip(
+        reason="TBD -- Requires actual runs in a project for the runset to lookup"
+    )
     def test_set_filters_with_python_expr(self, runset):
-        ...
-        
+        raise
+
+
+class TestNameMappings:
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+            "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+            "https://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+            "site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+            "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+            "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+            "entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy",
+            "this-is-a-title--VmlldzoxMjkwMzEy",
+            "VmlldzoxMjkwMzEy",
+            # three dashes too for some reason
+            "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+            "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+            "https://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+            "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+            "http://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+            "https://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+            "entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy",
+            "this-is-a-title---VmlldzoxMjkwMzEy",
+            # sites with queries
+            "sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+            "http://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+            "https://sub.site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+            "site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+            "http://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+            "https://site.tld/entity/project/reports/this-is-a-title--VmlldzoxMjkwMzEy?query=something",
+            "sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
+            "http://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
+            "https://sub.site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
+            "site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
+            "http://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
+            "https://site.tld/entity/project/reports/this-is-a-title---VmlldzoxMjkwMzEy?query=something",
+        ],
+    )
+    def test_url_to_report_id(self, url):
+        id = wr.Report._url_to_report_id(url)
+        assert id == "VmlldzoxMjkwMzEy"
+
+    # For Scatter and ParallelCoords
+    @pytest.mark.parametrize(
+        "field,mapped",
+        [
+            ["c::metric", "config:metric.value"],
+            ["c::metric.with.dots", "config:metric.value.with.dots"],
+            pytest.param(
+                "metric",
+                "config:metric.value",
+                marks=pytest.mark.xfail(reason="Unable to disambiguate"),
+            ),
+            pytest.param(
+                "metric.with.dots",
+                "config:metric.value.with.dots",
+                marks=pytest.mark.xfail(reason="Unable to disambiguate"),
+            ),
+            ["s::metric", "summary:metric"],
+            ["s::metric.with.dots", "summary:metric.with.dots"],
+        ],
+    )
+    def test_special_mappings(self, field, mapped):
+        mapper = PanelMetricsHelper()
+        result = mapper.special_front_to_back(field)
+        assert result == mapped
+
+        result2 = mapper.special_back_to_front(mapped)
+        assert result2 == field
+
+    @pytest.mark.parametrize(
+        "field,mapped,remapped",
+        [
+            ["metric", "summary:metric", "s::metric"],
+            ["metric.with.dots", "summary:metric.with.dots", "s::metric.with.dots"],
+        ],
+    )
+    def test_special_mappings_default(self, field, mapped, remapped):
+        mapper = PanelMetricsHelper()
+        result = mapper.special_front_to_back(field)
+        assert result == mapped
+
+        result2 = mapper.special_back_to_front(mapped)
+        assert result2 == remapped
+
+
 @pytest.mark.skip(reason="Nothing special to test")
 class TestPanels:
     def test_bar_plot(self):
@@ -643,82 +735,3 @@ class TestTemplates:
         blocks = f(**kwargs)
         for b in blocks:
             assert isinstance(b, Block)
-
-
-    def test_typed(self, wandb_object):
-        wandb_object.typed = "typed_value"
-        assert wandb_object.spec["typed"] == "typed_value"
-        with pytest.raises(TypeError):
-            wandb_object.typed = 1
-        assert wandb_object.spec["typed"] == "typed_value"
-        assert wandb_object.typed == "typed_value"
-
-    def test_two_paths(self, wandb_object):
-        wandb_object.two_paths = [1, 2]
-        assert "two_paths" not in wandb_object.spec
-        assert wandb_object.spec["two1"] == 1
-        assert wandb_object.spec["two2"] == 2
-        assert wandb_object.two_paths == [1, 2]
-
-    def test_nested_path(self, wandb_object):
-        wandb_object.nested_path = "nested_value"
-        assert wandb_object.spec["deeply"]["nested"]["example"] == "nested_value"
-        assert wandb_object.nested_path == "nested_value"
-
-    def test_two_nested_paths(self, wandb_object):
-        wandb_object.two_nested_paths = ["first", "second"]
-        assert "two_nested_paths" not in wandb_object.spec
-        assert wandb_object.spec["deeply"]["nested"]["first"] == "first"
-        assert wandb_object.spec["deeply"]["nested"]["second"] == "second"
-        assert wandb_object.two_nested_paths == ["first", "second"]
-
-    def test_validated_scalar(self, wandb_object):
-        wandb_object.validated_scalar = 1
-        assert wandb_object.spec["validated_scalar"] == 1
-
-        with pytest.raises(ValueError):
-            wandb_object.validated_scalar = -999
-        assert wandb_object.spec["validated_scalar"] == 1
-        assert wandb_object.validated_scalar == 1
-
-    def test_validated_list(self, wandb_object):
-        wandb_object.validated_list = [1, 2, 3]
-        assert wandb_object.spec["validated_list"] == [1, 2, 3]
-
-        with pytest.raises(ValueError):
-            wandb_object.validated_list = [-1, -2, -3]
-        assert wandb_object.spec["validated_list"] == [1, 2, 3]
-
-        with pytest.raises(ValueError):
-            wandb_object.validated_list = [1, 2, -999]
-        assert wandb_object.spec["validated_list"] == [1, 2, 3]
-        assert wandb_object.validated_list == [1, 2, 3]
-
-    def test_validated_dict_keys(self, wandb_object):
-        wandb_object.validated_dict = {"a": 1, "b": 2}
-        assert wandb_object.spec["validated_dict"] == {"a": 1, "b": 2}
-
-        with pytest.raises(ValueError):
-            wandb_object.validated_dict = {"a": 1, "invalid_key": 2}
-        assert wandb_object.spec["validated_dict"] == {"a": 1, "b": 2}
-        assert wandb_object.validated_dict == {"a": 1, "b": 2}
-
-    def test_validated_dict_values(self, wandb_object):
-        wandb_object.validated_dict = {"a": 1, "b": 2}
-        assert wandb_object.spec["validated_dict"] == {"a": 1, "b": 2}
-
-        with pytest.raises(ValueError):
-            wandb_object.validated_dict = {"a": 1, "b": -999}
-        assert wandb_object.spec["validated_dict"] == {"a": 1, "b": 2}
-        assert wandb_object.validated_dict == {"a": 1, "b": 2}
-
-    def test_objects_with_spec(self, wandb_object, object_with_spec):
-        wandb_object.objects_with_spec = [object_with_spec]
-        assert wandb_object.spec["objects_with_spec"] == [object_with_spec.spec]
-        assert wandb_object.objects_with_spec == [object_with_spec]
-
-
-class TestTemplates:
-    def test_customer_landing_page(self):
-        report = wr.templates.create_customer_landing_page()
-        report.save()

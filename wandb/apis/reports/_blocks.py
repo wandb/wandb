@@ -55,7 +55,7 @@ class PanelGrid(Block):
         self.runsets = coalesce(runsets, self._default_runsets())
         self.panels = coalesce(panels, self._default_panels())
         self.custom_run_colors = coalesce(custom_run_colors, {})
-        
+
     @active_runset.getter
     def active_runset(self):
         json_path = self._get_path("active_runset")
@@ -64,7 +64,7 @@ class PanelGrid(Block):
             return None
         else:
             return self.runsets[index].name
-    
+
     @active_runset.setter
     def active_runset(self, name):
         json_path = self._get_path("active_runset")
@@ -74,7 +74,7 @@ class PanelGrid(Block):
                 index = i
                 break
         nested_set(self, json_path, index)
-    
+
     @panels.getter
     def panels(self):
         json_path = self._get_path("panels")
@@ -141,9 +141,9 @@ class PanelGrid(Block):
             for rs in self.runsets:
                 try:
                     run = public_api.run(f"{rs.entity}/{rs.project}/{id}")
-                except:
+                except Exception:
                     pass
-                finally:
+                else:
                     return run.name
             raise ValueError("Unable to find this run!")
 

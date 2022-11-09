@@ -53,7 +53,6 @@ from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
-from wandb.sdk.wandb_require_helpers import requires
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -3149,7 +3148,7 @@ class PythonMongoishQueryGenerator:
                     or l.isdigit()
                     and r == " "  # 1.
                     or l == " "
-                    and r.isdigit()  #  .2
+                    and r.isdigit()  # .2
                 ):
                     numeric_dots.append(i)
         # Edge: Catch number ending in dot at end of string

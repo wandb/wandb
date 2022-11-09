@@ -74,7 +74,8 @@ class Report(Base):
     def _url_to_report_id(url):
         try:
             report, *_ = url.split("?")
-            report = report.replace('---', '--')  # If the report title ends in trailing space
+            # If the report title ends in trailing space
+            report = report.replace("---", "--")
             *_, report_id = report.split("--")
         except ValueError as e:
             raise ValueError("Path must be `entity/project/reports/report_id`") from e
