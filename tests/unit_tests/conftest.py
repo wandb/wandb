@@ -801,7 +801,7 @@ def check_mysql_health(num_retries: int = 1, sleep_time: int = 1):
 def check_server_up(
     base_url: str,
     wandb_server_tag: str = "master",
-    wandb_server_pull: str = "missing",
+    wandb_server_pull: Literal["missing", "always"] = "missing",
 ) -> bool:
     """
     Check if wandb server is up and running;
