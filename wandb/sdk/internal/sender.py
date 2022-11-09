@@ -397,10 +397,11 @@ class SendManager:
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
-    def send_request_status(self, record: "Record") -> None:
-        assert record.control.req_resp
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
+    # FIXME: figure out what to do here, for now this is moved to the handler
+    # def send_request_status(self, record: "Record") -> None:
+    #     assert record.control.req_resp
+    #     result = proto_util._result_from_record(record)
+    #     self._respond_result(result)
 
     def send_request_network_status(self, record: "Record") -> None:
         assert record.control.req_resp

@@ -26,6 +26,7 @@ import logging
 import enum
 
 from . import datastore
+from ..lib import tracelog
 
 logger = logging.getLogger(__name__)
 
@@ -42,28 +43,28 @@ class WriteManager:
         settings,
         record_q,
         result_q,
+        sender_q,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
+        self._sender_q = sender_q
         self._ds = None
-        self._chunk_max_threshold = 12
-        self._chunk_min_threshold = 4
-        # last position inquired from sender
-        self._inquiry_position = None
-        # last position reported from sender
-        self._report_position = None
-        # position before last written record
-        self._writer_before_position = None
-        # position after last written record
-        self._writer_after_position = None
-        # collection block number
-        self._collection_blocknum = None
 
-        # collect records for a pending block while paused
-        # because the data isnt available on disk yet
-        # and we might want to restart sending
+        # thresholds to define when to PAUSE and RESTART
+        self._threshold_block_high = 20
+        self._threshold_block_low = 4
+
+        # collection of requests ending in current block
+        self._collection_block = None
         self._collection_records = []
+
+        # track last written request
+        self._written_offset = None
+        self._written_block_start = None
+        self._written_block_end = None
+
+        # state machine ACTIVE -> PAUSED -> RESTARTING -> ACTIVE ...
         self._state = _SendState.ACTIVE
 
     def open(self):
@@ -86,9 +87,6 @@ class WriteManager:
         # sender_position_report
         pass
 
-    def _maybe_inquire_sender_position(self):
-        pass
-
     def _maybe_request_read(self):
         pass
         # if we are paused
@@ -109,15 +107,9 @@ class WriteManager:
         self._written_block_start = file_offset // datastore.LEVELDBLOG_BLOCK_LEN
         self._written_block_end = (file_offset + data_length) // datastore.LEVELDBLOG_BLOCK_LEN
 
-    def _maybe_resume(self):
-        if self._sender_chunks_behind() > self._chunk_min_threshold:
-            return
-        self._is_paused = False
-
     def _send_record(self, record):
-        # move into send record
-        # self._maybe_inquire_sender_position()
-        pass
+        tracelog.log_message_queue(record, self._sender_q)
+        self._sender_q.put(record)
 
     def _collect_record(self, record):
         # move into send record
@@ -126,14 +118,19 @@ class WriteManager:
         #    self._collection_reset()
         pass
 
+    def _blocks_behind(self) -> int:
+        return 0
+
     def _maybe_pause(self):
         """Stop sending data to the sender if it is backed up."""
-        if self._sender_chunks_behind() > self._chunk_max_threshold:
+        if self._blocks_behind() < self._threshold_block_high:
             return
+        self._state = _SendState.PAUSED
 
     def _maybe_restart(self):
         """Start looking for a good opportunity to actively use sender."""
-        self._mark_position()
+        pass
+        # self._mark_position()
 
     def _maybe_active(self):
         """Transition to the active state by sending collected records."""

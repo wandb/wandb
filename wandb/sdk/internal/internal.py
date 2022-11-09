@@ -347,6 +347,7 @@ class WriterThread(internal_util.RecordLoopThread):
             settings=self._settings,
             record_q=self._record_q,
             result_q=self._result_q,
+            sender_q=self._sender_q,
         )
 
     def _process(self, record: "Record") -> None:

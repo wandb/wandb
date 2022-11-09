@@ -712,7 +712,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
+        # FIXME: do something better
+        # self._dispatch_record(record, always_send=True)
+        assert record.control.req_resp
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
 
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
