@@ -10,7 +10,16 @@
     Examples
     --------
     |   Block1   |   Block2   |   Block3   |   Block4   |
-    |            |            |            |            |
+    |      < 0><  1 ><-2-><--3-->          |            |
+
+inmem col: 0        col 1,2       col 3
+
+
+New messages:
+  mark_position    writer -> sender (has an ID)
+  report position  sender -> writer
+  read data        writer -> sender (go read this data for me)
+
 """
 
 import logging
@@ -92,14 +101,13 @@ class WriteManager:
         if is_control_record:
             return
 
-        self._prev_position = self._ds.get_position()
-        self._ds.write(record)
-        self._next_position = self._ds.get_position()
+        ret = self._ds.write(record)
+        assert ret is not None
+        (file_offset, data_length, _, _) = ret
 
-        self._prev_blocknum = self._prev_position.blocknum
-        self._next_blocknum = self._next_position.blocknum
-
-        self._is_paused = True
+        self._written_offset = file_offset
+        self._written_block_start = file_offset // datastore.LEVELDBLOG_BLOCK_LEN
+        self._written_block_end = (file_offset + data_length) // datastore.LEVELDBLOG_BLOCK_LEN
 
     def _maybe_resume(self):
         if self._sender_chunks_behind() > self._chunk_min_threshold:
@@ -148,12 +156,11 @@ class WriteManager:
             self._maybe_active()
 
         # Execute sending state machine actions
-        if self._send_state == _SendState.ACTIVE:
+        if self._state == _SendState.ACTIVE:
             self._send_record(record)
-        elif self._send_state == _SendState.PAUSED:
+        elif self._state == _SendState.PAUSED:
             self._collect_record(record)
-            self._maybe_request_read()
-        elif self._send_state == _SendState.RESTARTING:
+        elif self.__state == _SendState.RESTARTING:
             self._collect_record(record)
 
     def finish(self):

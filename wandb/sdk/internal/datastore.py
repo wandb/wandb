@@ -257,9 +257,6 @@ class DataStore:
 
         return file_offset, self._index - file_offset, flush_index, flush_offset
 
-    def get_position(self):
-        pass
-
     def write(self, obj):
         """Write a protocol buffer.
 
