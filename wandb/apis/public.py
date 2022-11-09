@@ -4710,11 +4710,15 @@ class Artifact(artifacts.Artifact):
             """
         )
         res = self.client.execute(introspect_query)
-        valid = res.get("AddAliasesInputInfoType") or None
+        valid = res.get("AddAliasesInputInfoType")
         aliases = None
         if not valid:
-            # Note: dangerous for artifacts linked to multiple collections
-            # This risk only exists for clients with old wandb backends.
+            # If valid, wandb backend version >= 0.13.0.
+            # This means we can safely remove aliases from this updateArtifact request since we'll be calling
+            # the alias endpoints below in _save_alias_changes.
+            # If not valid, wandb backend version < 0.13.0. This requires aliases to be sent in updateArtifact.
+            # Doing so is necessary but can be dangerous since this means the user can blow away all existing
+            # aliases under multiple artifact collections (i.e if the artifact belongs to more than 1 collection).
             aliases = [
                 {
                     "artifactCollectionName": self._artifact_collection_name,
