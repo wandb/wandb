@@ -4717,8 +4717,6 @@ class Artifact(artifacts.Artifact):
             # This means we can safely remove aliases from this updateArtifact request since we'll be calling
             # the alias endpoints below in _save_alias_changes.
             # If not valid, wandb backend version < 0.13.0. This requires aliases to be sent in updateArtifact.
-            # Doing so is necessary but can be dangerous since this means the user can blow away all existing
-            # aliases under multiple artifact collections (i.e if the artifact belongs to more than 1 collection).
             aliases = [
                 {
                     "artifactCollectionName": self._artifact_collection_name,
