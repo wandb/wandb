@@ -642,9 +642,11 @@ message PollExitResponse {
  * Sender requests
  */
 message SenderMarkRequest {
+  int64 mark_id = 1;
 }
 
 message SenderMarkReportRequest {
+  int64 mark_id = 1;
 }
 
 message SenderReadRequest {

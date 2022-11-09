@@ -54,7 +54,7 @@ class WriteManager:
         self._ds = None
 
         # thresholds to define when to PAUSE and RESTART
-        self._threshold_block_high = 20
+        self._threshold_block_high = 8
         self._threshold_block_low = 4
 
         # collection of requests ending in current block
@@ -69,21 +69,41 @@ class WriteManager:
         # state machine ACTIVE -> PAUSED -> RESTARTING -> ACTIVE ...
         self._state = _SendState.ACTIVE
 
+        # periodic probes sent to the sender to find out how backed up we are
+        self._mark_id = 0
+        self._mark_id_sent = 0
+        self._mark_id_reported = 0
+        self._mark_blocks = {}
+        self._mark_block_sent = 0
+        self._mark_block_reported = 0
+
     def open(self):
         self._ds = datastore.DataStore()
         self._ds.open_for_write(self._settings.sync_file)
 
-    def _is_control_record(self, record) -> bool:
-        return False
-
-    def _process_record(self, record) -> bool:
+    def _get_request_type(self, record) -> str:
         record_type = record.WhichOneof("record_type")
-        if record_type == "sender_update_seen":
-            # sender_position_update (result from sender_position_req
-            self._sender_position = None  # TODO
-        elif record_type == "sender_update_read":
-            pass
-        return False
+        if record_type != "request":
+            return None
+        request_type = record.request.WhichOneof("request_type")
+        return request_type
+
+    def _is_control_record(self, record) -> bool:
+        request_type = self._get_request_type(record)
+        if request_type not in {"sender_mark_report"}:
+            return False
+        return True
+
+    def _process_record(self, record) -> None:
+        request_type = self._get_request_type(record)
+        if request_type == "sender_mark_report":
+            self._process_sender_mark_report(record)
+
+    def _process_sender_mark_report(self, record):
+        mark_id = record.request.sender_mark_report.mark_id
+        block = self._mark_blocks.pop(mark_id)
+        self._mark_id_reported = mark_id
+        self._mark_reported_block = block
 
     def _process_report_sender_position(self):
         # request: inquiry
@@ -93,17 +113,24 @@ class WriteManager:
         pass
 
     def _send_mark(self):
-        sender_mark = pb.SenderMarkRequest()
+        mark_id = self._mark_id
+        self._mark_id += 1
+
+        sender_mark = pb.SenderMarkRequest(mark_id=mark_id)
         request = pb.Request()
         request.sender_mark.CopyFrom(sender_mark)
         record = pb.Record()
         record.request.CopyFrom(request)
         self._send_record(record)
+        self._mark_id_sent = mark_id
+        block = self._written_block_end
+        self._mark_blocks[mark_id] = block
+        self._mark_sent_block = block
 
     def _maybe_send_mark(self):
         """Send mark if we are writting the first record in a block."""
-        if self._last_block_end == self._written_block_end:
-            return
+        # if self._last_block_end == self._written_block_end:
+        #     return
         self._send_mark()
 
     def _maybe_request_read(self):
@@ -130,22 +157,22 @@ class WriteManager:
         self._sender_q.put(record)
 
     def _collect_record(self, record):
-        # move into send record
-        # self._maybe_inquire_position()
-        # if self._collection_blocknum != self._next_blocknum:
-        #    self._collection_reset()
         pass
-        if self.is_control_record(record):
-            return
 
-    def _blocks_behind(self) -> int:
-        return 0
+    def _behind_blocks(self) -> int:
+        behind_ids = self._mark_id_sent - self._mark_id_reported
+        behind_blocks = self._mark_block_sent - self._mark_block_reported
+        # print(
+        #     f"BEHIND id={behind_ids} b={behind_blocks} sent={self._mark_id_sent} rep{self._mark_id_reported}"
+        # )
+        return behind_blocks
 
     def _maybe_transition_pause(self):
         """Stop sending data to the sender if it is backed up."""
-        if self._blocks_behind() < self._threshold_block_high:
+        if self._behind_blocks() < self._threshold_block_high:
             return
         self._state = _SendState.PAUSED
+        # print("PAUSED")
         # self._send_mark()
 
     def _maybe_transition_restart(self):

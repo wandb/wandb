@@ -1970,18 +1970,28 @@ class SenderMarkRequest(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    MARK_ID_FIELD_NUMBER: builtins.int
+    mark_id: builtins.int
     def __init__(
         self,
+        *,
+        mark_id: builtins.int = ...,
     ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["mark_id", b"mark_id"]) -> None: ...
 
 global___SenderMarkRequest = SenderMarkRequest
 
 class SenderMarkReportRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    MARK_ID_FIELD_NUMBER: builtins.int
+    mark_id: builtins.int
     def __init__(
         self,
+        *,
+        mark_id: builtins.int = ...,
     ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["mark_id", b"mark_id"]) -> None: ...
 
 global___SenderMarkReportRequest = SenderMarkReportRequest
 

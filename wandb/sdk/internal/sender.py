@@ -312,7 +312,14 @@ class SendManager:
             self._fs.enqueue_preempting()
 
     def send_request_sender_mark(self, record: "Record") -> None:
-        pass
+        # we got the mark, send it back to the writer
+        mark_id = record.request.sender_mark.mark_id
+        mark_report = wandb_internal_pb2.SenderMarkReportRequest(mark_id=mark_id)
+        request = wandb_internal_pb2.Request()
+        request.sender_mark_report.CopyFrom(mark_report)
+        record = wandb_internal_pb2.Record()
+        record.request.CopyFrom(request)
+        self._writer_q.put(record)
 
     def send_request(self, record: "Record") -> None:
         request_type = record.request.WhichOneof("request_type")
