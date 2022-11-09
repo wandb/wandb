@@ -494,7 +494,7 @@ def test_audio_to_json_with_captions(mock_run, assets_path):
         "_type": "audio-file",
         "caption": caption,
         "size": 441044,
-        'sha256': audio_sha,
+        "sha256": audio_sha,
         "path": os.path.join("media", "audio", f"{key}_{step}_{audio_sha[:20]}.wav"),
     }
 
