@@ -529,6 +529,10 @@ class SendManager:
         if self._record_exit and self._record_exit.control.mailbox_slot:
             result = proto_util._result_from_record(self._record_exit)
             result.exit_result.CopyFrom(exit_result)
+            # DEBUG
+            # import time
+            # print("SLEEP EXIT")
+            # time.sleep(5)
             self._respond_result(result)
 
     def send_request_poll_exit(self, record: "Record") -> None:

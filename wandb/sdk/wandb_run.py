@@ -3223,8 +3223,7 @@ class Run:
             return
 
         progress = poll_exit_response.pusher_stats
-        # done = poll_exit_response.done or final
-        done = poll_exit_response.done
+        done = poll_exit_response.done or final
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
         line = (
