@@ -68,8 +68,8 @@ class WandbMetricsLogger(callbacks.Callback):
         if log_freq == "batch":
             log_freq = 1
 
-        self.log_freq = log_freq
-        self.logging_batch_wise = isinstance(self.log_freq, int)
+        self.logging_batch_wise = isinstance(log_freq, int)
+        self.log_freq: Any = log_freq if self.logging_batch_wise else None
         self.global_batch = 0
         self.global_step = initial_global_step
 
@@ -84,7 +84,7 @@ class WandbMetricsLogger(callbacks.Callback):
             # set all epoch-wise metrics to be logged against epoch.
             wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
-    def _get_lr(self) -> Optional[float]:
+    def _get_lr(self) -> Union[float, None]:
         if isinstance(self.model.optimizer.learning_rate, tf.Variable):
             return float(self.model.optimizer.learning_rate.numpy().item())
         try:
