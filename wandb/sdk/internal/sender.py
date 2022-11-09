@@ -158,7 +158,7 @@ class SendManager:
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
-    _writer_q: "Queue[Result]"
+    _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
@@ -185,7 +185,7 @@ class SendManager:
         settings: SettingsStatic,
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
-        writer_q: "Queue[Result]",
+        writer_q: "Queue[Record]",
         interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
@@ -279,11 +279,13 @@ class SendManager:
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
+        writer_q: "Queue[Record]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         return SendManager(
             settings=settings,
             record_q=record_q,
             result_q=result_q,
+            writer_q=writer_q,
             interface=publish_interface,
         )
 

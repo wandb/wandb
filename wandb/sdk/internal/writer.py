@@ -14,6 +14,12 @@
 
 inmem col: 0        col 1,2       col 3
 
+Q: can we only keep track of starting block... it will make things easier
+
+we might be able to use the next starting block, which is actually want we probably want
+but if we used next starting block we might need to look at startingblock+offset to know that the previous request was in the
+fully in the previous block (ie, offset would have to be zero)
+
 
 New messages:
   mark_position    writer -> sender (has an ID)
@@ -24,6 +30,7 @@ New messages:
 
 import enum
 import logging
+from dataclasses import dataclass
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -37,6 +44,17 @@ class _SendState(enum.Enum):
     ACTIVE = 1
     PAUSED = 2
     RESTARTING = 3
+
+
+class _MarkType(enum.Enum):
+    DEFAULT = 1
+    PAUSE = 2
+
+
+@dataclass
+class _MarkInfo:
+    block: int
+    mark_type: _MarkType = _MarkType.DEFAULT
 
 
 class WriteManager:
@@ -73,7 +91,7 @@ class WriteManager:
         self._mark_id = 0
         self._mark_id_sent = 0
         self._mark_id_reported = 0
-        self._mark_blocks = {}
+        self._mark_dict = {}
         self._mark_block_sent = 0
         self._mark_block_reported = 0
 
@@ -101,9 +119,9 @@ class WriteManager:
 
     def _process_sender_mark_report(self, record):
         mark_id = record.request.sender_mark_report.mark_id
-        block = self._mark_blocks.pop(mark_id)
+        mark_info = self._mark_dict.pop(mark_id)
         self._mark_id_reported = mark_id
-        self._mark_reported_block = block
+        self._mark_reported_block = mark_info.block
 
     def _process_report_sender_position(self):
         # request: inquiry
@@ -124,7 +142,7 @@ class WriteManager:
         self._send_record(record)
         self._mark_id_sent = mark_id
         block = self._written_block_end
-        self._mark_blocks[mark_id] = block
+        self._mark_dict[mark_id] = _MarkInfo(block=block)
         self._mark_sent_block = block
 
     def _maybe_send_mark(self):
@@ -160,7 +178,7 @@ class WriteManager:
         pass
 
     def _behind_blocks(self) -> int:
-        behind_ids = self._mark_id_sent - self._mark_id_reported
+        # behind_ids = self._mark_id_sent - self._mark_id_reported
         behind_blocks = self._mark_block_sent - self._mark_block_reported
         # print(
         #     f"BEHIND id={behind_ids} b={behind_blocks} sent={self._mark_id_sent} rep{self._mark_id_reported}"
@@ -172,8 +190,7 @@ class WriteManager:
         if self._behind_blocks() < self._threshold_block_high:
             return
         self._state = _SendState.PAUSED
-        # print("PAUSED")
-        # self._send_mark()
+        self._send_mark()
 
     def _maybe_transition_restart(self):
         """Start looking for a good opportunity to actively use sender."""
