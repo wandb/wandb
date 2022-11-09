@@ -665,7 +665,7 @@ class LaTeXBlock(Block):
 
 
 class Gallery(Block):
-    ids: list = Attr()
+    ids: list = Attr(validators=[TypeValidator(str, how="keys")])
 
     def __init__(self, ids, *args, **kwargs):
         super().__init__(*args, **kwargs)
