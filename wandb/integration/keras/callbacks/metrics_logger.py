@@ -24,33 +24,28 @@ class WandbMetricsLogger(callbacks.Callback):
     """`WandbMetricsLogger` automatically logs the `logs` dictionary
     that callback methods take as argument to wandb.
 
-    This callback logs all metrics to Weights & Biases workspace, including:
-    * Metrics summary plots
-    * System metrics plots
-    * Learning rate (both for a fixed value or a learning rate scheduler)
+    This callback automatically logs the following to a W&B run page:
+    * system (CPU/GPU/TPU) metrics,
+    * train and validation metrics defined in `model.compile`,
+    * learning rate (both for a fixed value or a learning rate scheduler)
 
-    Note that,
-    * If you are using the `WandbMetricsLogger` while you are resuming
-    training after training for a certain number of epochs, you can set
-    `initial_global_step` to the point in terms of global step from which
-    training is being resumed, which would ideally be
-    `step_size * initial_epoch`, while also setting the `initial_epoch`
-    parameter in your `model.fit` call.
-    * The `step_size` is the number of training steps per epoch. It could
-    be calculated as the product of the cardinality of the training dataset
-    and the batch size.
+    Notes:
+    If you resume training by passing `initial_epoch` to `model.fit` and
+    you are using a learning rate scheduler, make sure to pass
+    `initial_global_step` to `WandbMetricsLogger`. The `initial_global_step`
+    is `step_size * initial_step`, where `step_size` is number of training
+    steps per epoch. `step_size` can be calculated as the product of the
+    cardinality of the training dataset and the batch size.
 
     Arguments:
         log_freq ("epoch", "batch", or int): if "epoch", logs metrics
             at the end of each epoch. If "batch", logs metrics at the end
             of each batch. If an integer, logs metrics at the end of that
             many batches. Defaults to "epoch".
-        initial_global_step (int): The initial global step which is incremented
-            on every train batch. This is set to `0` by default and should be
-            ideally set to `step_size * initial_epoch`, where `step_size` is
-            the number of training steps per epoch. The step_size could be
-            calculated as the product of the cardinality of the training dataset
-            and the batch size.
+        initial_global_step (int): Use this argument to correcly log the
+            learning rate when you resume training from some `initial_epoch`,
+            and a learning rate scheduler is used. This can be computed as
+            `step_size * initial_step`. Defaults to 0.
     """
 
     def __init__(
