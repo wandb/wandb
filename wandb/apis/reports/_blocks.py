@@ -299,9 +299,19 @@ class PanelGrid(Block):
 class List(Base):
     @classmethod
     def from_json(cls, spec: dict) -> "Union[CheckedList, OrderedList, UnorderedList]":
-        items = [
-            item["children"][0]["children"][0]["text"] for item in spec["children"]
-        ]
+        items = []
+        for item in spec["children"]:
+            text = []
+            for elem in item["children"][0]["children"]:
+                if elem.get("type") == "latex":
+                    text.append(InlineLaTeX(elem["content"]))
+                elif elem.get("type") == "link":
+                    text.append(Link(elem["children"][0]["text"], elem["url"]))
+                elif elem.get("inlineCode"):
+                    text.append(InlineCode(elem["text"]))
+                else:
+                    text.append(elem["text"])
+            items.append(text)
         checked = [item.get("checked") for item in spec["children"]]
         ordered = spec.get("ordered")
 
@@ -335,17 +345,23 @@ class CheckedList(Block, List):
 
     @property
     def spec(self) -> dict:
-        return {
-            "type": "list",
-            "children": [
+        children = []
+        for item, check in (self.items, self.checked):
+            if isinstance(item, list):
+                content = [
+                    t.spec if not isinstance(t, str) else {"text": t} for t in item
+                ]
+            else:
+                content = [{"text": item}]
+            children.append(
                 {
                     "type": "list-item",
-                    "children": [{"type": "paragraph", "children": [{"text": item}]}],
+                    "children": [{"type": "paragraph", "children": content}],
                     "checked": check,
                 }
-                for item, check in zip(self.items, self.checked)
-            ],
-        }
+            )
+
+        return {"type": "list", "children": children}
 
 
 class OrderedList(Block, List):
@@ -357,18 +373,23 @@ class OrderedList(Block, List):
 
     @property
     def spec(self) -> dict:
-        return {
-            "type": "list",
-            "ordered": True,
-            "children": [
+        children = []
+        for item in self.items:
+            if isinstance(item, list):
+                content = [
+                    t.spec if not isinstance(t, str) else {"text": t} for t in item
+                ]
+            else:
+                content = [{"text": item}]
+            children.append(
                 {
                     "type": "list-item",
-                    "children": [{"type": "paragraph", "children": [{"text": item}]}],
+                    "children": [{"type": "paragraph", "children": content}],
                     "ordered": True,
                 }
-                for item in self.items
-            ],
-        }
+            )
+
+        return {"type": "list", "ordered": True, "children": children}
 
 
 class UnorderedList(Block, List):
@@ -380,16 +401,22 @@ class UnorderedList(Block, List):
 
     @property
     def spec(self) -> dict:
-        return {
-            "type": "list",
-            "children": [
+        children = []
+        for item in self.items:
+            if isinstance(item, list):
+                content = [
+                    t.spec if not isinstance(t, str) else {"text": t} for t in item
+                ]
+            else:
+                content = [{"text": item}]
+            children.append(
                 {
                     "type": "list-item",
-                    "children": [{"type": "paragraph", "children": [{"text": item}]}],
+                    "children": [{"type": "paragraph", "children": content}],
                 }
-                for item in self.items
-            ],
-        }
+            )
+
+        return {"type": "list", "children": children}
 
 
 class Heading(Base):
