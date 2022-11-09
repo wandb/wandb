@@ -2,10 +2,9 @@ import glob
 import os
 import string
 import sys
-from pkg_resources import parse_version
 from typing import Any, Dict, List, Optional, Union
 
-import tensorflow as tf
+import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
@@ -110,9 +109,8 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self.save_best_only:
             self._check_filepath()
 
-        self.is_old_tf_keras_version: bool = parse_version(
-            tf.keras.__version__
-        ) <= parse_version("2.6.0")
+        # Patch to make the callback compatible with TF version < 2.6.0.
+        self._patch_tf_keras_version()
 
     def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None) -> None:
         if self._should_save_on_batch(batch):
@@ -183,3 +181,10 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
                 "This ensures correct interpretation of the logged artifacts.",
                 repeat=False,
             )
+
+    def _patch_tf_keras_version(self) -> None:
+        from pkg_resources import parse_version
+
+        self.is_old_tf_keras_version: bool = parse_version(
+            tf.keras.__version__
+        ) < parse_version("2.6.0")
