@@ -125,7 +125,9 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:20]
 
-        file_path = _wb_filename(key, step, id_, extension)
+        file_path = _wb_filename(
+            util.make_artifact_name_safe(key), step, id_, extension
+        )
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(self._run.dir, media_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
@@ -145,12 +147,12 @@ class Media(WBValue):
             _datatypes_callback(media_path)
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
-        is a wandb.Run then `self.bind_to_run()` must have been previously been called.
+        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
+        If `run_or_artifact` is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
         Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
+            run (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
+            JSON for - this is useful to store additional data if needed.
 
         Returns:
             dict: JSON representation

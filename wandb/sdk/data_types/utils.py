@@ -144,7 +144,7 @@ def val_to_json(
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
                 # we sanitize the key to meet the constraints defined in wandb_artifacts.py
-                # in this case, leaving only alpha numerics or underscores.
+                # in this case, leaving only alphanumerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
                 art = wandb.wandb_sdk.wandb_artifacts.Artifact(
                     f"run-{run.id}-{sanitized_key}", "run_table"
