@@ -66,7 +66,7 @@ class LinePlot(Panel):
     smoothing_show_original: Optional[bool] = Attr(
         json_path="spec.config.showOriginalAfterSmoothing"
     )
-    max_runs_to_show: Optional[int] = Attr(json_path="spec.config.smoothingType")
+    max_runs_to_show: Optional[int] = Attr(json_path="spec.config.limit")
     custom_expressions: Optional[str] = Attr(json_path="spec.config.expressions")
     plot_type: Optional[str] = Attr(
         json_path="spec.config.plotType",
@@ -248,8 +248,8 @@ class ScatterPlot(Panel):
     log_x: Optional[bool] = Attr(json_path="spec.config.xAxisLogScale")
     log_y: Optional[bool] = Attr(json_path="spec.config.yAxisLogScale")
     log_z: Optional[bool] = Attr(json_path="spec.config.zAxisLogScale")
-    running_ymin: Optional[bool] = Attr(json_path="spec.config.showMaxYAxisLine")
-    running_ymax: Optional[bool] = Attr(json_path="spec.config.showMinYAxisLine")
+    running_ymin: Optional[bool] = Attr(json_path="spec.config.showMinYAxisLine")
+    running_ymax: Optional[bool] = Attr(json_path="spec.config.showMaxYAxisLine")
     running_ymean: Optional[bool] = Attr(json_path="spec.config.showAvgYAxisLine")
     legend_template: Optional[str] = Attr(json_path="spec.config.legendTemplate")
     gradient: Optional[dict] = Attr(

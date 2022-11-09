@@ -378,7 +378,7 @@ def create_customer_landing_page(
                     ["A centrally managed MLOps platform and UI"],
                     [
                         "The ",
-                        InlineCode(code="wandb"),
+                        wr.InlineCode(code="wandb"),
                         " SDK (",
                         wr.Link(text="github", url="https://github.com/wandb/client"),
                         ", ",
@@ -411,7 +411,7 @@ def create_customer_landing_page(
             wr.P(
                 text=[
                     wr.Link(
-                        text="For more details on options and advanced usage, see the docs for ",
+                        text="For more details on options and advanced usage, see the docs.",
                         url="https://docs.wandb.ai/ref/python/init",
                     )
                 ]

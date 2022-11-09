@@ -346,7 +346,7 @@ class CheckedList(Block, List):
     @property
     def spec(self) -> dict:
         children = []
-        for item, check in (self.items, self.checked):
+        for item, check in zip(self.items, self.checked):
             if isinstance(item, list):
                 content = [
                     t.spec if not isinstance(t, str) else {"text": t} for t in item
@@ -484,7 +484,7 @@ class H2(Block, Heading):
             content = [{"text": self.text}]
         return {
             "type": "heading",
-            "children": [{"text": self.text}],
+            "children": content,
             "level": 2,
         }
 
@@ -506,7 +506,7 @@ class H3(Block, Heading):
             content = [{"text": self.text}]
         return {
             "type": "heading",
-            "children": [{"text": self.text}],
+            "children": content,
             "level": 3,
         }
 
