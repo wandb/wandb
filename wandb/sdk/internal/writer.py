@@ -4,6 +4,7 @@
     ------
     ACTIVE = Streaming every record to the sender
     PAUSED = Collecting requests to the current block
+    READING = Managing the read queue of the sender
     RESTARTING = Transitionary state waiting for request
                  completing a block
 
@@ -43,7 +44,8 @@ logger = logging.getLogger(__name__)
 class _SendState(enum.Enum):
     ACTIVE = 1
     PAUSED = 2
-    RESTARTING = 3
+    READING = 3
+    RESTARTING = 4
 
 
 class _MarkType(enum.Enum):
@@ -54,7 +56,7 @@ class _MarkType(enum.Enum):
 @dataclass
 class _MarkInfo:
     block: int
-    mark_type: _MarkType = _MarkType.DEFAULT
+    mark_type: _MarkType
 
 
 class WriteManager:
@@ -130,7 +132,7 @@ class WriteManager:
         # sender_position_report
         pass
 
-    def _send_mark(self):
+    def _send_mark(self, mark_type=_MarkType.DEFAULT):
         mark_id = self._mark_id
         self._mark_id += 1
 
@@ -142,7 +144,7 @@ class WriteManager:
         self._send_record(record)
         self._mark_id_sent = mark_id
         block = self._written_block_end
-        self._mark_dict[mark_id] = _MarkInfo(block=block)
+        self._mark_dict[mark_id] = _MarkInfo(block=block, mark_type=mark_type)
         self._mark_sent_block = block
 
     def _maybe_send_mark(self):
@@ -192,6 +194,10 @@ class WriteManager:
         self._state = _SendState.PAUSED
         self._send_mark()
 
+    def _maybe_transition_reading(self):
+        """Do we have any blocks written to disk that we should start reading from."""
+        pass
+
     def _maybe_transition_restart(self):
         """Start looking for a good opportunity to actively use sender."""
         pass
@@ -216,6 +222,10 @@ class WriteManager:
         if self._state == _SendState.ACTIVE:
             self._maybe_transition_pause()
         elif self._state == _SendState.PAUSED:
+            self._maybe_transition_active()
+            self._maybe_transition_restart()
+            self._maybe_transition_reading()
+        elif self._state == _SendState.READING:
             self._maybe_transition_restart()
         elif self._state == _SendState.RESTARTING:
             self._maybe_transition_active()
