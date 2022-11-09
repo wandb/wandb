@@ -479,6 +479,26 @@ def test_audio_to_json(mock_run):
     assert subdict(meta["audio"][0], audio_expected) == audio_expected
 
 
+def test_audio_to_json_with_captions(mock_run, assets_path):
+    caption = "This is a sine wave"
+    key = "audio"
+    step = 0
+    run = mock_run()
+    audio_path = assets_path("sine_wave.wav")
+    audio = wandb.Audio(audio_path, caption=caption)
+    audio_sha = audio._sha256
+
+    audio.bind_to_run(run, key, step)
+
+    assert audio.to_json(run) == {
+        "_type": "audio-file",
+        "caption": caption,
+        "size": 441044,
+        'sha256': audio_sha,
+        "path": os.path.join("media", "audio", f"{key}_{step}_{audio_sha[:20]}.wav"),
+    }
+
+
 def test_audio_refs():
     audio_obj = wandb.Audio(
         "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"

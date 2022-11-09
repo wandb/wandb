@@ -22,18 +22,13 @@ import logging
 import os
 import pprint
 import tempfile
-from typing import Optional
 
 import wandb
 from wandb import util
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.audio import Audio
-from .sdk.data_types.base_types.media import (
-    BatchableMedia,
-    Media,
-    _numpy_arrays_to_lists,
-)
+from .sdk.data_types.base_types.media import Media, _numpy_arrays_to_lists
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
 from .sdk.data_types.helper_types.classes import Classes

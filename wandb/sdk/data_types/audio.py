@@ -1,7 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
-from typing import Any, Optional, Type, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
 
 from wandb import util
 
@@ -9,9 +9,11 @@ from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:
-    import numpy as np
-    from wandb.sdk.wandb_run import Run
+    import numpy as np  # type: ignore
+
+    from wandb.apis.public import Artifact as PublicArtifact
     from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 
 class Audio(BatchableMedia):
@@ -72,7 +74,9 @@ class Audio(BatchableMedia):
         return os.path.join("media", "audio")
 
     @classmethod
-    def from_json(cls: Type["Audio"], json_obj, source_artifact) -> "Audio":
+    def from_json(
+        cls: Type["Audio"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "Audio":
         return cls(
             source_artifact.get_path(json_obj["path"]).download(),
             caption=json_obj["caption"],
@@ -104,7 +108,13 @@ class Audio(BatchableMedia):
         return json_dict
 
     @classmethod
-    def seq_to_json(cls: Type["Audio"], seq, run, key, step):
+    def seq_to_json(
+        cls: Type["Audio"],
+        seq: Sequence["BatchableMedia"],
+        run: "Run",
+        key: str,
+        step: Union[int, str],
+    ) -> dict:
         audio_list = list(seq)
 
         util.get_module(
@@ -131,25 +141,26 @@ class Audio(BatchableMedia):
         return meta
 
     @classmethod
-    def durations(cls, audio_list):
+    def durations(cls: Type["Audio"], audio_list: list) -> list:
         return [a._duration for a in audio_list]
 
     @classmethod
-    def sample_rates(cls, audio_list):
+    def sample_rates(cls: Type["Audio"], audio_list: list) -> list:
         return [a._sample_rate for a in audio_list]
 
     @classmethod
-    def captions(cls, audio_list):
+    def captions(cls, audio_list: list) -> Union[list, bool]:  # type: ignore
         captions = [a._caption for a in audio_list]
         if all(c is None for c in captions):
             return False
         else:
             return ["" if c is None else c for c in captions]
 
-    def resolve_ref(self: "Audio") -> Optional[Union[util.FilePathStr, util.URIStr]]:
+    def resolve_ref(self: "Audio") -> Any:
         if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
+        assert self._artifact_source is not None
         source_artifact = self._artifact_source.artifact
 
         resolved_name = source_artifact._local_path_to_name(self._path)
@@ -164,7 +175,7 @@ class Audio(BatchableMedia):
         if self.path_is_reference(self._path) or self.path_is_reference(other._path):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
-            return (
+            return (  # type: ignore
                 self.resolve_ref() == other.resolve_ref()
                 and self._caption == other._caption
             )
