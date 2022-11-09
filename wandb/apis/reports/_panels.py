@@ -45,7 +45,7 @@ class LinePlot(Panel):
         ],
     )
     log_x: Optional[bool] = Attr(json_path="spec.config.xLogScale")
-    log_y: Optional[bool] = Attr(json_path="spec.config.xLogScale")
+    log_y: Optional[bool] = Attr(json_path="spec.config.yLogScale")
     title_x: Optional[str] = Attr(json_path="spec.config.xAxisTitle")
     title_y: Optional[str] = Attr(json_path="spec.config.yAxisTitle")
     ignore_outliers: Optional[bool] = Attr(json_path="spec.config.ignoreOutliers")
