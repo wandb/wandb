@@ -202,3 +202,42 @@ def test_artifact_download_logger():
             assert termlog.call_args == call
         else:
             termlog.assert_not_called()
+
+
+def test_update_aliases_on_artifact(user, relay_server, wandb_init):
+    project = "test"
+    run = wandb_init(entity=user, project=project)
+    artifact = wandb.Artifact("test-artifact", "test-type")
+    with open("boom.txt", "w") as f:
+        f.write("testing")
+    artifact.add_file("boom.txt", "test-name")
+    art = run.log_artifact(artifact, aliases=["sequence"])
+    run.link_artifact(art, f"{user}/{project}/my-sample-portfolio")
+    artifact.wait()
+    run.finish()
+
+    # fetch artifact under original parent sequence
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "sequence" in aliases
+
+    # fetch artifact under portfolio
+    # and change aliases under portfolio only
+    artifact = Api().artifact(
+        name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "sequence" not in aliases
+    artifact.aliases = ["portfolio"]
+    artifact.aliases.append("boom")
+    artifact.save()
+
+    artifact = Api().artifact(
+        name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "portfolio" in aliases
+    assert "boom" in aliases
+    assert "sequence" not in aliases
