@@ -122,7 +122,7 @@ def _launch_add(
     run_id: Optional[str] = None,
 ) -> "public.QueuedRun":
 
-    resource = resource or "local"
+    resource = resource  # or "local"
     if config is not None:
         if isinstance(config, str):
             with open(config) as fp:

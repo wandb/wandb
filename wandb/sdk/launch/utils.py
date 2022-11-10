@@ -148,7 +148,7 @@ def construct_launch_spec(
         launch_spec["docker"]["docker_image"] = docker_image
 
     if "resource" not in launch_spec:
-        launch_spec["resource"] = resource or "local"
+        launch_spec["resource"] = resource  # or "local"
 
     if "git" not in launch_spec:
         launch_spec["git"] = {}
