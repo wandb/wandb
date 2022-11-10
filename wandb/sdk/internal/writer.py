@@ -65,12 +65,12 @@ class WriteManager:
         settings,
         record_q,
         result_q,
-        sender_q,
+        reader_q,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
-        self._sender_q = sender_q
+        self._reader_q = reader_q
         self._ds = None
 
         # thresholds to define when to PAUSE and RESTART
@@ -173,8 +173,8 @@ class WriteManager:
         ) // datastore.LEVELDBLOG_BLOCK_LEN
 
     def _send_record(self, record):
-        tracelog.log_message_queue(record, self._sender_q)
-        self._sender_q.put(record)
+        tracelog.log_message_queue(record, self._reader_q)
+        self._reader_q.put(record)
 
     def _collect_record(self, record):
         pass

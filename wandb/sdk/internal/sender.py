@@ -158,7 +158,7 @@ class SendManager:
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
-    _writer_q: "Queue[Record]"
+    _reader_q: "Queue[Record]"
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
@@ -185,13 +185,13 @@ class SendManager:
         settings: SettingsStatic,
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
-        writer_q: "Queue[Record]",
+        reader_q: "Queue[Record]",
         interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
-        self._writer_q = writer_q
+        self._reader_q = reader_q
         self._interface = interface
 
         self._fs = None
@@ -279,13 +279,13 @@ class SendManager:
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
-        writer_q: "Queue[Record]" = queue.Queue()
+        reader_q: "Queue[Record]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         return SendManager(
             settings=settings,
             record_q=record_q,
             result_q=result_q,
-            writer_q=writer_q,
+            reader_q=reader_q,
             interface=publish_interface,
         )
 
@@ -321,7 +321,8 @@ class SendManager:
         request.sender_mark_report.CopyFrom(mark_report)
         record = wandb_internal_pb2.Record()
         record.request.CopyFrom(request)
-        self._writer_q.put(record)
+        tracelog.log_message_queue(record, self._reader_q)
+        self._reader_q.put(record)
 
     def send_request(self, record: "Record") -> None:
         request_type = record.request.WhichOneof("request_type")
