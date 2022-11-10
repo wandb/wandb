@@ -69,6 +69,9 @@ _REQUEST_POOL_MAXSIZE = 64
 
 ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
+DISABLE_WRITE_CACHE_VAR = "WANDB_ARTIFACTS_DISABLE_WRITE_CACHE"
+DISABLE_WRITE_CACHE = True if os.environ.get(DISABLE_WRITE_CACHE_VAR) else False
+
 
 class _AddedObj:
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
@@ -699,10 +702,16 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
-        if not hit:
-            with cache_open() as f:
-                shutil.copyfile(path, f.name)
+        if DISABLE_WRITE_CACHE:
+            cache_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), name, digest)
+            if not os.path.exists(cache_path):
+                util.mkdir_exists_ok(os.path.dirname(cache_path))
+            shutil.copyfile(path, cache_path)
+        else:
+            cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
+            if not hit:
+                with cache_open() as f:
+                    shutil.copyfile(path, f.name)
 
         entry = ArtifactManifestEntry(
             name,
@@ -968,14 +977,16 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
-        # write-through cache
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(
-            entry.digest, entry.size if entry.size is not None else 0
-        )
-        if not hit and entry.local_path is not None:
-            with cache_open() as f:
-                shutil.copyfile(entry.local_path, f.name)
-            entry.local_path = cache_path
+        if not DISABLE_WRITE_CACHE:
+            # write-through cache
+            cache_path, hit, cache_open = self._cache.check_md5_obj_path(
+                entry.digest,
+                entry.size if entry.size is not None else 0,
+            )
+            if not hit and entry.local_path is not None:
+                with cache_open() as f:
+                    shutil.copyfile(entry.local_path, f.name)
+                entry.local_path = cache_path
 
         resp = preparer.prepare(
             lambda: {
@@ -1002,6 +1013,14 @@ class WandbStoragePolicy(StoragePolicy):
                             for header in (resp.upload_headers or {})
                         },
                     )
+        # we should still clean up the entry if it is a tempfile and no upload occurred
+        if (
+            DISABLE_WRITE_CACHE
+            and entry.local_path is not None
+            and entry.local_path.startswith(tempfile.gettempdir())
+        ):
+            os.remove(entry.local_path)
+
         return exists
 
 
