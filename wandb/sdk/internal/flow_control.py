@@ -25,7 +25,7 @@ State machine:
 import enum
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -41,7 +41,6 @@ class _SendState(enum.Enum):
     ACTIVE = 1
     PAUSED = 2
     READING = 3
-    RESTARTING = 4
 
 
 class _MarkType(enum.Enum):
@@ -57,15 +56,17 @@ class _MarkInfo:
 
 @dataclass
 class _WriteInfo:
-    offset: int
-    block: int
+    offset: int = 0
+    block: int = 0
 
 
 class FlowControl:
     _settings: SettingsStatic
-    _forward_record: Callable[["Record"], None]
-    _write_record: Callable[["Record"], _WriteInfo]
-    _ensure_flushed: Callable[[int], None]
+    _forward_record: Callable[[Any, "Record"], None]
+    _write_record: Callable[[Any, "Record"], _WriteInfo]
+    _ensure_flushed: Callable[[Any, int], None]
+    _last_write: _WriteInfo
+    _mark_dict: Dict[int, _MarkInfo]
 
     def __init__(
         self,
@@ -83,14 +84,8 @@ class FlowControl:
         self._threshold_block_high = 8
         self._threshold_block_low = 4
 
-        # collection of requests ending in current block
-        self._collection_block = None
-        self._collection_records = []
-
         # track last written request
-        self._written_offset = None
-        self._written_block_start = 0
-        self._written_block_end = 0
+        self._last_write = _WriteInfo()
 
         # state machine ACTIVE -> PAUSED -> RESTARTING -> ACTIVE ...
         self._state = _SendState.ACTIVE
@@ -103,38 +98,34 @@ class FlowControl:
         self._mark_block_sent = 0
         self._mark_block_reported = 0
 
-    def _get_request_type(self, record) -> str:
+    def _get_request_type(self, record: "Record") -> Optional[str]:
         record_type = record.WhichOneof("record_type")
         if record_type != "request":
             return None
         request_type = record.request.WhichOneof("request_type")
         return request_type
 
-    def _is_control_record(self, record) -> bool:
+    def _is_control_record(self, record: "Record") -> bool:
         request_type = self._get_request_type(record)
         if request_type not in {"sender_mark_report"}:
             return False
         return True
 
-    def _process_record(self, record) -> None:
+    def _process_record(self, record: "Record") -> None:
         request_type = self._get_request_type(record)
         if request_type == "sender_mark_report":
             self._process_sender_mark_report(record)
 
-    def _process_sender_mark_report(self, record):
+    def _process_sender_mark_report(self, record: "Record") -> None:
         mark_id = record.request.sender_mark_report.mark_id
         mark_info = self._mark_dict.pop(mark_id)
         self._mark_id_reported = mark_id
         self._mark_reported_block = mark_info.block
 
-    def _process_report_sender_position(self):
-        # request: inquiry
-        # response: report
-        # sender_position_inquiry
-        # sender_position_report
+    def _process_report_sender_position(self, record: "Record") -> None:
         pass
 
-    def _send_mark(self, mark_type=_MarkType.DEFAULT):
+    def _send_mark(self, mark_type: _MarkType=_MarkType.DEFAULT) -> None:
         mark_id = self._mark_id
         self._mark_id += 1
 
@@ -145,25 +136,22 @@ class FlowControl:
         record.request.CopyFrom(request)
         self._forward_record(record)
         self._mark_id_sent = mark_id
-        block = self._written_block_end
+        block = self._last_write.block
         self._mark_dict[mark_id] = _MarkInfo(block=block, mark_type=mark_type)
         self._mark_sent_block = block
 
-    def _maybe_send_mark(self):
+    def _maybe_send_mark(self) -> None:
         """Send mark if we are writting the first record in a block."""
         # if self._last_block_end == self._written_block_end:
         #     return
         self._send_mark()
 
-    def _maybe_request_read(self):
+    def _maybe_request_read(self) -> None:
         pass
         # if we are paused
         # and more than one chunk has been written
         # and N time has elapsed
         # send message asking sender to read from last_read_offset to current_offset
-
-    def _collect_record(self, record):
-        pass
 
     def _behind_blocks(self) -> int:
         # behind_ids = self._mark_id_sent - self._mark_id_reported
@@ -173,28 +161,18 @@ class FlowControl:
         # )
         return behind_blocks
 
-    def _maybe_transition_pause(self):
+    def _maybe_transition_pause(self) -> None:
         """Stop sending data to the sender if it is backed up."""
         if self._behind_blocks() < self._threshold_block_high:
             return
         self._state = _SendState.PAUSED
         self._send_mark()
 
-    def _maybe_transition_reading(self):
-        """Do we have any blocks written to disk that we should start reading from."""
+    def _maybe_transition_reading(self) -> None:
         pass
 
-    def _maybe_transition_restart(self):
-        """Start looking for a good opportunity to actively use sender."""
+    def _maybe_transition_active(self) -> None:
         pass
-        # self._mark_position()
-        # self._send_mark()
-
-    def _maybe_transition_active(self):
-        """Transition to the active state by sending collected records."""
-        pass
-        # if mark_position received
-        #     send(collected records)
 
     def flush(self) -> None:
         pass
@@ -209,13 +187,8 @@ class FlowControl:
         if self._state == _SendState.ACTIVE:
             self._maybe_transition_pause()
         elif self._state == _SendState.PAUSED:
-            self._maybe_transition_active()
-            self._maybe_transition_restart()
             self._maybe_transition_reading()
         elif self._state == _SendState.READING:
-            self._maybe_transition_active()
-            self._maybe_transition_restart()
-        elif self._state == _SendState.RESTARTING:
             self._maybe_transition_active()
 
         if self._is_control_record(record):
@@ -226,8 +199,6 @@ class FlowControl:
             self._forward_record(record)
             self._maybe_send_mark()
         elif self._state == _SendState.PAUSED:
-            self._collect_record(record)
+            pass
         elif self._state == _SendState.READING:
-            self._collect_record(record)
-        elif self.__state == _SendState.RESTARTING:
-            self._collect_record(record)
+            pass
