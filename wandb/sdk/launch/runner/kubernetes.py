@@ -169,6 +169,8 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
+        if resource_args.get("security_context"):
+            pod_spec["securityContext"] = resource_args.get("security_context")
         if resource_args.get("volumes") is not None:
             vols = resource_args.get("volumes")
             if not isinstance(vols, list):
