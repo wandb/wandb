@@ -384,6 +384,8 @@ jobs:
       - run:
           name: Check protobuf version compatibility
           command: |
+            pip install -U pip
+            pip install .
             python tools/check_protobuf_version_compatibility.py
           no_output_timeout: 5m
       - save-test-results
