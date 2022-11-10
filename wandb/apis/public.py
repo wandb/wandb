@@ -2633,14 +2633,11 @@ class Sweep(Attrs):
             response = client.execute(query, variable_values=variables)
         except Exception:
             # Don't handle exception, rely on legacy query
+            # TODO(gst): Implement updated introspection workaround
             query = cls.LEGACY_QUERY
             response = client.execute(query, variable_values=variables)
 
-        if response is None:
-            return None
-        elif response.get("project") is None:
-            return None
-        elif response["project"].get("sweep") is None:
+        if not response or not response.get("project", {}).get("sweep"):
             return None
 
         sweep_response = response["project"]["sweep"]
