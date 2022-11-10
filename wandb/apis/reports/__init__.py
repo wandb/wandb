@@ -1,3 +1,4 @@
+# flake8: noqa
 from inspect import cleandoc
 
 from ... import termlog

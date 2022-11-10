@@ -1,3 +1,4 @@
+# flake8: noqa
 from ._blocks import (
     H1,
     H2,
