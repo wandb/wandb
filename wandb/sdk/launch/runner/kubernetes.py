@@ -169,7 +169,9 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
-        if resource_args.get("volumes"):
+        if resource_args.get("volumes") is not None:
+            if not isinstance(resource_args["volumes"], list):
+                raise LaunchError("volumes must be a list of volume specifications")
             pod_spec["volumes"] = []
             for v in resource_args.get("volumes"):
                 pod_spec["volumes"] = {"name": v.get("name"), **v.get("volume")}
@@ -201,6 +203,8 @@ class KubernetesRunner(AbstractRunner):
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
             if resource_args.get("volumes"):
+                if not isinstance(resource_args["volumes"], list):
+                    raise LaunchError("volumes must be a list of volume specifications")
                 cont["volumeMounts"] = []
                 for v in resource_args.get("volumes"):
                     cont["volumeMounts"] = {"name": v.get("name"), **v.get("mount")}
