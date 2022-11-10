@@ -82,6 +82,8 @@ _REQUEST_POOL_MAXSIZE = 64
 
 ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
+DISABLE_WRITE_CACHE = "WANDB_ARTIFACTS_DISABLE_WRITE_CACHE"
+
 
 class _AddedObj:
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
@@ -177,6 +179,7 @@ class Artifact(ArtifactInterface):
         self._api = InternalApi()
         self._final = False
         self._digest = ""
+        self._disable_cache = False
         self._file_entries = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
@@ -199,6 +202,11 @@ class Artifact(ArtifactInterface):
         if incremental:
             self._incremental = incremental
             wandb.termwarn("Using experimental arg `incremental`")
+
+        self._disable_cache = False
+        if os.environ.get(DISABLE_WRITE_CACHE, False):
+            wandb.termlog("Wandb Artifacts disabling write cache")
+            self._disable_cache = True
 
     @property
     def id(self) -> Optional[str]:
@@ -728,10 +736,18 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
-        if not hit:
-            with cache_open() as f:
-                shutil.copyfile(path, f.name)
+        if self._disable_cache:
+            cache_path = os.path.join(
+                self._artifact_dir.name, str(id(self)), name, digest
+            )
+            if not os.path.exists(cache_path):
+                util.mkdir_exists_ok(os.path.dirname(cache_path))
+            shutil.copyfile(path, cache_path)
+        else:
+            cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
+            if not hit:
+                with cache_open() as f:
+                    shutil.copyfile(path, f.name)
 
         entry = ArtifactManifestEntry(
             name,
@@ -916,6 +932,9 @@ class WandbStoragePolicy(StoragePolicy):
             ],
             default_handler=TrackingHandler(),
         )
+        self._disable_cache = False
+        if os.environ.get(DISABLE_WRITE_CACHE, False):
+            self._disable_cache = True
 
     def config(self) -> Dict:
         return self._config
@@ -997,15 +1016,16 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
-        # write-through cache
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
-            entry.size if entry.size is not None else 0,
-        )
-        if not hit and entry.local_path is not None:
-            with cache_open() as f:
-                shutil.copyfile(entry.local_path, f.name)
-            entry.local_path = cache_path
+        if not self._disable_cache:
+            # write-through cache
+            cache_path, hit, cache_open = self._cache.check_md5_obj_path(
+                util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
+                entry.size if entry.size is not None else 0,
+            )
+            if not hit and entry.local_path is not None:
+                with cache_open() as f:
+                    shutil.copyfile(entry.local_path, f.name)
+                entry.local_path = cache_path
 
         def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
             return {
@@ -1033,6 +1053,9 @@ class WandbStoragePolicy(StoragePolicy):
                             for header in (resp.upload_headers or {})
                         },
                     )
+                if self._disable_cache == True:
+                    os.remove(entry.local_path)
+
         return exists
 
 
