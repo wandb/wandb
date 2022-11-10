@@ -252,8 +252,13 @@ def test_launch_kube(
                 "volumes": [
                     {
                         "name": mountedVolName,
-                        "mount": mount,
                         "volume": vol,
+                    }
+                ],
+                "volume_mounts": [
+                    {
+                        "name": mountedVolName,
+                        "mount": mount,
                     }
                 ],
             },

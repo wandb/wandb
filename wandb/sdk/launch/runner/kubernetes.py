@@ -177,7 +177,7 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError("volumes must be a list of volume specifications")
             pod_spec["volumes"] = []
             for v in vols:
-                pod_spec["volumes"].append({"name": v.get("name"), **v.get("volume")})
+                pod_spec["volumes"].append(v)
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -205,16 +205,15 @@ class KubernetesRunner(AbstractRunner):
                     cont.get("resources") != container_resources
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
-            if resource_args.get("volumes"):
-                vols = resource_args.get("volumes")
-                if not isinstance(vols, list):
-                    raise LaunchError("volumes must be a list of volume specifications")
-
-                cont["volumeMounts"] = []
-                for v in vols:
-                    cont["volumeMounts"].append(
-                        {"name": v.get("name"), **v.get("mount")}
+            if resource_args.get("volume_mounts") is not None:
+                vol_mounts = resource_args.get("volumes_mounts")
+                if not isinstance(vol_mounts, list):
+                    raise LaunchError(
+                        "volume mounts must be a list of volume mount specifications"
                     )
+                cont["volumeMounts"] = []
+                for v in vol_mounts:
+                    cont["volumeMounts"].append(v)
             cont["security_context"] = {
                 "allowPrivilegeEscalation": False,
                 "capabilities": {"drop": ["ALL"]},
