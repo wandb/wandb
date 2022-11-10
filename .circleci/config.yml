@@ -331,6 +331,38 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
+  pex:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install pex
+          command: |
+            pip install -U pip
+            pip install pex
+          no_output_timeout: 5m
+      - run:
+          name: Run pex test
+          no_output_timeout: 5m
+          command: |
+            pex . -o wandb.pex
+            ./wandb.pex -c "import wandb; wandb.init(mode='offline'); wandb.finish()"
+      - save-test-results
+
   win:
     parameters:
       python_version_major:
@@ -1253,6 +1285,11 @@ workflows:
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
+      #
+      # pex test
+      #
+      - pex:
+          name: "pex"
 
   # todo: needs love
   #  manual_test:
