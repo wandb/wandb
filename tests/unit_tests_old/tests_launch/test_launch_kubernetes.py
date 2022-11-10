@@ -224,7 +224,9 @@ def test_launch_kube(
             }
         }
     }
-
+    mountedVolName = "test-volume"
+    vol = {"persistentVolumeClaim": {"claimName": "test-claim"}}
+    mount = {"mountPath": "/test/path"}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
@@ -247,7 +249,13 @@ def test_launch_kube(
                 "node_name": "test-node-name",
                 "node_selectors": {"test-selector": "test-value"},
                 "tolerations": [{"key": "test-key", "value": "test-value"}],
-                "volumes": [{"name": "test-volume", "host_path": "/test/path"}],
+                "volumes": [
+                    {
+                        "name": mountedVolName,
+                        "mount": mount,
+                        "volume": vol,
+                    }
+                ],
             },
         },
     }
@@ -273,13 +281,17 @@ def test_launch_kube(
     assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
     assert job.spec.template.spec.node_name == args["node_name"]
     assert job.spec.template.spec.tolerations == args["tolerations"]
-    assert job.spec.template.spec.volumes == args["volumes"]
+    assert job.spec.template.spec.volumes[0] == {
+        "name": mountedVolName,
+        **args["volumes"][0]["volume"],
+    }
     assert (
         job.spec.template.spec.node_selector["test-selector"]
         == args["node_selectors"]["test-selector"]
     )
     container = job.spec.template.spec.containers[0]
     assert "test.registry/repo_name" in container.image
+    assert container.volume_mounts[0] == {"name": mountedVolName, **mount}
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 
