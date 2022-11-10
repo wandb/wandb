@@ -20,8 +20,12 @@ import logging
 import os
 import struct
 import zlib
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
+
+if TYPE_CHECKING:
+    from wandb.proto.wandb_internal_pb2 import Record
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +261,7 @@ class DataStore:
 
         return file_offset, self._index - file_offset, flush_index, flush_offset
 
-    def write(self, obj: "Record") -> None:
+    def write(self, obj: "Record") -> Tuple[int, int, Optional[int], Optional[int]]:
         """Write a protocol buffer.
 
         Arguments:

@@ -22,7 +22,7 @@ class WriteManager:
     _result_q: "Queue[Result]"
     _sender_q: "Queue[Record]"
     _ds: Optional[datastore.DataStore]
-    _flow_control: Optional[flow_control.Director]
+    _flow_control: Optional[flow_control.FlowControl]
 
     def __init__(
         self,
@@ -41,7 +41,7 @@ class WriteManager:
     def open(self) -> None:
         self._ds = datastore.DataStore()
         self._ds.open_for_write(self._settings.sync_file)
-        self._flow_control = flow_control.Director(
+        self._flow_control = flow_control.FlowControl(
             settings=self._settings,
             write_record=self._write_record,
             forward_record=self._forward_record,
@@ -53,17 +53,15 @@ class WriteManager:
         self._sender_q.put(record)
 
     def _write_record(self, record: "Record") -> flow_control._WriteInfo:
+        assert self._ds
         ret = self._ds.write(record)
         assert ret is not None
 
-        # (file_offset, data_length, _, _) = ret
-        # self._last_block_end = self._written_block_end
-        # self._written_offset = file_offset
-        # self._written_block_start = file_offset // datastore.LEVELDBLOG_BLOCK_LEN
-        # self._written_block_end = (
-        #     file_offset + data_length
-        # ) // datastore.LEVELDBLOG_BLOCK_LEN
-
+        (file_offset, data_length, _, _) = ret
+        write_info = flow_control._WriteInfo(
+            offset=file_offset, block=file_offset // datastore.LEVELDBLOG_BLOCK_LEN
+        )
+        return write_info
 
     def _ensure_flushed(self, offset: int) -> None:
         pass
@@ -73,7 +71,7 @@ class WriteManager:
             self.open()
         assert self._flow_control
 
-        # Director will write data to disk and throttle sending to the sender
+        # FlowControl will write data to disk and throttle sending to the sender
         self._flow_control.direct(record)
 
     def finish(self) -> None:

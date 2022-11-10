@@ -347,6 +347,9 @@ class SendManager:
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
 
+    def send_request_sender_read(self, record: "Record") -> None:
+        pass
+
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
         result = proto_util._result_from_record(record)

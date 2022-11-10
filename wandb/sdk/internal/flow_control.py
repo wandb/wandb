@@ -38,7 +38,7 @@ Thresholds:
 import enum
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -70,20 +70,21 @@ class _MarkInfo:
 
 @dataclass
 class _WriteInfo:
-    blah: int
+    offset: int
+    block: int
 
 
 class FlowControl:
     _settings: SettingsStatic
     _forward_record: Callable[["Record"], None]
-    _write_record: Callable[["Record"], None]
+    _write_record: Callable[["Record"], _WriteInfo]
     _ensure_flushed: Callable[[int], None]
 
     def __init__(
         self,
         settings: SettingsStatic,
         forward_record: Callable[["Record"], None],
-        write_record: Callable[["Record"], None],
+        write_record: Callable[["Record"], _WriteInfo],
         ensure_flushed: Callable[["int"], None],
     ) -> None:
         self._settings = settings
@@ -173,18 +174,6 @@ class FlowControl:
         # and more than one chunk has been written
         # and N time has elapsed
         # send message asking sender to read from last_read_offset to current_offset
-
-    def _write_record(self, record):
-        ret = self._ds.write(record)
-        assert ret is not None
-        (file_offset, data_length, _, _) = ret
-
-        self._last_block_end = self._written_block_end
-        self._written_offset = file_offset
-        self._written_block_start = file_offset // datastore.LEVELDBLOG_BLOCK_LEN
-        self._written_block_end = (
-            file_offset + data_length
-        ) // datastore.LEVELDBLOG_BLOCK_LEN
 
     def _collect_record(self, record):
         pass
