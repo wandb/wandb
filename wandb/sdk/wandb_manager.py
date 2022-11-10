@@ -101,7 +101,10 @@ class _Manager:
         self._atexit_lambda = None
         self._hooks = None
 
-        self._service = service._Service(_use_grpc=_use_grpc)
+        self._service = service._Service(
+            _python_executable=settings._executable,
+            _use_grpc=_use_grpc,
+        )
 
         token = _ManagerToken.from_environment()
         if not token:
