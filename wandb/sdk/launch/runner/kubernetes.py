@@ -170,7 +170,9 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
         if resource_args.get("volumes"):
-            pod_spec["volumes"] = resource_args.get("volumes")
+            pod_spec["volumes"] = []
+            for v in resource_args.get("volumes"):
+                pod_spec["volumes"] = {"name": v.get("name"), **v.get("volume")}
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -198,6 +200,10 @@ class KubernetesRunner(AbstractRunner):
                     cont.get("resources") != container_resources
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
+            if resource_args.get("volumes"):
+                cont["volumeMounts"] = []
+                for v in resource_args.get("volumes"):
+                    cont["volumeMounts"] = {"name": v.get("name"), **v.get("mount")}
             cont["security_context"] = {
                 "allowPrivilegeEscalation": False,
                 "capabilities": {"drop": ["ALL"]},
