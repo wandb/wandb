@@ -286,17 +286,14 @@ def test_launch_kube(
     assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
     assert job.spec.template.spec.node_name == args["node_name"]
     assert job.spec.template.spec.tolerations == args["tolerations"]
-    assert job.spec.template.spec.volumes[0] == {
-        "name": mountedVolName,
-        **args["volumes"][0]["volume"],
-    }
+    assert job.spec.template.spec.volumes == args["volumes"]
     assert (
         job.spec.template.spec.node_selector["test-selector"]
         == args["node_selectors"]["test-selector"]
     )
     container = job.spec.template.spec.containers[0]
     assert "test.registry/repo_name" in container.image
-    assert container["volumeMounts"][0] == {"name": mountedVolName, **mount}
+    assert container["volumeMounts"] == args["volume_mounts"]
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 
