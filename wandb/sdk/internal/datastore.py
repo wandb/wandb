@@ -56,7 +56,7 @@ except Exception:
 
 
 class DataStore:
-    def __init__(self):
+    def __init__(self) -> None:
         self._opened_for_scan = False
         self._fp = None
         self._index = 0
@@ -70,7 +70,7 @@ class DataStore:
             wandb._assert_is_internal_process
         ), "DataStore can only be used in the internal process"
 
-    def open_for_write(self, fname):
+    def open_for_write(self, fname: str) -> None:
         self._fname = fname
         logger.info("open: %s", fname)
         open_flags = "xb"
@@ -257,7 +257,7 @@ class DataStore:
 
         return file_offset, self._index - file_offset, flush_index, flush_offset
 
-    def write(self, obj):
+    def write(self, obj: "Record") -> None:
         """Write a protocol buffer.
 
         Arguments:
@@ -274,7 +274,7 @@ class DataStore:
         ret = self._write_data(s)
         return ret
 
-    def close(self):
+    def close(self) -> None:
         if self._fp is not None:
             logger.info("close: %s", self._fname)
             self._fp.close()

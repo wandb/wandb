@@ -31,7 +31,7 @@ from wandb.util import sentry_exc, sentry_set_scope
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog
-from . import handler, internal_util, reader, sender, settings_static, writer
+from . import handler, internal_util, sender, settings_static, writer
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -104,16 +104,13 @@ def wandb_internal(
     write_record_q: "Queue[Record]" = queue.Queue()
     tracelog.annotate_queue(write_record_q, "write_q")
 
-    read_record_q: "Queue[Record]" = queue.Queue()
-    tracelog.annotate_queue(read_record_q, "read_q")
-
     record_sender_thread = SenderThread(
         settings=_settings,
         record_q=send_record_q,
         result_q=result_q,
         stopped=stopped,
         interface=publish_interface,
-        reader_q=read_record_q,
+        writer_q=write_record_q,
         debounce_interval_ms=30000,
     )
     threads.append(record_sender_thread)
@@ -123,19 +120,9 @@ def wandb_internal(
         record_q=write_record_q,
         result_q=result_q,
         stopped=stopped,
-        reader_q=read_record_q,
-    )
-    threads.append(record_writer_thread)
-
-    record_reader_thread = ReaderThread(
-        settings=_settings,
-        record_q=read_record_q,
-        result_q=result_q,
-        stopped=stopped,
-        writer_q=write_record_q,
         sender_q=send_record_q,
     )
-    threads.append(record_reader_thread)
+    threads.append(record_writer_thread)
 
     record_handler_thread = HandlerThread(
         settings=_settings,
@@ -292,7 +279,7 @@ class SenderThread(internal_util.RecordLoopThread):
         settings: "SettingsStatic",
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
-        reader_q: "Queue[Record]",
+        writer_q: "Queue[Record]",
         stopped: "Event",
         interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 5000,
@@ -307,7 +294,7 @@ class SenderThread(internal_util.RecordLoopThread):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
-        self._reader_q = reader_q
+        self._writer_q = writer_q
         self._interface = interface
 
     def _setup(self) -> None:
@@ -315,7 +302,7 @@ class SenderThread(internal_util.RecordLoopThread):
             settings=self._settings,
             record_q=self._record_q,
             result_q=self._result_q,
-            reader_q=self._reader_q,
+            writer_q=self._writer_q,
             interface=self._interface,
         )
 
@@ -341,7 +328,7 @@ class WriterThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        reader_q: "Queue[Record]",
+        sender_q: "Queue[Record]",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
         super().__init__(
@@ -354,14 +341,14 @@ class WriterThread(internal_util.RecordLoopThread):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
-        self._reader_q = reader_q
+        self._sender_q = sender_q
 
     def _setup(self) -> None:
         self._wm = writer.WriteManager(
             settings=self._settings,
             record_q=self._record_q,
             result_q=self._result_q,
-            reader_q=self._reader_q,
+            sender_q=self._sender_q,
         )
 
     def _process(self, record: "Record") -> None:
@@ -372,54 +359,6 @@ class WriterThread(internal_util.RecordLoopThread):
 
     def _debounce(self) -> None:
         self._wm.debounce()
-
-
-class ReaderThread(internal_util.RecordLoopThread):
-    """Read records from queue and dispatch to writer routines."""
-
-    _record_q: "Queue[Record]"
-    _result_q: "Queue[Result]"
-
-    def __init__(
-        self,
-        settings: "SettingsStatic",
-        record_q: "Queue[Record]",
-        result_q: "Queue[Result]",
-        stopped: "Event",
-        sender_q: "Queue[Record]",
-        writer_q: "Queue[Record]",
-        debounce_interval_ms: "float" = 1000,
-    ) -> None:
-        super().__init__(
-            input_record_q=record_q,
-            result_q=result_q,
-            stopped=stopped,
-            debounce_interval_ms=debounce_interval_ms,
-        )
-        self.name = "ReaderThread"
-        self._settings = settings
-        self._record_q = record_q
-        self._result_q = result_q
-        self._sender_q = sender_q
-        self._writer_q = writer_q
-
-    def _setup(self) -> None:
-        self._rm = reader.ReadManager(
-            settings=self._settings,
-            record_q=self._record_q,
-            result_q=self._result_q,
-            sender_q=self._sender_q,
-            writer_q=self._writer_q,
-        )
-
-    def _process(self, record: "Record") -> None:
-        self._rm.read(record)
-
-    def _finish(self) -> None:
-        self._rm.finish()
-
-    def _debounce(self) -> None:
-        self._rm.debounce()
 
 
 class ProcessCheck:
