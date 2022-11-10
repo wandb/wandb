@@ -4175,6 +4175,7 @@ class Artifact(artifacts.Artifact):
         self._entity = entity
         self._project = project
         self._artifact_name = name
+        self._artifact_collection_name = name.split(":")[0]
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -4182,12 +4183,15 @@ class Artifact(artifacts.Artifact):
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
         self._version_index = self._attrs.get("versionIndex", None)
+        # We will only show aliases under the Collection this artifact version is fetched from
+        # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
-            and a["artifactCollectionName"] == self._sequence_name
+            and a["artifactCollectionName"] == self._artifact_collection_name
         ]
+        self._frozen_aliases = [a for a in self._aliases]
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4693,25 +4697,149 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        aliases = None
+        if not valid:
+            # If valid, wandb backend version >= 0.13.0.
+            # This means we can safely remove aliases from this updateArtifact request since we'll be calling
+            # the alias endpoints below in _save_alias_changes.
+            # If not valid, wandb backend version < 0.13.0. This requires aliases to be sent in updateArtifact.
+            aliases = [
+                {
+                    "artifactCollectionName": self._artifact_collection_name,
+                    "alias": alias,
+                }
+                for alias in self._aliases
+            ]
+
         self.client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": util.json_dumps_safer(self.metadata),
-                "aliases": [
-                    {
-                        "artifactCollectionName": self._sequence_name,
-                        "alias": alias,
-                    }
-                    for alias in self._aliases
-                ],
+                "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
+                "aliases": aliases,
             },
         )
+        # Save locally modified aliases
+        self._save_alias_changes()
         return True
 
     def wait(self):
         return self
+
+    @normalize_exceptions
+    def _save_alias_changes(self):
+        """
+        Convenience function called by artifact.save() to persist alias changes
+        on this artifact to the wandb backend.
+        """
+
+        aliases_to_add = set(self._aliases) - set(self._frozen_aliases)
+        aliases_to_remove = set(self._frozen_aliases) - set(self._aliases)
+
+        # Introspect
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        if not valid:
+            return
+
+        if len(aliases_to_add) > 0:
+            add_mutation = gql(
+                """
+            mutation addAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                addAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                add_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_add
+                    ],
+                },
+            )
+
+        if len(aliases_to_remove) > 0:
+            delete_mutation = gql(
+                """
+            mutation deleteAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                deleteAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                delete_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_remove
+                    ],
+                },
+            )
+
+        # reset local state
+        self._frozen_aliases = self._aliases
+        return True
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -4992,7 +5120,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters or {}
+        self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.order = order
         variables = {
             "project": self.project,
@@ -5198,7 +5326,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
@@ -5216,7 +5344,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("source", {}).get("image")
@@ -5227,7 +5355,7 @@ class Job:
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint
