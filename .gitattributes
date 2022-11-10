@@ -1,4 +1,6 @@
 wandb/vendor/** linguist-vendored
 wandb/proto/v*/*_pb2.py linguist-generated
 wandb/proto/v*/*_pb2.pyi linguist-generated
+wandb/proto/v*/*_pb2_grpc.py linguist-generated
+wandb/proto/v*/*_pb2_grpc.pyi linguist-generated
 *_generated.py linguist-generated
