@@ -1,37 +1,24 @@
 """Flow Control.
 
-    States
-    ------
-    ACTIVE = Streaming every record to the sender
-    PAUSED = Collecting requests to the current block
-    READING = Managing the read queue of the sender
-    RESTARTING = Transitionary state waiting for request
-                 completing a block
-
-    Examples
-    --------
-    |   Block1   |   Block2   |   Block3   |   Block4   |
-    |      < 0><  1 ><-2-><--3-->          |            |
-
-inmem col: 0        col 1,2       col 3
-
-Q: can we only keep track of starting block... it will make things easier
-
-we might be able to use the next starting block, which is actually want we probably want
-but if we used next starting block we might need to look at startingblock+offset to know that the previous request was in the
-fully in the previous block (ie, offset would have to be zero)
-
+States:
 
 New messages:
-  mark_position    writer -> sender (has an ID)
-  report position  sender -> writer
-  read data        writer -> sender (go read this data for me)
-
+    mark_position    writer -> sender (has an ID)
+    report position  sender -> writer
+    read data        writer -> sender (go read this data for me)
 
 Thresholds:
-    ThresholdMaxOutstandingData       - When above this, stop sending requests to sender
-    ThresholdStartSendingReadRequests - When below this, start sending read requests
-    ThresholdRestartSendingData       - When below this, start sending normal records
+    Threshold_High_MaxOutstandingData       - When above this, stop sending requests to sender
+    Threshold_Mid_StartSendingReadRequests - When below this, start sending read requests
+    Threshold_Low_RestartSendingData       - When below this, start sending normal records
+
+State machine:
+    ACTIVE  - Streaming every record to the sender in memory
+      -> PAUSED when oustanding_data > Threshold_High_MaxOutstandingData
+    PAUSED  - Writing records to disk and waiting for sender to drain
+      -> READING when outstanding_data < Threshold_Mid_StartSendingReadRequests
+    READING - Reading from disk and waiting for sender to drain
+      -> ACTIVE when outstanding_data < Threshold_Low_RestartSendingData
 
 """
 
