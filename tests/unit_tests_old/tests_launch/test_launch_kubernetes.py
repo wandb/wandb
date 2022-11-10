@@ -291,7 +291,7 @@ def test_launch_kube(
     )
     container = job.spec.template.spec.containers[0]
     assert "test.registry/repo_name" in container.image
-    assert container.volume_mounts[0] == {"name": mountedVolName, **mount}
+    assert container["volumeMounts"][0] == {"name": mountedVolName, **mount}
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 
