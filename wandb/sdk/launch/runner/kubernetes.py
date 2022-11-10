@@ -206,7 +206,7 @@ class KubernetesRunner(AbstractRunner):
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
             if resource_args.get("volume_mounts") is not None:
-                vol_mounts = resource_args.get("volumes_mounts")
+                vol_mounts = resource_args.get("volume_mounts")
                 if not isinstance(vol_mounts, list):
                     raise LaunchError(
                         "volume mounts must be a list of volume mount specifications"
