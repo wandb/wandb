@@ -156,6 +156,9 @@ class Memory:
 
     def finish(self) -> None:
         self.metrics_monitor.finish()
+        for metric in self.metrics:
+            if hasattr(metric, "process"):
+                metric.process = None
 
     @classmethod
     def is_available(cls) -> bool:
