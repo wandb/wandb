@@ -174,3 +174,7 @@ class MetricsMonitor:
             self._process.join()
             logger.info(f"Joined {self._process.name}")
         self._process = None
+
+        for metric in self.metrics:
+            if hasattr(metric, "process"):
+                metric.process = None
