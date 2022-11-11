@@ -441,33 +441,6 @@ def test_launch_agent_launch_error_continue(
         assert "except caught, acked item" in result.output
 
 
-def test_launch_build_requires_queue(runner, test_settings, live_mock_server):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--project=test_project",
-        "--entity=mock_server_entity",
-        "--build",
-    ]
-    result = runner.invoke(cli.launch, args)
-    assert result.exit_code == 1
-    assert "Build flag requires a queue to be set" in str(result.output)
-
-
-def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--entity",
-        "mock_server_entity",
-        "--queue",
-    ]
-    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
-    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli.launch, args)
-
-        assert "Could not connect with current API-key." in result.output
-
-
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
