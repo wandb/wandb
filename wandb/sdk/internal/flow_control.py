@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.sdk.lib import telemetry
+from wandb.sdk.lib import fsm, telemetry
 
 from .settings_static import SettingsStatic
 
@@ -72,6 +72,7 @@ class FlowControl:
 
     _telemetry_obj: tpb.TelemetryRecord
     _telemetry_overflow: bool
+    _fsm: fsm.Fsm["Record"]
 
     def __init__(
         self,
@@ -107,6 +108,16 @@ class FlowControl:
 
         self._telemetry_obj = tpb.TelemetryRecord()
         self._telemetry_overflow = False
+
+        fsm_table: fsm.FsmTable[Record] = {
+            StateForwarding: [(self._should_pause, StateForwarding)],
+            StatePaused: [(self._should_read, StateForwarding)],
+            StateReading: [(self._should_forward, StateForwarding)],
+        }
+        self._fsm = fsm.Fsm(
+            states=[StateForwarding(self), StatePaused(self), StateReading(self)],
+            table=fsm_table,
+        )
 
     def _telemetry_record_overflow(self) -> None:
         if self._telemetry_overflow:
@@ -197,7 +208,18 @@ class FlowControl:
     def _maybe_transition_active(self) -> None:
         pass
 
+    def _should_pause(self, data: "Record") -> bool:
+        return False
+
+    def _should_read(self, data: "Record") -> bool:
+        return False
+
+    def _should_forward(self, data: "Record") -> bool:
+        return False
+
     def direct(self, record: "Record") -> None:
+
+        self._fsm.run(record)
 
         self._process_record(record)
         if not self._is_control_record(record):
@@ -222,3 +244,27 @@ class FlowControl:
             pass
         elif self._state == _SendState.READING:
             pass
+
+
+class StateForwarding:
+    def __init__(self, flow: FlowControl) -> None:
+        self._flow = flow
+
+    def run(self, data: "Record") -> None:
+        pass
+
+
+class StatePaused:
+    def __init__(self, flow: FlowControl) -> None:
+        self._flow = flow
+
+    def run(self, data: "Record") -> None:
+        pass
+
+
+class StateReading:
+    def __init__(self, flow: FlowControl) -> None:
+        self._flow = flow
+
+    def run(self, data: "Record") -> None:
+        pass
