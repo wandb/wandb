@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.lib import telemetry
 
 from .settings_static import SettingsStatic
 
@@ -68,6 +70,9 @@ class FlowControl:
     _last_write: _WriteInfo
     _mark_dict: Dict[int, _MarkInfo]
 
+    _telemetry_obj: tpb.TelemetryRecord
+    _telemetry_overflow: bool
+
     def __init__(
         self,
         settings: SettingsStatic,
@@ -80,7 +85,7 @@ class FlowControl:
         self._write_record = write_record  # type: ignore
         self._ensure_flushed = ensure_flushed  # type: ignore
 
-        # thresholds to define when to PAUSE and RESTART
+        # thresholds to define when to PAUSE, RESTART, ACTIVE
         self._threshold_block_high = 128  # 4MB
         self._threshold_block_mid = 64  # 2MB
         self._threshold_block_low = 16  # 512kB
@@ -99,6 +104,19 @@ class FlowControl:
         self._mark_dict = {}
         self._mark_block_sent = 0
         self._mark_block_reported = 0
+
+        self._telemetry_obj = tpb.TelemetryRecord()
+        self._telemetry_overflow = False
+
+    def _telemetry_record_overflow(self) -> None:
+        if self._telemetry_overflow:
+            return
+        self._telemetry_overflow = True
+        with telemetry.context(obj=self._telemetry_obj) as tel:
+            tel.feature.flow_control_overflow = True
+        record = pb.Record()
+        record.telemetry.CopyFrom(self._telemetry_obj)
+        self._forward_record(record)
 
     def _get_request_type(self, record: "Record") -> Optional[str]:
         record_type = record.WhichOneof("record_type")
@@ -167,10 +185,10 @@ class FlowControl:
         pass
 
     def _maybe_transition_pause(self) -> None:
-        """Stop sending data to the sender if it is backed up."""
         if self._behind_blocks() < self._threshold_block_high:
             return
         self._state = _SendState.PAUSED
+        self._telemetry_record_overflow()
         self._send_mark()
 
     def _maybe_transition_reading(self) -> None:
