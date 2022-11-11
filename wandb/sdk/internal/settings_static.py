@@ -11,6 +11,7 @@ class SettingsStatic:
     _offline: Optional[bool]
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
+    _flow_control: bool
     _start_time: float
     _start_datetime: str
     _stats_pid: int

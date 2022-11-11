@@ -81,8 +81,10 @@ class FlowControl:
         self._ensure_flushed = ensure_flushed  # type: ignore
 
         # thresholds to define when to PAUSE and RESTART
-        self._threshold_block_high = 8
-        self._threshold_block_low = 4
+        self._threshold_block_high = 128  # 4MB
+        self._threshold_block_mid = 64  # 2MB
+        self._threshold_block_low = 16  # 512kB
+        self._mark_granularity_blocks = 2  # 64kB
 
         # track last written request
         self._last_write = _WriteInfo()
@@ -125,7 +127,7 @@ class FlowControl:
     def _process_report_sender_position(self, record: "Record") -> None:
         pass
 
-    def _send_mark(self, mark_type: _MarkType=_MarkType.DEFAULT) -> None:
+    def _send_mark(self, mark_type: _MarkType = _MarkType.DEFAULT) -> None:
         mark_id = self._mark_id
         self._mark_id += 1
 
@@ -161,6 +163,9 @@ class FlowControl:
         # )
         return behind_blocks
 
+    def flush(self) -> None:
+        pass
+
     def _maybe_transition_pause(self) -> None:
         """Stop sending data to the sender if it is backed up."""
         if self._behind_blocks() < self._threshold_block_high:
@@ -172,9 +177,6 @@ class FlowControl:
         pass
 
     def _maybe_transition_active(self) -> None:
-        pass
-
-    def flush(self) -> None:
         pass
 
     def direct(self, record: "Record") -> None:

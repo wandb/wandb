@@ -43,6 +43,16 @@ from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
+
+# Module level defaults
+#   Flow control is temporarily disabled while being validated.
+#     Eventually enabled by default and later removed as setting.
+
+# FIXME(jhr): this the below line should be uncommented
+# _FLOW_CONTROL_DEFAULT: bool = False
+_FLOW_CONTROL_DEFAULT: bool = True
+
+
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
 elif sys.version_info >= (3, 7):
@@ -371,6 +381,7 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _flow_control: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
     _jupyter: bool
@@ -498,6 +509,10 @@ class Settings:
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _flow_control={
+                "value": _FLOW_CONTROL_DEFAULT,
+                "preprocessor": _str_as_bool,
+            },
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
