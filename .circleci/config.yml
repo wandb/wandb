@@ -288,6 +288,9 @@ jobs:
       xdist:
         type: integer
         default: 6
+      test_path:
+        type: string
+        default: tests/unit_tests
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -318,7 +321,7 @@ jobs:
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.test_path >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -330,6 +333,38 @@ jobs:
                 mentions: "@channel"
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
+  pex:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install pex
+          command: |
+            pip install -U pip
+            pip install pex
+          no_output_timeout: 5m
+      - run:
+          name: Run pex test
+          no_output_timeout: 5m
+          command: |
+            pex . -o wandb.pex
+            ./wandb.pex -c "import wandb; wandb.init(mode='offline'); wandb.finish()"
+      - save-test-results
 
   win:
     parameters:
@@ -1154,6 +1189,18 @@ workflows:
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
+      # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          test_path: "tests/unit_tests/tests_launch"
+
+      #
       # Functional tests with yea on Linux (base only)
       #
       - tox-base:
@@ -1253,6 +1300,11 @@ workflows:
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
+      #
+      # pex test
+      #
+      - pex:
+          name: "pex"
 
   # todo: needs love
   #  manual_test:
