@@ -44,7 +44,7 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
-LOG_PREFIX = f"{click.style('launch:', fg='magenta')}: "
+LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 
 def _is_wandb_uri(uri: str) -> bool:
