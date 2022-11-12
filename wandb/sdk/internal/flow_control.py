@@ -13,12 +13,12 @@ Thresholds:
     Threshold_Low_RestartSendingData       - When below this, start sending normal records
 
 State machine:
-    ACTIVE  - Streaming every record to the sender in memory
+    FORWARDING  - Streaming every record to the sender in memory
       -> PAUSED when oustanding_data > Threshold_High_MaxOutstandingData
     PAUSED  - Writing records to disk and waiting for sender to drain
       -> READING when outstanding_data < Threshold_Mid_StartSendingReadRequests
     READING - Reading from disk and waiting for sender to drain
-      -> ACTIVE when outstanding_data < Threshold_Low_RestartSendingData
+      -> FORWARDING when outstanding_data < Threshold_Low_RestartSendingData
 
 """
 
@@ -37,12 +37,6 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record
 
 logger = logging.getLogger(__name__)
-
-
-class _SendState(enum.Enum):
-    ACTIVE = 1
-    PAUSED = 2
-    READING = 3
 
 
 class _MarkType(enum.Enum):
@@ -101,7 +95,7 @@ class FlowControl:
         self._write_record = write_record  # type: ignore
         self._ensure_flushed = ensure_flushed  # type: ignore
 
-        # thresholds to define when to PAUSE, RESTART, ACTIVE
+        # thresholds to define when to PAUSE, RESTART, FORWARDING
         self._threshold_block_high = 128  # 4MB
         self._threshold_block_mid = 64  # 2MB
         self._threshold_block_low = 16  # 512kB
@@ -109,9 +103,6 @@ class FlowControl:
 
         # track last written request
         self._last_write = _WriteInfo()
-
-        # state machine ACTIVE -> PAUSED -> RESTARTING -> ACTIVE ...
-        self._state = _SendState.ACTIVE
 
         # periodic probes sent to the sender to find out how backed up we are
         self._mark_id = 0
@@ -124,9 +115,10 @@ class FlowControl:
         self._telemetry_obj = tpb.TelemetryRecord()
         self._telemetry_overflow = False
 
+        # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
-            StateForwarding: [(self._should_pause, StateForwarding)],
-            StatePaused: [(self._should_read, StateForwarding)],
+            StateForwarding: [(self._should_pause, StatePaused)],
+            StatePaused: [(self._should_read, StateReading)],
             StateReading: [(self._should_forward, StateForwarding)],
         }
         self._fsm = fsm.Fsm(
@@ -208,7 +200,7 @@ class FlowControl:
     def _should_forward(self, data: "Record") -> bool:
         return False
 
-    def direct(self, record: "Record") -> None:
+    def send_with_flow_control(self, record: "Record") -> None:
 
         self._process_record(record)
 

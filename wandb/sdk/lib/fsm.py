@@ -47,21 +47,21 @@ T_FsmData = TypeVar("T_FsmData", contravariant=True)
 class FsmStateRun(Protocol[T_FsmData]):
     @abstractmethod
     def run(self, data: T_FsmData) -> None:
-        ...
+        ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateEnter(Protocol[T_FsmData]):
     @abstractmethod
-    def enter(self, data: T_FsmData) -> None:
-        ...
+    def on_enter(self, data: T_FsmData) -> None:
+        ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateExit(Protocol[T_FsmData]):
     @abstractmethod
-    def exit(self, data: T_FsmData) -> None:
-        ...
+    def on_exit(self, data: T_FsmData) -> None:
+        ...  # pragma: no cover
 
 
 FsmState: TypeAlias = Union[
@@ -71,7 +71,7 @@ FsmState: TypeAlias = Union[
 
 class FsmCondition(Protocol[T_FsmData]):
     def __call__(self, data: T_FsmData) -> bool:
-        ...
+        ...  # pragma: no cover
 
 
 FsmTable: TypeAlias = Dict[
@@ -94,12 +94,12 @@ class Fsm(Generic[T_FsmData]):
         self, data: T_FsmData, new_state: Type[FsmState[T_FsmData]]
     ) -> None:
         if isinstance(self._state, FsmStateEnter):
-            self._state.enter(data)
+            self._state.on_enter(data)
 
         self._state = self._state_dict[new_state]
 
         if isinstance(self._state, FsmStateExit):
-            self._state.exit(data)
+            self._state.on_exit(data)
 
     def _check_transitions(self, data: T_FsmData) -> None:
         for cond, new_state in self._table[type(self._state)]:

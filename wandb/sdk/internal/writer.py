@@ -78,7 +78,7 @@ class WriteManager:
             return
 
         # FlowControl will write data to disk and throttle sending to the sender
-        self._flow_control.direct(record)
+        self._flow_control.send_with_flow_control(record)
 
     def finish(self) -> None:
         if self._ds:
