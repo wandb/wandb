@@ -20,13 +20,19 @@ class RecordFactory:
 
 class RecordSim:
     def __init__(self):
-        pass
+        self._offset = 0
 
     def write_record(self, record):
-        print("W:", record)
+        write_id = record.history.step.num
+        self._offset += write_id * 100
+        # print("W:", record)
+        print("W:", write_id, self._offset)
+        return self._offset
 
     def forward_record(self, record):
-        print("F:", record)
+        write_id = record.history.step.num
+        # print("F:", record)
+        print("F:", write_id)
 
     def ensure_flushed(self, record):
         pass

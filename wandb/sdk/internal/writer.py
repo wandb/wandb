@@ -57,8 +57,8 @@ class WriteManager:
         ret = self._ds.write(record)
         assert ret is not None
 
-        (file_offset, _, _, _) = ret
-        return file_offset
+        (start_offset, msg_len, _, _) = ret
+        return start_offset + msg_len
 
     def _ensure_flushed(self, offset: int) -> None:
         pass
