@@ -189,15 +189,15 @@ class FlowControl:
     def flush(self) -> None:
         pass
 
-    def _should_pause(self, data: "Record") -> bool:
+    def _should_pause(self, inputs: "Record") -> bool:
         if self._behind_blocks() < self._threshold_block_high:
             return False
         return True
 
-    def _should_read(self, data: "Record") -> bool:
+    def _should_read(self, inputs: "Record") -> bool:
         return False
 
-    def _should_forward(self, data: "Record") -> bool:
+    def _should_forward(self, inputs: "Record") -> bool:
         return False
 
     def send_with_flow_control(self, record: "Record") -> None:
