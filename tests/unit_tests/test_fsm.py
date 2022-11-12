@@ -1,4 +1,3 @@
-from wandb.sdk.lib import fsm
 from wandb.sdk.lib.fsm import Fsm
 
 
