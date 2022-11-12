@@ -62,6 +62,21 @@ class _WriteInfo:
     block: int = 0
 
 
+def _get_request_type(record: "Record") -> Optional[str]:
+    record_type = record.WhichOneof("record_type")
+    if record_type != "request":
+        return None
+    request_type = record.request.WhichOneof("request_type")
+    return request_type
+
+
+def _is_control_record(record: "Record") -> bool:
+    request_type = _get_request_type(record)
+    if request_type not in {"sender_mark_report"}:
+        return False
+    return True
+
+
 class FlowControl:
     _settings: SettingsStatic
     _forward_record: Callable[[Any, "Record"], None]
@@ -129,21 +144,8 @@ class FlowControl:
         record.telemetry.CopyFrom(self._telemetry_obj)
         self._forward_record(record)
 
-    def _get_request_type(self, record: "Record") -> Optional[str]:
-        record_type = record.WhichOneof("record_type")
-        if record_type != "request":
-            return None
-        request_type = record.request.WhichOneof("request_type")
-        return request_type
-
-    def _is_control_record(self, record: "Record") -> bool:
-        request_type = self._get_request_type(record)
-        if request_type not in {"sender_mark_report"}:
-            return False
-        return True
-
     def _process_record(self, record: "Record") -> None:
-        request_type = self._get_request_type(record)
+        request_type = _get_request_type(record)
         if request_type == "sender_mark_report":
             self._process_sender_mark_report(record)
 
@@ -195,21 +197,10 @@ class FlowControl:
     def flush(self) -> None:
         pass
 
-    def _maybe_transition_pause(self) -> None:
-        if self._behind_blocks() < self._threshold_block_high:
-            return
-        self._state = _SendState.PAUSED
-        self._telemetry_record_overflow()
-        self._send_mark()
-
-    def _maybe_transition_reading(self) -> None:
-        pass
-
-    def _maybe_transition_active(self) -> None:
-        pass
-
     def _should_pause(self, data: "Record") -> bool:
-        return False
+        if self._behind_blocks() < self._threshold_block_high:
+            return False
+        return True
 
     def _should_read(self, data: "Record") -> bool:
         return False
@@ -219,52 +210,42 @@ class FlowControl:
 
     def direct(self, record: "Record") -> None:
 
-        self._fsm.run(record)
-
         self._process_record(record)
-        if not self._is_control_record(record):
+
+        if not _is_control_record(record):
             self._write_record(record)
 
-        # Transition sending state machine
-        if self._state == _SendState.ACTIVE:
-            self._maybe_transition_pause()
-        elif self._state == _SendState.PAUSED:
-            self._maybe_transition_reading()
-        elif self._state == _SendState.READING:
-            self._maybe_transition_active()
-
-        if self._is_control_record(record):
-            return
-
-        # Execute sending state machine actions
-        if self._state == _SendState.ACTIVE:
-            self._forward_record(record)
-            self._maybe_send_mark()
-        elif self._state == _SendState.PAUSED:
-            pass
-        elif self._state == _SendState.READING:
-            pass
+        self._fsm.run(record)
 
 
 class StateForwarding:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
-    def run(self, data: "Record") -> None:
-        pass
+    def run(self, record: "Record") -> None:
+        if _is_control_record(record):
+            return
+        self._flow._forward_record(record)
+        self._flow._maybe_send_mark()
 
 
 class StatePaused:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
-    def run(self, data: "Record") -> None:
-        pass
+    def enter(self, record: "Record") -> None:
+        self._flow._telemetry_record_overflow()
+        self._flow._send_mark()
+
+    def run(self, record: "Record") -> None:
+        if _is_control_record(record):
+            return
 
 
 class StateReading:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
-    def run(self, data: "Record") -> None:
-        pass
+    def run(self, record: "Record") -> None:
+        if _is_control_record(record):
+            return
