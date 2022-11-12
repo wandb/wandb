@@ -52,16 +52,13 @@ class WriteManager:
         tracelog.log_message_queue(record, self._sender_q)
         self._sender_q.put(record)
 
-    def _write_record(self, record: "Record") -> flow_control._WriteInfo:
+    def _write_record(self, record: "Record") -> int:
         assert self._ds
         ret = self._ds.write(record)
         assert ret is not None
 
-        (file_offset, data_length, _, _) = ret
-        write_info = flow_control._WriteInfo(
-            offset=file_offset, block=file_offset // datastore.LEVELDBLOG_BLOCK_LEN
-        )
-        return write_info
+        (file_offset, _, _, _) = ret
+        return file_offset
 
     def _ensure_flushed(self, offset: int) -> None:
         pass

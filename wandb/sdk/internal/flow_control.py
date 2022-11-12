@@ -22,10 +22,8 @@ State machine:
 
 """
 
-import enum
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -37,23 +35,6 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record
 
 logger = logging.getLogger(__name__)
-
-
-class _MarkType(enum.Enum):
-    DEFAULT = 1
-    PAUSE = 2
-
-
-@dataclass
-class _MarkInfo:
-    block: int
-    mark_type: _MarkType
-
-
-@dataclass
-class _WriteInfo:
-    offset: int = 0
-    block: int = 0
 
 
 def _get_request_type(record: "Record") -> Optional[str]:
@@ -74,10 +55,9 @@ def _is_control_record(record: "Record") -> bool:
 class FlowControl:
     _settings: SettingsStatic
     _forward_record: Callable[[Any, "Record"], None]
-    _write_record: Callable[[Any, "Record"], _WriteInfo]
+    _write_record: Callable[[Any, "Record"], int]
     _ensure_flushed: Callable[[Any, int], None]
-    _last_write: _WriteInfo
-    _mark_dict: Dict[int, _MarkInfo]
+    _last_write_offset: int
 
     _telemetry_obj: tpb.TelemetryRecord
     _telemetry_overflow: bool
@@ -87,7 +67,7 @@ class FlowControl:
         self,
         settings: SettingsStatic,
         forward_record: Callable[["Record"], None],
-        write_record: Callable[["Record"], _WriteInfo],
+        write_record: Callable[["Record"], int],
         ensure_flushed: Callable[["int"], None],
     ) -> None:
         self._settings = settings
@@ -102,15 +82,11 @@ class FlowControl:
         self._mark_granularity_blocks = 2  # 64kB
 
         # track last written request
-        self._last_write = _WriteInfo()
+        self._last_write_offset = 0
 
         # periodic probes sent to the sender to find out how backed up we are
-        self._mark_id = 0
-        self._mark_id_sent = 0
-        self._mark_id_reported = 0
-        self._mark_dict = {}
-        self._mark_block_sent = 0
-        self._mark_block_reported = 0
+        self._mark_write_offset_sent = 0
+        self._mark_write_offset_reported = 0
 
         self._telemetry_obj = tpb.TelemetryRecord()
         self._telemetry_overflow = False
@@ -143,27 +119,20 @@ class FlowControl:
 
     def _process_sender_mark_report(self, record: "Record") -> None:
         mark_id = record.request.sender_mark_report.mark_id
-        mark_info = self._mark_dict.pop(mark_id)
-        self._mark_id_reported = mark_id
-        self._mark_reported_block = mark_info.block
+        self._mark_write_offset_reported = mark_id
 
     def _process_report_sender_position(self, record: "Record") -> None:
         pass
 
-    def _send_mark(self, mark_type: _MarkType = _MarkType.DEFAULT) -> None:
-        mark_id = self._mark_id
-        self._mark_id += 1
-
-        sender_mark = pb.SenderMarkRequest(mark_id=mark_id)
-        request = pb.Request()
-        request.sender_mark.CopyFrom(sender_mark)
+    def _send_mark(self) -> None:
         record = pb.Record()
+        request = pb.Request()
+        last_write_offset = self._last_write_offset
+        sender_mark = pb.SenderMarkRequest(mark_id=last_write_offset)
+        request.sender_mark.CopyFrom(sender_mark)
         record.request.CopyFrom(request)
         self._forward_record(record)
-        self._mark_id_sent = mark_id
-        block = self._last_write.block
-        self._mark_dict[mark_id] = _MarkInfo(block=block, mark_type=mark_type)
-        self._mark_sent_block = block
+        self._mark_sent_write_offset = last_write_offset
 
     def _maybe_send_mark(self) -> None:
         """Send mark if we are writting the first record in a block."""
@@ -178,19 +147,15 @@ class FlowControl:
         # and N time has elapsed
         # send message asking sender to read from last_read_offset to current_offset
 
-    def _behind_blocks(self) -> int:
-        # behind_ids = self._mark_id_sent - self._mark_id_reported
-        behind_blocks = self._mark_block_sent - self._mark_block_reported
-        # print(
-        #     f"BEHIND id={behind_ids} b={behind_blocks} sent={self._mark_id_sent} rep{self._mark_id_reported}"
-        # )
-        return behind_blocks
+    def _behind_bytes(self) -> int:
+        behind_bytes = self._mark_write_offset_sent - self._mark_write_offset_reported
+        return behind_bytes
 
     def flush(self) -> None:
         pass
 
     def _should_pause(self, inputs: "Record") -> bool:
-        if self._behind_blocks() < self._threshold_block_high:
+        if self._behind_bytes() < self._threshold_block_high:
             return False
         return True
 
@@ -201,7 +166,6 @@ class FlowControl:
         return False
 
     def send_with_flow_control(self, record: "Record") -> None:
-
         self._process_record(record)
 
         if not _is_control_record(record):
