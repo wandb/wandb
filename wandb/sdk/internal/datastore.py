@@ -20,7 +20,7 @@ import logging
 import os
 import struct
 import zlib
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 import wandb
 
@@ -60,10 +60,14 @@ except Exception:
 
 
 class DataStore:
+    _index: int
+    _flush_offset: int
+
     def __init__(self) -> None:
         self._opened_for_scan = False
         self._fp = None
         self._index = 0
+        self._flush_offset = 0
         self._size_bytes = 0
 
         self._crc = [0] * (LEVELDBLOG_LAST + 1)
@@ -216,9 +220,7 @@ class DataStore:
         self._index += LEVELDBLOG_HEADER_LEN + len(s)
 
     def _write_data(self, s):
-        file_offset = self._index
-        flush_index = 0
-        flush_offset = 0
+        start_offset = self._index
 
         offset = self._index % LEVELDBLOG_BLOCK_LEN
         space_left = LEVELDBLOG_BLOCK_LEN - offset
@@ -258,17 +260,18 @@ class DataStore:
             self._write_record(s[data_used:], LEVELDBLOG_LAST)
             self._fp.flush()
             os.fsync(self._fp.fileno())
+            self._flush_offset = self._index
 
-        return file_offset, self._index - file_offset, flush_index, flush_offset
+        return start_offset, self._index, self._flush_offset
 
-    def write(self, obj: "Record") -> Tuple[int, int, Optional[int], Optional[int]]:
+    def write(self, obj: "Record") -> Tuple[int, int, int]:
         """Write a protocol buffer.
 
         Arguments:
             obj: Protocol buffer to write.
 
         Returns:
-            (file_offset, length, flush_index, flush_offset) if successful,
+            (start_offset, end_offset, flush_offset) if successful,
             None otherwise
 
         """

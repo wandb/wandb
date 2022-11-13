@@ -21,6 +21,7 @@ class RecordFactory:
 class RecordSim:
     def __init__(self):
         self._offset = 0
+        self._control_records = []
 
     def write_record(self, record):
         write_id = record.history.step.num
@@ -33,9 +34,26 @@ class RecordSim:
         write_id = record.history.step.num
         # print("F:", record)
         print("F:", write_id)
+        request_type = record.request.WhichOneof("request_type")
+        if request_type == "sender_mark":
+            mark_id = record.request.sender_mark.mark_id
+            rec = pb.Record()
+            req = pb.Request()
+            mark_report = pb.SenderMarkReportRequest(mark_id=mark_id)
+            req.sender_mark_report.CopyFrom(mark_report)
+            rec.request.CopyFrom(req)
+            self.respond(rec)
+
+    def respond(self, record):
+        self._control_records.append(record)
 
     def ensure_flushed(self, record):
         pass
+
+    def get_controls(self):
+        res = self._control_records[:]
+        self._control_records = []
+        return res
 
 
 def test_sim_flow():
@@ -51,5 +69,10 @@ def test_sim_flow():
 
     f = RecordFactory()
     for _ in range(20):
+
+        controls = sim.get_controls()
+        for c in controls:
+            print("C", c)
+
         rec = f.get_record()
         flow.send_with_flow_control(rec)

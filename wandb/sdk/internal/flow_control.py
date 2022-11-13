@@ -15,9 +15,9 @@ Thresholds:
 State machine:
     FORWARDING  - Streaming every record to the sender in memory
       -> PAUSED when oustanding_data > Threshold_High_MaxOutstandingData
-    PAUSED  - Writing records to disk and waiting for sender to drain
-      -> READING when outstanding_data < Threshold_Mid_StartSendingReadRequests
-    READING - Reading from disk and waiting for sender to drain
+    PAUSING  - Writing records to disk and waiting for sender to drain
+      -> RECOVERING when outstanding_data < Threshold_Mid_StartSendingReadRequests
+    RECOVERING - Recovering from disk and waiting for sender to drain
       -> FORWARDING when outstanding_data < Threshold_Low_RestartSendingData
 
 """
@@ -57,7 +57,12 @@ class FlowControl:
     _forward_record: Callable[[Any, "Record"], None]
     _write_record: Callable[[Any, "Record"], int]
     _ensure_flushed: Callable[[Any, int], None]
-    _last_write_offset: int
+
+    _track_last_written_offset: int
+    _track_last_forwarded_offset: int
+    _track_first_unforwarded_offset: int
+    _track_last_flushed_offset: int
+    _track_recovering_requests: int
 
     _telemetry_obj: tpb.TelemetryRecord
     _telemetry_overflow: bool
@@ -82,7 +87,7 @@ class FlowControl:
         self._mark_granularity_blocks = 2  # 64kB
 
         # track last written request
-        self._last_write_offset = 0
+        self._track_last_written_offset = 0
 
         # periodic probes sent to the sender to find out how backed up we are
         self._mark_write_offset_sent = 0
@@ -93,12 +98,12 @@ class FlowControl:
 
         # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
-            StateForwarding: [(self._should_pause, StatePaused)],
-            StatePaused: [(self._should_read, StateReading)],
-            StateReading: [(self._should_forward, StateForwarding)],
+            StateForwarding: [(self._should_pause, StatePausing)],
+            StatePausing: [(self._should_recover, StateRecovering)],
+            StateRecovering: [(self._should_forward, StateForwarding)],
         }
         self._fsm = fsm.Fsm(
-            states=[StateForwarding(self), StatePaused(self), StateReading(self)],
+            states=[StateForwarding(self), StatePausing(self), StateRecovering(self)],
             table=fsm_table,
         )
 
@@ -127,7 +132,7 @@ class FlowControl:
     def _send_mark(self) -> None:
         record = pb.Record()
         request = pb.Request()
-        last_write_offset = self._last_write_offset
+        last_write_offset = self._track_last_written_offset
         sender_mark = pb.SenderMarkRequest(mark_id=last_write_offset)
         request.sender_mark.CopyFrom(sender_mark)
         record.request.CopyFrom(request)
@@ -159,7 +164,7 @@ class FlowControl:
             return False
         return True
 
-    def _should_read(self, inputs: "Record") -> bool:
+    def _should_recover(self, inputs: "Record") -> bool:
         return False
 
     def _should_forward(self, inputs: "Record") -> bool:
@@ -169,7 +174,8 @@ class FlowControl:
         self._process_record(record)
 
         if not _is_control_record(record):
-            self._write_record(record)
+            offset = self._write_record(record)
+            self._track_last_written_offset = offset
 
         self._fsm.run(record)
 
@@ -185,7 +191,7 @@ class StateForwarding:
         self._flow._maybe_send_mark()
 
 
-class StatePaused:
+class StatePausing:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
@@ -198,7 +204,7 @@ class StatePaused:
             return
 
 
-class StateReading:
+class StateRecovering:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
