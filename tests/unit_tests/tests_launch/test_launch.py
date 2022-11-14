@@ -23,6 +23,12 @@ def test_launch_repository(
 
     monkeypatch.setattr(
         wandb.docker,
+        "build",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        wandb.docker,
         "push",
         lambda _1, _2: None,
     )
