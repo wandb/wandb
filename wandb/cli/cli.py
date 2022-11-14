@@ -1117,7 +1117,6 @@ def sweep(
     default=None,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
-# TODO(gst): fix above help message
 @display_error
 def launch(
     uri,
