@@ -17,7 +17,7 @@ import (
 )
 
 type Sender struct {
-	senderChan    chan service.Record
+	senderChan    chan *service.Record
 	wg            *sync.WaitGroup
 	graphqlClient graphql.Client
 	respondResult func(result *service.Result)
@@ -26,7 +26,7 @@ type Sender struct {
 
 func NewSender(wg *sync.WaitGroup, respondResult func(result *service.Result), settings *Settings) *Sender {
 	sender := Sender{
-		senderChan:    make(chan service.Record),
+		senderChan:    make(chan *service.Record),
 		wg:            wg,
 		respondResult: respondResult,
 		settings:      settings,
@@ -45,7 +45,7 @@ func (sender *Sender) SendRecord(rec *service.Record) {
 	if sender.settings.Offline {
 		return
 	}
-	sender.senderChan <- *rec
+	sender.senderChan <- rec
 }
 
 type authedTransport struct {
@@ -193,7 +193,7 @@ func (sender *Sender) senderGo() {
 			}
 			log.Debug("SENDER *******")
 			log.WithFields(log.Fields{"record": msg}).Debug("SENDER: got msg")
-			sender.networkSendRecord(&msg)
+			sender.networkSendRecord(msg)
 			// handleLogWriter(sender, msg)
 		}
 	}

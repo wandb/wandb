@@ -35,13 +35,13 @@ type NexusConn struct {
 	ctx    context.Context
 
 	mux         map[string]*Stream
-	processChan chan service.ServerRequest
-	respondChan chan service.ServerResponse
+	processChan chan *service.ServerRequest
+	respondChan chan *service.ServerResponse
 }
 
 func (nc *NexusConn) init() {
-	process := make(chan service.ServerRequest)
-	respond := make(chan service.ServerResponse)
+	process := make(chan *service.ServerRequest)
+	respond := make(chan *service.ServerResponse)
 	nc.processChan = process
 	nc.respondChan = respond
 	nc.done = make(chan bool)
@@ -137,7 +137,7 @@ func (nc *NexusConn) reader() {
 			log.Fatal("unmarshaling error: ", err)
 		}
 		// fmt.Println("gotmsg")
-		nc.processChan <- *msg
+		nc.processChan <- msg
 		// fmt.Println("data2 ", msg)
 	}
 	log.Debug("SOCKETREADER: DONE")
@@ -148,7 +148,7 @@ func (nc *NexusConn) writer() {
 	for {
 		select {
 		case msg := <-nc.respondChan:
-			respondServerResponse(nc, &msg)
+			respondServerResponse(nc, msg)
 		case <-nc.done:
 			log.Debug("PROCESS: DONE")
 			return
@@ -169,7 +169,7 @@ func (nc *NexusConn) process() {
 }
 
 func (nc *NexusConn) RespondServerResponse(serverResponse *service.ServerResponse) {
-	nc.respondChan <- *serverResponse
+	nc.respondChan <- serverResponse
 }
 
 func (nc *NexusConn) wait() {

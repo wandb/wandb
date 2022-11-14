@@ -9,7 +9,7 @@ import (
 )
 
 type Handler struct {
-	handlerChan chan service.Record
+	handlerChan chan *service.Record
 
 	currentStep int64
 	startTime   float64
@@ -37,7 +37,7 @@ func NewHandler(respondResult func(result *service.Result), settings *Settings) 
 		respondResult: respondResult,
 		settings:      settings,
 		summary:       make(map[string]string),
-		handlerChan:   make(chan service.Record)}
+		handlerChan:   make(chan *service.Record)}
 
 	go handler.handlerGo()
 	return &handler
@@ -54,7 +54,7 @@ func (h *Handler) startRunWorkers() {
 }
 
 func (handler *Handler) HandleRecord(rec *service.Record) {
-	handler.handlerChan <- *rec
+	handler.handlerChan <- rec
 }
 
 func (h *Handler) shutdownStream() {
@@ -198,8 +198,8 @@ func (handler *Handler) handlerGo() {
 		select {
 		case record := <-handler.handlerChan:
 			log.WithFields(log.Fields{"rec": record}).Debug("HANDLER")
-			handler.storeRecord(&record)
-			handler.handleRecord(&record)
+			handler.storeRecord(record)
+			handler.handleRecord(record)
 		}
 	}
 	log.Debug("HANDLER OUT")

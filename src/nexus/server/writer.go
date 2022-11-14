@@ -12,7 +12,7 @@ import (
 )
 
 type Writer struct {
-	writerChan chan service.Record
+	writerChan chan *service.Record
 	wg         *sync.WaitGroup
 	settings   *Settings
 }
@@ -21,7 +21,7 @@ func NewWriter(wg *sync.WaitGroup, settings *Settings) *Writer {
 	writer := Writer{
 		wg:         wg,
 		settings:   settings,
-		writerChan: make(chan service.Record),
+		writerChan: make(chan *service.Record),
 	}
 
 	wg.Add(1)
@@ -34,7 +34,7 @@ func (writer *Writer) Stop() {
 }
 
 func (writer *Writer) WriteRecord(rec *service.Record) {
-	writer.writerChan <- *rec
+	writer.writerChan <- rec
 }
 
 func logHeader(f *os.File) {
@@ -76,7 +76,7 @@ func (w *Writer) writerGo() {
 			rec, err := records.Next()
 			check(err)
 
-			out, err := proto.Marshal(&msg)
+			out, err := proto.Marshal(msg)
 			check(err)
 
 			_, err = rec.Write(out)

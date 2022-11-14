@@ -18,7 +18,7 @@ import (
 
 type FileStream struct {
 	wg          *sync.WaitGroup
-	fstreamChan chan service.Record
+	fstreamChan chan *service.Record
 	fstreamPath string
 
 	// FIXME this should be per file
@@ -33,7 +33,7 @@ func NewFileStream(wg *sync.WaitGroup, fstreamPath string, settings *Settings) *
 		wg:          wg,
 		fstreamPath: fstreamPath,
 		settings:    settings,
-		fstreamChan: make(chan service.Record)}
+		fstreamChan: make(chan *service.Record)}
 	wg.Add(1)
 	go fs.fstreamGo()
 	return &fs
@@ -48,7 +48,7 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 	if fs.settings.Offline {
 		return
 	}
-	fs.fstreamChan <- *rec
+	fs.fstreamChan <- rec
 }
 
 func (fs *FileStream) fstreamInit() {
@@ -196,7 +196,7 @@ func (fs *FileStream) fstreamGo() {
 			}
 			log.Debug("FSTREAM *******")
 			log.WithFields(log.Fields{"record": msg}).Debug("FSTREAM: got msg")
-			fs.streamRecord(&msg)
+			fs.streamRecord(msg)
 		}
 	}
 	fs.sendFinish()

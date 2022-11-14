@@ -8,18 +8,18 @@ import (
 )
 
 type Responder struct {
-	responderChan chan service.Result
+	responderChan chan *service.Result
 }
 
 func NewResponder(respondServerResponse func(result *service.ServerResponse)) *Responder {
 	responder := Responder{}
-	responder.responderChan = make(chan service.Result)
+	responder.responderChan = make(chan *service.Result)
 	go responder.responderGo(respondServerResponse)
 	return &responder
 }
 
 func (resp *Responder) RespondResult(rec *service.Result) {
-	resp.responderChan <- *rec
+	resp.responderChan <- rec
 }
 
 func (resp *Responder) responderGo(respondServerResponse func(result *service.ServerResponse)) {
@@ -29,7 +29,7 @@ func (resp *Responder) responderGo(respondServerResponse func(result *service.Se
 			// fmt.Println("GOT", result)
 			//respondServerResponse(nc, &msg)
 			resp := &service.ServerResponse{
-				ServerResponseType: &service.ServerResponse_ResultCommunicate{&result},
+				ServerResponseType: &service.ServerResponse_ResultCommunicate{result},
 			}
 			respondServerResponse(resp)
 			/*

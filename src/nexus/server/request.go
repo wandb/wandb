@@ -100,7 +100,7 @@ func handleInformTeardown(nc *NexusConn, msg *service.ServerInformTeardownReques
 	nc.server.listen.Close()
 }
 
-func handleServerRequest(nc *NexusConn, msg service.ServerRequest) {
+func handleServerRequest(nc *NexusConn, msg *service.ServerRequest) {
 	switch x := msg.ServerRequestType.(type) {
 	case *service.ServerRequest_InformInit:
 		handleInformInit(nc, x.InformInit)
