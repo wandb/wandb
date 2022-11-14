@@ -12,7 +12,6 @@ import wandb.sdk.launch.launch as launch
 import wandb.util as util
 import yaml
 from wandb.apis import PublicApi
-from wandb.apis.public import Run
 from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
@@ -1498,7 +1497,7 @@ def test_noop_builder(
         default_settings=test_settings, load_settings=False
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.launch,
+        wandb.sdk.launch.builder.build,
         "LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
@@ -1518,6 +1517,7 @@ def test_noop_builder(
         }
         with pytest.raises(LaunchError) as e:
             launch.run(**kwargs)
+
         assert (
             "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
             in str(e)

@@ -212,11 +212,11 @@ def test_launch_repository_arg(
             assert result.exit_code == 0
 
 
-def test_launch_bad_api_key(runner, monkeypatch):
+def test_launch_bad_api_key(runner, monkeypatch, user):
     args = [
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entity",
-        "mock_server_entity",
+        user,
         "--queue=default",
     ]
     monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
