@@ -765,6 +765,10 @@ def json_friendly_val(val: Any) -> Any:
         return val
 
 
+def alias_is_version_index(alias: str) -> bool:
+    return len(alias) >= 2 and alias[0] == "v" and alias[1:].isnumeric()
+
+
 def convert_plots(obj: Any) -> Any:
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(

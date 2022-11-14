@@ -4211,7 +4211,7 @@ class Artifact(artifacts.Artifact):
         self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
-        self._version_index = self._attrs.get("versionIndex", None)
+        self._sequence_version_index = self._attrs.get("versionIndex", None)
         # We will only show aliases under the Collection this artifact version is fetched from
         # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
@@ -4237,7 +4237,19 @@ class Artifact(artifacts.Artifact):
 
     @property
     def version(self):
-        return "v%d" % self._version_index
+        """
+        Returns:
+            (str): The artifact's version index under the given artifact collection. This will return
+            a string with the format "v{number}".
+        """
+        for a in self._attrs["aliases"]:
+            if a[
+                "artifactCollectionName"
+            ] == self._artifact_collection_name and util.alias_is_version_index(
+                a["alias"]
+            ):
+                return a["alias"]
+        raise ValueError("Version index does not exist in artifact's aliases.")
 
     @property
     def entity(self):
@@ -4305,9 +4317,9 @@ class Artifact(artifacts.Artifact):
 
     @property
     def name(self):
-        if self._version_index is None:
+        if self._sequence_version_index is None:
             return self.digest
-        return f"{self._sequence_name}:v{self._version_index}"
+        return f"{self._sequence_name}:v{self._sequence_version_index}"
 
     @property
     def aliases(self):
