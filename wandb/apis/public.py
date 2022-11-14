@@ -4249,7 +4249,7 @@ class Artifact(artifacts.Artifact):
                 a["alias"]
             ):
                 return a["alias"]
-        raise ValueError("Version index does not exist in artifact's aliases.")
+        return None
 
     @property
     def entity(self):
