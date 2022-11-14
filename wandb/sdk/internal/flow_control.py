@@ -81,10 +81,15 @@ class FlowControl:
         self._ensure_flushed = ensure_flushed  # type: ignore
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
-        self._threshold_block_high = 128  # 4MB
+        self._threshold_bytes_high = 4*1024*1024  # 4MiB
         self._threshold_block_mid = 64  # 2MB
         self._threshold_block_low = 16  # 512kB
         self._mark_granularity_blocks = 2  # 64kB
+
+        # how much to collect while pausing before going to reading
+        self._threshold_pausing_chunk = 100
+
+        # should we toggle between recovering and pausing?  maybe?
 
         # track last written request
         self._track_last_written_offset = 0
@@ -137,7 +142,7 @@ class FlowControl:
         request.sender_mark.CopyFrom(sender_mark)
         record.request.CopyFrom(request)
         self._forward_record(record)
-        self._mark_sent_write_offset = last_write_offset
+        self._mark_write_offset_sent = last_write_offset
 
     def _maybe_send_mark(self) -> None:
         """Send mark if we are writting the first record in a block."""
@@ -160,9 +165,11 @@ class FlowControl:
         pass
 
     def _should_pause(self, inputs: "Record") -> bool:
-        if self._behind_bytes() < self._threshold_block_high:
-            return False
-        return True
+        if self._behind_bytes() > self._threshold_bytes_high:
+            # print(f"SHOULD_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
+            return True
+        # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
+        return False
 
     def _should_recover(self, inputs: "Record") -> bool:
         return False
