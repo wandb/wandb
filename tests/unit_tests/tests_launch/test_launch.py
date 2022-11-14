@@ -3,39 +3,6 @@ import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run
-from wandb.sdk.launch.launch_add import launch_add
-
-
-def test_launch_delete_queued_run(
-    relay_server, runner, user, monkeypatch, wandb_init, test_settings
-):
-    queue = "default"
-    proj = "test2"
-    uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
-    settings = test_settings({"project": proj})
-
-    api = InternalApi()
-
-    with relay_server():
-        run = wandb_init(settings=settings)
-        api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT"
-        )
-
-        queued_run = launch_add(
-            uri=uri,
-            entity=user,
-            project=proj,
-            queue_name=queue,
-            entry_point=entry_point,
-        )
-
-        assert queued_run.state == "pending"
-
-        queued_run.delete()
-
-        run.finish()
 
 
 def test_launch_repository(
@@ -49,23 +16,22 @@ def test_launch_repository(
     api = InternalApi()
 
     with relay_server():
-        run = wandb_init(settings=settings)
+        wandb_init(settings=settings).finish()
         api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
 
-        queued_run = launch_add(
-            uri=uri,
-            entity=user,
-            project=proj,
-            entry_point=entry_point,
-            repository="testing123",
-        )
+        with pytest.raises(LaunchError) as e_info:
+            run(
+                api,
+                uri=uri,
+                entity=user,
+                project=proj,
+                entry_point=entry_point,
+                repository="testing123",
+            )
 
-        assert queued_run.state == "pending"
-
-        queued_run.delete()
-        run.finish()
+        assert "Failed to push image to repository" in str(e_info)
 
 
 def test_launch_incorrect_backend(
