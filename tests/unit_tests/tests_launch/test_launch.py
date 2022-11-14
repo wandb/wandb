@@ -10,6 +10,7 @@ def test_launch_repository(
 ):
     queue = "default"
     proj = "test1"
+    repo = "testing123"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = test_settings({"project": proj})
@@ -24,13 +25,16 @@ def test_launch_repository(
     monkeypatch.setattr(
         wandb.docker,
         "build",
-        lambda _1, _2: None,
+        lambda tags, file, context_path: None,
     )
+
+    def patched_docker_push(reg, tag):
+        assert reg == repo
 
     monkeypatch.setattr(
         wandb.docker,
         "push",
-        lambda _1, _2: None,
+        lambda reg, tag: patched_docker_push(reg, tag),
     )
 
     with relay_server():
@@ -46,7 +50,7 @@ def test_launch_repository(
                 entity=user,
                 project=proj,
                 entry_point=entry_point,
-                repository="testing123",
+                repository=repo,
             )
 
         assert "Failed to push image to repository" in str(e_info)
