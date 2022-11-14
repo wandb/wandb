@@ -15,6 +15,18 @@ def test_launch_repository(
     settings = test_settings({"project": proj})
     api = InternalApi()
 
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        wandb.docker,
+        "push",
+        lambda _1, _2: None,
+    )
+
     with relay_server():
         wandb_init(settings=settings).finish()
         api.create_run_queue(
