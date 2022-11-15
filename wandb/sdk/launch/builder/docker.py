@@ -43,6 +43,7 @@ class DockerBuilder(AbstractBuilder):
         else:
             image_uri = launch_project.image_uri
         if launch_project.use_custom_dockerfile:
+            assert launch_project.project_dir
             dockerfile = os.path.join(launch_project.project_dir, "Dockerfile")
             build_ctx_path = launch_project.project_dir
         else:

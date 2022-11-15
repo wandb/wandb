@@ -131,4 +131,6 @@ class WandbReference:
     @staticmethod
     def is_uri_job_or_run(uri: str) -> bool:
         ref = WandbReference.parse(uri)
-        return ref and ref.is_job_or_run()
+        if ref and ref.is_job_or_run():
+            return True
+        return False

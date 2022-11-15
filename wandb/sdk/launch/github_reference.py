@@ -166,7 +166,8 @@ class GitHubReference:
                 commit = repo.commit(first_segment)
                 self.ref_type = ReferenceType.COMMIT
                 self.ref = first_segment
-                self.path = self.path[len(first_segment) + 1 :]
+                if self.path:
+                    self.path = self.path[len(first_segment) + 1 :]
                 head = repo.create_head(first_segment, commit)
                 head.checkout()
             except ValueError:
@@ -185,7 +186,8 @@ class GitHubReference:
                 if check_branch.startswith(refname):
                     self.ref_type = ReferenceType.BRANCH
                     self.ref = branch = refname
-                    self.path = self.path[len(refname) + 1 :]
+                    if self.path:
+                        self.path = self.path[len(refname) + 1 :]
                     head = repo.create_head(branch, origin.refs[branch])
                     head.checkout()
                     break
@@ -217,7 +219,7 @@ class GitHubReference:
         if self.path:
             path = Path(dst_dir, self.path)
             if path.is_file():
-                self.directory = path.parent
+                self.directory = str(path.parent.absolute())
                 self.entry_point = path.name
                 self.path = None
             elif path.is_dir():

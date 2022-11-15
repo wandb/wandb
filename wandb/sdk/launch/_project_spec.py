@@ -150,7 +150,7 @@ class LaunchProject:
         if launch_spec.get("resource_args"):
             self.resource_args = launch_spec["resource_args"]
 
-        self.use_custom_dockerfile: bool = (
+        self.use_custom_dockerfile: bool = bool(
             self.uri and os.path.basename(self.uri) == "Dockerfile"
         )
 
@@ -284,6 +284,9 @@ class LaunchProject:
         self._job_artifact = job._job_artifact
 
     def _fetch_run(self, internal_api: Api) -> None:
+        assert isinstance(self.uri, str)
+        assert self.project_dir is not None
+
         source_entity, source_project, source_run_name = utils.parse_wandb_uri(self.uri)
         run_info = utils.fetch_wandb_project_run_info(
             source_entity, source_project, source_run_name, internal_api
@@ -515,7 +518,7 @@ def fetch_and_validate_project(
     if launch_project.source == LaunchSource.DOCKER:
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
-        if os.path.exists(os.path.join(launch_project.project_dir, "Dockerfile")):
+        if launch_project.project_dir and os.path.exists(os.path.join(launch_project.project_dir, "Dockerfile")):
             launch_project.use_custom_dockerfile = True
         elif not launch_project._entry_points:
             wandb.termlog(

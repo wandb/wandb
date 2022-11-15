@@ -211,7 +211,7 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     """Parses wandb uri to retrieve entity, project and run name."""
     ref = WandbReference.parse(uri)
-    if not ref:
+    if not ref or not ref.entity or not ref.project or not ref.run_id:
         raise LaunchError(f"Trouble parsing wandb uri {uri}")
     return (ref.entity, ref.project, ref.run_id)
 
