@@ -675,10 +675,12 @@ class _WandbInit:
         if not self.settings.disable_git:
             run._populate_git_info()
 
+        run_proto = backend.interface._make_run(run)
+
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
-            run_proto = backend.interface._make_run(run)
+
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
             if self.settings.resume:
@@ -699,6 +701,7 @@ class _WandbInit:
             logger.info(f"communicating run to backend with {timeout} second timeout")
 
             handle = backend.interface.deliver_run(run)
+            timeout = 0.01  # temp hack to simulate timeout
             result = handle.wait(timeout=timeout, on_progress=self._on_progress_init)
             if result:
                 run_result = result.run_result
@@ -710,8 +713,9 @@ class _WandbInit:
                     error_message += (
                         f"\nFor more info see: {wburls.get('doc_start_err')}"
                     )
-            elif run_result.error:
+            elif run_result and run_result.error:
                 error_message = run_result.error.message
+
             if error_message:
                 logger.error(f"encountered error: {error_message}")
                 if not manager:
@@ -720,12 +724,18 @@ class _WandbInit:
                     backend.cleanup()
                     self.teardown()
                 raise UsageError(error_message)
-            assert run_result and run_result.run
-            if run_result.run.resumed:
-                logger.info("run resumed")
-                with telemetry.context(run=run) as tel:
-                    tel.feature.resumed = True
-            run._set_run_obj(run_result.run)
+
+            if run_result:
+                assert run_result.run
+
+                if run_result.run.resumed:
+                    logger.info("run resumed")
+                    with telemetry.context(run=run) as tel:
+                        tel.feature.resumed = run_result.run.resumed
+
+            run._set_run_obj(
+                run_result.run if run_result else run_proto
+            )  # todo: add method on run that convert it to proto message - temp hack
             run._on_init()
 
         logger.info("starting run threads in backend")
