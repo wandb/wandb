@@ -216,8 +216,8 @@ jobs:
         type: integer
         default: 3
       python_version_minor:
-        type: string  # this is to allow -rc suffixes
-        default: "7"
+        type: integer
+        default: 7
       toxenv:
         type: string
       shard:
@@ -278,8 +278,8 @@ jobs:
         type: integer
         default: 3
       python_version_minor:
-        type: string
-        default: "7"
+        type: integer
+        default: 7
       toxenv:
         type: string
       notify_on_failure:
@@ -372,8 +372,8 @@ jobs:
         type: integer
         default: 3
       python_version_minor:
-        type: string
-        default: "9"
+        type: integer
+        default: 9
       toxenv:
         type: string
       parallelism:
@@ -439,8 +439,8 @@ jobs:
         type: integer
         default: 3
       python_version_minor:
-        type: string
-        default: "7"
+        type: integer
+        default: 7
       toxenv:
         type: string
       parallelism:
@@ -1070,7 +1070,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ "9" ]
+              python_version_minor: [ 9 ]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 2
@@ -1087,8 +1087,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
+              python_version: [3.6, 3.7, 3.8, 3.9, 3.10, 3.11]
           context: slack-secrets
           notify_on_failure: true
           requires:
@@ -1167,7 +1166,7 @@ workflows:
       #
       - tox-base:
           name: "code-check"
-          python_version_minor: "8"
+          python_version_minor: 8
           toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
       #
       # Unit tests with pytest on Linux, using real wandb server
@@ -1176,8 +1175,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version_minor: ["6", "7", "8", "9", "10", "11-rc"]
+              python_version_minor: [6, 7, 8, 9, 10, 11]
           name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1188,7 +1186,7 @@ workflows:
             parameters:
               python_version_major: [3]
               # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version_minor: ["6", "7", "8", "9", "10", "11-rc"]
+              python_version_minor: [6, 7, 8, 9, 10, 11]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1210,7 +1208,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: ["7"]
+              python_version_minor: [7]
               shard:
                 - "base"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1223,7 +1221,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: ["7"]
+              python_version_minor: [7]
               shard:
                 - "sklearn"
                 - "metaflow"
@@ -1246,7 +1244,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: ["9"]
+              python_version_minor: [9]
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 6
@@ -1258,14 +1256,14 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: ["9"]
+              python_version_minor: [9]
           name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
       - mac:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: ["9"]
+              python_version_minor: [9]
           name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1289,7 +1287,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: ["9"]
+              python_version_minor: [9]
           name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
@@ -1298,7 +1296,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: ["9"]
+              python_version_minor: [9]
           name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
@@ -1387,7 +1385,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ "9" ]
+              python_version_minor: [ 9 ]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 2
