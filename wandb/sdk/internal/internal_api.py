@@ -2730,17 +2730,9 @@ class Api:
         """
         )
 
-        # retry conflict errors for 2 minutes, default to no_auth_retry
-        check_retry_fn = util.make_check_retry_fn(
-            check_fn=util.check_retry_conflict,
-            check_timedelta=datetime.timedelta(minutes=2),
-            fallback_retry_fn=util.no_retry_auth,
-        )
-
         response: "_Response" = self.gql(  # type: ignore
             mutation,
             variable_values={"artifactID": artifact_id},
-            check_retry_fn=check_retry_fn,
             timeout=60,
         )
         return response
