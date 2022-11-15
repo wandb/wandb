@@ -689,18 +689,21 @@ class _WandbInit:
         else:
             run_result = None
             error_message: Optional[str] = None
+            if self.settings.resume:
+                timeout = self.settings.resume_timeout
+                policy = self.settings.resume_policy
+            else:
+                timeout = self.settings.init_timeout
+                policy = self.settings.init_policy
 
-            logger.info(
-                f"communicating run to backend with {self.settings.init_timeout} second timeout"
-            )
+            logger.info(f"communicating run to backend with {timeout} second timeout")
+
             handle = backend.interface.deliver_run(run)
-            result = handle.wait(
-                timeout=self.settings.init_timeout, on_progress=self._on_progress_init
-            )
+            result = handle.wait(timeout=timeout, on_progress=self._on_progress_init)
             if result:
                 run_result = result.run_result
 
-            if not run_result:
+            if not run_result and policy == "fail":
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
                 if active_start_method != "fork":

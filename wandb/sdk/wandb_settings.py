@@ -28,6 +28,7 @@ from typing import (
     Union,
     no_type_check,
 )
+
 from urllib.parse import quote, urlencode, urlparse, urlsplit
 
 import wandb
@@ -424,6 +425,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
+    init_policy: str
     init_timeout: int
     is_local: bool
     label_disable: bool
@@ -448,6 +450,8 @@ class Settings:
     relogin: bool
     resume: Union[str, int, bool]
     resume_fname: str
+    resume_policy: str
+    resume_timeout: int
     resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
     root_dir: str
     run_group: str
@@ -563,6 +567,7 @@ class Settings:
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
             init_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            init_policy={"value": "fail", "validator": self._validate_init_policy},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -607,6 +612,8 @@ class Settings:
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
+            resume_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            resume_policy={"value": "fail", "validator": self._validate_resume_policy},
             resumed={"value": "False", "preprocessor": _str_as_bool},
             root_dir={
                 "preprocessor": lambda x: str(x),
@@ -722,6 +729,16 @@ class Settings:
         return helper
 
     @staticmethod
+    def _validate_init_policy(value: Any) -> bool:
+        """
+        Validate the init policy setting
+        """
+        choices = {"fail", "continue"}
+        if value not in choices:
+            raise ValueError(f"Invalid init policy: {value}. Must be one of: {choices}")
+        return True
+
+    @staticmethod
     def _validate_mode(value: str) -> bool:
         choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled"}
         if value not in choices:
@@ -743,6 +760,16 @@ class Settings:
                     f"cannot contain characters \"{','.join(invalid_chars_list)}\", "
                     f"found \"{','.join(invalid_chars)}\""
                 )
+        return True
+
+    @staticmethod
+    def _validate_resume_policy(value: Any) -> bool:
+        """
+        Validate the resume policy setting
+        """
+        choices = {"fail"}
+        if value not in choices:
+            raise ValueError(f"Invalid init policy: {value}. Must be one of: {choices}")
         return True
 
     @staticmethod
