@@ -40,6 +40,7 @@ from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
+from .lib.deprecate import Deprecated, deprecate
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
@@ -1552,6 +1553,14 @@ class Settings:
                     init_settings["resume"] = "allow"
             elif init_settings["resume"] is True:
                 # todo: add deprecation warning, switch to literal strings for resume
+                warning_message = (
+                    'Using `resume=True` is deprecated. "'
+                    '"Please use `resume="auto"` instead.'
+                )
+                deprecate(
+                    field_name=Deprecated.settings__resume_true,
+                    warning_message=warning_message,
+                )
                 init_settings["resume"] = "auto"
 
         # update settings
