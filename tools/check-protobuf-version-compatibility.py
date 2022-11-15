@@ -1,4 +1,6 @@
 import pathlib
+import platform
+import re
 import subprocess
 import sys
 from typing import List, Tuple
@@ -25,10 +27,56 @@ def parse_protobuf_requirements() -> List[Tuple[str, str]]:
     with open(path_requirements) as f:
         requirements = f.readlines()
 
+    system_python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    system_platform = sys.platform
+    system_machine = platform.machine()
+
     protobuf_reqs = []
     for line in requirements:
         if line.startswith("protobuf"):
-            reqs = line.strip().split("protobuf")[1].split(",")
+            version_reqs = line.strip().split(";")[0]
+
+            # first, check the system requirements
+            system_reqs = line.strip().split(";")[1]
+            # regex to find quoted python version in system_reqs
+            python_version = re.search(
+                r"python_version\s+([<>=!]+)\s+[',\"]([2,3]*[.][0-9]+)[',\"]",
+                system_reqs,
+            )
+            if python_version is not None:
+                version_check = (
+                    f"parse_version('{system_python_version}') "
+                    f"{python_version.group(1)} "
+                    f"parse_version('{python_version.group(2)}')"
+                )
+                if not eval(version_check):
+                    continue
+            # regex to find quoted platform in system_reqs
+            platform_reqs = re.search(
+                r"sys_platform\s+([<>=!]+)\s+[',\"]([a-z]+)[',\"]",
+                system_reqs,
+            )
+
+            if platform_reqs is not None:
+                if not eval(
+                    f"'{system_platform}' {platform_reqs.group(1)} '{platform_reqs.group(2)}'"
+                ):
+                    continue
+
+            # regex to find platform machine in system_reqs
+            platform_machine = re.search(
+                r"platform[.]machine\s+([<>=!]+)\s+[',\"]([a-z]+)[',\"]",
+                system_reqs,
+            )
+            if platform_machine is not None:
+                if not eval(
+                    f"'{system_machine}' {platform_machine.group(1)} '{platform_machine.group(2)}'"
+                ):
+                    continue
+
+            # finally, parse the protobuf version requirements
+            reqs = version_reqs.split("protobuf")[1].split(",")
+            print(reqs)
             for req in reqs:
                 for i, char in enumerate(req):
                     if char.isnumeric():
@@ -39,7 +87,7 @@ def parse_protobuf_requirements() -> List[Tuple[str, str]]:
                             )
                         )
                         break
-
+    print(protobuf_reqs)
     return protobuf_reqs
 
 
