@@ -690,7 +690,7 @@ class Image(Block):
     url: str = Attr()
     caption: str = Attr()
 
-    def __init__(self, url, caption, *args, **kwargs):
+    def __init__(self, url, caption="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.url = url
         self.caption = caption
