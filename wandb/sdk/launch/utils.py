@@ -13,6 +13,7 @@ import wandb
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, LaunchError
+
 from .wandb_reference import WandbReference
 
 if TYPE_CHECKING:  # pragma: no cover

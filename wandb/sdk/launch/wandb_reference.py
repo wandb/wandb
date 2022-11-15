@@ -7,7 +7,6 @@ from enum import IntEnum
 from typing import Optional
 from urllib.parse import urlparse
 
-
 PREFIX_HTTPS = "https://"
 
 

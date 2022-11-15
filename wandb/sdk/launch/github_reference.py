@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 
 from wandb.errors import LaunchError
 
-
 PREFIX_HTTPS = "https://"
 PREFIX_SSH = "git@"
 SUFFIX_GIT = ".git"
