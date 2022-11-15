@@ -564,7 +564,7 @@ class Settings:
             finish_timeout={"value": 86400, "preprocessor": lambda x: float(x)},
             finish_policy={
                 "value": "callscript",
-                "validator": self._validate_resume_policy,
+                "validator": self._validate_finish_policy,
             },
             force={"preprocessor": _str_as_bool},
             git_remote={"value": "origin"},
@@ -776,7 +776,21 @@ class Settings:
         """
         choices = {"fail"}
         if value not in choices:
-            raise ValueError(f"Invalid init policy: {value}. Must be one of: {choices}")
+            raise ValueError(
+                f"Invalid resume policy: {value}. Must be one of: {choices}"
+            )
+        return True
+
+    @staticmethod
+    def _validate_finish_policy(value: Any) -> bool:
+        """
+        Validate the finish policy setting
+        """
+        choices = {"fail", "callscript"}
+        if value not in choices:
+            raise ValueError(
+                f"Invalid finish policy: {value}. Must be one of: {choices}"
+            )
         return True
 
     @staticmethod
