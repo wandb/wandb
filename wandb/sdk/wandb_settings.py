@@ -417,6 +417,8 @@ class Settings:
     enable_job_creation: bool
     entity: str
     files_dir: str
+    finish_policy: str
+    finish_timeout: float
     force: bool
     git_commit: str
     git_remote: str
@@ -426,7 +428,7 @@ class Settings:
     host: str
     ignore_globs: Tuple[str]
     init_policy: str
-    init_timeout: int
+    init_timeout: float
     is_local: bool
     label_disable: bool
     launch: bool
@@ -451,7 +453,7 @@ class Settings:
     resume: Union[str, int, bool]
     resume_fname: str
     resume_policy: str
-    resume_timeout: int
+    resume_timeout: float
     resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
     root_dir: str
     run_group: str
@@ -559,6 +561,11 @@ class Settings:
                     self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
                 ),
             },
+            finish_timeout={"value": 86400, "preprocessor": lambda x: float(x)},
+            finish_policy={
+                "value": "callscript",
+                "validator": self._validate_resume_policy,
+            },
             force={"preprocessor": _str_as_bool},
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
@@ -566,7 +573,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            init_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            init_timeout={"value": 60, "preprocessor": lambda x: float(x)},
             init_policy={"value": "fail", "validator": self._validate_init_policy},
             is_local={
                 "hook": (
@@ -612,7 +619,7 @@ class Settings:
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
-            resume_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            resume_timeout={"value": 60, "preprocessor": lambda x: float(x)},
             resume_policy={"value": "fail", "validator": self._validate_resume_policy},
             resumed={"value": "False", "preprocessor": _str_as_bool},
             root_dir={
@@ -1530,6 +1537,7 @@ class Settings:
                         init_settings["run_id"] = init_settings["resume"]
                     init_settings["resume"] = "allow"
             elif init_settings["resume"] is True:
+                # todo: add deprecation warning, switch to literal strings for resume
                 init_settings["resume"] = "auto"
 
         # update settings
