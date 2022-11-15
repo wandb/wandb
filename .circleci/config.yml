@@ -389,7 +389,7 @@ jobs:
           command: |
             pip install -U pip
             pip install .
-            python tools/check_protobuf_version_compatibility.py
+            python tools/check-protobuf-version-compatibility.py
           no_output_timeout: 5m
       - save-test-results
 
