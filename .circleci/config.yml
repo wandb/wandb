@@ -288,6 +288,9 @@ jobs:
       xdist:
         type: integer
         default: 6
+      test_path:
+        type: string
+        default: tests/unit_tests
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -318,7 +321,7 @@ jobs:
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.test_path >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -1212,6 +1215,18 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+      #
+      # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          test_path: "tests/unit_tests/tests_launch"
+
       #
       # Functional tests with yea on Linux (base only)
       #
