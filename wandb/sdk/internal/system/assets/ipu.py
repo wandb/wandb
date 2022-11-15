@@ -161,11 +161,12 @@ class IPU:
         device_count = len(device_data)
         devices = []
         for i, device in enumerate(device_data):
+            device_metrics: Dict[str, str] = dict(device)
             devices.append(
                 {
-                    "id": device.get("id") or i,
-                    "board ipu index": device.get("board ipu index"),
-                    "board type": device.get("board type") or "unknown",
+                    "id": device_metrics.get("id") or i,
+                    "board ipu index": device_metrics.get("board ipu index"),
+                    "board type": device_metrics.get("board type") or "unknown",
                 }
             )
 
