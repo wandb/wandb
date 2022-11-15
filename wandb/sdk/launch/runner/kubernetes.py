@@ -169,6 +169,13 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
+        if resource_args.get("security_context"):
+            pod_spec["securityContext"] = resource_args.get("security_context")
+        if resource_args.get("volumes") is not None:
+            vols = resource_args.get("volumes")
+            if not isinstance(vols, list):
+                raise LaunchError("volumes must be a list of volume specifications")
+            pod_spec["volumes"] = vols
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -196,6 +203,13 @@ class KubernetesRunner(AbstractRunner):
                     cont.get("resources") != container_resources
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
+            if resource_args.get("volume_mounts") is not None:
+                vol_mounts = resource_args.get("volume_mounts")
+                if not isinstance(vol_mounts, list):
+                    raise LaunchError(
+                        "volume mounts must be a list of volume mount specifications"
+                    )
+                cont["volumeMounts"] = vol_mounts
             cont["security_context"] = {
                 "allowPrivilegeEscalation": False,
                 "capabilities": {"drop": ["ALL"]},
@@ -365,6 +379,7 @@ class KubernetesRunner(AbstractRunner):
         for cont in containers:
             cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
         pod_spec["containers"] = containers
+
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:
