@@ -1089,6 +1089,15 @@ workflows:
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
       #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10 ]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1332,15 +1341,6 @@ workflows:
       #
       - pex:
           name: "pex"
-      #
-      # protobuf compatibility tests
-      #
-      - protobuf-compatability:
-          matrix:
-            parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10 ]
-          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 
 
   # todo: needs love
@@ -1411,6 +1411,15 @@ workflows:
           context: slack-secrets
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
+      #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10 ]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
       # standalone GPU tests on Windows
       #
