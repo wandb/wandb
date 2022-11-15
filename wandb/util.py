@@ -1715,7 +1715,7 @@ def artifact_to_json(
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
-        "version": f"v{artifact._sequence_version_index}",
+        "version": artifact.source_version,
         "sequenceName": sequence_name,
         "usedAs": artifact._use_as,
     }

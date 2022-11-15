@@ -319,4 +319,4 @@ def test_artifact_version(user, wandb_init):
     )
 
     assert artifact.version == "v0"
-    assert artifact._sequence_version_index == 1
+    assert artifact.source_version == "v1"

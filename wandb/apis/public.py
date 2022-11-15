@@ -4236,6 +4236,15 @@ class Artifact(artifacts.Artifact):
         return self._attrs["fileCount"]
 
     @property
+    def source_version(self):
+        """
+        Returns:
+            (str) The artifact's version index under its parent artifact collection. This will return
+            a string with the format "v{number}".
+        """
+        return f"v{self._sequence_version_index}"
+
+    @property
     def version(self):
         """
         Returns:

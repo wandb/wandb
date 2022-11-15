@@ -209,6 +209,11 @@ class Artifact(ArtifactInterface):
         return None
 
     @property
+    def source_version(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.source_version
+
+    @property
     def version(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.version
