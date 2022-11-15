@@ -898,9 +898,7 @@ def sweep(
                         launch_config.get("scheduler", {}).get(
                             "docker_image", None
                         ),  # docker_image,
-                        launch_config.get("scheduler", {}).get(
-                            "resource", "local-process"
-                        ),  # resource,
+                        launch_config.get("scheduler", {}).get("resource"),  # resource,
                         [
                             "wandb",
                             "scheduler",
@@ -912,7 +910,7 @@ def sweep(
                             "--job",
                             _job,
                             "--resource",
-                            launch_config.get("resource", "local-process"),
+                            launch_config.get("resource"),
                             # TODO(hupo): Add num-workers as option in launch config
                             # "--num_workers",
                             # launch_config.get("scheduler", {}).get("num_workers", 1),
