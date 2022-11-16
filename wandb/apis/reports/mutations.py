@@ -1,5 +1,32 @@
 from wandb_gql import gql
 
+VIEW_REPORT = gql(
+    """
+    query SpecificReport($reportId: ID!) {
+        view(id: $reportId) {
+        id
+        type
+        name
+        displayName
+        description
+        project {
+            id
+            name
+            entityName
+        }
+        createdAt
+        updatedAt
+        spec
+        previewUrl
+        user {
+            name
+            username
+            userInfo
+        }
+        }
+    }
+    """
+)
 UPSERT_VIEW = gql(
     """
     mutation upsertView(

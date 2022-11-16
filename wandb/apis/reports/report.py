@@ -9,7 +9,7 @@ from ... import termlog, termwarn
 from ...sdk.lib import ipython
 from ..public import RetryingClient
 from ._blocks import P, PanelGrid, UnknownBlock, block_mapping
-from .mutations import UPSERT_VIEW
+from .mutations import UPSERT_VIEW, VIEW_REPORT
 from .runset import Runset
 from .util import (
     Attr,
@@ -61,8 +61,24 @@ class Report(Base):
         self.blocks = coalesce(blocks, [])
 
     @classmethod
-    def from_url(self, url):
-        return public_api.load_report(url)
+    def from_url(cls, url):
+        report_id = cls._url_to_report_id(url)
+        r = public_api.client.execute(
+            VIEW_REPORT, variable_values={"reportId": report_id}
+        )
+        viewspec = r["view"]
+        viewspec["spec"] = json.loads(viewspec["spec"])
+        return cls.from_json(viewspec)
+
+    @staticmethod
+    def _url_to_report_id(url):
+        try:
+            report, *_ = url.split("?")
+            *_, report_id = report.split("--")
+        except ValueError as e:
+            raise ValueError("Path must be `entity/project/reports/report_id`") from e
+        else:
+            return report_id
 
     @blocks.getter
     def blocks(self):

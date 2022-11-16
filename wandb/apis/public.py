@@ -343,33 +343,6 @@ class Api:
         """
     )
 
-    VIEW_REPORT_QUERY = gql(
-        """
-        query SpecificReport($reportId: ID!) {
-            view(id: $reportId) {
-            id
-            type
-            name
-            displayName
-            description
-            project {
-                id
-                name
-                entityName
-            }
-            createdAt
-            updatedAt
-            spec
-            previewUrl
-            user {
-                name
-                username
-                userInfo
-            }
-            }
-        }
-        """
-    )
     CREATE_PROJECT = gql(
         """
         mutation upsertModel(
@@ -494,18 +467,7 @@ class Api:
         Raises:
             wandb.Error if path is invalid
         """
-        try:
-            entity, project, *_, _report_id = path.split("/")
-            *_, report_id = _report_id.split("--")
-        except ValueError as e:
-            raise ValueError("path must be `entity/project/reports/reportId`") from e
-        else:
-            r = self.client.execute(
-                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
-            )
-            viewspec = r["view"]
-            viewspec["spec"] = json.loads(viewspec["spec"])
-            return wandb.apis.reports.Report.from_json(viewspec)
+        return wandb.apis.reports.Report.from_url(path)
 
     def create_user(self, email, admin=False):
         """Creates a new user
