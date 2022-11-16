@@ -731,12 +731,7 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        if DISABLE_WRITE_CACHE:
-            cache_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), name, digest)
-            if not os.path.exists(cache_path):
-                util.mkdir_exists_ok(os.path.dirname(cache_path))
-            shutil.copyfile(path, cache_path)
-        else:
+        if not DISABLE_WRITE_CACHE:
             cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
             if not hit:
                 with cache_open() as f:
@@ -747,7 +742,8 @@ class Artifact(ArtifactInterface):
             None,
             digest=digest,
             size=size,
-            local_path=cache_path,
+            local_path=None if DISABLE_WRITE_CACHE else cache_path,
+            make_temp_copy=DISABLE_WRITE_CACHE
         )
 
         self._manifest.add_entry(entry)
@@ -1024,7 +1020,9 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
-        if DISABLE_WRITE_CACHE:
+        if DISABLE_WRITE_CACHE and entry.local_path is not None:
+            entry.copy_to_temp()
+        else:
             # write-through cache
             cache_path, hit, cache_open = self._cache.check_md5_obj_path(
                 util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
@@ -1061,14 +1059,6 @@ class WandbStoragePolicy(StoragePolicy):
                             for header in (resp.upload_headers or {})
                         },
                     )
-        # we should still clean up the entry if it is a tempfile and no upload occurred
-        if (
-            DISABLE_WRITE_CACHE
-            and entry.local_path is not None
-            and entry.local_path.startswith(tempfile.gettempdir())
-        ):
-            os.remove(entry.local_path)
-
         return exists
 
 
