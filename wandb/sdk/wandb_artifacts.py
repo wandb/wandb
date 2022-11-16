@@ -854,6 +854,7 @@ class ArtifactManifestEntry(ArtifactEntry):
         size: Optional[int] = None,
         extra: Dict = None,
         local_path: Optional[str] = None,
+        make_temp_copy: bool = False,
     ):
         if local_path is not None and size is None:
             raise AssertionError(
@@ -868,6 +869,20 @@ class ArtifactManifestEntry(ArtifactEntry):
         # This is not stored in the manifest json, it's only used in the process
         # of saving
         self.local_path = local_path
+        self._remove_tmp = False
+        if make_temp_copy:
+            self.copy_to_temp()
+
+    def copy_to_temp(self) -> None:
+        src_path = self.local_path or util.to_native_slash_path(self.path)
+        if self._remove_tmp or src_path.startswith(tempfile.gettempdir()):
+            raise AssertionError("Entry already copied to temp")
+        dst_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), self.digest)
+        if not os.path.exists(dst_path):
+            util.mkdir_exists_ok(os.path.dirname(dst_path))
+        shutil.copyfile(src_path, dst_path)
+        self._remove_tmp = True
+        self.local_path = dst_path
 
     def ref_target(self) -> str:
         if self.ref is None:
@@ -882,6 +897,9 @@ class ArtifactManifestEntry(ArtifactEntry):
 
         return "<ManifestEntry %s>" % summary
 
+    def __del__(self):
+        if self._remove_tmp and os.path.exists(self.local_path):
+            os.remove(self.local_path)
 
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
