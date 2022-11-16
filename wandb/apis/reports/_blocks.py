@@ -2,7 +2,7 @@ import inspect
 import re
 import urllib
 from typing import List as LList
-from typing import Union
+from typing import Optional, Union
 
 from ... import __version__ as wandb_ver
 from ... import termwarn
@@ -12,6 +12,9 @@ from .util import (
     Attr,
     Base,
     Block,
+    InlineCode,
+    InlineLaTeX,
+    Link,
     Panel,
     TypeValidator,
     coalesce,
@@ -20,44 +23,6 @@ from .util import (
     nested_set,
     public_api,
 )
-
-
-class InlineLaTeX(Base):
-    latex: str = Attr()
-
-    def __init__(self, latex="", *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.latex = latex
-
-    @property
-    def spec(self) -> dict:
-        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
-
-
-class InlineCode(Base):
-    code: str = Attr()
-
-    def __init__(self, code="", *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.code = code
-
-    @property
-    def spec(self) -> dict:
-        return {"text": self.code, "inlineCode": True}
-
-
-class Link(Base):
-    text: str = Attr()
-    url: str = Attr()
-
-    def __init__(self, text, url, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.text = text
-        self.url = url
-
-    @property
-    def spec(self) -> dict:
-        return {"type": "link", "url": self.url, "children": [{"text": self.text}]}
 
 
 class UnknownBlock(Block):
