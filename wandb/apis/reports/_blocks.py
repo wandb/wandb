@@ -655,9 +655,9 @@ class Gallery(Block):
 
 class Image(Block):
     url: str = Attr()
-    caption: str = Attr()
+    caption: Optional[str] = Attr()
 
-    def __init__(self, url, caption="", *args, **kwargs):
+    def __init__(self, url, caption=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.url = url
         self.caption = caption
