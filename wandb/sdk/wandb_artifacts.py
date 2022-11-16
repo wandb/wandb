@@ -1009,22 +1009,22 @@ class WandbStoragePolicy(StoragePolicy):
         resp = preparer.prepare(_prepare_fn)
 
         entry.birth_artifact_id = resp.birth_artifact_id
-        exists = resp.upload_url is None
-        if not exists:
-            if entry.local_path is not None:
-                with open(entry.local_path, "rb") as file:
-                    # This fails if we don't send the first byte before the signed URL
-                    # expires.
-                    self._api.upload_file_retry(
-                        resp.upload_url,
-                        file,
-                        progress_callback,
-                        extra_headers={
-                            header.split(":", 1)[0]: header.split(":", 1)[1]
-                            for header in (resp.upload_headers or {})
-                        },
-                    )
-        return exists
+        if not resp.upload_url:
+            return True
+        if entry.local_path is None:
+            return False
+        with open(entry.local_path, "rb") as file:
+            # This fails if we don't send the first byte before the signed URL expires.
+            self._api.upload_file_retry(
+                resp.upload_url,
+                file,
+                progress_callback,
+                extra_headers={
+                    header.split(":", 1)[0]: header.split(":", 1)[1]
+                    for header in (resp.upload_headers or {})
+                },
+            )
+        return False
 
 
 # Don't use this yet!
