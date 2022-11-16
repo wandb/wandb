@@ -387,7 +387,6 @@ class Settings:
     _platform: str
     _python: str
     _require_service: str
-    _run_delivery_timed_out: bool
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
@@ -527,7 +526,6 @@ class Settings:
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
-            _run_delivery_timed_out={"value": False},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},

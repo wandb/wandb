@@ -702,10 +702,11 @@ class _WandbInit:
 
             handle = backend.interface.deliver_run(run_proto)
             result = handle.wait(timeout=timeout, on_progress=self._on_progress_init)
+            timed_out = result is None
             if result:
                 run_result = result.run_result
-            else:
-                self.settings.update({"_run_delivery_timed_out": True})
+            # else:
+            #     self.settings.update({"_run_delivery_timed_out": True})
 
             if not run_result and policy == "fail":
                 logger.error("backend process timed out, exiting as per 'fail' policy")
@@ -747,7 +748,7 @@ class _WandbInit:
             run._set_run_obj(
                 run_result.run if run_result else run_proto
             )  # todo: add method on run that convert it to proto message - temp hack
-            run._on_init()
+            run._on_init(timed_out)
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)

@@ -2000,15 +2000,6 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
-    def _on_init(self) -> None:
-
-        if self._backend and self._backend.interface:
-            logger.info("communicating current version")
-            self._check_version = self._backend.interface.communicate_check_version(
-                current_version=wandb.__version__
-            )
-        logger.info(f"got version response {self._check_version}")
-
     def _run_sync_status_checker_thread(
         self,
         interface: InterfaceBase,
@@ -2036,6 +2027,28 @@ class Run:
             else:
                 shutdown_event.wait(timeout)
 
+    def _on_init(self, timed_out: bool = False) -> None:
+
+        if self._backend and self._backend.interface:
+            logger.info("communicating current version")
+            self._check_version = self._backend.interface.communicate_check_version(
+                current_version=wandb.__version__
+            )
+
+            if timed_out:
+                self._run_sync_status_checker = threading.Thread(
+                    target=self._run_sync_status_checker_thread,
+                    args=(
+                        self._backend.interface,
+                        self._run_sync_status_checker_shutdown,
+                        self._printer,
+                    ),
+                    name="SyncStatCh",
+                    daemon=True,
+                )
+                self._run_sync_status_checker.start()
+        logger.info(f"got version response {self._check_version}")
+
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
@@ -2053,19 +2066,6 @@ class Run:
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
-
-            if self.settings._run_delivery_timed_out:
-                self._run_sync_status_checker = threading.Thread(
-                    target=self._run_sync_status_checker_thread,
-                    args=(
-                        self._backend.interface,
-                        self._run_sync_status_checker_shutdown,
-                        self._printer,
-                    ),
-                    name="SyncStatCh",
-                    daemon=True,
-                )
-                self._run_sync_status_checker.start()
 
         self._console_start()
         self._on_ready()
