@@ -131,7 +131,7 @@ class Api:
             "api_key": None,
             "entity": None,
             "project": None,
-        }            
+        }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
         if from_public_api:

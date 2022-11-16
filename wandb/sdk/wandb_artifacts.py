@@ -777,7 +777,9 @@ class ArtifactManifestV1(ArtifactManifest):
         }
 
         return cls(
-            artifact, storage_policy_cls.from_config(storage_policy_config, api = artifact._api), entries
+            artifact,
+            storage_policy_cls.from_config(storage_policy_config, api=artifact._api),
+            entries,
         )
 
     def __init__(
@@ -873,7 +875,7 @@ class WandbStoragePolicy(StoragePolicy):
     def from_config(cls, config: Dict, api=None) -> "WandbStoragePolicy":
         return cls(config=config, api=api)
 
-    def __init__(self, config: Dict = None, api: PublicApi=None) -> None:
+    def __init__(self, config: Dict = None, api: PublicApi = None) -> None:
         self._cache = get_artifacts_cache()
         self._config = config or {}
         self._session = requests.Session()

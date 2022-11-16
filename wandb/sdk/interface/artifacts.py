@@ -5,7 +5,17 @@ import contextlib
 import hashlib
 import os
 import random
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union, Optional
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    Optional,
+)
 
 import wandb
 from wandb import env, util
@@ -787,7 +797,7 @@ class StoragePolicy:
         pass
 
     @classmethod
-    def from_config(cls, config, api:"Api" = None):
+    def from_config(cls, config, api: "Api" = None):
         pass
 
     def config(self):
