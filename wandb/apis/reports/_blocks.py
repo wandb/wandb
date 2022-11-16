@@ -643,7 +643,9 @@ class Gallery(Block):
 
     @classmethod
     def from_report_urls(cls, urls: LList[str]) -> "Gallery":
-        ids = [url.split("--")[-1] for url in urls]
+        from .report import Report
+
+        ids = [Report._url_to_report_id(url) for url in urls]
         return cls(ids)
 
     @property
