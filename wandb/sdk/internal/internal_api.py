@@ -1520,6 +1520,11 @@ class Api:
             **kwargs,
         )
 
+        import time
+
+        print("NAP TIME, BABE")
+        time.sleep(10)
+
         run_obj: Dict[str, Dict[str, Dict[str, str]]] = response["upsertBucket"][
             "bucket"
         ]

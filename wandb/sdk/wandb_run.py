@@ -2000,13 +2000,14 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
-    def _check_run_sync_status_checker_status(
+    def _run_sync_status_checker_on_progress(
         self, progress_handle: MailboxProgress
     ) -> None:
         """
         We use this method to cleanly exit the run sync status checker thread
         when the _run_sync_status_checker_shutdown event is set.
         """
+        print("Are we there yet?")
         if self._run_sync_status_checker_shutdown.is_set():
             progress_handle.wait_stop()
 
@@ -2022,11 +2023,18 @@ class Run:
         logger.info("checking run sync status")
         result = handle.wait(
             timeout=timeout,
-            on_progress=self._check_run_sync_status_checker_status,
+            on_progress=self._run_sync_status_checker_on_progress,
+            release=False,
         )
 
         if result is None:
-            return
+            # reset the timeout and continue waiting if the shutdown event is set
+            # and the handle is still open, and we haven't received a response
+            # and the finish policy is not set to "fail"
+            if self.settings.finish_policy == "fail":
+                result = handle.wait(timeout=self.settings.finish_timeout)
+            else:
+                return
 
         run_result = result.run_result
         self._set_run_obj(run_result.run)
@@ -2034,10 +2042,10 @@ class Run:
         self._update_settings(self._settings)
 
         # communicate updated run state to manager
-        manager = self._wl._get_manager()
-        if manager:
-            logger.info("communicating updated settings to manager")
-            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+        # manager = self._wl._get_manager()
+        # if manager:
+        #     logger.info("communicating updated settings to manager")
+        #     manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         if self.settings.run_name and self.settings.run_url:
             Run._header_run_info(settings=self.settings, printer=self._printer)
@@ -2313,8 +2321,6 @@ class Run:
 
         if self._run_sync_status_checker:
             self._run_sync_status_checker_shutdown.set()
-            if self._run_sync_status_checker.is_alive():
-                self._run_sync_status_checker.join()
 
         if not self._settings._offline and self._settings.enable_job_creation:
             self._log_job()
@@ -2361,6 +2367,9 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.join()
+
+        if self._run_sync_status_checker and self._run_sync_status_checker.is_alive():
+            self._run_sync_status_checker.join()
 
         self._unregister_telemetry_import_hooks(self._run_id)
 
