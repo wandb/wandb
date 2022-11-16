@@ -778,7 +778,7 @@ class ArtifactManifestV1(ArtifactManifest):
 
         return cls(
             artifact,
-            storage_policy_cls.from_config(storage_policy_config, api=artifact._api),
+            storage_policy_cls.from_config(storage_policy_config, api=artifact.api),
             entries,
         )
 

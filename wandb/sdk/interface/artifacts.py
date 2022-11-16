@@ -14,7 +14,6 @@ from typing import (
     Sequence,
     Tuple,
     Union,
-    Optional,
 )
 
 import wandb
