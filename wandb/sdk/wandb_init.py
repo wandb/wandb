@@ -753,7 +753,7 @@ class _WandbInit:
 
             run._set_run_obj(
                 run_result.run if run_result else run_proto
-            )  # todo: add method on run that convert it to proto message - temp hack
+            )  # todo: add method on run that converts it to proto message - temp hack
             run._on_init()
 
         logger.info("starting run threads in backend")

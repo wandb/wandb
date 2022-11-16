@@ -2033,6 +2033,12 @@ class Run:
         self._settings._apply_run_start(message_to_dict(self._run_obj))  # type: ignore
         self._update_settings(self._settings)
 
+        # communicate updated run state to manager
+        manager = self._wl._get_manager()
+        if manager:
+            logger.info("communicating updated settings to manager")
+            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+
         if self.settings.run_name and self.settings.run_url:
             Run._header_run_info(settings=self.settings, printer=self._printer)
 
