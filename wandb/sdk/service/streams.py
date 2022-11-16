@@ -308,7 +308,7 @@ class StreamMux:
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
 
-            # wait for them, its ok to do this serially but this can be improved
+            # wait for them, it's ok to do this serially but this can be improved
             result = poll_exit_handle.wait(timeout=-1)
             assert result
             poll_exit_response = result.response.poll_exit_response
