@@ -1,13 +1,25 @@
 import random
-from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, get_type_hints
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 
 from ..public import Api as PublicApi
 from ..public import PanelMetricsHelper
 from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
-Func = TypeVar("Func")
+# Func = TypeVar("Func")
 T = TypeVar("T")
 V = TypeVar("V")
+Func = Callable[[T], V]
 
 
 public_api = PublicApi()
@@ -46,6 +58,7 @@ def generate_name(length: int = 12) -> str:
 
 
 def coalesce(*arg: Any) -> Any:
+    """Return the first non-none value in the list of arguments.  Similar to ?? in C#"""
     return next((a for a in arg if a is not None), None)
 
 
@@ -92,7 +105,9 @@ def nested_set(json: dict, keys: str, value: Any) -> None:
         json[keys[-1]] = value
 
 
-class Property:
+class Property(Generic[T]):
+    """Property descriptor with a default getter and setter."""
+
     def __init__(
         self, fget: Optional[Func] = None, fset: Optional[Func] = None
     ) -> None:
@@ -103,7 +118,7 @@ class Property:
     def __set_name__(self, owner: Any, name: str) -> None:
         self.name = name
 
-    def __get__(self, obj: Any, objtype: Optional[Any] = None) -> Any:
+    def __get__(self, obj: Any, objtype: Optional[Any] = None) -> T:
         if obj is None:
             return self
         if self.fget is None:
@@ -158,8 +173,13 @@ class Typed(Validated):
 
 
 class JSONLinked(Property):
+    """Property that is linked to one or more JSON keys."""
+
     def __init__(
-        self, *args: Func, json_path: Optional[str] = None, **kwargs: Func
+        self,
+        *args: Func,
+        json_path: Optional[Union[str, List[str]]] = None,
+        **kwargs: Func,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.path_or_name = json_path
