@@ -2,7 +2,6 @@
 
 import configparser
 import datetime
-from functools import wraps
 import getpass
 import json
 import logging
@@ -15,32 +14,27 @@ import tempfile
 import textwrap
 import time
 import traceback
-
+from functools import wraps
 
 import click
+import yaml
 from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
-import wandb
-from wandb import Config
-from wandb import env, util
-from wandb import Error
-from wandb import wandb_agent
-from wandb import wandb_sdk
 
+import wandb
+
+# from wandb.old.core import wandb_dir
+import wandb.sdk.verify.verify as wandb_verify
+from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.utils import construct_launch_spec
+from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
-
-# from wandb.old.core import wandb_dir
-import wandb.sdk.verify.verify as wandb_verify
-from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
-import yaml
-
+from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
@@ -309,7 +303,7 @@ def service(
 @click.pass_context
 @display_error
 def init(ctx, project, entity, reset, mode):
-    from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
+    from wandb.old.core import __stage_dir__, _set_stage_dir, wandb_dir
 
     if __stage_dir__ is None:
         _set_stage_dir("wandb")
@@ -884,6 +878,15 @@ def sweep(
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
+        # Try and get job from sweep config
+        _job = config.get("job", None)
+        if _job is None:
+            wandb.termlog("No job found in sweep config, looking in launch config.")
+            _job = launch_config.get("job", None)
+            if _job is None:
+                wandb.termlog("No job found in launch config, using placeholder.")
+                _job = "placeholder-job"
+
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
@@ -911,7 +914,7 @@ def sweep(
                             "--project",
                             project,
                             "--job",
-                            launch_config.get("job", "placeholder-job"),
+                            _job,
                             "--resource",
                             launch_config.get("resource", "local-process"),
                             # TODO(hupo): Add num-workers as option in launch config
@@ -1180,6 +1183,8 @@ def launch(
     elif resource is None:
         resource = "local-container"
 
+    check_logged_in(api)
+
     run_id = config.get("run_id")
 
     if queue is None:
@@ -1283,6 +1288,8 @@ def launch_agent(
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
+
+    check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
     wandb_launch.create_and_run_agent(api, agent_config)
@@ -2079,7 +2086,7 @@ def online():
     except configparser.Error:
         pass
     click.echo(
-        "W&B online, running your script from this directory will now sync to the cloud."
+        "W&B online. Running your script from this directory will now sync to the cloud."
     )
 
 
@@ -2091,11 +2098,11 @@ def offline():
         api.set_setting("disabled", "true", persist=True)
         api.set_setting("mode", "offline", persist=True)
         click.echo(
-            "W&B offline, running your script from this directory will only write metadata locally."
+            "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."
         )
     except configparser.Error:
         click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=dryrun"
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=offline"
         )
 
 
@@ -2147,7 +2154,7 @@ def enabled():
         click.echo("W&B enabled.")
     except configparser.Error:
         click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
+            "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
         )
 
 

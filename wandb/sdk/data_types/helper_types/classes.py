@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 from .. import _dtypes
 from ..base_types.media import Media

@@ -1,5 +1,16 @@
-import typing
+import ast
+import base64
+import datetime
+import json
+import logging
+import os
+import re
+import socket
+import sys
 from abc import ABC
+from copy import deepcopy
+import threading
+import typing
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -10,47 +21,31 @@ from typing import (
     List,
     Mapping,
     MutableMapping,
+    Optional,
     Sequence,
     TextIO,
     Tuple,
     TypeVar,
-    Optional,
     Union,
 )
+
+import click
+import requests
+import yaml
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
-import ast
-import base64
-from copy import deepcopy
-import threading
-import datetime
-from io import BytesIO
-import json
-import os
-from pkg_resources import parse_version
-import re
-import requests
-import logging
-import socket
-import sys
-
-import click
-import yaml
-
 import wandb
-from wandb import __version__
-from wandb import env
-from wandb.old.settings import Settings
-from wandb import util
+from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from wandb.old.settings import Settings
+
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
-
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
@@ -1786,7 +1781,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)
+        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 
@@ -2554,6 +2549,8 @@ class Api:
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
+        from pkg_resources import parse_version
+
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
@@ -2721,6 +2718,7 @@ class Api:
             mutation,
             variable_values={"artifactID": artifact_id},
             check_retry_fn=check_retry_fn,
+            timeout=60,
         )
         return response
 

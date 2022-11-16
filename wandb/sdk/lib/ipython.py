@@ -4,7 +4,6 @@ from typing import Optional
 
 import wandb
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +43,7 @@ def display_html(html: str):  # type: ignore
     if wandb.run and wandb.run._settings.silent:
         return
     try:
-        from IPython.core.display import display, HTML  # type: ignore
+        from IPython.core.display import HTML, display  # type: ignore
     except ImportError:
         wandb.termwarn("Unable to render HTML, can't import display from ipython.core")
         return False

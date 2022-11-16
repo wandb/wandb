@@ -2,7 +2,7 @@
 summary test.
 """
 
-from typing import Any, Dict, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 from wandb import wandb_sdk
 

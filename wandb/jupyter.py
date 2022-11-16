@@ -1,18 +1,19 @@
-from base64 import b64encode
 import json
 import logging
 import os
 import re
 import shutil
 import sys
+from base64 import b64encode
 
 import requests
 from requests.compat import urljoin
+
 import wandb
 
 try:
     from IPython.core.getipython import get_ipython
-    from IPython.core.magic import line_cell_magic, Magics, magics_class
+    from IPython.core.magic import Magics, line_cell_magic, magics_class
     from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
     from IPython.display import display
 except ImportError:
@@ -372,10 +373,18 @@ class Notebook:
 
         return
 
-    def save_ipynb(self):
+    def save_ipynb(self) -> bool:
         if not self.settings.save_code:
             logger.info("not saving jupyter notebook")
             return False
+        ret = False
+        try:
+            ret = self._save_ipynb()
+        except Exception as e:
+            logger.info(f"Problem saving notebook: {repr(e)}")
+        return ret
+
+    def _save_ipynb(self) -> bool:
         relpath = self.settings._jupyter_path
         logger.info("looking for notebook: %s", relpath)
         if relpath:
@@ -391,7 +400,11 @@ class Notebook:
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
-            nb_name = colab_ipynb["metadata"]["colab"]["name"]
+            nb_name = (
+                colab_ipynb.get("metadata", {})
+                .get("colab", {})
+                .get("name", "colab.ipynb")
+            )
             if ".ipynb" not in nb_name:
                 nb_name += ".ipynb"
             with open(
@@ -422,7 +435,7 @@ class Notebook:
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
         try:
-            from nbformat import write, v4, validator
+            from nbformat import v4, validator, write
         except ImportError:
             logger.error("Run pip install nbformat to save notebook history")
             return

@@ -11,9 +11,7 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 import ast
-from collections import namedtuple
 import datetime
-from functools import partial
 import json
 import logging
 import os
@@ -22,11 +20,16 @@ import re
 import shutil
 import tempfile
 import time
-from typing import List, Optional
 import urllib
+from collections import namedtuple
+from functools import partial
+from typing import Dict, List, Mapping, Optional
 
-from pkg_resources import parse_version
 import requests
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
+from wandb_gql.transport.requests import RequestsHTTPTransport
+
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
@@ -41,10 +44,6 @@ from wandb.sdk.internal.internal_api import _thread_local_api_settings
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
-from wandb_gql import Client, gql
-from wandb_gql.client import RetryError
-from wandb_gql.transport.requests import RequestsHTTPTransport
-
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +241,8 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
+        from pkg_resources import parse_version
+
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
         )
@@ -762,7 +763,14 @@ class Api:
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
+    def runs(
+        self,
+        path: Optional[str] = None,
+        filters: Optional[str] = None,
+        order: str = "-created_at",
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         """
         Return a set of runs from a project that match the filters provided.
 
@@ -830,6 +838,7 @@ class Api:
                 filters=filters,
                 order=order,
                 per_page=per_page,
+                include_sweeps=include_sweeps,
             )
         return self._runs[key]
 
@@ -846,9 +855,9 @@ class Api:
         Returns:
             A `Run` object.
         """
-        entity, project, run = self._parse_path(path)
+        entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path] = Run(self.client, entity, project, run)
+            self._runs[path] = Run(self.client, entity, project, run_id)
         return self._runs[path]
 
     def queued_run(
@@ -1156,7 +1165,16 @@ class User(Attrs):
             return None
 
     def __repr__(self):
-        return f"<User {self.email}>"
+        if "email" in self._attrs:
+            return f"<User {self._attrs['email']}>"
+        elif "username" in self._attrs:
+            return f"<User {self._attrs['username']}>"
+        elif "id" in self._attrs:
+            return f"<User {self._attrs['id']}>"
+        elif "name" in self._attrs:
+            return f"<User {self._attrs['name']!r}>"
+        else:
+            return "<User ???>"
 
 
 class Member(Attrs):
@@ -1528,12 +1546,22 @@ class Runs(Paginator):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        filters: Optional[str] = None,
+        order: Optional[str] = None,
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         self.entity = entity
         self.project = project
         self.filters = filters or {}
         self.order = order
         self._sweeps = {}
+        self._include_sweeps = include_sweeps
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -1574,10 +1602,11 @@ class Runs(Paginator):
                 self.project,
                 run_response["node"]["name"],
                 run_response["node"],
+                include_sweeps=self._include_sweeps,
             )
             objs.append(run)
 
-            if run.sweep_name:
+            if self._include_sweeps and run.sweep_name:
                 if run.sweep_name in self._sweeps:
                     sweep = self._sweeps[run.sweep_name]
                 else:
@@ -1625,7 +1654,15 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs=None):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        run_id: str,
+        attrs: Optional[Mapping] = None,
+        include_sweeps: bool = True,
+    ):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
@@ -1638,6 +1675,7 @@ class Run(Attrs):
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
         self.sweep = None
+        self._include_sweeps = include_sweeps
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -1754,7 +1792,7 @@ class Run(Attrs):
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
 
-            if self.sweep_name and not self.sweep:
+            if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = Sweep.get(
@@ -2244,6 +2282,16 @@ class QueuedRun:
 
     @property
     def state(self):
+        item = self._get_item()
+        if item:
+            return item["state"].lower()
+
+        raise ValueError(
+            f"Could not find QueuedRunItem associated with id: {self.id} on queue id {self.queue_id} at itemId: {self.id}"
+        )
+
+    @normalize_exceptions
+    def _get_run_queue_item_legacy(self) -> Dict:
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -2261,7 +2309,7 @@ class QueuedRun:
                     }
                 }
             }
-        """
+            """
         )
         variable_values = {
             "projectName": self.project,
@@ -2269,12 +2317,43 @@ class QueuedRun:
             "runQueue": self.queue_id,
         }
         res = self.client.execute(query, variable_values)
+
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
             if str(item["node"]["id"]) == str(self.id):
-                return item["node"]["state"].lower()
-        raise ValueError(
-            f"Could not find QueuedRun associated with id: {self.id} on queue id {self.queue_id}"
+                return item["node"]
+
+    @normalize_exceptions
+    def _get_item(self):
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueue) {
+                        runQueueItem(id: $itemId) {
+                            id
+                            state
+                            associatedRunId
+                        }
+                    }
+                }
+            }
+        """
         )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+            "itemId": self.id,
+        }
+        try:
+            res = self.client.execute(query, variable_values)  # exception w/ old server
+            if res["project"]["runQueue"].get("runQueueItem") is not None:
+                return res["project"]["runQueue"]["runQueueItem"]
+        except Exception as e:
+            if "Cannot query field" not in str(e):
+                raise LaunchError(f"Unknown exception: {e}")
+
+        return self._get_run_queue_item_legacy()
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -2316,56 +2395,26 @@ class QueuedRun:
             return self._run
         if self.container_job:
             raise LaunchError("Container jobs cannot be waited on")
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    associatedRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        variable_values = {
-            "projectName": self.project,
-            "entityName": self._entity,
-            "runQueue": self.queue_id,
-        }
 
         while True:
             # sleep here to hide an ugly warning
             time.sleep(2)
-            res = self.client.execute(query, variable_values)
-            # TODO: add fetch run queue by item end point
-            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-                if (
-                    item["node"]["id"] == self.id
-                    and item["node"]["associatedRunId"] is not None
-                ):
-                    # TODO: this should be changed once the ack occurs within the docker container.
-                    try:
-                        self._run = Run(
-                            self.client,
-                            self._entity,
-                            self.project,
-                            item["node"]["associatedRunId"],
-                            None,
-                        )
-                        self._run_id = item["node"]["associatedRunId"]
-                        return self._run
-                    except ValueError as e:
-                        print(e)
-                elif item["node"]["id"] == self.id:
-                    wandb.termlog("Waiting for run to start")
+            item = self._get_item()
+            if item and item["associatedRunId"] is not None:
+                try:
+                    self._run = Run(
+                        self.client,
+                        self._entity,
+                        self.project,
+                        item["associatedRunId"],
+                        None,
+                    )
+                    self._run_id = item["associatedRunId"]
+                    return self._run
+                except ValueError as e:
+                    print(e)
+            elif item:
+                wandb.termlog("Waiting for run to start")
 
             time.sleep(3)
 
@@ -2952,6 +3001,9 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
+
+    from pkg_resources import parse_version
+
     def __init__(self, run_set):
         self.run_set = run_set
         self.panel_metrics_helper = PanelMetricsHelper()
@@ -4984,6 +5036,7 @@ class Job:
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
             self._source_info = json.load(f)
         self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
+        self._args = self._source_info.get("source", {}).get("args")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._source_info.get("input_types")
@@ -5019,6 +5072,8 @@ class Job:
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
+        if self._args:
+            launch_project.override_args = self._args
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
@@ -5035,6 +5090,8 @@ class Job:
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
+        if self._args:
+            launch_project.override_args = self._args
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("source", {}).get("image")
@@ -5044,6 +5101,8 @@ class Job:
             )
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
+        if self._args:
+            launch_project.override_args = self._args
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint

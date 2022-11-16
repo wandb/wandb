@@ -9,12 +9,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import wandb
+from metaflow import FlowSpec, Parameter, step
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 from wandb.integration.metaflow import wandb_log
-
-import wandb
-from metaflow import FlowSpec, Parameter, step
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["METAFLOW_USER"] = "test_user"
