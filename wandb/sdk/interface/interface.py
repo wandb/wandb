@@ -715,8 +715,7 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
-        run = self._make_run(run_obj)
+    def deliver_run(self, run: "pb.RunRecord") -> MailboxHandle:
         return self._deliver_run(run)
 
     @abstractmethod

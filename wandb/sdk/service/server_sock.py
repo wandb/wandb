@@ -109,6 +109,7 @@ class SockServerReadThread(threading.Thread):
                 self, shandler_str, None
             )
             assert shandler, f"unknown handle: {shandler_str}"
+            # print(f"handling {sreq_type} {sreq}")
             shandler(sreq)
 
     def stop(self) -> None:

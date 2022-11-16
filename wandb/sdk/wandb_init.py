@@ -700,19 +700,30 @@ class _WandbInit:
 
             logger.info(f"communicating run to backend with {timeout} second timeout")
 
-            handle = backend.interface.deliver_run(run)
-            timeout = 0.01  # temp hack to simulate timeout
+            handle = backend.interface.deliver_run(run_proto)
             result = handle.wait(timeout=timeout, on_progress=self._on_progress_init)
             if result:
                 run_result = result.run_result
+            else:
+                self.settings.update({"_run_delivery_timed_out": True})
 
             if not run_result and policy == "fail":
-                logger.error("backend process timed out")
-                error_message = "Error communicating with wandb process"
-                if active_start_method != "fork":
-                    error_message += (
-                        f"\nFor more info see: {wburls.get('doc_start_err')}"
-                    )
+                logger.error("backend process timed out, exiting as per 'fail' policy")
+                error_message = (
+                    "Error communicating with wandb process, "
+                    "exiting as per 'fail' init policy."
+                )
+                error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
+            elif not run_result and policy == "allow":
+                logger.warning(
+                    "backend process timed out, continuing as per 'allow' policy"
+                )
+                # todo: clearly communicate the error to the user, and what happens next
+                self.printer.display(
+                    # todo: ask Carey for help with the wording
+                    f'{self.printer.emoji("turtle")} Communicating with wandb, '
+                    "run links not yet available."
+                )
             elif run_result and run_result.error:
                 error_message = run_result.error.message
 

@@ -76,7 +76,7 @@ message Result {
   }
   Control             control = 16;
   string              uuid = 24;
-  _ResultInfo _info = 200;
+  _ResultInfo         _info = 200;
 }
 
 /*

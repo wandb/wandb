@@ -596,6 +596,9 @@ class SendManager:
         resume_status = self._api.run_resume_status(
             entity=entity, project_name=run.project, name=run.run_id  # type: ignore
         )
+        import time
+
+        time.sleep(3)
 
         if not resume_status:
             if self._settings.resume == "must":

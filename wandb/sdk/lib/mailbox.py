@@ -268,6 +268,7 @@ class MailboxHandle:
             now = self._time()
             if timeout >= 0:
                 if now >= start_time + timeout:
+                    # todo: communicate that we timed out
                     break
             if on_probe and probe_handle:
                 on_probe(probe_handle)

@@ -81,6 +81,7 @@ from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
+from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
@@ -395,6 +396,8 @@ class Run:
     _exit_code: Optional[int]
 
     _run_status_checker: Optional[RunStatusChecker]
+    _run_sync_status_checker: Optional[threading.Thread]
+    _run_sync_status_checker_shutdown: threading.Event
 
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
@@ -500,6 +503,9 @@ class Run:
 
         # Created when the run "starts".
         self._run_status_checker = None
+
+        self._run_sync_status_checker = None
+        self._run_sync_status_checker_shutdown = threading.Event()
 
         self._check_version = None
         self._sampled_history = None
@@ -2003,6 +2009,33 @@ class Run:
             )
         logger.info(f"got version response {self._check_version}")
 
+    def _run_sync_status_checker_thread(
+        self,
+        interface: InterfaceBase,
+        shutdown_event: threading.Event,
+        printer: Union["PrinterJupyter", "PrinterTerm"],
+    ) -> None:
+        run_proto = interface._make_run(self)
+        handle = interface.deliver_run(run_proto)
+        handle._keepalive = False
+        timeout = 1.0  # hack
+        while not shutdown_event.is_set():
+            logger.info("checking run sync status")
+            result = handle.wait(timeout=timeout)
+            if result:
+                run_result = result.run_result
+                self._set_run_obj(run_result.run)
+                self._settings._apply_run_start(message_to_dict(self._run_obj))
+                self._update_settings(self._settings)
+
+                if self.settings.run_name and self.settings.run_url:
+                    info = [
+                        f"{printer.emoji('rocket')} View run {printer.name(self.settings.run_name)} at: {printer.link(self.settings.run_url)}"
+                    ]
+                    printer.display(info)
+            else:
+                shutdown_event.wait(timeout)
+
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
@@ -2020,6 +2053,19 @@ class Run:
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
+
+            if self.settings._run_delivery_timed_out:
+                self._run_sync_status_checker = threading.Thread(
+                    target=self._run_sync_status_checker_thread,
+                    args=(
+                        self._backend.interface,
+                        self._run_sync_status_checker_shutdown,
+                        self._printer,
+                    ),
+                    name="SyncStatCh",
+                    daemon=True,
+                )
+                self._run_sync_status_checker.start()
 
         self._console_start()
         self._on_ready()
@@ -2249,6 +2295,10 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.stop()
+
+        if self._run_sync_status_checker:
+            self._run_sync_status_checker_shutdown.set()
+            self._run_sync_status_checker.join()
 
         if not self._settings._offline and self._settings.enable_job_creation:
             self._log_job()
@@ -3011,7 +3061,10 @@ class Run:
             return
 
         # printer = printer or get_printer(settings._jupyter)
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        # TODO: add this to a higher verbosity level
+        printer.display(
+            f"Tracking run with wandb version {wandb.__version__}", off=True
+        )
 
     @staticmethod
     def _header_sync_info(
@@ -3070,34 +3123,41 @@ class Run:
                     project_line = f"to {project_html} ({doc_html})"
 
                     if sweep_url:
-                        sweep_line = (
-                            f"Sweep page:  {printer.link(sweep_url, sweep_url)}"
-                        )
+                        sweep_line = f"Sweep page: {printer.link(sweep_url, sweep_url)}"
 
                 printer.display(
-                    [f"{run_state_str} {run_line} {project_line}", sweep_line]
+                    [f"{run_state_str} {run_line} {project_line}", sweep_line],
+                    off=not run_name,
                 )
 
         else:
-            printer.display(f"{run_state_str} {printer.name(run_name)}")
-            if not settings.quiet:
-                printer.display(
-                    f'{printer.emoji("star")} View project at {printer.link(project_url)}'
-                )
-                if sweep_url:
-                    printer.display(
-                        f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
-                    )
             printer.display(
-                f'{printer.emoji("rocket")} View run at {printer.link(run_url)}'
+                f"{run_state_str} {printer.name(run_name)}", off=not run_name
             )
 
-            # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-            if Api().api.settings().get("anonymous") == "true":
+        if not settings.quiet:
+            # TODO: add verbosity levels and add this to higher levels
+            printer.display(
+                f'{printer.emoji("star")} View project at {printer.link(project_url)}',
+                off=not run_name,
+            )
+            if sweep_url:
                 printer.display(
-                    "Do NOT share these links with anyone. They can be used to claim your runs.",
-                    level="warn",
+                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}',
+                    off=not run_name,
                 )
+        printer.display(
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+            off=not run_name,
+        )
+
+        # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
+        if Api().api.settings().get("anonymous") == "true":
+            printer.display(
+                "Do NOT share these links with anyone. They can be used to claim your runs.",
+                level="warn",
+                off=not run_name,
+            )
 
     # ------------------------------------------------------------------------------
     # FOOTER
@@ -3326,10 +3386,9 @@ class Run:
             info = []
             if settings.run_name and settings.run_url:
                 info = [
-                    f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
                 ]
             if poll_exit_response and poll_exit_response.file_counts:
-
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
                 info.append(

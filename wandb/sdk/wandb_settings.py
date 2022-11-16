@@ -28,7 +28,6 @@ from typing import (
     Union,
     no_type_check,
 )
-
 from urllib.parse import quote, urlencode, urlparse, urlsplit
 
 import wandb
@@ -388,6 +387,7 @@ class Settings:
     _platform: str
     _python: str
     _require_service: str
+    _run_delivery_timed_out: bool
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
@@ -527,6 +527,7 @@ class Settings:
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
+            _run_delivery_timed_out={"value": False},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
@@ -564,7 +565,7 @@ class Settings:
             },
             finish_timeout={"value": 86400, "preprocessor": lambda x: float(x)},
             finish_policy={
-                "value": "callscript",
+                "value": "fail",
                 "validator": self._validate_finish_policy,
             },
             force={"preprocessor": _str_as_bool},
@@ -741,7 +742,7 @@ class Settings:
         """
         Validate the init policy setting
         """
-        choices = {"fail", "continue"}
+        choices = {"fail", "allow"}
         if value not in choices:
             raise ValueError(f"Invalid init policy: {value}. Must be one of: {choices}")
         return True

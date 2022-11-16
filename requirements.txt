@@ -1,4 +1,5 @@
 Click>=7.0,!=8.0.0  # click 8.0.0 is broken
+rich<=12.7.0
 GitPython>=1.0.0
 requests>=2.0.0,<3
 promise>=2.0,<3
