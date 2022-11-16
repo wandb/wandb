@@ -201,6 +201,18 @@ class ArtifactEntry:
         """
         raise NotImplementedError
 
+    def copy_to_temp(self) -> None:
+        """
+        Copies the artifact to a temp file.
+
+        After this is called, `local_path` will point to the temp file.
+        The temp file will be cleaned up when the artifact entry is deleted.
+
+        Raises:
+            AssertionError: If the artifact already references a temp file.
+        """
+        raise NotImplementedError
+
 
 class Artifact:
     @property

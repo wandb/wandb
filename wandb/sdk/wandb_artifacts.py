@@ -893,8 +893,8 @@ class ArtifactManifestEntry(ArtifactEntry):
 
         return "<ManifestEntry %s>" % summary
 
-    def __del__(self):
-        if self._remove_tmp and os.path.exists(self.local_path):
+    def __del__(self) -> None:
+        if self._remove_tmp and self.local_path and os.path.exists(self.local_path):
             os.remove(self.local_path)
 
 
