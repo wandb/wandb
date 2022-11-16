@@ -997,7 +997,7 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
-
+        # TODO: document the purpose of the return value.
         def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
             return {
                 "artifactID": artifact_id,
