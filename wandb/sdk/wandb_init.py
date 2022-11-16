@@ -16,7 +16,7 @@ import platform
 import sys
 import tempfile
 import traceback
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
 
@@ -46,6 +46,9 @@ from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
+
+if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2 as pb
 
 logger = None  # logger configured during wandb.init()
 
@@ -676,6 +679,8 @@ class _WandbInit:
             run._populate_git_info()
 
         run_proto = backend.interface._make_run(run)
+        run_init_handle: Optional[MailboxHandle] = None
+        run_result: Optional["pb.Result"] = None
 
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
@@ -689,7 +694,6 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
-            run_result = None
             error_message: Optional[str] = None
             if self.settings.resume:
                 timeout = self.settings.resume_timeout
@@ -700,13 +704,15 @@ class _WandbInit:
 
             logger.info(f"communicating run to backend with {timeout} second timeout")
 
-            handle = backend.interface.deliver_run(run_proto)
-            result = handle.wait(timeout=timeout, on_progress=self._on_progress_init)
-            timed_out = result is None
+            run_init_handle = backend.interface.deliver_run(run_proto)
+            result = run_init_handle.wait(
+                timeout=timeout,
+                on_progress=self._on_progress_init,
+                release=False,
+            )
+
             if result:
                 run_result = result.run_result
-            # else:
-            #     self.settings.update({"_run_delivery_timed_out": True})
 
             if not run_result and policy == "fail":
                 logger.error("backend process timed out, exiting as per 'fail' policy")
@@ -748,7 +754,7 @@ class _WandbInit:
             run._set_run_obj(
                 run_result.run if run_result else run_proto
             )  # todo: add method on run that convert it to proto message - temp hack
-            run._on_init(timed_out)
+            run._on_init()
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
@@ -786,7 +792,7 @@ class _WandbInit:
 
         self.backend = backend
         self._reporter.set_context(run=run)
-        run._on_start()
+        run._on_start(run_init_handle if run_result is None else None)
         logger.info("run started, returning control to user process")
         return run
 

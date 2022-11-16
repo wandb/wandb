@@ -2000,56 +2000,52 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
-    def _run_sync_status_checker_thread(
-        self,
-        interface: InterfaceBase,
-        shutdown_event: threading.Event,
-        printer: Union["PrinterJupyter", "PrinterTerm"],
+    def _check_run_sync_status_checker_status(
+        self, progress_handle: MailboxProgress
     ) -> None:
-        run_proto = interface._make_run(self)
-        handle = interface.deliver_run(run_proto)
-        handle._keepalive = False
-        timeout = 1.0  # hack
-        while not shutdown_event.is_set():
-            logger.info("checking run sync status")
-            result = handle.wait(timeout=timeout)
-            if result:
-                run_result = result.run_result
-                self._set_run_obj(run_result.run)
-                self._settings._apply_run_start(message_to_dict(self._run_obj))
-                self._update_settings(self._settings)
+        """
+        We use this method to cleanly exit the run sync status checker thread
+        when the _run_sync_status_checker_shutdown event is set.
+        """
+        if self._run_sync_status_checker_shutdown.is_set():
+            progress_handle.wait_stop()
 
-                if self.settings.run_name and self.settings.run_url:
-                    info = [
-                        f"{printer.emoji('rocket')} View run {printer.name(self.settings.run_name)} at: {printer.link(self.settings.run_url)}"
-                    ]
-                    printer.display(info)
-            else:
-                shutdown_event.wait(timeout)
+    def _run_sync_status_checker_thread(self, handle: MailboxHandle) -> None:
+        """
+        This thread is started if we could not immediately connect to the backend
+        and provide the project/run information to the user. It will wait on the
+        provided Mailbox handle until the backend responds back and then update
+        the run state with the received information and communicate it to the user.
+        """
+        timeout = -1  # Wait forever
 
-    def _on_init(self, timed_out: bool = False) -> None:
+        logger.info("checking run sync status")
+        result = handle.wait(
+            timeout=timeout,
+            on_progress=self._check_run_sync_status_checker_status,
+        )
+
+        if result is None:
+            return
+
+        run_result = result.run_result
+        self._set_run_obj(run_result.run)
+        self._settings._apply_run_start(message_to_dict(self._run_obj))  # type: ignore
+        self._update_settings(self._settings)
+
+        if self.settings.run_name and self.settings.run_url:
+            Run._header_run_info(settings=self.settings, printer=self._printer)
+
+    def _on_init(self) -> None:
 
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
             self._check_version = self._backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
+            logger.info(f"got version response {self._check_version}")
 
-            if timed_out:
-                self._run_sync_status_checker = threading.Thread(
-                    target=self._run_sync_status_checker_thread,
-                    args=(
-                        self._backend.interface,
-                        self._run_sync_status_checker_shutdown,
-                        self._printer,
-                    ),
-                    name="SyncStatCh",
-                    daemon=True,
-                )
-                self._run_sync_status_checker.start()
-        logger.info(f"got version response {self._check_version}")
-
-    def _on_start(self) -> None:
+    def _on_start(self, init_handle: Optional[MailboxHandle] = None) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
@@ -2059,6 +2055,19 @@ class Run:
         self._header(
             self._check_version, settings=self._settings, printer=self._printer
         )
+
+        if init_handle is not None:
+            # If at this point init_handle received the response from the backend,
+            # we will update the run object and settings with the received information
+            # and communicate it to the user. Otherwise, that will be done once
+            # the backend responds back.
+            self._run_sync_status_checker = threading.Thread(
+                target=self._run_sync_status_checker_thread,
+                args=(init_handle,),
+                name="SyncStatCh",
+                daemon=True,
+            )
+            self._run_sync_status_checker.start()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -2298,7 +2307,8 @@ class Run:
 
         if self._run_sync_status_checker:
             self._run_sync_status_checker_shutdown.set()
-            self._run_sync_status_checker.join()
+            if self._run_sync_status_checker.is_alive():
+                self._run_sync_status_checker.join()
 
         if not self._settings._offline and self._settings.enable_job_creation:
             self._log_job()
@@ -2916,7 +2926,8 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
+                    f"Artifact {artifact.name} already exists with type {expected_type}; "
+                    f"cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
