@@ -168,9 +168,7 @@ class Report(Base):
     def url(self) -> str:
         title = urllib.parse.quote(self.title.replace(" ", "-"))
         id = self.id.replace("=", "")
-        return (
-            f"{self.client.app_url}/{self.entity}/{self.project}/reports/{title}--{id}"
-        )
+        return f"{public_api.client.app_url}/{self.entity}/{self.project}/reports/{title}--{id}"
 
     def save(self, draft: bool = False, clone: bool = False) -> "Report":
         if not self.modified:
@@ -194,7 +192,7 @@ class Report(Base):
                 if rs.project is None:
                     rs.project = self.project
 
-        r = self.client.execute(
+        r = public_api.client.execute(
             UPSERT_VIEW,
             variable_values={
                 "id": None if clone or not self.id else self.id,
