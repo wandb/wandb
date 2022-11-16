@@ -216,12 +216,17 @@ class GitHubReference:
             head.checkout()
 
         # Now that we've checked something out, try to extract directory and entry point from what remains
-        if self.path:
-            path = Path(dst_dir, self.path)
-            if path.is_file():
-                self.directory = str(path.parent.absolute())
-                self.entry_point = path.name
-                self.path = None
-            elif path.is_dir():
-                self.directory = self.path
-                self.path = None
+        self._update_path(dst_dir)
+
+    def _update_path(self, dst_dir: str) -> None:
+        """Set directory and entry_point fields based on what remains in path."""
+        if not self.path:
+            return
+        path = Path(dst_dir, self.path)
+        if path.is_file():
+            self.directory = str(path.parent.absolute())
+            self.entry_point = path.name
+            self.path = None
+        elif path.is_dir():
+            self.directory = self.path
+            self.path = None

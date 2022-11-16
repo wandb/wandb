@@ -518,7 +518,9 @@ def fetch_and_validate_project(
     if launch_project.source == LaunchSource.DOCKER:
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
-        if launch_project.project_dir and os.path.exists(os.path.join(launch_project.project_dir, "Dockerfile")):
+        if launch_project.project_dir and os.path.exists(
+            os.path.join(launch_project.project_dir, "Dockerfile")
+        ):
             launch_project.use_custom_dockerfile = True
         elif not launch_project._entry_points:
             wandb.termlog(
