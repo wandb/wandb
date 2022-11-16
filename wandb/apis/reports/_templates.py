@@ -1,13 +1,65 @@
 import wandb.apis.reports as wr
 
+from .util import coalesce
+
 
 def analysis(title, text):
     return [wr.H1(title), wr.P(text)]
 
 
-def create_customer_landing_page(project_name, company_name, main_contact, slack_link):
+def create_example_header():
+    return [
+        wr.Image(
+            "https://lever-client-logos.s3.amazonaws.com/bb006941-a5fe-4d4c-b13d-931f9b9c303f-1569362661885.png"
+        ),
+        wr.HorizontalRule(),
+    ]
+
+
+def create_example_footer():
+    return [
+        wr.HorizontalRule(),
+        wr.P(
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+        ),
+        wr.Image(
+            "https://avatars.githubusercontent.com/u/26401354?s=100&v=4",
+            "small logo at bottom",
+        ),
+    ]
+
+
+def create_enterprise_report(
+    project=None,
+    title="Untitled Report",
+    description="",
+    header=None,
+    body=None,
+    footer=None,
+):
+    project = coalesce(project, "default-project")
+    header = coalesce(header, create_example_header())
+    body = coalesce(body, [])
+    footer = coalesce(footer, create_example_footer())
+
     return wr.Report(
-        project_name,
+        project=project,
+        title=title,
+        description=description,
+        blocks=[*header, *body, *footer],
+    )
+
+
+def create_customer_landing_page(
+    project=None,
+    company_name="My Company",
+    main_contact="My Contact (name@email.com)",
+    slack_link="https://company.slack.com",
+):
+    project = coalesce(project, "default-project")
+
+    return wr.Report(
+        project,
         title=f"Weights & Biases @ {company_name}",
         description=f"The developer-first MLOps platform is now available at {company_name}!\nReach out to {main_contact} for an account, and join your dedicated slack channel at:\n{slack_link}",
         blocks=[

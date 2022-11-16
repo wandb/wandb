@@ -2,13 +2,14 @@
 from inspect import cleandoc
 
 from ... import termlog
-from . import blocks, helpers, panels
+from . import blocks, helpers, panels, templates
 from .blocks import *
 from .helpers import LineKey, PCColumn
 from .panels import *
 from .report import Report
 from .runset import Runset
 from .templates import *
+from .util import InlineCode, InlineLaTeX, Link
 
 termlog(
     cleandoc(
