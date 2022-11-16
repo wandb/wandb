@@ -55,6 +55,7 @@ if TYPE_CHECKING:
         from typing_extensions import Literal, Protocol, TypedDict
 
     from .progress import ProgressFn
+    from wandb.apis.public import Api as PublicApi
 
     class CreateArtifactFileSpecInput(TypedDict):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
@@ -118,6 +119,7 @@ class Api:
         retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),
         environ: MutableMapping = os.environ,
         retry_callback: Optional[Callable[[int, str], Any]] = None,
+        from_public_api: Optional["PublicApi"] = None,
     ) -> None:
         self._environ = environ
         self.default_settings: "DefaultSettings" = {
@@ -129,9 +131,13 @@ class Api:
             "api_key": None,
             "entity": None,
             "project": None,
-        }
+        }            
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
+        if from_public_api:
+            self.default_settings.update(from_public_api.settings)
+            if from_public_api.api_key:
+                self.default_settings["api_key"] = from_public_api.api_key
         self.default_settings.update(default_settings or {})  # type: ignore
         self.retry_uploads = 10
         self._settings = Settings(

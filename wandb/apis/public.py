@@ -20,6 +20,7 @@ import re
 import shutil
 import tempfile
 import time
+import typing
 import urllib
 from collections import namedtuple
 from functools import partial
@@ -919,7 +920,7 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = Artifact(self.client, entity, project, artifact_name)
+        artifact = Artifact(self.client, entity, project, artifact_name, api=self)
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -4052,7 +4053,7 @@ class Artifact(artifacts.Artifact):
 
             return artifact
 
-    def __init__(self, client, entity, project, name, attrs=None):
+    def __init__(self, client, entity, project, name, attrs=None, api:typing.Optional[Api] = None):
         self.client = client
         self._entity = entity
         self._project = project
@@ -4074,11 +4075,16 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = False
         self._dependent_artifacts = []
         self._download_roots = set()
+        self._api = api
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
     def id(self):
         return self._attrs["id"]
+
+    @property
+    def api(self):
+        return self._api
 
     @property
     def file_count(self):

@@ -5,7 +5,7 @@ import contextlib
 import hashlib
 import os
 import random
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union, Optional
 
 import wandb
 from wandb import env, util
@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress
+    from wandb import Api
 
 
 if TYPE_CHECKING:
@@ -191,6 +192,15 @@ class Artifact:
             (str): The artifact's ID
         """
         raise NotImplementedError
+
+    def api(self) -> Optional["Api"]:
+        """
+        Returns the Api object used by this artifact.
+
+        Returns:
+            Api
+        """
+        return None
 
     @property
     def version(self) -> str:
@@ -777,7 +787,7 @@ class StoragePolicy:
         pass
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config, api:"Api" = None):
         pass
 
     def config(self):
