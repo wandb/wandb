@@ -743,7 +743,7 @@ class Artifact(ArtifactInterface):
             digest=digest,
             size=size,
             local_path=None if DISABLE_WRITE_CACHE else cache_path,
-            make_temp_copy=DISABLE_WRITE_CACHE
+            make_temp_copy=DISABLE_WRITE_CACHE,
         )
 
         self._manifest.add_entry(entry)
@@ -896,6 +896,7 @@ class ArtifactManifestEntry(ArtifactEntry):
     def __del__(self):
         if self._remove_tmp and os.path.exists(self.local_path):
             os.remove(self.local_path)
+
 
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
