@@ -385,8 +385,7 @@ class SendManager:
 
     def debounce(self) -> None:
         if self._config_needs_debounce:
-            pass
-            # self._debounce_config()
+            self._debounce_config()
 
     def _debounce_config(self) -> None:
         config_value_dict = self._config_format(self._consolidated_config)
@@ -597,9 +596,6 @@ class SendManager:
         resume_status = self._api.run_resume_status(
             entity=entity, project_name=run.project, name=run.run_id  # type: ignore
         )
-        import time
-
-        time.sleep(3)
 
         if not resume_status:
             if self._settings.resume == "must":
