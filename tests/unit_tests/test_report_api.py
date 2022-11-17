@@ -339,21 +339,25 @@ class TestInlineContent:
     def test_list(self, cls, report, inline_content):
         b = cls(["Hello World", inline_content])
         report.blocks = [b]
-        # report.save()
 
 
-class TestRunsets:
-    def test_set_filters_with_python_expr(self, runset):
-        # Could not find project.  What projects exist by default if any?
-        runset.set_filters_with_python_expr("val_loss < 0.5 and category == 'cat'")
+class TestTemplates:
+    @pytest.mark.parametrize(
+        "f,kwargs",
+        [[wr.create_customer_landing_page, {}], [wr.create_enterprise_report, {}]],
+    )
+    def test_report_templates(self, f, kwargs):
+        report = f(**kwargs)
+        assert isinstance(report, wr.Report)
 
+    @pytest.mark.parametrize(
+        "f,kwargs", [[wr.create_example_header, {}], [wr.create_example_footer, {}]]
+    )
+    def test_block_templates(self, f, kwargs):
+        blocks = f(**kwargs)
+        for b in blocks:
+            assert isinstance(b, Block)
 
-class TestAttrSystem:
-    def test_untyped(self):
-        wandb_object = WandbObject()
-        wandb_object.untyped = "untyped_value"
-        assert wandb_object.spec["untyped"] == "untyped_value"
-        assert wandb_object.untyped == "untyped_value"
 
     def test_typed(self, wandb_object):
         wandb_object.typed = "typed_value"
