@@ -69,9 +69,17 @@ def report():
     )
 
 
-@pytest.fixture
-def runset():
-    return wr.Runset(entity="test_entity", project="test_project", name="runset_name")
+runsets = [
+    wr.Runset(entity="example-entity", project="example-project", name="example-name"),
+    wr.Runset(entity="other-entity", project="other-project", name="other-name"),
+    wr.Runset(entity="example-entity"),
+    wr.Runset(),
+]
+
+
+@pytest.fixture(params=runsets)
+def runset(request):
+    return request.param
 
 
 @pytest.fixture
@@ -87,6 +95,57 @@ def panel_grid():
             wr.BarPlot(metrics=["metrics"]),
         ],
     )
+
+
+blocks = [
+    wr.H1("test"),
+    wr.H2("test"),
+    wr.H3("test"),
+    wr.BlockQuote("test"),
+    wr.CalloutBlock("test"),
+    wr.CheckedList(["not checked", "checked"], [False, True]),
+    wr.CodeBlock(code="x = np.random.randn(size=100)", language="python"),
+    wr.Gallery(["id1", "id2"]),
+    wr.HorizontalRule(),
+    wr.Image(url="https://www.wandb.com/img.png", caption="test"),
+    wr.LaTeXBlock(["e=mc^2"]),
+    wr.MarkdownBlock("# Hello\nWorld"),
+    wr.OrderedList(["test", "test2"]),
+    wr.P("test"),
+    wr.PanelGrid(),
+    wr.SoundCloud("https://api.soundcloud.com/tracks/1076901103"),
+    wr.Spotify("5cfUlsdrdUE4dLMK7R9CFd"),
+    wr.TableOfContents(),
+    wr.UnorderedList(["test", "test2"]),
+    wr.Video("https://www.youtube.com/embed/6riDJMI-Y8U"),
+    wr.WeaveTableBlock("example-entity", "example-project", "example-table"),
+]
+
+
+@pytest.fixture(params=blocks, ids=[b.__class__.__name__ for b in blocks])
+def block(request):
+    return request.param
+
+
+panels = [
+    wr.BarPlot(),
+    wr.CodeComparer(),
+    wr.CustomChart(),
+    wr.LinePlot(),
+    wr.MarkdownPanel(),
+    wr.MediaBrowser(),
+    wr.ParallelCoordinatesPlot(),
+    wr.ParameterImportancePlot(),
+    wr.RunComparer(),
+    wr.ScalarChart(),
+    wr.ScatterPlot(),
+    wr.WeaveTablePanel(),
+]
+
+
+@pytest.fixture(params=panels, ids=[p.__class__.__name__ for p in panels])
+def panel(request):
+    return request.param
 
 
 @pytest.fixture
@@ -473,8 +532,8 @@ class TestPanelGrids:
         for rs in panel_grid.runsets:
             assert isinstance(rs, wr.Runset)
 
-    def test_set_runsets(self, panel_grid):
-        panel_grid.runsets = [wr.Runset(), wr.Runset()]
+    def test_set_runsets(self, panel_grid, runset):
+        panel_grid.runsets = [runset, runset]
         assert len(panel_grid.runsets) == 2
         for rs in panel_grid.runsets:
             assert isinstance(rs, wr.Runset)
@@ -489,8 +548,8 @@ class TestPanelGrids:
         for p in panel_grid.panels:
             assert isinstance(p, Panel)
 
-    def test_set_panels(self, panel_grid):
-        panel_grid.panels = [wr.LinePlot(), wr.BarPlot()]
+    def test_set_panels(self, panel_grid, panel):
+        panel_grid.panels = [panel, panel]
         assert len(panel_grid.panels) == 2
         for p in panel_grid.panels:
             assert isinstance(p, Panel)
