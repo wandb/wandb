@@ -338,6 +338,7 @@ class StreamMux:
                     assert result
                     run_response = result.run_result.run
 
+                # todo(settings): rework once SettingsStatic are sunset
                 settings = wandb.Settings(**dict(stream._settings))
                 settings.update(
                     {
