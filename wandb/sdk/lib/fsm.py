@@ -6,11 +6,11 @@ Simple FSM implementation.
 Usage:
     ```python
     class A:
-        def run(self, inputs) -> None:
+        def on_output(self, inputs) -> None:
             pass
 
     class B:
-        def run(self, inputs) -> None:
+        def on_output(self, inputs) -> None:
             pass
 
     def to_b(inputs) -> bool:
@@ -44,9 +44,9 @@ T_FsmInputs = TypeVar("T_FsmInputs", contravariant=True)
 
 
 @runtime_checkable
-class FsmStateRun(Protocol[T_FsmInputs]):
+class FsmStateOutput(Protocol[T_FsmInputs]):
     @abstractmethod
-    def run(self, inputs: T_FsmInputs) -> None:
+    def on_state(self, inputs: T_FsmInputs) -> None:
         ...  # pragma: no cover
 
 
@@ -65,7 +65,7 @@ class FsmStateExit(Protocol[T_FsmInputs]):
 
 
 FsmState: TypeAlias = Union[
-    FsmStateRun[T_FsmInputs], FsmStateEnter[T_FsmInputs], FsmStateExit[T_FsmInputs]
+    FsmStateOutput[T_FsmInputs], FsmStateEnter[T_FsmInputs], FsmStateExit[T_FsmInputs]
 ]
 
 
@@ -95,13 +95,15 @@ class Fsm(Generic[T_FsmInputs]):
     def _transition(
         self, inputs: T_FsmInputs, new_state: Type[FsmState[T_FsmInputs]]
     ) -> None:
-        if isinstance(self._state, FsmStateEnter):
-            self._state.on_enter(inputs)
+        if isinstance(self._state, FsmStateExit):
+            print("ON_EXIT")
+            self._state.on_exit(inputs)
 
         self._state = self._state_dict[new_state]
 
-        if isinstance(self._state, FsmStateExit):
-            self._state.on_exit(inputs)
+        if isinstance(self._state, FsmStateEnter):
+            print("ON_ENTER")
+            self._state.on_enter(inputs)
 
     def _check_transitions(self, inputs: T_FsmInputs) -> None:
         for cond, new_state in self._table[type(self._state)]:
@@ -109,7 +111,7 @@ class Fsm(Generic[T_FsmInputs]):
                 self._transition(inputs, new_state)
                 return
 
-    def run(self, inputs: T_FsmInputs) -> None:
+    def input(self, inputs: T_FsmInputs) -> None:
         self._check_transitions(inputs)
-        if isinstance(self._state, FsmStateRun):
-            self._state.run(inputs)
+        if isinstance(self._state, FsmStateOutput):
+            self._state.on_state(inputs)

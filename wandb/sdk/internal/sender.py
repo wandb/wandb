@@ -348,6 +348,7 @@ class SendManager:
                         dictionary[k + "." + k2] = v2
 
     def send_request_sender_read(self, record: "Record") -> None:
+        print("GOT SEND READ", record)
         pass
 
     def send_request_check_version(self, record: "Record") -> None:

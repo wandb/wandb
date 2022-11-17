@@ -1998,11 +1998,33 @@ global___SenderMarkReportRequest = SenderMarkReportRequest
 class SenderReadRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    START_OFFSET_FIELD_NUMBER: builtins.int
+    END_OFFSET_FIELD_NUMBER: builtins.int
+    start_offset: builtins.int
+    end_offset: builtins.int
     def __init__(
         self,
+        *,
+        start_offset: builtins.int = ...,
+        end_offset: builtins.int = ...,
     ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["end_offset", b"end_offset", "start_offset", b"start_offset"]) -> None: ...
 
 global___SenderReadRequest = SenderReadRequest
+
+class SenderStatusReportRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    END_OFFSET_FIELD_NUMBER: builtins.int
+    end_offset: builtins.int
+    def __init__(
+        self,
+        *,
+        end_offset: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["end_offset", b"end_offset"]) -> None: ...
+
+global___SenderStatusReportRequest = SenderStatusReportRequest
 
 class ServerInfoRequest(google.protobuf.message.Message):
     """

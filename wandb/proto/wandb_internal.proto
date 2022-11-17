@@ -650,6 +650,12 @@ message SenderMarkReportRequest {
 }
 
 message SenderReadRequest {
+  int64 start_offset = 1;
+  int64 end_offset = 2;
+}
+
+message SenderStatusReportRequest {
+  int64 end_offset = 2;
 }
 
 /*
