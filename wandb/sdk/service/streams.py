@@ -322,10 +322,32 @@ class StreamMux:
             assert result
             sampled_history = result.response.sampled_history_response
 
-            result = run_handle.wait(timeout=-1)
-            print("run_handle result", result)
-            assert result
-            # run_response = result.response.run_response
+            if not stream._settings.run_url or not stream._settings.run_name:
+                # todo: unify path with Run._on_finish in wandb_run.py
+                result = run_handle.wait(timeout=-1)
+                assert result
+                run_response = result.response.run_response
+                if (
+                    not run_response.run.entity
+                    or not run_response.run.project
+                    or not run_response.run.display_name
+                ):
+
+                    run_info_handle = stream.interface.deliver_run(
+                        result.response.run_response.run
+                    )
+                    result = run_info_handle.wait(timeout=-1)
+                    run_response = result.run_result
+
+                settings = wandb.Settings(**dict(stream._settings))
+                settings.update(
+                    {
+                        "entity": run_response.run.entity,
+                        "project": run_response.run.project,
+                        "run_name": run_response.run.display_name,
+                    }
+                )
+                stream.update(dict(settings))
 
             result = final_summary_handle.wait(timeout=-1)
             assert result
