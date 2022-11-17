@@ -11,35 +11,6 @@ from wandb.apis.reports.util import Block, Panel, generate_name, collides
 from wandb.apis.reports.validators import Between, OneOf, TypeValidator
 
 
-def test_create_and_load_report_from_public_api(user, wandb_init):
-    # Not sure how to get a valid Api() object here.  It needs an API key to work I think
-    run = wandb_init()
-    run.finish()
-
-    api = Api()
-    runs = api.runs()
-    for run in runs:
-        print(run)
-    # assert isinstance(report, wr.Report)
-
-    # report2 = api.load_report(report.url)
-    # assert isinstance(report2, wr.Report)
-
-    # assert report is not report2
-    # assert report.id == report2.id
-    # assert report.name == report2.name
-    # assert report.spec == report.spec
-
-
-class ObjectWithSpec(Base):
-    something = Attr(json_path="spec.something")
-    another = Attr(json_path="spec.another")
-
-    def __init__(self):
-        self.something = "some thing"
-        self.another = "another thing"
-
-
 class WandbObject(Base):
     untyped = Attr(json_path="spec.untyped")
     typed: Optional[str] = Attr(json_path="spec.typed")
@@ -66,7 +37,7 @@ class WandbObject(Base):
     )
     objects_with_spec: list = Attr(
         json_path="spec.objects_with_spec",
-        validators=[TypeValidator(ObjectWithSpec, how="keys")],
+        # validators=[TypeValidator("WandbObject", how="keys")],
     )
 
     def __init__(self):
@@ -82,63 +53,8 @@ class WandbObject(Base):
         self.objects_with_spec = []
 
 
-def test_untyped():
-    wandb_object = WandbObject()
-    wandb_object.untyped = "untyped_value"
-    assert wandb_object.spec["untyped"] == "untyped_value"
-    assert wandb_object.untyped == "untyped_value"
-
-
-# blocks = [obj for _, obj in inspect.getmembers(wr.blocks) if inspect.isclass(obj)]
-# blocks = [wr.BlockQuote(), wr.CalloutBlock(), wr.CheckedList(), wr.CodeBlock(), ]
-blocks = [
-    wr.H1("Test"),
-    wr.H2("Test"),
-    wr.H3("Test"),
-    wr.BlockQuote("Test"),
-    wr.CalloutBlock("Test"),
-    wr.CheckedList(["a", "b", "c"]),
-    wr.CodeBlock("Test"),
-    wr.Gallery([generate_name()]),
-    wr.HorizontalRule(),
-    wr.Image(
-        "https://avatars.githubusercontent.com/u/26401354?s=200&v=4", "wandb logo"
-    ),
-    wr.LaTeXBlock("e=mc^2"),
-    wr.MarkdownBlock("Test"),
-    wr.OrderedList(["a", "b", "c"]),
-    wr.P("Test"),
-    wr.PanelGrid(),
-    wr.SoundCloud("https://api.soundcloud.com/tracks/1076901103"),
-    wr.Spotify(spotify_id="5cfUlsdrdUE4dLMK7R9CFd"),
-    wr.TableOfContents(),
-    wr.UnorderedList(["a", "b", "c"]),
-    wr.Video("https://www.youtube.com/embed/6riDJMI-Y8U"),
-    wr.WeaveTableBlock("my-entity", "my-project", "some-table"),
-]
-panels = [obj for _, obj in inspect.getmembers(wr.panels) if inspect.isclass(obj)]
-
-
-@pytest.fixture(params=blocks, ids=[b.__class__.__name__ for b in blocks])
-def block(request):
-    return request.param
-
-
-@pytest.fixture(params=panels)
-def panel(request):
-    return request.param()
-
-
-@pytest.fixture(
-    params=[
-        wr.InlineLaTeX("e=mc^2"),
-        wr.InlineCode("x,y,z = hello()"),
-        wr.Link("This is a hyperlink", url="wandb.ai"),
-    ],
-    ids=["latex", "code", "link"],
-)
-def inline_content(request):
-    return request.param
+# Self-referential -- must add post-hoc
+WandbObject.objects_with_spec.validators = [TypeValidator(WandbObject, how="keys")]
 
 
 @pytest.fixture
@@ -183,16 +99,103 @@ def report():
     )
 
 
-# create a project with some runs as part of setup
-# this requires the relay server?
+class TestAttrSystem:
+    def test_untyped(self):
+        o = WandbObject()
+        o.untyped = "untyped_value"
+        assert o.spec["untyped"] == "untyped_value"
+        assert o.untyped == "untyped_value"
 
+    def test_typed(self):
+        o = WandbObject()
+        o.typed = "typed_value"
+        assert o.spec["typed"] == "typed_value"
+        with pytest.raises(TypeError):
+            o.typed = 1
+        assert o.spec["typed"] == "typed_value"
+        assert o.typed == "typed_value"
 
-class TestReports:
-    def test_valid_spec(self):
-        raise
+    def test_two_paths(self):
+        o = WandbObject()
+        o.two_paths = [1, 2]
+        assert "two_paths" not in o.spec
+        assert o.spec["two1"] == 1
+        assert o.spec["two2"] == 2
+        assert o.two_paths == [1, 2]
 
-    def test_create_and_load_report(self):
-        report = wr.Report(project="my-project")
+    def test_nested_path(self):
+        o = WandbObject()
+        o.nested_path = "nested_value"
+        assert o.spec["deeply"]["nested"]["example"] == "nested_value"
+        assert o.nested_path == "nested_value"
+
+    def test_two_nested_paths(self):
+        o = WandbObject()
+        o.two_nested_paths = ["first", "second"]
+        assert "two_nested_paths" not in o.spec
+        assert o.spec["nested"]["first"] == "first"
+        assert o.spec["nested"]["second"] == "second"
+        assert o.two_nested_paths == ["first", "second"]
+
+    def test_validated_scalar(self):
+        o = WandbObject()
+        o.validated_scalar = 1
+        assert o.spec["validated_scalar"] == 1
+
+        with pytest.raises(ValueError):
+            o.validated_scalar = -999
+        assert o.spec["validated_scalar"] == 1
+        assert o.validated_scalar == 1
+
+    def test_validated_list(self):
+        o = WandbObject()
+        o.validated_list = [1, 2, 3]
+        assert o.spec["validated_list"] == [1, 2, 3]
+
+        with pytest.raises(ValueError):
+            o.validated_list = [-1, -2, -3]
+        assert o.spec["validated_list"] == [1, 2, 3]
+
+        with pytest.raises(ValueError):
+            o.validated_list = [1, 2, -999]
+        assert o.spec["validated_list"] == [1, 2, 3]
+        assert o.validated_list == [1, 2, 3]
+
+    def test_validated_dict_keys(self):
+        o = WandbObject()
+        o.validated_dict = {"a": 1, "b": 2}
+        assert o.spec["validated_dict"] == {"a": 1, "b": 2}
+
+        with pytest.raises(ValueError):
+            o.validated_dict = {"a": 1, "invalid_key": 2}
+        assert o.spec["validated_dict"] == {"a": 1, "b": 2}
+        assert o.validated_dict == {"a": 1, "b": 2}
+
+    def test_validated_dict_values(self):
+        o = WandbObject()
+        o.validated_dict = {"a": 1, "b": 2}
+        assert o.spec["validated_dict"] == {"a": 1, "b": 2}
+
+        with pytest.raises(ValueError):
+            o.validated_dict = {"a": 1, "b": -999}
+        assert o.spec["validated_dict"] == {"a": 1, "b": 2}
+        assert o.validated_dict == {"a": 1, "b": 2}
+
+    def test_nested_objects_with_spec(self):
+        o1 = WandbObject()
+        o2 = WandbObject()
+        o3 = WandbObject()
+        o2.objects_with_spec = [o3]
+        o1.objects_with_spec = [o2]
+
+        o3.untyped = "a"
+        assert o3.untyped == "a"
+        assert o2.objects_with_spec[0].untyped == "a"
+        assert o1.objects_with_spec[0].objects_with_spec[0].untyped == "a"
+
+        o2.untyped = "b"
+        assert o2.untyped == "b"
+        assert o1.objects_with_spec[0].untyped == "b"
         report.save()
         assert isinstance(report, wr.Report)
 
