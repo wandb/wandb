@@ -307,7 +307,6 @@ class StreamMux:
             server_info_handle = stream.interface.deliver_request_server_info()
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
-            run_handle = stream.interface.deliver_request_run()
 
             # wait for them, it's ok to do this serially but this can be improved
             result = poll_exit_handle.wait(timeout=-1)
@@ -322,8 +321,12 @@ class StreamMux:
             assert result
             sampled_history = result.response.sampled_history_response
 
-            if not stream._settings.run_url or not stream._settings.run_name:
+            if (
+                not (stream._settings.run_url and stream._settings.run_name)
+                and not stream._settings._offline
+            ):
                 # todo: unify path with Run._on_finish in wandb_run.py
+                run_handle = stream.interface.deliver_request_run()
                 result = run_handle.wait(timeout=-1)
                 assert result
                 run_response = result.response.run_response.run

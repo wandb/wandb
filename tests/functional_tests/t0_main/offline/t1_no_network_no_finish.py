@@ -2,7 +2,7 @@
 """Simple offline run.
 
 ---
-id: 0.offline.01-no-network
+id: 0.offline.02-no-network-no-finish
 env:
   - WANDB_BASE_URL: https://does.not-resolve/
 command:
@@ -19,4 +19,3 @@ import wandb
 run = wandb.init(mode="offline")
 run.log(dict(m1=1))
 run.log(dict(m2=2))
-run.finish()
