@@ -180,8 +180,7 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run_obj: "Run") -> None:
-        run = self._make_run(run_obj)
+    def publish_run(self, run: "pb.RunRecord") -> None:
         self._publish_run(run)
 
     @abstractmethod

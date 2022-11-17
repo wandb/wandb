@@ -397,7 +397,7 @@ class Run:
 
     _run_status_checker: Optional[RunStatusChecker]
     _run_sync_status_checker: Optional[threading.Thread]
-    _run_sync_status_checker_shutdown: threading.Event
+    _run_info_thread_shutdown: threading.Event
 
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
@@ -505,7 +505,7 @@ class Run:
         self._run_status_checker = None
 
         self._run_sync_status_checker = None
-        self._run_sync_status_checker_shutdown = threading.Event()
+        self._run_info_thread_shutdown = threading.Event()
 
         self._check_version = None
         self._sampled_history = None
@@ -2000,32 +2000,38 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
-    def _check_run_sync_status_checker_status(
-        self, progress_handle: MailboxProgress
-    ) -> None:
+    def _on_progress_run_info(self, progress_handle: MailboxProgress) -> None:
         """
-        We use this method to cleanly exit the run sync status checker thread
-        when the _run_sync_status_checker_shutdown event is set.
+        We use this method to cleanly stop waiting on the progress handle
+        when the _run_info_thread_shutdown event is set, in this case we transition
+        to wait only finish timeout and give up.
         """
-        if self._run_sync_status_checker_shutdown.is_set():
+        print("waiting for shutdown")
+        if self._run_info_thread_shutdown.is_set():
             progress_handle.wait_stop()
 
-    def _run_sync_status_checker_thread(self, handle: MailboxHandle) -> None:
+    def _run_info_thread(self, handle: MailboxHandle) -> None:
         """
         This thread is started if we could not immediately connect to the backend
         and provide the project/run information to the user. It will wait on the
         provided Mailbox handle until the backend responds back and then update
         the run state with the received information and communicate it to the user.
         """
-        timeout = -1  # Wait forever
-
-        logger.info("checking run sync status")
+        logger.info("checking run info status")
+        self._backend._hack_set_run(self)
         result = handle.wait(
-            timeout=timeout,
-            on_progress=self._check_run_sync_status_checker_status,
+            timeout=-1,  # Wait forever
+            on_progress=self._on_progress_run_info,
+            release=False,
         )
 
+        if result is None and self.settings.finish_policy == "fail":
+            result = handle.wait(
+                timeout=self._settings.finish_timeout,
+            )
+
         if result is None:
+            logger.info("run info thread timed out")
             return
 
         run_result = result.run_result
@@ -2039,7 +2045,7 @@ class Run:
             logger.info("communicating updated settings to manager")
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
-        if self.settings.run_name and self.settings.run_url:
+        if not self._run_info_thread_shutdown.is_set():
             Run._header_run_info(settings=self.settings, printer=self._printer)
 
     def _on_init(self) -> None:
@@ -2068,7 +2074,7 @@ class Run:
             # and communicate it to the user. Otherwise, that will be done once
             # the backend responds back.
             self._run_sync_status_checker = threading.Thread(
-                target=self._run_sync_status_checker_thread,
+                target=self._run_info_thread,
                 args=(init_handle,),
                 name="SyncStatCh",
                 daemon=True,
@@ -2312,9 +2318,7 @@ class Run:
             self._run_status_checker.stop()
 
         if self._run_sync_status_checker:
-            self._run_sync_status_checker_shutdown.set()
-            if self._run_sync_status_checker.is_alive():
-                self._run_sync_status_checker.join()
+            self._run_info_thread_shutdown.set()
 
         if not self._settings._offline and self._settings.enable_job_creation:
             self._log_job()
@@ -2361,6 +2365,9 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.join()
+
+        if self._run_sync_status_checker:
+            self._run_sync_status_checker.join()
 
         self._unregister_telemetry_import_hooks(self._run_id)
 

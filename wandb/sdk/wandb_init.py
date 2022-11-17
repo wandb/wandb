@@ -686,7 +686,7 @@ class _WandbInit:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
 
-            backend.interface._publish_run(run_proto)
+            backend.interface.publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
             if self.settings.resume:
                 wandb.termwarn(
