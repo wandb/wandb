@@ -285,6 +285,182 @@ class TestReports:
             assert len(pg.runsets) >= 1
 
 
+class TestBlocks:
+    @pytest.mark.parametrize(
+        "text", ["string", "string\nwith\nnewlines", ["list", "of", "strings"]]
+    )
+    @pytest.mark.parametrize("cls", [wr.H1, wr.H2, wr.H3])
+    def test_headings(self, cls, text):
+        b = cls(text)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "items", [["one-item"], ["two", "items"], ["items\nwith", "new\nlines"]]
+    )
+    def test_ordered_list(self, items):
+        b = wr.OrderedList(items)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "items", [["one-item"], ["two", "items"], ["items\nwith", "new\nlines"]]
+    )
+    def test_unordered_list(self, items):
+        b = wr.UnorderedList(items)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "items,checked",
+        [
+            [["one-item"], [True]],
+            [["two", "items"], [False, True]],
+            [["items\nwith", "new\nlines"], [False, False]],
+        ],
+    )
+    def test_checked_list(self, items, checked):
+        b = wr.CheckedList(items, checked)
+        vars(b)
+
+    @pytest.mark.parametrize("text", ["string", "string\nwith\nnewlines"])
+    def test_block_quote(self, text):
+        b = wr.BlockQuote(text)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "text", ["string", "string\nwith\nnewlines", ["list", "of", "strings"]]
+    )
+    def test_callout_block(self, text):
+        b = wr.CalloutBlock(text)
+        vars(b)
+
+    @pytest.mark.xfail
+    @pytest.mark.parametrize("text", [""])
+    def test_callout_block_edge_cases(self, text):
+        b = wr.CalloutBlock(text)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "language,code",
+        [
+            ["python", "print('hello world')"],
+            [None, "x = np.random.randint(0, 10, size=(10, 10))"],
+            ["sql", "select * from table"],
+            ["sql", ["select *", "from other_table"]],
+            ["javascript", "console.log('hello world')"],
+        ],
+    )
+    def test_code_block(self, language, code):
+        b = wr.CodeBlock(code, language)
+        vars(b)
+
+    @pytest.mark.parametrize("ids", [["one-id"], ["two", "ids"]])
+    def test_gallery(self, ids):
+        b = wr.Gallery(ids)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "ids",
+        [
+            ["VmlldzoxMjc5Njkz"],
+            ["Code-Compare-Panel--VmlldzoxMjc5Njkz"],
+            [
+                "https://wandb.ai/stacey/deep-drive/reports/Code-Compare-Panel--VmlldzoxMjc5Njkz"
+            ],
+        ],
+    )
+    def test_gallery_from_report_urls(self, ids):
+        b = wr.Gallery.from_report_urls(ids)
+        vars(b)
+
+    def test_horizontal_rule(self):
+        b = wr.HorizontalRule()
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "url,caption",
+        [
+            [
+                "https://raw.githubusercontent.com/wandb/assets/main/wandb-logo-yellow-dots-black-wb.svg",
+                "wandb logo",
+            ],
+            [
+                "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRbi9aVFq2CV5UxsEhDk4L5Hk_u4nHnSTnsWhnOUNRg4mfdOfWZfJoPGLZL01QvgvIDT8Q&usqp=CAU",
+                "penguin",
+            ],
+        ],
+    )
+    def test_image(self, url, caption):
+        b = wr.Image(url, caption)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            r"Attention(Q, K, V) = softmax(\frac{QK^T}{\sqrt{d_k}})V",
+            [r"\sigma(z) = \frac{1} {1 + e^{-z}}", r"\sum_{i=1}^{D}|x_i-y_i|"],
+        ],
+    )
+    def test_latex_block(self, text):
+        b = wr.LaTeXBlock(text)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "# Heading",
+            "# Heading\n## Subheading\nSome text",
+            ["# Heading", "## Subheading", "Some text"],
+        ],
+    )
+    def test_markdown(self, text):
+        b = wr.MarkdownBlock(text)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "text", ["string", "string\nwith\nnewlines", ["list", "of", "strings"]]
+    )
+    def test_p(self, text):
+        b = wr.P(text)
+        vars(b)
+
+    @pytest.mark.skip(reason="See TestPanelGrids")
+    def test_panel_grid(self):
+        raise
+
+    @pytest.mark.parametrize("url", ["https://api.soundcloud.com/tracks/1076901103"])
+    def test_soundcloud(self, url):
+        b = wr.SoundCloud(url)
+        vars(b)
+
+    @pytest.mark.parametrize("url", ["5cfUlsdrdUE4dLMK7R9CFd"])
+    def test_spotify(self, url):
+        b = wr.Spotify(url)
+        vars(b)
+
+    def test_table_of_contents(self):
+        b = wr.TableOfContents()
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://www.youtube.com/watch?v=krWjJcW80_A",
+            "https://youtu.be/krWjJcW80_A",
+            "https://youtu.be/krWjJcW80_A?t=123",
+        ],
+    )
+    def test_video(self, url):
+        b = wr.Video(url)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "entity,project,table_name",
+        [["example-entity", "example-project", "example-table"]],
+    )
+    def test_weave_table_block(self, entity, project, table_name):
+        b = wr.WeaveTableBlock(entity, project, table_name)
+        vars(b)
+
+
 class TestPanelGrids:
     def test_get_runsets(self, panel_grid):
         for rs in panel_grid.runsets:
