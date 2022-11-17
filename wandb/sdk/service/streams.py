@@ -333,10 +333,9 @@ class StreamMux:
                     or not run_response.run.display_name
                 ):
 
-                    run_info_handle = stream.interface.deliver_run(
-                        result.response.run_response.run
-                    )
+                    run_info_handle = stream.interface.deliver_run(run_response.run)
                     result = run_info_handle.wait(timeout=-1)
+                    assert result
                     run_response = result.run_result
 
                 settings = wandb.Settings(**dict(stream._settings))
