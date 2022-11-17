@@ -508,6 +508,11 @@ class TestPanelGrids:
                 assert collides(p1, p2) is False
 
 
+class TestRunsets:
+    @pytest.mark.skip(reason="TBD")
+    def test_set_filters_with_python_expr(self, runset):
+        ...
+        
 @pytest.mark.skip(reason="Nothing special to test")
 class TestPanels:
     def test_bar_plot(self):
