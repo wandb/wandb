@@ -193,6 +193,7 @@ class Api:
         self.query_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
+        self.server_ack_run_queue_item_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
 
@@ -1199,19 +1200,80 @@ class Api:
         return result
 
     @normalize_exceptions
-    def ack_run_queue_item(self, item_id: str, run_id: Optional[str] = None) -> bool:
-        mutation = gql(
-            """
-        mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
-            ackRunQueueItem(input: { runQueueItemId: $itemId, runName: $runId }) {
-                success
+    def server_ack_run_queue_item_input_info_introspection(self) -> List[str]:
+        query_string = """
+           query ProbeServerAckRunQueueItemInput {
+               AckRunQueueItemInputInfoType: __type(name: "AckRunQueueItemInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
             }
-        }
         """
-        )
-        response = self.gql(
-            mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
-        )
+
+        if self.server_ack_run_queue_item_input_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            self.server_ack_run_queue_item_input_info = [
+                field.get("name", "")
+                for field in res.get("AckRunQueueItemInputInfoType", {}).get(
+                    "inputFields", [{}]
+                )
+            ]
+            print(self.server_ack_run_queue_item_input_info)
+        return self.server_ack_run_queue_item_input_info
+
+    @normalize_exceptions
+    def ack_run_queue_item(
+        self,
+        item_id: str,
+        run_id: Optional[str] = None,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+    ) -> bool:
+
+        if (
+            "projectName" in self.server_ack_run_queue_item_input_info_introspection()
+            and "entityName"
+            in self.server_ack_run_queue_item_input_info_introspection()
+        ):
+            mutation = gql(
+                """
+            mutation ackRunQueueItem($itemId: ID!, $runId: String!, $entityName: String, $projectName: String) {
+                ackRunQueueItem(
+                    input: {
+                        runQueueItemId: $itemId,
+                        runName: $runId,
+                        entityName: $entityName,
+                        projectName: $projectName
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+
+            variable_values = {
+                "itemId": item_id,
+                "runId": str(run_id),
+                "entityName": entity_name,
+                "projectName": project_name,
+            }
+        else:
+            mutation = gql(
+                """
+            mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
+                ackRunQueueItem(input: { runQueueItemId: $itemId, runName: $runId }) {
+                    success
+                }
+            }
+            """
+            )
+            variable_values = {"itemId": item_id, "runId": str(run_id)}
+        response = self.gql(mutation, variable_values=variable_values)
+
         if not response["ackRunQueueItem"]["success"]:
             raise CommError(
                 "Error acking run queue item. Item may have already been acknowledged by another process"

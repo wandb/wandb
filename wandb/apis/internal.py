@@ -152,6 +152,11 @@ class Api:
     def pop_from_run_queue(self, *args, **kwargs):
         return self.api.pop_from_run_queue(*args, **kwargs)
 
+    def server_ack_run_queue_item_input_info_introspection(self, *args, **kwargs):
+        return self.api.server_ack_run_queue_item_input_info_introspection(
+            *args, **kwargs
+        )
+
     def ack_run_queue_item(self, *args, **kwargs):
         return self.api.ack_run_queue_item(*args, **kwargs)
 

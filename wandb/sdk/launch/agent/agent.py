@@ -76,6 +76,13 @@ class LaunchAgent:
         )
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
+        ack_run_queue_item_inputs = (
+            self._api.server_ack_run_queue_item_input_info_introspection()
+        )
+        self._server_supports_ack_run_queue_item_project_info = (
+            "projectName" in ack_run_queue_item_inputs
+            and "entityName" in ack_run_queue_item_inputs
+        )
 
     @property
     def job_ids(self) -> List[Union[int, str]]:
@@ -131,11 +138,15 @@ class LaunchAgent:
     ) -> None:
         """Checks if launch spec target project/entity differs from agent. Forces these values to agent's if they are set."""
         if (
-            launch_spec.get("project") is not None
-            and launch_spec.get("project") != self._project
-        ) or (
-            launch_spec.get("entity") is not None
-            and launch_spec.get("entity") != self._entity
+            not self._server_supports_ack_run_queue_item_project_info
+            and (
+                launch_spec.get("project") is not None
+                and launch_spec.get("project") != self._project
+            )
+            or (
+                launch_spec.get("entity") is not None
+                and launch_spec.get("entity") != self._entity
+            )
         ):
             wandb.termwarn(
                 f"Launch agents only support sending runs to their own project and entity. This run will be sent to {self._entity}/{self._project}"
@@ -166,7 +177,7 @@ class LaunchAgent:
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, self._api)
         _logger.info("Fetching resource...")
-        resource = launch_spec.get("resource") or "local-container"
+        resource = launch_spec.get("resource") or "local-process"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: (launch_spec.get("docker", {}) or {}).get("args", {})
             or {},

@@ -146,9 +146,13 @@ class AbstractRunner(ABC):
         if self.backend_config.get("runQueueItemId"):
             try:
                 self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
+                    self.backend_config["runQueueItemId"],
+                    launch_project.run_id,
+                    launch_project.target_entity,
+                    launch_project.target_project,
                 )
-            except CommError:
+            except CommError as e:
+                wandb.termerror(str(e))
                 wandb.termerror(
                     "Error acking run queue item. Item lease may have ended or another process may have acked it."
                 )
