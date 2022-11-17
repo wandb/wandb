@@ -58,13 +58,8 @@ WandbObject.objects_with_spec.validators = [TypeValidator(WandbObject, how="keys
 
 
 @pytest.fixture
-def object_with_spec():
-    return ObjectWithSpec()
-
-
-@pytest.fixture
-def wandb_object():
-    return WandbObject()
+def report():
+    return wr.Report(project="example-project")
 
 
 @pytest.fixture
@@ -88,15 +83,18 @@ def panel_grid():
 
 
 @pytest.fixture
-def report():
-    return wr.Report(
-        project="test_project",
-        # entity="test_entity",
-        title="test_title",
-        description="test_description",
-        width="readable",
-        blocks=[wr.H1("Hello"), wr.P("World")],
-    )
+_inline_content = [
+    wr.Link("Hello", "https://url.com"),
+    wr.InlineLaTeX("e=mc^2"),
+    wr.InlineCode("print('Hello world!')"),
+]
+
+
+@pytest.fixture(
+    params=_inline_content, ids=[x.__class__.__name__ for x in _inline_content]
+)
+def inline_content(request):
+    return request.param
 
 
 class TestAttrSystem:
@@ -348,13 +346,11 @@ class TestInlineContent:
     def test_paragraph(self, report, inline_content):
         b = wr.P(["Hello World", inline_content])
         report.blocks = [b]
-        # report.save()
 
     @pytest.mark.parametrize("cls", [wr.H1, wr.H2, wr.H3])
     def test_heading(self, cls, report, inline_content):
         b = cls(["Hello World", inline_content])
         report.blocks = [b]
-        # report.save()
 
     @pytest.mark.parametrize("cls", [wr.UnorderedList, wr.OrderedList, wr.CheckedList])
     def test_list(self, cls, report, inline_content):
