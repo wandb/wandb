@@ -2004,7 +2004,9 @@ class Run:
             self._output_writer = None
 
     def _on_progress_run_info(self, progress_handle: MailboxProgress) -> None:
-        """We use this method to cleanly stop waiting on the progress handle
+        """on_progress callback for the run_info handle.
+
+        We use this method to cleanly stop waiting on the progress handle
         when the _run_info_thread_shutdown event is set, in this case we transition
         to wait only finish timeout and give up.
         """
@@ -2013,7 +2015,9 @@ class Run:
             progress_handle.wait_stop()
 
     def _run_info_thread(self, handle: MailboxHandle) -> None:
-        """This thread is started if we could not immediately connect to the backend
+        """Get the run info from the backend and set the run state.
+
+        This thread is started if we could not immediately connect to the backend
         and provide the project/run information to the user. It will wait on the
         provided Mailbox handle until the backend responds back and then update
         the run state with the received information and communicate it to the user.
