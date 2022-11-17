@@ -83,6 +83,10 @@ def panel_grid():
 
 
 @pytest.fixture
+def saved_report():
+    report = wr.Report(project="example-project").save()
+    # check to see if report was created
+    return report
 _inline_content = [
     wr.Link("Hello", "https://url.com"),
     wr.InlineLaTeX("e=mc^2"),
@@ -194,39 +198,35 @@ class TestAttrSystem:
         o2.untyped = "b"
         assert o2.untyped == "b"
         assert o1.objects_with_spec[0].untyped == "b"
+
+
+class TestReports:
+    def test_create_report(self):
+        report = wr.Report(project="example-project")
         report.save()
+        # check for upsert report mutation
+
+    def test_load_report(self, saved_report):
+        report = wr.Report.from_url(saved_report.url)
         assert isinstance(report, wr.Report)
 
-        report2 = wr.Report.from_url(report.url)
-        assert isinstance(report2, wr.Report)
+        for b in zip(report.blocks, saved_report.blocks):
+            assert b[0].spec == b[1].spec
 
-        assert report is not report2
-        assert report.id == report2.id
-        assert report.name == report2.name
-        assert report.spec == report.spec
+        for pg in zip(report.panel_grids, saved_report.panel_grids):
+            assert pg[0].spec == pg[1].spec
+
+        for rs in zip(report.runsets, saved_report.runsets):
+            assert rs[0].spec == rs[1].spec
 
     def test_clone_report(self, report):
         report2 = report.save(clone=True)
-        # should save it to the server, but the id should be different.
 
         assert report is not report2
         assert report.id != report2.id
         assert report.name != report2.name
+
         assert report.spec == report2.spec
-
-    # def test_create_and_load_report_from_public_api(self, user):
-    #     # Not sure how to get a valid Api() object here.  It needs an API key to work I think
-    #     api = Api()
-    #     report = api.create_report(project="my-project")
-    #     assert isinstance(report, wr.Report)
-
-    #     report2 = api.load_report(report.url)
-    #     assert isinstance(report2, wr.Report)
-
-    #     assert report is not report2
-    #     assert report.id == report2.id
-    #     assert report.name == report2.name
-    #     assert report.spec == report.spec
 
     def test_get_blocks(self, report):
         for b in report.blocks:
@@ -252,54 +252,37 @@ class TestAttrSystem:
         for rs in report.runsets:
             assert isinstance(rs, wr.Runset)
 
-    # @pytest.mark.parametrize(
-    #     "block,setup,edited",
-    #     [
-    #         [wr.H1, {"text": "Hello World"}, {"text": "Edited"}],
-    #         [
-    #             wr.PanelGrid,
-    #             {"panels": [wr.LinePlot(), wr.BarPlot()], "runsets": [wr.Runset()]},
-    #             {
-    #                 "panels": [wr.LinePlot(), wr.ScatterPlot()],
-    #                 "runsets": [wr.Runset(project="new-project")],
-    #             },
-    #         ],
-    #     ],
-    # )
-    # def test_blocks_can_be_edited_after_assignment(self, report, block, setup, edited):
-    #     b = block(**setup)  # b = wr.H1("Hello World")
-    #     report.blocks = [b]
-    #     for k, v in edited.items():
-    #         setattr(b, k, v)  # b.text = "Edited"
-    #         # assert report.blocks[0].text == "Edited"
-    #         assert getattr(report.blocks[0], k) == v
+    def test_blocks_can_be_reassigned(self, report):
+        b = wr.H1(text=["Hello world!"])
+        report.blocks = [b]
+        b.text = ["Goodbye world!"]
+        report.blocks = [b]
+        assert report.blocks[0].text == b.text
 
-    #
-    def test_save_report_keeps_same_spec_object(self):
-        rs = wr.Runset()
-        p = wr.LinePlot()
-        pg = wr.PanelGrid(runsets=[rs], panels=[p])
+    @pytest.mark.xfail
+    def test_blocks_cannot_be_mutated(self, report):
+        b = wr.H1(text=["Hello world!"])
+        report.blocks = [b]
+        b.text = ["Goodbye world!"]
+        assert report.blocks[0].text == b.text
 
-        report = wr.Report(project="test", blocks=[pg])
+    def test_on_save_report_runsets_have_valid_project(self, report):
+        pg = wr.PanelGrid()
+        report.blocks = [pg]
+        pg.runsets = [
+            wr.Runset(),
+            wr.Runset(project=None),
+            wr.Runset(project="example-project"),
+        ]
         report.save()
-
-        assert report.blocks[0].spec is pg.spec
-        assert report.blocks[0].runsets[0].spec is rs.spec
-        assert report.blocks[0].panels[0].spec is p.spec
-
-    def test_on_save_report_runsets_have_valid_project(self, report, panel_grid):
-        # Runsets should have valid entity and project names
-        report.blocks = [panel_grid]
-        panel_grid.runsets = [wr.Runset(project="test"), wr.Runset(project=None)]
-        report = report.save()
         for rs in report.runsets:
             assert rs.project is not None
 
     def test_on_save_report_panel_grids_have_at_least_one_runset(self, report):
-        # Panel grids should have at least one runset
-        report.blocks = [wr.PanelGrid(runsets=[])]
-        report = report.save()
-        assert len(report.runsets) == 1
+        report.blocks = [wr.PanelGrid(runsets=[]), wr.PanelGrid(runsets=[])]
+        report.save()
+        for pg in report.panel_grids:
+            assert len(pg.runsets) >= 1
 
 
 class TestPanelGrids:
