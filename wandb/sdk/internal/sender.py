@@ -385,7 +385,8 @@ class SendManager:
 
     def debounce(self) -> None:
         if self._config_needs_debounce:
-            self._debounce_config()
+            pass
+            # self._debounce_config()
 
     def _debounce_config(self) -> None:
         config_value_dict = self._config_format(self._consolidated_config)

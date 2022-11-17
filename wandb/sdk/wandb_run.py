@@ -2026,6 +2026,9 @@ class Run:
         )
 
         if result is None and self.settings.finish_policy == "fail":
+            # reset the timeout and continue waiting if the shutdown event is set
+            # and the handle is still open, and we haven't received a response
+            # and the finish policy is not set to "fail"
             result = handle.wait(
                 timeout=self._settings.finish_timeout,
             )
@@ -2040,10 +2043,10 @@ class Run:
         self._update_settings(self._settings)
 
         # communicate updated run state to manager
-        manager = self._wl._get_manager()
-        if manager:
-            logger.info("communicating updated settings to manager")
-            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+        # manager = self._wl._get_manager()
+        # if manager:
+        #     logger.info("communicating updated settings to manager")
+        #     manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         if not self._run_info_thread_shutdown.is_set():
             Run._header_run_info(settings=self.settings, printer=self._printer)

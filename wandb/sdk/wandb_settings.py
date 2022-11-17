@@ -786,7 +786,8 @@ class Settings:
         """
         Validate the finish policy setting
         """
-        choices = {"fail", "callscript"}
+        choices = {"fail"}
+        # choices = {"fail", "callscript"}  # todo: add the callscript option
         if value not in choices:
             raise ValueError(
                 f"Invalid finish policy: {value}. Must be one of: {choices}"
