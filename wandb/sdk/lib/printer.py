@@ -12,8 +12,6 @@ import wandb
 
 from . import ipython, sparkline
 
-# import rich
-
 
 # Follow the same logic as the python logging module
 CRITICAL = 50
