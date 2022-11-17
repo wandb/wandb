@@ -315,17 +315,11 @@ class TestPanelGrids:
         for rs in panel_grid.runsets:
             assert isinstance(rs, wr.Runset)
 
-    def test_panel_grid_has_at_least_one_runset_on_save(self, report, panel_grid):
-        panel_grid.runsets = []
-        report.blocks = [panel_grid]
-
-    def test_custom_run_colors_ungrouped(self, panel_grid):
-        # should be an integration test?
-        raise
-
-    def test_custom_run_colors_grouped(self, panel_grid):
-        # should be an integration test?
-        raise
+    def test_append_runsets(self, panel_grid):
+        panel_grid.runsets += [wr.Runset(), wr.Runset()]
+        assert len(panel_grid.runsets) == 4
+        for rs in panel_grid.runsets:
+            assert isinstance(rs, wr.Runset)
 
     def test_get_panels(self, panel_grid):
         for p in panel_grid.panels:
@@ -334,6 +328,12 @@ class TestPanelGrids:
     def test_set_panels(self, panel_grid):
         panel_grid.panels = [wr.LinePlot(), wr.BarPlot()]
         assert len(panel_grid.panels) == 2
+        for p in panel_grid.panels:
+            assert isinstance(p, Panel)
+
+    def test_append_panels(self, panel_grid):
+        panel_grid.panels += [wr.LinePlot(), wr.BarPlot()]
+        assert len(panel_grid.panels) == 5
         for p in panel_grid.panels:
             assert isinstance(p, Panel)
 
