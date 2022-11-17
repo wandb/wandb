@@ -59,7 +59,14 @@ WandbObject.objects_with_spec.validators = [TypeValidator(WandbObject, how="keys
 
 @pytest.fixture
 def report():
-    return wr.Report(project="example-project")
+    return wr.Report(
+        project="example-project",
+        # entity="example-entity",
+        title="example-title",
+        description="example-description",
+        width="readable",
+        blocks=[wr.H1("Hello"), wr.P("World")],
+    )
 
 
 @pytest.fixture
