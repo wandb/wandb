@@ -375,5 +375,15 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_request_run(self, run: pb.RunRequest) -> MailboxHandle:
+        pass  # todo: implement me!
+        # assert self._stub
+        # self._assign(run)
+        # run_response = self._stub.RunUpdate(run)
+        # response = pb.Response(run_response=run_response)
+        # result = pb.Result(response=response)
+        # handle = self._deliver(result)
+        # return handle
+
     def join(self) -> None:
         super().join()

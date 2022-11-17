@@ -802,6 +802,7 @@ class HandleManager:
 
     def handle_request_run(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
+        assert self._run_proto
         result.response.run_response.run.CopyFrom(self._run_proto.run)
         self._respond_result(result)
 

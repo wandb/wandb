@@ -772,7 +772,8 @@ class Run:
             tel.feature.set_run_name = True
         self._name = name
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property  # type: ignore
     @_run_decorator._attach
@@ -792,7 +793,8 @@ class Run:
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property  # type: ignore
     @_run_decorator._attach
@@ -811,7 +813,8 @@ class Run:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property  # type: ignore
     @_run_decorator._attach
@@ -2018,6 +2021,7 @@ class Run:
         the run state with the received information and communicate it to the user.
         """
         logger.info("checking run info status")
+        assert self._backend
         self._backend._hack_set_run(self)
         result = handle.wait(
             timeout=-1,  # Wait forever
@@ -2041,12 +2045,6 @@ class Run:
         self._set_run_obj(run_result.run)
         self._settings._apply_run_start(message_to_dict(self._run_obj))  # type: ignore
         self._update_settings(self._settings)
-
-        # communicate updated run state to manager
-        # manager = self._wl._get_manager()
-        # if manager:
-        #     logger.info("communicating updated settings to manager")
-        #     manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         if not self._run_info_thread_shutdown.is_set():
             Run._header_run_info(settings=self.settings, printer=self._printer)

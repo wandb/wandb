@@ -49,8 +49,7 @@ def send_manager(
             result_q=result_q,
             interface=interface,
         )
-
-        meta.backend_interface.publish_run(run)
+        meta.backend_interface.publish_run(meta.backend_interface._make_run(run))
         sm.send(record_q.get())
         return sm
 

@@ -326,24 +326,24 @@ class StreamMux:
                 # todo: unify path with Run._on_finish in wandb_run.py
                 result = run_handle.wait(timeout=-1)
                 assert result
-                run_response = result.response.run_response
+                run_response = result.response.run_response.run
                 if (
-                    not run_response.run.entity
-                    or not run_response.run.project
-                    or not run_response.run.display_name
+                    not run_response.entity
+                    or not run_response.project
+                    or not run_response.display_name
                 ):
 
-                    run_info_handle = stream.interface.deliver_run(run_response.run)
+                    run_info_handle = stream.interface.deliver_run(run_response)
                     result = run_info_handle.wait(timeout=-1)
                     assert result
-                    run_response = result.run_result
+                    run_response = result.run_result.run
 
                 settings = wandb.Settings(**dict(stream._settings))
                 settings.update(
                     {
-                        "entity": run_response.run.entity,
-                        "project": run_response.run.project,
-                        "run_name": run_response.run.display_name,
+                        "entity": run_response.entity,
+                        "project": run_response.project,
+                        "run_name": run_response.display_name,
                     }
                 )
                 stream.update(dict(settings))

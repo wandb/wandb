@@ -763,7 +763,6 @@ class _WandbInit:
         self.settings._apply_run_start(message_to_dict(run_obj))
         run._update_settings(self.settings)
         if manager:
-            print(run_init_handle.__dict__)
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         assert backend.interface
