@@ -508,6 +508,45 @@ class TestPanelGrids:
                 assert collides(p1, p2) is False
 
 
+@pytest.mark.skip(reason="Nothing special to test")
+class TestPanels:
+    def test_bar_plot(self):
+        raise
+
+    def test_code_comparer(self):
+        raise
+
+    def test_custom_chart(self):
+        raise
+
+    def test_line_plot(self):
+        raise
+
+    def test_markdown_panel(self):
+        raise
+
+    def test_media_browser(self):
+        raise
+
+    def test_parallel_coordinates_plot(self):
+        raise
+
+    def test_parameter_importance_plot(self):
+        raise
+
+    def test_run_comparer(self):
+        raise
+
+    def test_scalar_chart(self):
+        raise
+
+    def test_scatter_plot(self):
+        raise
+
+    def test_weave_table_panel(self):
+        raise
+
+
 class TestInlineContent:
     def test_paragraph(self, report, inline_content):
         b = wr.P(["Hello World", inline_content])
