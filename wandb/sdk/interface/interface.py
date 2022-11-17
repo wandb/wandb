@@ -759,8 +759,16 @@ class InterfaceBase:
         sampled_history = pb.SampledHistoryRequest()
         return self._deliver_request_sampled_history(sampled_history)
 
+    def deliver_request_run(self) -> MailboxHandle:
+        run = pb.RunRequest()
+        return self._deliver_request_run(run)
+
     @abstractmethod
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _deliver_request_run(self, run: pb.RunRequest) -> MailboxHandle:
         raise NotImplementedError

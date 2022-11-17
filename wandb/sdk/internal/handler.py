@@ -63,6 +63,7 @@ class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _partial_history: Dict[str, Any]
+    _run_proto: Optional[Record]
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
@@ -110,6 +111,7 @@ class HandleManager:
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
         self._sampled_history = defaultdict(sample.UniformSampleAccumulator)
+        self._run_proto = None
         self._partial_history = dict()
         self._metric_defines = defaultdict(MetricRecord)
         self._metric_globs = defaultdict(MetricRecord)
@@ -183,6 +185,7 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
+        self._run_proto = record
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:
@@ -795,6 +798,11 @@ class HandleManager:
             elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
+        self._respond_result(result)
+
+    def handle_request_run(self, record: Record) -> None:
+        result = proto_util._result_from_record(record)
+        result.response.run_response.run.CopyFrom(self._run_proto.run)
         self._respond_result(result)
 
     def handle_request_server_info(self, record: Record) -> None:
