@@ -3158,6 +3158,8 @@ class Run:
 
         run_state_str = "Resuming run" if settings.resumed else "Syncing run"
         run_name = settings.run_name
+        if not run_name:
+            return
 
         # printer = printer or get_printer(settings._jupyter)
         if printer._html:
@@ -3179,7 +3181,6 @@ class Run:
 
                 printer.display(
                     [f"{run_state_str} {run_line} {project_line}", sweep_line],
-                    off=not run_name,
                 )
 
         else:
@@ -3190,17 +3191,14 @@ class Run:
         if not settings.quiet:
             # TODO: add verbosity levels and add this to higher levels
             printer.display(
-                f'{printer.emoji("star")} View project at {printer.link(project_url)}',
-                off=not run_name,
+                f'{printer.emoji("star")} View project at {printer.link(project_url)}'
             )
             if sweep_url:
                 printer.display(
-                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}',
-                    off=not run_name,
+                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
             f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
-            off=not run_name,
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
