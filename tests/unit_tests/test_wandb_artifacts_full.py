@@ -1,9 +1,11 @@
+import os
 import time
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
 import wandb
+
 from wandb.errors import WaitTimeoutError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
@@ -176,6 +178,23 @@ def test_artifact_finish_distributed_id(wandb_init):
 
 #         manifests_created = parse_ctx(relay_server.get_ctx()).manifests_created
 #         assert manifests_created[0]["type"] == "INCREMENTAL"
+
+
+def test_edit_after_add(wandb_init):
+    artifact = wandb.Artifact(name="hi-art", type="dataset")
+    filename = "file1.txt"
+    open(filename, "w").write("hello!")
+    artifact.add_file(filename)
+    open(filename, "w").write("goodbye.")
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+    with wandb_init() as run:
+        art_path = run.use_artifact("hi-art:latest").download()
+
+    # The file from the retrieved artifact should match the original.
+    assert open(os.path.join(art_path, filename)).read() == "hello!"
+    # While the local file should have the edit applied.
+    assert open(filename).read() == "goodbye."
 
 
 def test_local_references(wandb_init):
