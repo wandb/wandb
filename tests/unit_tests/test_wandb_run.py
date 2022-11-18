@@ -454,3 +454,24 @@ def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
             # whose field 2 corresponds to unexpected arguments in Settings
             assert 2 in telemetry.get("11", [])
             run.finish()
+
+
+@pytest.mark.parametrize(
+    "init_timeout",
+    [0.01, 3],
+)
+def test_init_timeout_allow_policy(wandb_init, capsys, init_timeout):
+    run = wandb.init(
+        settings=wandb.Settings(
+            init_policy="allow",
+            init_timeout=init_timeout,
+        )
+    )
+    run.finish()
+    captured = capsys.readouterr().err
+    if init_timeout < 0.02:
+        assert "🐢" in captured
+    else:
+        assert "🐢" not in captured
+    assert captured.count("⭐️") == 1
+    assert captured.count("🚀") == 2
