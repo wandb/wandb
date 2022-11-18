@@ -1,13 +1,17 @@
-import wandb.apis.reports as wr
-
+# We can import from the after dropping support for Python 3.6
+# import wandb.apis.reports as wr
 from .util import coalesce
 
 
 def analysis(title, text):
+    import wandb.apis.reports as wr
+
     return [wr.H1(title), wr.P(text)]
 
 
 def create_example_header():
+    import wandb.apis.reports as wr
+
     return [
         wr.Image(
             "https://lever-client-logos.s3.amazonaws.com/bb006941-a5fe-4d4c-b13d-931f9b9c303f-1569362661885.png"
@@ -17,6 +21,8 @@ def create_example_header():
 
 
 def create_example_footer():
+    import wandb.apis.reports as wr
+
     return [
         wr.HorizontalRule(),
         wr.P(
@@ -37,6 +43,8 @@ def create_enterprise_report(
     body=None,
     footer=None,
 ):
+    import wandb.apis.reports as wr
+
     project = coalesce(project, "default-project")
     header = coalesce(header, create_example_header())
     body = coalesce(body, [])
@@ -56,6 +64,8 @@ def create_customer_landing_page(
     main_contact="My Contact (name@email.com)",
     slack_link="https://company.slack.com",
 ):
+    import wandb.apis.reports as wr
+
     project = coalesce(project, "default-project")
 
     return wr.Report(
