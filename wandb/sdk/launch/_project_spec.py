@@ -140,7 +140,6 @@ class LaunchProject:
         if launch_spec.get("resource_args"):
             self.resource_args = launch_spec["resource_args"]
 
-        self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()
 
     @property
