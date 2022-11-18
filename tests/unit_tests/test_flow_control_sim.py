@@ -135,7 +135,6 @@ class RecordSim:
         op = self._f.op_lookup_record(record) or Op()
         if self._debug:
             print(f"S: {record.num} ({op._offset})")
-        print(f"S: {record.num} ({op._offset})")
 
         if op._offset:
             assert self._send_offset + op._length == op._offset
@@ -152,7 +151,8 @@ class RecordSim:
             rec.request.CopyFrom(req)
             self.respond(rec)
         elif request_type == "sender_read":
-            print("GOT SENDREAD", record)
+            if self._debug:
+                print("GOT SENDREAD", record)
             assert self._send_offset == record.request.sender_read.start_offset
             self._send_offset = record.request.sender_read.end_offset
 
@@ -215,6 +215,7 @@ class RecordSim:
     def check(self):
         print(f"write_offset: {self._write_offset}")
         print(f"send_offset: {self._send_offset}")
+        assert self._write_offset == self._send_offset
 
 
 def no_test_sim_flow():

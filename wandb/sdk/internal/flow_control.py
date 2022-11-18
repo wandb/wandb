@@ -158,9 +158,9 @@ class FlowControl:
 
         # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
-            StateForwarding: [(self._should_pause, StatePausing)],
-            StatePausing: [(self._should_recover, StateRecovering)],
-            StateRecovering: [(self._should_forward, StateForwarding)],
+            StateForwarding: [fsm.FsmEntry(self._should_pause, StatePausing)],
+            StatePausing: [fsm.FsmEntry(self._should_recover, StateRecovering)],
+            StateRecovering: [fsm.FsmEntry(self._should_forward, StateForwarding)],
         }
         self._fsm = fsm.Fsm(
             states=[StateForwarding(self), StatePausing(self), StateRecovering(self)],
@@ -191,7 +191,7 @@ class FlowControl:
 
     def _forward_record(self, record: "Record") -> None:
         self._forward_record_cb(record)
-        print("FORWARD: LASTFORWARD", self._track_last_forwarded_offset)
+        # print("FORWARD: LASTFORWARD", self._track_last_forwarded_offset)
 
     def _write_record(self, record: "Record") -> None:
         offset = self._write_record_cb(record)
@@ -210,7 +210,7 @@ class FlowControl:
         record.request.CopyFrom(request)
         self._ensure_flushed(end)
         self._forward_record(record)
-        print("MARK", last_write_offset)
+        # print("MARK", last_write_offset)
 
     def _send_mark(self) -> None:
         record = pb.Record()
@@ -220,7 +220,7 @@ class FlowControl:
         request.sender_mark.CopyFrom(sender_mark)
         record.request.CopyFrom(request)
         self._forward_record(record)
-        print("MARK", last_write_offset)
+        # print("MARK", last_write_offset)
 
     def _maybe_send_mark(self) -> None:
         """Send mark if we are writting the first record in a block."""
@@ -251,41 +251,40 @@ class FlowControl:
         pass
 
     def _should_pause(self, inputs: "Record") -> bool:
-        print(
-            f"SHOULD_PAUSE: {self._forwarded_bytes_behind()} {self._threshold_bytes_high}"
-        )
+        # print(
+        #     f"SHOULD_PAUSE: {self._forwarded_bytes_behind()} {self._threshold_bytes_high}"
+        # )
         if self._forwarded_bytes_behind() >= self._threshold_bytes_high:
-            print("PAUSE", self._track_last_forwarded_offset)
-            # print(f"SHOULD_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
+            # print("PAUSE", self._track_last_forwarded_offset)
             return True
         # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
         return False
 
     def _should_recover(self, inputs: "Record") -> bool:
-        print(
-            f"SHOULD_RECOVER1: {self._track_last_forwarded_offset} {self._mark_forwarded_offset} {self._mark_reported_offset}"
-        )
+        # print(
+        #     f"SHOULD_RECOVER1: {self._track_last_forwarded_offset} {self._mark_forwarded_offset} {self._mark_reported_offset}"
+        # )
         if (
             self._track_last_forwarded_offset
             == self._mark_forwarded_offset
             == self._mark_reported_offset
         ):
-            print("RECOVER1")
+            # print("RECOVER1")
             return True
-        print(
-            f"SHOULD_RECOVER2: {self._forwarded_bytes_behind()} {self._threshold_bytes_mid}"
-        )
+        # print(
+        #     f"SHOULD_RECOVER2: {self._forwarded_bytes_behind()} {self._threshold_bytes_mid}"
+        # )
         if self._forwarded_bytes_behind() <= self._threshold_bytes_mid:
-            print("RECOVER2")
+            # print("RECOVER2")
             return True
         return False
 
     def _should_forward(self, inputs: "Record") -> bool:
-        print(
-            f"SHOULD_FORWARD: {self._recovering_bytes_behind()} {self._threshold_bytes_low}"
-        )
+        # print(
+        #     f"SHOULD_FORWARD: {self._recovering_bytes_behind()} {self._threshold_bytes_low}"
+        # )
         if self._recovering_bytes_behind() < self._threshold_bytes_low:
-            print("FORWARD")
+            # print("FORWARD")
             return True
         return False
 
@@ -315,14 +314,14 @@ class StatePausing:
         self._flow = flow
 
     def on_enter(self, record: "Record") -> None:
-        print("ENTER PAUSE")
+        # print("ENTER PAUSE")
         self._flow._telemetry_record_overflow()
         self._flow._send_mark()
         self._flow._mark_forwarded_offset = self._flow._track_last_written_offset
         self._flow._track_first_unforwarded_offset = (
             self._flow._track_last_written_offset
         )
-        print("ENTER PAUSE", self._flow._mark_forwarded_offset)
+        # print("ENTER PAUSE", self._flow._mark_forwarded_offset)
 
     def on_state(self, record: "Record") -> None:
         if _is_control_record(record):
@@ -334,7 +333,7 @@ class StateRecovering:
         self._flow = flow
 
     def on_enter(self, record: "Record") -> None:
-        print("ENTER RECOV", self._flow._track_last_forwarded_offset)
+        # print("ENTER RECOV", self._flow._track_last_forwarded_offset)
         self._flow._track_last_recovering_offset = (
             self._flow._track_last_forwarded_offset
         )
@@ -346,9 +345,9 @@ class StateRecovering:
 
         # do we have a large enough read to do
         behind = self._flow._recovering_bytes_behind()
-        print("BEHIND", behind)
+        # print("BEHIND", behind)
         if behind < self._flow._recovering_bytes_min:
-            print("NOTENOUGH")
+            # print("NOTENOUGH")
             return
 
         # make sure we dont already have a read in progress
@@ -356,10 +355,10 @@ class StateRecovering:
             self._flow._mark_recovering_offset
             and self._flow._mark_reported_offset < self._flow._mark_recovering_offset
         ):
-            print("ALREADY SENT")
+            # print("ALREADY SENT")
             return
 
-        print("RECOVER SEND")
+        # print("RECOVER SEND")
         start = self._flow._track_last_recovering_offset
         end = self._flow._track_last_written_offset
         self._flow._send_recovering_read(start, end)

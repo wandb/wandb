@@ -101,6 +101,9 @@ class DataStore:
         self._opened_for_scan = True
         self._read_header()
 
+    def seek(self, offset: int) -> None:
+        pass
+
     def in_last_block(self):
         """When reading, we want to know if we're in the last block to
         handle in progress writes"""

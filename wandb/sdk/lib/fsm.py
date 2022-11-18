@@ -28,7 +28,8 @@ Usage:
 
 import sys
 from abc import abstractmethod
-from typing import Dict, Generic, Sequence, Tuple, Type, TypeVar, Union
+from typing import Dict, Generic, Sequence, Type, TypeVar, Union
+from dataclasses import dataclass
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, runtime_checkable
@@ -74,10 +75,13 @@ class FsmCondition(Protocol[T_FsmInputs]):
         ...  # pragma: no cover
 
 
-FsmTable: TypeAlias = Dict[
-    Type[FsmState[T_FsmInputs]],
-    Sequence[Tuple[FsmCondition[T_FsmInputs], Type[FsmState[T_FsmInputs]]]],
-]
+@dataclass
+class FsmEntry(Generic[T_FsmInputs]):
+    condition: FsmCondition[T_FsmInputs]
+    target_state: Type[FsmState[T_FsmInputs]]
+
+
+FsmTable: TypeAlias = Dict[Type[FsmState[T_FsmInputs]], Sequence[FsmEntry[T_FsmInputs]]]
 
 
 class Fsm(Generic[T_FsmInputs]):
@@ -96,19 +100,19 @@ class Fsm(Generic[T_FsmInputs]):
         self, inputs: T_FsmInputs, new_state: Type[FsmState[T_FsmInputs]]
     ) -> None:
         if isinstance(self._state, FsmStateExit):
-            print("ON_EXIT")
+            # print("ON_EXIT")
             self._state.on_exit(inputs)
 
         self._state = self._state_dict[new_state]
 
         if isinstance(self._state, FsmStateEnter):
-            print("ON_ENTER")
+            # print("ON_ENTER")
             self._state.on_enter(inputs)
 
     def _check_transitions(self, inputs: T_FsmInputs) -> None:
-        for cond, new_state in self._table[type(self._state)]:
-            if cond(inputs):
-                self._transition(inputs, new_state)
+        for entry in self._table[type(self._state)]:
+            if entry.condition(inputs):
+                self._transition(inputs, entry.target_state)
                 return
 
     def input(self, inputs: T_FsmInputs) -> None:
