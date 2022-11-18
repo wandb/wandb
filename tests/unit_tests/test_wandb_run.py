@@ -461,7 +461,7 @@ def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
     [0.01, 3],
 )
 def test_init_timeout_allow_policy(wandb_init, capsys, init_timeout):
-    run = wandb.init(
+    run = wandb_init(
         settings=wandb.Settings(
             init_policy="allow",
             init_timeout=init_timeout,
