@@ -1,6 +1,12 @@
+import math
+import os
+import random
+from itertools import product
 from typing import Optional, Union
 
 import pytest
+
+import wandb
 import wandb.apis.reports as wr
 from wandb.apis.reports.util import (
     Attr,
@@ -61,8 +67,107 @@ WandbObject.objects_with_spec.validators = [TypeValidator(WandbObject, how="keys
 
 
 @pytest.fixture
+def log_example_runs(wandb_init):
+    entity = os.getenv("WANDB_ENTITY")
+    project = "example-project"
+
+    run_names = [
+        "adventurous-aardvark-1",
+        "bountiful-badger-2",
+        "clairvoyant-chipmunk-3",
+        "dastardly-duck-4",
+        "eloquent-elephant-5",
+        "flippant-flamingo-6",
+        "giddy-giraffe-7",
+        "haughty-hippo-8",
+        "ignorant-iguana-9",
+        "jolly-jackal-10",
+        "kind-koala-11",
+        "laughing-lemur-12",
+        "manic-mandrill-13",
+        "neighbourly-narwhal-14",
+        "oblivious-octopus-15",
+        "philistine-platypus-16",
+        "quant-quail-17",
+        "rowdy-rhino-18",
+        "solid-snake-19",
+        "timid-tarantula-20",
+        "understanding-unicorn-21",
+        "voracious-vulture-22",
+        "wu-tang-23",
+        "xenic-xerneas-24",
+        "yielding-yveltal-25",
+        "zooming-zygarde-26",
+    ]
+
+    # opts = ["adam", "sgd"]
+    # encoders = ["resnet18", "resnet50"]
+    opts = ["adam"]
+    encoders = ["resnet18"]
+    learning_rates = [0.01]
+    for (i, run_name), (opt, encoder, lr) in zip(
+        enumerate(run_names), product(opts, encoders, learning_rates)
+    ):
+        config = {
+            "optimizer": opt,
+            "encoder": encoder,
+            "learning_rate": lr,
+            "momentum": 0.1 * random.random(),
+        }
+        displacement1 = random.random() * 2
+        displacement2 = random.random() * 4
+        with wandb_init(
+            entity=entity,
+            project=project,
+            config=config,
+            name=run_name,
+        ) as run:
+            for step in range(100):
+                wandb.log(
+                    {
+                        "acc": 0.1
+                        + 0.4
+                        * (
+                            math.log(1 + step + random.random())
+                            + random.random() * run.config.learning_rate
+                            + random.random()
+                            + displacement1
+                            + random.random() * run.config.momentum
+                        ),
+                        "val_acc": 0.1
+                        + 0.4
+                        * (
+                            math.log(1 + step + random.random())
+                            + random.random() * run.config.learning_rate
+                            - random.random()
+                            + displacement1
+                        ),
+                        "loss": 0.1
+                        + 0.08
+                        * (
+                            3.5
+                            - math.log(1 + step + random.random())
+                            + random.random() * run.config.momentum
+                            + random.random()
+                            + displacement2
+                        ),
+                        "val_loss": 0.1
+                        + 0.04
+                        * (
+                            4.5
+                            - math.log(1 + step + random.random())
+                            + random.random() * run.config.learning_rate
+                            - random.random()
+                            + displacement2
+                        ),
+                    }
+                )
+    yield entity, project
+
+
+@pytest.fixture
 def report():
-    return wr.Report(
+    yield wr.Report(
         project="example-project",
         # entity="example-entity",
         title="example-title",
@@ -165,7 +270,7 @@ def panel(request):
 def saved_report(user):
     report = wr.Report(project="example-project").save()
     # check to see if report was created
-    return report
+    yield report
 
 
 _inline_content = [
@@ -587,11 +692,291 @@ class TestPanelGrids:
 
 
 class TestRunsets:
-    @pytest.mark.skip(
-        reason="TBD -- Requires actual runs in a project for the runset to lookup"
+    @pytest.mark.parametrize(
+        "expr,filtermongo,filterspec",
+        [
+            (
+                "State == 'crashed' and team == 'amazing team'",
+                {
+                    "$or": [
+                        {
+                            "$and": [
+                                {"state": "crashed"},
+                                {"summary_metrics.team": "amazing team"},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "op": "OR",
+                    "filters": [
+                        {
+                            "op": "AND",
+                            "filters": [
+                                {
+                                    "key": {"section": "run", "name": "state"},
+                                    "op": "=",
+                                    "value": "crashed",
+                                },
+                                {
+                                    "key": {"section": "summary", "name": "team"},
+                                    "op": "=",
+                                    "value": "amazing team",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+            (
+                "User != 'megatruong' and Runtime < 3600",
+                {
+                    "$or": [
+                        {
+                            "$and": [
+                                {"username": {"$ne": "megatruong"}},
+                                {"duration": {"$lt": 3600}},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "op": "OR",
+                    "filters": [
+                        {
+                            "op": "AND",
+                            "filters": [
+                                {
+                                    "key": {"section": "run", "name": "username"},
+                                    "op": "!=",
+                                    "value": "megatruong",
+                                },
+                                {
+                                    "key": {"section": "run", "name": "duration"},
+                                    "op": "<",
+                                    "value": 3600,
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+            (
+                """
+                a > 123 and
+                        c == "the cow"
+                    and Runtime == "amazing"
+                    and UsingArtifact ==
+                    "other thing"
+                    and Name in [123,456,789]
+                """,
+                {
+                    "$or": [
+                        {
+                            "$and": [
+                                {"summary_metrics.a": {"$gt": 123}},
+                                {"summary_metrics.c": "the cow"},
+                                {"duration": "amazing"},
+                                {"inputArtifacts": "other thing"},
+                                {"displayName": {"$in": [123, 456, 789]}},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "op": "OR",
+                    "filters": [
+                        {
+                            "op": "AND",
+                            "filters": [
+                                {
+                                    "key": {"section": "summary", "name": "a"},
+                                    "op": ">",
+                                    "value": 123,
+                                },
+                                {
+                                    "key": {"section": "summary", "name": "c"},
+                                    "op": "=",
+                                    "value": "the cow",
+                                },
+                                {
+                                    "key": {"section": "run", "name": "duration"},
+                                    "op": "=",
+                                    "value": "amazing",
+                                },
+                                {
+                                    "key": {"section": "run", "name": "inputArtifacts"},
+                                    "op": "=",
+                                    "value": "other thing",
+                                },
+                                {
+                                    "key": {"section": "run", "name": "displayName"},
+                                    "op": "IN",
+                                    "value": [123, 456, 789],
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+            (
+                """
+                person in ['a', 'b', 'c']
+                and experiment_name == "amazing experiment"
+                and JobType not in ['training', 'testing']
+                """,
+                {
+                    "$or": [
+                        {
+                            "$and": [
+                                {"summary_metrics.person": {"$in": ["a", "b", "c"]}},
+                                {
+                                    "summary_metrics.experiment_name": "amazing experiment"
+                                },
+                                {"jobType": {"$nin": ["training", "testing"]}},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "op": "OR",
+                    "filters": [
+                        {
+                            "op": "AND",
+                            "filters": [
+                                {
+                                    "key": {"section": "summary", "name": "person"},
+                                    "op": "IN",
+                                    "value": ["a", "b", "c"],
+                                },
+                                {
+                                    "key": {
+                                        "section": "summary",
+                                        "name": "experiment_name",
+                                    },
+                                    "op": "=",
+                                    "value": "amazing experiment",
+                                },
+                                {
+                                    "key": {"section": "run", "name": "jobType"},
+                                    "op": "NIN",
+                                    "value": ["training", "testing"],
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+            (
+                """
+                Name in ['object_detection_2', 'pose_estimation_1', 'pose_estimation_2']
+                and JobType == '<null>'
+                and Runtime <= 6000
+                and State != None
+                and User != None
+                and CreatedTimestamp <= '2022-05-06'
+                and Runtime >= 0
+                and team != None
+                and _timestamp >= 0
+                """,
+                {
+                    "$or": [
+                        {
+                            "$and": [
+                                {
+                                    "displayName": {
+                                        "$in": [
+                                            "object_detection_2",
+                                            "pose_estimation_1",
+                                            "pose_estimation_2",
+                                        ]
+                                    }
+                                },
+                                {"jobType": "<null>"},
+                                {"duration": {"$lte": 6000}},
+                                {"state": {"$ne": None}},
+                                {"username": {"$ne": None}},
+                                {"createdAt": {"$lte": "2022-05-06"}},
+                                {"duration": {"$gte": 0}},
+                                {"summary_metrics.team": {"$ne": None}},
+                                {"summary_metrics._timestamp": {"$gte": 0}},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "op": "OR",
+                    "filters": [
+                        {
+                            "op": "AND",
+                            "filters": [
+                                {
+                                    "key": {"section": "run", "name": "displayName"},
+                                    "op": "IN",
+                                    "value": [
+                                        "object_detection_2",
+                                        "pose_estimation_1",
+                                        "pose_estimation_2",
+                                    ],
+                                },
+                                {
+                                    "key": {"section": "run", "name": "jobType"},
+                                    "op": "=",
+                                    "value": "<null>",
+                                },
+                                {
+                                    "key": {"section": "run", "name": "duration"},
+                                    "op": "<=",
+                                    "value": 6000,
+                                },
+                                {
+                                    "key": {"section": "run", "name": "state"},
+                                    "op": "!=",
+                                    "value": None,
+                                },
+                                {
+                                    "key": {"section": "run", "name": "username"},
+                                    "op": "!=",
+                                    "value": None,
+                                },
+                                {
+                                    "key": {"section": "run", "name": "createdAt"},
+                                    "op": "<=",
+                                    "value": "2022-05-06",
+                                },
+                                {
+                                    "key": {"section": "run", "name": "duration"},
+                                    "op": ">=",
+                                    "value": 0,
+                                },
+                                {
+                                    "key": {"section": "summary", "name": "team"},
+                                    "op": "!=",
+                                    "value": None,
+                                },
+                                {
+                                    "key": {"section": "summary", "name": "_timestamp"},
+                                    "op": ">=",
+                                    "value": 0,
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+        ],
     )
-    def test_set_filters_with_python_expr(self, runset):
-        raise
+    def test_set_filters_with_python_expr(
+        self, log_example_runs, runset, expr, filtermongo, filterspec
+    ):
+        entity, project = log_example_runs
+        runset.entity = entity
+        runset.project = project
+        runset.set_filters_with_python_expr(expr)
+        assert runset.spec["filters"] == runset.query_generator.mongo_to_filter(
+            runset.filters
+        )
+        assert runset.query_generator.filter_to_mongo(filterspec) == filtermongo
 
 
 @pytest.mark.usefixtures("user")
