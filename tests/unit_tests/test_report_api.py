@@ -5,7 +5,6 @@ from itertools import product
 from typing import Optional, Union
 
 import pytest
-
 import wandb
 import wandb.apis.reports as wr
 from wandb.apis.reports.util import (
@@ -105,8 +104,8 @@ def log_example_runs(wandb_init):
     opts = ["adam"]
     encoders = ["resnet18"]
     learning_rates = [0.01]
-    for (i, run_name), (opt, encoder, lr) in zip(
-        enumerate(run_names), product(opts, encoders, learning_rates)
+    for run_name, (opt, encoder, lr) in zip(
+        run_names, product(opts, encoders, learning_rates)
     ):
         config = {
             "optimizer": opt,
@@ -278,10 +277,10 @@ def panel(request):
 
 
 @pytest.fixture
-def saved_report(user):
+def saved_report_and_creating_entity(user):
+    creating_entity = os.getenv("WANDB_ENTITY")
     report = wr.Report(project="example-project").save()
-    # check to see if report was created
-    yield report
+    yield report, creating_entity
 
 
 _inline_content = [

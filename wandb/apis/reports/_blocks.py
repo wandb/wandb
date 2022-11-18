@@ -7,7 +7,7 @@ from typing import Optional, Union
 from ... import __version__ as wandb_ver
 from ... import termwarn
 from ..public import Api as PublicApi
-from ._panels import UnknownPanel, panel_mapping, WeavePanel, weave_panels
+from ._panels import UnknownPanel, WeavePanel, panel_mapping, weave_panels
 from .runset import Runset
 from .util import (
     Attr,
@@ -23,7 +23,7 @@ from .util import (
     nested_set,
     weave_inputs,
 )
-from .validators import TypeValidator, OneOf
+from .validators import OneOf, TypeValidator
 
 
 class UnknownBlock(Block):
