@@ -12,7 +12,6 @@ from typing import (
     get_type_hints,
 )
 
-from ..public import Api as PublicApi
 from ..public import PanelMetricsHelper
 from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
@@ -20,9 +19,6 @@ from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 T = TypeVar("T")
 V = TypeVar("V")
 Func = Callable[[T], V]
-
-
-public_api = PublicApi()
 
 
 def generate_name(length: int = 12) -> str:

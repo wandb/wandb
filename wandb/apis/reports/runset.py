@@ -1,15 +1,8 @@
 from typing import Any, Dict, Optional, TypeVar
 
+from ..public import Api as PublicApi
 from ..public import PythonMongoishQueryGenerator, QueryGenerator, Runs
-from .util import (
-    Attr,
-    Base,
-    coalesce,
-    generate_name,
-    nested_get,
-    nested_set,
-    public_api,
-)
+from .util import Attr, Base, coalesce, generate_name, nested_get, nested_set
 
 T = TypeVar("T")
 
@@ -40,7 +33,7 @@ class Runset(Base):
         self.query_generator = QueryGenerator()
         self.pm_query_generator = PythonMongoishQueryGenerator(self)
 
-        self.entity = coalesce(entity, public_api.default_entity, "")
+        self.entity = coalesce(entity, PublicApi().default_entity, "")
         self.project = project  # If the project is None, it will be updated to the report's project on save.  See: Report.save
         self.name = name
         self.query = query
@@ -59,11 +52,11 @@ class Runset(Base):
         project = spec.get("project")
         if project:
             obj.entity = project.get(
-                "entityName", coalesce(public_api.default_entity, "")
+                "entityName", coalesce(PublicApi().default_entity, "")
             )
             obj.project = project.get("name")
         else:
-            obj.entity = coalesce(public_api.default_entity, "")
+            obj.entity = coalesce(PublicApi().default_entity, "")
             obj.project = None
 
         return obj
@@ -118,7 +111,7 @@ class Runset(Base):
 
     @property
     def runs(self) -> Runs:
-        return public_api.runs(
+        return PublicApi().runs(
             path=f"{self.entity}/{self.project}", filters=self.filters
         )
 

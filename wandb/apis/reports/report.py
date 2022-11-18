@@ -7,20 +7,12 @@ from typing import List as LList
 from ... import __version__ as wandb_ver
 from ... import termlog, termwarn
 from ...sdk.lib import ipython
+from ..public import Api as PublicApi
 from ..public import RetryingClient
 from ._blocks import P, PanelGrid, UnknownBlock, block_mapping
 from .mutations import UPSERT_VIEW, VIEW_REPORT
 from .runset import Runset
-from .util import (
-    Attr,
-    Base,
-    Block,
-    coalesce,
-    generate_name,
-    nested_get,
-    nested_set,
-    public_api,
-)
+from .util import Attr, Base, Block, coalesce, generate_name, nested_get, nested_set
 from .validators import OneOf, TypeValidator
 
 
@@ -54,7 +46,7 @@ class Report(Base):
         self._orig_viewspec = deepcopy(self._viewspec)
 
         self.project = project
-        self.entity = coalesce(entity, public_api.default_entity, "")
+        self.entity = coalesce(entity, PublicApi().default_entity, "")
         self.title = title
         self.description = description
         self.width = width
@@ -63,7 +55,7 @@ class Report(Base):
     @classmethod
     def from_url(cls, url):
         report_id = cls._url_to_report_id(url)
-        r = public_api.client.execute(
+        r = PublicApi().client.execute(
             VIEW_REPORT, variable_values={"reportId": report_id}
         )
         viewspec = r["view"]
@@ -148,7 +140,7 @@ class Report(Base):
 
     @property
     def client(self) -> "RetryingClient":
-        return public_api.client
+        return PublicApi().client
 
     @property
     def id(self) -> str:
@@ -170,14 +162,14 @@ class Report(Base):
     def url(self) -> str:
         title = urllib.parse.quote(self.title.replace(" ", "-"))
         id = self.id.replace("=", "")
-        return f"{public_api.client.app_url}/{self.entity}/{self.project}/reports/{title}--{id}"
+        return f"{PublicApi().client.app_url}/{self.entity}/{self.project}/reports/{title}--{id}"
 
     def save(self, draft: bool = False, clone: bool = False) -> "Report":
         if not self.modified:
             termwarn("Report has not been modified")
 
         # create project if not exists
-        public_api.create_project(self.project, self.entity)
+        PublicApi().create_project(self.project, self.entity)
 
         # All panel grids must have at least one runset
         if self.panel_grids and not self.runsets:
@@ -190,11 +182,11 @@ class Report(Base):
             # We have to do this here because RunSets don't know about their report until they're added to it.
             for rs in self.runsets:
                 if rs.entity is None:
-                    rs.entity = public_api.default_entity
+                    rs.entity = PublicApi().default_entity
                 if rs.project is None:
                     rs.project = self.project
 
-        r = public_api.client.execute(
+        r = PublicApi().client.execute(
             UPSERT_VIEW,
             variable_values={
                 "id": None if clone or not self.id else self.id,

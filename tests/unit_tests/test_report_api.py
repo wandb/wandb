@@ -13,6 +13,7 @@ from wandb.apis.reports.util import (
 from wandb.apis.reports.validators import Between, OneOf, TypeValidator
 
 
+@pytest.mark.usefixtures("user")
 class WandbObject(Base):
     untyped = Attr(json_path="spec.untyped")
     typed: Optional[str] = Attr(json_path="spec.typed")
@@ -71,17 +72,20 @@ def report():
     )
 
 
-runsets = [
-    wr.Runset(entity="example-entity", project="example-project", name="example-name"),
-    wr.Runset(entity="other-entity", project="other-project", name="other-name"),
-    wr.Runset(entity="example-entity"),
-    wr.Runset(),
-]
-
-
-@pytest.fixture(params=runsets)
-def runset(request):
-    return request.param
+@pytest.fixture(
+    params=[
+        {
+            "entity": "example-entity",
+            "project": "example-project",
+            "name": "example-names",
+        },
+        {"entity": "other-entity", "project": "other-project", "name": "other-name"},
+        {"entity": "example-entity"},
+        {},
+    ]
+)
+def runset(request, user):
+    return wr.Runset(**request.param)
 
 
 @pytest.fixture
@@ -99,6 +103,8 @@ def panel_grid():
     )
 
 
+PANEL_GRID_SENTINEL = object()
+
 blocks = [
     wr.H1("test"),
     wr.H2("test"),
@@ -114,7 +120,9 @@ blocks = [
     wr.MarkdownBlock("# Hello\nWorld"),
     wr.OrderedList(["test", "test2"]),
     wr.P("test"),
-    wr.PanelGrid(),
+    # wr.PanelGrid(),
+    # panel_grid(),
+    PANEL_GRID_SENTINEL,
     wr.SoundCloud("https://api.soundcloud.com/tracks/1076901103"),
     wr.Spotify("5cfUlsdrdUE4dLMK7R9CFd"),
     wr.TableOfContents(),
@@ -124,9 +132,12 @@ blocks = [
 ]
 
 
-@pytest.fixture(params=blocks, ids=[b.__class__.__name__ for b in blocks])
-def block(request):
-    return request.param
+@pytest.fixture(params=blocks)  # , ids=[b.__class__.__name__ for b in blocks])
+def block(request, user):
+    if request.param is not PANEL_GRID_SENTINEL:
+        return request.param
+    else:
+        return wr.PanelGrid()
 
 
 panels = [
@@ -151,7 +162,7 @@ def panel(request):
 
 
 @pytest.fixture
-def saved_report():
+def saved_report(user):
     report = wr.Report(project="example-project").save()
     # check to see if report was created
     return report
@@ -171,6 +182,7 @@ def inline_content(request):
     return request.param
 
 
+@pytest.mark.usefixtures("user")
 class TestAttrSystem:
     def test_untyped(self):
         o = WandbObject()
@@ -270,6 +282,7 @@ class TestAttrSystem:
         assert o1.objects_with_spec[0].untyped == "b"
 
 
+@pytest.mark.usefixtures("user")
 class TestReports:
     def test_create_report(self):
         report = wr.Report(project="example-project")
@@ -355,6 +368,7 @@ class TestReports:
             assert len(pg.runsets) >= 1
 
 
+@pytest.mark.usefixtures("user")
 class TestBlocks:
     @pytest.mark.parametrize(
         "text", ["string", "string\nwith\nnewlines", ["list", "of", "strings"]]
@@ -531,6 +545,7 @@ class TestBlocks:
         vars(b)
 
 
+@pytest.mark.usefixtures("user")
 class TestPanelGrids:
     def test_get_runsets(self, panel_grid):
         for rs in panel_grid.runsets:
@@ -579,6 +594,7 @@ class TestRunsets:
         raise
 
 
+@pytest.mark.usefixtures("user")
 class TestNameMappings:
     @pytest.mark.parametrize(
         "url",
@@ -703,6 +719,7 @@ class TestPanels:
         raise
 
 
+@pytest.mark.usefixtures("user")
 class TestInlineContent:
     def test_paragraph(self, report, inline_content):
         b = wr.P(["Hello World", inline_content])
@@ -719,10 +736,20 @@ class TestInlineContent:
         report.blocks = [b]
 
 
+@pytest.mark.usefixtures("user")
 class TestTemplates:
     @pytest.mark.parametrize(
         "f,kwargs",
-        [[wr.create_customer_landing_page, {}], [wr.create_enterprise_report, {}]],
+        [
+            pytest.param(
+                wr.create_customer_landing_page,
+                {},
+                marks=pytest.mark.xfail(
+                    reason="This func only works on the public cloud"
+                ),
+            ),
+            [wr.create_enterprise_report, {}],
+        ],
     )
     def test_report_templates(self, f, kwargs):
         report = f(**kwargs)

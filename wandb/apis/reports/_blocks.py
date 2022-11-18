@@ -6,6 +6,7 @@ from typing import Optional, Union
 
 from ... import __version__ as wandb_ver
 from ... import termwarn
+from ..public import Api as PublicApi
 from ._panels import UnknownPanel, panel_mapping
 from .runset import Runset
 from .util import (
@@ -21,7 +22,6 @@ from .util import (
     fix_collisions,
     nested_get,
     nested_set,
-    public_api,
 )
 
 
@@ -140,7 +140,7 @@ class PanelGrid(Block):
         def run_id_to_name(id):
             for rs in self.runsets:
                 try:
-                    run = public_api.run(f"{rs.entity}/{rs.project}/{id}")
+                    run = PublicApi().run(f"{rs.entity}/{rs.project}/{id}")
                 except Exception:
                     pass
                 else:
@@ -174,7 +174,7 @@ class PanelGrid(Block):
 
         def run_name_to_id(name):
             for rs in self.runsets:
-                runs = public_api.runs(
+                runs = PublicApi().runs(
                     path=f"{rs.entity}/{rs.project}", filters={"display_name": name}
                 )
                 if len(runs) > 1:
