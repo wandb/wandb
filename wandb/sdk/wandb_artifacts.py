@@ -48,6 +48,7 @@ from .interface.artifacts import (  # noqa: F401
     StoragePolicy,
     b64_string_to_hex,
     get_artifacts_cache,
+    get_new_staging_file,
     md5_file_b64,
     md5_string,
 )
@@ -728,17 +729,16 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
-        if not hit:
-            with cache_open() as f:
-                shutil.copyfile(path, f.name)
+        with get_new_staging_file() as f:
+            staging_path = f.name
+            shutil.copyfile(path, staging_path)
 
         entry = ArtifactManifestEntry(
             name,
             None,
             digest=digest,
             size=size,
-            local_path=cache_path,
+            local_path=staging_path,
         )
 
         self._manifest.add_entry(entry)
