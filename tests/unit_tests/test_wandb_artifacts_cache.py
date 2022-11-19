@@ -206,7 +206,7 @@ def test_cache_cleanup_allows_upload(wandb_init):
     # through monkeypatching but that actually completely broke it, I think
     # because of the file pusher running in a different process. Even using
     # a virtual file system with pyfakefs didn't work.
-    # 
+    #
     # Using a 1mb file and checking inequalities rather than exact numbers
     # seems to be enough that I haven't seen it flake any more, but I don't
     # trust it enough to leave it without a paragraph of expository. If it's
