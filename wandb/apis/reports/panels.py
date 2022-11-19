@@ -11,5 +11,7 @@ from ._panels import (
     RunComparer,
     ScalarChart,
     ScatterPlot,
-    WeaveTablePanel,
+    WeavePanelSummaryTable,
+    WeavePanelArtifactVersion,
+    WeavePanelArtifact,
 )

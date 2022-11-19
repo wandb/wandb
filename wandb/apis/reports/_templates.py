@@ -308,15 +308,15 @@ def create_customer_landing_page(
                     )
                 ],
                 panels=[
-                    wr.WeaveTablePanel(
+                    wr.WeavePanelSummaryTable(
                         table_name="valid_table",
                         layout={"x": 7, "y": 0, "w": 7, "h": 13},
                     ),
-                    wr.WeaveTablePanel(
+                    wr.WeavePanelSummaryTable(
                         table_name="img_table",
                         layout={"x": 0, "y": 0, "w": 7, "h": 13},
                     ),
-                    wr.WeaveTablePanel(
+                    wr.WeavePanelSummaryTable(
                         table_name="image_table",
                         layout={"x": 14, "y": 0, "w": 10, "h": 13},
                     ),
@@ -335,15 +335,15 @@ def create_customer_landing_page(
                     )
                 ],
                 panels=[
-                    wr.WeaveTablePanel(
+                    wr.WeavePanelSummaryTable(
                         table_name="spaCy NER table",
                         layout={"x": 0, "y": 0, "w": 24, "h": 10},
                     ),
-                    wr.WeaveTablePanel(
+                    wr.WeavePanelSummaryTable(
                         table_name="per annotation scores",
                         layout={"x": 7, "y": 10, "w": 17, "h": 8},
                     ),
-                    wr.WeaveTablePanel(
+                    wr.WeavePanelSummaryTable(
                         table_name="metrics", layout={"x": 0, "y": 10, "w": 7, "h": 8}
                     ),
                 ],

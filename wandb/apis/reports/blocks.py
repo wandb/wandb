@@ -20,5 +20,7 @@ from ._blocks import (
     TableOfContents,
     UnorderedList,
     Video,
-    WeaveTableBlock,
+    WeaveBlockSummaryTable,
+    WeaveBlockArtifact,
+    WeaveBlockArtifactVersion,
 )

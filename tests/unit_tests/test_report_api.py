@@ -208,6 +208,11 @@ def panel_grid():
     )
 
 
+@pytest.fixture(params=["overview", "metadata", "usage", "files", "lineage"])
+def weave_tab(request):
+    yield request.param
+
+
 PANEL_GRID_SENTINEL = object()
 
 blocks = [
@@ -233,7 +238,11 @@ blocks = [
     wr.TableOfContents(),
     wr.UnorderedList(["test", "test2"]),
     wr.Video("https://www.youtube.com/embed/6riDJMI-Y8U"),
-    wr.WeaveTableBlock("example-entity", "example-project", "example-table"),
+    wr.WeaveBlockSummaryTable("example-entity", "example-project", "example-table"),
+    wr.WeaveBlockArtifact("example-entity", "example-project", "example-artifact"),
+    wr.WeaveBlockArtifactVersion(
+        "example-entity", "example-project", "example-artifact", "v0"
+    ),
 ]
 
 
@@ -257,7 +266,9 @@ panels = [
     wr.RunComparer(),
     wr.ScalarChart(),
     wr.ScatterPlot(),
-    wr.WeaveTablePanel(),
+    wr.WeavePanelSummaryTable("example-table"),
+    wr.WeavePanelArtifact("example-artifact"),
+    wr.WeavePanelArtifactVersion("example-artifact", "v0"),
 ]
 
 
@@ -648,8 +659,26 @@ class TestBlocks:
         "entity,project,table_name",
         [["example-entity", "example-project", "example-table"]],
     )
-    def test_weave_table_block(self, entity, project, table_name):
-        b = wr.WeaveTableBlock(entity, project, table_name)
+    def test_weave_block_summary_table(self, entity, project, table_name):
+        b = wr.WeaveBlockSummaryTable(entity, project, table_name)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "entity,project,artifact_name",
+        [["example-entity", "example-project", "example-table"]],
+    )
+    def test_weave_block_artifact(self, entity, project, artifact_name, weave_tab):
+        b = wr.WeaveBlockArtifact(entity, project, artifact_name, weave_tab)
+        vars(b)
+
+    @pytest.mark.parametrize(
+        "entity,project,artifact_name,version",
+        [["example-entity", "example-project", "example-table", "v0"]],
+    )
+    def test_weave_block_artifact_version(
+        self, entity, project, artifact_name, version
+    ):
+        b = wr.WeaveBlockArtifactVersion(entity, project, artifact_name, version)
         vars(b)
 
 

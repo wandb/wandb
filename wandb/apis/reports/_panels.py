@@ -758,14 +758,36 @@ class Vega3(Panel):
         return "Vega3"
 
 
-class WeaveTablePanel(Panel):
+class WeavePanel(Panel):
+    @property
+    def view_type(self) -> str:
+        return "Weave"
+
+
+class WeavePanelSummaryTable(Panel):
     table_name: Optional[str] = Attr(
         json_path="spec.config.panel2Config.exp.fromOp.inputs.key.val"
     )
 
-    def __init__(self, table_name="", *args, **kwargs):
+    def __init__(self, table_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._spec["config"] = {
+        self._spec["config"] = self._default_config()
+        self.table_name = table_name
+
+    @classmethod
+    def from_json(cls, spec):
+        table_name = spec["config"]["panel2Config"]["exp"]["fromOp"]["inputs"]["key"][
+            "val"
+        ]
+        return cls(table_name)
+
+    @property
+    def view_type(self) -> str:
+        return "Weave"
+
+    @staticmethod
+    def _default_config():
+        return {
             "panel2Config": {
                 "exp": {
                     "nodeType": "output",
@@ -929,7 +951,7 @@ class WeaveTablePanel(Panel):
                             "key": {
                                 "nodeType": "const",
                                 "type": "string",
-                                "val": "blah",
+                                "val": "",
                             },
                         },
                     },
@@ -937,11 +959,230 @@ class WeaveTablePanel(Panel):
                 }
             }
         }
-        self.table_name = table_name
+
+
+class WeavePanelArtifact(Panel):
+    artifact: Optional[str] = Attr(
+        json_path="spec.config.panel2Config.exp.fromOp.inputs.artifactName.val"
+    )
+    tab: str = Attr(
+        json_path="spec.config.panel2Config.panelConfig.tabConfigs.overview.selectedTab",
+        validators=[OneOf(["overview", "metadata", "usage", "files", "lineage"])],
+    )
+
+    def __init__(self, artifact, tab="overview", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._spec["config"] = self._default_config()
+        self.artifact = artifact
+        self.tab = tab
+
+    @classmethod
+    def from_json(cls, spec):
+        artifact = spec["config"]["panel2Config"]["exp"]["fromOp"]["inputs"][
+            "artifactName"
+        ]["val"]
+        tab = spec["config"]["panel2Config"]["panelConfig"]["tabConfigs"]["overview"][
+            "selectedTab"
+        ]
+        return cls(artifact, tab)
 
     @property
     def view_type(self) -> str:
         return "Weave"
+
+    @staticmethod
+    def _default_config():
+        return {
+            "panel2Config": {
+                "exp": {
+                    "nodeType": "output",
+                    "type": {
+                        "type": "tagged",
+                        "tag": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "entityName": "string",
+                                    "projectName": "string",
+                                },
+                            },
+                            "value": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "project": "project",
+                                    "artifactName": "string",
+                                },
+                            },
+                        },
+                        "value": "artifact",
+                    },
+                    "fromOp": {
+                        "name": "project-artifact",
+                        "inputs": {
+                            "project": {
+                                "nodeType": "var",
+                                "type": {
+                                    "type": "tagged",
+                                    "tag": {
+                                        "type": "typedDict",
+                                        "propertyTypes": {
+                                            "entityName": "string",
+                                            "projectName": "string",
+                                        },
+                                    },
+                                    "value": "project",
+                                },
+                                "varName": "project",
+                            },
+                            "artifactName": {
+                                "nodeType": "const",
+                                "type": "string",
+                                "val": "",
+                            },
+                        },
+                    },
+                    "__userInput": True,
+                },
+                "panelInputType": {
+                    "type": "tagged",
+                    "tag": {
+                        "type": "tagged",
+                        "tag": {
+                            "type": "typedDict",
+                            "propertyTypes": {
+                                "entityName": "string",
+                                "projectName": "string",
+                            },
+                        },
+                        "value": {
+                            "type": "typedDict",
+                            "propertyTypes": {
+                                "project": "project",
+                                "artifactName": "string",
+                            },
+                        },
+                    },
+                    "value": "artifact",
+                },
+                "panelConfig": {
+                    "tabConfigs": {"overview": {"selectedTab": "overview"}}
+                },
+            }
+        }
+
+
+class WeavePanelArtifactVersion(Panel):
+    artifact: str = Attr(
+        json_path="spec.config.panel2Config.exp.fromOp.inputs.artifactName.val"
+    )
+    version: str = Attr(
+        json_path="spec.config.panel2Config.exp.fromOp.inputs.artifactVersionAlias.val",
+    )
+
+    def __init__(self, artifact, version, tab="overview", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._spec["config"] = self._default_config()
+        self.artifact = artifact
+        self.version = version
+
+    @classmethod
+    def from_json(cls, spec):
+        artifact = spec["config"]["panel2Config"]["exp"]["fromOp"]["inputs"][
+            "artifactName"
+        ]["val"]
+        version = spec["config"]["panel2Config"]["exp"]["fromOp"]["inputs"][
+            "artifactVersionAlias"
+        ]["val"]
+        return cls(artifact, version)
+
+    @property
+    def view_type(self) -> str:
+        return "Weave"
+
+    @staticmethod
+    def _default_config():
+        return {
+            "panel2Config": {
+                "exp": {
+                    "nodeType": "output",
+                    "type": {
+                        "type": "tagged",
+                        "tag": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "entityName": "string",
+                                    "projectName": "string",
+                                },
+                            },
+                            "value": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "project": "project",
+                                    "artifactName": "string",
+                                    "artifactVersionAlias": "string",
+                                },
+                            },
+                        },
+                        "value": "artifactVersion",
+                    },
+                    "fromOp": {
+                        "name": "project-artifactVersion",
+                        "inputs": {
+                            "project": {
+                                "nodeType": "var",
+                                "type": {
+                                    "type": "tagged",
+                                    "tag": {
+                                        "type": "typedDict",
+                                        "propertyTypes": {
+                                            "entityName": "string",
+                                            "projectName": "string",
+                                        },
+                                    },
+                                    "value": "project",
+                                },
+                                "varName": "project",
+                            },
+                            "artifactName": {
+                                "nodeType": "const",
+                                "type": "string",
+                                "val": "",
+                            },
+                            "artifactVersionAlias": {
+                                "nodeType": "const",
+                                "type": "string",
+                                "val": "",
+                            },
+                        },
+                    },
+                    "__userInput": True,
+                },
+                "panelInputType": {
+                    "type": "tagged",
+                    "tag": {
+                        "type": "tagged",
+                        "tag": {
+                            "type": "typedDict",
+                            "propertyTypes": {
+                                "entityName": "string",
+                                "projectName": "string",
+                            },
+                        },
+                        "value": {
+                            "type": "typedDict",
+                            "propertyTypes": {
+                                "project": "project",
+                                "artifactName": "string",
+                            },
+                        },
+                    },
+                    "value": "artifact",
+                },
+            }
+        }
 
 
 panel_mapping = {
@@ -963,5 +1204,12 @@ panel_mapping = {
     "Vega": Vega,
     "Vega2": CustomChart,
     "Vega3": Vega3,
-    "Weave": WeaveTablePanel,
+    "Weave": WeavePanel,
 }
+
+weave_panels = [
+    WeavePanelSummaryTable,
+    WeavePanelArtifactVersion,
+    WeavePanelArtifact,
+    WeavePanel,
+]

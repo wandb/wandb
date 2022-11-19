@@ -398,3 +398,7 @@ class Link(Base):
     @property
     def spec(self) -> dict:
         return {"type": "link", "url": self.url, "children": [{"text": self.text}]}
+
+
+def weave_inputs(spec):
+    return spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]
