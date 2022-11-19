@@ -1023,10 +1023,9 @@ def get_artifacts_cache() -> ArtifactsCache:
 
 def get_staging_dir() -> util.FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+    util.mkdir_exists_ok(path)
     return os.path.abspath(os.path.expanduser(path))
 
 
 def get_new_staging_file() -> IO:
-    staging_dir = get_staging_dir()
-    util.mkdir_exists_ok(staging_dir)
-    return tempfile.NamedTemporaryFile(dir=staging_dir, delete=False)
+    return tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False)

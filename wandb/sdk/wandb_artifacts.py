@@ -1026,7 +1026,7 @@ class WandbStoragePolicy(StoragePolicy):
             )
 
         # Cache upon successful upload.
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(
+        _, hit, cache_open = self._cache.check_md5_obj_path(
             util.B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
