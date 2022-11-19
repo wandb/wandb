@@ -375,5 +375,11 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_request_sync_status(
+        self, sync_status: pb.SyncStatusRequest
+    ) -> MailboxHandle:
+        # todo: implement me
+        pass
+
     def join(self) -> None:
         super().join()

@@ -383,6 +383,11 @@ class SendManager:
                 logger.warning("Failed to check stop requested status: %s", e)
         self._respond_result(result)
 
+    def send_request_sync_status(self, record: "Record") -> None:
+        result = proto_util._result_from_record(record)
+        # todo: add logic to populate sync_status_response
+        self._respond_result(result)
+
     def debounce(self) -> None:
         if self._config_needs_debounce:
             self._debounce_config()

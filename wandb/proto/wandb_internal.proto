@@ -490,6 +490,7 @@ message Request {
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
     KeepaliveRequest      keepalive = 17;
+    SyncStatusRequest    sync_status = 18;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -503,6 +504,7 @@ message Request {
  */
 message Response {
   oneof response_type {
+    KeepaliveResponse      keepalive_response = 18;
     StopStatusResponse     stop_status_response = 19;
     NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
@@ -514,7 +516,7 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
-    KeepaliveResponse      keepalive_response = 18;
+    SyncStatusResponse     sync_status_response = 33;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
@@ -756,6 +758,20 @@ message SampledHistoryItem {
 
 message SampledHistoryResponse {
   repeated SampledHistoryItem item = 1;
+}
+
+/*
+ * SyncStatusRequest:
+ */
+message SyncStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message SyncStatusResponse {
+  float synced_percentage = 1;
+  int64 synced_log_index = 2;
+  int64 current_log_index = 3;
+  google.protobuf.Timestamp last_synced_time = 4;
 }
 
 /*
