@@ -6,7 +6,7 @@ on:
 
 jobs:
   cc:
-    name: Check conventional commit compliance
+    name: check conventional commit compliance
     runs-on: ubuntu-latest
     steps:
       # https://github.com/amannn/action-semantic-pull-request/releases
