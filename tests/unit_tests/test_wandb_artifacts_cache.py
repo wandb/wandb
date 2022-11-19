@@ -200,15 +200,28 @@ def test_artifacts_cache_cleanup_tmp_files():
 
 
 def test_cache_cleanup_allows_upload(wandb_init):
+    # You're here because this test is flaky, aren't you? Sorry.
+    #
+    # Other concurrent tests fill the cache up; I tried isolating this test
+    # through monkeypatching but that actually completely broke it, I think
+    # because of the file pusher running in a different process. Even using
+    # a virtual file system with pyfakefs didn't work.
+    # 
+    # Using a 1mb file and checking inequalities rather than exact numbers
+    # seems to be enough that I haven't seen it flake any more, but I don't
+    # trust it enough to leave it without a paragraph of expository. If it's
+    # flaking again and you don't have better ideas we should disable it.
+
     cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    cache.cleanup(0)
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
     with open("test-file", "wb") as f:
-        f.truncate(2**28)
+        f.truncate(2**20)
     artifact.add_file("test-file")
 
-    # We haven't cached it and can't reclaim anything.
-    assert cache.cleanup(0) == 0
+    # We haven't cached it and can't reclaim its bytes.
+    assert cache.cleanup(0) < 2**20
     # Deleting the file also shouldn't interfere with the upload.
     os.remove("test-file")
 
@@ -217,4 +230,4 @@ def test_cache_cleanup_allows_upload(wandb_init):
         run.log_artifact(artifact)
 
     # It's now been cached and can be reclaimed.
-    assert cache.cleanup(0) == 2**28
+    assert cache.cleanup(0) >= 2**20
