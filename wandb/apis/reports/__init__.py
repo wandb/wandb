@@ -15,7 +15,7 @@ termlog(
     cleandoc(
         """
         Thanks for trying out the Report API!
-        For a tutorial, check out https://colab.research.google.com/drive/1jm3GgVSZLwb9S4BG1091Vy-LIDGuqw8i
+        For a tutorial, check out https://colab.research.google.com/drive/1CzyJx1nuOS4pdkXa2XPaRQyZdmFmLmXV
 
         Try out tab completion to see what's available.
           ∟ everything:    `wr.<tab>`
@@ -23,8 +23,8 @@ termlog(
               ∟ blocks:    `wr.blocks.<tab>`
               ∟ helpers:   `wr.helpers.<tab>`
               ∟ templates: `wr.templates.<tab>`
-
-        If you have issues, please make a ticket on JIRA.
+              
+        For bugs/feature requests, please create an issue on github: https://github.com/wandb/wandb/issues
         """
     )
 )
