@@ -243,11 +243,11 @@ def create_customer_landing_page(
                     )
                 ]
             ),
-            wr.P(
-                text=[
-                    "Sorry, this panel doesn't work.  It used to be the Artifact panel...",
-                    wr.Link(text="", url="https://wandb.ai/site/artifacts"),
-                ]
+            wr.WeaveBlockArtifact(
+                entity="megatruong",
+                project="whirlwind_test4",
+                artifact="camvid_learner",
+                tab="lineage",
             ),
             wr.P(),
             wr.H3(
