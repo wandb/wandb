@@ -6,6 +6,8 @@ import time
 from multiprocessing import Pool
 
 import pytest
+
+import wandb
 from wandb import wandb_sdk
 
 
@@ -195,3 +197,24 @@ def test_artifacts_cache_cleanup_tmp_files():
     reclaimed_bytes = cache.cleanup(10000)
 
     assert reclaimed_bytes == 1000
+
+
+def test_cache_cleanup_allows_upload(wandb_init):
+    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+
+    artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
+    with open("test-file", "wb") as f:
+        f.truncate(2**28)
+    artifact.add_file("test-file")
+
+    # We haven't cached it and can't reclaim anything.
+    assert cache.cleanup(0) == 0
+    # Deleting the file also shouldn't interfere with the upload.
+    os.remove("test-file")
+
+    # We're still able to upload the artifact.
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # It's now been cached and can be reclaimed.
+    assert cache.cleanup(0) == 2**28
