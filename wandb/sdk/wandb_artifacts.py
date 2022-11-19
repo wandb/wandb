@@ -997,16 +997,6 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
-        # write-through cache
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
-            entry.size if entry.size is not None else 0,
-        )
-        if not hit and entry.local_path is not None:
-            with cache_open() as f:
-                shutil.copyfile(entry.local_path, f.name)
-            entry.local_path = cache_path
-
         def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
             return {
                 "artifactID": artifact_id,
@@ -1018,22 +1008,33 @@ class WandbStoragePolicy(StoragePolicy):
         resp = preparer.prepare(_prepare_fn)
 
         entry.birth_artifact_id = resp.birth_artifact_id
-        exists = resp.upload_url is None
-        if not exists:
-            if entry.local_path is not None:
-                with open(entry.local_path, "rb") as file:
-                    # This fails if we don't send the first byte before the signed URL
-                    # expires.
-                    self._api.upload_file_retry(
-                        resp.upload_url,
-                        file,
-                        progress_callback,
-                        extra_headers={
-                            header.split(":", 1)[0]: header.split(":", 1)[1]
-                            for header in (resp.upload_headers or {})
-                        },
-                    )
-        return exists
+        if resp.upload_url is None:
+            return True
+        if entry.local_path is None:
+            return False
+
+        with open(entry.local_path, "rb") as file:
+            # This fails if we don't send the first byte before the signed URL expires.
+            self._api.upload_file_retry(
+                resp.upload_url,
+                file,
+                progress_callback,
+                extra_headers={
+                    header.split(":", 1)[0]: header.split(":", 1)[1]
+                    for header in (resp.upload_headers or {})
+                },
+            )
+
+        # Cache upon successful upload.
+        cache_path, hit, cache_open = self._cache.check_md5_obj_path(
+            util.B64MD5(entry.digest),
+            entry.size if entry.size is not None else 0,
+        )
+        if not hit:
+            with cache_open() as f:
+                shutil.copyfile(entry.local_path, f.name)
+
+        return False
 
 
 # Don't use this yet!
