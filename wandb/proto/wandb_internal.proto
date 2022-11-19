@@ -58,6 +58,7 @@ message Control {
   bool local = 2;     // should not be persisted or synchronized
   string relay_id = 3;  // used by service transport to identify correct stream
   string mailbox_slot = 4;  // mailbox slot
+  bool always_send = 5;  // message to sender
 }
 
 /*
@@ -655,7 +656,10 @@ message SenderReadRequest {
 }
 
 message SenderStatusReportRequest {
-  int64 end_offset = 2;
+  int64 _end_offset = 2;
+  int64 synced_log_index = 3;
+  int64 current_log_index = 4;
+  int64 last_synced_time = 5;
 }
 
 /*

@@ -46,6 +46,11 @@ class WriteManager:
             write_record=self._write_record,
             forward_record=self._forward_record,
             ensure_flushed=self._ensure_flushed,
+            # _threshold_bytes_high=1000,
+            # _threshold_bytes_mid=500,
+            # _threshold_bytes_low=200,
+            # _mark_granularity_bytes=100,
+            # _recovering_bytes_min=300,
         )
 
     def _forward_record(self, record: "Record") -> None:
@@ -61,7 +66,8 @@ class WriteManager:
         return end_offset
 
     def _ensure_flushed(self, offset: int) -> None:
-        pass
+        if self._ds:
+            self._ds.ensure_flushed(offset)
 
     def write(self, record: "Record") -> None:
         if not self._ds:

@@ -28,7 +28,7 @@ Usage:
 
 import sys
 from abc import abstractmethod
-from typing import Dict, Generic, Sequence, Type, TypeVar, Union
+from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union
 from dataclasses import dataclass
 
 if sys.version_info >= (3, 8):
@@ -75,10 +75,16 @@ class FsmCondition(Protocol[T_FsmInputs]):
         ...  # pragma: no cover
 
 
+class FsmAction(Protocol[T_FsmInputs]):
+    def __call__(self, inputs: T_FsmInputs) -> None:
+        ...  # pragma: no cover
+
+
 @dataclass
 class FsmEntry(Generic[T_FsmInputs]):
     condition: FsmCondition[T_FsmInputs]
     target_state: Type[FsmState[T_FsmInputs]]
+    action: Optional[FsmAction[T_FsmInputs]] = None
 
 
 FsmTable: TypeAlias = Dict[Type[FsmState[T_FsmInputs]], Sequence[FsmEntry[T_FsmInputs]]]

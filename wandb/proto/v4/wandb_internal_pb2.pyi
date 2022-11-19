@@ -148,6 +148,7 @@ class Control(google.protobuf.message.Message):
     LOCAL_FIELD_NUMBER: builtins.int
     RELAY_ID_FIELD_NUMBER: builtins.int
     MAILBOX_SLOT_FIELD_NUMBER: builtins.int
+    ALWAYS_SEND_FIELD_NUMBER: builtins.int
     req_resp: builtins.bool
     """record is expecting a result"""
     local: builtins.bool
@@ -156,6 +157,8 @@ class Control(google.protobuf.message.Message):
     """used by service transport to identify correct stream"""
     mailbox_slot: builtins.str
     """mailbox slot"""
+    always_send: builtins.bool
+    """message to sender"""
     def __init__(
         self,
         *,
@@ -163,8 +166,9 @@ class Control(google.protobuf.message.Message):
         local: builtins.bool = ...,
         relay_id: builtins.str = ...,
         mailbox_slot: builtins.str = ...,
+        always_send: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
 
 global___Control = Control
 
@@ -2091,14 +2095,23 @@ global___SenderReadRequest = SenderReadRequest
 class SenderStatusReportRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    END_OFFSET_FIELD_NUMBER: builtins.int
-    end_offset: builtins.int
+    _END_OFFSET_FIELD_NUMBER: builtins.int
+    SYNCED_LOG_INDEX_FIELD_NUMBER: builtins.int
+    CURRENT_LOG_INDEX_FIELD_NUMBER: builtins.int
+    LAST_SYNCED_TIME_FIELD_NUMBER: builtins.int
+    _end_offset: builtins.int
+    synced_log_index: builtins.int
+    current_log_index: builtins.int
+    last_synced_time: builtins.int
     def __init__(
         self,
         *,
-        end_offset: builtins.int = ...,
+        _end_offset: builtins.int = ...,
+        synced_log_index: builtins.int = ...,
+        current_log_index: builtins.int = ...,
+        last_synced_time: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["end_offset", b"end_offset"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_end_offset", b"_end_offset", "current_log_index", b"current_log_index", "last_synced_time", b"last_synced_time", "synced_log_index", b"synced_log_index"]) -> None: ...
 
 global___SenderStatusReportRequest = SenderStatusReportRequest
 

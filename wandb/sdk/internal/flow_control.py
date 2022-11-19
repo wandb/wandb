@@ -159,8 +159,14 @@ class FlowControl:
         # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
             StateForwarding: [fsm.FsmEntry(self._should_pause, StatePausing)],
-            StatePausing: [fsm.FsmEntry(self._should_recover, StateRecovering)],
-            StateRecovering: [fsm.FsmEntry(self._should_forward, StateForwarding)],
+            StatePausing: [
+                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
+                fsm.FsmEntry(self._should_recover, StateRecovering),
+            ],
+            StateRecovering: [
+                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
+                fsm.FsmEntry(self._should_forward, StateForwarding, self._quiesce),
+            ],
         }
         self._fsm = fsm.Fsm(
             states=[StateForwarding(self), StatePausing(self), StateRecovering(self)],
@@ -255,7 +261,7 @@ class FlowControl:
         #     f"SHOULD_PAUSE: {self._forwarded_bytes_behind()} {self._threshold_bytes_high}"
         # )
         if self._forwarded_bytes_behind() >= self._threshold_bytes_high:
-            # print("PAUSE", self._track_last_forwarded_offset)
+            print("PAUSE", self._track_last_forwarded_offset)
             return True
         # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
         return False
@@ -269,13 +275,13 @@ class FlowControl:
             == self._mark_forwarded_offset
             == self._mark_reported_offset
         ):
-            # print("RECOVER1")
+            print("RECOVER1")
             return True
         # print(
         #     f"SHOULD_RECOVER2: {self._forwarded_bytes_behind()} {self._threshold_bytes_mid}"
         # )
         if self._forwarded_bytes_behind() <= self._threshold_bytes_mid:
-            # print("RECOVER2")
+            print("RECOVER2")
             return True
         return False
 
@@ -284,9 +290,15 @@ class FlowControl:
         #     f"SHOULD_FORWARD: {self._recovering_bytes_behind()} {self._threshold_bytes_low}"
         # )
         if self._recovering_bytes_behind() < self._threshold_bytes_low:
-            # print("FORWARD")
+            print("FORWARD")
             return True
         return False
+
+    def _should_quiesce(self, inputs: "Record") -> bool:
+        return False
+
+    def _quiesce(self, inputs: "Record") -> None:
+        pass
 
     def send_with_flow_control(self, record: "Record") -> None:
         self._process_record(record)

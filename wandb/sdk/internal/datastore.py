@@ -95,14 +95,20 @@ class DataStore:
     def open_for_scan(self, fname):
         self._fname = fname
         logger.info("open for scan: %s", fname)
-        self._fp = open(fname, "rb")
+        self._fp = open(fname, "r+b")
         self._index = 0
         self._size_bytes = os.stat(fname).st_size
         self._opened_for_scan = True
         self._read_header()
 
     def seek(self, offset: int) -> None:
-        pass
+        self._fp.seek(offset)
+        got = self._fp.tell()
+        print("seek", offset, got)
+
+    def get_offset(self) -> int:
+        got = self._fp.tell()
+        return got
 
     def in_last_block(self):
         """When reading, we want to know if we're in the last block to
@@ -266,6 +272,9 @@ class DataStore:
             self._flush_offset = self._index
 
         return start_offset, self._index, self._flush_offset
+
+    def ensure_flushed(self, off: int) -> None:
+        self._fp.flush()
 
     def write(self, obj: "Record") -> Tuple[int, int, int]:
         """Write a protocol buffer.

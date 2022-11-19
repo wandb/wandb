@@ -45,7 +45,7 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-from . import artifacts, file_stream, internal_api, update
+from . import artifacts, datastore, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 
@@ -176,6 +176,7 @@ class SendManager:
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
+    _ds: Optional[datastore.DataStore]
 
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
@@ -193,6 +194,8 @@ class SendManager:
         self._result_q = result_q
         self._writer_q = writer_q
         self._interface = interface
+
+        self._ds = None
 
         self._fs = None
         self._pusher = None
@@ -349,7 +352,23 @@ class SendManager:
 
     def send_request_sender_read(self, record: "Record") -> None:
         print("GOT SEND READ", record)
-        pass
+        if self._ds is None:
+            self._ds = datastore.DataStore()
+            self._ds.open_for_scan(self._settings.sync_file)
+        start = record.request.sender_read.start_offset
+        end = record.request.sender_read.end_offset
+        self._ds.seek(start)
+        off = 0
+        while off < end:
+            data = self._ds.scan_data()
+            pb = wandb_internal_pb2.Record()
+            pb.ParseFromString(data)
+            self.send(pb)
+            # print("GOT REC", pb.num)
+            # print("GOT REC h", pb.history.step.num)
+            off = self._ds.get_offset()
+            # print("GOT OFF", off)
+        print("DONE")
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -960,6 +979,10 @@ class SendManager:
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
+        print("H:")
+        import time
+
+        time.sleep(0.2)
 
     def send_summary(self, record: "Record") -> None:
         summary_dict = proto_util.dict_from_proto_list(record.summary.update)
