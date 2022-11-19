@@ -282,6 +282,6 @@ class ArtifactSaver:
         for entry in self._manifest.entries.values():
             if entry.local_path and entry.local_path.startswith(staging_dir):
                 try:
-                    os.remove(entry.local)
+                    os.remove(entry.local_path)
                 except OSError:
                     pass
