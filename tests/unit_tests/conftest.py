@@ -702,6 +702,12 @@ def pytest_addoption(parser):
         default="master",
         help="Image tag to use for the wandb server",
     )
+    parser.addoption(
+        "--wandb-server-pull",
+        action="store_true",
+        default=False,
+        help="Force pull the latest wandb server image",
+    )
     # debug option: creates an admin account that can be used to log in to the
     # app and inspect the test runs.
     parser.addoption(
@@ -735,6 +741,13 @@ def base_url(request):
 @pytest.fixture(scope="session")
 def wandb_server_tag(request):
     return request.config.getoption("--wandb-server-tag")
+
+
+@pytest.fixture(scope="session")
+def wandb_server_pull(request):
+    if request.config.getoption("--wandb-server-pull"):
+        return "always"
+    return "missing"
 
 
 @pytest.fixture(scope="session")
@@ -788,15 +801,16 @@ def check_mysql_health(num_retries: int = 1, sleep_time: int = 1):
 def check_server_up(
     base_url: str,
     wandb_server_tag: str = "master",
+    wandb_server_pull: Literal["missing", "always"] = "missing",
 ) -> bool:
     """
     Check if wandb server is up and running;
     if not on the CI and the server is not running, then start it first.
     :param base_url:
     :param wandb_server_tag:
+    :param wandb_server_pull:
     :return:
     """
-    # breakpoint()
     app_health_endpoint = "healthz"
     fixture_url = base_url.replace("8080", "9003")
     fixture_health_endpoint = "health"
@@ -809,6 +823,8 @@ def check_server_up(
         command = [
             "docker",
             "run",
+            "--pull",
+            wandb_server_pull,
             "--rm",
             "-v",
             "wandb:/vol",
@@ -861,7 +877,7 @@ class AddAdminAndEnsureNoDefaultUser:
 
 
 @pytest.fixture(scope="session")
-def fixture_fn(base_url, wandb_server_tag):
+def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
     def fixture_util(
         cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
     ) -> bool:
@@ -895,7 +911,7 @@ def fixture_fn(base_url, wandb_server_tag):
     if platform.system() == "Windows":
         pytest.skip("testcontainer is not available on Win")
 
-    if not check_server_up(base_url, wandb_server_tag):
+    if not check_server_up(base_url, wandb_server_tag, wandb_server_pull):
         pytest.fail("wandb server is not running")
 
     yield fixture_util
