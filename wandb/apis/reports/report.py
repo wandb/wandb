@@ -1,5 +1,6 @@
 import inspect
 import json
+import re
 import urllib
 from copy import deepcopy
 from typing import List as LList
@@ -9,7 +10,7 @@ from ... import termlog, termwarn
 from ...sdk.lib import ipython
 from ..public import Api as PublicApi
 from ..public import RetryingClient
-from ._blocks import P, PanelGrid, UnknownBlock, block_mapping, WeaveBlock, weave_blocks
+from ._blocks import P, PanelGrid, UnknownBlock, WeaveBlock, block_mapping, weave_blocks
 from .mutations import UPSERT_VIEW, VIEW_REPORT
 from .runset import Runset
 from .util import Attr, Base, Block, coalesce, generate_name, nested_get, nested_set
@@ -168,9 +169,14 @@ class Report(Base):
 
     @property
     def url(self) -> str:
-        title = urllib.parse.quote(self.title.replace(" ", "-"))
+        title = re.sub(r"\W", "-", self.title)
+        title = re.sub(r"-+", "-", title)
+        title = urllib.parse.quote(title)
         id = self.id.replace("=", "")
-        return f"{PublicApi().client.app_url}/{self.entity}/{self.project}/reports/{title}--{id}"
+        app_url = PublicApi().client.app_url
+        if not app_url.endswith("/"):
+            app_url = app_url + "/"
+        return f"{app_url}{self.entity}/{self.project}/reports/{title}--{id}"
 
     def save(self, draft: bool = False, clone: bool = False) -> "Report":
         if not self.modified:
