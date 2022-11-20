@@ -38,6 +38,7 @@ class WriteManager:
         self._ds = None
         self._flow_control = None
         self._debug = False
+        # self._debug = True
 
     def open(self) -> None:
         self._ds = datastore.DataStore()

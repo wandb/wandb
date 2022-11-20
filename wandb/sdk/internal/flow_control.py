@@ -162,6 +162,9 @@ class FlowControl:
         self._telemetry_obj = tpb.TelemetryRecord()
         self._telemetry_overflow = False
 
+        self._debug = False
+        # self._debug = True
+
         # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
             StateForwarding: [fsm.FsmEntry(self._should_pause, StatePausing)],
@@ -344,6 +347,8 @@ class FlowControl:
         self._doread(inputs, read_last=True)
         self._send_mark()
         self._mark_recovering_offset = self._track_last_written_offset
+        if self._debug:
+            print("REQREAD", self._track_last_written_offset)
 
     def _quiesce(self, inputs: "Record") -> None:
         self._doread(inputs)
