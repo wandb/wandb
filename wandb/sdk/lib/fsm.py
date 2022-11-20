@@ -103,13 +103,20 @@ class Fsm(Generic[T_FsmInputs]):
         self._state = self._state_dict[type(states[0])]
 
     def _transition(
-        self, inputs: T_FsmInputs, new_state: Type[FsmState[T_FsmInputs]]
+        self,
+        inputs: T_FsmInputs,
+        new_state: Type[FsmState[T_FsmInputs]],
+        action: Optional[FsmAction[T_FsmInputs]],
     ) -> None:
         if isinstance(self._state, FsmStateExit):
             # print("ON_EXIT")
             self._state.on_exit(inputs)
 
+        # print("NEWSTATE:", new_state)
         self._state = self._state_dict[new_state]
+
+        if action:
+            action(inputs)
 
         if isinstance(self._state, FsmStateEnter):
             # print("ON_ENTER")
@@ -118,7 +125,7 @@ class Fsm(Generic[T_FsmInputs]):
     def _check_transitions(self, inputs: T_FsmInputs) -> None:
         for entry in self._table[type(self._state)]:
             if entry.condition(inputs):
-                self._transition(inputs, entry.target_state)
+                self._transition(inputs, entry.target_state, entry.action)
                 return
 
     def input(self, inputs: T_FsmInputs) -> None:

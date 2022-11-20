@@ -77,6 +77,10 @@ def _get_request_type(record: "Record") -> Optional[str]:
     return request_type
 
 
+def _is_local_record(record: "Record") -> bool:
+    return record.control.local
+
+
 def _is_control_record(record: "Record") -> bool:
     request_type = _get_request_type(record)
     if request_type not in {"sender_mark_report"}:
@@ -90,6 +94,7 @@ class FlowControl:
     _write_record_cb: Callable[[Any, "Record"], int]
     _ensure_flushed_cb: Callable[[Any, int], None]
 
+    _track_prev_written_offset: int
     _track_last_written_offset: int
     _track_last_forwarded_offset: int
     _track_first_unforwarded_offset: int
@@ -142,6 +147,7 @@ class FlowControl:
         # should we toggle between recovering and pausing?  maybe?
 
         # track last written request
+        self._track_prev_written_offset = 0
         self._track_last_written_offset = 0
         self._track_last_forwarded_offset = 0
         self._track_last_recovering_offset = 0
@@ -166,6 +172,7 @@ class FlowControl:
             StateRecovering: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
                 fsm.FsmEntry(self._should_forward, StateForwarding, self._quiesce),
+                # fsm.FsmEntry(self._should_forward, StateForwarding),
             ],
         }
         self._fsm = fsm.Fsm(
@@ -201,6 +208,7 @@ class FlowControl:
 
     def _write_record(self, record: "Record") -> None:
         offset = self._write_record_cb(record)
+        self._track_prev_written_offset = self._track_last_written_offset
         self._track_last_written_offset = offset
 
     def _ensure_flushed(self, end_offset: int) -> None:
@@ -210,7 +218,7 @@ class FlowControl:
     def _send_recovering_read(self, start: int, end: int) -> None:
         record = pb.Record()
         request = pb.Request()
-        last_write_offset = self._track_last_written_offset
+        # last_write_offset = self._track_last_written_offset
         sender_read = pb.SenderReadRequest(start_offset=start, end_offset=end)
         request.sender_read.CopyFrom(sender_read)
         record.request.CopyFrom(request)
@@ -261,7 +269,7 @@ class FlowControl:
         #     f"SHOULD_PAUSE: {self._forwarded_bytes_behind()} {self._threshold_bytes_high}"
         # )
         if self._forwarded_bytes_behind() >= self._threshold_bytes_high:
-            print("PAUSE", self._track_last_forwarded_offset)
+            # print("PAUSE", self._track_last_forwarded_offset)
             return True
         # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
         return False
@@ -275,13 +283,13 @@ class FlowControl:
             == self._mark_forwarded_offset
             == self._mark_reported_offset
         ):
-            print("RECOVER1")
+            # print("RECOVER1")
             return True
         # print(
         #     f"SHOULD_RECOVER2: {self._forwarded_bytes_behind()} {self._threshold_bytes_mid}"
         # )
         if self._forwarded_bytes_behind() <= self._threshold_bytes_mid:
-            print("RECOVER2")
+            # print("RECOVER2")
             return True
         return False
 
@@ -290,20 +298,41 @@ class FlowControl:
         #     f"SHOULD_FORWARD: {self._recovering_bytes_behind()} {self._threshold_bytes_low}"
         # )
         if self._recovering_bytes_behind() < self._threshold_bytes_low:
-            print("FORWARD")
+            # print("FORWARD")
             return True
         return False
 
     def _should_quiesce(self, inputs: "Record") -> bool:
-        return False
+        record = inputs
+        return _is_local_record(record)
 
     def _quiesce(self, inputs: "Record") -> None:
-        pass
+        record = inputs
+        # issue read for anything written but not forwarded yet
+        # print("Qr:", self._track_last_recovering_offset)
+        # print("Qf:", self._track_last_forwarded_offset)
+        # print("Qp:", self._track_prev_written_offset)
+        # print("Qw:", self._track_last_written_offset)
+
+        start = max(
+            self._track_last_recovering_offset, self._track_last_forwarded_offset
+        )
+        end = self._track_prev_written_offset
+        # print("QUIESCE", start, end, record)
+        if end > start:
+            self._send_recovering_read(start, end)
+
+        # send current request
+        if _is_control_record(record):
+            return
+        if not _is_local_record(record):
+            return
+        self._forward_record(record)
 
     def send_with_flow_control(self, record: "Record") -> None:
         self._process_record(record)
 
-        if not _is_control_record(record):
+        if not _is_control_record(record) and not _is_local_record(record):
             self._write_record(record)
 
         self._fsm.input(record)

@@ -351,7 +351,7 @@ class SendManager:
                         dictionary[k + "." + k2] = v2
 
     def send_request_sender_read(self, record: "Record") -> None:
-        print("GOT SEND READ", record)
+        # print("GOT SEND READ", record)
         if self._ds is None:
             self._ds = datastore.DataStore()
             self._ds.open_for_scan(self._settings.sync_file)
@@ -368,7 +368,7 @@ class SendManager:
             # print("GOT REC h", pb.history.step.num)
             off = self._ds.get_offset()
             # print("GOT OFF", off)
-        print("DONE")
+        # print("DONE")
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -979,10 +979,10 @@ class SendManager:
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
-        print("H:")
-        import time
+        # print("H:")
+        # import time
 
-        time.sleep(0.2)
+        # time.sleep(0.2)
 
     def send_summary(self, record: "Record") -> None:
         summary_dict = proto_util.dict_from_proto_list(record.summary.update)

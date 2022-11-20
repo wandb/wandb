@@ -139,7 +139,7 @@ class HandleManager:
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if always_send:
-            print("Always", record)
+            # print("Always", record)
             record.control.always_send = True
         if not self._settings._offline or always_send:
             # FIXME: audit this

@@ -103,8 +103,8 @@ class DataStore:
 
     def seek(self, offset: int) -> None:
         self._fp.seek(offset)
-        got = self._fp.tell()
-        print("seek", offset, got)
+        # got = self._fp.tell()
+        # print("seek", offset, got)
 
     def get_offset(self) -> int:
         got = self._fp.tell()
