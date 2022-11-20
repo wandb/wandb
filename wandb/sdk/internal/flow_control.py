@@ -172,7 +172,7 @@ class FlowControl:
             StateRecovering: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
                 fsm.FsmEntry(self._should_forward, StateForwarding, self._quiesce),
-                # fsm.FsmEntry(self._should_forward, StateForwarding),
+                fsm.FsmEntry(self._should_reqread, StateRecovering, self._reqread),
             ],
         }
         self._fsm = fsm.Fsm(
@@ -306,8 +306,24 @@ class FlowControl:
         record = inputs
         return _is_local_record(record)
 
-    def _quiesce(self, inputs: "Record") -> None:
-        record = inputs
+    def _should_reqread(self, inputs: "Record") -> bool:
+        # do we have a large enough read to do
+        behind = self._recovering_bytes_behind()
+        # print("BEHIND", behind)
+        if behind < self._recovering_bytes_min:
+            # print("NOTENOUGH")
+            return False
+
+        # make sure we dont already have a read in progress
+        if (
+            self._mark_recovering_offset
+            and self._mark_reported_offset < self._mark_recovering_offset
+        ):
+            # print("ALREADY SENT")
+            return False
+        return True
+
+    def _doread(self, record: "Record", read_last: bool=False) -> None:
         # issue read for anything written but not forwarded yet
         # print("Qr:", self._track_last_recovering_offset)
         # print("Qf:", self._track_last_forwarded_offset)
@@ -317,17 +333,20 @@ class FlowControl:
         start = max(
             self._track_last_recovering_offset, self._track_last_forwarded_offset
         )
-        end = self._track_prev_written_offset
+        end = self._track_last_written_offset if read_last else self._track_prev_written_offset
         # print("QUIESCE", start, end, record)
         if end > start:
             self._send_recovering_read(start, end)
 
-        # send current request
-        if _is_control_record(record):
-            return
-        if not _is_local_record(record):
-            return
-        self._forward_record(record)
+        self._track_last_recovering_offset = end
+
+    def _reqread(self, inputs: "Record") -> None:
+        self._doread(inputs, read_last=True)
+        self._send_mark()
+        self._mark_recovering_offset = self._track_last_written_offset
+
+    def _quiesce(self, inputs: "Record") -> None:
+        self._doread(inputs)
 
     def send_with_flow_control(self, record: "Record") -> None:
         self._process_record(record)
@@ -364,10 +383,6 @@ class StatePausing:
         )
         # print("ENTER PAUSE", self._flow._mark_forwarded_offset)
 
-    def on_state(self, record: "Record") -> None:
-        if _is_control_record(record):
-            return
-
 
 class StateRecovering:
     def __init__(self, flow: FlowControl) -> None:
@@ -379,31 +394,3 @@ class StateRecovering:
             self._flow._track_last_forwarded_offset
         )
         self._flow._mark_recovering_offset = 0
-
-    def on_state(self, record: "Record") -> None:
-        if _is_control_record(record):
-            return
-
-        # do we have a large enough read to do
-        behind = self._flow._recovering_bytes_behind()
-        # print("BEHIND", behind)
-        if behind < self._flow._recovering_bytes_min:
-            # print("NOTENOUGH")
-            return
-
-        # make sure we dont already have a read in progress
-        if (
-            self._flow._mark_recovering_offset
-            and self._flow._mark_reported_offset < self._flow._mark_recovering_offset
-        ):
-            # print("ALREADY SENT")
-            return
-
-        # print("RECOVER SEND")
-        start = self._flow._track_last_recovering_offset
-        end = self._flow._track_last_written_offset
-        self._flow._send_recovering_read(start, end)
-
-        self._flow._send_mark()
-        self._flow._track_last_recovering_offset = end
-        self._flow._mark_recovering_offset = end

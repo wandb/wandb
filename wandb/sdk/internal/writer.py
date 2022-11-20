@@ -37,20 +37,25 @@ class WriteManager:
         self._sender_q = sender_q
         self._ds = None
         self._flow_control = None
+        self._debug = False
 
     def open(self) -> None:
         self._ds = datastore.DataStore()
         self._ds.open_for_write(self._settings.sync_file)
+        debug_kwargs = dict(
+            _threshold_bytes_high=1000,
+            _threshold_bytes_mid=500,
+            _threshold_bytes_low=200,
+            _mark_granularity_bytes=100,
+            _recovering_bytes_min=300,
+            )
+        kwargs = debug_kwargs if self._debug else {}
         self._flow_control = flow_control.FlowControl(
             settings=self._settings,
             write_record=self._write_record,
             forward_record=self._forward_record,
             ensure_flushed=self._ensure_flushed,
-            # _threshold_bytes_high=1000,
-            # _threshold_bytes_mid=500,
-            # _threshold_bytes_low=200,
-            # _mark_granularity_bytes=100,
-            # _recovering_bytes_min=300,
+            **kwargs,
         )
 
     def _forward_record(self, record: "Record") -> None:
