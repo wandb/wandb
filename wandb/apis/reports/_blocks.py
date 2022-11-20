@@ -143,7 +143,7 @@ class PanelGrid(Block):
             kvs = rest.split("-")
             kvs = [rs.pm_query_generator.pc_back_to_front(v) for v in kvs]
             keys, ordertuple = zip(*[kv.split(":") for kv in kvs])
-            rs_name = self._rs_id_to_name(id)
+            rs_name = self._get_rs_by_id(id).name
             return (rs_name, *ordertuple)
 
         def run_id_to_name(id):
@@ -173,9 +173,9 @@ class PanelGrid(Block):
         color_settings = {}
 
         def ordertuple_to_groupid(ordertuple):
-            rs = self.runsets[0]
             rs_name, rest = ordertuple[0], ordertuple[1:]
-            id = self._rs_name_to_id(rs_name)
+            rs = self._get_rs_by_name(rs_name)
+            id = rs.spec["id"]
             keys = [rs.pm_query_generator.pc_front_to_back(k) for k in rs.groupby]
             kvs = [f"{k}:{v}" for k, v in zip(keys, rest)]
             linked = "-".join(kvs)
@@ -203,15 +203,15 @@ class PanelGrid(Block):
             color_settings[key] = c
         nested_set(self, json_path, color_settings)
 
-    def _rs_id_to_name(self, id):
+    def _get_rs_by_id(self, id):
         for rs in self.runsets:
             if rs.spec["id"] == id:
-                return rs.name
+                return rs
 
-    def _rs_name_to_id(self, name):
+    def _get_rs_by_name(self, name):
         for rs in self.runsets:
             if rs.name == name:
-                return rs.spec["id"]
+                return rs
 
     @staticmethod
     def _default_panel_grid_spec():
