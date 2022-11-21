@@ -1796,7 +1796,6 @@ class Run:
 
         Arguments:
             vega_spec_name: the name of the spec for the plot
-            table_key: the key used to log the data table
             data_table: a wandb.Table object containing the data to
                 be used on the visualization
             fields: a dict mapping from table keys to fields that the custom
