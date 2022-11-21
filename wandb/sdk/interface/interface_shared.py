@@ -135,6 +135,7 @@ class InterfaceShared(InterfaceBase):
         server_info: pb.ServerInfoRequest = None,
         run: pb.RunRequest = None,
         keepalive: pb.KeepaliveRequest = None,
+        sync_status: pb.SyncStatusRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -179,6 +180,8 @@ class InterfaceShared(InterfaceBase):
             request.run.CopyFrom(run)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
+        elif sync_status:
+            request.sync_status.CopyFrom(sync_status)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -558,6 +561,12 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_request_run(self, run: pb.RunRequest) -> MailboxHandle:
         record = self._make_request(run=run)
+        return self._deliver_record(record)
+
+    def _deliver_request_sync_status(
+        self, sync_status: pb.SyncStatusRequest
+    ) -> MailboxHandle:
+        record = self._make_request(sync_status=sync_status)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

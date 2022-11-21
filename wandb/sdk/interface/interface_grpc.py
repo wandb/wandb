@@ -375,6 +375,7 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+<<<<<<< HEAD
     def _deliver_request_run(self, run: pb.RunRequest) -> MailboxHandle:
         pass  # todo: implement me!
         # assert self._stub
@@ -384,6 +385,13 @@ class InterfaceGrpc(InterfaceBase):
         # result = pb.Result(response=response)
         # handle = self._deliver(result)
         # return handle
+=======
+    def _deliver_request_sync_status(
+        self, sync_status: pb.SyncStatusRequest
+    ) -> MailboxHandle:
+        # todo: implement me
+        pass
+>>>>>>> origin/sync-status
 
     def join(self) -> None:
         super().join()
