@@ -39,6 +39,10 @@ class LaunchSource(enum.IntEnum):
     JOB: int = 5
 
 
+class EntrypointDefaults(List[str]):
+    PYTHON = ["python", "main.py"]
+
+
 class LaunchProject:
     """A launch project specification."""
 
@@ -73,7 +77,6 @@ class LaunchProject:
         self.name = name  # TODO: replace with run_id
         self.resource = resource
         self.resource_args = resource_args
-        self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
@@ -278,7 +281,6 @@ class LaunchProject:
                     )
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
-
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
                 source_project,
@@ -322,6 +324,7 @@ class LaunchProject:
                         program_name,
                         self.project_dir,
                     )
+
                     if not downloaded_entrypoint:
                         raise LaunchError(
                             f"Entrypoint file: {program_name} does not exist, "
@@ -366,7 +369,7 @@ class LaunchProject:
                 wandb.termlog(
                     f"{LOG_PREFIX}Entry point for repo not specified, defaulting to python main.py"
                 )
-                self.add_entry_point(["python", "main.py"])
+                self.add_entry_point(EntrypointDefaults.PYTHON)
             branch_name = utils._fetch_git_repo(
                 self.project_dir, self.uri, self.git_version
             )
@@ -472,7 +475,7 @@ def fetch_and_validate_project(
             wandb.termlog(
                 f"{LOG_PREFIX}Entry point for repo not specified, defaulting to `python main.py`"
             )
-            launch_project.add_entry_point(["python", "main.py"])
+            launch_project.add_entry_point(EntrypointDefaults.PYTHON)
     elif launch_project.source == LaunchSource.JOB:
         launch_project._fetch_job()
     else:
