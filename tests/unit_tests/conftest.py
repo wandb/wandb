@@ -13,7 +13,7 @@ import threading
 import time
 import unittest.mock
 import urllib.parse
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Sequence
 from contextlib import contextmanager
 from copy import deepcopy
@@ -23,6 +23,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Deque,
     Dict,
     Generator,
     Iterable,
@@ -1322,6 +1323,29 @@ class QueryResolver:
         return None
 
 
+class TokenizedCircularPattern:
+    APPLY_TOKEN = "1"
+    PASS_TOKEN = "0"
+    STOP_TOKEN = "2"
+
+    def __init__(self, pattern: str):
+        known_tokens = {self.APPLY_TOKEN, self.PASS_TOKEN, self.STOP_TOKEN}
+        if not pattern:
+            raise ValueError("Pattern cannot be empty")
+
+        if set(pattern) - known_tokens:
+            raise ValueError(f"Pattern can only contain {known_tokens}")
+        self.pattern: Deque[str] = deque(pattern)
+
+    def next(self):
+        if self.pattern[0] == self.STOP_TOKEN:
+            return
+        self.pattern.rotate(-1)
+
+    def should_apply(self) -> bool:
+        return self.pattern[0] == self.APPLY_TOKEN
+
+
 @dataclasses.dataclass
 class InjectedResponse:
     method: str
@@ -1331,7 +1355,31 @@ class InjectedResponse:
     status: int = 200
     content_type: str = "text/plain"
     # todo: add more fields for other types of responses?
-    counter: int = -1
+    application_pattern: TokenizedCircularPattern = TokenizedCircularPattern("1")
+
+    # application_pattern defines the pattern of the response injection
+    # as the requests come in.
+    # 0 == do not inject the response
+    # 1 == inject the response
+    # 2 == stop using the response (END token)
+    #
+    # - when no END token is present, the pattern is repeated indefinitely
+    # - when END token is present, the pattern is applied until the END token is reached
+    # - to replicate the current behavior:
+    #  - use application_pattern = "1" if wanting to apply the pattern to all requests
+    #  - use application_pattern = "1" * COUNTER + "2" to apply the pattern to the first COUNTER requests
+    #
+    # Examples of application_pattern:
+    # 1. application_pattern = "1012"
+    #    - inject the response for the first request
+    #    - do not inject the response for the second request
+    #    - inject the response for the third request
+    #    - stop using the response starting from the fourth request onwards
+    # 2. application_pattern = "110"
+    #    repeat the following pattern indefinitely:
+    #    - inject the response for the first request
+    #    - inject the response for the second request
+    #    - stop using the response for the third request
 
     def __eq__(
         self,
@@ -1348,7 +1396,7 @@ class InjectedResponse:
             other, (InjectedResponse, requests.Request, requests.PreparedRequest)
         ):
             return False
-        if self.counter == 0:
+        if not self.application_pattern.should_apply():
             return False
         # todo: add more fields for other types of responses?
         return self.method == other.method and self.url == other.url
@@ -1357,7 +1405,7 @@ class InjectedResponse:
         return {
             k: self.__getattribute__(k)
             for k in self.__dict__
-            if (not k.startswith("_") and k != "counter")
+            if (not k.startswith("_") and k != "application_pattern")
         }
 
 
@@ -1469,8 +1517,8 @@ class RelayServer:
                 with responses.RequestsMock() as mocked_responses:
                     # do the actual injection
                     mocked_responses.add(**injected_response.to_dict())
-                    # ensure we don't apply this more times than requested
-                    injected_response.counter -= 1
+                    # rotate the injection pattern
+                    injected_response.application_pattern.next()
                     relayed_response = self.session.send(prepared_relayed_request)
 
                     return relayed_response
@@ -1700,7 +1748,7 @@ def inject_file_stream_response(base_url, user):
         run,
         body: Union[str, Exception] = "{}",
         status: int = 200,
-        counter: int = -1,
+        application_pattern: str = "1",
     ) -> InjectedResponse:
 
         if status > 299:
@@ -1716,7 +1764,7 @@ def inject_file_stream_response(base_url, user):
             ),
             body=body,
             status=status,
-            counter=counter,
+            application_pattern=TokenizedCircularPattern(application_pattern),
         )
 
     yield helper
