@@ -180,6 +180,9 @@ class SendManager:
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
 
+    _sender_status_last: int
+    _sender_status_threshold: int
+
     def __init__(
         self,
         settings: SettingsStatic,
@@ -246,6 +249,12 @@ class SendManager:
         # internal vars for handing raw console output
         self._output_raw_streams = dict()
         self._output_raw_file = None
+
+        # sending status
+        self._sender_status_last = 0
+        self._sender_status_threshold = (
+            4 * 1024
+        )  # FIXME(jhr): maybe a block?  maybe time based?
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
@@ -346,6 +355,21 @@ class SendManager:
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
 
+    def _report_sender_status(self, offset: int) -> None:
+        if offset < self._sender_status_last + self._sender_status_threshold:
+            return
+        self._sender_status_last = offset
+        status_report = wandb_internal_pb2.SenderStatusReportRequest(
+            _synced_offset=offset
+        )
+        status_time = time.time()
+        status_report.last_synced_time.FromMicroseconds(int(status_time * 1e6))
+        request = wandb_internal_pb2.Request()
+        request.sender_status_report.CopyFrom(status_report)
+        record = wandb_internal_pb2.Record()
+        record.request.CopyFrom(request)
+        self._interface._publish(record)
+
     def send_request_sender_read(self, record: "Record") -> None:
         # print("GOT SEND READ", record)
         if self._ds is None:
@@ -363,6 +387,7 @@ class SendManager:
             # print("GOT REC", pb.num)
             # print("GOT REC h", pb.history.step.num)
             off = self._ds.get_offset()
+            self._report_sender_status(off)
             # print("GOT OFF", off)
         # print("DONE")
 
