@@ -189,6 +189,7 @@ def test_edit_after_add(wandb_init):
     open(filename, "w").write("goodbye.")
     with wandb_init() as run:
         run.log_artifact(artifact)
+        artifact.wait()
     with wandb_init() as run:
         art_path = run.use_artifact("hi-art:latest").download()
 
