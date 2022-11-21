@@ -734,8 +734,8 @@ class Artifact(ArtifactInterface):
             shutil.copyfile(path, staging_path)
 
         entry = ArtifactManifestEntry(
-            name,
-            None,
+            path=name,
+            ref=None,
             digest=digest,
             size=size,
             local_path=staging_path,
