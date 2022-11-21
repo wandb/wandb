@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Check if mock_requests is up to date with wandb/wandb:master
         id: mock_requests
         run: |
