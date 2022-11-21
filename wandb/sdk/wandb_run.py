@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import IntEnum
 from types import TracebackType
@@ -43,6 +44,7 @@ from wandb.proto.wandb_internal_pb2 import (
     PollExitResponse,
     RunRecord,
     ServerInfoResponse,
+    SyncStatusResponse,
 )
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -292,6 +294,31 @@ class _run_decorator:  # noqa: N801
             return func(self, *args, **kwargs)
 
         return wrapper
+
+
+@dataclass
+class SyncStatus:
+    _sync_status_response: Optional[SyncStatusResponse] = field(
+        repr=False, default=None
+    )
+    synced_percentage: float = field(init=False, default=0.0)
+    synced_log_index: int = field(init=False, default=0)
+    current_log_index: int = field(init=False, default=0)
+    last_synced_time: str = field(
+        init=False, default=""
+    )  # todo: should it be datetime?
+    failed_sync: bool = field(init=False, default=False)
+
+    def __post_init__(self) -> None:
+        if self._sync_status_response is None:
+            self.failed_sync = True
+            return
+        self.synced_percentage = self._sync_status_response.synced_percentage
+        self.synced_log_index = self._sync_status_response.synced_log_index
+        self.current_log_index = self._sync_status_response.current_log_index
+        self.last_synced_time = (
+            self._sync_status_response.last_synced_time.ToJsonString()
+        )
 
 
 class Run:
@@ -1766,7 +1793,7 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def join(self, exit_code: int = None) -> None:
+    def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
             field_name=deprecate.Deprecated.run__join,
@@ -1775,6 +1802,21 @@ class Run:
             ),
         )
         self._finish(exit_code=exit_code)
+
+    @_run_decorator._attach
+    def sync_status(
+        self,
+    ) -> SyncStatus:
+        """Get sync info from the internal backend, about the current run's sync status."""
+
+        if self._backend and self._backend.interface:
+            handle_sync_status = self._backend.interface.deliver_request_sync_status()
+            result = handle_sync_status.wait(timeout=-1)
+            sync_status_response = (
+                result.response.sync_status_response if result else None
+            )
+            return SyncStatus(sync_status_response)
+        return SyncStatus()
 
     @staticmethod
     def plot_table(

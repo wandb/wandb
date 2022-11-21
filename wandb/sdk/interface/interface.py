@@ -766,3 +766,13 @@ class InterfaceBase:
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
         raise NotImplementedError
+
+    def deliver_request_sync_status(self) -> MailboxHandle:
+        sync_status = pb.SyncStatusRequest()
+        return self._deliver_request_sync_status(sync_status)
+
+    @abstractmethod
+    def _deliver_request_sync_status(
+        self, sync_status: pb.SyncStatusRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
