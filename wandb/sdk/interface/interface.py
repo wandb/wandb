@@ -180,8 +180,7 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run_obj: "Run") -> None:
-        run = self._make_run(run_obj)
+    def publish_run(self, run: "pb.RunRecord") -> None:
         self._publish_run(run)
 
     @abstractmethod
@@ -715,8 +714,7 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
-        run = self._make_run(run_obj)
+    def deliver_run(self, run: "pb.RunRecord") -> MailboxHandle:
         return self._deliver_run(run)
 
     @abstractmethod
@@ -761,8 +759,16 @@ class InterfaceBase:
         sampled_history = pb.SampledHistoryRequest()
         return self._deliver_request_sampled_history(sampled_history)
 
+    def deliver_request_run(self) -> MailboxHandle:
+        run = pb.RunRequest()
+        return self._deliver_request_run(run)
+
     @abstractmethod
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _deliver_request_run(self, run: pb.RunRequest) -> MailboxHandle:
         raise NotImplementedError

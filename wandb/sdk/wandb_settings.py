@@ -39,6 +39,7 @@ from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
+from .lib.deprecate import Deprecated, deprecate
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
@@ -426,6 +427,8 @@ class Settings:
     enable_job_creation: bool
     entity: str
     files_dir: str
+    finish_policy: str
+    finish_timeout: float
     force: bool
     git_commit: str
     git_remote: str
@@ -434,7 +437,8 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
-    init_timeout: int
+    init_policy: str
+    init_timeout: float
     is_local: bool
     label_disable: bool
     launch: bool
@@ -458,6 +462,8 @@ class Settings:
     relogin: bool
     resume: Union[str, int, bool]
     resume_fname: str
+    resume_policy: str
+    resume_timeout: float
     resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
     root_dir: str
     run_group: str
@@ -569,6 +575,11 @@ class Settings:
                     self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
                 ),
             },
+            finish_timeout={"value": 86400, "preprocessor": lambda x: float(x)},
+            finish_policy={
+                "value": "fail",
+                "validator": self._validate_finish_policy,
+            },
             force={"preprocessor": _str_as_bool},
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
@@ -576,7 +587,8 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            init_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            init_timeout={"value": 60, "preprocessor": lambda x: float(x)},
+            init_policy={"value": "fail", "validator": self._validate_init_policy},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -621,6 +633,8 @@ class Settings:
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
+            resume_timeout={"value": 60, "preprocessor": lambda x: float(x)},
+            resume_policy={"value": "fail", "validator": self._validate_resume_policy},
             resumed={"value": "False", "preprocessor": _str_as_bool},
             root_dir={
                 "preprocessor": lambda x: str(x),
@@ -736,6 +750,16 @@ class Settings:
         return helper
 
     @staticmethod
+    def _validate_init_policy(value: Any) -> bool:
+        """
+        Validate the init policy setting
+        """
+        choices = {"fail", "allow"}
+        if value not in choices:
+            raise ValueError(f"Invalid init policy: {value}. Must be one of: {choices}")
+        return True
+
+    @staticmethod
     def _validate_mode(value: str) -> bool:
         choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled"}
         if value not in choices:
@@ -757,6 +781,31 @@ class Settings:
                     f"cannot contain characters \"{','.join(invalid_chars_list)}\", "
                     f"found \"{','.join(invalid_chars)}\""
                 )
+        return True
+
+    @staticmethod
+    def _validate_resume_policy(value: Any) -> bool:
+        """
+        Validate the resume policy setting
+        """
+        choices = {"fail"}
+        if value not in choices:
+            raise ValueError(
+                f"Invalid resume policy: {value}. Must be one of: {choices}"
+            )
+        return True
+
+    @staticmethod
+    def _validate_finish_policy(value: Any) -> bool:
+        """
+        Validate the finish policy setting
+        """
+        choices = {"fail"}
+        # choices = {"fail", "callscript"}  # todo: add the callscript option
+        if value not in choices:
+            raise ValueError(
+                f"Invalid finish policy: {value}. Must be one of: {choices}"
+            )
         return True
 
     @staticmethod
@@ -1517,6 +1566,15 @@ class Settings:
                         init_settings["run_id"] = init_settings["resume"]
                     init_settings["resume"] = "allow"
             elif init_settings["resume"] is True:
+                # todo: add deprecation warning, switch to literal strings for resume
+                warning_message = (
+                    'Using `resume=True` is deprecated. "'
+                    '"Please use `resume="auto"` instead.'
+                )
+                deprecate(
+                    field_name=Deprecated.settings__resume_true,
+                    warning_message=warning_message,
+                )
                 init_settings["resume"] = "auto"
 
         # update settings

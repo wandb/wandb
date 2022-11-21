@@ -81,6 +81,7 @@ from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
+from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
@@ -395,6 +396,8 @@ class Run:
     _exit_code: Optional[int]
 
     _run_status_checker: Optional[RunStatusChecker]
+    _run_sync_status_checker: Optional[threading.Thread]
+    _run_info_thread_shutdown: threading.Event
 
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
@@ -500,6 +503,9 @@ class Run:
 
         # Created when the run "starts".
         self._run_status_checker = None
+
+        self._run_sync_status_checker = None
+        self._run_info_thread_shutdown = threading.Event()
 
         self._check_version = None
         self._sampled_history = None
@@ -766,7 +772,8 @@ class Run:
             tel.feature.set_run_name = True
         self._name = name
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property  # type: ignore
     @_run_decorator._attach
@@ -786,7 +793,8 @@ class Run:
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property  # type: ignore
     @_run_decorator._attach
@@ -805,7 +813,8 @@ class Run:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property  # type: ignore
     @_run_decorator._attach
@@ -1993,6 +2002,54 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
+    def _on_progress_run_info(self, progress_handle: MailboxProgress) -> None:
+        """on_progress callback for the run_info handle.
+
+        We use this method to cleanly stop waiting on the progress handle
+        when the _run_info_thread_shutdown event is set, in this case we transition
+        to wait only finish timeout and give up.
+        """
+        print("waiting for shutdown")
+        if self._run_info_thread_shutdown.is_set():
+            progress_handle.wait_stop()
+
+    def _run_info_thread(self, handle: MailboxHandle) -> None:
+        """Get the run info from the backend and set the run state.
+
+        This thread is started if we could not immediately connect to the backend
+        and provide the project/run information to the user. It will wait on the
+        provided Mailbox handle until the backend responds back and then update
+        the run state with the received information and communicate it to the user.
+        """
+        logger.info("checking run info status")
+        assert self._backend
+        self._backend._hack_set_run(self)
+        result = handle.wait(
+            timeout=-1,  # Wait forever
+            on_progress=self._on_progress_run_info,
+            release=False,
+        )
+
+        if result is None and self.settings.finish_policy == "fail":
+            # reset the timeout and continue waiting if the shutdown event is set
+            # and the handle is still open, and we haven't received a response
+            # and the finish policy is not set to "fail"
+            result = handle.wait(
+                timeout=self._settings.finish_timeout,
+            )
+
+        if result is None:
+            logger.info("run info thread timed out")
+            return
+
+        run_result = result.run_result
+        self._set_run_obj(run_result.run)
+        self._settings._apply_run_start(message_to_dict(self._run_obj))  # type: ignore
+        self._update_settings(self._settings)
+
+        if not self._run_info_thread_shutdown.is_set():
+            Run._header_run_info(settings=self.settings, printer=self._printer)
+
     def _on_init(self) -> None:
 
         if self._backend and self._backend.interface:
@@ -2000,9 +2057,9 @@ class Run:
             self._check_version = self._backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
-        logger.info(f"got version response {self._check_version}")
+            logger.info(f"got version response {self._check_version}")
 
-    def _on_start(self) -> None:
+    def _on_start(self, init_handle: Optional[MailboxHandle] = None) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
@@ -2012,6 +2069,19 @@ class Run:
         self._header(
             self._check_version, settings=self._settings, printer=self._printer
         )
+
+        if init_handle is not None:
+            # If at this point init_handle received the response from the backend,
+            # we will update the run object and settings with the received information
+            # and communicate it to the user. Otherwise, that will be done once
+            # the backend responds back.
+            self._run_sync_status_checker = threading.Thread(
+                target=self._run_info_thread,
+                args=(init_handle,),
+                name="SyncStatCh",
+                daemon=True,
+            )
+            self._run_sync_status_checker.start()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -2274,6 +2344,9 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.stop()
 
+        if self._run_sync_status_checker:
+            self._run_info_thread_shutdown.set()
+
         if not self._settings._offline and self._settings.enable_job_creation:
             self._log_job()
 
@@ -2319,6 +2392,9 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.join()
+
+        if self._run_sync_status_checker:
+            self._run_sync_status_checker.join()
 
         self._unregister_telemetry_import_hooks(self._run_id)
 
@@ -2890,7 +2966,8 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
+                    f"Artifact {artifact.name} already exists with type {expected_type}; "
+                    f"cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3035,7 +3112,10 @@ class Run:
             return
 
         # printer = printer or get_printer(settings._jupyter)
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        # TODO: add this to a higher verbosity level
+        printer.display(
+            f"Tracking run with wandb version {wandb.__version__}", off=True
+        )
 
     @staticmethod
     def _header_sync_info(
@@ -3077,6 +3157,8 @@ class Run:
 
         run_state_str = "Resuming run" if settings.resumed else "Syncing run"
         run_name = settings.run_name
+        if not run_name:
+            return
 
         # printer = printer or get_printer(settings._jupyter)
         if printer._html:
@@ -3094,34 +3176,37 @@ class Run:
                     project_line = f"to {project_html} ({doc_html})"
 
                     if sweep_url:
-                        sweep_line = (
-                            f"Sweep page:  {printer.link(sweep_url, sweep_url)}"
-                        )
+                        sweep_line = f"Sweep page: {printer.link(sweep_url, sweep_url)}"
 
                 printer.display(
-                    [f"{run_state_str} {run_line} {project_line}", sweep_line]
+                    [f"{run_state_str} {run_line} {project_line}", sweep_line],
                 )
 
         else:
-            printer.display(f"{run_state_str} {printer.name(run_name)}")
-            if not settings.quiet:
-                printer.display(
-                    f'{printer.emoji("star")} View project at {printer.link(project_url)}'
-                )
-                if sweep_url:
-                    printer.display(
-                        f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
-                    )
             printer.display(
-                f'{printer.emoji("rocket")} View run at {printer.link(run_url)}'
+                f"{run_state_str} {printer.name(run_name)}", off=not run_name
             )
 
-            # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-            if Api().api.settings().get("anonymous") == "true":
+        if not settings.quiet:
+            # TODO: add verbosity levels and add this to higher levels
+            printer.display(
+                f'{printer.emoji("star")} View project at {printer.link(project_url)}'
+            )
+            if sweep_url:
                 printer.display(
-                    "Do NOT share these links with anyone. They can be used to claim your runs.",
-                    level="warn",
+                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
+        printer.display(
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+        )
+
+        # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
+        if Api().api.settings().get("anonymous") == "true":
+            printer.display(
+                "Do NOT share these links with anyone. They can be used to claim your runs.",
+                level="warn",
+                off=not run_name,
+            )
 
     # ------------------------------------------------------------------------------
     # FOOTER
@@ -3350,10 +3435,9 @@ class Run:
             info = []
             if settings.run_name and settings.run_url:
                 info = [
-                    f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
                 ]
             if poll_exit_response and poll_exit_response.file_counts:
-
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
                 info.append(

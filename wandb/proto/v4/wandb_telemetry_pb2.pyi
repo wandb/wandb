@@ -589,6 +589,7 @@ class Deprecated(google.protobuf.message.Message):
     INIT__CONFIG_INCLUDE_KEYS_FIELD_NUMBER: builtins.int
     INIT__CONFIG_EXCLUDE_KEYS_FIELD_NUMBER: builtins.int
     KERAS_CALLBACK__SAVE_MODEL_FIELD_NUMBER: builtins.int
+    SETTINGS__RESUME_TRUE_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.keras.WandbCallback(data_type=...) called"""
     run__mode: builtins.bool
@@ -607,6 +608,8 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.init(config_exclude_keys=...) called"""
     keras_callback__save_model: builtins.bool
     """wandb.keras.WandbCallback(save_model=True) called"""
+    settings__resume_true: builtins.bool
+    """wandb.settings(resume=True) used"""
     def __init__(
         self,
         *,
@@ -619,8 +622,9 @@ class Deprecated(google.protobuf.message.Message):
         init__config_include_keys: builtins.bool = ...,
         init__config_exclude_keys: builtins.bool = ...,
         keras_callback__save_model: builtins.bool = ...,
+        settings__resume_true: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "plots", b"plots", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "plots", b"plots", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "settings__resume_true", b"settings__resume_true"]) -> None: ...
 
 global___Deprecated = Deprecated
 

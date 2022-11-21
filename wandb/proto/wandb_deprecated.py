@@ -19,7 +19,8 @@ DEPRECATED_FEATURES = Literal[
     "run__log_sync",
     "init__config_include_keys",
     "init__config_exclude_keys",
-    "keras_callback__save_model"
+    "keras_callback__save_model",
+    "settings__resume_true"
 ]
 
 
@@ -33,3 +34,4 @@ class Deprecated:
     init__config_include_keys: DEPRECATED_FEATURES = "init__config_include_keys"
     init__config_exclude_keys: DEPRECATED_FEATURES = "init__config_exclude_keys"
     keras_callback__save_model: DEPRECATED_FEATURES = "keras_callback__save_model"
+    settings__resume_true: DEPRECATED_FEATURES = "settings__resume_true"

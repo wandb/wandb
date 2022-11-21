@@ -53,6 +53,8 @@ class SettingsStatic:
     username: Optional[str]
     _executable: str
     sync_file: str
+    run_url: Optional[str]
+    run_name: Optional[str]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int
