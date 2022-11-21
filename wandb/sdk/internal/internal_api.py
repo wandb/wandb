@@ -1062,6 +1062,7 @@ class Api:
                 }
             ) {
                 runQueueItemId
+                runSpec
             }
         }
         """
@@ -1152,6 +1153,7 @@ class Api:
                 }
             ) {
                 runQueueItemId
+                runSpec
             }
         }
         """
