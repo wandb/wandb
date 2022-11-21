@@ -51,6 +51,7 @@ class SettingsStatic:
     anonymous: Optional[str]
     host: Optional[str]
     username: Optional[str]
+    _executable: str
     sync_file: str
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings

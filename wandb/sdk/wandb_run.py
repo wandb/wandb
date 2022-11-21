@@ -1787,7 +1787,6 @@ class Run:
 
         Arguments:
             vega_spec_name: the name of the spec for the plot
-            table_key: the key used to log the data table
             data_table: a wandb.Table object containing the data to
                 be used on the visualization
             fields: a dict mapping from table keys to fields that the custom
@@ -2068,6 +2067,17 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+    def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
+        import pkg_resources
+
+        installed_packages_list = sorted(
+            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
+        )
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
+        return installed_packages_list, input_types, output_types
+
     def _log_job(self) -> None:
         # don't produce a job if the run is sourced from a job
         if (
@@ -2075,25 +2085,25 @@ class Run:
             is not None
         ):
             return
+
         artifact = None
-        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
-        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
-
-        import pkg_resources
-
-        installed_packages_list = sorted(
-            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
-        )
+        (
+            installed_packages_list,
+            input_types,
+            output_types,
+        ) = self._make_job_source_reqs()
 
         for job_creation_function in [
             self._create_repo_job,
             self._create_artifact_job,
             self._create_image_job,
         ]:
-            artifact = job_creation_function(
+            artifact = job_creation_function(  # type: ignore
                 input_types, output_types, installed_packages_list
             )
+
             if artifact:
+                self.use_artifact(artifact)
                 logger.info(f"Created job using {job_creation_function.__name__}")
                 break
             else:
@@ -2158,8 +2168,7 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list, patch_path
         )
-        artifact = self.use_artifact(job_artifact)
-        return artifact
+        return job_artifact
 
     def _create_artifact_job(
         self,
@@ -2194,18 +2203,20 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.use_artifact(job_artifact)
-        return artifact
+        return job_artifact
 
     def _create_image_job(
         self,
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
+        docker_image_name: Optional[str] = None,
     ) -> "Optional[Artifact]":
-        docker_image_name = os.getenv("WANDB_DOCKER")
-        if docker_image_name is None:
+        docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
+
+        if not docker_image_name:
             return None
+
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
 
         source_info: JobSourceDict = {
@@ -2219,8 +2230,21 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.use_artifact(job_artifact)
-        return artifact
+
+        return job_artifact
+
+    def _log_job_artifact_with_image(self, docker_image_name: str) -> Artifact:
+        packages, in_types, out_types = self._make_job_source_reqs()
+        job_artifact = self._create_image_job(
+            in_types, out_types, packages, docker_image_name
+        )
+
+        artifact = self.log_artifact(job_artifact)
+
+        if not artifact:
+            raise wandb.Error(f"Job Artifact log unsuccessful: {artifact}")
+        else:
+            return artifact
 
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()

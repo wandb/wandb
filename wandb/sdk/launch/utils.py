@@ -44,7 +44,7 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
-LOG_PREFIX = f"{click.style('launch:', fg='magenta')}: "
+LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -122,6 +122,7 @@ def construct_launch_spec(
     launch_config: Optional[Dict[str, Any]],
     cuda: Optional[bool],
     run_id: Optional[str],
+    repository: Optional[str],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -179,6 +180,13 @@ def construct_launch_spec(
 
     if run_id is not None:
         launch_spec["run_id"] = run_id
+
+    if repository:
+        launch_config = launch_config or {}
+        if launch_config.get("registry"):
+            launch_config["registry"]["url"] = repository
+        else:
+            launch_config["registry"] = {"url": repository}
 
     return launch_spec
 
@@ -468,7 +476,9 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
         try:
             repo.create_head(version, origin.refs[version])
             repo.heads[version].checkout()
-            wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
+            wandb.termlog(
+                f"{LOG_PREFIX}No git branch passed, defaulted to branch: {version}"
+            )
         except (AttributeError, IndexError) as e:
             raise LaunchError(
                 "Unable to checkout default version '%s' of git repo %s "
