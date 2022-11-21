@@ -1072,29 +1072,32 @@ class WeavePanelArtifact(Panel):
         }
 
 
-class WeavePanelArtifactVersion(Panel):
+class WeavePanelArtifactVersionedFile(Panel):
     artifact: str = Attr(
-        json_path="spec.config.panel2Config.exp.fromOp.inputs.artifactName.val"
+        json_path="spec.config.panel2Config.exp.fromOp.inputs.artifactVersion.fromOp.inputs.artifactName.val"
     )
     version: str = Attr(
-        json_path="spec.config.panel2Config.exp.fromOp.inputs.artifactVersionAlias.val",
+        json_path="spec.config.panel2Config.exp.fromOp.inputs.artifactVersion.fromOp.inputs.artifactVersionAlias.val",
     )
+    file: str = Attr(json_path="spec.config.panel2Config.exp.fromOp.inputs.path.val")
 
-    def __init__(self, artifact, version, tab="overview", *args, **kwargs):
+    def __init__(self, artifact, version, file, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._spec["config"] = self._default_config()
         self.artifact = artifact
         self.version = version
+        self.file = file
 
     @classmethod
     def from_json(cls, spec):
         artifact = spec["config"]["panel2Config"]["exp"]["fromOp"]["inputs"][
-            "artifactName"
-        ]["val"]
+            "artifactVersion"
+        ]["fromOp"]["inputs"]["artifactName"]["val"]
         version = spec["config"]["panel2Config"]["exp"]["fromOp"]["inputs"][
-            "artifactVersionAlias"
-        ]["val"]
-        return cls(artifact, version)
+            "artifactVersion"
+        ]["fromOp"]["inputs"]["artifactVersionAlias"]["val"]
+        file = spec["config"]["panel2Config"]["exp"]["fromOp"]["inputs"]["path"]["val"]
+        return cls(artifact, version, file)
 
     @property
     def view_type(self) -> str:
@@ -1126,61 +1129,75 @@ class WeavePanelArtifactVersion(Panel):
                                 },
                             },
                         },
-                        "value": "artifactVersion",
+                        "value": {
+                            "type": "file",
+                            "extension": "json",
+                            "wbObjectType": {"type": "table", "columnTypes": {}},
+                        },
                     },
                     "fromOp": {
-                        "name": "project-artifactVersion",
+                        "name": "artifactVersion-file",
                         "inputs": {
-                            "project": {
-                                "nodeType": "var",
+                            "artifactVersion": {
+                                "nodeType": "output",
                                 "type": {
                                     "type": "tagged",
                                     "tag": {
-                                        "type": "typedDict",
-                                        "propertyTypes": {
-                                            "entityName": "string",
-                                            "projectName": "string",
+                                        "type": "tagged",
+                                        "tag": {
+                                            "type": "typedDict",
+                                            "propertyTypes": {
+                                                "entityName": "string",
+                                                "projectName": "string",
+                                            },
+                                        },
+                                        "value": {
+                                            "type": "typedDict",
+                                            "propertyTypes": {
+                                                "project": "project",
+                                                "artifactName": "string",
+                                                "artifactVersionAlias": "string",
+                                            },
                                         },
                                     },
-                                    "value": "project",
+                                    "value": "artifactVersion",
                                 },
-                                "varName": "project",
+                                "fromOp": {
+                                    "name": "project-artifactVersion",
+                                    "inputs": {
+                                        "project": {
+                                            "nodeType": "var",
+                                            "type": {
+                                                "type": "tagged",
+                                                "tag": {
+                                                    "type": "typedDict",
+                                                    "propertyTypes": {
+                                                        "entityName": "string",
+                                                        "projectName": "string",
+                                                    },
+                                                },
+                                                "value": "project",
+                                            },
+                                            "varName": "project",
+                                        },
+                                        "artifactName": {
+                                            "nodeType": "const",
+                                            "type": "string",
+                                            "val": "",
+                                        },
+                                        "artifactVersionAlias": {
+                                            "nodeType": "const",
+                                            "type": "string",
+                                            "val": "",
+                                        },
+                                    },
+                                },
                             },
-                            "artifactName": {
-                                "nodeType": "const",
-                                "type": "string",
-                                "val": "",
-                            },
-                            "artifactVersionAlias": {
-                                "nodeType": "const",
-                                "type": "string",
-                                "val": "",
-                            },
+                            "path": {"nodeType": "const", "type": "string", "val": ""},
                         },
                     },
                     "__userInput": True,
-                },
-                "panelInputType": {
-                    "type": "tagged",
-                    "tag": {
-                        "type": "tagged",
-                        "tag": {
-                            "type": "typedDict",
-                            "propertyTypes": {
-                                "entityName": "string",
-                                "projectName": "string",
-                            },
-                        },
-                        "value": {
-                            "type": "typedDict",
-                            "propertyTypes": {
-                                "project": "project",
-                                "artifactName": "string",
-                            },
-                        },
-                    },
-                    "value": "artifact",
-                },
+                }
             }
         }
 
@@ -1209,7 +1226,7 @@ panel_mapping = {
 
 weave_panels = [
     WeavePanelSummaryTable,
-    WeavePanelArtifactVersion,
+    WeavePanelArtifactVersionedFile,
     WeavePanelArtifact,
     WeavePanel,
 ]

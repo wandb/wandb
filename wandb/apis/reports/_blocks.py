@@ -1056,29 +1056,38 @@ class WeaveBlockArtifact(Block):
         }
 
 
-class WeaveBlockArtifactVersion(Block):
+class WeaveBlockArtifactVersionedFile(Block):
     """This is a hacky solution to support the most common way of getting Weave artifact verions for now..."""
 
     entity: str = Attr()
     project: str = Attr()
     artifact: str = Attr()
     version: str = Attr()
+    file: str = Attr()
 
-    def __init__(self, entity, project, artifact, version, *args, **kwargs):
+    def __init__(self, entity, project, artifact, version, file, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.entity = entity
         self.project = project
         self.artifact = artifact
         self.version = version
+        self.file = file
 
     @classmethod
     def from_json(cls, spec: dict) -> "WeaveBlockSummaryTable":
         inputs = weave_inputs(spec)
-        entity = inputs["project"]["fromOp"]["inputs"]["entityName"]["val"]
-        project = inputs["project"]["fromOp"]["inputs"]["projectName"]["val"]
-        artifact = inputs["artifactName"]["val"]
-        version = inputs["artifactVersionAlias"]["val"]
-        return cls(entity, project, artifact, version)
+        entity = inputs["artifactVersion"]["fromOp"]["inputs"]["project"]["fromOp"][
+            "inputs"
+        ]["entityName"]["val"]
+        project = inputs["artifactVersion"]["fromOp"]["inputs"]["project"]["fromOp"][
+            "inputs"
+        ]["projectName"]["val"]
+        artifact = inputs["artifactVersion"]["fromOp"]["inputs"]["artifactName"]["val"]
+        version = inputs["artifactVersion"]["fromOp"]["inputs"]["artifactVersionAlias"][
+            "val"
+        ]
+        file = inputs["path"]["val"]
+        return cls(entity, project, artifact, version, file)
 
     @property
     def spec(self) -> dict:
@@ -1109,75 +1118,93 @@ class WeaveBlockArtifactVersion(Block):
                                     },
                                 },
                             },
-                            "value": "artifactVersion",
+                            "value": {
+                                "type": "file",
+                                "extension": "json",
+                                "wbObjectType": {"type": "table", "columnTypes": {}},
+                            },
                         },
                         "fromOp": {
-                            "name": "project-artifactVersion",
+                            "name": "artifactVersion-file",
                             "inputs": {
-                                "project": {
+                                "artifactVersion": {
                                     "nodeType": "output",
                                     "type": {
                                         "type": "tagged",
                                         "tag": {
-                                            "type": "typedDict",
-                                            "propertyTypes": {
-                                                "entityName": "string",
-                                                "projectName": "string",
+                                            "type": "tagged",
+                                            "tag": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {
+                                                    "entityName": "string",
+                                                    "projectName": "string",
+                                                },
+                                            },
+                                            "value": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {
+                                                    "project": "project",
+                                                    "artifactName": "string",
+                                                    "artifactVersionAlias": "string",
+                                                },
                                             },
                                         },
-                                        "value": "project",
+                                        "value": "artifactVersion",
                                     },
                                     "fromOp": {
-                                        "name": "root-project",
+                                        "name": "project-artifactVersion",
                                         "inputs": {
-                                            "entityName": {
-                                                "nodeType": "const",
-                                                "type": "string",
-                                                "val": self.entity,
+                                            "project": {
+                                                "nodeType": "output",
+                                                "type": {
+                                                    "type": "tagged",
+                                                    "tag": {
+                                                        "type": "typedDict",
+                                                        "propertyTypes": {
+                                                            "entityName": "string",
+                                                            "projectName": "string",
+                                                        },
+                                                    },
+                                                    "value": "project",
+                                                },
+                                                "fromOp": {
+                                                    "name": "root-project",
+                                                    "inputs": {
+                                                        "entityName": {
+                                                            "nodeType": "const",
+                                                            "type": "string",
+                                                            "val": self.entity,
+                                                        },
+                                                        "projectName": {
+                                                            "nodeType": "const",
+                                                            "type": "string",
+                                                            "val": self.project,
+                                                        },
+                                                    },
+                                                },
                                             },
-                                            "projectName": {
+                                            "artifactName": {
                                                 "nodeType": "const",
                                                 "type": "string",
-                                                "val": self.project,
+                                                "val": self.artifact,
+                                            },
+                                            "artifactVersionAlias": {
+                                                "nodeType": "const",
+                                                "type": "string",
+                                                "val": self.version,
                                             },
                                         },
                                     },
                                 },
-                                "artifactName": {
+                                "path": {
                                     "nodeType": "const",
                                     "type": "string",
-                                    "val": self.artifact,
-                                },
-                                "artifactVersionAlias": {
-                                    "nodeType": "const",
-                                    "type": "string",
-                                    "val": self.version,
+                                    "val": self.file,
                                 },
                             },
                         },
                         "__userInput": True,
-                    },
-                    "panelInputType": {
-                        "type": "tagged",
-                        "tag": {
-                            "type": "tagged",
-                            "tag": {
-                                "type": "typedDict",
-                                "propertyTypes": {
-                                    "entityName": "string",
-                                    "projectName": "string",
-                                },
-                            },
-                            "value": {
-                                "type": "typedDict",
-                                "propertyTypes": {
-                                    "project": "project",
-                                    "artifactName": "string",
-                                },
-                            },
-                        },
-                        "value": "artifact",
-                    },
+                    }
                 }
             },
         }
@@ -1370,7 +1397,7 @@ block_mapping = {
 
 weave_blocks = [
     WeaveBlockSummaryTable,
-    WeaveBlockArtifactVersion,
+    WeaveBlockArtifactVersionedFile,
     WeaveBlockArtifact,
     WeaveBlock,
 ]

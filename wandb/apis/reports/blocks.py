@@ -21,6 +21,6 @@ from ._blocks import (
     UnorderedList,
     Video,
     WeaveBlockArtifact,
-    WeaveBlockArtifactVersion,
+    WeaveBlockArtifactVersionedFile,
     WeaveBlockSummaryTable,
 )

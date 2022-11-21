@@ -12,6 +12,6 @@ from ._panels import (
     ScalarChart,
     ScatterPlot,
     WeavePanelArtifact,
-    WeavePanelArtifactVersion,
+    WeavePanelArtifactVersionedFile,
     WeavePanelSummaryTable,
 )

@@ -239,8 +239,8 @@ blocks = [
     wr.Video("https://www.youtube.com/embed/6riDJMI-Y8U"),
     wr.WeaveBlockSummaryTable("example-entity", "example-project", "example-table"),
     wr.WeaveBlockArtifact("example-entity", "example-project", "example-artifact"),
-    wr.WeaveBlockArtifactVersion(
-        "example-entity", "example-project", "example-artifact", "v0"
+    wr.WeaveBlockArtifactVersionedFile(
+        "example-entity", "example-project", "example-artifact", "v0", "example-file"
     ),
 ]
 
@@ -267,7 +267,7 @@ panels = [
     wr.ScatterPlot(),
     wr.WeavePanelSummaryTable("example-table"),
     wr.WeavePanelArtifact("example-artifact"),
-    wr.WeavePanelArtifactVersion("example-artifact", "v0"),
+    wr.WeavePanelArtifactVersionedFile("example-artifact", "v0", "example-file"),
 ]
 
 
@@ -671,13 +671,15 @@ class TestBlocks:
         vars(b)
 
     @pytest.mark.parametrize(
-        "entity,project,artifact_name,version",
-        [["example-entity", "example-project", "example-table", "v0"]],
+        "entity,project,artifact_name,version,file",
+        [["example-entity", "example-project", "example-table", "v0", "example-file"]],
     )
-    def test_weave_block_artifact_version(
-        self, entity, project, artifact_name, version
+    def test_weave_block_artifact_versioned_file(
+        self, entity, project, artifact_name, version, file
     ):
-        b = wr.WeaveBlockArtifactVersion(entity, project, artifact_name, version)
+        b = wr.WeaveBlockArtifactVersionedFile(
+            entity, project, artifact_name, version, file
+        )
         vars(b)
 
 
