@@ -156,27 +156,27 @@ def test_artifacts_cache_cleanup_empty():
     assert reclaimed_bytes == 0
 
 
-def test_artifacts_cache_cleanup():
-    cache_root = os.path.join("cache", "obj", "md5")
+def test_artifacts_cache_cleanup(tmp_path):
+    cache_root = os.path.join(tmp_path, "obj", "md5")
 
     path_1 = os.path.join(cache_root, "aa")
     os.makedirs(path_1)
     with open(os.path.join(path_1, "aardvark"), "w") as f:
         f.truncate(5000)
-    time.sleep(0.1)
+        f.flush()
 
     path_2 = os.path.join(cache_root, "ab")
     os.makedirs(path_2)
     with open(os.path.join(path_2, "absolute"), "w") as f:
         f.truncate(2000)
-    time.sleep(0.1)
+        f.flush()
 
     path_3 = os.path.join(cache_root, "ac")
     os.makedirs(path_3)
     with open(os.path.join(path_3, "accelerate"), "w") as f:
         f.truncate(1000)
 
-    cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
+    cache = wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
     reclaimed_bytes = cache.cleanup(5000)
 
     # We should get rid of "aardvark" in this case
