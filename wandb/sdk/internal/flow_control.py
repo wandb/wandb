@@ -326,7 +326,7 @@ class FlowControl:
             return False
         return True
 
-    def _doread(self, record: "Record", read_last: bool=False) -> None:
+    def _doread(self, record: "Record", read_last: bool = False) -> None:
         # issue read for anything written but not forwarded yet
         # print("Qr:", self._track_last_recovering_offset)
         # print("Qf:", self._track_last_forwarded_offset)
@@ -336,7 +336,11 @@ class FlowControl:
         start = max(
             self._track_last_recovering_offset, self._track_last_forwarded_offset
         )
-        end = self._track_last_written_offset if read_last else self._track_prev_written_offset
+        end = (
+            self._track_last_written_offset
+            if read_last
+            else self._track_prev_written_offset
+        )
         # print("QUIESCE", start, end, record)
         if end > start:
             self._send_recovering_read(start, end)

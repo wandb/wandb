@@ -49,7 +49,7 @@ class WriteManager:
             _threshold_bytes_low=200,
             _mark_granularity_bytes=100,
             _recovering_bytes_min=300,
-            )
+        )
         kwargs = debug_kwargs if self._debug else {}
         self._flow_control = flow_control.FlowControl(
             settings=self._settings,

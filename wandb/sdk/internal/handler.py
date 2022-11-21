@@ -517,6 +517,9 @@ class HandleManager:
             self.handle_history(Record(history=history))
             self._partial_history = {}
 
+    def handle_request_sender_mark_report(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
     def handle_request_partial_history(self, record: Record) -> None:
         partial_history = record.request.partial_history
 
