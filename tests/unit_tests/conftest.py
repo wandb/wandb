@@ -1355,6 +1355,7 @@ class InjectedResponse:
     status: int = 200
     content_type: str = "text/plain"
     # todo: add more fields for other types of responses?
+    custom_match_fn: Optional[Callable[..., bool]] = None
     application_pattern: TokenizedCircularPattern = TokenizedCircularPattern("1")
 
     # application_pattern defines the pattern of the response injection
@@ -1399,13 +1400,20 @@ class InjectedResponse:
         if not self.application_pattern.should_apply():
             return False
         # todo: add more fields for other types of responses?
-        return self.method == other.method and self.url == other.url
+
+        # always check the method and url
+        ret = self.method == other.method and self.url == other.url
+        # use custom_match_fn to check, e.g. the request body content
+        if self.custom_match_fn is not None:
+            ret = ret and self.custom_match_fn(self, other)
+        return ret
 
     def to_dict(self):
+        excluded_fields = {"application_pattern", "custom_match_fn"}
         return {
             k: self.__getattribute__(k)
             for k in self.__dict__
-            if (not k.startswith("_") and k != "application_pattern")
+            if (not k.startswith("_") and k not in excluded_fields)
         }
 
 
@@ -1453,6 +1461,7 @@ class RelayServer:
 
         # recursively merge-able object to store state
         self.resolver = QueryResolver()
+        # todo: add an option to add custom resolvers
         self.context = Context()
 
         # injected responses

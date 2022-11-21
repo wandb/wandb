@@ -740,7 +740,7 @@ class Settings:
         """
         Validate the init policy setting
         """
-        choices = {"fail", "allow"}
+        choices = {"fail", "async"}
         if value not in choices:
             raise ValueError(f"Invalid init policy: {value}. Must be one of: {choices}")
         return True

@@ -721,9 +721,9 @@ class _WandbInit:
                     "exiting as per 'fail' init policy."
                 )
                 error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
-            elif not run_result and policy == "allow":
+            elif not run_result and policy == "async":
                 logger.warning(
-                    "backend process timed out, continuing as per 'allow' policy"
+                    "backend process timed out, continuing as per 'async' policy"
                 )
                 # todo: clearly communicate the error to the user, and what happens next
                 self.printer.display(
