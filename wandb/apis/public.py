@@ -2479,9 +2479,27 @@ class Sweep(Attrs):
         project: (str) name of project
         config: (str) dictionary of sweep configuration
         state: (str) the state of the sweep
+        expected_run_count: (int) number of expected runs for the sweep
     """
 
     QUERY = gql(
+        """
+    query Sweep($project: String, $entity: String, $name: String!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                state
+                runCountExpected
+                bestLoss
+                config
+            }
+        }
+    }
+    """
+    )
+
+    LEGACY_QUERY = gql(
         """
     query Sweep($project: String, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
@@ -2566,6 +2584,11 @@ class Sweep(Attrs):
             return None
 
     @property
+    def expected_run_count(self) -> Optional[int]:
+        "Returns the number of expected runs in the sweep or None for infinite runs."
+        return self._attrs.get("runCountExpected")
+
+    @property
     def path(self):
         return [
             urllib.parse.quote_plus(str(self.entity)),
@@ -2605,10 +2628,16 @@ class Sweep(Attrs):
         }
         variables.update(kwargs)
 
-        response = client.execute(query, variable_values=variables)
-        if response.get("project") is None:
-            return None
-        elif response["project"].get("sweep") is None:
+        response = None
+        try:
+            response = client.execute(query, variable_values=variables)
+        except Exception:
+            # Don't handle exception, rely on legacy query
+            # TODO(gst): Implement updated introspection workaround
+            query = cls.LEGACY_QUERY
+            response = client.execute(query, variable_values=variables)
+
+        if not response or not response.get("project", {}).get("sweep"):
             return None
 
         sweep_response = response["project"]["sweep"]
