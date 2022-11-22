@@ -62,17 +62,6 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
     }
 
 
-def _cleanup_wrapper(f: Callable) -> Callable:
-    @wraps(f)
-    def wrapper(self, *args, **kwargs):
-        try:
-            return f(self, *args, **kwargs)
-        finally:
-            self._cleanup_staged_entries()
-
-    return wrapper
-
-
 class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
@@ -91,8 +80,42 @@ class ArtifactSaver:
         self._is_user_created = is_user_created
         self._server_artifact = None
 
-    @_cleanup_wrapper
     def save(
+        self,
+        type: str,
+        name: str,
+        client_id: str,
+        sequence_client_id: str,
+        distributed_id: Optional[str] = None,
+        finalize: bool = True,
+        metadata: Optional[Dict] = None,
+        description: Optional[str] = None,
+        aliases: Optional[Sequence[str]] = None,
+        labels: Optional[List[str]] = None,
+        use_after_commit: bool = False,
+        incremental: bool = False,
+        history_step: Optional[int] = None,
+    ) -> Optional[Dict]:
+        try:
+            return self._save_internal(
+                type,
+                name,
+                client_id,
+                sequence_client_id,
+                distributed_id,
+                finalize,
+                metadata,
+                description,
+                aliases,
+                labels,
+                use_after_commit,
+                incremental,
+                history_step,
+            )
+        finally:
+            self._cleanup_staged_entries()
+
+    def _save_internal(
         self,
         type: str,
         name: str,
