@@ -80,7 +80,7 @@ class ArtifactSaver:
         self._is_user_created = is_user_created
         self._server_artifact = None
 
-    def _cleanup_wrapper(f):
+    def _cleanup_wrapper(f):  # noqa: N805 flake8 doesn't understand class decorators.
         @wraps(f)
         def wrapper(self, *args, **kwargs):
             try:
