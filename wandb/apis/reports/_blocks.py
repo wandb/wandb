@@ -49,13 +49,20 @@ class PanelGrid(Block):
     active_runset: Union[str, None] = Attr(json_path="spec.metadata.openRunSet")
 
     def __init__(
-        self, runsets=None, panels=None, custom_run_colors=None, *args, **kwargs
+        self,
+        runsets=None,
+        panels=None,
+        custom_run_colors=None,
+        active_runset=None,
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._spec = self._default_panel_grid_spec()
         self.runsets = coalesce(runsets, self._default_runsets())
         self.panels = coalesce(panels, self._default_panels())
         self.custom_run_colors = coalesce(custom_run_colors, {})
+        self.active_runset = active_runset
 
     @active_runset.getter
     def active_runset(self):
