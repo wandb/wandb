@@ -1,10 +1,10 @@
-from typing import Union
 import urllib.parse
+from typing import Union
 
 import pytest
-
 import wandb
-from ..conftest import InjectedResponse, DeliberateHTTPError, TokenizedCircularPattern
+
+from ..conftest import DeliberateHTTPError, InjectedResponse, TokenizedCircularPattern
 
 
 @pytest.fixture(scope="function")
@@ -25,7 +25,7 @@ def inject_upsert_run(base_url, user):
             url=(
                 urllib.parse.urljoin(
                     base_url,
-                    f"/graphql",
+                    "/graphql",
                 )
             ),
             body=body,

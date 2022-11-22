@@ -12,7 +12,6 @@ import wandb
 
 from . import ipython, sparkline
 
-
 # Follow the same logic as the python logging module
 CRITICAL = 50
 FATAL = CRITICAL

@@ -23,7 +23,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Deque,
     Dict,
     Generator,
     Iterable,
@@ -57,6 +56,7 @@ except ImportError:
     from typing_extensions import Literal, TypedDict
 
 if TYPE_CHECKING:
+    from typing import Deque
 
     class RawRequestResponse(TypedDict):
         url: str
@@ -1335,7 +1335,7 @@ class TokenizedCircularPattern:
 
         if set(pattern) - known_tokens:
             raise ValueError(f"Pattern can only contain {known_tokens}")
-        self.pattern: Deque[str] = deque(pattern)
+        self.pattern: "Deque[str]" = deque(pattern)
 
     def next(self):
         if self.pattern[0] == self.STOP_TOKEN:
