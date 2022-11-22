@@ -3,8 +3,7 @@ import os
 import sys
 import tempfile
 import threading
-from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
