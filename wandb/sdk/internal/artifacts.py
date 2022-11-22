@@ -4,7 +4,7 @@ import sys
 import tempfile
 import threading
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
@@ -62,6 +62,17 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
     }
 
 
+def _cleanup_wrapper(f: Callable) -> Callable:
+    @wraps(f)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return f(self, *args, **kwargs)
+        finally:
+            self._cleanup_staged_entries()
+
+    return wrapper
+
+
 class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
@@ -79,16 +90,6 @@ class ArtifactSaver:
         self._manifest = ArtifactManifest.from_manifest_json(None, manifest_json)
         self._is_user_created = is_user_created
         self._server_artifact = None
-
-    def _cleanup_wrapper(f):  # noqa: N805 flake8 doesn't understand class decorators.
-        @wraps(f)
-        def wrapper(self, *args, **kwargs):
-            try:
-                return f(self, *args, **kwargs)
-            finally:
-                self._cleanup_staged_entries()
-
-        return wrapper
 
     @_cleanup_wrapper
     def save(
