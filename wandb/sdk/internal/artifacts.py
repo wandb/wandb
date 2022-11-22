@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import threading
+from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
@@ -79,6 +80,16 @@ class ArtifactSaver:
         self._is_user_created = is_user_created
         self._server_artifact = None
 
+    def _cleanup_wrapper(f):
+        @wraps(f)
+        def wrapper(self, *args, **kwargs):
+            try:
+                return f(self, *args, **kwargs)
+            finally:
+                self._cleanup_staged_entries()
+        return wrapper
+
+    @_cleanup_wrapper
     def save(
         self,
         type: str,
@@ -146,7 +157,6 @@ class ArtifactSaver:
             # TODO: update aliases, labels, description etc?
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
-            self._cleanup_staged_entries()
             return self._server_artifact
         elif (
             self._server_artifact["state"] != "PENDING"
@@ -252,7 +262,6 @@ class ArtifactSaver:
         while not commit_event.is_set():
             commit_event.wait()
 
-        self._cleanup_staged_entries()
         return self._server_artifact
 
     def _resolve_client_id_manifest_references(self) -> None:
