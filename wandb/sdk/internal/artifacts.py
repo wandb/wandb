@@ -87,6 +87,7 @@ class ArtifactSaver:
                 return f(self, *args, **kwargs)
             finally:
                 self._cleanup_staged_entries()
+
         return wrapper
 
     @_cleanup_wrapper
