@@ -521,8 +521,7 @@ class HandleManager:
         self._dispatch_record(record, always_send=True)
 
     def handle_request_sender_status_report(self, record: Record) -> None:
-        # FIXME: do something with this...  cache it for a future request in katia's pr
-        pass
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_partial_history(self, record: Record) -> None:
         partial_history = record.request.partial_history
