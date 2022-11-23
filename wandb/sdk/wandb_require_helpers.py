@@ -1,10 +1,10 @@
 import os
 from functools import wraps
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, Callable, Dict, TypeVar, cast
 
 FuncT = TypeVar("FuncT", bound=Callable[..., Any])
 
-requirement_env_var_mapping = {}
+requirement_env_var_mapping: Dict[str, str] = {}
 
 
 def requires(requirement: str) -> FuncT:
