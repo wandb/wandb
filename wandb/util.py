@@ -68,7 +68,7 @@ if TYPE_CHECKING:
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 ETag = NewType("ETag", str)
-RawMD5 = NewType("RawMD5", hashlib._hashlib.HASH)
+RawMD5 = NewType("RawMD5", type(hashlib.md5()))
 HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
 
