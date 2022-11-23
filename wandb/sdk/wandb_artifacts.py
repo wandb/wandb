@@ -29,7 +29,7 @@ import urllib3
 
 import wandb
 import wandb.data_types as data_types
-from wandb import env, util
+from wandb import env, hashutil, util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
@@ -403,12 +403,12 @@ class Artifact(ArtifactInterface):
             raise ValueError("Path is not a file: %s" % local_path)
 
         name = util.to_forward_slash_path(name or os.path.basename(local_path))
-        digest = util.md5_file_b64(local_path)
+        digest = hashutil.md5_file_b64(local_path)
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
             file_name_parts = file_name.split(".")
-            file_name_parts[0] = util.b64_string_to_hex(digest)[:20]
+            file_name_parts[0] = hashutil.b64_string_to_hex(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
         return self._add_local_file(name, local_path, digest=digest)
@@ -721,7 +721,7 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: str, path: str, digest: Optional[util.B64MD5] = None
     ) -> ArtifactEntry:
-        digest = digest or util.md5_file_b64(path)
+        digest = digest or hashutil.md5_file_b64(path)
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
@@ -965,7 +965,7 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
-        md5_hex = util.b64_string_to_hex(manifest_entry.digest)
+        md5_hex = hashutil.b64_string_to_hex(manifest_entry.digest)
 
         if storage_layout == StorageLayout.V1:
             return "{}/artifacts/{}/{}".format(
@@ -1243,7 +1243,7 @@ class LocalFileHandler(StorageHandler):
         if hit:
             return path
 
-        md5 = util.md5_file_b64(local_path)
+        md5 = hashutil.md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
             raise ValueError(
                 "Local file reference: Digest mismatch for path %s: expected %s but found %s"
@@ -1273,9 +1273,9 @@ class LocalFileHandler(StorageHandler):
 
         def md5(path: str) -> util.B64MD5:
             return (
-                util.md5_file_b64(path)
+                hashutil.md5_file_b64(path)
                 if checksum
-                else util.md5_string(str(os.stat(path).st_size))
+                else hashutil.md5_string(str(os.stat(path).st_size))
             )
 
         if os.path.isdir(local_path):
@@ -1993,7 +1993,9 @@ class WBArtifactHandler(StorageHandler):
         # Create the path reference
         path = util.URIStr(
             "{}://{}/{}".format(
-                self._scheme, util.b64_to_hex_id(target_artifact.id), artifact_file_path
+                self._scheme,
+                hashutil.b64_to_hex_id(target_artifact.id),
+                artifact_file_path,
             )
         )
 

@@ -1,11 +1,8 @@
-import base64
-import binascii
 import colorsys
 import contextlib
 import errno
 import functools
 import gzip
-import hashlib
 import importlib
 import json
 import logging
@@ -1099,35 +1096,6 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def b64_from_hasher(hasher: "hashlib._Hash") -> B64MD5:
-    return B64MD5(base64.b64encode(hasher.digest()).decode("ascii"))
-
-
-def md5_string(string: str) -> B64MD5:
-    return b64_from_hasher(hashlib.md5(string.encode()))
-
-
-def b64_string_to_hex(string: str) -> HexMD5:
-    return HexMD5(base64.standard_b64decode(string).hex())
-
-
-def md5_file_hasher(*paths: str) -> "hashlib._Hash":
-    hash_md5 = hashlib.md5()
-    for path in sorted(paths):
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(64 * 1024), b""):
-                hash_md5.update(chunk)
-    return hash_md5
-
-
-def md5_file_b64(*paths: str) -> B64MD5:
-    return b64_from_hasher(md5_file_hasher(*paths))
-
-
-def md5_file_hex(*paths: str) -> HexMD5:
-    return HexMD5(md5_file_hasher(*paths).hexdigest())
-
-
 def get_log_file_path() -> str:
     """Log file path used in error messages.
 
@@ -1553,14 +1521,6 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
         _import_hook = ImportMetaHook()
         _import_hook.install()
     _import_hook.add(fullname, on_import)
-
-
-def b64_to_hex_id(id_string: Any) -> str:
-    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
-
-
-def hex_to_b64_id(encoded_string: Union[str, bytes]) -> str:
-    return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
 
 
 def host_from_path(path: Optional[str]) -> str:

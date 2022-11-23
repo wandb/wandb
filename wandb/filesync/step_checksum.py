@@ -6,7 +6,7 @@ import shutil
 import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
-import wandb.util
+from wandb import hashutil, util
 from wandb.filesync import dir_watcher, step_upload
 
 if TYPE_CHECKING:
@@ -76,9 +76,9 @@ class StepChecksum:
                 if req.copy:
                     path = os.path.join(
                         self._tempdir.name,
-                        f"{wandb.util.generate_id()}-{req.save_name}",
+                        f"{util.generate_id()}-{req.save_name}",
                     )
-                    wandb.util.mkdir_exists_ok(os.path.dirname(path))
+                    util.mkdir_exists_ok(os.path.dirname(path))
                     try:
                         # certain linux distros throw an exception when copying
                         # large files: https://bugs.python.org/issue43743
@@ -92,7 +92,7 @@ class StepChecksum:
                     # "prepare" file upload flow, in which we prepare the files in
                     # the database before uploading them. This is currently only
                     # used for artifact manifests
-                    checksum = wandb.util.md5_file_b64(path)
+                    checksum = hashutil.md5_file_b64(path)
                 self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(

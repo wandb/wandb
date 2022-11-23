@@ -1,6 +1,4 @@
-import base64
 import datetime
-import hashlib
 import json
 import os
 import platform
@@ -18,8 +16,6 @@ import pytest
 import requests
 import tensorflow as tf
 import wandb
-from hypothesis import given
-from hypothesis import strategies as st
 from wandb import util
 
 try:
@@ -631,53 +627,6 @@ def test_downsample():
     with pytest.raises(wandb.UsageError):
         util.downsample([1, 2, 3], 1)
     assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
-
-
-def test_md5_string():
-    assert util.md5_string("") == "1B2M2Y8AsgTpgAmY7PhCfg=="
-    assert util.md5_string("foo") == "rL0Y20zC+Fzt72VPzMSk2A=="
-
-
-@given(st.binary())
-def test_b64_string_to_hex(data):
-    b64 = base64.b64encode(data).decode("ascii")
-    assert util.b64_string_to_hex(b64) == data.hex()
-
-
-def test_md5_file_b64_no_files():
-    b64hash = base64.b64encode(hashlib.md5(b"").digest()).decode("ascii")
-    assert b64hash == util.md5_file_b64()
-
-
-@given(st.binary())
-def test_md5_file_hasher_single_file(data):
-    with tempfile.NamedTemporaryFile() as f:
-        f.write(data)
-        f.flush()
-        assert hashlib.md5(data).digest() == util.md5_file_hasher(f.name).digest()
-
-
-@given(st.binary(), st.text(), st.binary())
-def test_md5_file_b64_three_files(data1, text, data2):
-    open("a.bin", "wb").write(data1)
-    open("b.txt", "w").write(text)
-    open("c.bin", "wb").write(data2)
-    data = data1 + text.encode("utf-8") + data2
-    # Intentionally provide the paths out of order (check sorting).
-    path_hash = util.md5_file_b64("c.bin", "a.bin", "b.txt")
-    b64hash = base64.b64encode(hashlib.md5(data).digest()).decode("ascii")
-    assert b64hash == path_hash
-
-
-@given(st.binary(), st.text(), st.binary())
-def test_md5_file_hex_three_files(data1, text, data2):
-    open("a.bin", "wb").write(data1)
-    open("b.txt", "w").write(text)
-    open("c.bin", "wb").write(data2)
-    data = data1 + text.encode("utf-8") + data2
-    # Intentionally provide the paths out of order (check sorting).
-    path_hash = util.md5_file_hex("c.bin", "a.bin", "b.txt")
-    assert hashlib.md5(data).hexdigest() == path_hash
 
 
 def test_get_log_file_path(mock_run):

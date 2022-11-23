@@ -35,7 +35,7 @@ from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
 import wandb
-from wandb import __version__, env, util
+from wandb import __version__, env, hashutil, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -2260,7 +2260,7 @@ class Api:
     @staticmethod
     def file_current(fname: str, md5: util.B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5"""
-        return os.path.isfile(fname) and util.md5_file_b64(fname) == md5
+        return os.path.isfile(fname) and hashutil.md5_file_b64(fname) == md5
 
     @normalize_exceptions
     def pull(

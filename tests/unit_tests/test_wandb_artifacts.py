@@ -9,7 +9,7 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
-from wandb import util
+from wandb import hashutil, util
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -247,7 +247,7 @@ def test_add_reference_local_file_no_checksum():
     assert artifact.digest == "415f3bca4b095cbbbbc47e0d44079e05"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
-        "digest": util.md5_string(str(size)),
+        "digest": hashutil.md5_string(str(size)),
         "ref": "file://file1.txt",
         "size": size,
     }
@@ -311,17 +311,17 @@ def test_add_reference_local_dir_no_checksum():
     assert artifact.digest == "7ca355c7f600119151d607c98921ab50"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
-        "digest": util.md5_string(str(size_1)),
+        "digest": hashutil.md5_string(str(size_1)),
         "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
         "size": size_1,
     }
     assert manifest["contents"]["nest/file2.txt"] == {
-        "digest": util.md5_string(str(size_2)),
+        "digest": hashutil.md5_string(str(size_2)),
         "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
         "size": size_2,
     }
     assert manifest["contents"]["nest/nest/file3.txt"] == {
-        "digest": util.md5_string(str(size_3)),
+        "digest": hashutil.md5_string(str(size_3)),
         "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
         "size": size_3,
     }

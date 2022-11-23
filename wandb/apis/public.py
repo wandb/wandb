@@ -42,7 +42,7 @@ from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
 
 import wandb
-from wandb import __version__, env, util
+from wandb import __version__, env, hashutil, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
@@ -4027,7 +4027,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
     def ref_url(self):
         return (
             "wandb-artifact://"
-            + util.b64_to_hex_id(self._parent_artifact.id)
+            + hashutil.b64_to_hex_id(self._parent_artifact.id)
             + "/"
             + self.name
         )
@@ -4644,7 +4644,10 @@ class Artifact(artifacts.Artifact):
 
         for entry in manifest.entries.values():
             if entry.ref is None:
-                if util.md5_file_b64(os.path.join(dirpath, entry.path)) != entry.digest:
+                if (
+                    hashutil.md5_file_b64(os.path.join(dirpath, entry.path))
+                    != entry.digest
+                ):
                     raise ValueError("Digest mismatch for file: %s" % entry.path)
             else:
                 ref_count += 1
@@ -5002,7 +5005,7 @@ class Artifact(artifacts.Artifact):
     def _get_ref_artifact_from_entry(self, entry):
         """Helper function returns the referenced artifact from an entry"""
         artifact_id = util.host_from_path(entry.ref)
-        return Artifact.from_id(util.hex_to_b64_id(artifact_id), self.client)
+        return Artifact.from_id(hashutil.hex_to_b64_id(artifact_id), self.client)
 
     def used_by(self):
         """Retrieves the runs which use this artifact directly
