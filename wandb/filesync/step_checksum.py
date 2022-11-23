@@ -92,7 +92,7 @@ class StepChecksum:
                     # "prepare" file upload flow, in which we prepare the files in
                     # the database before uploading them. This is currently only
                     # used for artifact manifests
-                    checksum = wandb.util.md5_file(path)
+                    checksum = wandb.util.md5_file_b64(path)
                 self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(

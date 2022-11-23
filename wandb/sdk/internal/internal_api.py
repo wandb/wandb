@@ -2260,7 +2260,7 @@ class Api:
     @staticmethod
     def file_current(fname: str, md5: util.B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5"""
-        return os.path.isfile(fname) and util.md5_file(fname) == md5
+        return os.path.isfile(fname) and util.md5_file_b64(fname) == md5
 
     @normalize_exceptions
     def pull(

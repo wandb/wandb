@@ -52,10 +52,6 @@ def md5_hash_files(paths: List[str]) -> hashlib._hashlib.HASH:
     return hash_md5
 
 
-def md5_file_b64(path: str) -> util.B64MD5:
-    return base64.b64encode(util.md5_hash_file(path).digest()).decode("ascii")
-
-
 def md5_files_b64(paths: List[str]) -> util.B64MD5:
     return base64.b64encode(util.md5_hash_files(paths).digest()).decode("ascii")
 

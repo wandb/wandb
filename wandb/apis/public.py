@@ -4645,7 +4645,7 @@ class Artifact(artifacts.Artifact):
         for entry in manifest.entries.values():
             if entry.ref is None:
                 if (
-                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
+                    util.md5_file_b64(os.path.join(dirpath, entry.path))
                     != entry.digest
                 ):
                     raise ValueError("Digest mismatch for file: %s" % entry.path)

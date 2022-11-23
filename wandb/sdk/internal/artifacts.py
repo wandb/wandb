@@ -197,7 +197,7 @@ class ArtifactSaver:
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
-            digest = wandb.util.md5_file(path)
+            digest = wandb.util.md5_file_b64(path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.

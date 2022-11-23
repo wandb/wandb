@@ -1120,7 +1120,7 @@ def md5_hash_file(path: str) -> hashlib._hashlib.HASH:
     return hash_md5
 
 
-def md5_file(path: str) -> B64MD5:
+def md5_file_b64(path: str) -> B64MD5:
     return b64_from_hasher(md5_hash_file(path))
 
 

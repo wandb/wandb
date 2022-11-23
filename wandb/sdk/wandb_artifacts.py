@@ -47,7 +47,6 @@ from .interface.artifacts import (  # noqa: F401
     StorageLayout,
     StoragePolicy,
     get_artifacts_cache,
-    md5_file_b64,
 )
 
 if TYPE_CHECKING:
@@ -404,7 +403,7 @@ class Artifact(ArtifactInterface):
             raise ValueError("Path is not a file: %s" % local_path)
 
         name = util.to_forward_slash_path(name or os.path.basename(local_path))
-        digest = md5_file_b64(local_path)
+        digest = util.md5_file_b64(local_path)
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
@@ -722,7 +721,7 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: str, path: str, digest: Optional[util.B64MD5] = None
     ) -> ArtifactEntry:
-        digest = digest or md5_file_b64(path)
+        digest = digest or util.md5_file_b64(path)
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
@@ -1244,7 +1243,7 @@ class LocalFileHandler(StorageHandler):
         if hit:
             return path
 
-        md5 = md5_file_b64(local_path)
+        md5 = util.md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
             raise ValueError(
                 "Local file reference: Digest mismatch for path %s: expected %s but found %s"
@@ -1274,7 +1273,7 @@ class LocalFileHandler(StorageHandler):
 
         def md5(path: str) -> util.B64MD5:
             return (
-                md5_file_b64(path)
+                util.md5_file_b64(path)
                 if checksum
                 else util.md5_string(str(os.stat(path).st_size))
             )
