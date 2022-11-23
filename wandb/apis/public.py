@@ -14,6 +14,7 @@ import ast
 import datetime
 import json
 import logging
+import multiprocessing.dummy  # this uses threads
 import os
 import platform
 import re
@@ -24,7 +25,17 @@ import typing
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Dict, List, Mapping, Optional
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+)
 
 import requests
 from wandb_gql import Client, gql
@@ -44,6 +55,10 @@ from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
+
+if TYPE_CHECKING:
+    import wandb.apis.reports
+    import wandb.apis.reports.util
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +223,7 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client):
+    def __init__(self, client: Client):
         self._server_info = None
         self._client = client
 
@@ -410,7 +425,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.Block]" = None,
+        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
@@ -759,7 +774,7 @@ class Api:
     def runs(
         self,
         path: Optional[str] = None,
-        filters: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
         order: str = "-created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
@@ -854,7 +869,7 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_id, run_queue_item_id, container_job=False
+        self, entity, project, queue_name, run_queue_item_id, container_job=False
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -863,7 +878,7 @@ class Api:
             self.client,
             entity,
             project,
-            queue_id,
+            queue_name,
             run_queue_item_id,
             container_job=container_job,
         )
@@ -935,7 +950,7 @@ class Api:
 
 
 class Attrs:
-    def __init__(self, attrs):
+    def __init__(self, attrs: MutableMapping[str, Any]):
         self._attrs = attrs
 
     def snake_to_camel(self, string):
@@ -973,7 +988,12 @@ class Attrs:
 class Paginator:
     QUERY = None
 
-    def __init__(self, client, variables, per_page=None):
+    def __init__(
+        self,
+        client: Client,
+        variables: MutableMapping[str, Any],
+        per_page: Optional[int] = None,
+    ):
         self.client = client
         self.variables = variables
         # We don't allow unbounded paging
@@ -1544,7 +1564,7 @@ class Runs(Paginator):
         client: "RetryingClient",
         entity: str,
         project: str,
-        filters: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
         order: Optional[str] = None,
         per_page: int = 50,
         include_sweeps: bool = True,
@@ -2244,22 +2264,22 @@ class QueuedRun:
         client,
         entity,
         project,
-        queue_id,
+        queue_name,
         run_queue_item_id,
         container_job=False,
     ):
         self.client = client
         self._entity = entity
         self._project = project
-        self._queue_id = queue_id
+        self._queue_name = queue_name
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
         self.container_job = container_job
 
     @property
-    def queue_id(self):
-        return self._queue_id
+    def queue_name(self):
+        return self._queue_name
 
     @property
     def id(self):
@@ -2280,7 +2300,7 @@ class QueuedRun:
             return item["state"].lower()
 
         raise ValueError(
-            f"Could not find QueuedRunItem associated with id: {self.id} on queue id {self.queue_id} at itemId: {self.id}"
+            f"Could not find QueuedRunItem associated with id: {self.id} on queue {self.queue_name} at itemId: {self.id}"
         )
 
     @normalize_exceptions
@@ -2307,7 +2327,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
         }
         res = self.client.execute(query, variable_values)
 
@@ -2335,7 +2355,7 @@ class QueuedRun:
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue_id,
+            "runQueue": self.queue_name,
             "itemId": self.id,
         }
         try:
@@ -2363,11 +2383,40 @@ class QueuedRun:
         """
         Deletes the given queued run from the wandb backend.
         """
+        query = gql(
+            """
+            query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name: $runQueueName) {
+                        id
+                    }
+                }
+            }
+            """
+        )
+
+        res = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "runQueueName": self.queue_name,
+            },
+        )
+
+        if res["project"].get("runQueue") is not None:
+            queue_id = res["project"]["runQueue"]["id"]
+
         mutation = gql(
             """
-            mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
-            {
-                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+            mutation DeleteFromRunQueue(
+                $queueID: ID!,
+                $runQueueItemId: ID!
+            ) {
+                deleteFromRunQueue(input: {
+                    queueID: $queueID
+                    runQueueItemId: $runQueueItemId
+                }) {
                     success
                     clientMutationId
                 }
@@ -2377,8 +2426,8 @@ class QueuedRun:
         self.client.execute(
             mutation,
             variable_values={
-                "queueID": self.queue_id,
-                "runQueueItemID": self._run_queue_item_id,
+                "queueID": queue_id,
+                "runQueueItemId": self._run_queue_item_id,
             },
         )
 
@@ -2412,7 +2461,7 @@ class QueuedRun:
             time.sleep(3)
 
     def __repr__(self):
-        return f"<QueuedRun {self.queue_id} ({self.id})"
+        return f"<QueuedRun {self.queue_name} ({self.id})"
 
 
 class Sweep(Attrs):
@@ -2431,9 +2480,27 @@ class Sweep(Attrs):
         project: (str) name of project
         config: (str) dictionary of sweep configuration
         state: (str) the state of the sweep
+        expected_run_count: (int) number of expected runs for the sweep
     """
 
     QUERY = gql(
+        """
+    query Sweep($project: String, $entity: String, $name: String!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                state
+                runCountExpected
+                bestLoss
+                config
+            }
+        }
+    }
+    """
+    )
+
+    LEGACY_QUERY = gql(
         """
     query Sweep($project: String, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
@@ -2473,7 +2540,7 @@ class Sweep(Attrs):
     def config(self):
         return util.load_yaml(self._attrs["config"])
 
-    def load(self, force=False):
+    def load(self, force: bool = False):
         if force or not self._attrs:
             sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:
@@ -2518,6 +2585,11 @@ class Sweep(Attrs):
             return None
 
     @property
+    def expected_run_count(self) -> Optional[int]:
+        "Returns the number of expected runs in the sweep or None for infinite runs."
+        return self._attrs.get("runCountExpected")
+
+    @property
     def path(self):
         return [
             urllib.parse.quote_plus(str(self.entity)),
@@ -2557,10 +2629,16 @@ class Sweep(Attrs):
         }
         variables.update(kwargs)
 
-        response = client.execute(query, variable_values=variables)
-        if response.get("project") is None:
-            return None
-        elif response["project"].get("sweep") is None:
+        response = None
+        try:
+            response = client.execute(query, variable_values=variables)
+        except Exception:
+            # Don't handle exception, rely on legacy query
+            # TODO(gst): Implement updated introspection workaround
+            query = cls.LEGACY_QUERY
+            response = client.execute(query, variable_values=variables)
+
+        if not response or not response.get("project", {}).get("sweep"):
             return None
 
         sweep_response = response["project"]["sweep"]
@@ -2847,7 +2925,7 @@ class QueryGenerator:
         pass
 
     @classmethod
-    def format_order_key(cls, key):
+    def format_order_key(cls, key: str):
         if key.startswith("+") or key.startswith("-"):
             direction = key[0]
             key = key[1:]
@@ -3453,7 +3531,14 @@ class ProjectArtifactTypes(Paginator):
         % ARTIFACTS_TYPES_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, name=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: Optional[str] = None,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
 
@@ -3532,7 +3617,14 @@ class ProjectArtifactCollections(Paginator):
     """
     )
 
-    def __init__(self, client, entity, project, type_name, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
         self.type_name = type_name
@@ -3648,7 +3740,9 @@ class RunArtifacts(Paginator):
         % ARTIFACT_FRAGMENT
     )
 
-    def __init__(self, client, run, mode="logged", per_page=50):
+    def __init__(
+        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
+    ):
         self.run = run
         if mode == "logged":
             self.run_key = "outputArtifacts"
@@ -3708,7 +3802,14 @@ class RunArtifacts(Paginator):
 
 
 class ArtifactType:
-    def __init__(self, client, entity, project, type_name, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        attrs: Mapping[str, Any] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3736,7 +3837,7 @@ class ArtifactType:
         }
         """
         )
-        response = self.client.execute(
+        response: Optional[Mapping[str, Any]] = self.client.execute(
             query,
             variable_values={
                 "entityName": self.entity,
@@ -3778,7 +3879,15 @@ class ArtifactType:
 
 
 class ArtifactCollection:
-    def __init__(self, client, entity, project, name, type, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: str,
+        type: str,
+        attrs: Optional[Mapping[str, Any]] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3850,7 +3959,9 @@ class ArtifactCollection:
 
 
 class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
-    def __init__(self, name, entry, parent_artifact):
+    def __init__(
+        self, name: str, entry: "artifacts.ArtifactEntry", parent_artifact: "Artifact"
+    ):
         self.name = name
         self.entry = entry
         self._parent_artifact = parent_artifact
@@ -3921,6 +4032,42 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
             + "/"
             + self.name
         )
+
+
+class _ArtifactDownloadLogger:
+    def __init__(
+        self,
+        nfiles: int,
+        clock_for_testing: Callable[[], float] = time.monotonic,
+        termlog_for_testing=termlog,
+    ) -> None:
+        self._nfiles = nfiles
+        self._clock = clock_for_testing
+        self._termlog = termlog_for_testing
+
+        self._n_files_downloaded = 0
+        self._spinner_index = 0
+        self._last_log_time = self._clock()
+        self._lock = multiprocessing.dummy.Lock()
+
+    def notify_downloaded(self) -> None:
+        with self._lock:
+            self._n_files_downloaded += 1
+            if self._n_files_downloaded == self._nfiles:
+                self._termlog(
+                    f"  {self._nfiles} of {self._nfiles} files downloaded.  ",
+                    # ^ trailing spaces to wipe out ellipsis from previous logs
+                    newline=True,
+                )
+                self._last_log_time = self._clock()
+            elif self._clock() - self._last_log_time > 0.1:
+                self._spinner_index += 1
+                spinner = r"-\|/"[self._spinner_index % 4]
+                self._termlog(
+                    f"{spinner} {self._n_files_downloaded} of {self._nfiles} files downloaded...\r",
+                    newline=False,
+                )
+                self._last_log_time = self._clock()
 
 
 class Artifact(artifacts.Artifact):
@@ -4009,11 +4156,11 @@ class Artifact(artifacts.Artifact):
     )
 
     @classmethod
-    def from_id(cls, artifact_id, client):
+    def from_id(cls, artifact_id: str, client: Client):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(
+        response: Mapping[str, Any] = client.execute(
             Artifact.QUERY,
             variable_values={"id": artifact_id},
         )
@@ -4066,6 +4213,7 @@ class Artifact(artifacts.Artifact):
         self._entity = entity
         self._project = project
         self._artifact_name = name
+        self._artifact_collection_name = name.split(":")[0]
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -4073,12 +4221,15 @@ class Artifact(artifacts.Artifact):
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
         self._version_index = self._attrs.get("versionIndex", None)
+        # We will only show aliases under the Collection this artifact version is fetched from
+        # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
-            and a["artifactCollectionName"] == self._sequence_name
+            and a["artifactCollectionName"] == self._artifact_collection_name
         ]
+        self._frozen_aliases = [a for a in self._aliases]
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4435,7 +4586,6 @@ class Artifact(artifacts.Artifact):
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles),
-                newline=False,
             )
             start_time = datetime.datetime.now()
 
@@ -4443,8 +4593,13 @@ class Artifact(artifacts.Artifact):
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
 
+        download_logger = _ArtifactDownloadLogger(nfiles=nfiles)
+
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        pool.map(
+            partial(self._download_file, root=dirpath, download_logger=download_logger),
+            manifest.entries,
+        )
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
@@ -4536,9 +4691,14 @@ class Artifact(artifacts.Artifact):
 
         return self._download_file(list(manifest.entries)[0], root=root)
 
-    def _download_file(self, name, root):
+    def _download_file(
+        self, name, root, download_logger: Optional[_ArtifactDownloadLogger] = None
+    ):
         # download file into cache and copy to target dir
-        return self.get_path(name).download(root)
+        downloaded_path = self.get_path(name).download(root)
+        if download_logger is not None:
+            download_logger.notify_downloaded()
+        return downloaded_path
 
     def _default_root(self, include_version=True):
         root = (
@@ -4580,25 +4740,149 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        aliases = None
+        if not valid:
+            # If valid, wandb backend version >= 0.13.0.
+            # This means we can safely remove aliases from this updateArtifact request since we'll be calling
+            # the alias endpoints below in _save_alias_changes.
+            # If not valid, wandb backend version < 0.13.0. This requires aliases to be sent in updateArtifact.
+            aliases = [
+                {
+                    "artifactCollectionName": self._artifact_collection_name,
+                    "alias": alias,
+                }
+                for alias in self._aliases
+            ]
+
         self.client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": util.json_dumps_safer(self.metadata),
-                "aliases": [
-                    {
-                        "artifactCollectionName": self._sequence_name,
-                        "alias": alias,
-                    }
-                    for alias in self._aliases
-                ],
+                "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
+                "aliases": aliases,
             },
         )
+        # Save locally modified aliases
+        self._save_alias_changes()
         return True
 
     def wait(self):
         return self
+
+    @normalize_exceptions
+    def _save_alias_changes(self):
+        """
+        Convenience function called by artifact.save() to persist alias changes
+        on this artifact to the wandb backend.
+        """
+
+        aliases_to_add = set(self._aliases) - set(self._frozen_aliases)
+        aliases_to_remove = set(self._frozen_aliases) - set(self._aliases)
+
+        # Introspect
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        if not valid:
+            return
+
+        if len(aliases_to_add) > 0:
+            add_mutation = gql(
+                """
+            mutation addAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                addAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                add_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_add
+                    ],
+                },
+            )
+
+        if len(aliases_to_remove) > 0:
+            delete_mutation = gql(
+                """
+            mutation deleteAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                deleteAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                delete_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_remove
+                    ],
+                },
+            )
+
+        # reset local state
+        self._frozen_aliases = self._aliases
+        return True
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -4866,20 +5150,20 @@ class ArtifactVersions(Paginator):
 
     def __init__(
         self,
-        client,
-        entity,
-        project,
-        collection_name,
-        type,
-        filters=None,
-        order=None,
-        per_page=50,
+        client: Client,
+        entity: str,
+        project: str,
+        collection_name: str,
+        type: str,
+        filters: Optional[Mapping[str, Any]] = None,
+        order: Optional[str] = None,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters or {}
+        self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.order = order
         variables = {
             "project": self.project,
@@ -4960,7 +5244,13 @@ class ArtifactFiles(Paginator):
         % ARTIFACT_FILES_FRAGMENT
     )
 
-    def __init__(self, client, artifact, names=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        artifact: Artifact,
+        names: Optional[Sequence[str]] = None,
+        per_page: int = 50,
+    ):
         self.artifact = artifact
         variables = {
             "entityName": artifact.entity,
@@ -5040,7 +5330,7 @@ class Job:
         self._entity = api.default_entity
 
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
-            self._source_info = json.load(f)
+            self._source_info: Mapping[str, Any] = json.load(f)
         self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
         self._args = self._source_info.get("source", {}).get("args")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
@@ -5079,7 +5369,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
@@ -5097,7 +5387,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("source", {}).get("image")
@@ -5108,7 +5398,7 @@ class Job:
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint

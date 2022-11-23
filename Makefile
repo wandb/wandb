@@ -63,7 +63,8 @@ format:
 	tox -e format
 
 proto:
-	tox -e proto
+	tox -e proto3
+	tox -e proto4
 
 isort:
 	isort -o wandb -o gql --force-sort-within-sections $(args)

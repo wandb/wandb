@@ -98,6 +98,7 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
+
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.image_name

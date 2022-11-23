@@ -229,7 +229,7 @@ class Scheduler(ABC):
             job=_job,
             project=self._project,
             entity=self._entity,
-            queue=_queue,
+            queue_name=_queue,
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
         )
