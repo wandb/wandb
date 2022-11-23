@@ -193,11 +193,14 @@ def runset(request, user):
 
 
 @pytest.fixture
-def panel_grid():
+def panel_grid(log_example_runs):
+    entity = os.getenv("WANDB_ENTITY")
+    project = "example-project"
+
     return wr.PanelGrid(
         runsets=[
+            wr.Runset(entity, project, "example-runset"),
             wr.Runset("test_entity", "test_project", "runset_name"),
-            wr.Runset("another_entity", "another_project", "runset_name2"),
         ],
         panels=[
             wr.LinePlot(x="Step", y=["val_loss"]),
@@ -723,6 +726,17 @@ class TestPanelGrids:
             for p2 in panel_grid.panels[i:]:
                 assert collides(p1, p2) is False
 
+    def test_runset_colors(self, panel_grid):
+        # This also requires an integration test to confirm if the colors actually show up in the UI.
+        panel_grid.custom_run_colors = {
+            "adventurous-aardvark-1": "red",
+        }
+        vars(panel_grid)
+
+    def test_active_runset(self, panel_grid):
+        panel_grid.active_runset = "example-runset"
+        vars(panel_grid)
+
 
 class TestRunsets:
     @pytest.mark.parametrize(
@@ -1180,3 +1194,17 @@ class TestTemplates:
         blocks = f(**kwargs)
         for b in blocks:
             assert isinstance(b, Block)
+
+
+class TestValidators:
+    pass
+
+
+class TestHelpers:
+    def test_linekey(self):
+        k = wr.LineKey("metric")
+        vars(k)
+
+    def test_pccolumn(self):
+        c = wr.PCColumn("c::metric")
+        vars(c)
