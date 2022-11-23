@@ -3924,7 +3924,7 @@ class ArtifactCollection:
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequence(name: $artifactCollectionName) {
+                    artifactCollection(name: $artifactCollectionName) {
                         id
                         name
                         description
@@ -3948,10 +3948,10 @@ class ArtifactCollection:
             response is None
             or response.get("project") is None
             or response["project"].get("artifactType") is None
-            or response["project"]["artifactType"].get("artifactSequence") is None
+            or response["project"]["artifactType"].get("artifactCollection") is None
         ):
             raise ValueError("Could not find artifact type %s" % self.type)
-        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
     def __repr__(self):
