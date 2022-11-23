@@ -99,7 +99,7 @@ def custom_chart(
 ) -> CustomChart:
     if not isinstance(data_table, Table):
         raise Error(
-            f"Expected `data_table` to be `wandb.Table` type, instead got  {type(data_table).__name__}"
+            f"Expected `data_table` to be `wandb.Table` type, instead got {type(data_table).__name__}"
         )
     return CustomChart(
         id=vega_spec_name,
