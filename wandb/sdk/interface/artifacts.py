@@ -41,10 +41,7 @@ if TYPE_CHECKING:
 
 def md5_hash_files(*paths: str) -> hashlib._hashlib.HASH:
     hash_md5 = hashlib.md5()
-    # Create a mutable copy to sort
-    paths = [path for path in paths]
-    paths.sort()
-    for path in paths:
+    for path in sorted(paths):
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(64 * 1024), b""):
                 hash_md5.update(chunk)
