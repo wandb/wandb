@@ -1,12 +1,6 @@
-# We can import from the after dropping support for Python 3.6
+# We can import from the top after dropping support for Python 3.6
 # import wandb.apis.reports as wr
 from .util import coalesce
-
-
-def analysis(title, text):
-    import wandb.apis.reports as wr
-
-    return [wr.H1(title), wr.P(text)]
 
 
 def create_example_header():
