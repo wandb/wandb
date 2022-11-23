@@ -10,28 +10,40 @@ def analysis(title, text):
 
 
 def create_example_header():
+    """
+    Creates an example header with image at top.
+    """
     import wandb.apis.reports as wr
 
     return [
-        wr.Image(
-            "https://lever-client-logos.s3.amazonaws.com/bb006941-a5fe-4d4c-b13d-931f9b9c303f-1569362661885.png"
-        ),
+        wr.P(),
         wr.HorizontalRule(),
+        wr.P(),
+        wr.Image(
+            "https://camo.githubusercontent.com/83839f20c90facc062330f8fee5a7ab910fdd04b80b4c4c7e89d6d8137543540/68747470733a2f2f692e696d6775722e636f6d2f676236423469672e706e67"
+        ),
+        wr.P(),
+        wr.HorizontalRule(),
+        wr.P(),
     ]
 
 
 def create_example_footer():
+    """
+    Creates an example footer with image and text at bottom.
+    """
     import wandb.apis.reports as wr
 
     return [
+        wr.P(),
         wr.HorizontalRule(),
+        wr.P(),
+        wr.H1("Disclaimer"),
         wr.P(
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+            "The views and opinions expressed in this report are those of the authors and do not necessarily reflect the official policy or position of Weights & Biases. blah blah blah blah blah boring text at the bottom"
         ),
-        wr.Image(
-            "https://avatars.githubusercontent.com/u/26401354?s=100&v=4",
-            "small logo at bottom",
-        ),
+        wr.P(),
+        wr.HorizontalRule(),
     ]
 
 
@@ -43,6 +55,10 @@ def create_enterprise_report(
     body=None,
     footer=None,
 ):
+    """
+    Creates an example enterprise report with a header and footer which
+    can be used to add custom branding to reports.
+    """
     import wandb.apis.reports as wr
 
     project = coalesce(project, "default-project")
@@ -64,6 +80,9 @@ def create_customer_landing_page(
     main_contact="My Contact (name@email.com)",
     slack_link="https://company.slack.com",
 ):
+    """
+    Creates an example customer landing page using data from Andrew's demo.
+    """
     import wandb.apis.reports as wr
 
     project = coalesce(project, "default-project")
