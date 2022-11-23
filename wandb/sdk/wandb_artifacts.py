@@ -719,7 +719,7 @@ class Artifact(ArtifactInterface):
             raise ValueError("Can't add to finalized artifact.")
 
     def _add_local_file(
-        self, name: str, path: str, digest: Optional[util.B64MD5] = None
+        self, name: str, path: str, digest: Optional[hashutil.B64MD5] = None
     ) -> ArtifactEntry:
         digest = digest or hashutil.md5_file_b64(path)
         size = os.path.getsize(path)
@@ -837,7 +837,7 @@ class ArtifactManifestEntry(ArtifactEntry):
         self,
         path: str,
         ref: Optional[Union[util.FilePathStr, util.URIStr]],
-        digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag],
+        digest: Union[hashutil.B64MD5, util.URIStr, util.FilePathStr, hashutil.ETag],
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
         extra: Dict = None,
@@ -921,7 +921,7 @@ class WandbStoragePolicy(StoragePolicy):
         self, artifact: ArtifactInterface, name: str, manifest_entry: ArtifactEntry
     ) -> str:
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            hashutil.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -996,7 +996,7 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> bool:
         # write-through cache
         cache_path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
+            hashutil.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
             entry.size if entry.size is not None else 0,
         )
         if not hit and entry.local_path is not None:
@@ -1237,7 +1237,7 @@ class LocalFileHandler(StorageHandler):
             )
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            hashutil.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1271,7 +1271,7 @@ class LocalFileHandler(StorageHandler):
         # Note, we follow symlinks for files contained within the directory
         entries = []
 
-        def md5(path: str) -> util.B64MD5:
+        def md5(path: str) -> hashutil.B64MD5:
             return (
                 hashutil.md5_file_b64(path)
                 if checksum
@@ -1390,7 +1390,7 @@ class S3Handler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
             util.URIStr(manifest_entry.ref),
-            util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            hashutil.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1565,14 +1565,14 @@ class S3Handler(StorageHandler):
         return ArtifactManifestEntry(
             str(posix_name),
             util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
-            util.ETag(self._etag_from_obj(obj)),
+            hashutil.ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
         )
 
     @staticmethod
-    def _etag_from_obj(obj: "boto3.s3.Object") -> util.ETag:
-        etag: util.ETag
+    def _etag_from_obj(obj: "boto3.s3.Object") -> hashutil.ETag:
+        etag: hashutil.ETag
         etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
@@ -1648,7 +1648,7 @@ class GCSHandler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            hashutil.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1828,7 +1828,7 @@ class HTTPHandler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
             util.URIStr(manifest_entry.ref),
-            util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            hashutil.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1837,7 +1837,7 @@ class HTTPHandler(StorageHandler):
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
-        digest: Optional[Union[util.ETag, util.FilePathStr, util.URIStr]]
+        digest: Optional[Union[hashutil.ETag, util.FilePathStr, util.URIStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
@@ -1865,7 +1865,7 @@ class HTTPHandler(StorageHandler):
 
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
-            digest: Optional[Union[util.ETag, util.FilePathStr, util.URIStr]]
+            digest: Optional[Union[hashutil.ETag, util.FilePathStr, util.URIStr]]
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
         return [
@@ -1874,7 +1874,7 @@ class HTTPHandler(StorageHandler):
 
     def _entry_from_headers(
         self, headers: requests.structures.CaseInsensitiveDict
-    ) -> Tuple[Optional[util.ETag], Optional[int], Dict[str, str]]:
+    ) -> Tuple[Optional[hashutil.ETag], Optional[int], Dict[str, str]]:
         response_headers = {k.lower(): v for k, v in headers.items()}
         size = None
         if response_headers.get("content-length", None):

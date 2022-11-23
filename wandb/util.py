@@ -64,10 +64,6 @@ if TYPE_CHECKING:
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
-ETag = NewType("ETag", str)
-HexMD5 = NewType("HexMD5", str)
-B64MD5 = NewType("B64MD5", str)
-
 # `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
 # It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
 # even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
