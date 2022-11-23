@@ -1,5 +1,3 @@
-import base64
-import codecs
 import contextlib
 import hashlib
 import os
@@ -37,15 +35,6 @@ if TYPE_CHECKING:
     class Opener(Protocol):
         def __call__(self, mode: str = ...) -> ContextManager[IO]:
             pass
-
-
-def md5_file_hex(path: str) -> util.HexMD5:
-    return util.md5_hash_file(path).hexdigest()
-
-
-def bytes_to_hex(bytestr):
-    # Works in python2 / python3
-    return codecs.getencoder("hex")(bytestr)[0]
 
 
 class ArtifactManifest:
@@ -854,7 +843,7 @@ class ArtifactsCache:
     def check_md5_obj_path(
         self, b64_md5: util.B64MD5, size: int
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
-        hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
+        hex_md5 = util.b64_string_to_hex(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:

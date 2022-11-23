@@ -640,17 +640,44 @@ def test_md5_string():
 
 @given(st.binary())
 def test_b64_string_to_hex(data):
-    hex = data.hex()
     b64 = base64.b64encode(data).decode("ascii")
-    assert util.b64_string_to_hex(b64) == hex
+    assert util.b64_string_to_hex(b64) == data.hex()
+
+
+def test_md5_file_b64_no_files():
+    b64hash = base64.b64encode(hashlib.md5(b"").digest()).decode("ascii")
+    assert b64hash == util.md5_file_b64()
 
 
 @given(st.binary())
-def test_md5_hash_file(data):
+def test_md5_file_hasher_single_file(data):
     with tempfile.NamedTemporaryFile() as f:
         f.write(data)
         f.flush()
-        assert hashlib.md5(data).digest() == util.md5_hash_file(f.name).digest()
+        assert hashlib.md5(data).digest() == util.md5_file_hasher(f.name).digest()
+
+
+@given(st.binary(), st.text(), st.binary())
+def test_md5_file_b64_three_files(data1, text, data2):
+    open("a.bin", "wb").write(data1)
+    open("b.txt", "w").write(text)
+    open("c.bin", "wb").write(data2)
+    data = data1 + text.encode("utf-8") + data2
+    # Intentionally provide the paths out of order (check sorting).
+    path_hash = util.md5_file_b64("c.bin", "a.bin", "b.txt")
+    b64hash = base64.b64encode(hashlib.md5(data).digest()).decode("ascii")
+    assert b64hash == path_hash
+
+
+@given(st.binary(), st.text(), st.binary())
+def test_md5_file_hex_three_files(data1, text, data2):
+    open("a.bin", "wb").write(data1)
+    open("b.txt", "w").write(text)
+    open("c.bin", "wb").write(data2)
+    data = data1 + text.encode("utf-8") + data2
+    # Intentionally provide the paths out of order (check sorting).
+    path_hash = util.md5_file_hex("c.bin", "a.bin", "b.txt")
+    assert hashlib.md5(data).hexdigest() == path_hash
 
 
 def test_get_log_file_path(mock_run):

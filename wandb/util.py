@@ -1,6 +1,5 @@
 import base64
 import binascii
-import codecs
 import colorsys
 import contextlib
 import errno
@@ -1109,18 +1108,10 @@ def md5_string(string: str) -> B64MD5:
 
 
 def b64_string_to_hex(string: str) -> HexMD5:
-    return HexMD5(binascii.hexlify(base64.standard_b64decode(string)).decode("ascii"))
+    return HexMD5(base64.standard_b64decode(string).hex())
 
 
-def md5_hash_file(path: str) -> hashlib._hashlib.HASH:
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(64 * 1024), b""):
-            hash_md5.update(chunk)
-    return hash_md5
-
-
-def md5_hash_files(*paths: str) -> hashlib._hashlib.HASH:
+def md5_file_hasher(*paths: str) -> hashlib._hashlib.HASH:
     hash_md5 = hashlib.md5()
     for path in sorted(paths):
         with open(path, "rb") as f:
@@ -1129,12 +1120,12 @@ def md5_hash_files(*paths: str) -> hashlib._hashlib.HASH:
     return hash_md5
 
 
-def md5_file_b64(path: str) -> B64MD5:
-    return b64_from_hasher(md5_hash_file(path))
+def md5_file_b64(*paths: str) -> B64MD5:
+    return b64_from_hasher(md5_file_hasher(*paths))
 
 
-def md5_files_b64(*paths: str) -> B64MD5:
-    return b64_from_hasher(md5_hash_files(*paths))
+def md5_file_hex(*paths: str) -> HexMD5:
+    return HexMD5(md5_file_hasher(*paths).hexdigest())
 
 
 def get_log_file_path() -> str:
@@ -1502,10 +1493,6 @@ def to_forward_slash_path(path: str) -> LogicalFilePathStr:
 
 def to_native_slash_path(path: str) -> FilePathStr:
     return FilePathStr(path.replace("/", os.sep))
-
-
-def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
-    return codecs.getencoder("hex")(bytestr)[0].decode("ascii")  # type: ignore
 
 
 def check_and_warn_old(files: List[str]) -> bool:

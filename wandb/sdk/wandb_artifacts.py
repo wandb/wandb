@@ -965,7 +965,7 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
-        md5_hex = util.bytes_to_hex(base64.b64decode(manifest_entry.digest))
+        md5_hex = util.b64_string_to_hex(manifest_entry.digest)
 
         if storage_layout == StorageLayout.V1:
             return "{}/artifacts/{}/{}".format(
