@@ -3584,9 +3584,9 @@ class ProjectArtifactCollections(Paginator):
                 self.type_name,
                 r["node"],
             )
-            for r in self.last_response["project"]["artifactType"]["artifactCollections"][
-                "edges"
-            ]
+            for r in self.last_response["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
         ]
 
 
@@ -4915,9 +4915,9 @@ class ArtifactVersions(Paginator):
                 self.collection_name + ":" + a["version"],
                 a["node"],
             )
-            for a in self.last_response["project"]["artifactType"]["artifactCollection"][
-                "artifacts"
-            ]["edges"]
+            for a in self.last_response["project"]["artifactType"][
+                "artifactCollection"
+            ]["artifacts"]["edges"]
         ]
 
 
