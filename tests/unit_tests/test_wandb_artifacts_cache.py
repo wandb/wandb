@@ -2,7 +2,6 @@ import base64
 import os
 import pathlib
 import random
-import time
 from multiprocessing import Pool
 
 import pytest
@@ -162,13 +161,13 @@ def test_artifacts_cache_cleanup():
     os.makedirs(path_1)
     with open(os.path.join(path_1, "aardvark"), "w") as f:
         f.truncate(5000)
-    time.sleep(0.1)
+        f.flush()
 
     path_2 = os.path.join(cache_root, "ab")
     os.makedirs(path_2)
     with open(os.path.join(path_2, "absolute"), "w") as f:
         f.truncate(2000)
-    time.sleep(0.1)
+        f.flush()
 
     path_3 = os.path.join(cache_root, "ac")
     os.makedirs(path_3)
