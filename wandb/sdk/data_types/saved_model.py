@@ -16,7 +16,6 @@ from typing import (
 
 import wandb
 from wandb import util
-from wandb.sdk.interface.artifacts import md5_files_b64
 
 from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
@@ -43,7 +42,7 @@ def _add_deterministic_dir_to_artifact(
     for dirpath, _, filenames in os.walk(dir_name, topdown=True):
         for fn in filenames:
             file_paths.append(os.path.join(dirpath, fn))
-    dirname = util.b64_string_to_hex(md5_files_b64(*file_paths))[:20]
+    dirname = util.b64_string_to_hex(util.md5_files_b64(*file_paths))[:20]
     target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
     artifact.add_dir(dir_name, target_path)
     return target_path

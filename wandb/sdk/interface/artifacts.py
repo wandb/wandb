@@ -39,19 +39,6 @@ if TYPE_CHECKING:
             pass
 
 
-def md5_hash_files(*paths: str) -> hashlib._hashlib.HASH:
-    hash_md5 = hashlib.md5()
-    for path in sorted(paths):
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(64 * 1024), b""):
-                hash_md5.update(chunk)
-    return hash_md5
-
-
-def md5_files_b64(*paths: str) -> util.B64MD5:
-    return base64.b64encode(util.md5_hash_files(*paths).digest()).decode("ascii")
-
-
 def md5_file_hex(path: str) -> util.HexMD5:
     return util.md5_hash_file(path).hexdigest()
 

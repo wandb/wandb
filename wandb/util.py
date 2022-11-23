@@ -1120,8 +1120,21 @@ def md5_hash_file(path: str) -> hashlib._hashlib.HASH:
     return hash_md5
 
 
+def md5_hash_files(*paths: str) -> hashlib._hashlib.HASH:
+    hash_md5 = hashlib.md5()
+    for path in sorted(paths):
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(64 * 1024), b""):
+                hash_md5.update(chunk)
+    return hash_md5
+
+
 def md5_file_b64(path: str) -> B64MD5:
     return b64_from_hasher(md5_hash_file(path))
+
+
+def md5_files_b64(*paths: str) -> B64MD5:
+    return b64_from_hasher(md5_hash_files(*paths))
 
 
 def get_log_file_path() -> str:
