@@ -1,3 +1,4 @@
+import base64
 import datetime
 import json
 import os
@@ -16,6 +17,8 @@ import pytest
 import requests
 import tensorflow as tf
 import wandb
+from hypothesis import given
+from hypothesis import strategies as st
 from wandb import util
 
 try:
@@ -632,6 +635,13 @@ def test_downsample():
 def test_md5_string():
     assert util.md5_string("") == "1B2M2Y8AsgTpgAmY7PhCfg=="
     assert util.md5_string("foo") == "rL0Y20zC+Fzt72VPzMSk2A=="
+
+
+@given(st.binary())
+def test_b64_string_to_hex(data):
+    hex = data.hex()
+    b64 = base64.b64encode(data).decode("ascii")
+    assert util.b64_string_to_hex(b64) == hex
 
 
 def test_get_log_file_path(mock_run):
