@@ -1,5 +1,6 @@
 import base64
 import datetime
+import hashlib
 import json
 import os
 import platform
@@ -9,7 +10,6 @@ import tarfile
 import tempfile
 import time
 from unittest import mock
-import hashlib
 
 import matplotlib.pyplot as plt
 import numpy as np
