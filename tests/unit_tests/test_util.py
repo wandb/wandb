@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import time
 from unittest import mock
+import hashlib
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -642,6 +643,14 @@ def test_b64_string_to_hex(data):
     hex = data.hex()
     b64 = base64.b64encode(data).decode("ascii")
     assert util.b64_string_to_hex(b64) == hex
+
+
+@given(st.binary())
+def test_md5_hash_file(data):
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(data)
+        f.flush()
+        assert hashlib.md5(data).digest() == util.md5_hash_file(f.name).digest()
 
 
 def test_get_log_file_path(mock_run):

@@ -69,7 +69,6 @@ if TYPE_CHECKING:
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 ETag = NewType("ETag", str)
-RawMD5 = NewType("RawMD5", bytes)
 HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
 
@@ -1113,12 +1112,16 @@ def b64_string_to_hex(string: str) -> HexMD5:
     return HexMD5(binascii.hexlify(base64.standard_b64decode(string)).decode("ascii"))
 
 
-def md5_file(path: str) -> B64MD5:
+def md5_hash_file(path: str) -> hashlib._hashlib.HASH:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
+        for chunk in iter(lambda: f.read(64 * 1024), b""):
             hash_md5.update(chunk)
-    return b64_from_hasher(hash_md5)
+    return hash_md5
+
+
+def md5_file(path: str) -> B64MD5:
+    return b64_from_hasher(md5_hash_file(path))
 
 
 def get_log_file_path() -> str:
