@@ -2,7 +2,6 @@ import base64
 import hashlib
 from typing import Any, NewType, Union
 
-
 ETag = NewType("ETag", str)
 HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
