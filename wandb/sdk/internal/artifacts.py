@@ -265,6 +265,6 @@ class ArtifactSaver:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = util.URIStr(
                         "wandb-artifact://{}/{}".format(
-                            util.b64_to_hex_id(artifact_id), artifact_file_path
+                            hashutil.b64_to_hex_id(artifact_id), artifact_file_path
                         )
                     )
