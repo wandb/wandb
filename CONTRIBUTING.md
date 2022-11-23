@@ -359,7 +359,7 @@ tox -e flake8,mypy
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
 
-By default, tests are run in parallel with 4 processes. This can be changed by setting the
+By default, tests are run in parallel with 10 processes. This can be changed by setting the
 `CI_PYTEST_PARALLEL` environment variable to a different value.
 
 To run specific tests in a specific environment:
