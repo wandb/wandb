@@ -39,8 +39,7 @@ if TYPE_CHECKING:
             pass
 
 
-
-def md5_hash_files(paths: List[str]) -> hashlib._hashlib.HASH:
+def md5_hash_files(*paths: str) -> hashlib._hashlib.HASH:
     hash_md5 = hashlib.md5()
     # Create a mutable copy to sort
     paths = [path for path in paths]
@@ -52,8 +51,8 @@ def md5_hash_files(paths: List[str]) -> hashlib._hashlib.HASH:
     return hash_md5
 
 
-def md5_files_b64(paths: List[str]) -> util.B64MD5:
-    return base64.b64encode(util.md5_hash_files(paths).digest()).decode("ascii")
+def md5_files_b64(*paths: str) -> util.B64MD5:
+    return base64.b64encode(util.md5_hash_files(*paths).digest()).decode("ascii")
 
 
 def md5_file_hex(path: str) -> util.HexMD5:
