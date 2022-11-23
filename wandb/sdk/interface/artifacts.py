@@ -40,10 +40,6 @@ if TYPE_CHECKING:
             pass
 
 
-def b64_string_to_hex(string):
-    return binascii.hexlify(base64.standard_b64decode(string)).decode("ascii")
-
-
 def md5_hash_file(path) -> util.RawMD5:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:

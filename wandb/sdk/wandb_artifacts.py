@@ -46,7 +46,6 @@ from .interface.artifacts import (  # noqa: F401
     StorageHandler,
     StorageLayout,
     StoragePolicy,
-    b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
 )
@@ -410,7 +409,7 @@ class Artifact(ArtifactInterface):
         if is_tmp:
             file_path, file_name = os.path.split(name)
             file_name_parts = file_name.split(".")
-            file_name_parts[0] = b64_string_to_hex(digest)[:20]
+            file_name_parts[0] = util.b64_string_to_hex(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
         return self._add_local_file(name, local_path, digest=digest)
