@@ -1101,10 +1101,12 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
+def b64_from_hasher(hasher: hashlib._hashlib.HASH) -> B64MD5:
+    return B64MD5(base64.b64encode(hasher.digest()).decode("ascii"))
+
+
 def md5_string(string: str) -> B64MD5:
-    hash_md5 = hashlib.md5()
-    hash_md5.update(string.encode())
-    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
+    return b64_from_hasher(hashlib.md5(string.encode()))
 
 
 def b64_string_to_hex(string: str) -> HexMD5:
@@ -1116,7 +1118,7 @@ def md5_file(path: str) -> B64MD5:
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
-    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
+    return b64_from_hasher(hash_md5)
 
 
 def get_log_file_path() -> str:

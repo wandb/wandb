@@ -1,5 +1,4 @@
 import base64
-import binascii
 import codecs
 import contextlib
 import hashlib
