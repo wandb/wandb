@@ -1101,6 +1101,12 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
+def md5_string(string: str) -> B64MD5:
+    hash_md5 = hashlib.md5()
+    hash_md5.update(string.encode())
+    return base64.b64encode(hash_md5.digest()).decode("ascii")
+
+
 def md5_file(path: str) -> B64MD5:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:

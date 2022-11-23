@@ -629,6 +629,11 @@ def test_downsample():
     assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
 
 
+def test_md5_string():
+    assert util.md5_string("") == "1B2M2Y8AsgTpgAmY7PhCfg=="
+    assert util.md5_string("foo") == "rL0Y20zC+Fzt72VPzMSk2A=="
+
+
 def test_get_log_file_path(mock_run):
     assert util.get_log_file_path() == os.path.join("wandb", "debug-internal.log")
     run = mock_run()

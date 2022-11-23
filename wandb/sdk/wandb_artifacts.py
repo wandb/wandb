@@ -49,7 +49,6 @@ from .interface.artifacts import (  # noqa: F401
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
-    md5_string,
 )
 
 if TYPE_CHECKING:
@@ -1278,7 +1277,7 @@ class LocalFileHandler(StorageHandler):
             return (
                 md5_file_b64(path)
                 if checksum
-                else md5_string(str(os.stat(path).st_size))
+                else util.md5_string(str(os.stat(path).st_size))
             )
 
         if os.path.isdir(local_path):
