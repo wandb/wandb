@@ -113,12 +113,13 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
 
     def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None) -> None:
         if self._should_save_on_batch(batch):
-            # Save the model
-            self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
-            # Get filepath where the model checkpoint is saved.
             if self.is_old_tf_keras_version:
+                # Save the model and get filepath
+                self._save_model(epoch=self._current_epoch, logs=logs)
                 filepath = self._get_file_path(epoch=self._current_epoch, logs=logs)
             else:
+                # Save the model and get filepath
+                self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
                 filepath = self._get_file_path(
                     epoch=self._current_epoch, batch=batch, logs=logs
                 )
