@@ -109,8 +109,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self.save_best_only:
             self._check_filepath()
 
-        # Patch to make the callback compatible with TF version < 2.6.0.
-        self._patch_tf_keras_version()
+        self._is_old_tf_keras_version: Optional[bool] = None
 
     def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None) -> None:
         if self._should_save_on_batch(batch):
@@ -182,9 +181,11 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
                 repeat=False,
             )
 
-    def _patch_tf_keras_version(self) -> None:
+    @property
+    def is_old_tf_keras_version(self):
         from pkg_resources import parse_version
 
-        self.is_old_tf_keras_version: bool = parse_version(
-            tf.keras.__version__
-        ) < parse_version("2.6.0")
+        if parse_version(tf.keras.__version__) < parse_version("2.6.0"):
+            self._is_old_tf_keras_version = True
+
+        return self._is_old_tf_keras_version
