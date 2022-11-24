@@ -233,6 +233,7 @@ patch_tf_keras()
 
 ### For gradient logging ###
 
+
 def _get_custom_optimizer_parent_class():
     from pkg_resources import parse_version
 
@@ -242,6 +243,7 @@ def _get_custom_optimizer_parent_class():
         custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
 
     return custom_optimizer_parent_class
+
 
 _custom_optimizer_parent_class = _get_custom_optimizer_parent_class()
 
