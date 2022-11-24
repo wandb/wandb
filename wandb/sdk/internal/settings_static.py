@@ -1,7 +1,7 @@
 """
 static settings.
 """
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
@@ -16,12 +16,18 @@ class SettingsStatic:
     _stats_pid: int
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
+    _stats_join_assets: bool
     files_dir: str
+    program_relpath: Optional[str]
     log_internal: str
     _internal_check_process: bool
     is_local: Optional[bool]
     _colab: Optional[bool]
     _jupyter: Optional[bool]
+    notebook_name: Optional[str]
+    _jupyter_path: Optional[str]
+    _jupyter_name: Optional[str]
+    _jupyter_root: Optional[str]
     _require_service: Optional[str]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
@@ -32,6 +38,19 @@ class SettingsStatic:
     git_remote: Optional[str]
     git_remote_url: Optional[str]
     git_root: Optional[str]
+    docker: Optional[str]
+    _cuda: Optional[str]
+    _args: Optional[Sequence[str]]
+    _os: Optional[str]
+    _python: Optional[str]
+    disable_git: Optional[bool]
+    _save_requirements: Optional[bool]
+    save_code: Optional[bool]
+    disable_code: Optional[bool]
+    anonymous: Optional[str]
+    host: Optional[str]
+    username: Optional[str]
+    _executable: str
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

@@ -108,6 +108,12 @@ class WaitTimeoutError(Error):
     pass
 
 
+class MailboxError(Error):
+    """Generic Mailbox Exception"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",

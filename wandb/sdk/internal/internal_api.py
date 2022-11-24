@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 
     from .progress import ProgressFn
 
-    class CreateArtifactFileSpecInput(TypedDict):
+    class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
 
         artifactID: str
@@ -64,6 +64,17 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]
+
+    class CreateArtifactFilesResponseFile(TypedDict):
+        id: str
+        name: str
+        displayName: str
+        uploadUrl: Optional[str]
+        uploadHeaders: Sequence[str]
+        artifact: "CreateArtifactFilesResponseFileNode"
+
+    class CreateArtifactFilesResponseFileNode(TypedDict):
+        id: str
 
     class DefaultSettings(TypedDict):
         section: str
@@ -1027,12 +1038,65 @@ class Api:
         return result
 
     @normalize_exceptions
+    def push_to_run_queue_by_name(
+        self, entity: str, project: str, queue_name: str, run_spec: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Queryless mutation, should be used before legacy fallback method
+        """
+
+        mutation = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+        variables = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "runSpec": run_spec,
+        }
+        try:
+            result: Optional[Dict[str, Any]] = self.gql(
+                mutation, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
+        except Exception:
+            result = None
+
+        return result
+
+    @normalize_exceptions
     def push_to_run_queue(
         self, queue_name: str, launch_spec: Dict[str, str]
     ) -> Optional[Dict[str, Any]]:
-        # TODO(kdg): add pushToRunQueueByName to avoid this extra query
         entity = launch_spec["entity"]
         project = launch_spec["project"]
+        run_spec = json.dumps(launch_spec)
+
+        push_result = self.push_to_run_queue_by_name(
+            entity, project, queue_name, run_spec
+        )
+
+        if push_result:
+            return push_result
+
+        """ Legacy Method """
         queues_found = self.get_project_run_queues(entity, project)
         matching_queues = [
             q
@@ -1049,9 +1113,7 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    "No default queue existing for {}/{} creating one.".format(
-                        entity, project
-                    )
+                    f"No default queue existing for entity: {entity} in project: {project}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
@@ -1062,25 +1124,19 @@ class Api:
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
-                            entity, project
-                        )
+                        f"Unable to create default queue for entity: {entity} on project: {project}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
 
             else:
                 wandb.termwarn(
-                    "Unable to push to run queue {}. Queue not found.".format(
-                        queue_name
-                    )
+                    f"Unable to push to run queue {queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
-                "Unable to push to run queue {}. More than one queue found with this name.".format(
-                    queue_name
-                )
+                f"Unable to push to run queue {queue_name}. More than one queue found with this name."
             )
             return None
         else:
@@ -1784,7 +1840,7 @@ class Api:
         """
         fileName = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
-        if self.file_current(fileName, metadata["md5"]):
+        if self.file_current(fileName, util.B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -1873,11 +1929,22 @@ class Api:
             response_content = e.response.content if e.response is not None else ""
             logger.error(f"upload_file response body: {response_content}")
             status_code = e.response.status_code if e.response is not None else 0
+            # S3 reports retryable request timeouts out-of-band
+            is_aws_retryable = (
+                "x-amz-meta-md5" in extra_headers
+                and status_code == 400
+                and "RequestTimeout" in response_content
+            )
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
-            if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
-                e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+            if (
+                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
+                or isinstance(
+                    e,
+                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                )
+                or is_aws_retryable
             ):
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
@@ -1928,18 +1995,6 @@ class Api:
         if project_name is None:
             project_name = self.settings("project")
 
-        # don't retry on validation or not found errors
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         response = self.gql(
             mutation,
             variable_values={
@@ -1948,7 +2003,7 @@ class Api:
                 "projectName": project_name,
                 "sweep": sweep_id,
             },
-            check_retry_fn=no_retry_4xx,
+            check_retry_fn=util.no_retry_4xx,
         )
         result: dict = response["createAgent"]["agent"]
         return result
@@ -2139,19 +2194,6 @@ class Api:
             )
         )
 
-        # don't retry on validation errors
-        # TODO(jhr): generalize error handling routines
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
 
@@ -2172,7 +2214,7 @@ class Api:
                         "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
-                    check_retry_fn=no_retry_4xx,
+                    check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
                 raise e
@@ -2216,7 +2258,7 @@ class Api:
         return key
 
     @staticmethod
-    def file_current(fname: str, md5: str) -> bool:
+    def file_current(fname: str, md5: util.B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5"""
         return os.path.isfile(fname) and util.md5_file(fname) == md5
 
@@ -2688,17 +2730,9 @@ class Api:
         """
         )
 
-        # retry conflict errors for 2 minutes, default to no_auth_retry
-        check_retry_fn = util.make_check_retry_fn(
-            check_fn=util.check_retry_conflict,
-            check_timedelta=datetime.timedelta(minutes=2),
-            fallback_retry_fn=util.no_retry_auth,
-        )
-
         response: "_Response" = self.gql(  # type: ignore
             mutation,
             variable_values={"artifactID": artifact_id},
-            check_retry_fn=check_retry_fn,
             timeout=60,
         )
         return response
@@ -2868,7 +2902,7 @@ class Api:
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
-    ) -> Mapping[str, Mapping[str, Any]]:
+    ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
         mutation = gql(
             """
         mutation CreateArtifactFiles(

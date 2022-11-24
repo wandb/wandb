@@ -12,12 +12,10 @@ import wandb.sdk.launch.launch as launch
 import wandb.util as util
 import yaml
 from wandb.apis import PublicApi
-from wandb.apis.public import Run
-from wandb.errors import CommError, LaunchError
+from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
 
 from tests.unit_tests_old.utils import fixture_open, notebook_path
@@ -350,18 +348,6 @@ def test_launch_resource_args(
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
-
-
-def test_launch_add_base_queued_run(live_mock_server):
-    queued_run = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
-    assert queued_run.state == "pending"
-    assert queued_run.id == "1"
-    assert queued_run.entity == "mock_server_entity"
-    assert queued_run.project == "tests"
-
-    live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
-    run = queued_run.wait_until_finished()
-    assert isinstance(run, Run)
 
 
 @pytest.mark.skipif(
@@ -710,51 +696,6 @@ def test_run_in_launch_context_with_artifacts_no_match(
         assert arti_inst.name == "old_name:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "old_name:v0"
-
-
-def test_push_to_runqueue(live_mock_server, test_settings):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    launch_spec = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "entity": "mock_server_entity",
-        "project": "test",
-    }
-    api.push_to_run_queue("default", launch_spec)
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-
-
-def test_push_to_default_runqueue_notexist(live_mock_server, test_settings):
-    live_mock_server.set_ctx({"run_queues_return_default": False})
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    launch_spec = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "entity": "mock_server_entity",
-        "project": "test",
-    }
-    api.push_to_run_queue("default", launch_spec)
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-
-
-def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    launch_spec = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "entity": "mock_server_entity",
-        "project": "test",
-    }
-    api.push_to_run_queue("not-found", launch_spec)
-    ctx = live_mock_server.get_ctx()
-    _, err = capsys.readouterr()
-    assert len(ctx["run_queues"]["1"]) == 0
-    assert "Unable to push to run queue not-found. Queue not found" in err
 
 
 # this test includes building a docker container which can take some time,
@@ -1366,7 +1307,7 @@ def test_launch_build_config_file(
         lambda *args, **kwargs: (args, kwargs),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.launch,
+        wandb.sdk.launch.builder.build,
         "LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
@@ -1376,8 +1317,8 @@ def test_launch_build_config_file(
     )
 
     with runner.isolated_filesystem():
-        os.makedirs(os.path.expanduser("./config/wandb"))
-        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+        os.makedirs("./config/wandb")
+        with open("./config/wandb/launch-config.yaml", "w") as f:
             json.dump(launch_config, f)
 
         kwargs = {
@@ -1418,7 +1359,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         config, returned_api = launch.resolve_agent_config(
             api, None, None, -1, ["diff-queue"]
         )
-        returned_api.default_entity == "diffentity"
+
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
@@ -1542,3 +1483,42 @@ def test_launch_git_version_default_main(
     )
 
     assert "main" in str(mock_with_run_info.args[0].git_version)
+
+
+def test_noop_builder(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo_main,
+    runner,
+    monkeypatch,
+):
+    launch_config = {"build": {"type": "noop"}, "registry": {"url": "test"}}
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "LAUNCH_CONFIG_FILE",
+        "./config/wandb/launch-config.yaml",
+    )
+
+    with runner.isolated_filesystem():
+        os.makedirs("./config/wandb")
+        with open("./config/wandb/launch-config.yaml", "w") as f:
+            json.dump(launch_config, f)
+
+        kwargs = {
+            "uri": "https://wandb.ai/mock_server_entity/test/runs/2",
+            "api": api,
+            "entity": "mock_server_entity",
+            "project": "test",
+            "synchronous": False,
+            "config": {"cuda": False},
+        }
+        with pytest.raises(LaunchError) as e:
+            launch.run(**kwargs)
+
+        assert (
+            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
+            in str(e)
+        )

@@ -1,0 +1,17 @@
+id: 0.keras.evaltable.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_eval_tables_builder.py
+depend:
+    requirements:
+        - pillow
+        - tensorflow>=2.6.2
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 40  # keras_wandb_eval_callback
+    - :wandb:runs[0][exitcode]: 0

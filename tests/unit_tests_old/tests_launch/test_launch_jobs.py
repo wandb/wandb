@@ -209,7 +209,9 @@ def test_launch_job_container(
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
-def test_launch_add_container_queued_run(live_mock_server, mocked_public_artifact):
+def test_launch_add_container_queued_run(
+    live_mock_server, mocked_public_artifact, monkeypatch
+):
     def job_download_func(root=None):
         if root is None:
             root = tempfile.mkdtemp()
@@ -228,6 +230,15 @@ def test_launch_add_container_queued_run(live_mock_server, mocked_public_artifac
         return root
 
     mocked_public_artifact(job_download_func)
+
+    def patched_push_to_run_queue_by_name(*args, **kwargs):
+        return {"runQueueItemId": "1"}
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_by_name",
+        lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
+    )
 
     queued_run = launch_add(job="test-job:v0")
     with pytest.raises(CommError):
