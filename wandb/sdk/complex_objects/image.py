@@ -1,170 +1,93 @@
-from typing import TYPE_CHECKING, Optional
-import pathlib
-import hashlib
 import io
+import pathlib
+from typing import TYPE_CHECKING, Optional, Union, List
 
-from wandb import util
+try:
+    from typing_extensions import Protocol, runtime_checkable
+except ImportError:
+    from typing import Protocol, runtime_checkable
 
-
+from .image_mask import ImageMask
+from .bounding_boxes_2d import BoundingBoxes2D
 import PIL.Image
 
-if TYPE_CHECKING:  # pragma: no cover
-    import torch
-    import tensorflow as tf
+from .media import Media
+
+if TYPE_CHECKING:
+    import matplotlib.artist.Artist  # type: ignore
     import numpy as np
+    import tensorflow as tf
+    import torch
 
 
-import tempfile
-
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
-
-
-class Image:
+class Image(Media):
     """A wandb Image object."""
 
     RELATIVE_PATH = pathlib.Path("media") / "images"
     DEFAULT_FORMAT = "PNG"
-    TYPE = "image-file"
+    OBJ_TYPE = "image-file"
 
-    format: Optional[str]
-    width: Optional[int]
-    height: Optional[int]
-    _path: Optional["pathlib.Path"]
-    _path_is_tmp: bool
-    _sha256: Optional[str]
-    _size: Optional[int]
+    _source_path: pathlib.Path
+    _is_temp_path: bool
+    _bind_path: Optional[pathlib.Path]
 
-    def __init__(self, path_or_data) -> None:
-        # , mode: str
+    _size: int
+    _sha256: str
+    _format: str
 
-        self._path = None
-        self._path_is_tmp = False
-        self._from(path_or_data)
+    _width: int
+    _height: int
 
-        assert self._path is not None
-        self._size = self._path.stat().st_size
-        with open(self._path, "rb") as f:
-            self._sha256 = hashlib.sha256(f.read()).hexdigest()
+    _caption: Optional[str]
+    _masks: List[ImageMask]
+    _bounding_boxes: List[BoundingBoxes2D]
+    _classes: dict
 
-    def _from(self, path_or_data) -> None:
-        if isinstance(path_or_data, str):
-            self._from_string(path_or_data)
-        elif isinstance(path_or_data, pathlib.Path):
-            self._from_path(path_or_data)
-        elif isinstance(path_or_data, PIL.Image.Image):
-            self._from_pil(path_or_data)
-        elif isinstance(path_or_data, bytes):
-            self._from_bytes(path_or_data)
-        elif isinstance(path_or_data, torch.Tensor):
-            self._from_torch(path_or_data)
-        elif isinstance(path_or_data, tf.Tensor):
-            self._from_tensorflow(path_or_data)
-        elif isinstance(path_or_data, np.ndarray):
-            self._from_numpy(path_or_data)
+    def __init__(
+        self,
+        data_or_path,
+        mode: Optional[str] = None,
+        caption: Optional[str] = None,
+        boxes: Optional[dict] = None,
+        masks: Optional[dict] = None,
+        classes=None,
+    ) -> None:
+        """Initialize a new wandb Image object."""
+
+        if isinstance(data_or_path, PIL.Image.Image):
+            self.from_pillow(data_or_path)
+        elif isinstance(data_or_path, str):
+            self.from_path(data_or_path)
+        elif isinstance(data_or_path, pathlib.Path):
+            self.from_path(data_or_path)
+        elif isinstance(data_or_path, Image):
+            self.from_image(data_or_path)
+        elif isinstance(data_or_path, np.ndarray):
+            self.from_numpy(data_or_path, mode=mode)
+        elif isinstance(data_or_path, torch.Tensor):
+            self.from_torch(data_or_path, mode=mode)
+        elif isinstance(data_or_path, tf.Tensor):
+            self.from_tensorflow(data_or_path, mode=mode)
+        elif isinstance(data_or_path, matplotlib.artist.Artist):
+            self.from_matplotlib(data_or_path)
         else:
-            raise ValueError("Invalid image type")
-
-    def _from_image(self, image: "wandb.Image") -> None:
-        pass
-
-    def _from_matplotlib(self, figure: "matplotlib.figure.Figure") -> None:
-        pass
-
-    def _from_string(self, path: str) -> None:
-        self._from_path(pathlib.Path(path))
-
-    def _from_path(self, path: pathlib.Path) -> None:
-        self._path = path
-
-        with PIL.Image.open(path) as image:
-            image.load()
-            self._from_pil(image)
-
-    def _from_pil(self, image: "PIL.Image.Image") -> None:
-        self.format = (image.format or self.DEFAULT_FORMAT).lower()
-        self.width = image.width
-        self.height = image.height
-
-        if self._path is None:
-            path = MEDIA_TMP.name / pathlib.Path(util.generate_id()).with_suffix(
-                f".{self.format}"
+            raise ValueError(
+                "Image must be initialized with a path, PIL.Image, or bytes"
             )
-            self._path = path
-            image.save(path, format=self.format, transparency=None)
-            self._path_is_tmp = True
 
-    def _from_bytes(self, data: bytes) -> None:
-        with PIL.Image.open(data) as image:
-            self._from_pil(image)
+        self._caption = caption
 
-    def _from_torch(self, tensor: "torch.Tensor") -> None:
-        pass
+        self._bounding_boxes = []
+        if boxes is not None:
+            self.add_bounding_boxes(boxes)
 
-    def _from_tensorflow(self, tensor: "tf.Tensor") -> None:
-        pass
+        self._masks = []
+        if masks is not None:
+            self.add_masks(masks)
 
-    def _from_numpy(self, array: "np.ndarray") -> None:
-        pass
-
-    # def _save_file_to_run(self, path: pathlib.Path, *namespace) -> pathlib.Path:
-    #     """Save a file to the run directory.
-
-    #     Args:
-    #         path: The path to the file.
-    #         namespace: The namespace to save the file to.
-
-    #     Returns:
-    #         pathlib.Path: The path to the saved file.
-    #     """
-    #     return self._save_to_run(path, *namespace)
-
-    def _media_file_name(
-        self, *namespace, sep="_", suffix: Optional[str] = None
-    ) -> pathlib.Path:
-        """Get the media file name for this image.
-
-        Returns:
-            str: The media file name for this image.
-        """
-        breakpoint()
-
-        if suffix is None:
-            suffix = self.format
-        file_name = f"{sep.join(namespace)}.{suffix}"
-        return file_name
-
-    def _save_to_run(self, run_dir, key, step):
-
-        import shutil
-
-        media_path = pathlib.Path(run_dir) / self.RELATIVE_PATH
-        media_path.mkdir(parents=True, exist_ok=True)
-        file_name = self._media_file_name(key, str(step), self._sha256[:20])
-        media_file = media_path / file_name
-
-        assert self._path is not None
-        if self._path_is_tmp:
-            shutil.move(self._path, media_file)
-            self._path_is_tmp = False
-        else:
-            shutil.copy(self._path, media_file)
-
-        self._relative_path = media_file.relative_to(run_dir)
-        return media_file
-
-    def publish(self, interface, *namespace) -> None:
-        """Publish this image to wandb.
-
-        Args:
-            interface: The interface to publish to.
-        """
-        import glob
-
-        self._path = self._save_to_run(*namespace)
-
-        files = {"files": [(glob.escape(str(self._path)), "now")]}
-
-        interface.publish_files(files)
+        self._classes = dict()
+        # if classes is not None:
+        self.add_classes(classes)
 
     def to_json(self) -> dict:
         """Serialize this image to json.
@@ -172,16 +95,215 @@ class Image:
         Returns:
             dict: The json representation of this image.
         """
-        return {
-            "width": self.width,
-            "height": self.height,
-            "format": self.format,
-            "sha256": self._sha256,
-            "size": self._size,
-            "_type": self.TYPE,
-            "path": str(self._relative_path),
-        }
+        serialized = super().to_json()
+        serialized["format"] = self._format
+        if self._width is not None:
+            serialized["width"] = self._width
+        if self._height is not None:
+            serialized["height"] = self._height
+        if self._caption is not None:
+            serialized["caption"] = self._caption
+        if self._bounding_boxes:
+            serialized["boxes"] = {
+                bounding_box._name: bounding_box.to_json()
+                for bounding_box in self._bounding_boxes
+            }
+        if self._masks:
+            serialized["masks"] = {k: mask.to_json() for k, mask in self._masks.items()}
+        return serialized
 
-    # aws_prefix: str = "s3://"
-    # gcs_prefix: str = "gs://"
-    # azure_prefix: str = "az://"
+    def bind_to_run(
+        self, interface, root_dir: pathlib.Path, *prefix, name: Optional[str] = None
+    ) -> None:
+        """Bind this image to a run.
+
+        Args:
+            interface: The interface to the run.
+            start: The path to the run directory.
+            prefix: A list of path components to prefix to the image path.
+            name: The name of the image.
+        """
+
+        super().bind_to_run(
+            interface,
+            root_dir,
+            *prefix,
+            name or self._sha256[:20],
+            suffix=f".{self._format}",
+        )
+
+        for i, mask in enumerate(self._masks):
+            name = f"{name}{i}" if name is not None else None
+            mask.bind_to_run(interface, root_dir, *prefix, name=name)
+
+        for i, bounding_box in enumerate(self._bounding_boxes):
+            name = f"{name}{i}" if name is not None else None
+            bounding_box.bind_to_run(interface, root_dir, *prefix, name=name)
+
+    def add_masks(self, masks: dict) -> None:
+        """Add masks to this image.
+
+        Args:
+            masks (dict): The masks to add to this image.
+        """
+        for name, mask in masks.items():
+            if isinstance(mask, ImageMask):
+                self._masks.append(mask)
+            elif isinstance(mask, dict):
+                self._masks.append(ImageMask(mask, name=name))
+            else:
+                raise ValueError(
+                    "Image masks must be initialized ImageMask objects or dicts"
+                )
+
+    def add_bounding_boxes(self, bounding_boxes: dict) -> None:
+        """Add bounding boxes to this image.
+
+        Args:
+            bounding_boxes (dict): The bounding boxes to add to this image.
+        """
+        for name, bounding_box in bounding_boxes.items():
+            if isinstance(bounding_box, BoundingBoxes2D):
+                self._bounding_boxes.append(bounding_box)
+            elif isinstance(bounding_box, dict):
+                self._bounding_boxes.append(BoundingBoxes2D(bounding_box, name=name))
+            else:
+                raise ValueError(
+                    "Image bounding boxes must be initialized BoundingBoxes2D objects or dicts"
+                )
+
+    def add_classes(self, classes) -> None:
+        """Add classes to this image.
+
+        Args:
+            classes (dict): The classes to add to this image.
+        """
+        self._classes = classes
+
+    def from_path(self, path: Union[str, pathlib.Path]) -> None:
+        """Create an image from a path.
+
+        Args:
+            path (Union[str, pathlib.Path]): The path to the image.
+        """
+
+        path = pathlib.Path(path).absolute()
+        self._source_path = path
+        self._is_temp_path = False
+        self._format = path.suffix[1:].lower()
+        with PIL.Image.open(path) as image:
+            image.load()
+            self._width = image.width
+            self._height = image.height
+        self._size = self._source_path.stat().st_size
+        self._sha256 = self._compute_sha256(self._source_path)
+
+    def from_pillow(self, image: "PIL.Image.Image") -> None:
+        """Create an image from a pillow image.
+
+        Args:
+            image (PIL.Image.Image): The pillow image to create this image from.
+        """
+        self._format = (image.format or self.DEFAULT_FORMAT).lower()
+        self._width = image.width
+        self._height = image.height
+        self._source_path = self._generate_temp_path(f".{self._format}")
+        self._is_temp_path = True
+        image.save(
+            self._source_path,
+            format=self._format,
+            transparency=None,
+        )
+        self._size = self._source_path.stat().st_size
+        self._sha256 = self._compute_sha256(self._source_path)
+
+    def from_numpy(self, array: "np.ndarray", mode: Optional[str] = None) -> None:
+        """Create an image from a numpy array.
+
+        Args:
+            array (np.ndarray): The numpy array to create this image from.
+            mode (Optional[str], optional): The mode to create this image in. Defaults to None.
+        """
+        import torch
+
+        if isinstance(array, torch.Tensor):
+            import torchvision.utils
+
+            if hasattr(array, "detach"):
+                array = array.detach()
+
+            tensor = torchvision.utils.make_grid(array, normalize=True)
+            tensor = tensor.permute(1, 2, 0).mul(255).clamp(0, 255).byte().cpu().numpy()
+        else:
+            tensor = array.__array__()
+            if tensor.ndim > 2:
+                tensor = tensor.squeeze()
+            min_value = tensor.min()
+            if min_value < 0:
+                tensor = (tensor - min_value) / tensor.ptp() * 255
+            if tensor.max() <= 1:
+                tensor = (tensor * 255).astype("int32")
+            tensor = tensor.clip(0, 255).astype("uint8")
+
+        image = PIL.Image.fromarray(tensor, mode=mode)
+        self.from_pillow(image)
+
+    def from_torch(self, tensor: "torch.Tensor", mode: Optional[str] = None) -> None:
+        """Create an image from a torch tensor.
+
+        Args:
+            tensor (torch.Tensor): The torch tensor to create this image from.
+            mode (Optional[str], optional): The mode to create this image in. Defaults to None.
+        """
+
+        array = tensor.numpy()
+        self.from_numpy(array, mode=mode)
+
+    def from_tensorflow(self, tensor: "tf.Tensor", mode: Optional[str] = None) -> None:
+        """Create an image from a tensorflow tensor.
+
+        Args:
+            tensor (tf.Tensor): The tensorflow tensor to create this image from.
+            mode (Optional[str], optional): The mode to create this image in. Defaults to None.
+        """
+        array = tensor.numpy()  # type: ignore
+        self.from_numpy(array, mode=mode)
+
+    def from_matplotlib(
+        self, figure: "matplotlib.artist.Artist", format: Optional[str] = None
+    ) -> None:
+        """Create an image from a matplotlib figure.
+
+        Args:
+            figure (matplotlib.figure.Figure): The matplotlib figure to create this image from.
+            format (Optional[str], optional): The format to save this image in. Defaults to None.
+        """
+        buf = io.BytesIO()
+        format = format or self.DEFAULT_FORMAT
+        figure.savefig(buf, format=format)
+        self.from_buffer(buf)
+
+    def from_buffer(self, buf: io.BytesIO) -> None:
+        """Create an image from a buffer.
+
+        Args:
+            buf (io.BytesIO): The buffer to create this image from.
+        """
+
+        with PIL.Image.open(buf) as image:
+            self.from_pillow(image)
+
+    def from_image(self, image: "Image") -> None:
+        """Create an image from another image.
+
+        Args:
+            image (Image): The image to create this image from.
+
+        Returns:
+            Image: The image from this image.
+        """
+
+        exculded = {"_caption", "_masks", "_bounding_boxes", "_classes"}
+        for k, v in image.__dict__.items():
+            if k not in exculded:
+                setattr(self, k, v)

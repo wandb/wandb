@@ -540,10 +540,10 @@ class InterfaceBase:
     ) -> None:
         run = run or self._run
 
-        # data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
+        data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         for key, value in data.items():
-            value.publish(self, run.dir, key, 0)
-            data[key] = value.to_json()
+            value.publish(self, run.dir, key, str(0))
+            data[key] = value._to_json()
         data.pop("_step", None)
 
         # add timestamp to the history request, if not already present
