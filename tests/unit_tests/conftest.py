@@ -119,6 +119,11 @@ def copy_asset(assets_path) -> Callable:
 # --------------------------------
 
 
+@pytest.fixture(autouse=True)
+def mock_responses():
+    with responses.RequestsMock() as rsps:
+        yield rsps
+
 @pytest.fixture(scope="function", autouse=True)
 def unset_global_objects():
     from wandb.sdk.lib.module import unset_globals

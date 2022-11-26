@@ -980,10 +980,12 @@ def test_interface_commit_hash():
     ],
 )
 def test_http_storage_handler_uses_etag_for_digest(
-    headers: Optional[Mapping[str, str]], expected_digest: Optional[str]
+    headers: Optional[Mapping[str, str]],
+    expected_digest: Optional[str],
+    mock_responses: responses.RequestsMock,
 ):
-    with responses.RequestsMock() as rsps, requests.Session() as session:
-        rsps.add(
+    with requests.Session() as session:
+        mock_responses.add(
             "GET",
             "https://example.com/foo.json?bar=abc",
             json={"result": 1},

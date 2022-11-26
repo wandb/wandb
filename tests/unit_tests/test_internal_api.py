@@ -40,14 +40,15 @@ def test_get_run_state_invalid_kwargs():
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
     existing_contents: Optional[str],
     expect_download: bool,
+    mock_responses: responses.RequestsMock,
 ):
     url = "https://example.com/path/to/file.txt"
     current_contents = "current contents"
-    with responses.RequestsMock() as rsps, tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "file.txt")
 
         if expect_download:
-            rsps.add(
+            mock_responses.add(
                 responses.GET,
                 url,
                 body=current_contents,

@@ -292,14 +292,8 @@ def test_max_images(mock_run):
     assert os.path.exists(path)
 
 
-@pytest.fixture
-def mock_reference_get_responses():
-    with responses.RequestsMock() as rsps:
-        yield rsps
-
-
-def test_image_refs(mock_reference_get_responses):
-    mock_reference_get_responses.add(
+def test_image_refs(mock_responses: responses.RequestsMock):
+    mock_responses.add(
         method="GET",
         url="http://nonexistent/puppy.jpg",
         body=b"test",
