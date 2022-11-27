@@ -8,6 +8,7 @@ from typing import Callable, Mapping, Optional
 from unittest.mock import Mock, call
 
 import azure.core.exceptions
+
 # TODO(spencerpearson): DO NOT MERGE
 # Does ^this import need to be guarded so that people can
 # run the whole test suite without this lib?
