@@ -355,7 +355,7 @@ class TestUploadFile:
             self,
             some_file: Path,
             azure_err: azure.core.exceptions.AzureError,
-            check_normal_err: Callable[[pytest.ExceptionInfo], bool],
+            check_normal_err: Callable[["pytest.ExceptionInfo"], bool],
         ):
             api = internal.InternalApi()
             api._azure_blob_module = Mock()
