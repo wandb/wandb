@@ -186,19 +186,16 @@ class Report(Base):
         PublicApi().create_project(self.project, self.entity)
 
         # All panel grids must have at least one runset
-        if self.panel_grids and not self.runsets:
-            for pg in self.panel_grids:
-                if not pg.runsets:
-                    pg.runsets = PanelGrid._default_runsets()
+        for pg in self.panel_grids:
+            if not pg.runsets:
+                pg.runsets = PanelGrid._default_runsets()
 
-        if self.runsets:
-            # Check runsets with `None` for project and replace with the report's project.
-            # We have to do this here because RunSets don't know about their report until they're added to it.
-            for rs in self.runsets:
-                if rs.entity is None:
-                    rs.entity = PublicApi().default_entity
-                if rs.project is None:
-                    rs.project = self.project
+
+        # Check runsets with `None` for project and replace with the report's project.
+        # We have to do this here because RunSets don't know about their report until they're added to it.
+        for rs in self.runsets:
+            rs.entity = coalesce(rs.entity, PublicApi().default_entity)
+            rs.project = coalesce(rs.project, self.project)
 
         r = PublicApi().client.execute(
             UPSERT_VIEW,
