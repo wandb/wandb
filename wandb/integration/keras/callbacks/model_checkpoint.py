@@ -68,6 +68,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             object if `save_weights_only` is false.
         initial_value_threshold (Optional[float]): Floating point initial "best" value of the metric
             to be monitored.
+        metadata Optional[Dict[str, Any]]: Free text that offers a description of the artifact.
+            The description is markdown rendered in the UI, so this is a good place to place
+            tables, links, etc.
     """
 
     def __init__(
@@ -81,6 +84,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         save_freq: Union[SaveStrategy, int] = "epoch",
         options: Optional[str] = None,
         initial_value_threshold: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -103,6 +107,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             tel.feature.keras_model_checkpoint = True
 
         self.save_weights_only = save_weights_only
+        self.metadata = metadata
 
         # User-friendly warning when trying to save the best model.
         if self.save_best_only:
@@ -136,7 +141,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         """Log model checkpoint as  W&B Artifact."""
         try:
             assert wandb.run is not None
-            model_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", type="model")
+            model_artifact = wandb.Artifact(
+                f"run_{wandb.run.id}_model", type="model", metadata=self.metadata
+            )
             if self.save_weights_only:
                 # We get three files when this is True
                 model_artifact.add_file(
