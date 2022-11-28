@@ -8,10 +8,10 @@ from .validators import (
     FONT_SIZES,
     LEGEND_POSITIONS,
     LINEPLOT_STYLES,
-    MARKS,
+    # MARKS,
     RANGEFUNCS,
     SMOOTHING_TYPES,
-    Between,
+    # Between,
     Length,
     OneOf,
     TypeValidator,
@@ -95,40 +95,40 @@ class LinePlot(Panel):
     # Attr( json_path="spec.config.colorEachMetricDifferently")
     # Attr( json_path="spec.config.showLegend")
 
-    line_titles: Optional[dict] = Attr(
-        json_path="spec.config.overrideSeriesTitles",
-        validators=[
-            TypeValidator(LineKey, how="keys"),
-            TypeValidator(str, how="values"),
-        ],
-    )
-    line_marks: Optional[dict] = Attr(
-        json_path="spec.config.overrideMarks",
-        validators=[
-            TypeValidator(LineKey, how="keys"),
-            OneOf(MARKS, how="values"),
-        ],
-    )
-    line_colors: Optional[dict] = Attr(
-        json_path="spec.config.overrideColors",
-        validators=[
-            TypeValidator(LineKey, how="keys"),
-        ],
-    )
-    line_widths: Optional[dict] = Attr(
-        json_path="spec.config.overrideLineWidths",
-        validators=[
-            TypeValidator(LineKey, how="keys"),
-            TypeValidator(Union[int, float], how="values"),
-            Between(0.5, 3.0, how="values"),
-        ],
-    )
+    # line_titles: Optional[dict] = Attr(
+    #     json_path="spec.config.overrideSeriesTitles",
+    #     validators=[
+    #         TypeValidator(LineKey, how="keys"),
+    #         TypeValidator(str, how="values"),
+    #     ],
+    # )
+    # line_marks: Optional[dict] = Attr(
+    #     json_path="spec.config.overrideMarks",
+    #     validators=[
+    #         TypeValidator(LineKey, how="keys"),
+    #         OneOf(MARKS, how="values"),
+    #     ],
+    # )
+    # line_colors: Optional[dict] = Attr(
+    #     json_path="spec.config.overrideColors",
+    #     validators=[
+    #         TypeValidator(LineKey, how="keys"),
+    #     ],
+    # )
+    # line_widths: Optional[dict] = Attr(
+    #     json_path="spec.config.overrideLineWidths",
+    #     validators=[
+    #         TypeValidator(LineKey, how="keys"),
+    #         TypeValidator(Union[int, float], how="values"),
+    #         Between(0.5, 3.0, how="values"),
+    #     ],
+    # )
 
     def __init__(
         self,
         title: Optional[str] = None,
         x: Optional[str] = None,
-        y: Optional[list] = None,
+        y: Optional[Union[list, str]] = None,
         range_x: Union[list, tuple] = (None, None),
         range_y: Union[list, tuple] = (None, None),
         log_x: Optional[bool] = None,
@@ -150,10 +150,10 @@ class LinePlot(Panel):
         legend_template: Optional[str] = None,
         aggregate: Optional[bool] = None,
         xaxis_expression: Optional[str] = None,
-        line_titles: Optional[dict] = None,
-        line_marks: Optional[dict] = None,
-        line_colors: Optional[dict] = None,
-        line_widths: Optional[dict] = None,
+        # line_titles: Optional[dict] = None,
+        # line_marks: Optional[dict] = None,
+        # line_colors: Optional[dict] = None,
+        # line_widths: Optional[dict] = None,
         *args,
         **kwargs,
     ):
@@ -182,10 +182,10 @@ class LinePlot(Panel):
         self.legend_template = legend_template
         self.aggregate = aggregate
         self.xaxis_expression = xaxis_expression
-        self.line_titles = line_titles
-        self.line_marks = line_marks
-        self.line_colors = line_colors
-        self.line_widths = line_widths
+        # self.line_titles = line_titles
+        # self.line_marks = line_marks
+        # self.line_colors = line_colors
+        # self.line_widths = line_widths
 
     @x.getter
     def x(self):
