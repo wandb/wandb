@@ -177,7 +177,7 @@ class Backend:
         settings["_log_level"] = self._log_level or logging.DEBUG
 
         # TODO: this is brittle and should likely be handled directly on the
-        #  settings object. Multi-processing blows up when it can't pickle
+        #  settings object. Multiprocessing blows up when it can't pickle
         #  objects.
         if "_early_logger" in settings:
             del settings["_early_logger"]

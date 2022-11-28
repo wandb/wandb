@@ -308,7 +308,7 @@ class StreamMux:
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
 
-            # wait for them, its ok to do this serially but this can be improved
+            # wait for them, it's ok to do this serially but this can be improved
             result = poll_exit_handle.wait(timeout=-1)
             assert result
             poll_exit_response = result.response.poll_exit_response
@@ -320,6 +320,37 @@ class StreamMux:
             result = sampled_history_handle.wait(timeout=-1)
             assert result
             sampled_history = result.response.sampled_history_response
+
+            if (
+                not (stream._settings.run_url and stream._settings.run_name)
+                and not stream._settings._offline
+            ):
+                # todo: unify path with Run._on_finish in wandb_run.py
+                run_handle = stream.interface.deliver_request_run()
+                result = run_handle.wait(timeout=-1)
+                assert result
+                run_response = result.response.run_response.run
+                if (
+                    not run_response.entity
+                    or not run_response.project
+                    or not run_response.display_name
+                ):
+
+                    run_info_handle = stream.interface.deliver_run(run_response)
+                    result = run_info_handle.wait(timeout=-1)
+                    assert result
+                    run_response = result.run_result.run
+
+                # todo(settings): rework once SettingsStatic are sunset
+                settings = wandb.Settings(**dict(stream._settings))
+                settings.update(
+                    {
+                        "entity": run_response.entity,
+                        "project": run_response.project,
+                        "run_name": run_response.display_name,
+                    }
+                )
+                stream.update(dict(settings))
 
             result = final_summary_handle.wait(timeout=-1)
             assert result

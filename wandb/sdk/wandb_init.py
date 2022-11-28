@@ -16,7 +16,7 @@ import platform
 import sys
 import tempfile
 import traceback
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
 
@@ -46,6 +46,9 @@ from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
+
+if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2 as pb
 
 logger = None  # logger configured during wandb.init()
 
@@ -675,11 +678,15 @@ class _WandbInit:
         if not self.settings.disable_git:
             run._populate_git_info()
 
+        run_proto = backend.interface._make_run(run)
+        run_init_handle: Optional[MailboxHandle] = None
+        run_result: Optional["pb.Result"] = None
+
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
-            run_proto = backend.interface._make_run(run)
-            backend.interface._publish_run(run_proto)
+
+            backend.interface.publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
             if self.settings.resume:
                 wandb.termwarn(
@@ -687,28 +694,46 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
-            run_result = None
             error_message: Optional[str] = None
+            if self.settings.resume:
+                timeout = self.settings.resume_timeout
+                policy = self.settings.resume_policy
+            else:
+                timeout = self.settings.init_timeout
+                policy = self.settings.init_policy
 
-            logger.info(
-                f"communicating run to backend with {self.settings.init_timeout} second timeout"
+            logger.info(f"communicating run to backend with {timeout} second timeout")
+
+            run_init_handle = backend.interface.deliver_run(run_proto)
+            result = run_init_handle.wait(
+                timeout=timeout,
+                on_progress=self._on_progress_init,
+                release=False,
             )
-            handle = backend.interface.deliver_run(run)
-            result = handle.wait(
-                timeout=self.settings.init_timeout, on_progress=self._on_progress_init
-            )
+
             if result:
                 run_result = result.run_result
 
-            if not run_result:
-                logger.error("backend process timed out")
-                error_message = "Error communicating with wandb process"
-                if active_start_method != "fork":
-                    error_message += (
-                        f"\nFor more info see: {wburls.get('doc_start_err')}"
-                    )
-            elif run_result.error:
+            if not run_result and policy == "fail":
+                logger.error("backend process timed out, exiting as per 'fail' policy")
+                error_message = (
+                    "Error communicating with wandb process, "
+                    "exiting as per 'fail' init policy."
+                )
+                error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
+            elif not run_result and policy == "allow":
+                logger.warning(
+                    "backend process timed out, continuing as per 'allow' policy"
+                )
+                # todo: clearly communicate the error to the user, and what happens next
+                self.printer.display(
+                    # todo: ask Carey for help with the wording
+                    f'{self.printer.emoji("turtle")} Communicating with wandb, '
+                    "run links not yet available."
+                )
+            elif run_result and run_result.error:
                 error_message = run_result.error.message
+
             if error_message:
                 logger.error(f"encountered error: {error_message}")
                 if not manager:
@@ -717,12 +742,18 @@ class _WandbInit:
                     backend.cleanup()
                     self.teardown()
                 raise UsageError(error_message)
-            assert run_result and run_result.run
-            if run_result.run.resumed:
-                logger.info("run resumed")
-                with telemetry.context(run=run) as tel:
-                    tel.feature.resumed = True
-            run._set_run_obj(run_result.run)
+
+            if run_result:
+                assert run_result.run
+
+                if run_result.run.resumed:
+                    logger.info("run resumed")
+                    with telemetry.context(run=run) as tel:
+                        tel.feature.resumed = run_result.run.resumed
+
+            run._set_run_obj(
+                run_result.run if run_result else run_proto
+            )  # todo: add method on run that converts it to proto message - temp hack
             run._on_init()
 
         logger.info("starting run threads in backend")
@@ -761,7 +792,7 @@ class _WandbInit:
 
         self.backend = backend
         self._reporter.set_context(run=run)
-        run._on_start()
+        run._on_start(run_init_handle if run_result is None else None)
         logger.info("run started, returning control to user process")
         return run
 
@@ -1063,9 +1094,6 @@ def init(
         A `Run` object.
     """
     wandb._assert_is_user_process()
-
-    if resume is True:
-        resume = "auto"  # account for changing resume interface, True and auto should behave the same
 
     kwargs = dict(locals())
     error_seen = None

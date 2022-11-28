@@ -11,6 +11,7 @@ class SettingsStatic:
     _offline: Optional[bool]
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
+    _flow_control: bool
     _start_time: float
     _start_datetime: str
     _stats_pid: int
@@ -51,6 +52,9 @@ class SettingsStatic:
     host: Optional[str]
     username: Optional[str]
     _executable: str
+    sync_file: str
+    run_url: Optional[str]
+    run_name: Optional[str]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

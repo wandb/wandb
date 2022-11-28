@@ -151,6 +151,7 @@ message Feature {
   bool keras_metrics_logger = 38; // Keras WandbMetricsLogger used
   bool keras_model_checkpoint = 39; // Keras WandbModelCheckpoint used
   bool keras_wandb_eval_callback = 40; // Keras WandbEvalCallback used
+  bool flow_control_overflow = 41; // Hit flow control threshold
 }
 
 message Env {
@@ -181,6 +182,7 @@ message Deprecated {
   bool init__config_include_keys = 7 ; // wandb.init(config_include_keys=...) called
   bool init__config_exclude_keys = 8 ; // wandb.init(config_exclude_keys=...) called
   bool keras_callback__save_model = 9; // wandb.keras.WandbCallback(save_model=True) called
+  bool settings__resume_true = 10; // wandb.settings(resume=True) used
 }
 
 message Issues {

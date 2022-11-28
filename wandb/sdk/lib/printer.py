@@ -12,6 +12,7 @@ import wandb
 
 from . import ipython, sparkline
 
+
 # Follow the same logic as the python logging module
 CRITICAL = 50
 FATAL = CRITICAL
@@ -184,12 +185,14 @@ class PrinterTerm(_Printer):
 
     def link(self, link: str, text: Optional[str] = None) -> str:
         ret: str = click.style(link, fg="blue", underline=True)
+        # ret = f"\x1b[m{text or link}\x1b[0m"
+        # ret = f"\x1b]8;;{link}\x1b\\{ret}\x1b]8;;\x1b\\"
         return ret
 
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+            emojis = dict(star="⭐️", broom="🧹", rocket="🚀", gorilla="🦍", turtle="🐢")
 
         return emojis.get(name, "")
 
