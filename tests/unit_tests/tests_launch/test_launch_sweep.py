@@ -1,10 +1,7 @@
 import wandb
 import pytest
-import time
 import json
-from wandb import util
 from wandb.apis.public import Api as PublicApi
-from wandb.sdk.launch.launch_add import launch_add
 
 from wandb.sdk.launch.utils import construct_launch_spec
 
@@ -56,13 +53,9 @@ def test_sweeps_on_launch(
                 "goal": "minimize",
             },
             "parameters": {
-                "epochs": {
-                    "value": 1
-                },
-                "increment": {
-                    "values": [0.1, 0.2, 0.3]
-                }
-            }
+                "epochs": {"value": 1},
+                "increment": {"values": [0.1, 0.2, 0.3]},
+            },
         }
 
         # Launch job spec for the Scheduler
@@ -120,7 +113,7 @@ def test_sweeps_on_launch(
 
         sweep_state = api.get_sweep_state(sweep_id, user, proj)
 
-        assert sweep_state == 'PENDING'
+        assert sweep_state == "PENDING"
 
         public_api = PublicApi()
         sweep = public_api.sweep(f"{user}/{proj}/{sweep_id}")
@@ -129,7 +122,7 @@ def test_sweeps_on_launch(
 
         res = api.pop_from_run_queue(queue, user, proj)
 
-        assert res['runSpec']['resource'] == resource
-        assert res['runSpec']
+        assert res["runSpec"]["resource"] == resource
+        assert res["runSpec"]
 
         run.finish()
