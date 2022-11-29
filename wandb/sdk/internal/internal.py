@@ -51,8 +51,8 @@ def wandb_internal(
     settings: "SettingsDict",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
-    port: int = None,
-    user_pid: int = None,
+    port: Optional[int] = None,
+    user_pid: Optional[int] = None,
 ) -> None:
     """Internal process function entrypoint.
 
@@ -180,7 +180,7 @@ def _setup_tracelog() -> None:
         tracelog.enable(tracelog_mode)
 
 
-def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:
+def configure_logging(log_fname: str, log_level: int, run_id: Optional[str] = None) -> None:
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")

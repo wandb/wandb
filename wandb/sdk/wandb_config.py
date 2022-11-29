@@ -13,6 +13,7 @@ from wandb.util import (
 
 from . import wandb_helper
 from .lib import config_util
+from typing import Optional
 
 logger = logging.getLogger("wandb")
 
@@ -224,7 +225,7 @@ class Config:
         self,
         config_dict,
         allow_val_change=None,
-        ignore_keys: set = None,
+        ignore_keys: Optional[set] = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)

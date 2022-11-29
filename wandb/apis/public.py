@@ -424,7 +424,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
+        blocks: Optional["Optional[wandb.apis.reports.util.Block]"] = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
@@ -3807,7 +3807,7 @@ class ArtifactType:
         entity: str,
         project: str,
         type_name: str,
-        attrs: Mapping[str, Any] = None,
+        attrs: Optional[Mapping[str, Any]] = None,
     ):
         self.client = client
         self.entity = entity
@@ -5301,7 +5301,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
 
-    def __init__(self, api: Api, name, path: str = None) -> None:
+    def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
             self._job_artifact = api.artifact(name, type="job")
         except CommError:

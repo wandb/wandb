@@ -2566,7 +2566,7 @@ class Api:
         description: Optional[str] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
-        aliases: List[Dict[str, str]] = None,
+        aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,

@@ -108,7 +108,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self.save_best_only:
             self._check_filepath()
 
-    def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None) -> None:
+    def on_train_batch_end(self, batch: int, logs: Optional[Dict[str, float]] = None) -> None:
         if self._should_save_on_batch(batch):
             # Save the model
             self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
@@ -120,7 +120,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             aliases = ["latest", f"epoch_{self._current_epoch}_batch_{batch}"]
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
-    def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, float]] = None) -> None:
         super().on_epoch_end(epoch, logs)
         # Check if model checkpoint is created at the end of epoch.
         if self.save_freq == "epoch":

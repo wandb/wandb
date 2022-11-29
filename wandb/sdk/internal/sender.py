@@ -740,7 +740,7 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
-    def send_run(self, record: "Record", file_dir: str = None) -> None:
+    def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
         is_wandb_init = self._run is None
@@ -890,7 +890,7 @@ class SendManager:
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
 
-    def _start_run_threads(self, file_dir: str = None) -> None:
+    def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
         assert self._run  # self._run is configured by caller
         self._fs = file_stream.FileStreamApi(
             self._api,

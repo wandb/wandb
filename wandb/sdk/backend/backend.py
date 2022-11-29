@@ -60,9 +60,9 @@ class Backend:
     def __init__(
         self,
         mailbox: Mailbox,
-        settings: Settings = None,
-        log_level: int = None,
-        manager: _Manager = None,
+        settings: Optional[Settings] = None,
+        log_level: Optional[int] = None,
+        manager: Optional[_Manager] = None,
     ) -> None:
         self._done = False
         self.record_q = None

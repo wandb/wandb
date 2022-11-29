@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Dict, List
+from typing import Optional, Any, Dict, List
 
 import yaml
 
@@ -382,7 +382,7 @@ class Agent:
         }
 
     @staticmethod
-    def _create_sweep_command(command: List[str] = None) -> List[str]:
+    def _create_sweep_command(command: Optional[List[str]] = None) -> List[str]:
         """Returns sweep command, filling in environment variable macros."""
         # Start from default sweep command
         command = command or Agent.DEFAULT_SWEEP_COMMAND

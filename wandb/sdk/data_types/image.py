@@ -17,7 +17,7 @@ from .helper_types.image_mask import ImageMask
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
     import numpy as np  # type: ignore
-    import PIL  # type: ignore
+    import PIL.Image
     import torch  # type: ignore
 
     from wandb.apis.public import Artifact as PublicArtifact
@@ -218,7 +218,7 @@ class Image(BatchableMedia):
                     for key in total_classes.keys()
                 ]
             )
-        if self.image:
+        if self.image is not None:
             self._width, self._height = self.image.size
         self._free_ram()
 
@@ -264,7 +264,7 @@ class Image(BatchableMedia):
     def _initialize_from_data(
         self,
         data: "ImageDataType",
-        mode: str = None,
+        mode: Optional[str] = None,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",

@@ -167,10 +167,10 @@ def val_to_json(
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
     # If media type has a max respect it
     items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # type: ignore
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
         logging.warning(
             "Only %i %s will be uploaded."
-            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)  # type: ignore
+            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)
         )
-        items = seq[: seq[0].MAX_ITEMS]  # type: ignore
+        items = seq[: seq[0].MAX_ITEMS]
     return items
