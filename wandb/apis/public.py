@@ -424,7 +424,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: Optional["Optional[wandb.apis.reports.util.Block]"] = None,
+        blocks: Optional["wandb.apis.reports.util.Block"] = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""

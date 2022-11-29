@@ -206,7 +206,7 @@ class Backend:
             # TODO: risky cast, assumes BackendThread Process duck typing
             self.wandb_process = wandb_thread  # type: ignore
         else:
-            self.wandb_process = self._multiprocessing.Process(
+            self.wandb_process = self._multiprocessing.Process(  # type: ignore
                 target=wandb_internal,
                 kwargs=dict(
                     settings=settings,
@@ -215,6 +215,7 @@ class Backend:
                     user_pid=user_pid,
                 ),
             )
+            assert self.wandb_process
             self.wandb_process.name = "wandb_internal"
 
         self._module_main_install()

@@ -1703,7 +1703,7 @@ def artifact_to_json(
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
     if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name  # type: ignore
+        sequence_name = artifact._sequence_name
     else:
         sequence_name = artifact.name.split(":")[0]
 

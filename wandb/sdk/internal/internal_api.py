@@ -86,8 +86,7 @@ if TYPE_CHECKING:
         entity: Optional[str]
         project: Optional[str]
 
-    _Response = TypeVar("_Response", bound=MutableMapping)
-    _ArtifactVersion = TypeVar("_ArtifactVersion", bound=MutableMapping)
+    _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
@@ -2730,7 +2729,7 @@ class Api:
         """
         )
 
-        response: "_Response" = self.gql(  # type: ignore
+        response: "_Response" = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
             timeout=60,
