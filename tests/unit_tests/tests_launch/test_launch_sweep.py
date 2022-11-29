@@ -122,7 +122,12 @@ def test_sweeps_on_launch(
 
         res = api.pop_from_run_queue(queue, user, proj)
 
-        assert res["runSpec"]["resource"] == resource
-        assert res["runSpec"]
+        if resource is None:
+            # TODO(gst): Once the queue has a DRC's, should be DRC.resource
+            assert not res
+        else:
+            assert res
+            assert res["runSpec"]
+            assert res["runSpec"]["resource"] == resource
 
         run.finish()
