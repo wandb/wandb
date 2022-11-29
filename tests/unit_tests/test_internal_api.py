@@ -18,8 +18,8 @@ import requests
 import responses
 from wandb.apis import internal
 from wandb.errors import CommError
-from wandb.sdk.lib import retry
 from wandb.sdk.internal.internal_api import _guess_response_content
+from wandb.sdk.lib import retry
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
