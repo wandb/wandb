@@ -164,6 +164,27 @@ fragment ArtifactFragment on Artifact {
         name
     }
     commitHash
+    artifactMemberships {
+        edges {
+            node {
+                id
+                commitHash
+                versionIndex
+                artifactCollection {
+                    id
+                    name
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 """
 
@@ -4211,7 +4232,7 @@ class Artifact(artifacts.Artifact):
         self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
-        self._version_index = self._attrs.get("versionIndex", None)
+        self._sequence_version_index = self._attrs.get("versionIndex", None)
         # We will only show aliases under the Collection this artifact version is fetched from
         # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
@@ -4221,6 +4242,22 @@ class Artifact(artifacts.Artifact):
             and a["artifactCollectionName"] == self._artifact_collection_name
         ]
         self._frozen_aliases = [a for a in self._aliases]
+        self._memberships = [
+            edge["node"]
+            for edge in self._attrs.get("artifactMemberships", {}).get("edges", [])
+        ]
+        self._artifact_collection_version_index = None
+        # Here we find the membership which corresponds to the artifact
+        # collection for which this version is being constructed to get the
+        # version index
+        for membership in self._memberships:
+            if (
+                membership["artifactCollectionName"] == self._artifact_collection_name
+                and membership.get("project", {}).get("name") == self._project
+                and membership.get("project", {}).get("entity", {}).get("name")
+                == self._entity
+            ):
+                self._artifact_collection_version_index = membership["versionIndex"]
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4237,7 +4274,7 @@ class Artifact(artifacts.Artifact):
 
     @property
     def version(self):
-        return "v%d" % self._version_index
+        return "v%d" % self._artifact_collection_version_index
 
     @property
     def entity(self):
@@ -4305,9 +4342,9 @@ class Artifact(artifacts.Artifact):
 
     @property
     def name(self):
-        if self._version_index is None:
+        if self._artifact_collection_version_index is None:
             return self.digest
-        return f"{self._sequence_name}:v{self._version_index}"
+        return f"{self._artifact_collection_name}:v{self._artifact_collection_version_index}"
 
     @property
     def aliases(self):
@@ -4571,7 +4608,7 @@ class Artifact(artifacts.Artifact):
             log = True
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self._artifact_name, size / (1024 * 1024), nfiles),
+                % (self.name, size / (1024 * 1024), nfiles),
             )
             start_time = datetime.datetime.now()
 
@@ -4966,7 +5003,7 @@ class Artifact(artifacts.Artifact):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self._artifact_name,
+                    "name": self.name,
                 },
             )
 
@@ -5196,7 +5233,7 @@ class ArtifactVersions(Paginator):
                 self.client,
                 self.entity,
                 self.project,
-                self.collection_name + ":" + a["version"],
+                self.collection_name,
                 a["node"],
             )
             for a in self.last_response["project"]["artifactType"][
