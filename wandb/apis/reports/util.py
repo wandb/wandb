@@ -265,7 +265,7 @@ class Panel(Base, SubclassOnlyABC):
     layout: dict = Attr(json_path="spec.layout")
 
     def __init__(
-        self, layout: Dict[str, int] = None, *args: Any, **kwargs: Any
+        self, layout: Optional[Dict[str, int]] = None, *args: Any, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
         self._spec["viewType"] = self.view_type
