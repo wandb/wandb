@@ -381,6 +381,7 @@ class Settings:
     _kaggle: bool
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
+    _log_level: int
     _noop: bool
     _offline: bool
     _os: str
@@ -574,7 +575,7 @@ class Settings:
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
             init_timeout={"value": 60, "preprocessor": lambda x: float(x)},
-            init_policy={"value": "fail", "validator": self._validate_init_policy},
+            init_policy={"value": "async", "validator": self._validate_init_policy},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -741,6 +742,8 @@ class Settings:
         Validate the init policy setting
         """
         choices = {"fail", "async"}
+        # fail: crash if we can't connect to the server after init_timeout seconds
+        # async: continue running, and try connecting to the server asynchronously in the background
         if value not in choices:
             raise ValueError(f"Invalid init policy: {value}. Must be one of: {choices}")
         return True
