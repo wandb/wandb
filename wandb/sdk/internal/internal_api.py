@@ -30,17 +30,16 @@ from typing import (
 
 import click
 import requests
-import yaml
-from wandb_gql import Client, gql  # type: ignore
-from wandb_gql.client import RetryError  # type: ignore
-from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
-
 import wandb
+import yaml
 from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb_gql import Client, gql  # type: ignore
+from wandb_gql.client import RetryError  # type: ignore
+from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
