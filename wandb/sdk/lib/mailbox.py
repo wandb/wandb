@@ -286,6 +286,9 @@ class MailboxHandle:
     def _release(self) -> None:
         self._mailbox._release_slot(self.address)
 
+    def release(self) -> None:
+        self._release()
+
     @property
     def _is_failed(self) -> bool:
         return self._failed

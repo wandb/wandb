@@ -532,6 +532,10 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(run=run)
         return self._deliver_record(record)
 
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        record = self._make_request(run_start=run_start)
+        return self._deliver_record(record)
+
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         record = self._make_request(get_summary=get_summary)
         return self._deliver_record(record)
