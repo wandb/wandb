@@ -110,7 +110,7 @@ class TBWatcher:
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer: Optional[TBEventConsumer] = None
+        self._consumer: "Optional[TBEventConsumer]" = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
