@@ -2637,7 +2637,7 @@ class Sweep(Attrs):
             query = cls.LEGACY_QUERY
             response = client.execute(query, variable_values=variables)
 
-        if not response or not response.get("project", {}).get("sweep"):
+        if not response or not response.get("project") or not response["project"].get("sweep"):
             return None
 
         sweep_response = response["project"]["sweep"]
