@@ -108,7 +108,7 @@ class SockServerReadThread(threading.Thread):
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(  # type: ignore
                 self, shandler_str, None
             )
-            assert shandler, f"unknown handle: {shandler_str}"
+            assert shandler, f"unknown handle: {shandler_str}"  # type: ignore
             shandler(sreq)
 
     def stop(self) -> None:

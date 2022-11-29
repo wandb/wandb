@@ -28,11 +28,11 @@ class WandbServer:
 
     def __init__(
         self,
-        grpc_port: int = None,
-        sock_port: int = None,
-        port_fname: str = None,
-        address: str = None,
-        pid: int = None,
+        grpc_port: Optional[int] = None,
+        sock_port: Optional[int] = None,
+        port_fname: Optional[str] = None,
+        address: Optional[str] = None,
+        pid: Optional[int] = None,
         debug: bool = True,
         serve_grpc: bool = False,
         serve_sock: bool = False,

@@ -42,7 +42,9 @@ class _Service:
         else:
             self._service_interface = ServiceSockInterface()
 
-    def _wait_for_ports(self, fname: str, proc: subprocess.Popen = None) -> bool:
+    def _wait_for_ports(
+        self, fname: str, proc: Optional[subprocess.Popen] = None
+    ) -> bool:
         time_max = time.time() + 30
         while time.time() < time_max:
             if proc and proc.poll():
