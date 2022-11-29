@@ -130,7 +130,6 @@ def test_launch_add_delete_queued_run(
                 "resource": "local-process",
             },
         ),
-        ({"build": {"type": ""}}, {"resource": "local-process"}),
     ],
 )
 def test_launch_build_push_job(
