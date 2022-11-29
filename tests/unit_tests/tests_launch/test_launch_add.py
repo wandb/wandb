@@ -98,19 +98,35 @@ def test_launch_add_delete_queued_run(
         run.finish()
 
 
-@pytest.mark.xfail(reason="Non-determinist, 1-2 can fail but all 4 would suggest regression.")
+@pytest.mark.xfail(
+    reason="Non-determinist, 1-2 can fail but all 4 would suggest regression."
+)
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
     [
         (
             {"build": {"type": "docker"}},
-            {"docker": {"args": ["--container_arg", "9 rams"]}, "resource": "local-process"},
+            {
+                "docker": {"args": ["--container_arg", "9 rams"]},
+                "resource": "local-process",
+            },
         ),
-        ({}, {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}, "resource": "local-process"}),
+        (
+            {},
+            {
+                "cuda": False,
+                "overrides": {"args": ["--runtime", "nvidia"]},
+                "resource": "local-process",
+            },
+        ),
         (
             {"build": {"type": "docker"}},
-            {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}, "resource": "local-process"},
+            {
+                "cuda": False,
+                "overrides": {"args": ["--runtime", "nvidia"]},
+                "resource": "local-process",
+            },
         ),
         ({"build": {"type": ""}}, {"resource": "local-process"}),
     ],
