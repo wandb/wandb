@@ -227,7 +227,7 @@ class TBDirWatcher:
         )
 
     def _loader(
-        self, save: bool = True, namespace: Optional[str] = None
+        self, save: bool = True, namespace: "Optional[str]" = None
     ) -> "EventFileLoader":
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
@@ -419,7 +419,7 @@ class TBEventConsumer:
             self._save_row(item)
 
     def _handle_event(
-        self, event: "ProtoEvent", history: Optional["TBHistory"] = None
+        self, event: "ProtoEvent", history: "Optional[TBHistory]" = None
     ) -> None:
         wandb.tensorboard._log(
             event.event,
