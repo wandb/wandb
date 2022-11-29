@@ -384,7 +384,9 @@ class InterfaceBase:
         return proto_artifact
 
     def _make_artifact_manifest(
-        self, artifact_manifest: ArtifactManifest, obj: Optional[pb.ArtifactManifest] = None
+        self,
+        artifact_manifest: ArtifactManifest,
+        obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
         proto_manifest.version = artifact_manifest.version()  # type: ignore
@@ -564,7 +566,11 @@ class InterfaceBase:
         raise NotImplementedError
 
     def publish_history(
-        self, data: dict, step: Optional[int] = None, run: Optional["Run"] = None, publish_step: bool = True
+        self,
+        data: dict,
+        step: Optional[int] = None,
+        run: Optional["Run"] = None,
+        publish_step: bool = True,
     ) -> None:
         run = run or self._run
         data = history_dict_to_json(run, data, step=step)

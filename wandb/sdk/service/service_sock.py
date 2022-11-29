@@ -3,7 +3,7 @@
 Implement ServiceInterface for socket transport.
 """
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from wandb.proto import wandb_server_pb2 as spb
 

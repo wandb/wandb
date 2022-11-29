@@ -254,7 +254,9 @@ class InterfaceShared(InterfaceBase):
     ) -> Optional[pb.Result]:
         return self._communicate_async(rec, local=local).get(timeout=timeout)
 
-    def _communicate_async(self, rec: pb.Record, local: Optional[bool] = None) -> MessageFuture:
+    def _communicate_async(
+        self, rec: pb.Record, local: Optional[bool] = None
+    ) -> MessageFuture:
         assert self._router
         if self._process_check and self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")

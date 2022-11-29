@@ -180,7 +180,9 @@ def _setup_tracelog() -> None:
         tracelog.enable(tracelog_mode)
 
 
-def configure_logging(log_fname: str, log_level: int, run_id: Optional[str] = None) -> None:
+def configure_logging(
+    log_fname: str, log_level: int, run_id: Optional[str] = None
+) -> None:
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")

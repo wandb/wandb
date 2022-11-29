@@ -584,7 +584,9 @@ class Artifact(ArtifactInterface):
             "Cannot call get on an artifact before it has been logged or in offline mode"
         )
 
-    def download(self, root: Optional[str] = None, recursive: bool = False) -> util.FilePathStr:
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> util.FilePathStr:
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 

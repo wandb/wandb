@@ -100,7 +100,9 @@ def _result_msg_type(result: "pb.Result") -> str:
     return msg_type
 
 
-def _log_message(msg: "MessageType", log_type: str, resource: Optional[str] = None) -> None:
+def _log_message(
+    msg: "MessageType", log_type: str, resource: Optional[str] = None
+) -> None:
     record: Optional["pb.Record"] = None
     result: Optional["pb.Result"] = None
     is_response = False

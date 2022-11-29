@@ -279,7 +279,9 @@ class SockClient:
         tracelog.log_message_recv(rec, self._sockid)
         return rec
 
-    def read_server_response(self, timeout: Optional[int] = None) -> Optional[spb.ServerResponse]:
+    def read_server_response(
+        self, timeout: Optional[int] = None
+    ) -> Optional[spb.ServerResponse]:
         data = self._read_packet_bytes(timeout=timeout)
         if not data:
             return None

@@ -118,7 +118,9 @@ def immutable_keys() -> List[str]:
     ]
 
 
-def _env_as_bool(var: str, default: Optional[str] = None, env: Optional[Env] = None) -> bool:
+def _env_as_bool(
+    var: str, default: Optional[str] = None, env: Optional[Env] = None
+) -> bool:
     if env is None:
         env = os.environ
     val = env.get(var, default)
@@ -172,7 +174,9 @@ def get_args(
         return default or sys.argv[1:]
 
 
-def get_docker(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_docker(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
@@ -198,35 +202,45 @@ def get_ignore(
         return default
 
 
-def get_project(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_project(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(PROJECT, default)
 
 
-def get_username(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_username(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(USERNAME, default)
 
 
-def get_user_email(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_user_email(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(USER_EMAIL, default)
 
 
-def get_entity(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_entity(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(ENTITY, default)
 
 
-def get_base_url(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_base_url(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
@@ -235,7 +249,9 @@ def get_base_url(default: Optional[str] = None, env: Optional[Env] = None) -> Op
     return base_url.rstrip("/") if base_url is not None else base_url
 
 
-def get_app_url(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_app_url(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
@@ -249,7 +265,9 @@ def get_show_run(default: Optional[str] = None, env: Optional[Env] = None) -> bo
     return bool(env.get(SHOW_RUN, default))
 
 
-def get_description(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_description(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
@@ -269,7 +287,9 @@ def get_dir(default: Optional[str] = None, env: Optional[Env] = None) -> Optiona
     return env.get(DIR, default)
 
 
-def get_config_paths(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_config_paths(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
     return env.get(CONFIG_PATHS, default)
@@ -314,7 +334,9 @@ def get_crash_nosync_time(
     return val
 
 
-def get_magic(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_magic(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
     val = env.get(MAGIC, default)

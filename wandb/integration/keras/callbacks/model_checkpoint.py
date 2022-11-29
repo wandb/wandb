@@ -108,7 +108,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self.save_best_only:
             self._check_filepath()
 
-    def on_train_batch_end(self, batch: int, logs: Optional[Dict[str, float]] = None) -> None:
+    def on_train_batch_end(
+        self, batch: int, logs: Optional[Dict[str, float]] = None
+    ) -> None:
         if self._should_save_on_batch(batch):
             # Save the model
             self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)

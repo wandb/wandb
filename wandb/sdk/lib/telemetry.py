@@ -21,7 +21,9 @@ class _TelemetryObject:
     _obj: TelemetryRecord
 
     def __init__(
-        self, run: Optional["wandb_run.Run"] = None, obj: Optional[TelemetryRecord] = None
+        self,
+        run: Optional["wandb_run.Run"] = None,
+        obj: Optional[TelemetryRecord] = None,
     ) -> None:
         self._run = run or wandb.run
         self._obj = obj or TelemetryRecord()

@@ -50,7 +50,9 @@ class InterfaceSock(InterfaceShared):
         self._assign(record)
         self._sock_client.send_record_publish(record)
 
-    def _communicate_async(self, rec: "pb.Record", local: Optional[bool] = None) -> MessageFuture:
+    def _communicate_async(
+        self, rec: "pb.Record", local: Optional[bool] = None
+    ) -> MessageFuture:
         self._assign(rec)
         assert self._router
         if self._process_check and self._process and not self._process.is_alive():

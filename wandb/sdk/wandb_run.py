@@ -1041,7 +1041,10 @@ class Run:
         return self._entity or ""
 
     def _label_internal(
-        self, code: Optional[str] = None, repo: Optional[str] = None, code_version: Optional[str] = None
+        self,
+        code: Optional[str] = None,
+        repo: Optional[str] = None,
+        code_version: Optional[str] = None,
     ) -> None:
         with telemetry.context(run=self) as tel:
             if code and RE_LABEL.match(code):
@@ -1726,7 +1729,9 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def finish(self, exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+    def finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
@@ -1738,7 +1743,9 @@ class Run:
         """
         return self._finish(exit_code, quiet)
 
-    def _finish(self, exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+    def _finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
         if quiet is not None:
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
