@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import io
@@ -13,12 +14,13 @@ import azure.core.exceptions
 # Does ^this import need to be guarded so that people can
 # run the whole test suite without this lib?
 import pytest
-import requests
 import responses
+import httpx
+import respx
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.sdk.lib import retry
-
+from wandb.sdk.internal.progress import Progress
 
 def test_agent_heartbeat_with_no_agent_id_fails():
     a = internal.Api()
@@ -90,16 +92,18 @@ def some_file(tmp_path: Path):
     p.write_text("some text")
     return p
 
+@pytest.fixture
+def mock_httpx():
+    with respx.MockRouter() as router:
+        yield router
 
 class TestUploadFile:
     class TestSimple:
         def test_adds_headers_to_request(
-            self, mock_responses: responses.RequestsMock, some_file: Path
+            self, mock_httpx: respx.MockRouter, some_file: Path
         ):
-            response_callback = Mock(return_value=(200, {}, "success!"))
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
+            response_callback = Mock(return_value=httpx.Response(200))
+            mock_httpx.put("http://example.com/upload-dst").mock(side_effect=response_callback)
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
                 some_file.open("rb"),
@@ -108,11 +112,9 @@ class TestUploadFile:
             assert response_callback.call_args[0][0].headers["X-Test"] == "test"
 
         def test_returns_response_on_success(
-            self, mock_responses: responses.RequestsMock, some_file: Path
+            self, mock_httpx: respx.MockRouter, some_file: Path
         ):
-            mock_responses.add(
-                "PUT", "http://example.com/upload-dst", status=200, body="success!"
-            )
+            mock_httpx.put("http://example.com/upload-dst").respond(200, text="success!")
             resp = internal.InternalApi().upload_file(
                 "http://example.com/upload-dst", some_file.open("rb")
             )
@@ -123,16 +125,14 @@ class TestUploadFile:
         )
         def test_returns_transient_error_on_transient_statuscodes(
             self,
-            mock_responses: responses.RequestsMock,
+            mock_httpx: respx.MockRouter,
             some_file: Path,
             status: int,
             transient: bool,
         ):
-            mock_responses.add(
-                "PUT", "http://example.com/upload-dst", status=status, body="failure!"
-            )
+            mock_httpx.put("http://example.com/upload-dst").respond(status)
             with pytest.raises(
-                retry.TransientError if transient else requests.exceptions.HTTPError
+                retry.TransientError if transient else httpx.HTTPStatusError
             ):
                 internal.InternalApi().upload_file(
                     "http://example.com/upload-dst", some_file.open("rb")
@@ -140,32 +140,30 @@ class TestUploadFile:
 
         @pytest.mark.parametrize(
             "error",
-            [requests.exceptions.ConnectionError(), requests.exceptions.Timeout()],
+            [httpx.TimeoutException("my-err"), httpx.NetworkError("my-err"), httpx.ProxyError("my-err")],
         )
         def test_returns_transient_error_on_network_errors(
             self,
-            mock_responses: responses.RequestsMock,
+            mock_httpx: respx.MockRouter,
             some_file: Path,
             error: Exception,
         ):
-            mock_responses.add("PUT", "http://example.com/upload-dst", body=error)
+            mock_httpx.put("http://example.com/upload-dst").mock(side_effect=error)
             with pytest.raises(retry.TransientError):
                 internal.InternalApi().upload_file(
                     "http://example.com/upload-dst", some_file.open("rb")
                 )
 
     class TestProgressCallback:
-        def test_smoke(self, mock_responses: responses.RequestsMock, some_file: Path):
+        def test_smoke(self, mock_httpx: respx.MockRouter, some_file: Path):
             file_contents = "some text"
             some_file.write_text(file_contents)
 
-            def response_callback(request: requests.models.PreparedRequest):
-                assert request.body.read() == file_contents.encode()
-                return (200, {}, "success!")
+            def response_callback(request: httpx.Request):
+                assert request.content == file_contents.encode()
+                return httpx.Response(200)
 
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
+            mock_httpx.put("http://example.com/upload-dst").mock(side_effect=response_callback)
 
             progress_callback = Mock()
             internal.InternalApi().upload_file(
@@ -174,25 +172,31 @@ class TestUploadFile:
                 callback=progress_callback,
             )
 
+            # TODO(spencerpearson): why did I need to change this?
             assert progress_callback.call_args_list == [
-                call(len(file_contents), len(file_contents))
+                call(len(file_contents), len(file_contents)),
+                call(0, len(file_contents)),
             ]
 
+        @pytest.mark.parametrize('file_size,n_expected_reads', [
+            # Does it look like these n_expected_reads values are all too big by 1?
+            # That's because the Progress doesn't stop iterating until it reads 0 bytes;
+            # so there's an extra 0-byte read at the end.
+            (0, 1),
+            (1, 2),
+            # TODO(spencerpearson): we really shouldn't rely on this hidden constant;
+            # but the chunk size _is_ out of our control. A conundrum.
+            (httpx._content.AsyncIteratorByteStream.CHUNK_SIZE // 2, 2),
+            (httpx._content.AsyncIteratorByteStream.CHUNK_SIZE, 2),
+            (int(httpx._content.AsyncIteratorByteStream.CHUNK_SIZE * 1.5), 3),
+            (int(httpx._content.AsyncIteratorByteStream.CHUNK_SIZE * 2.5), 4),
+        ])
         def test_handles_multiple_calls(
-            self, mock_responses: responses.RequestsMock, some_file: Path
+            self, mock_httpx: respx.MockRouter, some_file: Path, file_size: int, n_expected_reads: int,
         ):
-            some_file.write_text("12345")
+            some_file.write_text(file_size * "x")
 
-            def response_callback(request: requests.models.PreparedRequest):
-                assert request.body.read(2) == b"12"
-                assert request.body.read(2) == b"34"
-                assert request.body.read() == b"5"
-                assert request.body.read() == b""
-                return (200, {}, "success!")
-
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
+            mock_httpx.put("http://example.com/upload-dst").respond(200)
 
             progress_callback = Mock()
             internal.InternalApi().upload_file(
@@ -201,34 +205,28 @@ class TestUploadFile:
                 callback=progress_callback,
             )
 
-            assert progress_callback.call_args_list == [
-                call(2, 2),
-                call(2, 4),
-                call(1, 5),
-                call(0, 5),
-            ]
+            assert progress_callback.call_count == n_expected_reads, progress_callback.call_args_list
+
+            calls = [c[0] for c in progress_callback.call_args_list]
+            for (_, prev_tot), (cur_new, cur_tot) in zip(calls, calls[1:]):
+                assert cur_tot == prev_tot + cur_new, calls
+
+            assert calls[-1][1] == file_size
 
         @pytest.mark.parametrize(
             "failure",
             [
-                requests.exceptions.Timeout(),
-                requests.exceptions.ConnectionError(),
-                (500, {}, ""),
+                httpx.TimeoutException("my-err"),
+                httpx.NetworkError("my-err"),
+                lambda _: httpx.Response(500),
             ],
         )
         def test_rewinds_on_failure(
-            self, mock_responses: responses.RequestsMock, some_file: Path, failure
+            self, mock_httpx: respx.MockRouter, some_file: Path, failure
         ):
             some_file.write_text("1234567")
 
-            def response_callback(request: requests.models.PreparedRequest):
-                assert request.body.read(2) == b"12"
-                assert request.body.read(2) == b"34"
-                return failure
-
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
+            mock_httpx.put("http://example.com/upload-dst").mock(side_effect=failure)
 
             progress_callback = Mock()
             with pytest.raises(Exception):
@@ -239,9 +237,9 @@ class TestUploadFile:
                 )
 
             assert progress_callback.call_args_list == [
-                call(2, 2),
-                call(2, 4),
-                call(-4, 0),
+                call(7, 7),
+                call(0, 7),
+                call(-7, 0),
             ]
 
     @pytest.mark.parametrize(
@@ -249,44 +247,42 @@ class TestUploadFile:
         [
             (
                 {"x-amz-meta-md5": "1234"},
-                (400, {}, "blah blah RequestTimeout blah blah"),
+                lambda _: httpx.Response(400, text="blah blah RequestTimeout blah blah"),
                 True,
             ),
             (
                 {"x-amz-meta-md5": "1234"},
-                (400, {}, "non-timeout-related error message"),
+                lambda _: httpx.Response(400, text="non-timeout-related error message"),
                 False,
             ),
             (
                 {"x-amz-meta-md5": "1234"},
-                (401, {}, "blah blah RequestTimeout blah blah"),
+                lambda _: httpx.Response(401, text="blah blah RequestTimeout blah blah"),
                 False,
             ),
             (
                 {"x-amz-meta-md5": "1234"},
-                requests.exceptions.ConnectionError(),
+                httpx.NetworkError("my-err"),
                 True,
             ),
             (
                 {},
-                (400, {}, "blah blah RequestTimeout blah blah"),
+                lambda _: httpx.Response(400, text="blah blah RequestTimeout blah blah"),
                 False,
             ),
         ],
     )
     def test_transient_failure_on_special_aws_request_timeout(
         self,
-        mock_responses: responses.RequestsMock,
+        mock_httpx: respx.MockRouter,
         some_file: Path,
         request_headers: Mapping[str, str],
         response,
         transient: bool,
     ):
-        mock_responses.add_callback(
-            "PUT", "http://example.com/upload-dst", lambda _: response
-        )
+        mock_httpx.put("http://example.com/upload-dst").mock(side_effect=response)
         with pytest.raises(
-            retry.TransientError if transient else requests.exceptions.HTTPError
+            retry.TransientError if transient else httpx.HTTPStatusError
         ):
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
@@ -306,7 +302,7 @@ class TestUploadFile:
         )
         def test_uses_azure_lib_if_available(
             self,
-            mock_responses: responses.RequestsMock,
+            mock_httpx: respx.MockRouter,
             some_file: Path,
             request_headers: Mapping[str, str],
             uses_azure_lib: bool,
@@ -316,7 +312,7 @@ class TestUploadFile:
             if uses_azure_lib:
                 api._azure_blob_module = Mock()
             else:
-                mock_responses.add("PUT", "http://example.com/upload-dst")
+                mock_httpx.put("http://example.com/upload-dst")
 
             api.upload_file(
                 "http://example.com/upload-dst",
@@ -327,10 +323,10 @@ class TestUploadFile:
             if uses_azure_lib:
                 api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
             else:
-                assert len(mock_responses.calls) == 1
+                assert len(mock_httpx.calls) == 1
 
         @pytest.mark.parametrize(
-            "azure_err,check_normal_err",
+            "azure_err,is_transient",
             [
                 (
                     azure.core.exceptions.HttpResponseError(
@@ -340,14 +336,21 @@ class TestUploadFile:
                             internal_response=io.BytesIO(b"err details"),
                         )
                     ),
-                    lambda errinfo: isinstance(
-                        errinfo.value, requests.exceptions.RequestException
-                    )
-                    and errinfo.value.response.status_code == 400,
+                    False,
+                ),
+                (
+                    azure.core.exceptions.HttpResponseError(
+                        response=Mock(
+                            status_code=500,
+                            headers={},
+                            internal_response=io.BytesIO(b"err details"),
+                        )
+                    ),
+                    True,
                 ),
                 (
                     azure.core.exceptions.AzureError("something wild"),
-                    lambda errinfo: isinstance(errinfo.value, retry.TransientError),
+                    True,
                 ),
             ],
         )
@@ -355,21 +358,17 @@ class TestUploadFile:
             self,
             some_file: Path,
             azure_err: azure.core.exceptions.AzureError,
-            check_normal_err: Callable[["pytest.ExceptionInfo"], bool],
+            is_transient: bool,
         ):
+            # TODO(spencerpearson): why was this test passing before?
             api = internal.InternalApi()
             api._azure_blob_module = Mock()
-            api._azure_blob_module.BlobClient.from_blob_url().upload_blob.side_effect = (
-                azure_err
-            )
+            api._azure_blob_module.BlobClient.from_blob_url().upload_blob.side_effect = azure_err
 
-            with pytest.raises(
-                (requests.exceptions.RequestException, retry.TransientError)
-            ) as e:
+            with pytest.raises(retry.TransientError if is_transient else httpx.HTTPError):
                 api.upload_file(
                     "http://example.com/upload-dst",
                     some_file.open("rb"),
                     extra_headers=self.MAGIC_HEADERS,
                 )
 
-            assert check_normal_err(e), e
