@@ -721,7 +721,7 @@ class Run:
             self._torch_history = wandb.wandb_torch.TorchHistory()
         return self._torch_history
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
@@ -729,24 +729,24 @@ class Run:
         cp.freeze()
         return cp
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
@@ -768,7 +768,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
@@ -788,7 +788,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
@@ -807,7 +807,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def id(self) -> str:
         """Returns the identifier for this run."""
@@ -815,7 +815,7 @@ class Run:
             assert self._run_id is not None
         return self._run_id
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
@@ -829,7 +829,7 @@ class Run:
         ]
         return "/".join(parts)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def path(self) -> str:
         """Returns the path to the run.
@@ -846,7 +846,7 @@ class Run:
             else (self._run_obj.start_time.ToMicroseconds() / 1e6)
         )
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
@@ -855,19 +855,19 @@ class Run:
     def _get_starting_step(self) -> int:
         return self._starting_step if not self._run_obj else self._run_obj.starting_step
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
         return self._get_starting_step()
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
         return self._run_obj.resumed if self._run_obj else False
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def step(self) -> int:
         """Returns the current value of the step.
@@ -880,7 +880,7 @@ class Run:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.project if run_obj else ""
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
@@ -893,12 +893,12 @@ class Run:
         )
         return "dryrun" if self._settings._offline else "run"
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def offline(self) -> bool:
         return self._settings._offline
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def disabled(self) -> bool:
         return self._settings._noop
@@ -907,7 +907,7 @@ class Run:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.run_group if run_obj else ""
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
@@ -921,13 +921,13 @@ class Run:
         """
         return self._get_group()
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
@@ -937,7 +937,7 @@ class Run:
     def log_code(
         self,
         root: str = ".",
-        name: str = None,
+        name: Optional[str] = None,
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
@@ -1025,13 +1025,13 @@ class Run:
             return None
         return self._settings.sweep_url
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def url(self) -> Optional[str]:
         """Returns the W&B url associated with the run."""
         return self.get_url()
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
@@ -1041,7 +1041,10 @@ class Run:
         return self._entity or ""
 
     def _label_internal(
-        self, code: str = None, repo: str = None, code_version: str = None
+        self,
+        code: Optional[str] = None,
+        repo: Optional[str] = None,
+        code_version: Optional[str] = None,
     ) -> None:
         with telemetry.context(run=self) as tel:
             if code and RE_LABEL.match(code):
@@ -1053,9 +1056,9 @@ class Run:
 
     def _label(
         self,
-        code: str = None,
-        repo: str = None,
-        code_version: str = None,
+        code: Optional[str] = None,
+        repo: Optional[str] = None,
+        code_version: Optional[str] = None,
         **kwargs: str,
     ) -> None:
         if self._settings.label_disable:
@@ -1147,15 +1150,15 @@ class Run:
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
     def _repr_mimebundle_(
-        self, include: Any = None, exclude: Any = None
+        self, include: Optional[Any] = None, exclude: Optional[Any] = None
     ) -> Dict[str, str]:
         return {"text/html": self.to_html(hidden=True)}
 
     def _config_callback(
         self,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
-        data: Dict[str, object] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
+        data: Optional[Dict[str, object]] = None,
     ) -> None:
         logger.info(f"config_cb {key} {val} {data}")
         if self._backend and self._backend.interface:
@@ -1726,7 +1729,9 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
+    def finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
@@ -1738,7 +1743,9 @@ class Run:
         """
         return self._finish(exit_code, quiet)
 
-    def _finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
+    def _finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
         if quiet is not None:
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
@@ -1766,7 +1773,7 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def join(self, exit_code: int = None) -> None:
+    def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
             field_name=deprecate.Deprecated.run__join,
@@ -1824,7 +1831,7 @@ class Run:
         self,
         stdout_slave_fd: Optional[int],
         stderr_slave_fd: Optional[int],
-        console: SettingsConsole = None,
+        console: Optional[SettingsConsole] = None,
     ) -> None:
         if console is None:
             console = self._settings._console
@@ -1936,7 +1943,7 @@ class Run:
             self._err_redir.uninstall()
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code: int = None) -> None:
+    def _atexit_cleanup(self, exit_code: Optional[int] = None) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return
@@ -2133,7 +2140,7 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         """Create a job version artifact from a repo."""
         has_repo = self._remote_url is not None and self._commit is not None
         program_relpath = self._settings.program_relpath
@@ -2175,7 +2182,7 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         if (
             self._code_artifact_info is None
             or self._run_obj is None
@@ -2211,7 +2218,7 @@ class Run:
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
         docker_image_name: Optional[str] = None,
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
         if not docker_image_name:
@@ -2346,11 +2353,11 @@ class Run:
         self,
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
-        step_sync: bool = None,
-        hidden: bool = None,
-        summary: str = None,
-        goal: str = None,
-        overwrite: bool = None,
+        step_sync: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+        summary: Optional[str] = None,
+        goal: Optional[str] = None,
+        overwrite: Optional[bool] = None,
         **kwargs: Any,
     ) -> wandb_metric.Metric:
         """Define metric properties which will later be logged with `wandb.log()`.
@@ -2380,11 +2387,11 @@ class Run:
         self,
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
-        step_sync: bool = None,
-        hidden: bool = None,
-        summary: str = None,
-        goal: str = None,
-        overwrite: bool = None,
+        step_sync: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+        summary: Optional[str] = None,
+        goal: Optional[str] = None,
+        overwrite: Optional[bool] = None,
         **kwargs: Any,
     ) -> wandb_metric.Metric:
         if not name:
@@ -2933,7 +2940,7 @@ class Run:
         self,
         title: str,
         text: str,
-        level: Union[str, "AlertLevel"] = None,
+        level: Optional[Union[str, "AlertLevel"]] = None,
         wait_duration: Union[int, float, timedelta, None] = None,
     ) -> None:
         """Launch an alert with the given title and text.
@@ -3631,7 +3638,7 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int = None, quiet: bool = None) -> None:
+def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
     """Marks a run as finished, and finishes uploading all data.
 
     This is used when creating multiple runs in the same process.

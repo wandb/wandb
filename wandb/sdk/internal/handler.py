@@ -127,7 +127,7 @@ class HandleManager:
         assert record_type
         handler_str = "handle_" + record_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
-        assert handler, f"unknown handle: {handler_str}"
+        assert handler, f"unknown handle: {handler_str}"  # type: ignore
         handler(record)
 
     def handle_request(self, record: Record) -> None:
@@ -137,7 +137,7 @@ class HandleManager:
         handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         if request_type != "network_status":
             logger.debug(f"handle_request: {request_type}")
-        assert handler, f"unknown handle: {handler_str}"
+        assert handler, f"unknown handle: {handler_str}"  # type: ignore
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:

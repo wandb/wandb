@@ -32,7 +32,7 @@ class MessageFutureObject(MessageFuture):
     def __init__(self) -> None:
         super().__init__()
 
-    def get(self, timeout: int = None) -> Optional["pb.Result"]:
+    def get(self, timeout: Optional[int] = None) -> Optional["pb.Result"]:
         is_set = self._object_ready.wait(timeout)
         if is_set and self._object:
             return self._object
@@ -57,7 +57,7 @@ class MessageRouter:
         self._thread.start()
 
     @abstractmethod
-    def _read_message(self) -> "Optional[pb.Result]":
+    def _read_message(self) -> Optional["pb.Result"]:
         raise NotImplementedError
 
     @abstractmethod
