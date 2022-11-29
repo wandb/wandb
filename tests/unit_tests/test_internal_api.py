@@ -184,12 +184,10 @@ class TestUploadFile:
             # so there's an extra 0-byte read at the end.
             (0, 1),
             (1, 2),
-            # TODO(spencerpearson): we really shouldn't rely on this hidden constant;
-            # but the chunk size _is_ out of our control. A conundrum.
-            (httpx._content.AsyncIteratorByteStream.CHUNK_SIZE // 2, 2),
-            (httpx._content.AsyncIteratorByteStream.CHUNK_SIZE, 2),
-            (int(httpx._content.AsyncIteratorByteStream.CHUNK_SIZE * 1.5), 3),
-            (int(httpx._content.AsyncIteratorByteStream.CHUNK_SIZE * 2.5), 4),
+            (Progress.ITER_BYTES // 2, 2),
+            (Progress.ITER_BYTES, 2),
+            (int(Progress.ITER_BYTES * 1.5), 3),
+            (int(Progress.ITER_BYTES * 2.5), 4),
         ])
         def test_handles_multiple_calls(
             self, mock_httpx: respx.MockRouter, some_file: Path, file_size: int, n_expected_reads: int,
@@ -311,6 +309,9 @@ class TestUploadFile:
 
             if uses_azure_lib:
                 api._azure_blob_module = Mock()
+                async def noop(*args, **kwargs):
+                    pass
+                api._azure_blob_module.aio.BlobClient.from_blob_url().upload_blob.return_value = noop()
             else:
                 mock_httpx.put("http://example.com/upload-dst")
 
@@ -321,7 +322,7 @@ class TestUploadFile:
             )
 
             if uses_azure_lib:
-                api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
+                api._azure_blob_module.aio.BlobClient.from_blob_url().upload_blob.assert_called_once()
             else:
                 assert len(mock_httpx.calls) == 1
 
@@ -363,7 +364,9 @@ class TestUploadFile:
             # TODO(spencerpearson): why was this test passing before?
             api = internal.InternalApi()
             api._azure_blob_module = Mock()
-            api._azure_blob_module.BlobClient.from_blob_url().upload_blob.side_effect = azure_err
+            async def raise_err():
+                raise azure_err
+            api._azure_blob_module.aio.BlobClient.from_blob_url().upload_blob.return_value = raise_err()
 
             with pytest.raises(retry.TransientError if is_transient else httpx.HTTPError):
                 api.upload_file(

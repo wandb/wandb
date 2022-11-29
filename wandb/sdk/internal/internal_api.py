@@ -46,7 +46,7 @@ from wandb.old.settings import Settings
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
-from .progress import Progress
+from .progress import Progress, AsyncProgress
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ if TYPE_CHECKING:
         from typing_extensions import Literal, Protocol, TypedDict
 
     import azure.storage.blob  # type: ignore
+    import azure.storage.blob.aio  # type: ignore
     from azure.core.exceptions import AzureError  # type: ignore
 
     from .progress import ProgressFn
@@ -1856,7 +1857,7 @@ class Api:
 
         return path, response
 
-    def upload_file_azure(
+    async def upload_file_azure_async(
         self, url: str, file: Any, extra_headers: Dict[str, str]
     ) -> None:
         """
@@ -1865,7 +1866,7 @@ class Api:
         from azure.core.exceptions import AzureError  # type: ignore
 
         # Configure the client without retries so our existing logic can handle them
-        client = self._azure_blob_module.BlobClient.from_blob_url(
+        client = self._azure_blob_module.aio.BlobClient.from_blob_url(
             url, retry_policy=self._azure_blob_module.LinearRetry(retry_total=0)
         )
         try:
@@ -1877,7 +1878,7 @@ class Api:
                 content_md5=md5,
                 content_type=extra_headers.get("Content-Type"),
             )
-            client.upload_blob(
+            await client.upload_blob(
                 file,
                 max_concurrency=4,
                 length=len(file),
@@ -1897,7 +1898,12 @@ class Api:
             else:
                 raise httpx.NetworkError(e.message, request=request)
 
-    def upload_file(
+    def upload_file_azure(
+        self, url: str, file: Any, extra_headers: Dict[str, str]
+    ) -> None:
+        return asyncio.run(self.upload_file_azure_async(url, file, extra_headers))
+
+    async def upload_file_async(
         self,
         url: str,
         file: IO[bytes],
@@ -1917,18 +1923,19 @@ class Api:
             The `requests` library response object
         """
         extra_headers = extra_headers.copy() if extra_headers else {}
-        progress = Progress(file, callback=callback)
+        progress = AsyncProgress(Progress(file, callback=callback))
         try:
             if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
-                self.upload_file_azure(url, progress, extra_headers)
+                await self.upload_file_azure_async(url, progress, extra_headers)
             else:
                 if "x-ms-blob-type" in extra_headers:
                     wandb.termwarn(
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = httpx.put(url, content=progress, headers=extra_headers)
-                response.raise_for_status()
+                async with httpx.AsyncClient() as client:
+                    response = await client.put(url, content=progress, headers=extra_headers)
+                    response.raise_for_status()
                 return response
         except httpx.HTTPError as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -1958,6 +1965,15 @@ class Api:
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
+
+    def upload_file(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> Optional[httpx.Response]:
+        return asyncio.run(self.upload_file_async(url, file, callback, extra_headers))
 
     @normalize_exceptions
     def register_agent(
