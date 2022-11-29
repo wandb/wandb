@@ -7,7 +7,6 @@ import os
 import re
 import socket
 import sys
-from abc import ABC
 from copy import deepcopy
 from typing import (
     IO,
@@ -50,27 +49,27 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
-        from typing import Literal, Protocol, TypedDict
+        from typing import Literal, TypedDict
     else:
-        from typing_extensions import Literal, Protocol, TypedDict
+        from typing_extensions import Literal, TypedDict
 
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
 
-        artifactID: str
+        artifactID: str  # noqa: N815
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]
+        artifactManifestID: Optional[str]  # noqa: N815
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
-        displayName: str
-        uploadUrl: Optional[str]
-        uploadHeaders: Sequence[str]
+        displayName: str  # noqa: N815
+        uploadUrl: Optional[str]  # noqa: N815
+        uploadHeaders: Sequence[str]  # noqa: N815
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
@@ -126,7 +125,7 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),
+        retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),  # noqa: B008 # okay because it's immutable
         environ: MutableMapping = os.environ,
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
@@ -1838,9 +1837,9 @@ class Api:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file
             already existed and was up-to-date.
         """
-        fileName = metadata["name"]
-        path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
-        if self.file_current(fileName, util.B64MD5(metadata["md5"])):
+        filename = metadata["name"]
+        path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
+        if self.file_current(filename, util.B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -2165,7 +2164,7 @@ class Api:
             }
         }
         """
-        # FIXME(jhr): we need protocol versioning to know schema is not supported
+        # TODO(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
 
         # launchScheduler was introduced in core v0.14.0
@@ -2279,8 +2278,8 @@ class Api:
         project, run = self.parse_slug(project, run=run)
         urls = self.download_urls(project, run, entity)
         responses = []
-        for fileName in urls:
-            _, response = self.download_write_file(urls[fileName])
+        for filename in urls:
+            _, response = self.download_write_file(urls[filename])
             if response:
                 responses.append(response)
 
