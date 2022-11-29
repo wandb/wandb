@@ -78,7 +78,13 @@ class RGBA(Base):
     a: Union[int, float] = Attr(validators=[Between(0, 1)])
 
     def __init__(
-        self, r: int, g: int, b: int, a: Union[int, float] = None, *args, **kwargs
+        self,
+        r: int,
+        g: int,
+        b: int,
+        a: Optional[Union[int, float]] = None,
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.r = r

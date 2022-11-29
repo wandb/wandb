@@ -57,12 +57,12 @@ class Molecule(BatchableMedia):
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
-            data_or_path = data_or_path.name  # type: ignore
+            data_or_path = data_or_path.name
 
         if hasattr(data_or_path, "read"):
             if hasattr(data_or_path, "seek"):
-                data_or_path.seek(0)  # type: ignore
-            molecule = data_or_path.read()  # type: ignore
+                data_or_path.seek(0)
+            molecule = data_or_path.read()
 
             extension = kwargs.pop("file_type", None)
             if extension is None:

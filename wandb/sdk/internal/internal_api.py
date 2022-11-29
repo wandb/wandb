@@ -87,8 +87,7 @@ if TYPE_CHECKING:
         entity: Optional[str]
         project: Optional[str]
 
-    _Response = TypeVar("_Response", bound=MutableMapping)
-    _ArtifactVersion = TypeVar("_ArtifactVersion", bound=MutableMapping)
+    _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
@@ -2606,7 +2605,7 @@ class Api:
         description: Optional[str] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
-        aliases: List[Dict[str, str]] = None,
+        aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,
@@ -2770,7 +2769,7 @@ class Api:
         """
         )
 
-        response: "_Response" = self.gql(  # type: ignore
+        response: "_Response" = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
             timeout=60,

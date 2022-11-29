@@ -2,8 +2,8 @@ import base64
 import hashlib
 import io
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Callable, Mapping, Optional
 from unittest.mock import Mock, call
 
