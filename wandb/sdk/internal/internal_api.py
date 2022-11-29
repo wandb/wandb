@@ -1,6 +1,7 @@
 import ast
 import base64
 import datetime
+import io
 import json
 import logging
 import os
@@ -96,6 +97,45 @@ if TYPE_CHECKING:
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
+
+
+def _guess_response_content(response: Any) -> bytes:
+    """EXTREMELY unprincipled function to try to fish out the response of an HTTP request.
+
+    When the `azure` library raises an exception, it doesn't make any clear promises about
+    how to get at the HTTP response content, so we're reduced to flailing around looking for
+    promisingly-named fields.
+    """
+    try:
+
+        result: Any = (
+            response.content
+            if isinstance(response, requests.Response)
+            else _guess_response_content(response.response)
+            if hasattr(response, "response")
+            else _guess_response_content(response.internal_response)
+            if hasattr(response, "internal_response")
+            else response.content
+            if hasattr(response, "content")
+            else response.text
+            if hasattr(response, "text")
+            else response.read()
+            if hasattr(response, "read")
+            else "<unknown>"
+        )
+
+        if isinstance(result, str):
+            return result.encode("utf-8")
+        elif result is None:
+            return b"<None>"
+        elif isinstance(result, bytes):
+            return result
+        else:
+            return str(result).encode("utf-8")
+
+    except Exception:
+
+        return b"<unknown>"
 
 
 class Api:
@@ -1884,7 +1924,7 @@ class Api:
                 response = requests.models.Response()
                 response.status_code = e.response.status_code
                 response.headers = e.response.headers
-                response.raw = e.response.internal_response
+                response.raw = io.BytesIO(_guess_response_content(e.response.internal_response))
                 raise requests.exceptions.RequestException(e.message, response=response)
             else:
                 raise requests.exceptions.ConnectionError(e.message)

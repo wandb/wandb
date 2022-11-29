@@ -8,6 +8,7 @@ from typing import Callable, Mapping, Optional
 from unittest.mock import Mock, call
 
 import azure.core.exceptions
+import azure.core.pipeline.transport._requests_basic
 
 # TODO(spencerpearson): DO NOT MERGE
 # Does ^this import need to be guarded so that people can
@@ -18,6 +19,7 @@ import responses
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.sdk.lib import retry
+from wandb.sdk.internal.internal_api import _guess_response_content
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
@@ -373,3 +375,45 @@ class TestUploadFile:
                 )
 
             assert check_normal_err(e), e
+
+
+class TestGuessResponseContent:
+    def test_requests(self):
+        resp = requests.Response()
+        assert _guess_response_content(resp) == b"<None>"
+
+        resp = requests.Response()
+        resp.raw = io.BytesIO(b"foo")
+        assert _guess_response_content(resp) == b"foo"
+
+        resp = requests.Response()
+        resp.raw = object()  # should raise when trying to read
+        assert _guess_response_content(resp) == b"<unknown>"
+
+    def test_azure(self):
+        resp = azure.core.pipeline.transport.HttpResponse(
+            request=Mock(),
+            internal_response=io.BytesIO(b"foo"),
+        )
+        assert _guess_response_content(resp) == b"foo"
+
+        internal_response = requests.Response()
+        internal_response.raw = io.BytesIO(b"foo")
+        resp = azure.core.exceptions.HttpResponseError(
+            response=azure.core.pipeline.transport._requests_basic.HttpResponse(
+                request=Mock(),
+                internal_response=internal_response,
+            )
+        )
+        assert _guess_response_content(resp) == b"foo"
+
+    def test_misc(self):
+        assert _guess_response_content(None) == b"<unknown>"
+        assert _guess_response_content(object()) == b"<unknown>"
+        assert _guess_response_content(Exception()) == b"<unknown>"
+        assert _guess_response_content([]) == b"<unknown>"
+        assert _guess_response_content(Mock()) == b"<unknown>"
+        assert (
+            _guess_response_content(Mock(read=Mock(side_effect=Exception())))
+            == b"<unknown>"
+        )
