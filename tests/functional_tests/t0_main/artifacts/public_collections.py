@@ -1,5 +1,6 @@
 import wandb
 
+
 def main():
     run = wandb.init(entity="mock_server_entity", project="test")
     art = wandb.Artifact("test_artifact", type="model")
