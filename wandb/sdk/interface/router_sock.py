@@ -22,7 +22,7 @@ class MessageSockRouter(MessageRouter):
         self._sock_client = sock_client
         super().__init__(mailbox=mailbox)
 
-    def _read_message(self) -> "Optional[pb.Result]":
+    def _read_message(self) -> Optional["pb.Result"]:
         try:
             resp = self._sock_client.read_server_response(timeout=1)
         except SockClientClosedError:
