@@ -57,7 +57,7 @@ class MessageRouter:
         self._thread.start()
 
     @abstractmethod
-    def _read_message(self) -> "Optional[pb.Result]":
+    def _read_message(self) -> Optional["pb.Result"]:
         raise NotImplementedError
 
     @abstractmethod

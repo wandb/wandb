@@ -2140,7 +2140,7 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         """Create a job version artifact from a repo."""
         has_repo = self._remote_url is not None and self._commit is not None
         program_relpath = self._settings.program_relpath
@@ -2182,7 +2182,7 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         if (
             self._code_artifact_info is None
             or self._run_obj is None
@@ -2218,7 +2218,7 @@ class Run:
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
         docker_image_name: Optional[str] = None,
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
         if not docker_image_name:
