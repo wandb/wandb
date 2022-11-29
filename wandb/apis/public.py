@@ -4252,9 +4252,9 @@ class Artifact(artifacts.Artifact):
         # version index
         for membership in self._memberships:
             if (
-                membership["artifactCollectionName"] == self._artifact_collection_name
-                and membership.get("project", {}).get("name") == self._project
-                and membership.get("project", {}).get("entity", {}).get("name")
+                membership.get("artifactCollection", {}).get("name") == self._artifact_collection_name
+                and membership.get("artifactCollection", {}).get("project", {}).get("name") == self._project
+                and membership.get("artifactCollection", {}).get("project", {}).get("entity", {}).get("name")
                 == self._entity
             ):
                 self._artifact_collection_version_index = membership["versionIndex"]
