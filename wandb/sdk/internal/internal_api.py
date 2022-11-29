@@ -125,7 +125,9 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),  # noqa: B008 # okay because it's immutable
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+            days=7
+        ),
         environ: MutableMapping = os.environ,
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
