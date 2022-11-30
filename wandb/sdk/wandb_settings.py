@@ -575,7 +575,7 @@ class Settings:
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
             init_timeout={"value": 60, "preprocessor": lambda x: float(x)},
-            init_policy={"value": "async", "validator": self._validate_init_policy},
+            init_policy={"value": "fail", "validator": self._validate_init_policy},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"

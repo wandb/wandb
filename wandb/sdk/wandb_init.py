@@ -585,7 +585,7 @@ class _WandbInit:
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
-
+        assert self.settings is not None
         run = Run(
             config=self.config,
             settings=self.settings,
@@ -711,7 +711,7 @@ class _WandbInit:
                 release=False,
             )
 
-            if result:
+            if result is not None:
                 run_result = result.run_result
 
             if not run_result and policy == "fail":
@@ -743,7 +743,7 @@ class _WandbInit:
                     self.teardown()
                 raise UsageError(error_message)
 
-            if run_result:
+            if run_result is not None:
                 assert run_result.run
 
                 if run_result.run.resumed:
@@ -751,17 +751,16 @@ class _WandbInit:
                     with telemetry.context(run=run) as tel:
                         tel.feature.resumed = run_result.run.resumed
 
-            run._set_run_obj(
-                run_result.run if run_result else run_proto
-            )  # todo: add method on run that converts it to proto message - temp hack
+                run_proto = run_result.run
+                run_init_handle = None
+
+            run._set_run_obj(run_proto)
             run._on_init()
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
 
-        # self.settings._apply_run_start(message_to_dict(run_obj))
-        # run._update_settings(self.settings)
         if manager:
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
@@ -792,7 +791,7 @@ class _WandbInit:
 
         self.backend = backend
         self._reporter.set_context(run=run)
-        run._on_start(run_init_handle if run_result is None else None)
+        run._on_start(run_init_handle)
         logger.info("run started, returning control to user process")
         return run
 

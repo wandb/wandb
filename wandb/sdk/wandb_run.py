@@ -216,9 +216,7 @@ class RunStatusChecker:
         the run state with the received information and communicate it to the user.
         """
         logger.info("checking run info status")
-        assert run._backend
         assert self._run_init_handle
-        run._backend._hack_set_run(run)  # todo: do we need this?
         result = self._run_init_handle.wait(
             timeout=-1,  # Wait forever
             release=False,
