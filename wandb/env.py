@@ -16,7 +16,7 @@ import sys
 from distutils.util import strtobool
 from typing import List, MutableMapping, Optional, Union
 
-import appdirs  # type: ignore
+import appdirs
 
 Env = Optional[MutableMapping]
 
