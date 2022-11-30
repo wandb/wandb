@@ -3594,7 +3594,7 @@ class ProjectArtifactCollections(Paginator):
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequences(after: $cursor) {
+                    artifactCollections(after: $cursor) {
                         pageInfo {
                             endCursor
                             hasNextPage
@@ -3639,7 +3639,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "totalCount"
             ]
         else:
@@ -3648,7 +3648,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "pageInfo"
             ]["hasNextPage"]
         else:
@@ -3657,7 +3657,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "edges"
             ][-1]["cursor"]
         else:
@@ -3676,9 +3676,9 @@ class ProjectArtifactCollections(Paginator):
                 self.type_name,
                 r["node"],
             )
-            for r in self.last_response["project"]["artifactType"]["artifactSequences"][
-                "edges"
-            ]
+            for r in self.last_response["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
         ]
 
 
@@ -3923,7 +3923,7 @@ class ArtifactCollection:
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequence(name: $artifactCollectionName) {
+                    artifactCollection(name: $artifactCollectionName) {
                         id
                         name
                         description
@@ -3947,10 +3947,10 @@ class ArtifactCollection:
             response is None
             or response.get("project") is None
             or response["project"].get("artifactType") is None
-            or response["project"]["artifactType"].get("artifactSequence") is None
+            or response["project"]["artifactType"].get("artifactCollection") is None
         ):
             raise ValueError("Could not find artifact type %s" % self.type)
-        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
     def __repr__(self):
@@ -5109,7 +5109,7 @@ class ArtifactVersions(Paginator):
         query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
             project(name: $project, entityName: $entity) {
                 artifactType(name: $type) {
-                    artifactSequence(name: $collection) {
+                    artifactCollection(name: $collection) {
                         name
                         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
                             totalCount
@@ -5164,7 +5164,7 @@ class ArtifactVersions(Paginator):
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["totalCount"]
         else:
@@ -5173,7 +5173,7 @@ class ArtifactVersions(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["pageInfo"]["hasNextPage"]
         else:
@@ -5182,14 +5182,14 @@ class ArtifactVersions(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["edges"][-1]["cursor"]
         else:
             return None
 
     def convert_objects(self):
-        if self.last_response["project"]["artifactType"]["artifactSequence"] is None:
+        if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
             Artifact(
@@ -5199,9 +5199,9 @@ class ArtifactVersions(Paginator):
                 self.collection_name + ":" + a["version"],
                 a["node"],
             )
-            for a in self.last_response["project"]["artifactType"]["artifactSequence"][
-                "artifacts"
-            ]["edges"]
+            for a in self.last_response["project"]["artifactType"][
+                "artifactCollection"
+            ]["artifacts"]["edges"]
         ]
 
 
