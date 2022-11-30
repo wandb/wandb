@@ -109,7 +109,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
 
         self.save_weights_only = save_weights_only
 
-        self.metadata = wandb.run.config
+        self.metadata = wandb.run.config.as_dict()
         self.metadata["artifact_metadata"] = metadata
 
         # User-friendly warning when trying to save the best model.
