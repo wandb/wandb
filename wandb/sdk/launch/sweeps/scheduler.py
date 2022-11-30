@@ -57,7 +57,7 @@ class Scheduler(ABC):
         self,
         api: Api,
         *args: Optional[Any],
-        sweep_id: str = None,
+        sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
         **kwargs: Optional[Any],

@@ -33,7 +33,7 @@ class InterfaceShared(InterfaceBase):
 
     def __init__(
         self,
-        process: BaseProcess = None,
+        process: Optional[BaseProcess] = None,
         process_check: bool = True,
         mailbox: Optional[Any] = None,
     ) -> None:
@@ -106,7 +106,7 @@ class InterfaceShared(InterfaceBase):
             item.value_json = json_dumps_safer(json_friendly(v)[0])
         return stats
 
-    def _make_login(self, api_key: str = None) -> pb.LoginRequest:
+    def _make_login(self, api_key: Optional[str] = None) -> pb.LoginRequest:
         login = pb.LoginRequest()
         if api_key:
             login.api_key = api_key
@@ -114,26 +114,26 @@ class InterfaceShared(InterfaceBase):
 
     def _make_request(  # noqa: C901
         self,
-        login: pb.LoginRequest = None,
-        get_summary: pb.GetSummaryRequest = None,
-        pause: pb.PauseRequest = None,
-        resume: pb.ResumeRequest = None,
-        status: pb.StatusRequest = None,
-        stop_status: pb.StopStatusRequest = None,
-        network_status: pb.NetworkStatusRequest = None,
-        poll_exit: pb.PollExitRequest = None,
-        partial_history: pb.PartialHistoryRequest = None,
-        sampled_history: pb.SampledHistoryRequest = None,
-        run_start: pb.RunStartRequest = None,
-        check_version: pb.CheckVersionRequest = None,
-        log_artifact: pb.LogArtifactRequest = None,
-        defer: pb.DeferRequest = None,
-        attach: pb.AttachRequest = None,
-        artifact_send: pb.ArtifactSendRequest = None,
-        artifact_poll: pb.ArtifactPollRequest = None,
-        artifact_done: pb.ArtifactDoneRequest = None,
-        server_info: pb.ServerInfoRequest = None,
-        keepalive: pb.KeepaliveRequest = None,
+        login: Optional[pb.LoginRequest] = None,
+        get_summary: Optional[pb.GetSummaryRequest] = None,
+        pause: Optional[pb.PauseRequest] = None,
+        resume: Optional[pb.ResumeRequest] = None,
+        status: Optional[pb.StatusRequest] = None,
+        stop_status: Optional[pb.StopStatusRequest] = None,
+        network_status: Optional[pb.NetworkStatusRequest] = None,
+        poll_exit: Optional[pb.PollExitRequest] = None,
+        partial_history: Optional[pb.PartialHistoryRequest] = None,
+        sampled_history: Optional[pb.SampledHistoryRequest] = None,
+        run_start: Optional[pb.RunStartRequest] = None,
+        check_version: Optional[pb.CheckVersionRequest] = None,
+        log_artifact: Optional[pb.LogArtifactRequest] = None,
+        defer: Optional[pb.DeferRequest] = None,
+        attach: Optional[pb.AttachRequest] = None,
+        artifact_send: Optional[pb.ArtifactSendRequest] = None,
+        artifact_poll: Optional[pb.ArtifactPollRequest] = None,
+        artifact_done: Optional[pb.ArtifactDoneRequest] = None,
+        server_info: Optional[pb.ServerInfoRequest] = None,
+        keepalive: Optional[pb.KeepaliveRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -185,24 +185,24 @@ class InterfaceShared(InterfaceBase):
 
     def _make_record(  # noqa: C901
         self,
-        run: pb.RunRecord = None,
-        config: pb.ConfigRecord = None,
-        files: pb.FilesRecord = None,
-        summary: pb.SummaryRecord = None,
-        history: pb.HistoryRecord = None,
-        stats: pb.StatsRecord = None,
-        exit: pb.RunExitRecord = None,
-        artifact: pb.ArtifactRecord = None,
-        tbrecord: pb.TBRecord = None,
-        alert: pb.AlertRecord = None,
-        final: pb.FinalRecord = None,
-        metric: pb.MetricRecord = None,
-        header: pb.HeaderRecord = None,
-        footer: pb.FooterRecord = None,
-        request: pb.Request = None,
-        telemetry: tpb.TelemetryRecord = None,
-        preempting: pb.RunPreemptingRecord = None,
-        link_artifact: pb.LinkArtifactRecord = None,
+        run: Optional[pb.RunRecord] = None,
+        config: Optional[pb.ConfigRecord] = None,
+        files: Optional[pb.FilesRecord] = None,
+        summary: Optional[pb.SummaryRecord] = None,
+        history: Optional[pb.HistoryRecord] = None,
+        stats: Optional[pb.StatsRecord] = None,
+        exit: Optional[pb.RunExitRecord] = None,
+        artifact: Optional[pb.ArtifactRecord] = None,
+        tbrecord: Optional[pb.TBRecord] = None,
+        alert: Optional[pb.AlertRecord] = None,
+        final: Optional[pb.FinalRecord] = None,
+        metric: Optional[pb.MetricRecord] = None,
+        header: Optional[pb.HeaderRecord] = None,
+        footer: Optional[pb.FooterRecord] = None,
+        request: Optional[pb.Request] = None,
+        telemetry: Optional[tpb.TelemetryRecord] = None,
+        preempting: Optional[pb.RunPreemptingRecord] = None,
+        link_artifact: Optional[pb.LinkArtifactRecord] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -246,15 +246,17 @@ class InterfaceShared(InterfaceBase):
         return record
 
     @abstractmethod
-    def _publish(self, record: pb.Record, local: bool = None) -> None:
+    def _publish(self, record: pb.Record, local: Optional[bool] = None) -> None:
         raise NotImplementedError
 
     def _communicate(
-        self, rec: pb.Record, timeout: Optional[int] = 5, local: bool = None
+        self, rec: pb.Record, timeout: Optional[int] = 5, local: Optional[bool] = None
     ) -> Optional[pb.Result]:
         return self._communicate_async(rec, local=local).get(timeout=timeout)
 
-    def _communicate_async(self, rec: pb.Record, local: bool = None) -> MessageFuture:
+    def _communicate_async(
+        self, rec: pb.Record, local: Optional[bool] = None
+    ) -> MessageFuture:
         assert self._router
         if self._process_check and self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
@@ -262,7 +264,7 @@ class InterfaceShared(InterfaceBase):
         return future
 
     def communicate_login(
-        self, api_key: str = None, timeout: Optional[int] = 15
+        self, api_key: Optional[str] = None, timeout: Optional[int] = 15
     ) -> pb.LoginResponse:
         login = self._make_login(api_key)
         rec = self._make_request(login=login)
@@ -298,7 +300,7 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(final=final)
         self._publish(rec)
 
-    def publish_login(self, api_key: str = None) -> None:
+    def publish_login(self, api_key: Optional[str] = None) -> None:
         login = self._make_login(api_key)
         rec = self._make_request(login=login)
         self._publish(rec)
@@ -337,7 +339,7 @@ class InterfaceShared(InterfaceBase):
         return resp.response.attach_response
 
     def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
+        self, run: pb.RunRecord, timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         """Send synchronous run object waiting for a response.
 

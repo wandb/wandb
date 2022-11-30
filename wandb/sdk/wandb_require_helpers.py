@@ -7,7 +7,7 @@ FuncT = TypeVar("FuncT", bound=Callable[..., Any])
 requirement_env_var_mapping = {"report-editing:v0": "WANDB_REQUIRE_REPORT_EDITING_V0"}
 
 
-def requires(requirement: str) -> FuncT:
+def requires(requirement: str) -> FuncT:  # type: ignore
     """
     The decorator for gating features.
     """
