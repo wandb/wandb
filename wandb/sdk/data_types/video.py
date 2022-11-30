@@ -116,7 +116,7 @@ class Video(BatchableMedia):
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"):  # TF data eager tensors
-                self.data = data_or_path.numpy()  # type: ignore
+                self.data = data_or_path.numpy()
             elif util.is_numpy_array(data_or_path):
                 self.data = data_or_path
             else:

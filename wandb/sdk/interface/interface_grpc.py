@@ -66,7 +66,7 @@ class InterfaceGrpc(InterfaceBase):
         return resp  # type: ignore
 
     def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
+        self, run: pb.RunRecord, timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         assert self._stub
         self._assign(run)

@@ -390,6 +390,7 @@ class Settings:
     _kaggle: bool
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
+    _log_level: int
     _noop: bool
     _offline: bool
     _os: str
@@ -1234,7 +1235,7 @@ class Settings:
     def items(self) -> ItemsView[str, Any]:
         return self.make_static().items()
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.make_static().get(key, default)
 
     def freeze(self) -> None:

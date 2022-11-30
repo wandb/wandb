@@ -39,7 +39,7 @@ class IPUStats:
         "ipu utilisation (session)",
     }
 
-    def __init__(self, pid: int, gc_ipu_info: Any = None) -> None:
+    def __init__(self, pid: int, gc_ipu_info: Optional[Any] = None) -> None:
         self.samples: "Deque[dict]" = deque()
 
         if gc_ipu_info is None:

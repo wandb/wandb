@@ -233,7 +233,7 @@ def verify_digest(
 
 
 def artifact_with_path_or_paths(
-    name: str, verify_dir: str = None, singular: bool = False
+    name: str, verify_dir: Optional[str] = None, singular: bool = False
 ) -> "Artifact":
     art = wandb.Artifact(type="artsy", name=name)
     # internal file
