@@ -84,7 +84,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         save_freq: Union[SaveStrategy, int] = "epoch",
         options: Optional[str] = None,
         initial_value_threshold: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
