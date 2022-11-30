@@ -28,10 +28,10 @@ class InterfaceRelay(InterfaceQueue):
     def __init__(
         self,
         mailbox: Mailbox,
-        record_q: "Queue[pb.Record]" = None,
-        result_q: "Queue[pb.Result]" = None,
-        relay_q: "Queue[pb.Result]" = None,
-        process: BaseProcess = None,
+        record_q: Optional["Queue[pb.Record]"] = None,
+        result_q: Optional["Queue[pb.Result]"] = None,
+        relay_q: Optional["Queue[pb.Result]"] = None,
+        process: Optional[BaseProcess] = None,
         process_check: bool = True,
     ) -> None:
         self.relay_q = relay_q

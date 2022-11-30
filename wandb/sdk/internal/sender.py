@@ -163,14 +163,14 @@ class SendManager:
     _partial_output: Dict[str, str]
 
     _telemetry_obj: telemetry.TelemetryRecord
-    _fs: "Optional[file_stream.FileStreamApi]"
-    _run: "Optional[RunRecord]"
-    _entity: "Optional[str]"
-    _project: "Optional[str]"
-    _dir_watcher: "Optional[DirWatcher]"
-    _pusher: "Optional[FilePusher]"
-    _record_exit: "Optional[Record]"
-    _exit_result: "Optional[RunExitResult]"
+    _fs: Optional["file_stream.FileStreamApi"]
+    _run: Optional["RunRecord"]
+    _entity: Optional[str]
+    _project: Optional[str]
+    _dir_watcher: Optional["DirWatcher"]
+    _pusher: Optional["FilePusher"]
+    _record_exit: Optional["Record"]
+    _exit_result: Optional["RunExitResult"]
     _resume_state: ResumeState
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
@@ -579,7 +579,7 @@ class SendManager:
 
     def _maybe_setup_resume(
         self, run: "RunRecord"
-    ) -> "Optional[wandb_internal_pb2.ErrorInfo]":
+    ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
         if not self._settings.resume:
@@ -740,7 +740,7 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
-    def send_run(self, record: "Record", file_dir: str = None) -> None:
+    def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
         is_wandb_init = self._run is None
@@ -890,7 +890,7 @@ class SendManager:
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
 
-    def _start_run_threads(self, file_dir: str = None) -> None:
+    def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
         assert self._run  # self._run is configured by caller
         self._fs = file_stream.FileStreamApi(
             self._api,

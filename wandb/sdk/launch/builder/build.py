@@ -445,7 +445,7 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                 try:
                     pkg = next(iter)
                     if hasattr(pkg, "name"):
-                        name = pkg.name.lower()  # type: ignore
+                        name = pkg.name.lower()
                     else:
                         name = str(pkg)
                     include_only.add(shlex_quote(name))

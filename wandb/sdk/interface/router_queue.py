@@ -31,7 +31,7 @@ class MessageQueueRouter(MessageRouter):
         self._response_queue = response_queue
         super().__init__(mailbox=mailbox)
 
-    def _read_message(self) -> "Optional[pb.Result]":
+    def _read_message(self) -> Optional["pb.Result"]:
         try:
             msg = self._response_queue.get(timeout=1)
         except queue.Empty:

@@ -53,7 +53,7 @@ class ServiceGrpcInterface(ServiceInterface):
         assert self._stub
         _ = self._stub.ServerInformStart(inform_start)
 
-    def _svc_inform_finish(self, run_id: str = None) -> None:
+    def _svc_inform_finish(self, run_id: Optional[str] = None) -> None:
         assert run_id
         inform_finish = spb.ServerInformFinishRequest()
         inform_finish._info.stream_id = run_id

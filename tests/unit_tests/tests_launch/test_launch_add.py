@@ -258,6 +258,7 @@ def test_push_to_runqueue_exists(
         "entity": user,
         "queue": "default",
         "entry_point": entry_point,
+        "resource": "local-process",
     }
 
     settings = test_settings({"project": proj})
@@ -296,6 +297,7 @@ def test_push_to_default_runqueue_notexist(
         "entity": user,
         "project": proj,
         "entry_point": entry_point,
+        "resource": "local-process",
     }
 
     with relay_server():
@@ -324,6 +326,7 @@ def test_push_to_runqueue_old_server(
         "entity": user,
         "queue": "default",
         "entry_point": entry_point,
+        "resource": "local-process",
     }
     settings = test_settings({"project": proj})
 
