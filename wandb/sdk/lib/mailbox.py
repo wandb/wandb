@@ -95,6 +95,7 @@ class _MailboxSlot:
     _lock: threading.Lock
     _wait_all: Optional[_MailboxWaitAll]
     _address: str
+    _abandoned: bool
 
     def __init__(self, address: str) -> None:
         self._result = None
@@ -102,6 +103,7 @@ class _MailboxSlot:
         self._lock = threading.Lock()
         self._address = address
         self._wait_all = None
+        self._abandoned = False
 
     def _set_wait_all(self, wait_all: _MailboxWaitAll) -> None:
         assert not self._wait_all, "Only one caller can wait_all for a slot at a time"
@@ -124,6 +126,14 @@ class _MailboxSlot:
     def _deliver(self, result: pb.Result) -> None:
         with self._lock:
             self._result = result
+            self._event.set()
+
+        if self._wait_all:
+            self._wait_all.notify()
+
+    def _notify_abandon(self) -> None:
+        self._abandoned = True
+        with self._lock:
             self._event.set()
 
         if self._wait_all:
@@ -258,12 +268,14 @@ class MailboxHandle:
                 if self._interface._transport_keepalive_failed():
                     raise MailboxError("transport failed")
 
-            found = self._slot._get_and_clear(timeout=wait_timeout)
+            found, abandoned = self._slot._get_and_clear(timeout=wait_timeout)
             if found:
                 # Always update progress to 100% when done
                 if on_progress and progress_handle and progress_sent:
                     progress_handle.set_percent_done(100)
                     on_progress(progress_handle)
+                break
+            if abandoned:
                 break
             now = self._time()
             if timeout >= 0:
@@ -285,6 +297,10 @@ class MailboxHandle:
 
     def _release(self) -> None:
         self._mailbox._release_slot(self.address)
+
+    def abandon(self) -> None:
+        self._slot._notify_abandon()
+        self._release()
 
     @property
     def _is_failed(self) -> bool:
