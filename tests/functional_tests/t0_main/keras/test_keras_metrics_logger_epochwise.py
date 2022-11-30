@@ -24,7 +24,7 @@ def get_model():
 model = get_model()
 
 learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=.1, decay_steps=2, decay_rate=.1
+    initial_learning_rate=0.1, decay_steps=2, decay_rate=0.1
 )
 opt = tf.keras.optimizers.SGD(learning_rate=learning_rate)
 
@@ -40,7 +40,7 @@ model.fit(
     validation_data=(x, y),
     callbacks=[
         WandbMetricsLogger(),
-    ]
+    ],
 )
 
 run.finish()
