@@ -222,7 +222,7 @@ def test_artifact_wait_failure(wandb_init, timeout):
     run.finish()
 
 
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason="TODO(spencerpearson): this test passes locally, but flakes in CI. After much investigation, I still have no clue.",
     # examples of flakes:
     #   https://app.circleci.com/pipelines/github/wandb/wandb/16334/workflows/319d3e58-853e-46ec-8a3f-088cac41351c/jobs/325741/tests#failed-test-0
