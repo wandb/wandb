@@ -6,9 +6,6 @@ from pathlib import Path
 from typing import Callable, Mapping, Optional, Type
 from unittest.mock import Mock, call
 
-# TODO(spencerpearson): DO NOT MERGE
-# Does ^this import need to be guarded so that people can
-# run the whole test suite without this lib?
 import pytest
 import requests
 import responses
