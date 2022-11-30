@@ -155,8 +155,11 @@ class RunStatusChecker:
 
     For now, we just use this to figure out if the user has requested a stop.
     """
+
     _stop_status_lock: threading.Lock
     _stop_status_handle: Optional[MailboxHandle]
+    _network_status_lock: threading.Lock
+    _network_status_handle: Optional[MailboxHandle]
 
     def __init__(
         self,
@@ -177,63 +180,87 @@ class RunStatusChecker:
         self._stop_thread.daemon = True
         self._stop_thread.start()
 
+        self._network_status_lock = threading.Lock()
+        self._network_status_handle = None
         self._retry_thread = threading.Thread(target=self.check_network_status)
         self._retry_thread.name = "NetStatThr"
         self._retry_thread.daemon = True
         self._retry_thread.start()
 
-    def check_network_status(self) -> None:
-        join_requested = False
-        while not join_requested:
-            status_response = self._interface.communicate_network_status()
-            if status_response and status_response.network_responses:
-                for hr in status_response.network_responses:
-                    if (
-                        hr.http_status_code == 200 or hr.http_status_code == 0
-                    ):  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog(f"{hr.http_response_text}")
-                    else:
-                        wandb.termlog(
-                            "{} encountered ({}), retrying request".format(
-                                hr.http_status_code, hr.http_response_text.rstrip()
-                            )
-                        )
-            join_requested = self._join_event.wait(self._retry_polling_interval)
-
-    def check_stop_status(self) -> None:
-        stop_status_handle: Optional[MailboxHandle] = None
+    def _loop_check_status(
+        self, *, lock, set_handle, timeout, request, process
+    ) -> None:
+        local_handle: Optional[MailboxHandle] = None
         join_requested = False
         while not join_requested:
             time_probe = time.monotonic()
-            if not stop_status_handle:
-                stop_status_handle = self._interface.deliver_stop_status()
+            if not local_handle:
+                local_handle = request()
 
-            with self._stop_status_lock:
+            with lock:
                 if self._join_event.is_set():
                     return
-                self._stop_status_handle = stop_status_handle
-            result = stop_status_handle.wait(timeout=self._stop_polling_interval)
+                set_handle(local_handle)
+            result = local_handle.wait(timeout=timeout)
             with self._stop_status_lock:
-                self._stop_status_handle = None
+                set_handle(None)
+
             if result:
-                stop_status_handle = None
-                status_resp = result.response.stop_status_response
-                if status_resp.run_should_stop:
-                    # TODO(frz): This check is required
-                    # until WB-3606 is resolved on server side.
-                    if not wandb.agents.pyagent.is_running():
-                        thread.interrupt_main()
-                        return
+                process(result)
 
             time_elapsed = time.monotonic() - time_probe
             wait_time = max(self._stop_polling_interval - time_elapsed, 0)
             join_requested = self._join_event.wait(timeout=wait_time)
+
+    def check_network_status(self) -> None:
+        def _process_network_status(result):
+            network_status = result.response.network_status_response
+            for hr in network_status.network_responses:
+                if (
+                    hr.http_status_code == 200 or hr.http_status_code == 0
+                ):  # we use 0 for non-http errors (eg wandb errors)
+                    wandb.termlog(f"{hr.http_response_text}")
+                else:
+                    wandb.termlog(
+                        "{} encountered ({}), retrying request".format(
+                            hr.http_status_code, hr.http_response_text.rstrip()
+                        )
+                    )
+
+        self._loop_check_status(
+            lock=self._network_status_lock,
+            set_handle=lambda x: setattr(self, "_network_status_handle", x),
+            timeout=self._retry_polling_interval,
+            request=self._interface.deliver_network_status,
+            process=_process_network_status,
+        )
+
+    def check_stop_status(self) -> None:
+        def _process_stop_status(result):
+            stop_status = result.response.stop_status_response
+            if stop_status.run_should_stop:
+                # TODO(frz): This check is required
+                # until WB-3606 is resolved on server side.
+                if not wandb.agents.pyagent.is_running():
+                    thread.interrupt_main()
+                    return
+
+        self._loop_check_status(
+            lock=self._stop_status_lock,
+            set_handle=lambda x: setattr(self, "_stop_status_handle", x),
+            timeout=self._stop_polling_interval,
+            request=self._interface.deliver_stop_status,
+            process=_process_stop_status,
+        )
 
     def stop(self) -> None:
         self._join_event.set()
         with self._stop_status_lock:
             if self._stop_status_handle:
                 self._stop_status_handle.abandon()
+        with self._network_status_lock:
+            if self._network_status_handle:
+                self._network_status_handle.abandon()
 
     def join(self) -> None:
         self.stop()

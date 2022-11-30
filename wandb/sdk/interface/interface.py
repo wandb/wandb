@@ -746,6 +746,14 @@ class InterfaceBase:
     def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_network_status(self) -> MailboxHandle:
+        status = pb.NetworkStatusRequest()
+        return self._deliver_network_status(status)
+
+    @abstractmethod
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_get_summary(self) -> MailboxHandle:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)
