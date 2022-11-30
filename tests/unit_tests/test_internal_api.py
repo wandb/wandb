@@ -87,6 +87,7 @@ def some_file(tmp_path: Path):
 
 MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
 
+
 class TestUploadFile:
     class TestSimple:
         def test_adds_headers_to_request(
@@ -115,14 +116,15 @@ class TestUploadFile:
             assert resp.content == b"success!"
 
         @pytest.mark.parametrize(
-            "response,expected_errtype", [
+            "response,expected_errtype",
+            [
                 ((400, {}, ""), requests.exceptions.HTTPError),
                 ((500, {}, ""), retry.TransientError),
                 ((502, {}, ""), retry.TransientError),
                 (requests.exceptions.ConnectionError(), retry.TransientError),
                 (requests.exceptions.Timeout(), retry.TransientError),
                 (RuntimeError("oh no"), RuntimeError),
-            ]
+            ],
         )
         def test_returns_transienterror_on_transient_issues(
             self,
@@ -132,7 +134,9 @@ class TestUploadFile:
             expected_errtype: Type[Exception],
         ):
             mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", lambda _: response,
+                "PUT",
+                "http://example.com/upload-dst",
+                lambda _: response,
             )
             with pytest.raises(expected_errtype):
                 internal.InternalApi().upload_file(
