@@ -330,7 +330,10 @@ class TestUploadFile:
                 (
                     (500, {}, "my-reason"),
                     retry.TransientError,
-                    lambda e: e.exception.response.status_code == 500 and "my-reason" in str(e.exception),
+                    lambda e: (
+                        e.exception.response.status_code == 500
+                        and "my-reason" in str(e.exception)
+                    ),
                 ),
                 (
                     requests.exceptions.ConnectionError("my-reason"),
