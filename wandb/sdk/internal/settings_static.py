@@ -79,5 +79,5 @@ class SettingsStatic:
     def __contains__(self, key: str) -> bool:
         return key in self.__dict__
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.__dict__.get(key, default)

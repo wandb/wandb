@@ -109,7 +109,7 @@ class StreamAction:
     _processed: Event
     _data: Any
 
-    def __init__(self, action: str, stream_id: str, data: Any = None):
+    def __init__(self, action: str, stream_id: str, data: Optional[Any] = None):
         self._action = action
         self._stream_id = stream_id
         self._data = data

@@ -1361,7 +1361,7 @@ def create_app(user_ctx=None):
                 "data": {
                     "project": {
                         "artifactType": {
-                            "artifactSequences": paginated(
+                            "artifactCollections": paginated(
                                 {
                                     "id": "1",
                                     "name": "mnist",
@@ -1379,7 +1379,7 @@ def create_app(user_ctx=None):
                 "data": {
                     "project": {
                         "artifactType": {
-                            "artifactSequence": {
+                            "artifactCollection": {
                                 "id": "1",
                                 "name": "mnist",
                                 "description": "",
@@ -1414,7 +1414,7 @@ def create_app(user_ctx=None):
                 "data": {
                     "project": {
                         "artifactType": {
-                            "artifactSequence": {
+                            "artifactCollection": {
                                 "name": "mnist",
                                 "artifacts": artifacts,
                             }

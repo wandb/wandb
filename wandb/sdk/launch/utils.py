@@ -13,6 +13,7 @@ import wandb
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, LaunchError
+from wandb.sdk.launch.wandb_reference import WandbReference
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
@@ -206,35 +207,20 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     """Parses wandb uri to retrieve entity, project and run name."""
-    uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
-    stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
-    stripped_uri = re.sub(
-        _WANDB_DEV_URI_REGEX, "", stripped_uri
-    )  # also for testing just run it twice
-    stripped_uri = re.sub(
-        _WANDB_LOCAL_DEV_URI_REGEX, "", stripped_uri
-    )  # also for testing just run it twice
-    stripped_uri = re.sub(
-        _WANDB_QA_URI_REGEX, "", stripped_uri
-    )  # also for testing just run it twice
-    try:
-        entity, project, _, name = stripped_uri.split("/")[1:]
-    except ValueError as e:
-        raise LaunchError(f"Trouble parsing wandb uri {uri}: {e}")
-    return entity, project, name
+    ref = WandbReference.parse(uri)
+    if not ref or not ref.entity or not ref.project or not ref.run_id:
+        raise LaunchError(f"Trouble parsing wandb uri {uri}")
+    return (ref.entity, ref.project, ref.run_id)
 
 
 def is_bare_wandb_uri(uri: str) -> bool:
-    """Checks if the uri is of the format /entity/project/runs/run_name"""
+    """Checks if the uri is of the format
+    /<entity>/<project>/runs/<run_name>[other stuff]
+    or
+    /<entity>/<project>/artifacts/job/<job_name>[other stuff]
+    """
     _logger.info(f"Checking if uri {uri} is bare...")
-    if not uri.startswith("/"):
-        return False
-    result = uri.split("/")[1:]
-    # a bare wandb uri will have 4 parts, with the last being the run name
-    # and the second last being "runs"
-    if len(result) == 4 and result[-2] == "runs":
-        return True
-    return False
+    return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
 
 
 def fetch_wandb_project_run_info(
