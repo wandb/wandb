@@ -155,6 +155,8 @@ class RunStatusChecker:
 
     For now, we just use this to figure out if the user has requested a stop.
     """
+    _stop_status_lock: threading.Lock
+    _stop_status_handle: Optional[MailboxHandle]
 
     def __init__(
         self,
@@ -168,7 +170,9 @@ class RunStatusChecker:
 
         self._join_event = threading.Event()
 
-        self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_status_lock = threading.Lock()
+        self._stop_status_handle = None
+        self._stop_thread = threading.Thread(target=self.check_stop_status)
         self._stop_thread.name = "ChkStopThr"
         self._stop_thread.daemon = True
         self._stop_thread.start()
@@ -196,20 +200,38 @@ class RunStatusChecker:
                         )
             join_requested = self._join_event.wait(self._retry_polling_interval)
 
-    def check_status(self) -> None:
+    def check_stop_status(self) -> None:
+        stop_status_handle: Optional[MailboxHandle] = None
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_stop_status()
-            if status_response and status_response.run_should_stop:
-                # TODO(frz): This check is required
-                # until WB-3606 is resolved on server side.
-                if not wandb.agents.pyagent.is_running():
-                    thread.interrupt_main()
-                    return
-            join_requested = self._join_event.wait(self._stop_polling_interval)
+            time_probe = time.monotonic()
+            if not stop_status_handle:
+                stop_status_handle = self._interface.deliver_stop_status()
+
+            with self._stop_status_lock:
+                self._stop_status_handle = stop_status_handle
+            result = stop_status_handle.wait(timeout=self._stop_polling_interval)
+            with self._stop_status_lock:
+                self._stop_status_handle = stop_status_handle
+            if result:
+                stop_status_handle = None
+                status_resp = result.response.stop_status_response
+                if status_resp.run_should_stop:
+                    # TODO(frz): This check is required
+                    # until WB-3606 is resolved on server side.
+                    if not wandb.agents.pyagent.is_running():
+                        thread.interrupt_main()
+                        return
+
+            time_elapsed = time.monotonic() - time_probe
+            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
+            join_requested = self._join_event.wait(timeout=wait_time)
 
     def stop(self) -> None:
         self._join_event.set()
+        with self._stop_status_lock:
+            if self._stop_status_handle:
+                self._stop_status_handle.abandon()
 
     def join(self) -> None:
         self.stop()
