@@ -380,7 +380,7 @@ class TestUploadFile:
 class TestGuessResponseContent:
     def test_requests(self):
         resp = requests.Response()
-        assert _guess_response_content(resp) == b"<None>"
+        assert _guess_response_content(resp) == b"None"
 
         resp = requests.Response()
         resp.raw = io.BytesIO(b"foo")
@@ -408,7 +408,7 @@ class TestGuessResponseContent:
         assert _guess_response_content(resp) == b"foo"
 
     def test_misc(self):
-        assert _guess_response_content(None) == b"<unknown>"
+        assert _guess_response_content(None) == b"None"
         assert _guess_response_content(object()) == b"<unknown>"
         assert _guess_response_content(Exception()) == b"<unknown>"
         assert _guess_response_content([]) == b"<unknown>"
@@ -417,3 +417,11 @@ class TestGuessResponseContent:
             _guess_response_content(Mock(read=Mock(side_effect=Exception())))
             == b"<unknown>"
         )
+
+    def test_ok_if_arbitrarily_deep_nesting(self):
+        class MockResponse:
+            @property
+            def response(self):
+                return MockResponse()
+
+        assert _guess_response_content(MockResponse()) == b"<unknown>"

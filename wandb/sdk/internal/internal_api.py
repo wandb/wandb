@@ -104,36 +104,33 @@ def _guess_response_content(response: Any) -> bytes:
     how to get at the HTTP response content, so we're reduced to flailing around looking for
     promisingly-named fields.
     """
+
+    result: Any = "<unknown>"
+
     try:
 
-        result: Any = (
-            response.content
-            if isinstance(response, requests.Response)
-            else _guess_response_content(response.response)
-            if hasattr(response, "response")
-            else _guess_response_content(response.internal_response)
-            if hasattr(response, "internal_response")
-            else response.content
-            if hasattr(response, "content")
-            else response.text
-            if hasattr(response, "text")
-            else response.read()
-            if hasattr(response, "read")
-            else "<unknown>"
-        )
-
-        if isinstance(result, str):
-            return result.encode("utf-8")
-        elif result is None:
-            return b"<None>"
-        elif isinstance(result, bytes):
-            return result
-        else:
-            return str(result).encode("utf-8")
+        if isinstance(response, (str, bytes, type(None))):
+            result = response
+        elif isinstance(response, requests.Response):
+            result = response.content
+        elif hasattr(response, "response"):
+            result = _guess_response_content(response.response)
+        elif hasattr(response, "internal_response"):
+            result = _guess_response_content(response.internal_response)
+        elif hasattr(response, "content"):
+            result = response.content
+        elif hasattr(response, "text"):
+            result = response.text
+        elif hasattr(response, "read"):
+            result = response.read()
 
     except Exception:
+        pass
 
-        return b"<unknown>"
+    if isinstance(result, bytes):
+        return result
+    else:
+        return str(result).encode("utf-8")
 
 
 class Api:
