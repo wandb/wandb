@@ -68,9 +68,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             object if `save_weights_only` is false.
         initial_value_threshold (Optional[float]): Floating point initial "best" value of the metric
             to be monitored.
-        metadata Optional[Dict[str, Any]]: Free text that offers a description of the artifact.
-            The description is markdown rendered in the UI, so this is a good place to place
-            tables, links, etc.
+        metadata Optional[Dict[str, Any]]: A python dictionary that offers a description of
+            the artifact. The description is markdown rendered in the UI, so this is a good
+            place to place metatdata regarding the model checkpoints.
     """
 
     def __init__(
@@ -108,7 +108,10 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             tel.feature.keras_model_checkpoint = True
 
         self.save_weights_only = save_weights_only
-        self.metadata = metadata
+
+        complete_metadata = wandb.run.config
+        complete_metadata["artifact_metadata"] = metadata
+        self.metadata = complete_metadata
 
         # User-friendly warning when trying to save the best model.
         if self.save_best_only:
