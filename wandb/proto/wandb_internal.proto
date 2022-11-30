@@ -491,7 +491,7 @@ message Request {
     ArtifactDoneRequest   artifact_done = 16;
     KeepaliveRequest      keepalive = 17;
     RunDoneRequest        run_done = 18;
-    RunRequest            run = 19;
+    GetRunRequest         get_run = 19;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -516,8 +516,8 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
-    RunDoneResponse       run_done_response = 33;
-    RunResponse            run_response = 34;
+    RunDoneResponse        run_done_response = 33;
+    GetRunResponse         get_run_response = 34;
     KeepaliveResponse      keepalive_response = 18;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
@@ -787,13 +787,13 @@ message RunDoneResponse {
 
 
 /*
- * RunRequest: get the run
+ * GetRunRequest: get the run
  */
-message RunRequest {
+message GetRunRequest {
   _RequestInfo _info = 200;
 }
 
-message RunResponse {
+message GetRunResponse {
   RunRecord run = 1;
 }
 

@@ -326,7 +326,7 @@ class StreamMux:
                 and not stream._settings._offline
             ):
                 # todo: unify path with Run._on_finish in wandb_run.py
-                run_handle = stream.interface.deliver_request_run()
+                run_handle = stream.interface.deliver_request_get_run()
                 result = run_handle.wait(timeout=-1)
                 assert result
                 run_response = result.response.run_response.run

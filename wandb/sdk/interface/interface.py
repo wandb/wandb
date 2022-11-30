@@ -187,6 +187,9 @@ class InterfaceBase:
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
+    def _publish_run_done(self, run_done: pb.RunDoneRequest) -> None:
+        raise NotImplementedError
+
     def publish_config(
         self,
         data: Optional[dict] = None,
@@ -485,9 +488,6 @@ class InterfaceBase:
     ) -> Optional[pb.ArtifactPollResponse]:
         raise NotImplementedError
 
-    def _publish_run_done(self, run_done: pb.RunDoneRequest) -> None:
-        raise NotImplementedError
-
     @abstractmethod
     def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
         raise NotImplementedError
@@ -768,9 +768,9 @@ class InterfaceBase:
         sampled_history = pb.SampledHistoryRequest()
         return self._deliver_request_sampled_history(sampled_history)
 
-    def deliver_request_run(self) -> MailboxHandle:
-        run = pb.RunRequest()
-        return self._deliver_request_run(run)
+    def deliver_request_get_run(self) -> MailboxHandle:
+        get_run = pb.GetRunRequest()
+        return self._deliver_request_get_run(get_run)
 
     @abstractmethod
     def _deliver_request_sampled_history(
@@ -779,5 +779,5 @@ class InterfaceBase:
         raise NotImplementedError
 
     @abstractmethod
-    def _deliver_request_run(self, run: pb.RunRequest) -> MailboxHandle:
+    def _deliver_request_get_run(self, get_run: pb.GetRunRequest) -> MailboxHandle:
         raise NotImplementedError

@@ -185,7 +185,6 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
-        self._run_proto = record
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:
@@ -685,6 +684,11 @@ class HandleManager:
         result = proto_util._result_from_record(record)
         self._respond_result(result)
 
+    def handle_request_run_done(self, record: Record) -> None:
+        done_req = record.request.run_done
+        assert done_req
+        self._run_proto = done_req.run
+
     def handle_request_resume(self, record: Record) -> None:
         if self._system_monitor is not None:
             logger.info("starting system metrics thread or process")
@@ -800,10 +804,10 @@ class HandleManager:
             result.response.sampled_history_response.item.append(item)
         self._respond_result(result)
 
-    def handle_request_run(self, record: Record) -> None:
+    def handle_request_get_run(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         assert self._run_proto
-        result.response.run_response.run.CopyFrom(self._run_proto.run)
+        result.response.get_run_response.run.CopyFrom(self._run_proto)
         self._respond_result(result)
 
     def handle_request_server_info(self, record: Record) -> None:

@@ -760,8 +760,8 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
 
-        self.settings._apply_run_start(message_to_dict(run_obj))
-        run._update_settings(self.settings)
+        # self.settings._apply_run_start(message_to_dict(run_obj))
+        # run._update_settings(self.settings)
         if manager:
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 

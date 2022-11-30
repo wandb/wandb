@@ -150,14 +150,17 @@ class TeardownHook(NamedTuple):
 
 
 class RunStatusChecker:
-    """Periodically polls the background process for relevant updates.
-
-    For now, we just use this to figure out if the user has requested a stop.
+    """Periodically polls the background process for relevant updates:
+    - check if the user has requested a stop.
+    - check the network status.
+    - check the run sync status.
     """
 
     def __init__(
         self,
         interface: InterfaceBase,
+        run: "Run",
+        init_handle: Optional[MailboxHandle] = None,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
@@ -166,16 +169,79 @@ class RunStatusChecker:
         self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
+        self._stop_thread = threading.Thread(
+            target=self.check_stop_status,
+            name="ChkStopThr",
+            daemon=True,
+        )
+        self._retry_thread = threading.Thread(
+            target=self.check_network_status,
+            name="NetStatThr",
+            daemon=True,
+        )
+        self._run_init_handle = init_handle
+        self._run_is_synced: bool = self._run_init_handle is None
+        self._run_sync_status_checker: Optional[threading.Thread] = (
+            threading.Thread(
+                target=self._run_info_thread,
+                args=(run,),
+                name="SyncStatCh",
+                daemon=True,
+            )
+            if not self._run_is_synced
+            else None
+        )
 
-        self._stop_thread = threading.Thread(target=self.check_status)
-        self._stop_thread.name = "ChkStopThr"
-        self._stop_thread.daemon = True
+    @property
+    def run_is_synced(self) -> bool:
+        return self._run_is_synced
+
+    def start(self) -> None:
         self._stop_thread.start()
-
-        self._retry_thread = threading.Thread(target=self.check_network_status)
-        self._retry_thread.name = "NetStatThr"
-        self._retry_thread.daemon = True
         self._retry_thread.start()
+
+        if self._run_sync_status_checker:
+            # If at this point init_handle received the response from the backend,
+            # we will update the run object and settings with the received information
+            # and communicate it to the user. Otherwise, that will be done once
+            # the backend responds back.
+            self._run_sync_status_checker.start()
+
+    def _run_info_thread(self, run: "Run") -> None:
+        """Get the run info from the backend and set the run state.
+
+        This thread is started if we could not immediately connect to the backend
+        and provide the project/run information to the user. It will wait on the
+        provided Mailbox handle until the backend responds back and then update
+        the run state with the received information and communicate it to the user.
+        """
+        logger.info("checking run info status")
+        assert run._backend
+        assert self._run_init_handle
+        run._backend._hack_set_run(run)  # todo: do we need this?
+        result = self._run_init_handle.wait(
+            timeout=-1,  # Wait forever
+            release=False,
+        )
+
+        if result is None:
+            logger.warning("run info thread timed out")
+            return
+
+        run_result = result.run_result
+        run._set_run_obj(run_result.run)
+
+        # TODO: what do we do if we eventually get a response, but it contains an error?
+        if run_result and run_result.error:
+            error_message = run_result.error.message
+            logger.error(f"encountered error: {error_message}")
+            # TODO: now what? things will break.
+            #  probably need to continue, notify the user, and switch to offline mode?
+
+        self._run_is_synced = True
+
+        if not self._join_event.is_set():
+            Run._header_run_info(settings=run.settings, printer=run._printer)
 
     def check_network_status(self) -> None:
         join_requested = False
@@ -195,7 +261,7 @@ class RunStatusChecker:
                         )
             join_requested = self._join_event.wait(self._retry_polling_interval)
 
-    def check_status(self) -> None:
+    def check_stop_status(self) -> None:
         join_requested = False
         while not join_requested:
             status_response = self._interface.communicate_stop_status()
@@ -209,11 +275,15 @@ class RunStatusChecker:
 
     def stop(self) -> None:
         self._join_event.set()
+        if self._run_init_handle is not None:
+            self._run_init_handle.abandon()
 
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
         self._retry_thread.join()
+        if self._run_sync_status_checker:
+            self._run_sync_status_checker.join()
 
 
 class _run_decorator:  # noqa: N801
@@ -504,7 +574,9 @@ class Run:
         # Created when the run "starts".
         self._run_status_checker = None
 
+        # todo: rename
         self._run_sync_status_checker = None
+        # todo: rename into something with "abandon" in it
         self._run_info_thread_shutdown = threading.Event()
 
         self._check_version = None
@@ -1350,6 +1422,11 @@ class Run:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
         self._step = self._get_starting_step()
+
+        # update settings from run_obj
+        self._settings._apply_run_start(message_to_dict(self._run_obj))  # type: ignore
+        self._update_settings(self._settings)
+
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             process_context="user",
@@ -1860,7 +1937,7 @@ class Run:
             output_log_path = os.path.join(
                 self._settings.files_dir, filenames.OUTPUT_FNAME
             )
-            # output writer might have been setup, see wrap_fallback case
+            # output writer might have been set up, see wrap_fallback case
             if not self._output_writer:
                 self._output_writer = filesystem.CRDedupedFile(
                     open(output_log_path, "wb")
@@ -2009,54 +2086,6 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
-    def _on_progress_run_info(self, progress_handle: MailboxProgress) -> None:
-        """on_progress callback for the run_info handle.
-
-        We use this method to cleanly stop waiting on the progress handle
-        when the _run_info_thread_shutdown event is set, in this case we transition
-        to wait only finish timeout and give up.
-        """
-        print("waiting for shutdown")
-        if self._run_info_thread_shutdown.is_set():
-            # progress_handle.wait_stop()
-            progress_handle.abandon()
-
-    def _run_info_thread(self, handle: MailboxHandle) -> None:
-        """Get the run info from the backend and set the run state.
-
-        This thread is started if we could not immediately connect to the backend
-        and provide the project/run information to the user. It will wait on the
-        provided Mailbox handle until the backend responds back and then update
-        the run state with the received information and communicate it to the user.
-        """
-        logger.info("checking run info status")
-        assert self._backend
-        self._backend._hack_set_run(self)
-        result = handle.wait(
-            timeout=-1,  # Wait forever
-            on_progress=self._on_progress_run_info,
-        )
-
-        # if result is None and self.settings.finish_policy == "fail":
-        #     # reset the timeout and continue waiting if the shutdown event is set
-        #     # and the handle is still open, and we haven't received a response
-        #     # and the finish policy is not set to "fail"
-        #     result = handle.wait(
-        #         timeout=self._settings.finish_timeout,
-        #     )
-
-        if result is None:
-            logger.info("run info thread timed out")
-            return
-
-        run_result = result.run_result
-        self._set_run_obj(run_result.run)
-        self._settings._apply_run_start(message_to_dict(self._run_obj))  # type: ignore
-        self._update_settings(self._settings)
-
-        if not self._run_info_thread_shutdown.is_set():
-            Run._header_run_info(settings=self.settings, printer=self._printer)
-
     def _on_init(self) -> None:
 
         if self._backend and self._backend.interface:
@@ -2077,25 +2106,16 @@ class Run:
             self._check_version, settings=self._settings, printer=self._printer
         )
 
-        if init_handle is not None:
-            # If at this point init_handle received the response from the backend,
-            # we will update the run object and settings with the received information
-            # and communicate it to the user. Otherwise, that will be done once
-            # the backend responds back.
-            self._run_sync_status_checker = threading.Thread(
-                target=self._run_info_thread,
-                args=(init_handle,),
-                name="SyncStatCh",
-                daemon=True,
-            )
-            self._run_sync_status_checker.start()
-
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
-            self._run_status_checker = RunStatusChecker(self._backend.interface)
+            self._run_status_checker = RunStatusChecker(
+                interface=self._backend.interface,
+                run=self,
+                init_handle=init_handle,
+            )
+            self._run_status_checker.start()
 
         self._console_start()
         self._on_ready()
@@ -2348,12 +2368,8 @@ class Run:
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
-        if self._run_status_checker:
+        if self._run_status_checker is not None:
             self._run_status_checker.stop()
-
-        if self._run_sync_status_checker:
-            self._run_info_thread_shutdown.set()
-            # to do: join the thread
 
         if not self._settings._offline and self._settings.enable_job_creation:
             self._log_job()
@@ -2370,6 +2386,16 @@ class Run:
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
+        if (
+            self._run_status_checker is not None
+            and self._run_status_checker.run_is_synced
+        ):
+            get_run_handle = self._backend.interface.deliver_request_get_run()
+            get_run_response = get_run_handle.wait(timeout=-1)
+            if get_run_response:
+                run_obj = get_run_response.response.get_run_response.run
+                self._set_run_obj(run_obj)
+
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         server_info_handle = self._backend.interface.deliver_request_server_info()
@@ -2378,7 +2404,7 @@ class Run:
             self._backend.interface.deliver_request_sampled_history()
         )
 
-        # wait for them, its ok to do this serially but this can be improved
+        # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
         self._poll_exit_response = result.response.poll_exit_response
@@ -2400,9 +2426,6 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.join()
-
-        if self._run_sync_status_checker:
-            self._run_sync_status_checker.join()
 
         self._unregister_telemetry_import_hooks(self._run_id)
 
