@@ -26,6 +26,7 @@ from wandb.sdk.lib.mailbox import (
     MailboxProgressAll,
 )
 from wandb.sdk.lib.printer import get_printer
+from wandb.sdk.lib.proto_util import message_to_dict
 from wandb.sdk.wandb_run import Run
 
 from ..interface.interface_relay import InterfaceRelay
@@ -326,31 +327,15 @@ class StreamMux:
                 and not stream._settings._offline
             ):
                 # todo: unify path with Run._on_finish in wandb_run.py
-                run_handle = stream.interface.deliver_request_get_run()
-                result = run_handle.wait(timeout=-1)
-                assert result
-                run_response = result.response.run_response.run
-                if (
-                    not run_response.entity
-                    or not run_response.project
-                    or not run_response.display_name
-                ):
+                get_run_handle = stream.interface.deliver_request_get_run()
+                get_run_response = get_run_handle.wait(timeout=-1)
+                if get_run_response:
+                    run_obj = get_run_response.response.get_run_response.run
 
-                    run_info_handle = stream.interface.deliver_run(run_response)
-                    result = run_info_handle.wait(timeout=-1)
-                    assert result
-                    run_response = result.run_result.run
-
-                # todo(settings): rework once SettingsStatic are sunset
-                settings = wandb.Settings(**dict(stream._settings))
-                settings.update(
-                    {
-                        "entity": run_response.entity,
-                        "project": run_response.project,
-                        "run_name": run_response.display_name,
-                    }
-                )
-                stream.update(dict(settings))
+                    # todo(settings): rework once SettingsStatic are sunset
+                    settings = wandb.Settings(**dict(stream._settings))
+                    settings._apply_run_start(message_to_dict(run_obj))  # type: ignore
+                    stream.update(dict(settings))
 
             result = final_summary_handle.wait(timeout=-1)
             assert result
