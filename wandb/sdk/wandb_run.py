@@ -209,10 +209,12 @@ class RunStatusChecker:
                 stop_status_handle = self._interface.deliver_stop_status()
 
             with self._stop_status_lock:
+                if self._join_event.is_set():
+                    return
                 self._stop_status_handle = stop_status_handle
             result = stop_status_handle.wait(timeout=self._stop_polling_interval)
             with self._stop_status_lock:
-                self._stop_status_handle = stop_status_handle
+                self._stop_status_handle = None
             if result:
                 stop_status_handle = None
                 status_resp = result.response.stop_status_response

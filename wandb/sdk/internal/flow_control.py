@@ -167,7 +167,10 @@ class FlowControl:
 
         # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
-            StateForwarding: [fsm.FsmEntry(self._should_pause, StatePausing)],
+            StateForwarding: [
+                fsm.FsmEntry(self._should_quiesce, StateForwarding),
+                fsm.FsmEntry(self._should_pause, StatePausing),
+            ],
             StatePausing: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
                 fsm.FsmEntry(self._should_recover, StateRecovering),

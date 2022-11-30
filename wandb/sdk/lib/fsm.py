@@ -131,6 +131,8 @@ class Fsm(Generic[T_FsmInputs]):
                 return
 
     def input(self, inputs: T_FsmInputs) -> None:
+        # print("R1", self._state, inputs)
         self._check_transitions(inputs)
+        # print("R2", self._state, inputs)
         if isinstance(self._state, FsmStateOutput):
             self._state.on_state(inputs)
