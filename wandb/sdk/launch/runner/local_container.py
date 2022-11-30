@@ -169,7 +169,7 @@ def get_docker_command(
     image: str,
     env_vars: Dict[str, str],
     entry_cmd: List[str],
-    docker_args: Dict[str, Any] = None,
+    docker_args: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
 

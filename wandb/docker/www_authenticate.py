@@ -1,7 +1,7 @@
 # Taken from: https://github.com/alexsdutton/www-authenticate
 import re
 from collections import OrderedDict
-from typing import Any
+from typing import Any, Optional
 
 _tokens = (
     ("token", re.compile(r"""^([!#$%&'*+\-.^_`|~\w/]+(?:={1,2}$)?)""")),
@@ -29,10 +29,10 @@ class CaseFoldedOrderedDict(OrderedDict):
     def __contains__(self, key: object) -> bool:
         return super().__contains__(_casefold(key))  # type: ignore
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return super().get(_casefold(key), default)
 
-    def pop(self, key: str, default: Any = None) -> Any:
+    def pop(self, key: str, default: Optional[Any] = None) -> Any:
         return super().pop(_casefold(key), default)
 
 

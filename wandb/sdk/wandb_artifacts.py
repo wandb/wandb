@@ -584,7 +584,9 @@ class Artifact(ArtifactInterface):
             "Cannot call get on an artifact before it has been logged or in offline mode"
         )
 
-    def download(self, root: str = None, recursive: bool = False) -> util.FilePathStr:
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> util.FilePathStr:
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 
@@ -843,7 +845,7 @@ class ArtifactManifestEntry(ArtifactEntry):
         digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag],
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
-        extra: Dict = None,
+        extra: Optional[Dict] = None,
         local_path: Optional[str] = None,
     ):
         if local_path is not None and size is None:
@@ -883,7 +885,7 @@ class WandbStoragePolicy(StoragePolicy):
     def from_config(cls, config: Dict) -> "WandbStoragePolicy":
         return cls(config=config)
 
-    def __init__(self, config: Dict = None) -> None:
+    def __init__(self, config: Optional[Dict] = None) -> None:
         self._cache = get_artifacts_cache()
         self._config = config or {}
         self._session = requests.Session()
@@ -1529,7 +1531,7 @@ class S3Handler(StorageHandler):
         self,
         obj: "boto3.s3.Object",
         path: str,
-        name: str = None,
+        name: Optional[str] = None,
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
