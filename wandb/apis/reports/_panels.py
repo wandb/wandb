@@ -29,7 +29,7 @@ class LinePlot(Panel):
         json_path="spec.config.chartTitle",
     )
     x: Optional[str] = Attr(json_path="spec.config.xAxis")
-    y: Optional[list] = Attr(json_path="spec.config.metrics")
+    y: Optional[Union[list, str]] = Attr(json_path="spec.config.metrics")
     range_x: Union[list, tuple] = Attr(
         json_path=["spec.config.xAxisMin", "spec.config.xAxisMax"],
         validators=[
@@ -195,6 +195,9 @@ class LinePlot(Panel):
 
     @x.setter
     def x(self, value):
+        if value is None:
+            value = "Step"
+
         json_path = self._get_path("x")
         value = self.panel_metrics_helper.front_to_back(value)
         nested_set(self, json_path, value)
@@ -211,6 +214,8 @@ class LinePlot(Panel):
     def y(self, value):
         json_path = self._get_path("y")
         if value is not None:
+            if not isinstance(value, list):
+                value = [value]
             value = [self.panel_metrics_helper.front_to_back(v) for v in value]
         nested_set(self, json_path, value)
 
@@ -354,11 +359,13 @@ class ScatterPlot(Panel):
 
 class BarPlot(Panel):
     title: Optional[str] = Attr(json_path="spec.config.chartTitle")
-    metrics: Optional[list] = Attr(
+    metrics: Optional[Union[list, str]] = Attr(
         json_path="spec.config.metrics",
         validators=[TypeValidator(str, how="keys")],
     )
-    vertical: Optional[bool] = Attr(json_path="spec.config.vertical")
+    orientation: str = Attr(
+        json_path="spec.config.vertical", validators=[OneOf(["v", "h"])]
+    )
     range_x: Union[list, tuple] = Attr(
         json_path=["spec.config.xAxisMin", "spec.config.xAxisMax"],
         validators=[
@@ -412,7 +419,7 @@ class BarPlot(Panel):
         self,
         title=None,
         metrics=None,
-        vertical=None,
+        orientation="h",
         range_x=(None, None),
         title_x=None,
         title_y=None,
@@ -432,7 +439,7 @@ class BarPlot(Panel):
         super().__init__(*args, **kwargs)
         self.title = title
         self.metrics = metrics
-        self.vertical = vertical
+        self.orientation = orientation
         self.range_x = range_x
         self.title_x = title_x
         self.title_y = title_y
@@ -459,7 +466,21 @@ class BarPlot(Panel):
     def metrics(self, value):
         json_path = self._get_path("metrics")
         if value is not None:
+            if not isinstance(value, list):
+                value = [value]
             value = [self.panel_metrics_helper.front_to_back(v) for v in value]
+        nested_set(self, json_path, value)
+
+    @orientation.getter
+    def orientation(self):
+        json_path = self._get_path("orientation")
+        value = nested_get(self, json_path)
+        return "v" if value is True else "h"
+
+    @orientation.setter
+    def orientation(self, value):
+        json_path = self._get_path("orientation")
+        value = True if value == "v" else False
         nested_set(self, json_path, value)
 
     @property
