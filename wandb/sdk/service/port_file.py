@@ -15,7 +15,9 @@ class PortFile:
     SOCK_TOKEN = "sock="
     EOF_TOKEN = "EOF"
 
-    def __init__(self, grpc_port: int = None, sock_port: int = None) -> None:
+    def __init__(
+        self, grpc_port: Optional[int] = None, sock_port: Optional[int] = None
+    ) -> None:
         self._grpc_port = grpc_port
         self._sock_port = sock_port
         self._valid = False
