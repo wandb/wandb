@@ -121,7 +121,8 @@ class _MailboxSlot:
             with self._lock:
                 found = self._result
                 self._event.clear()
-        return found
+        abandoned = self._abandoned
+        return found, abandoned
 
     def _deliver(self, result: pb.Result) -> None:
         with self._lock:
