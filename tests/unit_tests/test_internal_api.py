@@ -3,7 +3,7 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Type
+from typing import Callable, Mapping, Optional, Tuple, Type, Union
 from unittest.mock import Mock, call
 
 import pytest
@@ -85,6 +85,8 @@ def some_file(tmp_path: Path):
     return p
 
 
+MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
+
 class TestUploadFile:
     class TestSimple:
         def test_adds_headers_to_request(
@@ -113,21 +115,26 @@ class TestUploadFile:
             assert resp.content == b"success!"
 
         @pytest.mark.parametrize(
-            "status,transient", [(400, False), (500, True), (502, True)]
+            "response,expected_errtype", [
+                ((400, {}, ""), requests.exceptions.HTTPError),
+                ((500, {}, ""), retry.TransientError),
+                ((502, {}, ""), retry.TransientError),
+                (requests.exceptions.ConnectionError(), retry.TransientError),
+                (requests.exceptions.Timeout(), retry.TransientError),
+                (RuntimeError("oh no"), RuntimeError),
+            ]
         )
-        def test_returns_transient_error_on_transient_statuscodes(
+        def test_returns_transienterror_on_transient_issues(
             self,
             mock_responses: responses.RequestsMock,
             some_file: Path,
-            status: int,
-            transient: bool,
+            response: MockResponseOrException,
+            expected_errtype: Type[Exception],
         ):
-            mock_responses.add(
-                "PUT", "http://example.com/upload-dst", status=status, body="failure!"
+            mock_responses.add_callback(
+                "PUT", "http://example.com/upload-dst", lambda _: response,
             )
-            with pytest.raises(
-                retry.TransientError if transient else requests.exceptions.HTTPError
-            ):
+            with pytest.raises(expected_errtype):
                 internal.InternalApi().upload_file(
                     "http://example.com/upload-dst", some_file.open("rb")
                 )
@@ -211,7 +218,10 @@ class TestUploadFile:
             ],
         )
         def test_rewinds_on_failure(
-            self, mock_responses: responses.RequestsMock, some_file: Path, failure
+            self,
+            mock_responses: responses.RequestsMock,
+            some_file: Path,
+            failure: MockResponseOrException,
         ):
             some_file.write_text("1234567")
 
@@ -343,7 +353,7 @@ class TestUploadFile:
             self,
             mock_responses: responses.RequestsMock,
             some_file: Path,
-            response,
+            response: MockResponseOrException,
             expected_errtype: Type[Exception],
             check_err: Callable[[Exception], bool],
         ):
