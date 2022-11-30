@@ -453,6 +453,12 @@ class SendManager:
     def send_final(self, record: "Record") -> None:
         pass
 
+    def _flush_run(self) -> None:
+        run_done = wandb_internal_pb2.RunDoneRequest()
+        assert self._run
+        run_done.CopyFrom(self._run)
+        self._interface._publish_run_done(run_done)
+
     def send_request_defer(self, record: "Record") -> None:  # noqa: C901
         defer = record.request.defer
         state = defer.state
@@ -465,6 +471,9 @@ class SendManager:
 
         done = False
         if state == defer.BEGIN:
+            transition_state()
+        elif state == defer.FLUSH_RUN:
+            self._flush_run()
             transition_state()
         elif state == defer.FLUSH_STATS:
             # NOTE: this is handled in handler.py:handle_request_defer()
@@ -739,6 +748,15 @@ class SendManager:
         except requests.RequestException:
             pass
         # TODO: do something if sync spell is not successful?
+
+    def _report_run(self) -> None:
+        """Report run to the backend."""
+        if not self._run:
+            request = wandb_internal_pb2.Request()
+            request.run_result.CopyFrom(self._run)
+            record = wandb_internal_pb2.Record()
+            record.request.CopyFrom(request)
+            self._interface._publish(request)
 
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run

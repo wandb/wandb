@@ -1442,6 +1442,7 @@ class Request(google.protobuf.message.Message):
     ARTIFACT_POLL_FIELD_NUMBER: builtins.int
     ARTIFACT_DONE_FIELD_NUMBER: builtins.int
     KEEPALIVE_FIELD_NUMBER: builtins.int
+    RUN_DONE_FIELD_NUMBER: builtins.int
     RUN_FIELD_NUMBER: builtins.int
     SHUTDOWN_FIELD_NUMBER: builtins.int
     ATTACH_FIELD_NUMBER: builtins.int
@@ -1483,6 +1484,8 @@ class Request(google.protobuf.message.Message):
     @property
     def keepalive(self) -> global___KeepaliveRequest: ...
     @property
+    def run_done(self) -> global___RunDoneRequest: ...
+    @property
     def run(self) -> global___RunRequest: ...
     @property
     def shutdown(self) -> global___ShutdownRequest: ...
@@ -1514,6 +1517,7 @@ class Request(google.protobuf.message.Message):
         artifact_poll: global___ArtifactPollRequest | None = ...,
         artifact_done: global___ArtifactDoneRequest | None = ...,
         keepalive: global___KeepaliveRequest | None = ...,
+        run_done: global___RunDoneRequest | None = ...,
         run: global___RunRequest | None = ...,
         shutdown: global___ShutdownRequest | None = ...,
         attach: global___AttachRequest | None = ...,
@@ -1521,9 +1525,9 @@ class Request(google.protobuf.message.Message):
         server_info: global___ServerInfoRequest | None = ...,
         test_inject: global___TestInjectRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run", b"run", "run_start", b"run_start", "sampled_history", b"sampled_history", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run", b"run", "run_start", b"run_start", "sampled_history", b"sampled_history", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "artifact_send", "artifact_poll", "artifact_done", "keepalive", "run", "shutdown", "attach", "status", "server_info", "test_inject"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run", b"run", "run_done", b"run_done", "run_start", b"run_start", "sampled_history", b"sampled_history", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "check_version", b"check_version", "defer", b"defer", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run", b"run", "run_done", b"run_done", "run_start", b"run_start", "sampled_history", b"sampled_history", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "artifact_send", "artifact_poll", "artifact_done", "keepalive", "run_done", "run", "shutdown", "attach", "status", "server_info", "test_inject"] | None: ...
 
 global___Request = Request
 
@@ -1545,6 +1549,7 @@ class Response(google.protobuf.message.Message):
     LOG_ARTIFACT_RESPONSE_FIELD_NUMBER: builtins.int
     ARTIFACT_SEND_RESPONSE_FIELD_NUMBER: builtins.int
     ARTIFACT_POLL_RESPONSE_FIELD_NUMBER: builtins.int
+    RUN_DONE_RESPONSE_FIELD_NUMBER: builtins.int
     RUN_RESPONSE_FIELD_NUMBER: builtins.int
     KEEPALIVE_RESPONSE_FIELD_NUMBER: builtins.int
     SHUTDOWN_RESPONSE_FIELD_NUMBER: builtins.int
@@ -1575,6 +1580,8 @@ class Response(google.protobuf.message.Message):
     @property
     def artifact_poll_response(self) -> global___ArtifactPollResponse: ...
     @property
+    def run_done_response(self) -> global___RunDoneResponse: ...
+    @property
     def run_response(self) -> global___RunResponse: ...
     @property
     def keepalive_response(self) -> global___KeepaliveResponse: ...
@@ -1602,6 +1609,7 @@ class Response(google.protobuf.message.Message):
         log_artifact_response: global___LogArtifactResponse | None = ...,
         artifact_send_response: global___ArtifactSendResponse | None = ...,
         artifact_poll_response: global___ArtifactPollResponse | None = ...,
+        run_done_response: global___RunDoneResponse | None = ...,
         run_response: global___RunResponse | None = ...,
         keepalive_response: global___KeepaliveResponse | None = ...,
         shutdown_response: global___ShutdownResponse | None = ...,
@@ -1610,9 +1618,9 @@ class Response(google.protobuf.message.Message):
         server_info_response: global___ServerInfoResponse | None = ...,
         test_inject_response: global___TestInjectResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["artifact_poll_response", b"artifact_poll_response", "artifact_send_response", b"artifact_send_response", "attach_response", b"attach_response", "check_version_response", b"check_version_response", "get_summary_response", b"get_summary_response", "keepalive_response", b"keepalive_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_response", b"run_response", "run_start_response", b"run_start_response", "sampled_history_response", b"sampled_history_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "test_inject_response", b"test_inject_response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_poll_response", b"artifact_poll_response", "artifact_send_response", b"artifact_send_response", "attach_response", b"attach_response", "check_version_response", b"check_version_response", "get_summary_response", b"get_summary_response", "keepalive_response", b"keepalive_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_response", b"run_response", "run_start_response", b"run_start_response", "sampled_history_response", b"sampled_history_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "test_inject_response", b"test_inject_response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["response_type", b"response_type"]) -> typing_extensions.Literal["stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "artifact_send_response", "artifact_poll_response", "run_response", "keepalive_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "test_inject_response"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifact_poll_response", b"artifact_poll_response", "artifact_send_response", b"artifact_send_response", "attach_response", b"attach_response", "check_version_response", b"check_version_response", "get_summary_response", b"get_summary_response", "keepalive_response", b"keepalive_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_done_response", b"run_done_response", "run_response", b"run_response", "run_start_response", b"run_start_response", "sampled_history_response", b"sampled_history_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "test_inject_response", b"test_inject_response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_poll_response", b"artifact_poll_response", "artifact_send_response", b"artifact_send_response", "attach_response", b"attach_response", "check_version_response", b"check_version_response", "get_summary_response", b"get_summary_response", "keepalive_response", b"keepalive_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_done_response", b"run_done_response", "run_response", b"run_response", "run_start_response", b"run_start_response", "sampled_history_response", b"sampled_history_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "test_inject_response", b"test_inject_response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["response_type", b"response_type"]) -> typing_extensions.Literal["stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "artifact_send_response", "artifact_poll_response", "run_done_response", "run_response", "keepalive_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "test_inject_response"] | None: ...
 
 global___Response = Response
 
@@ -1630,33 +1638,35 @@ class DeferRequest(google.protobuf.message.Message):
     class _DeferStateEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[DeferRequest._DeferState.ValueType], builtins.type):  # noqa: F821
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         BEGIN: DeferRequest._DeferState.ValueType  # 0
-        FLUSH_STATS: DeferRequest._DeferState.ValueType  # 1
-        FLUSH_PARTIAL_HISTORY: DeferRequest._DeferState.ValueType  # 2
-        FLUSH_TB: DeferRequest._DeferState.ValueType  # 3
-        FLUSH_SUM: DeferRequest._DeferState.ValueType  # 4
-        FLUSH_DEBOUNCER: DeferRequest._DeferState.ValueType  # 5
-        FLUSH_OUTPUT: DeferRequest._DeferState.ValueType  # 6
-        FLUSH_DIR: DeferRequest._DeferState.ValueType  # 7
-        FLUSH_FP: DeferRequest._DeferState.ValueType  # 8
-        JOIN_FP: DeferRequest._DeferState.ValueType  # 9
-        FLUSH_FS: DeferRequest._DeferState.ValueType  # 10
-        FLUSH_FINAL: DeferRequest._DeferState.ValueType  # 11
-        END: DeferRequest._DeferState.ValueType  # 12
+        FLUSH_RUN: DeferRequest._DeferState.ValueType  # 1
+        FLUSH_STATS: DeferRequest._DeferState.ValueType  # 2
+        FLUSH_PARTIAL_HISTORY: DeferRequest._DeferState.ValueType  # 3
+        FLUSH_TB: DeferRequest._DeferState.ValueType  # 4
+        FLUSH_SUM: DeferRequest._DeferState.ValueType  # 5
+        FLUSH_DEBOUNCER: DeferRequest._DeferState.ValueType  # 6
+        FLUSH_OUTPUT: DeferRequest._DeferState.ValueType  # 7
+        FLUSH_DIR: DeferRequest._DeferState.ValueType  # 8
+        FLUSH_FP: DeferRequest._DeferState.ValueType  # 9
+        JOIN_FP: DeferRequest._DeferState.ValueType  # 10
+        FLUSH_FS: DeferRequest._DeferState.ValueType  # 11
+        FLUSH_FINAL: DeferRequest._DeferState.ValueType  # 12
+        END: DeferRequest._DeferState.ValueType  # 13
 
     class DeferState(_DeferState, metaclass=_DeferStateEnumTypeWrapper): ...
     BEGIN: DeferRequest.DeferState.ValueType  # 0
-    FLUSH_STATS: DeferRequest.DeferState.ValueType  # 1
-    FLUSH_PARTIAL_HISTORY: DeferRequest.DeferState.ValueType  # 2
-    FLUSH_TB: DeferRequest.DeferState.ValueType  # 3
-    FLUSH_SUM: DeferRequest.DeferState.ValueType  # 4
-    FLUSH_DEBOUNCER: DeferRequest.DeferState.ValueType  # 5
-    FLUSH_OUTPUT: DeferRequest.DeferState.ValueType  # 6
-    FLUSH_DIR: DeferRequest.DeferState.ValueType  # 7
-    FLUSH_FP: DeferRequest.DeferState.ValueType  # 8
-    JOIN_FP: DeferRequest.DeferState.ValueType  # 9
-    FLUSH_FS: DeferRequest.DeferState.ValueType  # 10
-    FLUSH_FINAL: DeferRequest.DeferState.ValueType  # 11
-    END: DeferRequest.DeferState.ValueType  # 12
+    FLUSH_RUN: DeferRequest.DeferState.ValueType  # 1
+    FLUSH_STATS: DeferRequest.DeferState.ValueType  # 2
+    FLUSH_PARTIAL_HISTORY: DeferRequest.DeferState.ValueType  # 3
+    FLUSH_TB: DeferRequest.DeferState.ValueType  # 4
+    FLUSH_SUM: DeferRequest.DeferState.ValueType  # 5
+    FLUSH_DEBOUNCER: DeferRequest.DeferState.ValueType  # 6
+    FLUSH_OUTPUT: DeferRequest.DeferState.ValueType  # 7
+    FLUSH_DIR: DeferRequest.DeferState.ValueType  # 8
+    FLUSH_FP: DeferRequest.DeferState.ValueType  # 9
+    JOIN_FP: DeferRequest.DeferState.ValueType  # 10
+    FLUSH_FS: DeferRequest.DeferState.ValueType  # 11
+    FLUSH_FINAL: DeferRequest.DeferState.ValueType  # 12
+    END: DeferRequest.DeferState.ValueType  # 13
 
     STATE_FIELD_NUMBER: builtins.int
     state: global___DeferRequest.DeferState.ValueType
@@ -2391,6 +2401,39 @@ class RunStartResponse(google.protobuf.message.Message):
     ) -> None: ...
 
 global___RunStartResponse = RunStartResponse
+
+class RunDoneRequest(google.protobuf.message.Message):
+    """
+    RunDoneRequest: get the run
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    RUN_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    @property
+    def run(self) -> global___RunRecord: ...
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
+    def __init__(
+        self,
+        *,
+        run: global___RunRecord | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RequestInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "run", b"run"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "run", b"run"]) -> None: ...
+
+global___RunDoneRequest = RunDoneRequest
+
+class RunDoneResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+global___RunDoneResponse = RunDoneResponse
 
 class RunRequest(google.protobuf.message.Message):
     """

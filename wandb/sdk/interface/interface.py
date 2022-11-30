@@ -485,6 +485,9 @@ class InterfaceBase:
     ) -> Optional[pb.ArtifactPollResponse]:
         raise NotImplementedError
 
+    def _publish_run_done(self, run_done: pb.RunDoneRequest) -> None:
+        raise NotImplementedError
+
     @abstractmethod
     def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
         raise NotImplementedError

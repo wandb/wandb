@@ -2018,7 +2018,8 @@ class Run:
         """
         print("waiting for shutdown")
         if self._run_info_thread_shutdown.is_set():
-            progress_handle.wait_stop()
+            # progress_handle.wait_stop()
+            progress_handle.abandon()
 
     def _run_info_thread(self, handle: MailboxHandle) -> None:
         """Get the run info from the backend and set the run state.
@@ -2034,16 +2035,15 @@ class Run:
         result = handle.wait(
             timeout=-1,  # Wait forever
             on_progress=self._on_progress_run_info,
-            release=False,
         )
 
-        if result is None and self.settings.finish_policy == "fail":
-            # reset the timeout and continue waiting if the shutdown event is set
-            # and the handle is still open, and we haven't received a response
-            # and the finish policy is not set to "fail"
-            result = handle.wait(
-                timeout=self._settings.finish_timeout,
-            )
+        # if result is None and self.settings.finish_policy == "fail":
+        #     # reset the timeout and continue waiting if the shutdown event is set
+        #     # and the handle is still open, and we haven't received a response
+        #     # and the finish policy is not set to "fail"
+        #     result = handle.wait(
+        #         timeout=self._settings.finish_timeout,
+        #     )
 
         if result is None:
             logger.info("run info thread timed out")
@@ -2353,6 +2353,7 @@ class Run:
 
         if self._run_sync_status_checker:
             self._run_info_thread_shutdown.set()
+            # to do: join the thread
 
         if not self._settings._offline and self._settings.enable_job_creation:
             self._log_job()
