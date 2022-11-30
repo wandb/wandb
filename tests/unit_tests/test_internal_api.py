@@ -1,13 +1,10 @@
 import base64
 import hashlib
-import io
 import os
 import tempfile
 from pathlib import Path
-from typing import Callable, Mapping, Optional
+from typing import Callable, Mapping, Optional, Type
 from unittest.mock import Mock, call
-
-import azure.core.exceptions
 
 # TODO(spencerpearson): DO NOT MERGE
 # Does ^this import need to be guarded so that people can
@@ -245,32 +242,27 @@ class TestUploadFile:
             ]
 
     @pytest.mark.parametrize(
-        "request_headers,response,transient",
+        "request_headers,response,expected_errtype",
         [
             (
                 {"x-amz-meta-md5": "1234"},
                 (400, {}, "blah blah RequestTimeout blah blah"),
-                True,
+                retry.TransientError,
             ),
             (
                 {"x-amz-meta-md5": "1234"},
                 (400, {}, "non-timeout-related error message"),
-                False,
-            ),
-            (
-                {"x-amz-meta-md5": "1234"},
-                (401, {}, "blah blah RequestTimeout blah blah"),
-                False,
+                requests.RequestException,
             ),
             (
                 {"x-amz-meta-md5": "1234"},
                 requests.exceptions.ConnectionError(),
-                True,
+                retry.TransientError,
             ),
             (
                 {},
                 (400, {}, "blah blah RequestTimeout blah blah"),
-                False,
+                requests.RequestException,
             ),
         ],
     )
@@ -280,14 +272,12 @@ class TestUploadFile:
         some_file: Path,
         request_headers: Mapping[str, str],
         response,
-        transient: bool,
+        expected_errtype: Type[Exception],
     ):
         mock_responses.add_callback(
             "PUT", "http://example.com/upload-dst", lambda _: response
         )
-        with pytest.raises(
-            retry.TransientError if transient else requests.exceptions.HTTPError
-        ):
+        with pytest.raises(expected_errtype):
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
                 some_file.open("rb"),
@@ -330,46 +320,41 @@ class TestUploadFile:
                 assert len(mock_responses.calls) == 1
 
         @pytest.mark.parametrize(
-            "azure_err,check_normal_err",
+            "response,expected_errtype,check_err",
             [
                 (
-                    azure.core.exceptions.HttpResponseError(
-                        response=Mock(
-                            status_code=400,
-                            headers={},
-                            internal_response=io.BytesIO(b"err details"),
-                        )
-                    ),
-                    lambda errinfo: isinstance(
-                        errinfo.value, requests.exceptions.RequestException
-                    )
-                    and errinfo.value.response.status_code == 400,
+                    (400, {}, "my-reason"),
+                    requests.RequestException,
+                    lambda e: e.response.status_code == 400 and "my-reason" in str(e),
                 ),
                 (
-                    azure.core.exceptions.AzureError("something wild"),
-                    lambda errinfo: isinstance(errinfo.value, retry.TransientError),
+                    (500, {}, "my-reason"),
+                    retry.TransientError,
+                    lambda e: e.exception.response.status_code == 500 and "my-reason" in str(e.exception),
+                ),
+                (
+                    requests.exceptions.ConnectionError("my-reason"),
+                    retry.TransientError,
+                    lambda e: "my-reason" in str(e.exception),
                 ),
             ],
         )
         def test_translates_azure_err_to_normal_err(
             self,
+            mock_responses: responses.RequestsMock,
             some_file: Path,
-            azure_err: azure.core.exceptions.AzureError,
-            check_normal_err: Callable[["pytest.ExceptionInfo"], bool],
+            response,
+            expected_errtype: Type[Exception],
+            check_err: Callable[[Exception], bool],
         ):
-            api = internal.InternalApi()
-            api._azure_blob_module = Mock()
-            api._azure_blob_module.BlobClient.from_blob_url().upload_blob.side_effect = (
-                azure_err
+            mock_responses.add_callback(
+                "PUT", "https://example.com/foo/bar/baz", lambda _: response
             )
-
-            with pytest.raises(
-                (requests.exceptions.RequestException, retry.TransientError)
-            ) as e:
-                api.upload_file(
-                    "http://example.com/upload-dst",
+            with pytest.raises(expected_errtype) as e:
+                internal.InternalApi().upload_file(
+                    "https://example.com/foo/bar/baz",
                     some_file.open("rb"),
                     extra_headers=self.MAGIC_HEADERS,
                 )
 
-            assert check_normal_err(e), e
+            assert check_err(e.value), e.value

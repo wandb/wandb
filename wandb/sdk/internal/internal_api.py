@@ -1883,7 +1883,6 @@ class Api:
                 response = requests.models.Response()
                 response.status_code = e.response.status_code
                 response.headers = e.response.headers
-                response.raw = e.response.internal_response
                 raise requests.exceptions.RequestException(e.message, response=response)
             else:
                 raise requests.exceptions.ConnectionError(e.message)
