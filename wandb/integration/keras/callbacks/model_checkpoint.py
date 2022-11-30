@@ -99,6 +99,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             initial_value_threshold=initial_value_threshold,
             **kwargs,
         )
+        self.save_weights_only = save_weights_only
         if wandb.run is None:
             raise wandb.Error(
                 "You must call `wandb.init()` before `WandbModelCheckpoint()`"
@@ -141,8 +142,11 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         """Log model checkpoint as  W&B Artifact."""
         try:
             assert wandb.run is not None
+            artifact_type = "weight" if self.save_weights_only else "model"
             model_artifact = wandb.Artifact(
-                f"run_{wandb.run.id}_model", type="model", metadata=self.metadata
+                f"run_{wandb.run.name}_{wandb.run.id}_{artifact_type}",
+                type=artifact_type,
+                metadata=self.metadata,
             )
             if self.save_weights_only:
                 # We get three files when this is True
