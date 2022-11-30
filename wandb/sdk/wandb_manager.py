@@ -181,7 +181,7 @@ class _Manager:
         response = svc_iface._svc_inform_attach(attach_id=attach_id)
         return settings_dict_from_pbmap(response._settings_map)
 
-    def _inform_finish(self, run_id: str = None) -> None:
+    def _inform_finish(self, run_id: Optional[str] = None) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_finish(run_id=run_id)
 
