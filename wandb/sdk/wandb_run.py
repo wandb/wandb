@@ -150,7 +150,8 @@ class TeardownHook(NamedTuple):
 
 
 class RunStatusChecker:
-    """Periodically polls the background process for relevant updates:
+    """Periodically polls the background process for relevant updates
+
     - check if the user has requested a stop.
     - check the network status.
     - check the run sync status.
@@ -1417,7 +1418,7 @@ class Run:
         self._step = self._get_starting_step()
 
         # update settings from run_obj
-        self._settings._apply_run_start(message_to_dict(self._run_obj))  # type: ignore
+        self._settings._apply_run_start(message_to_dict(self._run_obj))
         self._update_settings(self._settings)
 
         # TODO: It feels weird to call this twice..

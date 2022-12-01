@@ -1,4 +1,3 @@
-import sys
 import urllib.parse
 from typing import Union
 from unittest import mock

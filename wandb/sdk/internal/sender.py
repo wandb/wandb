@@ -749,15 +749,6 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
-    def _report_run(self) -> None:
-        """Report run to the backend."""
-        if not self._run:
-            request = wandb_internal_pb2.Request()
-            request.run_result.CopyFrom(self._run)
-            record = wandb_internal_pb2.Record()
-            record.request.CopyFrom(request)
-            self._interface._publish(request)
-
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None

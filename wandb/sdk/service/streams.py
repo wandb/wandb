@@ -334,7 +334,7 @@ class StreamMux:
 
                     # todo(settings): rework once SettingsStatic are sunset
                     settings = wandb.Settings(**dict(stream._settings))
-                    settings._apply_run_start(message_to_dict(run_obj))  # type: ignore
+                    settings._apply_run_start(message_to_dict(run_obj))
                     stream.update(dict(settings))
 
             result = final_summary_handle.wait(timeout=-1)

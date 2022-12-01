@@ -26,6 +26,7 @@ from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     Record,
     Result,
+    RunRecord,
     SampledHistoryItem,
     SummaryItem,
     SummaryRecord,
@@ -63,7 +64,7 @@ class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _partial_history: Dict[str, Any]
-    _run_proto: Optional[Record]
+    _run_proto: Optional[RunRecord]
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
