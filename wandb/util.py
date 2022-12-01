@@ -41,6 +41,7 @@ from typing import (
     List,
     Mapping,
     NewType,
+    NoReturn,
     Optional,
     Sequence,
     Set,
@@ -209,7 +210,7 @@ def sentry_exc(
     return None
 
 
-def sentry_reraise(exc: Any) -> None:
+def sentry_reraise(exc: Any) -> NoReturn:
     """Re-raise an exception after logging it to Sentry
 
     Use this for top-level exceptions when you want the user to see the traceback.

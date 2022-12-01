@@ -1,6 +1,7 @@
 import ast
 import base64
 import datetime
+import io
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ from typing import (
 )
 
 import click
+import httpx
 import requests
 import yaml
 from wandb_gql import Client, gql  # type: ignore
@@ -187,7 +189,9 @@ class Api:
         )
         self._client_id_mapping: Dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
-        self._azure_blob_module = util.get_module("azure.storage.blob")
+        self._azure_blob_module: "azure.storage.blob" = util.get_module(
+            "azure.storage.blob"
+        )
 
         self.query_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
@@ -1879,13 +1883,18 @@ class Api:
                 content_settings=content_settings,
             )
         except AzureError as e:
+            # Azure doesn't give us the request info, but httpx requires it, so just stick in a minimal dummy
+            request = httpx.Request("UNKNOWN", "http://unknown")
             if hasattr(e, "response"):
-                response = requests.models.Response()
-                response.status_code = e.response.status_code
-                response.headers = e.response.headers
-                raise requests.exceptions.RequestException(e.message, response=response)
+                response = httpx.Response(
+                    e.response.status_code,
+                    headers=dict(e.response.headers),
+                )
+                raise httpx.HTTPStatusError(
+                    e.message, request=request, response=response
+                )
             else:
-                raise requests.exceptions.ConnectionError(e.message)
+                raise httpx.NetworkError(e.message, request=request)
 
     def upload_file(
         self,
@@ -1893,7 +1902,7 @@ class Api:
         file: IO[bytes],
         callback: Optional["ProgressFn"] = None,
         extra_headers: Optional[Dict[str, str]] = None,
-    ) -> Optional[requests.Response]:
+    ) -> Optional[httpx.Response]:
         """Uploads a file to W&B with failure resumption
 
         Arguments:
@@ -1907,26 +1916,35 @@ class Api:
             The `requests` library response object
         """
         extra_headers = extra_headers.copy() if extra_headers else {}
-        response: Optional[requests.Response] = None
         progress = Progress(file, callback=callback)
         try:
             if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
                 self.upload_file_azure(url, progress, extra_headers)
+                return None
             else:
                 if "x-ms-blob-type" in extra_headers:
                     wandb.termwarn(
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = httpx.put(url, content=progress, headers=extra_headers)
                 response.raise_for_status()
-        except requests.exceptions.RequestException as e:
+                return response
+        except httpx.HTTPError as e:
             logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
+            request_headers = (
+                e.request.headers
+                if isinstance(e, httpx.RequestError) and e.request is not None
+                else ""
+            )
             logger.error(f"upload_file request headers: {request_headers}")
-            response_content = e.response.content if e.response is not None else ""
+            response_content = (
+                e.response.read() if isinstance(e, httpx.HTTPStatusError) else ""
+            )
             logger.error(f"upload_file response body: {response_content}")
-            status_code = e.response.status_code if e.response is not None else 0
+            status_code = (
+                e.response.status_code if isinstance(e, httpx.HTTPStatusError) else ""
+            )
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
                 "x-amz-meta-md5" in extra_headers
@@ -1940,7 +1958,7 @@ class Api:
                 status_code in (308, 408, 409, 429, 500, 502, 503, 504)
                 or isinstance(
                     e,
-                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                    (httpx.TimeoutException, httpx.NetworkError, httpx.ProxyError),
                 )
                 or is_aws_retryable
             ):
@@ -1948,8 +1966,6 @@ class Api:
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
-
-        return response
 
     @normalize_exceptions
     def register_agent(
@@ -2298,7 +2314,7 @@ class Api:
         description: Optional[str] = None,
         force: bool = True,
         progress: Union[TextIO, bool] = False,
-    ) -> "List[Optional[requests.Response]]":
+    ) -> "List[Optional[httpx.Response]]":
         """Uploads multiple files to W&B
 
         Arguments:
@@ -2312,7 +2328,7 @@ class Api:
                 total_bytes) as argument else if True, renders a progress bar to stream.
 
         Returns:
-            A list of `requests.Response` objects
+            A list of `httpx.Response` objects
         """
         if project is None:
             project = self.get_project()
