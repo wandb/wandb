@@ -23,5 +23,5 @@ class MessageFuture:
         self._object_ready.set()
 
     @abstractmethod
-    def get(self, timeout: int = None) -> Optional[pb.Result]:
+    def get(self, timeout: Optional[int] = None) -> Optional[pb.Result]:
         raise NotImplementedError
