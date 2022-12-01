@@ -75,7 +75,9 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            raw = self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            raw = self._api.sweep(
+                sweep_id, "{}", entity=self._entity, project=self._project
+            )
             self._sweep_config = yaml.safe_load(raw["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")

@@ -3122,9 +3122,9 @@ class Api:
         return [node["node"] for node in response["edges"]]
 
     def _stop_run(
-        self, 
+        self,
         run_id,
-    ) -> None: 
+    ) -> None:
         mutation = gql(
             """
             mutation stopRun($id: ID!) {
