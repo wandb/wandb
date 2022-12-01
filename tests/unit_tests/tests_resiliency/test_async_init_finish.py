@@ -75,7 +75,7 @@ def inject_upsert_run(base_url, user):
             False,
             "🐢 Communicating with wandb, run links not yet available",
         ),
-        # todo: always fail -- need to merge the Cancel PR first
+        # TODO: always fail -- need to merge the Cancel PR first
         # (2, "fail", 4, "1", True, "Error communicating with wandb process, exiting"),
     ],
 )
