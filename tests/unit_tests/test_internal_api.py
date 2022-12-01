@@ -143,22 +143,6 @@ class TestUploadFile:
                     "http://example.com/upload-dst", some_file.open("rb")
                 )
 
-        @pytest.mark.parametrize(
-            "error",
-            [requests.exceptions.ConnectionError(), requests.exceptions.Timeout()],
-        )
-        def test_returns_transient_error_on_network_errors(
-            self,
-            mock_responses: responses.RequestsMock,
-            some_file: Path,
-            error: Exception,
-        ):
-            mock_responses.add("PUT", "http://example.com/upload-dst", body=error)
-            with pytest.raises(retry.TransientError):
-                internal.InternalApi().upload_file(
-                    "http://example.com/upload-dst", some_file.open("rb")
-                )
-
     class TestProgressCallback:
         def test_smoke(self, mock_responses: responses.RequestsMock, some_file: Path):
             file_contents = "some text"
