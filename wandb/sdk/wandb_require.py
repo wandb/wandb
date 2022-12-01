@@ -10,7 +10,7 @@ Example:
 """
 
 import os
-from typing import Sequence, Union
+from typing import Optional, Sequence, Union
 
 import wandb
 from wandb.env import _DISABLE_SERVICE, REQUIRE_SERVICE
@@ -76,8 +76,8 @@ class _Requires:
 
 
 def require(
-    requirement: Union[str, Sequence[str]] = None,
-    experiment: Union[str, Sequence[str]] = None,
+    requirement: Optional[Union[str, Sequence[str]]] = None,
+    experiment: Optional[Union[str, Sequence[str]]] = None,
 ) -> None:
     """Indicate which experimental features are used by the script.
 

@@ -632,7 +632,7 @@ def _numpy_generic_convert(obj: Any) -> Any:
 def _find_all_matching_keys(
     d: Dict,
     match_fn: Callable[[Any], bool],
-    visited: Set[int] = None,
+    visited: Optional[Set[int]] = None,
     key_path: Tuple[Any, ...] = (),
 ) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
     """Recursively find all keys that satisfies a match function.
@@ -1293,7 +1293,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1317,7 +1317,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
@@ -1703,7 +1703,7 @@ def artifact_to_json(
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
     if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name  # type: ignore
+        sequence_name = artifact._sequence_name
     else:
         sequence_name = artifact.name.split(":")[0]
 

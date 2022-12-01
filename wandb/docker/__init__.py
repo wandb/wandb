@@ -65,7 +65,7 @@ def run(
     args: List[Any],
     capture_stdout: bool = True,
     capture_stderr: bool = True,
-    input: bytes = None,
+    input: Optional[bytes] = None,
     return_stderr: bool = False,
     env: Optional[Dict[str, str]] = None,
 ) -> Union[str, Tuple[str, str]]:
