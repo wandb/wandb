@@ -261,6 +261,12 @@ def test_launch_kube(
                         "mount": mount,
                     }
                 ],
+                "env": [
+                    {
+                        "name": "test-env",
+                        "value": "test-value",
+                    }
+                ],
             },
         },
     }
@@ -287,6 +293,7 @@ def test_launch_kube(
     assert job.spec.template.spec.node_name == args["node_name"]
     assert job.spec.template.spec.tolerations == args["tolerations"]
     assert job.spec.template.spec.volumes == args["volumes"]
+    assert args["env"] in job.spec.template.spec.containers[0].env
     assert (
         job.spec.template.spec.node_selector["test-selector"]
         == args["node_selectors"]["test-selector"]
