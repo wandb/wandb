@@ -169,49 +169,35 @@ class TestUploadFile:
                 call(0, len(file_contents)),
             ]
 
-        @pytest.mark.parametrize(
-            "file_size,n_expected_reads",
-            [
-                # Does it look like these n_expected_reads values are all too big by 1?
-                # That's because the Progress doesn't stop iterating until it reads 0 bytes;
-                # so there's an extra 0-byte read at the end.
-                (0, 1),
-                (1, 2),
-                # TODO(spencerpearson): we really shouldn't rely on this hidden constant;
-                # but the chunk size _is_ out of our control. A conundrum.
-                (httpx._content.AsyncIteratorByteStream.CHUNK_SIZE // 2, 2),
-                (httpx._content.AsyncIteratorByteStream.CHUNK_SIZE, 2),
-                (int(httpx._content.AsyncIteratorByteStream.CHUNK_SIZE * 1.5), 3),
-                (int(httpx._content.AsyncIteratorByteStream.CHUNK_SIZE * 2.5), 4),
-            ],
-        )
         def test_handles_multiple_calls(
             self,
             mock_httpx: respx.MockRouter,
             some_file: Path,
-            file_size: int,
-            n_expected_reads: int,
         ):
-            some_file.write_text(file_size * "x")
+            some_file.write_text("12345")
 
             mock_httpx.put("http://example.com/upload-dst").respond(200)
 
+            real_file = some_file.open("rb")
+            mock_file = Mock(wraps=real_file)
+
+            def mock_read(n: int = -1):
+                return real_file.read(min(n, 2))
+
+            mock_file.read = mock_read
             progress_callback = Mock()
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                mock_file,
                 callback=progress_callback,
             )
 
-            assert (
-                progress_callback.call_count == n_expected_reads
-            ), progress_callback.call_args_list
-
-            calls = [c[0] for c in progress_callback.call_args_list]
-            for (_, prev_tot), (cur_new, cur_tot) in zip(calls, calls[1:]):
-                assert cur_tot == prev_tot + cur_new, calls
-
-            assert calls[-1][1] == file_size
+            assert progress_callback.call_args_list == [
+                call(2, 2),
+                call(2, 4),
+                call(1, 5),
+                call(0, 5),
+            ]
 
         @pytest.mark.parametrize(
             "failure",
