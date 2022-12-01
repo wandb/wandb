@@ -51,9 +51,23 @@ def inject_upsert_run(base_url, user):
     "init_timeout,init_policy,finish_timeout,application_pattern,should_fail,message",
     [
         # fail 2 times, then stop failing:
-        # (1e-6, "async", 86400, "112", False, "🐢 Communicating with wandb, run links not yet available"),
+        (
+            1e-6,
+            "async",
+            86400,
+            "112",
+            False,
+            "🐢 Communicating with wandb, run links not yet available",
+        ),
         # alternate between failing and not failing
-        # (1e-6, "async", 86400, "10", False, "🐢 Communicating with wandb, run links not yet available"),
+        (
+            1e-6,
+            "async",
+            86400,
+            "10",
+            False,
+            "🐢 Communicating with wandb, run links not yet available",
+        ),
         # always fail, longer than the timeout
         (2, "fail", 4, "1", True, "Error communicating with wandb process, exiting"),
     ],
@@ -86,7 +100,8 @@ def test_flaky_server_response(
                     finish_timeout=finish_timeout,
                 )
             )
-            run.finish()
+            if not should_fail:
+                run.finish()
 
             captured = capsys.readouterr().err
             if message:

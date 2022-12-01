@@ -710,6 +710,7 @@ class _WandbInit:
                 on_progress=self._on_progress_init,
                 release=False,
             )
+            # breakpoint()
 
             if result is not None:
                 run_result = result.run_result
