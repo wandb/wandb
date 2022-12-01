@@ -118,7 +118,9 @@ def immutable_keys() -> List[str]:
     ]
 
 
-def _env_as_bool(var: str, default: Optional[str] = None, env: Env = None) -> bool:
+def _env_as_bool(
+    var: str, default: Optional[str] = None, env: Optional[Env] = None
+) -> bool:
     if env is None:
         env = os.environ
     val = env.get(var, default)
@@ -129,7 +131,7 @@ def _env_as_bool(var: str, default: Optional[str] = None, env: Env = None) -> bo
     return val if isinstance(val, bool) else False
 
 
-def is_debug(default: Optional[str] = None, env: Env = None) -> bool:
+def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
@@ -143,7 +145,7 @@ def ssl_disabled() -> bool:
 
 def get_error_reporting(
     default: Union[bool, str] = True,
-    env: Env = None,
+    env: Optional[Env] = None,
 ) -> Union[bool, str]:
     if env is None:
         env = os.environ
@@ -151,7 +153,7 @@ def get_error_reporting(
     return env.get(ERROR_REPORTING, default)
 
 
-def get_run(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_run(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
     if env is None:
         env = os.environ
 
@@ -159,7 +161,7 @@ def get_run(default: Optional[str] = None, env: Env = None) -> Optional[str]:
 
 
 def get_args(
-    default: Optional[List[str]] = None, env: Env = None
+    default: Optional[List[str]] = None, env: Optional[Env] = None
 ) -> Optional[List[str]]:
     if env is None:
         env = os.environ
@@ -172,14 +174,16 @@ def get_args(
         return default or sys.argv[1:]
 
 
-def get_docker(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_docker(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(DOCKER, default)
 
 
-def get_http_timeout(default: int = 10, env: Env = None) -> int:
+def get_http_timeout(default: int = 10, env: Optional[Env] = None) -> int:
     if env is None:
         env = os.environ
 
@@ -187,7 +191,7 @@ def get_http_timeout(default: int = 10, env: Env = None) -> int:
 
 
 def get_ignore(
-    default: Optional[List[str]] = None, env: Env = None
+    default: Optional[List[str]] = None, env: Optional[Env] = None
 ) -> Optional[List[str]]:
     if env is None:
         env = os.environ
@@ -198,35 +202,45 @@ def get_ignore(
         return default
 
 
-def get_project(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_project(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(PROJECT, default)
 
 
-def get_username(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_username(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(USERNAME, default)
 
 
-def get_user_email(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_user_email(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(USER_EMAIL, default)
 
 
-def get_entity(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_entity(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(ENTITY, default)
 
 
-def get_base_url(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_base_url(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
@@ -235,48 +249,54 @@ def get_base_url(default: Optional[str] = None, env: Env = None) -> Optional[str
     return base_url.rstrip("/") if base_url is not None else base_url
 
 
-def get_app_url(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_app_url(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(APP_URL, default)
 
 
-def get_show_run(default: Optional[str] = None, env: Env = None) -> bool:
+def get_show_run(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     if env is None:
         env = os.environ
 
     return bool(env.get(SHOW_RUN, default))
 
 
-def get_description(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_description(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(DESCRIPTION, default)
 
 
-def get_tags(default: str = "", env: Env = None) -> List[str]:
+def get_tags(default: str = "", env: Optional[Env] = None) -> List[str]:
     if env is None:
         env = os.environ
 
     return [tag for tag in env.get(TAGS, default).split(",") if tag]
 
 
-def get_dir(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_dir(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
     if env is None:
         env = os.environ
     return env.get(DIR, default)
 
 
-def get_config_paths(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_config_paths(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
     return env.get(CONFIG_PATHS, default)
 
 
 def get_agent_report_interval(
-    default: Optional[str] = None, env: Env = None
+    default: Optional[str] = None, env: Optional[Env] = None
 ) -> Optional[int]:
     if env is None:
         env = os.environ
@@ -289,7 +309,7 @@ def get_agent_report_interval(
 
 
 def get_agent_kill_delay(
-    default: Optional[str] = None, env: Env = None
+    default: Optional[str] = None, env: Optional[Env] = None
 ) -> Optional[int]:
     if env is None:
         env = os.environ
@@ -302,7 +322,7 @@ def get_agent_kill_delay(
 
 
 def get_crash_nosync_time(
-    default: Optional[str] = None, env: Env = None
+    default: Optional[str] = None, env: Optional[Env] = None
 ) -> Optional[int]:
     if env is None:
         env = os.environ
@@ -314,14 +334,16 @@ def get_crash_nosync_time(
     return val
 
 
-def get_magic(default: Optional[str] = None, env: Env = None) -> Optional[str]:
+def get_magic(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
     val = env.get(MAGIC, default)
     return val
 
 
-def get_cache_dir(env: Env = None) -> str:
+def get_cache_dir(env: Optional[Env] = None) -> str:
     default_dir = os.path.expanduser(os.path.join("~", ".cache", "wandb"))
     if env is None:
         env = os.environ
@@ -329,7 +351,7 @@ def get_cache_dir(env: Env = None) -> str:
     return val
 
 
-def get_use_v1_artifacts(env: Env = None) -> bool:
+def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:
     if env is None:
         env = os.environ
     val = bool(env.get(USE_V1_ARTIFACTS, False))
@@ -337,7 +359,7 @@ def get_use_v1_artifacts(env: Env = None) -> bool:
 
 
 def get_agent_max_initial_failures(
-    default: Optional[int] = None, env: Env = None
+    default: Optional[int] = None, env: Optional[Env] = None
 ) -> Optional[int]:
     if env is None:
         env = os.environ
@@ -349,13 +371,13 @@ def get_agent_max_initial_failures(
     return val
 
 
-def set_entity(value: str, env: Env = None) -> None:
+def set_entity(value: str, env: Optional[Env] = None) -> None:
     if env is None:
         env = os.environ
     env[ENTITY] = value
 
 
-def set_project(value: str, env: Env = None) -> None:
+def set_project(value: str, env: Optional[Env] = None) -> None:
     if env is None:
         env = os.environ
     env[PROJECT] = value or "uncategorized"
@@ -367,7 +389,7 @@ def should_save_code() -> bool:
     return save_code and not code_disabled
 
 
-def disable_git(env: Env = None) -> bool:
+def disable_git(env: Optional[Env] = None) -> bool:
     if env is None:
         env = os.environ
     val = env.get(DISABLE_GIT, default="False")

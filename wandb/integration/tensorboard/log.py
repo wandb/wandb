@@ -104,7 +104,7 @@ def tf_summary_to_dict(  # noqa: C901
 
     def encode_images(_img_strs: List[bytes], _value: Any) -> None:
         try:
-            from PIL import Image  # type: ignore
+            from PIL import Image
         except ImportError:
             wandb.termwarn(
                 "Install pillow if you are logging images with Tensorboard. "
