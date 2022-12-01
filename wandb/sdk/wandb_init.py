@@ -722,6 +722,7 @@ class _WandbInit:
                     "exiting as per 'fail' init policy."
                 )
                 error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
+                # todo: need to cancel the UpsertBucket request via `run_init_handle`
             elif not run_result and policy == "async":
                 logger.warning(
                     "backend process timed out, continuing as per 'async' policy"

@@ -229,12 +229,14 @@ class RunStatusChecker:
         run_result = result.run_result
         run._set_run_obj(run_result.run)
 
-        # TODO: what do we do if we eventually get a response, but it contains an error?
         if run_result and run_result.error:
             error_message = run_result.error.message
             logger.error(f"encountered error: {error_message}")
-            # TODO: now what? things will break.
-            #  probably need to continue, notify the user, and switch to offline mode?
+            # TODO: for now, we simply fails the run in case we get an error.
+            #  In the future, we will transition to offline mode and allow the user
+            #  to provide an option to gracefully complete the run
+            #  (e.g. with a call-back to move the run_dir to a persistent store).
+            raise wandb.UsageError(error_message)
 
         self._run_is_synced = True
 
@@ -464,8 +466,6 @@ class Run:
     _exit_code: Optional[int]
 
     _run_status_checker: Optional[RunStatusChecker]
-    _run_sync_status_checker: Optional[threading.Thread]
-    _run_info_thread_shutdown: threading.Event
 
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
@@ -571,11 +571,6 @@ class Run:
 
         # Created when the run "starts".
         self._run_status_checker = None
-
-        # todo: rename
-        self._run_sync_status_checker = None
-        # todo: rename into something with "abandon" in it
-        self._run_info_thread_shutdown = threading.Event()
 
         self._check_version = None
         self._sampled_history = None

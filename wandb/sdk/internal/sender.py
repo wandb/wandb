@@ -861,7 +861,7 @@ class SendManager:
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
         else:
-            # If the user is not resuming and we didnt insert on upsert_run then
+            # If the user is not resuming, and we didn't insert on upsert_run then
             # it is likely that we are overwriting the run which we might want to
             # prevent in the future.  This could be a false signal since an upsert_run
             # message which gets retried in the network could also show up as not
