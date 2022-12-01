@@ -1,15 +1,12 @@
 import sys
 import urllib.parse
 from typing import Union
+from unittest import mock
 
 import pytest
 import wandb
 
 from ..conftest import DeliberateHTTPError, InjectedResponse, TokenizedCircularPattern
-
-
-if sys.version_info >= (3, 7):
-    from contextlib import nullcontext
 
 
 @pytest.fixture(scope="function")
@@ -42,52 +39,38 @@ def inject_upsert_run(base_url, user):
     yield helper
 
 
-# skip on py3.6
-@pytest.mark.skipif(
-    sys.version_info < (3, 7), reason="nullcontext not supported in py3.6"
-)
 @pytest.mark.parametrize(
-    "init_timeout,init_policy,finish_timeout,application_pattern,should_fail,message",
+    "init_timeout,finish_timeout,application_pattern,message",
     [
         # fail 2 times, then stop failing:
         (
             1e-6,
-            "async",
             86400,
             "112",
-            False,
             "🐢 Communicating with wandb, run links not yet available",
         ),
         (
             1,
-            "async",
             86400,
             "11112",
-            False,
             "🐢 Communicating with wandb, run links not yet available",
         ),
         # alternate between failing and not failing
         (
             1e-6,
-            "async",
             86400,
             "10",
-            False,
             "🐢 Communicating with wandb, run links not yet available",
         ),
-        # TODO: always fail -- need to merge the Cancel PR first
-        # (2, "fail", 4, "1", True, "Error communicating with wandb process, exiting"),
     ],
 )
-def test_flaky_server_response(
+def test_flaky_server_response_init_policy_async(
     wandb_init,
     relay_server,
     inject_upsert_run,
     init_timeout,
-    init_policy,
     finish_timeout,
     application_pattern,
-    should_fail,
     message,
     capsys,
 ):
@@ -99,18 +82,73 @@ def test_flaky_server_response(
             )
         ]
     ) as relay:
-        with pytest.raises(Exception) if should_fail else nullcontext():
+        run = wandb_init(
+            settings=wandb.Settings(
+                init_timeout=init_timeout,
+                init_policy="async",
+                finish_timeout=finish_timeout,
+            )
+        )
+        run.finish()
+
+        captured = capsys.readouterr().err
+        assert message in captured
+        assert len(relay.context.summary) == 1
+
+
+@pytest.mark.skip(
+    reason="need Mailbox handle cancel PR to be merged + debug the teardown path"
+)
+@pytest.mark.parametrize(
+    "init_timeout,finish_timeout,application_pattern,message",
+    [
+        # fail at init time
+        (
+            1e-9,
+            30,
+            "12",  #
+            "exiting as per 'fail' init policy",
+        ),
+        # fail at finish time
+        (
+            30,
+            3,
+            "0" + "1" * 100,  #
+            "exiting as per 'fail' finish policy",
+        ),
+        # always fail
+        (2, 4, "1", "Error communicating with wandb process, exiting"),
+    ],
+)
+def test_flaky_server_response_init_finish_policy_fail(
+    wandb_init,
+    relay_server,
+    inject_upsert_run,
+    init_timeout,
+    finish_timeout,
+    application_pattern,
+    message,
+    capsys,
+):
+    with relay_server(
+        inject=[
+            inject_upsert_run(
+                status=500,
+                application_pattern=application_pattern,
+            )
+        ]
+    ):
+        with mock.patch("os._exit", return_value="GOODBYE"):
             run = wandb_init(
                 settings=wandb.Settings(
                     init_timeout=init_timeout,
-                    init_policy=init_policy,
+                    init_policy="fail",
                     finish_timeout=finish_timeout,
+                    finish_policy="fail",
                 )
             )
-            if not should_fail:
+            if run is not None:
                 run.finish()
 
             captured = capsys.readouterr().err
-            if message:
-                assert message in captured
-                assert len(relay.context.summary) == 1
+            assert message in captured

@@ -22,7 +22,7 @@ import shortuuid  # type: ignore
 
 import wandb
 from wandb import trigger
-from wandb.errors import UsageError
+from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import _is_artifact_representation, sentry_exc
@@ -41,7 +41,6 @@ from .lib import (
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxHandle
 from .lib.printer import get_printer
-from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -694,7 +693,8 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
-            error_message: Optional[str] = None
+            error: Optional["wandb.errors.Error"] = None
+
             if self.settings.resume:
                 timeout = self.settings.resume_timeout
                 policy = self.settings.resume_policy
@@ -710,18 +710,21 @@ class _WandbInit:
                 on_progress=self._on_progress_init,
                 release=False,
             )
-            # breakpoint()
 
             if result is not None:
                 run_result = result.run_result
 
             if not run_result and policy == "fail":
-                logger.error("backend process timed out, exiting as per 'fail' policy")
                 error_message = (
                     "Error communicating with wandb process, "
                     "exiting as per 'fail' init policy."
                 )
                 error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
+                logger.error(
+                    "backend process timed out, exiting as per 'fail' policy\n"
+                    f"encountered error: {error_message}"
+                )
+                error = CommError(error_message)
                 # todo: need to cancel the UpsertBucket request via `run_init_handle`
             elif not run_result and policy == "async":
                 logger.warning(
@@ -735,15 +738,17 @@ class _WandbInit:
                 )
             elif run_result and run_result.error:
                 error_message = run_result.error.message
+                if error_message:
+                    logger.error(f"encountered error: {error_message}")
+                    error = UsageError(error_message)
 
-            if error_message:
-                logger.error(f"encountered error: {error_message}")
+            if error is not None:
                 if not manager:
                     # Shutdown the backend and get rid of the logger
                     # we don't need to do console cleanup at this point
                     backend.cleanup()
                     self.teardown()
-                raise UsageError(error_message)
+                raise error
 
             if run_result is not None:
                 assert run_result.run

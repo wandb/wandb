@@ -1397,9 +1397,6 @@ class InjectedResponse:
             other, (InjectedResponse, requests.Request, requests.PreparedRequest)
         ):
             return False
-        if not self.application_pattern.should_apply():
-            return False
-        # todo: add more fields for other types of responses?
 
         # always check the method and url
         ret = self.method == other.method and self.url == other.url
@@ -1521,16 +1518,19 @@ class RelayServer:
         ).prepare()
 
         for injected_response in self.inject:
+            # where are we in the application pattern?
+            should_apply = injected_response.application_pattern.should_apply()
             # check if an injected response matches the request
             if injected_response == prepared_relayed_request:
-                with responses.RequestsMock() as mocked_responses:
-                    # do the actual injection
-                    mocked_responses.add(**injected_response.to_dict())
-                    # rotate the injection pattern
-                    injected_response.application_pattern.next()
-                    relayed_response = self.session.send(prepared_relayed_request)
+                # rotate the injection pattern
+                injected_response.application_pattern.next()
+                if should_apply:
+                    with responses.RequestsMock() as mocked_responses:
+                        # do the actual injection
+                        mocked_responses.add(**injected_response.to_dict())
+                        relayed_response = self.session.send(prepared_relayed_request)
 
-                    return relayed_response
+                        return relayed_response
 
         # normal case: no injected response matches the request
         relayed_response = self.session.send(prepared_relayed_request)

@@ -2377,16 +2377,25 @@ class Run:
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
+        exit_result = exit_handle.wait(
+            timeout=self.settings.finish_timeout,
+            on_progress=self._on_progress_exit,
+        )
+        if exit_result is None and self.settings.finish_policy == "fail":
+            # TODO: add exit_handle.cancel()
+            raise wandb.errors.CommError(
+                "Timed out waiting for exit response from backend, "
+                "exiting as per 'fail' policy."
+            )
 
         if (
             self._run_status_checker is not None
             and self._run_status_checker.run_is_synced
         ):
             get_run_handle = self._backend.interface.deliver_request_get_run()
-            get_run_response = get_run_handle.wait(timeout=-1)
-            if get_run_response:
-                run_obj = get_run_response.response.get_run_response.run
+            get_run_result = get_run_handle.wait(timeout=-1)
+            if get_run_result:
+                run_obj = get_run_result.response.get_run_response.run
                 self._set_run_obj(run_obj)
 
         # dispatch all our final requests
