@@ -1,10 +1,6 @@
-from typing import TYPE_CHECKING, Dict, Optional, Union
+from typing import TYPE_CHECKING, List, Dict, Optional, Union
 
 from wandb import hashutil, util
-
-if TYPE_CHECKING:
-    # need this import for type annotations, but want to avoid circular dependency
-    from wandb.sdk import wandb_artifacts
 
 
 class ArtifactEntry:
@@ -82,26 +78,26 @@ class ArtifactManifest:
         raise ValueError("Invalid manifest version.")
 
     @classmethod
-    def version(cls):
-        pass
+    def version(cls) -> int:
+        raise NotImplementedError()
 
     def __init__(
         self,
         artifact,
-        storage_policy: "wandb_artifacts.WandbStoragePolicy",
+        storage_policy: "StoragePolicy",
         entries=None,
     ) -> None:
         self.artifact = artifact
         self.storage_policy = storage_policy
         self.entries = entries or {}
 
-    def to_manifest_json(self):
+    def to_manifest_json(self) -> Dict:
         raise NotImplementedError()
 
-    def digest(self):
+    def digest(self) -> hashutil.HexMD5:
         raise NotImplementedError()
 
-    def add_entry(self, entry):
+    def add_entry(self, entry) -> None:
         if (
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
@@ -112,7 +108,7 @@ class ArtifactManifest:
     def get_entry_by_path(self, path: str) -> Optional[ArtifactEntry]:
         return self.entries.get(path)
 
-    def get_entries_in_directory(self, directory):
+    def get_entries_in_directory(self, directory) -> List[ArtifactEntry]:
         return [
             self.entries[entry_key]
             for entry_key in self.entries

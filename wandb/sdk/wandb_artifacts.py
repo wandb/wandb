@@ -759,7 +759,7 @@ class ArtifactManifestV1(ArtifactManifest):
     @classmethod
     def from_manifest_json(
         cls, artifact: ArtifactInterface, manifest_json: Dict
-    ) -> "ArtifactManifestV1":
+    ) -> ArtifactManifest:
         if manifest_json["version"] != cls.version():
             raise ValueError(
                 "Expected manifest version 1, got %s" % manifest_json["version"]
@@ -826,12 +826,12 @@ class ArtifactManifestV1(ArtifactManifest):
             "contents": contents,
         }
 
-    def digest(self) -> str:
+    def digest(self) -> hashutil.HexMD5:
         hasher = hashlib.md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
             hasher.update(f"{name}:{entry.digest}\n".encode())
-        return hasher.hexdigest()
+        return hashutil.HexMD5(hasher.hexdigest())
 
 
 class ArtifactManifestEntry(ArtifactEntry):
