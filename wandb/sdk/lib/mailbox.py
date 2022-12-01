@@ -229,8 +229,8 @@ class MailboxHandle:
         self,
         *,
         timeout: float,
-        on_probe: Callable[[MailboxProbe], None] = None,
-        on_progress: Callable[[MailboxProgress], None] = None,
+        on_probe: Optional[Callable[[MailboxProbe], None]] = None,
+        on_progress: Optional[Callable[[MailboxProgress], None]] = None,
         release: bool = True,
         cancel: bool = False,
     ) -> Optional[pb.Result]:
@@ -322,7 +322,7 @@ class Mailbox:
         handle: MailboxHandle,
         *,
         timeout: float,
-        on_progress: Callable[[MailboxProgress], None] = None,
+        on_progress: Optional[Callable[[MailboxProgress], None]] = None,
         cancel: bool = False,
     ) -> Optional[pb.Result]:
         return handle.wait(timeout=timeout, on_progress=on_progress, cancel=cancel)
@@ -335,7 +335,7 @@ class Mailbox:
         handles: List[MailboxHandle],
         *,
         timeout: float,
-        on_progress_all: Callable[[MailboxProgressAll], None] = None,
+        on_progress_all: Optional[Callable[[MailboxProgressAll], None]] = None,
     ) -> bool:
         progress_all_handle: Optional[MailboxProgressAll] = None
 

@@ -424,7 +424,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
+        blocks: Optional["wandb.apis.reports.util.Block"] = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
@@ -2479,9 +2479,27 @@ class Sweep(Attrs):
         project: (str) name of project
         config: (str) dictionary of sweep configuration
         state: (str) the state of the sweep
+        expected_run_count: (int) number of expected runs for the sweep
     """
 
     QUERY = gql(
+        """
+    query Sweep($project: String, $entity: String, $name: String!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                state
+                runCountExpected
+                bestLoss
+                config
+            }
+        }
+    }
+    """
+    )
+
+    LEGACY_QUERY = gql(
         """
     query Sweep($project: String, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
@@ -2566,6 +2584,11 @@ class Sweep(Attrs):
             return None
 
     @property
+    def expected_run_count(self) -> Optional[int]:
+        "Returns the number of expected runs in the sweep or None for infinite runs."
+        return self._attrs.get("runCountExpected")
+
+    @property
     def path(self):
         return [
             urllib.parse.quote_plus(str(self.entity)),
@@ -2605,10 +2628,16 @@ class Sweep(Attrs):
         }
         variables.update(kwargs)
 
-        response = client.execute(query, variable_values=variables)
-        if response.get("project") is None:
-            return None
-        elif response["project"].get("sweep") is None:
+        response = None
+        try:
+            response = client.execute(query, variable_values=variables)
+        except Exception:
+            # Don't handle exception, rely on legacy query
+            # TODO(gst): Implement updated introspection workaround
+            query = cls.LEGACY_QUERY
+            response = client.execute(query, variable_values=variables)
+
+        if not response or not response.get("project", {}).get("sweep"):
             return None
 
         sweep_response = response["project"]["sweep"]
@@ -3565,7 +3594,7 @@ class ProjectArtifactCollections(Paginator):
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequences(after: $cursor) {
+                    artifactCollections(after: $cursor) {
                         pageInfo {
                             endCursor
                             hasNextPage
@@ -3610,7 +3639,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "totalCount"
             ]
         else:
@@ -3619,7 +3648,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "pageInfo"
             ]["hasNextPage"]
         else:
@@ -3628,7 +3657,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "edges"
             ][-1]["cursor"]
         else:
@@ -3647,9 +3676,9 @@ class ProjectArtifactCollections(Paginator):
                 self.type_name,
                 r["node"],
             )
-            for r in self.last_response["project"]["artifactType"]["artifactSequences"][
-                "edges"
-            ]
+            for r in self.last_response["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
         ]
 
 
@@ -3778,7 +3807,7 @@ class ArtifactType:
         entity: str,
         project: str,
         type_name: str,
-        attrs: Mapping[str, Any] = None,
+        attrs: Optional[Mapping[str, Any]] = None,
     ):
         self.client = client
         self.entity = entity
@@ -3894,7 +3923,7 @@ class ArtifactCollection:
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequence(name: $artifactCollectionName) {
+                    artifactCollection(name: $artifactCollectionName) {
                         id
                         name
                         description
@@ -3918,10 +3947,10 @@ class ArtifactCollection:
             response is None
             or response.get("project") is None
             or response["project"].get("artifactType") is None
-            or response["project"]["artifactType"].get("artifactSequence") is None
+            or response["project"]["artifactType"].get("artifactCollection") is None
         ):
             raise ValueError("Could not find artifact type %s" % self.type)
-        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
     def __repr__(self):
@@ -5080,7 +5109,7 @@ class ArtifactVersions(Paginator):
         query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
             project(name: $project, entityName: $entity) {
                 artifactType(name: $type) {
-                    artifactSequence(name: $collection) {
+                    artifactCollection(name: $collection) {
                         name
                         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
                             totalCount
@@ -5135,7 +5164,7 @@ class ArtifactVersions(Paginator):
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["totalCount"]
         else:
@@ -5144,7 +5173,7 @@ class ArtifactVersions(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["pageInfo"]["hasNextPage"]
         else:
@@ -5153,14 +5182,14 @@ class ArtifactVersions(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["edges"][-1]["cursor"]
         else:
             return None
 
     def convert_objects(self):
-        if self.last_response["project"]["artifactType"]["artifactSequence"] is None:
+        if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
             Artifact(
@@ -5170,9 +5199,9 @@ class ArtifactVersions(Paginator):
                 self.collection_name + ":" + a["version"],
                 a["node"],
             )
-            for a in self.last_response["project"]["artifactType"]["artifactSequence"][
-                "artifacts"
-            ]["edges"]
+            for a in self.last_response["project"]["artifactType"][
+                "artifactCollection"
+            ]["artifacts"]["edges"]
         ]
 
 
@@ -5272,7 +5301,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
 
-    def __init__(self, api: Api, name, path: str = None) -> None:
+    def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
             self._job_artifact = api.artifact(name, type="job")
         except CommError:

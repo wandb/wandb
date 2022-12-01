@@ -446,7 +446,7 @@ class Artifact:
 
             Adding a directory without an explicit name:
             ```
-            artifact.add_dir('my_dir/', path='destination') # All files in `my_dir/` are added under `destination/`.
+            artifact.add_dir('my_dir/', name='destination') # All files in `my_dir/` are added under `destination/`.
             ```
 
         Raises:
