@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
+import yaml
 
 import wandb
 import wandb.apis.public as public
@@ -74,7 +75,8 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            raw = self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            self._sweep_config = yaml.safe_load(raw["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
         self._sweep_id: str = sweep_id or "empty-sweep-id"
@@ -221,6 +223,7 @@ class Scheduler(ABC):
             _uri = "placeholder-uri-queuedrun-from-scheduler"
         # Queue is required
         _queue = self._kwargs.get("queue", "default")
+
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,

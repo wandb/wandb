@@ -1367,7 +1367,9 @@ def scheduler(
         if isinstance(_arg, str) and _arg.startswith("--"):
             kwargs[_arg[2:]] = ctx.args[i + 1]
 
-    _scheduler = load_scheduler("sweep")(
+    scheduler_type = kwargs.get("type", "sweep")
+
+    _scheduler = load_scheduler(scheduler_type)(
         api,
         sweep_id=sweep_id,
         **kwargs,
