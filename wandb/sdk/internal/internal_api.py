@@ -1,7 +1,6 @@
 import ast
 import base64
 import datetime
-import io
 import json
 import logging
 import os
@@ -53,6 +52,8 @@ if TYPE_CHECKING:
         from typing import Literal, TypedDict
     else:
         from typing_extensions import Literal, TypedDict
+
+    import azure.storage.blob  # type: ignore
 
     from .progress import ProgressFn
 

@@ -1,15 +1,15 @@
 import base64
 import hashlib
 import os
+import tempfile
 from pathlib import Path
+from typing import Callable, Mapping, Optional, Tuple, Type, Union
 from unittest.mock import Mock, call
 
-from typing import Any, Callable, Mapping, Optional, Tuple, Type, Union
-
+import httpx
 import pytest
 import requests
 import responses
-import httpx
 import respx
 from wandb.apis import internal
 from wandb.errors import CommError

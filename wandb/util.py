@@ -41,7 +41,6 @@ from typing import (
     List,
     Mapping,
     NewType,
-    NoReturn,
     Optional,
     Sequence,
     Set,
@@ -62,6 +61,8 @@ from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
 
 if TYPE_CHECKING:
+    from typing import NoReturn
+
     import wandb.apis.public
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_artifacts
