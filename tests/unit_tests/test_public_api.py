@@ -291,7 +291,7 @@ def test_update_aliases_on_artifact(user, relay_server, wandb_init):
     assert "sequence" not in aliases
 
 
-def test_artifact_version(user, wandb_init):
+def test_artifact_version(wandb_init):
     def create_test_artifact(content: str):
         art = wandb.Artifact("test-artifact", "test-type")
         with open("boom.txt", "w") as f:
@@ -301,7 +301,7 @@ def test_artifact_version(user, wandb_init):
 
     # Create an artifact sequence + portfolio (auto-created if it doesn't exist)
     project = "test"
-    run = wandb_init(entity=user, project=project)
+    run = wandb_init(project=project)
 
     art = create_test_artifact("aaaaa")
     run.log_artifact(art, aliases=["a"])
@@ -309,13 +309,13 @@ def test_artifact_version(user, wandb_init):
 
     art = create_test_artifact("bbbb")
     run.log_artifact(art, aliases=["b"])
-    run.link_artifact(art, f"{user}/{project}/my-sample-portfolio")
+    run.link_artifact(art, f"{project}/my-sample-portfolio")
     art.wait()
     run.finish()
 
     # Pull down from portfolio, verify version is indexed from portfolio not sequence
     artifact = Api().artifact(
-        name=f"{user}/{project}/my-sample-portfolio:latest", type="test-type"
+        name=f"{project}/my-sample-portfolio:latest", type="test-type"
     )
 
     assert artifact.version == "v0"
