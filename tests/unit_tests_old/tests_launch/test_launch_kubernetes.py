@@ -247,7 +247,7 @@ def test_launch_kube(
                 "restart_policy": "OnFailure",
                 "preemption_policy": "Never",
                 "node_name": "test-node-name",
-                "node_selectors": {"test-selector": "test-value"},
+                "node_selector": {"test-selector": "test-value"},
                 "tolerations": [{"key": "test-key", "value": "test-value"}],
                 "volumes": [
                     {
@@ -296,7 +296,7 @@ def test_launch_kube(
     assert args["env"] in job.spec.template.spec.containers[0].env
     assert (
         job.spec.template.spec.node_selector["test-selector"]
-        == args["node_selectors"]["test-selector"]
+        == args["node_selector"]["test-selector"]
     )
     container = job.spec.template.spec.containers[0]
     assert "test.registry/repo_name" in container.image

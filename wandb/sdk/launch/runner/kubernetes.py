@@ -165,8 +165,8 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
         if resource_args.get("node_name"):
             pod_spec["nodeName"] = resource_args.get("node_name")
-        if resource_args.get("node_selectors"):
-            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        if resource_args.get("node_selector"):
+            pod_spec["nodeSelector"] = resource_args.get("node_selector")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
         if resource_args.get("security_context"):
