@@ -108,7 +108,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
             "preemptionPolicy", "PreemptLowerPriority"
         )
         pod_spec.node_name = pod_spec.get("nodeName", None)
-        pod_spec.node_selector = pod_spec.get("nodeSelectors", {})
+        pod_spec.node_selector = pod_spec.get("nodeSelector", {})
         pod_spec.containers = pod_spec.get("containers")
         for i, cont in enumerate(pod_spec.containers):
             pod_spec.containers[i] = MockDict(cont)
@@ -293,11 +293,8 @@ def test_launch_kube(
     assert job.spec.template.spec.node_name == args["node_name"]
     assert job.spec.template.spec.tolerations == args["tolerations"]
     assert job.spec.template.spec.volumes == args["volumes"]
-    assert args["env"] in job.spec.template.spec.containers[0].env
-    assert (
-        job.spec.template.spec.node_selector["test-selector"]
-        == args["node_selector"]["test-selector"]
-    )
+    assert args["env"][0] in job.spec.template.spec.containers[0].env
+    assert job.spec.template.spec.node_selector == args["node_selector"]
     container = job.spec.template.spec.containers[0]
     assert "test.registry/repo_name" in container.image
     assert container["volumeMounts"] == args["volume_mounts"]
