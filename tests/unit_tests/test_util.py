@@ -258,7 +258,7 @@ def test_make_safe_for_json_artifacts():
         "seq": ["NaN", 1],
         "str": "str",
         "numpyArr": [0] * 33,
-        "tf": [300, 300],
+        "tensor": [300, 300],
     }
     assert json.dumps(res)
     assert_deep_lists_equal(res, expected)
