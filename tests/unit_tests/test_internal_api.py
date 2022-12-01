@@ -164,7 +164,6 @@ class TestUploadFile:
                 callback=progress_callback,
             )
 
-            # TODO(spencerpearson): why did I need to change this?
             assert progress_callback.call_args_list == [
                 call(len(file_contents), len(file_contents)),
                 call(0, len(file_contents)),
