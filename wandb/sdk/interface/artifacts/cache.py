@@ -3,16 +3,10 @@ import hashlib
 import os
 import random
 import sys
-from typing import (
-    IO,
-    ContextManager,
-    Dict,
-    Tuple,
-)
+from typing import IO, ContextManager, Dict, Tuple
 
 import wandb
 from wandb import env, hashutil, util
-
 
 if sys.version_info >= (3, 8):
     from typing import Protocol
