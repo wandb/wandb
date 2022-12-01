@@ -101,6 +101,10 @@ class ArtifactManifest:
     entries: Dict[str, ArtifactEntry]
 
     @classmethod
+    def version(cls) -> int:
+        raise NotImplementedError()
+
+    @classmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
         if "version" not in manifest_json:
@@ -110,10 +114,6 @@ class ArtifactManifest:
             if sub.version() == version:
                 return sub.from_manifest_json(artifact, manifest_json)
         raise ValueError("Invalid manifest version.")
-
-    @classmethod
-    def version(cls):
-        pass
 
     def __init__(
         self,
@@ -125,13 +125,13 @@ class ArtifactManifest:
         self.storage_policy = storage_policy
         self.entries = entries or {}
 
-    def to_manifest_json(self):
+    def to_manifest_json(self) -> Dict:
         raise NotImplementedError()
 
-    def digest(self):
+    def digest(self) -> str:
         raise NotImplementedError()
 
-    def add_entry(self, entry):
+    def add_entry(self, entry) -> None:
         if (
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
@@ -142,7 +142,7 @@ class ArtifactManifest:
     def get_entry_by_path(self, path: str) -> Optional[ArtifactEntry]:
         return self.entries.get(path)
 
-    def get_entries_in_directory(self, directory):
+    def get_entries_in_directory(self, directory) -> List[ArtifactEntry]:
         return [
             self.entries[entry_key]
             for entry_key in self.entries
