@@ -1226,6 +1226,7 @@ workflows:
                 - "metaflow"
                 - "tf115"
                 - "tf21"
+                - "tf24"
                 - "tf25"
                 - "tf26"
                 - "ray112"
