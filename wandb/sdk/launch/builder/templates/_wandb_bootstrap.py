@@ -3,6 +3,7 @@ import multiprocessing
 import os
 import subprocess
 import sys
+from typing import List, Optional, Set
 
 CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
@@ -19,10 +20,13 @@ else:
     OPTS.append("--force")
 
 
-def install_deps(deps, failed=None):
+def install_deps(
+    deps: List[str], failed: Optional[Set[str]] = None
+) -> Optional[Set[str]]:
     """Install pip dependencies
 
     Arguments:
+        deps {List[str]} -- List of dependencies to install
         failed (set, None): The libraries that failed to install
 
     Returns:
@@ -51,13 +55,13 @@ def install_deps(deps, failed=None):
             return failed
 
 
-def main():
+def main() -> None:
     """Install deps in requirements.frozen.txt"""
     if os.path.exists("requirements.frozen.txt"):
         with open("requirements.frozen.txt") as f:
             print("Installing frozen dependencies...")
             reqs = []
-            failed = set()
+            failed: Set[str] = set()
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now

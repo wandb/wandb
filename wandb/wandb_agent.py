@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -382,7 +382,7 @@ class Agent:
         }
 
     @staticmethod
-    def _create_sweep_command(command: List[str] = None) -> List[str]:
+    def _create_sweep_command(command: Optional[List[str]] = None) -> List[str]:
         """Returns sweep command, filling in environment variable macros."""
         # Start from default sweep command
         command = command or Agent.DEFAULT_SWEEP_COMMAND
@@ -606,16 +606,14 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         <!--yeadoc-test:one-parameter-sweep-agent-->
         ```python
         import wandb
+
         sweep_configuration = {
             "name": "my-awesome-sweep",
             "metric": {"name": "accuracy", "goal": "maximize"},
             "method": "grid",
-            "parameters": {
-                "a": {
-                    "values": [1, 2, 3, 4]
-                }
-            }
+            "parameters": {"a": {"values": [1, 2, 3, 4]}},
         }
+
 
         def my_train_func():
             # read the current value of parameter "a" from wandb.config
@@ -623,6 +621,7 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
             a = wandb.config.a
 
             wandb.log({"a": a, "accuracy": a + 1})
+
 
         sweep_id = wandb.sweep(sweep_configuration)
 

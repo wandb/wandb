@@ -178,7 +178,7 @@ def create_component_from_func(
     func: Callable,
     output_component_file: Optional[str] = None,
     base_image: Optional[str] = None,
-    packages_to_install: List[str] = None,
+    packages_to_install: Optional[List[str]] = None,
     annotations: Optional[Mapping[str, str]] = None,
 ):
     '''This function is modified from KFP.  The original source is below:
