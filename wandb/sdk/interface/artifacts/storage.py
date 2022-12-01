@@ -2,7 +2,8 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from wandb import util
 
-from .artifacts import Artifact, ArtifactEntry
+from .artifact import Artifact
+from .artifact_manifest import ArtifactEntry
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
