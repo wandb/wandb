@@ -929,9 +929,37 @@ def make_json_if_not_number(
     return json_dumps_safer(v)
 
 
-def make_safe_for_json(obj: Any) -> Any:
+def make_safe_for_json(obj: Any) -> Any:  # noqa: C901
     """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
     Converts numpy array to list. Used for artifact metadata"""
+
+    # Copied from json_friendly logic for handling tensor types
+    typename = get_full_typename(obj)
+    if is_tf_eager_tensor_typename(typename):
+        obj = obj.numpy()
+    elif is_tf_tensor_typename(typename):
+        try:
+            obj = obj.eval()
+        except RuntimeError:
+            obj = obj.numpy()
+    elif is_pytorch_tensor_typename(typename) or is_fastai_tensor_typename(typename):
+        try:
+            if obj.requires_grad:
+                obj = obj.detach().numpy()
+        except AttributeError:
+            pass  # before 0.4 is only present on variables
+        try:
+            obj = obj.data
+        except RuntimeError:
+            pass  # happens for Tensors before 0.4
+
+        if obj.size():
+            obj = obj.cpu().detach().numpy()
+        else:
+            return obj.item()
+    elif is_jax_tensor_typename(typename):
+        obj = get_jax_tensor(obj)
+
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
@@ -951,6 +979,8 @@ def make_safe_for_json(obj: Any) -> Any:
         return [make_safe_for_json(v) for v in obj.tolist()]
     elif isinstance(obj, slice):
         return dict(slice_start=obj.start, slice_step=obj.step, slice_stop=obj.stop)
+    elif np and isinstance(obj, np.generic):
+        return _numpy_generic_convert(obj)
     return obj
 
 

@@ -237,7 +237,7 @@ def test_app_url():
 ###############################################################################
 
 
-def test_safe_for_json():
+def test_make_safe_for_json_artifacts():
     res = util.make_safe_for_json(
         {
             "nan": float("nan"),
@@ -247,6 +247,7 @@ def test_safe_for_json():
             "seq": [float("nan"), 1],
             "map": {"foo": 1, "nan": float("nan")},
             "numpyArr": np.array([0] * 33),
+            "tensor": tf.convert_to_tensor((300,) * 2),
         }
     )
     expected = {
@@ -257,6 +258,7 @@ def test_safe_for_json():
         "seq": ["NaN", 1],
         "str": "str",
         "numpyArr": [0] * 33,
+        "tf": [300, 300],
     }
     assert json.dumps(res)
     assert_deep_lists_equal(res, expected)
