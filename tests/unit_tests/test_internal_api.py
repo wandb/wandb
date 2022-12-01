@@ -178,14 +178,22 @@ class TestUploadFile:
 
             mock_httpx.put("http://example.com/upload-dst").respond(200)
 
+            # We can't directly control the chunk size httpx uses for reading our file,
+            # so instead, we'll wrap a mock around the file, and replace its read() method
+            # to just return 2 bytes at a time. It's officially acceptable for read() to
+            # return fewer bytes than requested, without that necessarily meaning EOF.
+            # (Well, technically `min(n,2)` bytes at a time, to obey read()'s contract of
+            #  (a) not returning more bytes than asked for, and
+            #  (b) returning the whole contents on `read()` or `read(-1)`.
+            #  See https://docs.python.org/3/library/io.html#io.RawIOBase.read )
             real_file = some_file.open("rb")
-            mock_file = Mock(wraps=real_file)
+            mock_file = Mock(
+                wraps=real_file,
+                read=lambda n=-1: real_file.read(min(n, 2)),
+            )
 
-            def mock_read(n: int = -1):
-                return real_file.read(min(n, 2))
-
-            mock_file.read = mock_read
             progress_callback = Mock()
+
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
                 mock_file,
