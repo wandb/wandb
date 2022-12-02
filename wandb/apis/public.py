@@ -12,6 +12,7 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 """
 import ast
 import datetime
+import io
 import json
 import logging
 import multiprocessing.dummy  # this uses threads
@@ -2770,7 +2771,7 @@ class File(Attrs):
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
-    def download(self, root=".", replace=False):
+    def download(self, root: str = ".", replace: bool = False, exist_ok: bool = False) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
         Arguments:
@@ -2782,7 +2783,7 @@ class File(Attrs):
             `ValueError` if file already exists and replace=False
         """
         path = os.path.join(root, self.name)
-        if os.path.exists(path) and not replace:
+        if os.path.exists(path) and not replace and not exist_ok:
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path)
