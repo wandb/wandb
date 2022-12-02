@@ -208,7 +208,9 @@ def test_upload_file_retry(runner, mock_server, api):
 
 def test_upload_file_inject_retry(runner, mock_server, api, inject_requests):
     match = inject_requests.Match(path_suffix="/storage", count=2)
-    inject_requests.add(match=match, requests_error=requests.exceptions.ConnectionError)
+    inject_requests.add(
+        match=match, requests_error=requests.exceptions.ConnectionError()
+    )
     with runner.isolated_filesystem():
         run = api.run("test/test/test")
         with open("new_file.pb", "w") as f:
