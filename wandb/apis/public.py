@@ -53,7 +53,6 @@ from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
-from wandb.sdk.wandb_require_helpers import requires
 
 if TYPE_CHECKING:
     import wandb.apis.reports

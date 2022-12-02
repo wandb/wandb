@@ -11,7 +11,6 @@ from typing import (
 )
 
 import wandb
-from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
 from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
