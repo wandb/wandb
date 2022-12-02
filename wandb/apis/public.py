@@ -3587,8 +3587,11 @@ def server_supports_artifact_collections_gql_edges(
     client: RetryingClient, warn: bool = False
 ) -> bool:
     # TODO: Validate this version
-    supported = client.version_supported("0.12.10")
+    # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b
+    # CLI version was bumped to "0.12.11" on Mar 3, 2022: https://github.com/wandb/core/commit/328396fa7c89a2178d510a1be9c0d4451f350d7b
+    supported = client.version_supported("0.12.11")  # edges were merged on
     if not supported and warn:
+        # First local release to include the above is 0.9.50: https://github.com/wandb/local/releases/tag/0.9.50
         wandb.termwarn(
             "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version XXX."
         )
