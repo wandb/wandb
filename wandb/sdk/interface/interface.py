@@ -188,6 +188,14 @@ class InterfaceBase:
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
+    def publish_cancel(self, cancel_slot: str) -> None:
+        cancel = pb.CancelRequest(cancel_slot=cancel_slot)
+        self._publish_cancel(cancel)
+
+    @abstractmethod
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        raise NotImplementedError
+
     def publish_config(
         self,
         data: Optional[dict] = None,

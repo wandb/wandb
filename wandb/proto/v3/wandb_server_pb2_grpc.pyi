@@ -111,6 +111,10 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         wandb.proto.wandb_internal_pb2.ArtifactPollResponse,
     ]
+    Cancel: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.CancelRequest,
+        wandb.proto.wandb_internal_pb2.CancelResponse,
+    ]
     Keepalive: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.KeepaliveRequest,
         wandb.proto.wandb_internal_pb2.KeepaliveResponse,
@@ -316,6 +320,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
+    @abc.abstractmethod
+    def Cancel(
+        self,
+        request: wandb.proto.wandb_internal_pb2.CancelRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.CancelResponse: ...
     @abc.abstractmethod
     def Keepalive(
         self,

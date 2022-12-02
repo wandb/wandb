@@ -28,6 +28,7 @@ import requests
 
 import wandb
 from wandb import util
+from wandb.errors import ContextCancelledError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
@@ -45,7 +46,7 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-from . import artifacts, datastore, file_stream, internal_api, update
+from . import artifacts, context, datastore, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 
@@ -161,6 +162,7 @@ class SendManager:
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
+    _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: Optional["file_stream.FileStreamApi"]
@@ -189,11 +191,13 @@ class SendManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         interface: InterfaceQueue,
+        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
+        self._context_keeper = context_keeper
 
         self._ds = None
 
@@ -289,11 +293,13 @@ class SendManager:
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
+        context_keeper = context.ContextKeeper()
         return SendManager(
             settings=settings,
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
+            context_keeper=context_keeper,
         )
 
     def __len__(self) -> int:
@@ -314,7 +320,17 @@ class SendManager:
         if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
-        send_handler(record)
+
+        context_id = context.context_id_from_record(record)
+        api_context = self._context_keeper.get(context_id)
+        try:
+            self._api.set_local_context(api_context)
+            send_handler(record)
+        except ContextCancelledError:
+            logger.debug(f"Record cancelled: {record_type}")
+            self._context_keeper.release(context_id)
+        finally:
+            self._api.clear_local_context()
 
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
@@ -344,6 +360,8 @@ class SendManager:
 
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
+        context_id = context.context_id_from_result(result)
+        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
@@ -871,7 +889,9 @@ class SendManager:
             logger.info("updated run: %s", self._run.run_id)
 
     def _init_run(
-        self, run: "RunRecord", config_dict: Optional[DictWithValues]
+        self,
+        run: "RunRecord",
+        config_dict: Optional[DictWithValues],
     ) -> None:
         # We subtract the previous runs runtime when resuming
         start_time = (

@@ -15,7 +15,7 @@ from urllib.parse import quote as url_quote
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import datastore, handler, sender, tb_watcher
+from wandb.sdk.internal import context, datastore, handler, sender, tb_watcher
 from wandb.util import check_and_warn_old, mkdir_exists_ok
 
 WANDB_SUFFIX = ".wandb"
@@ -156,8 +156,13 @@ class SyncThread(threading.Thread):
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
         new_interface = InterfaceQueue(record_q)
+        context_keeper = context.ContextKeeper()
         send_manager = sender.SendManager(
-            send_manager._settings, sender_record_q, queue.Queue(), new_interface
+            send_manager._settings,
+            sender_record_q,
+            queue.Queue(),
+            new_interface,
+            context_keeper=context_keeper,
         )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
@@ -168,7 +173,14 @@ class SyncThread(threading.Thread):
         )
 
         handle_manager = handler.HandleManager(
-            settings, record_q, None, False, sender_record_q, None, new_interface
+            settings,
+            record_q,
+            None,
+            False,
+            sender_record_q,
+            None,
+            new_interface,
+            context_keeper=context_keeper,
         )
 
         mkdir_exists_ok(settings.files_dir)
