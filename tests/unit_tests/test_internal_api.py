@@ -136,7 +136,7 @@ class TestUploadFile:
             mock_responses.add_callback(
                 "PUT",
                 "http://example.com/upload-dst",
-                lambda _: response,
+                Mock(return_value=response),
             )
             with pytest.raises(expected_errtype):
                 internal.InternalApi().upload_file(
@@ -270,7 +270,7 @@ class TestUploadFile:
         expected_errtype: Type[Exception],
     ):
         mock_responses.add_callback(
-            "PUT", "http://example.com/upload-dst", lambda _: response
+            "PUT", "http://example.com/upload-dst", Mock(return_value=response)
         )
         with pytest.raises(expected_errtype):
             internal.InternalApi().upload_file(
@@ -346,7 +346,7 @@ class TestUploadFile:
             check_err: Callable[[Exception], bool],
         ):
             mock_responses.add_callback(
-                "PUT", "https://example.com/foo/bar/baz", lambda _: response
+                "PUT", "https://example.com/foo/bar/baz", Mock(return_value=response)
             )
             with pytest.raises(expected_errtype) as e:
                 internal.InternalApi().upload_file(
