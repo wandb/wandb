@@ -128,7 +128,7 @@ class ArtifactManifest:
     def to_manifest_json(self) -> Dict:
         raise NotImplementedError()
 
-    def digest(self) -> str:
+    def digest(self) -> hashutil.HexMD5:
         raise NotImplementedError()
 
     def add_entry(self, entry) -> None:
@@ -214,7 +214,7 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def digest(self) -> str:
+    def digest(self) -> hashutil.HexMD5:
         """
         Returns:
             (str): The artifact's logical digest, a checksum of its contents. If

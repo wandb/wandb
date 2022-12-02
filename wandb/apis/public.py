@@ -4260,7 +4260,7 @@ class Artifact(artifacts.Artifact):
         return self._load_manifest()
 
     @property
-    def digest(self):
+    def digest(self) -> hashutil.HexMD5:
         return self._attrs["digest"]
 
     @property

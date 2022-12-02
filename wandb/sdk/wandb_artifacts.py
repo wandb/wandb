@@ -236,7 +236,7 @@ class Artifact(ArtifactInterface):
         return self._manifest
 
     @property
-    def digest(self) -> str:
+    def digest(self) -> hashutil.HexMD5:
         if self._logged_artifact:
             return self._logged_artifact.digest
 

@@ -3720,7 +3720,7 @@ class _LazyArtifact(ArtifactInterface):
         return self._assert_instance().manifest
 
     @property
-    def digest(self) -> str:
+    def digest(self) -> hashutil.HexMD5:
         return self._assert_instance().digest
 
     @property
