@@ -1377,12 +1377,10 @@ class RelayServer:
         self,
         base_url: str,
         inject: Optional[List[InjectedResponse]] = None,
-        relay_link: bool = False,
     ) -> None:
         # todo for the future:
         #  - consider switching from Flask to Quart
         #  - async app will allow for better failure injection/poor network perf
-        self._relay_link = relay_link
         self.app = flask.Flask(__name__)
         self.app.logger.setLevel(logging.INFO)
         self.app.register_error_handler(DeliberateHTTPError, self.handle_http_exception)
@@ -1410,13 +1408,6 @@ class RelayServer:
             view_func=self.storage_file,
             methods=["PUT", "GET"],
         )
-        if relay_link:
-            self.app.add_url_rule(
-                rule="/relay-link",
-                endpoint="relay_link",
-                view_func=self.relay_link,
-                methods=["POST"],
-            )
         # @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
         self.port = self._get_free_port()
         self.base_url = urllib.parse.urlparse(base_url)
@@ -1429,11 +1420,6 @@ class RelayServer:
 
         # injected responses
         self.inject = inject or []
-
-        # relay link commands
-        self._relay_link_commands = {}
-        self._relay_link_commands["active"] = threading.Event()
-        self._relay_set_active()
 
         # useful when debugging:
         # self.after_request_fn = self.app.after_request(self.after_request_fn)
@@ -1513,10 +1499,6 @@ class RelayServer:
     ) -> None:
         request_data = request.get_json()
         response_data = response.json() or {}
-
-        if self._relay_link:
-            active = self._relay_link_commands.get("active")
-            active.wait()
 
         # store raw data
         raw_data: "RawRequestResponse" = {
@@ -1605,27 +1587,6 @@ class RelayServer:
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
         return relayed_response.json()
-
-    def _relay_set_active(self):
-        self._relay_link_commands["active"].set()
-
-    def _relay_set_paused(self):
-        self._relay_link_commands["active"].clear()
-
-    def relay_link(self) -> Mapping[str, str]:
-        request = flask.request
-        request_data = request.get_json()
-        command = request_data.get("command")
-        if command == "pause":
-            self._relay_set_paused()
-        elif command == "unpause":
-            self._relay_set_active()
-        elif command == "delay":
-            self._relay_set_paused()
-            delay_time = request_data.get("time")
-            delayed_call = threading.Timer(delay_time, self._relay_set_active)
-            delayed_call.start()
-        return {"hello": "there"}
 
 
 @pytest.fixture(scope="function")

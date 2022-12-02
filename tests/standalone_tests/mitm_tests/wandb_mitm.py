@@ -1,10 +1,16 @@
 #!/usr/bin/env python
+"""
+  wandb_mitm run python ./train.py
+  wandb_mitm --port 123 pause --service graphql
+  wandb_mitm --port 123 watch
+"""
 
 import logging
 import os
 import subprocess
 import netrc
 import wandb
+import urllib
 
 import pathlib
 import sys
@@ -12,15 +18,11 @@ import argparse
 
 import flask.cli
 
-flask.cli.show_server_banner = lambda *args: None
-
-root_path = pathlib.Path(__file__).resolve().parent.parent
-conftest_path = root_path / "tests" / "unit_tests"
-sys.path.insert(0, os.fspath(conftest_path))
-from conftest import RelayServer
-
 
 def startup_relay(base_url):
+    from conftest import RelayServer
+
+    flask.cli.show_server_banner = lambda *args: None
     inject = []
     log = logging.getLogger("werkzeug")
     log.setLevel(logging.ERROR)
@@ -49,20 +51,30 @@ def main():
         description="W&B Relay wrapper", allow_abbrev=False
     )
     # parser.add_argument("--shell", action="store_true")
-    parser.add_argument("--base_url", default="api.wandb.ai")
+    parser.add_argument("--base_url", default="https://api.wandb.ai")
+    parser.add_argument("--relay_link")
+    parser.add_argument("--pause")
+    parser.add_argument("--unpause")
+    parser.add_argument("--limit")
+    parser.add_argument("--unlimit")
+    parser.add_argument("--time")
+    parser.add_argument("--requests")
+    parser.add_argument("--watch", action="store_true")
+    parser.add_argument("--trace", action="store_true")
     parser.add_argument("commmand", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
+    netloc = urllib.parse.urlparse(args.base_url).netloc
     net = netrc.netrc()
-    got = net.authenticators(args.base_url)
+    got = net.authenticators(netloc)
     user, account, passwd = got
 
-    if len(args.commmand) == 0:
+    if not args.relay_link and len(args.commmand) == 0:
         print("Expected command to run.")
         parser.print_help()
         sys.exit(1)
 
-    relay_url = startup_relay("https://" + args.base_url)
+    relay_url = startup_relay(args.base_url)
 
     my_env = {
         "WANDB_BASE_URL": relay_url,
