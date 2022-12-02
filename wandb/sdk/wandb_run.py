@@ -150,7 +150,7 @@ class TeardownHook(NamedTuple):
 
 
 class RunStatusChecker:
-    """Periodically polls the background process for relevant updates
+    """Periodically polls the background process for relevant updates.
 
     - check if the user has requested a stop.
     - check the network status.
