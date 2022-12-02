@@ -3583,39 +3583,37 @@ class ProjectArtifactTypes(Paginator):
         ]
 
 
-class ProjectArtifactCollections(Paginator):
-    QUERY = gql(
-        """
-        query ProjectArtifactCollections(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!
-            $cursor: String,
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifactCollections(after: $cursor) {
-                        pageInfo {
-                            endCursor
-                            hasNextPage
-                        }
-                        totalCount
-                        edges {
-                            node {
-                                id
-                                name
-                                description
-                                createdAt
-                            }
-                            cursor
-                        }
-                    }
-                }
-            }
-        }
-    """
+def server_supports_artifact_collections_gql_edges(
+    client: RetryingClient, warn: bool = False
+) -> bool:
+    # TODO: Validate this version
+    supported = client.version_supported("0.12.10")
+    if not supported and warn:
+        wandb.termwarn(
+            "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version XXX."
+        )
+    return supported
+
+
+def artifact_collection_edge_name(server_supports_artifact_collections: bool) -> str:
+    return (
+        "ArtifactCollection"
+        if server_supports_artifact_collections
+        else "ArtifactSequence"
     )
 
+
+def artifact_collection_plural_edge_name(
+    server_supports_artifact_collections: bool,
+) -> str:
+    return (
+        "ArtifactCollections"
+        if server_supports_artifact_collections
+        else "ArtifactSequences"
+    )
+
+
+class ProjectArtifactCollections(Paginator):
     def __init__(
         self,
         client: Client,
@@ -3633,6 +3631,41 @@ class ProjectArtifactCollections(Paginator):
             "projectName": project,
             "artifactTypeName": type_name,
         }
+
+        self.QUERY = gql(
+            """
+            query ProjectArtifactCollections(
+                $entityName: String!,
+                $projectName: String!,
+                $artifactTypeName: String!
+                $cursor: String,
+            ) {
+                project(name: $projectName, entityName: $entityName) {
+                    artifactType(name: $artifactTypeName) {
+                        artifactCollections: %s(after: $cursor) {
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                            totalCount
+                            edges {
+                                node {
+                                    id
+                                    name
+                                    description
+                                    createdAt
+                                }
+                                cursor
+                            }
+                        }
+                    }
+                }
+            }
+        """
+            % artifact_collection_plural_edge_name(
+                server_supports_artifact_collections_gql_edges(client)
+            )
+        )
 
         super().__init__(client, variable_values, per_page)
 
@@ -3923,7 +3956,7 @@ class ArtifactCollection:
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactCollection(name: $artifactCollectionName) {
+                    artifactCollection: %s(name: $artifactCollectionName) {
                         id
                         name
                         description
@@ -3933,6 +3966,9 @@ class ArtifactCollection:
             }
         }
         """
+            % artifact_collection_edge_name(
+                server_supports_artifact_collections_gql_edges(client)
+            )
         )
         response = self.client.execute(
             query,
@@ -5104,36 +5140,6 @@ class ArtifactVersions(Paginator):
     This is generally used indirectly via the `Api`.artifact_versions method
     """
 
-    QUERY = gql(
-        """
-        query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
-            project(name: $project, entityName: $entity) {
-                artifactType(name: $type) {
-                    artifactCollection(name: $collection) {
-                        name
-                        artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-                            totalCount
-                            edges {
-                                node {
-                                    ...ArtifactFragment
-                                }
-                                version
-                                cursor
-                            }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        %s
-        """
-        % ARTIFACT_FRAGMENT
-    )
-
     def __init__(
         self,
         client: Client,
@@ -5159,6 +5165,40 @@ class ArtifactVersions(Paginator):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
+        self.QUERY = gql(
+            """
+            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+                project(name: $project, entityName: $entity) {
+                    artifactType(name: $type) {
+                        artifactCollection: %s(name: $collection) {
+                            name
+                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+                                totalCount
+                                edges {
+                                    node {
+                                        ...ArtifactFragment
+                                    }
+                                    version
+                                    cursor
+                                }
+                                pageInfo {
+                                    endCursor
+                                    hasNextPage
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            %s
+            """
+            % (
+                artifact_collection_edge_name(
+                    server_supports_artifact_collections_gql_edges(client)
+                ),
+                ARTIFACT_FRAGMENT,
+            )
+        )
         super().__init__(client, variables, per_page)
 
     @property
