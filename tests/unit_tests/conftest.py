@@ -1519,7 +1519,6 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-
         # print("*****************")
         # print("GRAPHQL REQUEST:")
         # print(request.get_json())
