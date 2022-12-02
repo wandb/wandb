@@ -454,6 +454,8 @@ class SendManager:
         pass
 
     def _flush_run(self) -> None:
+        if self._settings._offline:
+            return None
         run_done = wandb_internal_pb2.RunDoneRequest()
         assert self._run
         run_done.run.CopyFrom(self._run)
