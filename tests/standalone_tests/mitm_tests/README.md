@@ -1,2 +1,2 @@
-MITM (Mock in the middle) testing
+MITM (Magic In The Middle) testing
 ---
