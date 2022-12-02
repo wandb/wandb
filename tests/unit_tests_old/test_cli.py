@@ -137,7 +137,7 @@ def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
     monkeypatch.setattr(cli, "_api", api)
 
     def bad_commit(cmt):
-        raise ValueError
+        raise ValueError()
 
     monkeypatch.setattr(api.git.repo, "commit", bad_commit)
     monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: [])
