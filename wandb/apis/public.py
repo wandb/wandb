@@ -3600,9 +3600,9 @@ def server_supports_artifact_collections_gql_edges(
 
 def artifact_collection_edge_name(server_supports_artifact_collections: bool) -> str:
     return (
-        "ArtifactCollection"
+        "artifactCollection"
         if server_supports_artifact_collections
-        else "ArtifactSequence"
+        else "artifactSequence"
     )
 
 
@@ -3610,9 +3610,9 @@ def artifact_collection_plural_edge_name(
     server_supports_artifact_collections: bool,
 ) -> str:
     return (
-        "ArtifactCollections"
+        "artifactCollections"
         if server_supports_artifact_collections
-        else "ArtifactSequences"
+        else "artifactSequences"
     )
 
 
