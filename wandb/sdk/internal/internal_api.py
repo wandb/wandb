@@ -1883,7 +1883,6 @@ class Api:
                 response = requests.models.Response()
                 response.status_code = e.response.status_code
                 response.headers = e.response.headers
-                response.raw = e.response.internal_response
                 raise requests.exceptions.RequestException(e.message, response=response)
             else:
                 raise requests.exceptions.ConnectionError(e.message)
@@ -1932,7 +1931,7 @@ class Api:
             is_aws_retryable = (
                 "x-amz-meta-md5" in extra_headers
                 and status_code == 400
-                and "RequestTimeout" in response_content
+                and "RequestTimeout" in str(response_content)
             )
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
