@@ -3970,7 +3970,7 @@ class ArtifactCollection:
         }
         """
             % artifact_collection_edge_name(
-                server_supports_artifact_collections_gql_edges(client)
+                server_supports_artifact_collections_gql_edges(self.client)
             )
         )
         response = self.client.execute(
