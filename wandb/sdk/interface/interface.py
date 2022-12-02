@@ -91,7 +91,7 @@ class InterfaceBase:
         raise NotImplementedError
 
     def communicate_check_version(
-        self, current_version: str = None
+        self, current_version: Optional[str] = None
     ) -> Optional[pb.CheckVersionResponse]:
         check_version = pb.CheckVersionRequest()
         if current_version:
@@ -140,10 +140,10 @@ class InterfaceBase:
 
     def _make_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
-        obj: pb.ConfigRecord = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
+        obj: Optional[pb.ConfigRecord] = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
@@ -183,9 +183,9 @@ class InterfaceBase:
 
     def publish_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
     ) -> None:
         cfg = self._make_config(data=data, key=key, val=val)
 
@@ -211,14 +211,14 @@ class InterfaceBase:
         raise NotImplementedError
 
     def communicate_run(
-        self, run_obj: "Run", timeout: int = None
+        self, run_obj: "Run", timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         run = self._make_run(run_obj)
         return self._communicate_run(run, timeout=timeout)
 
     @abstractmethod
     def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
+        self, run: pb.RunRecord, timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         raise NotImplementedError
 
@@ -367,7 +367,9 @@ class InterfaceBase:
         return proto_artifact
 
     def _make_artifact_manifest(
-        self, artifact_manifest: ArtifactManifest, obj: pb.ArtifactManifest = None
+        self,
+        artifact_manifest: ArtifactManifest,
+        obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
         proto_manifest.version = artifact_manifest.version()  # type: ignore
@@ -547,7 +549,11 @@ class InterfaceBase:
         raise NotImplementedError
 
     def publish_history(
-        self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
+        self,
+        data: dict,
+        step: Optional[int] = None,
+        run: Optional["Run"] = None,
+        publish_step: bool = True,
     ) -> None:
         run = run or self._run
         data = history_dict_to_json(run, data, step=step)

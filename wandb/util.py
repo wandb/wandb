@@ -1034,7 +1034,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1058,7 +1058,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
@@ -1444,7 +1444,7 @@ def artifact_to_json(
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
     if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name  # type: ignore
+        sequence_name = artifact._sequence_name
     else:
         sequence_name = artifact.name.split(":")[0]
 
