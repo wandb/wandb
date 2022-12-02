@@ -2,6 +2,7 @@ import json
 import os
 from unittest import mock
 
+import time
 import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
@@ -387,6 +388,83 @@ def test_launch_add_repository(
         api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
+
+        queued_run = launch_add(
+            uri=uri,
+            entity=user,
+            project=proj,
+            entry_point=entry_point,
+            repository="testing123",
+        )
+
+        assert queued_run.state == "pending"
+
+        queued_run.delete()
+        run.finish()
+
+def test_launch_add_to_queue_with_drc(
+    relay_server, user, monkeypatch, wandb_init, test_settings
+):
+    queue = "default"
+    proj = "test1"
+    repo = "testing123"
+    uri = "https://github.com/wandb/examples.git"
+    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    settings = test_settings({"project": proj})
+    api = InternalApi()
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        wandb.docker,
+        "build",
+        lambda tags, file, context_path: None,
+    )
+
+    def patched_docker_push(reg, tag):
+        assert reg == repo
+
+    monkeypatch.setattr(
+        wandb.docker,
+        "push",
+        lambda reg, tag: patched_docker_push(reg, tag),
+    )
+
+    drc_resource = "local-process"
+    drc_config = """{
+        "resource_args": {
+            "local-process": {
+                "volume_mount": "/awdaw/w/w/d/www",
+                "node_selector": {
+                    "orange": "peanut"
+                },
+                "env": [
+                    "CURIOUS_GEORGE=21",
+                    "ZOO_PLANKTON=2",
+                ]
+            }
+        }
+    }"""
+
+    drc_json = json.dumps(drc_config)
+
+    with relay_server():
+        run = wandb_init(settings=settings).finish()
+        res = api.create_default_resource_config(user, drc_resource, drc_json)
+        assert res['success']
+
+        api.create_run_queue(
+            entity=user, project=proj, queue_name=queue, access="PROJECT",
+            default_resource_config_id=res['defaultResourceConfigID'],
+        )
+        time.sleep(1)
+        
+        run_queue = api.get_project_run_queues(user, proj)[0]
+        assert run_queue['defaultResourceConfigID'] == res['defaultResourceConfigID']
 
         queued_run = launch_add(
             uri=uri,

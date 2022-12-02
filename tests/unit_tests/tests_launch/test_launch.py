@@ -1,5 +1,6 @@
 import pytest
 import wandb
+import json
 from wandb.errors import LaunchError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run
@@ -96,3 +97,44 @@ def test_launch_incorrect_backend(
 
         assert "Resource name not among available resources" in str(e_info)
         r.finish()
+
+
+def test_launch_create_default_resource_config(
+    relay_server, user, monkeypatch, wandb_init, test_settings
+):
+    proj = "test1"
+    settings = test_settings({"project": proj})
+    api = InternalApi()
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    drc_resource = "kubernetes"
+    drc_config = """{
+        "resource_args": {
+            "kubernetes": {
+                "volume_mount": "/awdaw/w/w/d/www",
+                "node_selector": {
+                    "orange": "peanut"
+                },
+                "env": [
+                    "CURIOUS_GEORGE=21",
+                    "ZOO_PLANKTON=2",
+                ]
+            }
+        }
+    }"""
+
+    drc_json = json.dumps(drc_config)
+
+    with relay_server():
+        wandb_init(settings=settings).finish()
+
+        res = api.create_default_resource_config(user, drc_resource, drc_json)
+
+        assert res
+
+

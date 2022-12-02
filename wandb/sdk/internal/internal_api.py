@@ -984,6 +984,7 @@ class Api:
                     name
                     createdBy
                     access
+                    defaultResourceConfigID
                 }
             }
         }
@@ -1006,17 +1007,23 @@ class Api:
 
     @normalize_exceptions
     def create_run_queue(
-        self, entity: str, project: str, queue_name: str, access: str
+        self, 
+        entity: str, 
+        project: str, 
+        queue_name: str,
+        access: str,
+        default_resource_config_id: str = None,
     ) -> Optional[Dict[str, Any]]:
         query = gql(
             """
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $defaultResourceConfigID: ID){
             createRunQueue(
                 input: {
                     entityName: $entity,
                     projectName: $project,
                     queueName: $queueName,
-                    access: $access
+                    defaultResourceConfigID: $defaultResourceConfigID,
+                    access: $access,
                 }
             ) {
                 success
@@ -1031,6 +1038,10 @@ class Api:
             "access": access,
             "queueName": queue_name,
         }
+
+        if default_resource_config_id:
+            variable_values.update({"defaultResourceConfigID": default_resource_config_id})
+
         result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
             "createRunQueue"
         ]
@@ -1075,8 +1086,9 @@ class Api:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
-        except Exception:
+        except Exception as e:
             result = None
+            raise Exception(e)
 
         return result
 
@@ -1217,6 +1229,34 @@ class Api:
             )
         result: bool = response["ackRunQueueItem"]["success"]
         return result
+
+    @normalize_exceptions
+    def create_default_resource_config(self, entity_name: str, resource: str, config: str):
+        mutation = gql(
+            """
+            mutation createDefaultResourceConfig($entityName: String!, $resource: String!, $config: JSONString!) {
+                createDefaultResourceConfig(input: {
+                    entityName: $entityName,
+                    resource: $resource,
+                    config: $config,
+                }) {
+                    defaultResourceConfigID
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation, variable_values={
+                "entityName": entity_name, "resource": resource, "config": config
+            }
+        )
+
+        if not response["createDefaultResourceConfig"]["success"]:
+            raise CommError("Error creating default resource configuration")
+
+        return response["createDefaultResourceConfig"]
 
     @normalize_exceptions
     def create_launch_agent(
