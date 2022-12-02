@@ -238,7 +238,8 @@ class Scheduler(ABC):
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
         )
-        self._runs[run_id].queued_run = queued_run
+        if run_id in self._runs:
+            self._runs[run_id].queued_run = queued_run
         wandb.termlog(
             f"{LOG_PREFIX}Added run to Launch RunQueue: {_queue} RunID:{run_id}."
         )

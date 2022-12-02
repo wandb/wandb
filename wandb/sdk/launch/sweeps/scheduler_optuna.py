@@ -7,11 +7,6 @@ from collections import defaultdict
 import time
 import socket
 import optuna
-from optuna.distributions import (
-    CategoricalDistribution,
-    IntDistribution,
-    FloatDistribution,
-)
 import queue
 import base64
 
@@ -25,10 +20,9 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SimpleRunState,
     SweepRun,
 )
-from wandb.sdk.wandb_run import Run
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
-from wandb.apis.public import Api
+from wandb.apis.public import Api, QueuedRun
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
@@ -86,58 +80,27 @@ class OptunaScheduler(Scheduler):
         self.study: optuna.study.Study = self._load_db()
 
         self._run_history = []
-        self._optuna_config = self._make_optuna_config()
-
         self._public_api = Api()
         self._internal_api = InternalApi()
 
     def _exit(self) -> None:
         pass
 
-    def _make_optuna_config(self) -> Dict[str, Any]:
-        """
-        !! This is where we ensure the user provided config is actually
-        compatible with optuna, which is non trivial. This will have to be updated
-        with new versions, etc.
-        """
-
-        validate_optuna_config(self._sweep_config)
-
-        distributions = {}
-        for param, extras in self._sweep_config["parameters"].items():
-            print(param, extras)
-            if values := extras.get("values"):  # categorical
-                distributions[param] = CategoricalDistribution(values)
-            elif value := extras.get("value"):
-                distributions[param] = CategoricalDistribution([value])
-            elif type(extras.get("min")) == float:
-                log = "log" in param
-                distributions[param] = FloatDistribution(
-                    extras.get("min"), extras.get("max"), log=log
-                )
-            elif type(extras.get("min")) == int:
-                log = "log" in param
-                distributions[param] = IntDistribution(
-                    extras.get("min"), extras.get("max"), log=log
-                )
-            else:
-                print(f"{LOG_PREFIX} Unknown parameter type, help! {param=}, {extras=}")
-
-        # Do we want to set the metric here? Note for the users, we access the metric
-        # when pruning, so we need to know what its called. defaults to "loss"
-        # epochs defaults to epoch, could also name step...
-
-        return distributions
-
-    def _load_db(self, sweep_name: str = "example-study"):
+    def _load_db(self, study_name: str = None):
         """
         Create an optuna study with a sqlite backened for loose state management
         """
         # TODO(gst): add to validate function to confirm this exists, warn user
+        if not study_name:
+            study_name = f"optuna-study-{self._sweep_id}"
+
         params = self._sweep_config.get("parameters", {})
-        epochs = params.get("epochs", {}).get("value") or 20  # could also use STEP here
+        epochs = params.get("epochs", {}).get("value") or 20
         pruner_args = params.get("pruner", {})
 
+        print(
+            f"{LOG_PREFIX}Creating study: {study_name} with HyperbandPruner w/ {epochs=}"
+        )
         pruner = optuna.pruners.HyperbandPruner(
             min_resource=pruner_args.get(
                 "min_resource", 1
@@ -146,46 +109,35 @@ class OptunaScheduler(Scheduler):
             reduction_factor=pruner_args.get("reduction_factor", 3),
         )
 
-        storage_name = f"sqlite:///{sweep_name}.db"
+        storage_name = f"sqlite:///{study_name}.db"
         return optuna.create_study(
-            study_name=sweep_name,
+            study_name=study_name,
             storage=storage_name,
             pruner=pruner,
             load_if_exists=True,
         )
 
     def _start(self) -> None:
-        for worker_id in range(self._num_workers):
-            print(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
-            agent_config = self._api.register_agent(
-                f"{socket.gethostname()}-{worker_id}",  # host
-                sweep_id=self._sweep_id,
-                project_name=self._project,
-                entity=self._entity,
-            )
-            self._workers[worker_id] = _Worker(
-                agent_config=agent_config,
-                agent_id=agent_config["id"],
-            )
+        print(f"{LOG_PREFIX}Starting AgentHeartbeat worker {0}\n")
+        agent_config = self._api.register_agent(
+            f"{socket.gethostname()}-{0}",  # host
+            sweep_id=self._sweep_id,
+            project_name=self._project,
+            entity=self._entity,
+        )
+        self._workers[0] = _Worker(
+            agent_config=agent_config,
+            agent_id=agent_config["id"],
+        )
 
     def _heartbeat(self, worker_id: int) -> None:
         # Make sure Scheduler is alive
         if not self.is_alive():
             return
 
-        # AgentHeartbeat wants a Dict of runs which are running or queued
-        _run_states: Dict[str, bool] = {}
-        for run_id, run in self._yield_runs():
-            # Filter out runs that are from a different worker thread
-            if run.worker_id == worker_id and run.state == SimpleRunState.ALIVE:
-                _run_states[run_id] = True
-
-        print(f"{LOG_PREFIX}OptunaHeartbeat sending: \n")
         commands: List[Dict[str, Any]] = self._optuna_heartbeat(
-            self._workers[worker_id].agent_id,  # agent_id: str
-            _run_states,  # run_states: dict
+            self._workers[worker_id].agent_id,
         )
-        print(f"{LOG_PREFIX}OptunaHeartbeat received {len(commands)} commands: \n")
 
         for command in commands:
             _type = command.get("type")
@@ -193,34 +145,32 @@ class OptunaScheduler(Scheduler):
                 self.state = SchedulerState.STOPPED
                 self.exit()
                 return
-            elif _type in ["run", "resume"]:
-                _run_id = command.get("run_id")
-                if _run_id is None:
-                    self.state = SchedulerState.FAILED
-                    raise SchedulerError(
-                        f"AgentHeartbeat command {command} missing run_id"
-                    )
-                if _run_id in self._runs:
-                    print(f"{LOG_PREFIX} Skipping duplicate run {run_id}")
-                else:
-                    run = SweepRun(
-                        id=_run_id,
-                        args=command.get("args", {}),
-                        logs=command.get("logs", []),
-                        program=command.get("program"),
-                        worker_id=worker_id,
-                    )
-                    self._runs[run.id] = run
-                    self._heartbeat_queue.put(run)
+            # elif _type in ["run", "resume"]:
+            #     _run_id = command.get("run_id")
+            #     if _run_id is None:
+            #         self.state = SchedulerState.FAILED
+            #         raise SchedulerError(
+            #             f"AgentHeartbeat command {command} missing run_id"
+            #         )
+            #     if _run_id in self._runs:
+            #         print(f"{LOG_PREFIX} Skipping duplicate run {_run_id}")
+            #     else:
+            #         run = SweepRun(
+            #             id=_run_id,
+            #             args=command.get("args", {}),
+            #             logs=command.get("logs", []),
+            #             program=command.get("program"),
+            #             worker_id=worker_id,
+            #         )
+            #         self._runs[run.id] = run
+            #         self._heartbeat_queue.put(run)
             else:
                 self.state = SchedulerState.FAILED
                 raise SchedulerError(f"AgentHeartbeat unknown command type {_type}")
 
     def _run(self) -> None:
-        # Go through all workers and heartbeat
-        for worker_id in self._workers.keys():
-            self._heartbeat(worker_id)
-
+        # Go through all 1 worker and heartbeat
+        self._heartbeat(0)
         try:
             run: SweepRun = self._heartbeat_queue.get(
                 timeout=self._heartbeat_queue_timeout
@@ -258,95 +208,90 @@ class OptunaScheduler(Scheduler):
                 print(f"{LOG_PREFIX} Unknown parameter type, help! {param=}, {extras=}")
         return config, trial
 
-    def _optuna_heartbeat(
-        self, agent_id: str, _run_states: Dict[str, bool]
-    ) -> List[Dict[str, Any]]:
+    def _optuna_heartbeat(self, agent_id: str) -> List[Dict[str, Any]]:
         def objective(trial):
-
+            """Optuna objective function"""
             sweep_config, trial = self.make_trial(trial)
-            print(f"in objective with trial params: {trial.params=}")
-
-            run: Run = wandb.init(
-                project=self._project,
-                entity=self._entity,
-                job_type="sweep_run",
-                config=trial.params,  # json.dumps(trial.params)
-            )
-
-            program = self._sweep_config.get("program")
-
-            sweep_run = SweepRun(
-                id=run.id,
-                args=run.config,
-                logs=[],
-                program=program,
-                worker_id=agent_id,
-            )
-            self._runs[sweep_run.id] = sweep_run
-            self._heartbeat_queue.put(sweep_run)
-
-            _ = self._add_to_launch_queue(
-                run_id=run.id,
-                entry_point=["python3", program],
-                # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
+            queued_run: QueuedRun = self._add_to_launch_queue(
+                entry_point=[
+                    f"WANDB_SWEEP_ID={self._sweep_id} python3",
+                    self._sweep_config.get("program"),
+                ],
+                # Use legacy sweep utilities to extract args dict from agent heartbeat run.args (?)
                 config={
                     "overrides": {
                         "run_config": LegacySweepAgent._create_command_args(
                             {"args": sweep_config}
-                        )["args_dict"]
+                        )["args_dict"],
                     },
                     "resource": "local-process",
                 },
             )
 
-            api_run = self._public_api.run(run.path)
-            last_epoch = 0
+            # wait for launch to actually create a run object
+            launched_run = queued_run.wait_until_running()
+            launched_run_path = "/".join(launched_run.path)
+
+            encoded_run_id = base64.standard_b64encode(
+                f"Run:v1:{launched_run.id}:{self._project}:{self._entity}".encode()
+            ).decode("utf-8")
+
+            api_run = self._public_api.run(launched_run_path)
+            # Set external runs sweep information
+            self._internal_api.upsert_run(id=encoded_run_id, sweep_name=self._sweep_id)
+
+            last_epoch = -1
             while True:
-                # print(f"top of while true: {api_run.state=}, {api_run.id=}")
-
-                # TODO: support other metrics
                 history = api_run.scan_history(keys=["_step", "loss_metric"])
-                # print(f"hist: {[x for x in history]}")
-
                 next_epochs = [x for x in history if x["_step"] > last_epoch]
 
                 if len(next_epochs) == 0:
-                    print(".")
                     time.sleep(1)
                     continue
 
-                # nothing fancy, just log all steps
                 for epoch_data in next_epochs:
-                    print(f"{epoch_data['_step']}: {epoch_data['loss_metric']}")
-                    trial.report(
-                        epoch_data["loss_metric"], epoch_data["_step"]
-                    )  # todo fix metric
+                    step = epoch_data["_step"]
+                    loss = epoch_data["loss_metric"]
+                    sweep_job.log({"step": step, "loss": loss})
+                    print(f"{LOG_PREFIX}Step {step}: loss={loss}")
+                    trial.report(loss, step)  # todo fix metric
 
-                last_epoch = epoch_data["_step"]
-
+                last_epoch = step
                 if trial.should_prune():
-                    print("Optuna decided to PRUNE, sending STOP!")
-                    run.finish()
-                    encoded = base64.standard_b64encode(
-                        f"Run:v1:{api_run.id}:{self._project}:{self._entity}".encode()
-                    ).decode("utf-8")
-                    self._internal_api._stop_run(encoded)
+                    print(f"{LOG_PREFIX}Optuna decided to PRUNE!")
+                    success = self._internal_api._stop_run(encoded_run_id)
+                    if success:
+                        print(f"{LOG_PREFIX}Stopped run: {api_run.id}")
+                    else:
+                        print(f"{LOG_PREFIX}Couldn't stop run...")
+
                     raise optuna.TrialPruned()
 
-                if epoch_data["_step"] == trial.params["epochs"] - 1:
-                    print("DONE!")
-                    run.finish()
-                    return epoch_data["loss_metric"]
-            return -1
+                if last_epoch == trial.params["epochs"] - 1:
+                    print(f"{LOG_PREFIX} Trial completed!")
+                    sweep_job.log({"loss": loss})
+                    return loss
 
-        self.study.optimize(objective, n_trials=10, n_jobs=1)
+        """ Create master sweep job here """
+        settings = wandb.Settings()
+        settings.update({"enable_job_creation": True})
+        sweep_job = wandb.init(
+            settings=settings,
+            project=self._project,
+            entity=self._entity,
+            job_type="sweep_run",
+        )
+        sweep_job.log_code()
+        self.study.optimize(objective, n_trials=5, n_jobs=self._num_workers)
+        sweep_job.finish()
 
-        # command = {
-        #     "id": run.id,
-        #     "type": "run",
-        #     "state": SimpleRunState.ALIVE,
-        #     "args": params,
-        #     "worker_id": agent_id,
-        # }
+        return [{"type": "stop"}]
 
-        return {}
+
+"""
+Currently we create a new run in the objective function process,
+but we really want to delay that until in the launched run, so that
+we can have a master scheduler run/job, and the spawned runs
+report back to it.
+
+"""
