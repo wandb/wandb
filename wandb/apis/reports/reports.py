@@ -809,44 +809,63 @@ class Vega(Panel):
 
 class CustomChart(Panel):
     query: dict = Attr(json_path="spec.config.userQuery.queryFields")
-    chart_name: str = Attr(json_path='spec.config.panelDefId')
-    user_fields: dict = Attr(json_path='spec.config.fieldSettings')
-    
-    def __init__(self, query={}, chart_name="", user_fields={}, *args, **kwargs):
+    chart_name: str = Attr(json_path="spec.config.panelDefId")
+    user_fields: dict = Attr(json_path="spec.config.fieldSettings")
+
+    def __init__(self, query=None, chart_name="", user_fields=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.query = query
+        self.spec["config"] = {"transform": {"name": "tableWithLeafColNames"}}
+        self.query = coalesce(query, {})
         self.chart_name = chart_name
-        self.user_fields = user_fields
-    
+        self.user_fields = coalesce(user_fields, {})
+
     @property
     def view_type(self) -> str:
         return "Vega2"
-    
+
     @query.getter
     def query(self):
-        d = nested_get(self, self._get_path('query'))
-        fields = d[0]['fields']
-        query = {o['name']: o.get('args') for o in fields} 
-        query = {k: v[0]['value'] if v is not None else None for k, v in query.items()}
+        d = nested_get(self, self._get_path("query"))
+        fields = d[0]["fields"]
+        query = {o["name"]: o.get("args") for o in fields}
+        query = {
+            k: v[0]["value"] if v is not None else None
+            for k, v in query.items()
+            if k not in ("id", "name")
+        }
         return query
-    
+
     @query.setter
     def query(self, d):
         def make_fields(d):
             fields = []
-            for k,v in d.items():
+            for k, v in d.items():
                 if v is None:
-                    field = {'name': k, 'fields': []}
+                    field = {"name": k, "fields": []}
                 else:
-                    field = {'name': k, 'fields': [], 'args': [{'name': 'keys', 'value': v}]}
+                    field = {
+                        "name": k,
+                        "fields": [],
+                        "args": [{"name": "keys", "value": v}],
+                    }
                 fields.append(field)
+            if "id" not in d:
+                fields.append({"name": "id", "fields": []})
+            if "name" not in d:
+                fields.append({"name": "name", "fields": []})
             return fields
-        query = {'args': [{'name': 'runSets', 'value': '${runSets}'},{'name': 'limit', 'value': 500}],
-                'name': 'runSets'}
-        query['fields'] = make_fields(d)
+
+        query = {
+            "args": [
+                {"name": "runSets", "value": "${runSets}"},
+                {"name": "limit", "value": 500},
+            ],
+            "name": "runSets",
+        }
+        query["fields"] = make_fields(d)
         query = [query]
-        nested_set(self, self._get_path('query'), query)
-    
+        nested_set(self, self._get_path("query"), query)
+
 
 class Vega3(Panel):
     @property

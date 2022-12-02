@@ -3,6 +3,7 @@
 from .reports import (  # ConfusionMatrix,; DataFrames,; MultiRunTable,; Vega,; Vega2,; Vega3,; WeavePanel,
     BarPlot,
     CodeComparer,
+    CustomChart,
     LinePlot,
     MarkdownPanel,
     MediaBrowser,
@@ -11,5 +12,4 @@ from .reports import (  # ConfusionMatrix,; DataFrames,; MultiRunTable,; Vega,; 
     RunComparer,
     ScalarChart,
     ScatterPlot,
-    CustomChart,
 )
