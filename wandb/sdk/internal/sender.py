@@ -454,10 +454,11 @@ class SendManager:
         pass
 
     def _flush_run(self) -> None:
+        if self._run is None:
+            return
         run_done = wandb_internal_pb2.RunDoneRequest()
-        if self._run is not None:
-            run_done.run.CopyFrom(self._run)
-            self._interface._publish_run_done(run_done)
+        run_done.run.CopyFrom(self._run)
+        self._interface._publish_run_done(run_done)
 
     def send_request_defer(self, record: "Record") -> None:  # noqa: C901
         defer = record.request.defer
