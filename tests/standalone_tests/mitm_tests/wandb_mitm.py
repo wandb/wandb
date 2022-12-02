@@ -20,7 +20,7 @@ import flask.cli
 
 
 def startup_relay(base_url):
-    from conftest import RelayServer
+    from relay import RelayServer
 
     flask.cli.show_server_banner = lambda *args: None
     inject = []
