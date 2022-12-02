@@ -161,8 +161,8 @@ class RequestsMock:
         if inject:
             if inject.requests_error:
                 if inject.requests_error is True:
-                    raise requests.exceptions.RetryError()
-                raise requests.exceptions.ConnectionError()
+                    raise requests.exceptions.RetryError
+                raise requests.exceptions.ConnectionError
 
     def post(self, url, **kwargs):
         self._inject("post", url, kwargs)

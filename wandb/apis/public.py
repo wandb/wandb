@@ -975,7 +975,7 @@ class Attrs:
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
         if key == "user":
-            raise AttributeError()
+            raise AttributeError
         if key in self._attrs.keys():
             return self._attrs[key]
         elif name in self._attrs.keys():
@@ -1016,18 +1016,18 @@ class Paginator:
 
     @property
     def length(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def more(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def cursor(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def convert_objects(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def update_variables(self):
         self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
