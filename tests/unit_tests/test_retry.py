@@ -78,41 +78,6 @@ def test_retry_calls_callback_on_retry_loop_start_if_http_error():
     mock_callback.assert_called_once_with(500, mock.ANY)
 
 
-@pytest.mark.parametrize(
-    ["max_num_retries", "num_failures", "expect_log"],
-    [
-        (5, 0, False),
-        (5, 1, False),
-        (5, 2, True),
-    ],
-)
-def test_retry_logs_on_retry_loop_start(
-    max_num_retries: int, num_failures: int, expect_log: bool
-):
-    func = mock.Mock()
-    func.side_effect = [ValueError()] * num_failures + [None]
-
-    mock_log = mock.Mock()
-
-    retrier = retry.Retry(
-        func,
-        retryable_exceptions=(ValueError,),
-        num_retries=max_num_retries,
-        sleep_fn_for_testing=noop_sleep,
-        termlog_fn_for_testing=mock_log,
-    )
-
-    try:
-        retrier()
-    except ValueError:
-        pass
-
-    if expect_log:
-        mock_log.assert_called_once()
-    else:
-        mock_log.assert_not_called()
-
-
 def test_retry_call_num_retries_overrides_default_num_retries():
     func = mock.Mock()
     func.side_effect = ValueError

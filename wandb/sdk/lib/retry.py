@@ -49,16 +49,10 @@ class RetryChecker:
         max_retries: int,
         sleep_base: float,
         check_retry_fn: CheckRetryFnType,
-        error_prefix: str,
-        retry_callback: Optional[Callable[[int, str], Any]] = None,
-        termlog_fn_for_testing: Callable[[str], None] = wandb.termlog,
     ):
         self._max_time = max_time
         self._max_retries = max_retries
         self._check_retry_fn = check_retry_fn
-        self._error_prefix = error_prefix
-        self._retry_callback = retry_callback
-        self._termlog_fn = termlog_fn_for_testing
 
         self._next_sleep = sleep_base
         self._num_failures = 0
@@ -94,10 +88,7 @@ class RetryChecker:
             max_time=retry_timedelta,
             max_retries=num_retries,
             sleep_base=sleep_base,
-            error_prefix=base._error_prefix,
             check_retry_fn=check_retry_fn,
-            retry_callback=base._retry_callback,
-            termlog_fn_for_testing=base._termlog_fn,
         )
 
     def next_retry_delay(self, e: Exception, now: datetime.datetime) -> Optional[float]:
@@ -128,6 +119,25 @@ class RetryChecker:
         if now - self._start_time >= self._max_time:
             return None
 
+        to_sleep = self._next_sleep * (1 + random.random() * 0.25)
+        self._next_sleep = min(2 * self._next_sleep, MAX_SLEEP_SECONDS)
+
+        return to_sleep
+
+
+class RetryLogger:
+    def __init__(
+        self,
+        error_prefix: str,
+        retry_callback: Optional[Callable[[Exception], None]] = None,
+    ):
+        self._error_prefix = error_prefix
+        self._retry_callback = retry_callback
+        self._num_failures = 0
+        self._logged_retry_loop_start = False
+
+    def on_failure(self, e: Exception, now: datetime.datetime) -> None:
+        self._num_failures += 1
         if self._num_failures == 2:
             logger.exception("Retry attempt failed:")
             if (
@@ -140,27 +150,17 @@ class RetryChecker:
                 # todo: would like to catch other errors, eg wandb.errors.Error, ConnectionError etc
                 # but some of these can be raised before the retry handler thread (RunStatusChecker) is
                 # spawned in wandb_init
-                self._termlog_fn(
+                wandb.termlog(
                     "{} ({}), entering retry loop.".format(
                         self._error_prefix, e.__class__.__name__
                     )
                 )
+            self._logged_retry_loop_start = True
 
-        to_sleep = self._next_sleep * (1 + random.random() * 0.25)
-        self._next_sleep = min(2 * self._next_sleep, MAX_SLEEP_SECONDS)
-
-        return to_sleep
-
-    def __enter__(self) -> "RetryChecker":
-        return self
-
-    def __exit__(
-        self, exc_type: Optional[Type[Exception]], exc_val: Optional[Exception], exc_tb: Any
-    ) -> None:
+    def on_success(self) -> None:
         if (
-            exc_type is None
-            and self._retry_callback is not None
-            and self._num_failures >= 2
+            self._retry_callback is not None
+            and self._logged_retry_loop_start
         ):
             self._retry_callback(
                 200,
@@ -168,14 +168,6 @@ class RetryChecker:
                     self._error_prefix, self._datetime_now_fn() - self._start_time
                 ),
             )
-
-    def __aenter__(self) -> "RetryChecker":
-        return self.__enter__()
-
-    def __aexit__(
-        self, exc_type: Type[Exception], exc_val: Exception, exc_tb: Any
-    ) -> None:
-        return self.__exit__(exc_type, exc_val, exc_tb)
 
 
 class Retry(Generic[_R]):
@@ -200,7 +192,6 @@ class Retry(Generic[_R]):
         datetime_now_fn_for_testing: Callable[
             [], datetime.datetime
         ] = datetime.datetime.now,
-        termlog_fn_for_testing: Callable[[str], None] = wandb.termlog,
     ) -> None:
         self._call_fn = call_fn
         self._base_retry_checker = RetryChecker(
@@ -210,10 +201,8 @@ class Retry(Generic[_R]):
             max_retries=num_retries if num_retries is not None else 1000000,
             sleep_base=1,
             check_retry_fn=check_retry_fn,
-            retry_callback=retry_callback,
-            error_prefix=error_prefix,
-            termlog_fn_for_testing=termlog_fn_for_testing,
         )
+        self._retry_callback = retry_callback
         self._error_prefix = error_prefix
         if retryable_exceptions is not None:
             self._retryable_exceptions = retryable_exceptions
@@ -232,19 +221,25 @@ class Retry(Generic[_R]):
         """
 
         checker = RetryChecker.clone_pop_override(self._base_retry_checker, kwargs)
+        logger = RetryLogger(
+            error_prefix=self._error_prefix,
+            retry_callback=self._retry_callback,
+        )
 
-        with checker:
-            while True:
-                try:
-                    return self._call_fn(*args, **kwargs)
-                except self._retryable_exceptions as e:
-                    next_sleep = checker.next_retry_delay(
-                        e=e, now=self._datetime_now_fn()
-                    )
-                    if next_sleep is None:
-                        raise
+        while True:
+            try:
+                result = self._call_fn(*args, **kwargs)
+                logger.on_success()
+                return result
+            except self._retryable_exceptions as e:
+                next_sleep = checker.next_retry_delay(
+                    e=e, now=self._datetime_now_fn()
+                )
+                if next_sleep is None:
+                    raise
 
-                    self._sleep_fn(next_sleep)
+                logger.on_failure(e=e, now=self._datetime_now_fn())
+                self._sleep_fn(next_sleep)
 
 
 _F = TypeVar("_F", bound=Callable)
