@@ -389,7 +389,7 @@ class InterfaceBase:
         obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
-        proto_manifest.version = artifact_manifest.version()  # type: ignore
+        proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
