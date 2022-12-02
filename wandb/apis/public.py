@@ -3593,7 +3593,7 @@ def server_supports_artifact_collections_gql_edges(
     if not supported and warn:
         # First local release to include the above is 0.9.50: https://github.com/wandb/local/releases/tag/0.9.50
         wandb.termwarn(
-            "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version XXX."
+            "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
         )
     return supported
 
