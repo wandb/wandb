@@ -7,7 +7,7 @@ tag:
 depend:
     requirements:
         - numpy
-        - sklearn
+        - scikit-learn
         - sacred
 assert:
   - :yea:exit: 0
