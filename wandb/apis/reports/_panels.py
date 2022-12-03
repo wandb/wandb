@@ -2,16 +2,14 @@ from typing import Optional, Union
 
 from .helpers import LineKey, PCColumn
 from .util import Attr, Panel, coalesce, nested_get, nested_set
-from .validators import (
+from .validators import (  # MARKS,; Between,
     AGGFUNCS,
     CODE_COMPARE_DIFF,
     FONT_SIZES,
     LEGEND_POSITIONS,
     LINEPLOT_STYLES,
-    # MARKS,
     RANGEFUNCS,
     SMOOTHING_TYPES,
-    # Between,
     Length,
     OneOf,
     TypeValidator,

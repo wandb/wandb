@@ -190,7 +190,6 @@ class Report(Base):
             if not pg.runsets:
                 pg.runsets = PanelGrid._default_runsets()
 
-
         # Check runsets with `None` for project and replace with the report's project.
         # We have to do this here because RunSets don't know about their report until they're added to it.
         for rs in self.runsets:
