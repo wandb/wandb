@@ -4,16 +4,28 @@ This module contains the logic for serializing objects to be JSON compatible.
 
 import contextlib
 import json
+import math
 from collections import abc
 from datetime import date, time
 from functools import singledispatch
-from typing import IO, Any, Callable, Generator, Optional, Sequence, Union
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Generator,
+    Optional,
+    Sequence,
+    Union,
+    TYPE_CHECKING,
+)
 
 from wandb.sdk.interface.artifacts import Artifact
 
 from .import_hooks import register_post_import_hook
 
 # from wandb.sdk.data_types.base_types.media import Media
+if TYPE_CHECKING:
+    import numpy as np
 
 
 JSONTypes = Union[None, bool, int, float, str, list, dict]
@@ -37,16 +49,16 @@ JSONTypes = Union[None, bool, int, float, str, list, dict]
 #     return decorator
 
 
-class Tensor:
-    def __init__(self, data: Any, source: Optional[Any] = None) -> None:
-        self.data = data
-        if source is None:
-            source = data
-        cls = source.__class__
-        self.source = ".".join([cls.__module__, cls.__name__])
+class Array:
+    def __init__(self, data: "np.ndarray", source: Any) -> None:
+        self._data = data
+        self._source = ".".join([source.__module__, source.__name__])
 
     def compress(self, compression_fn: Callable) -> dict:
-        return compression_fn(self.data, source=self.source)
+        return compression_fn(self._data, source=self._source)
+
+    def tolist(self) -> list:
+        return self._data.tolist()
 
 
 @contextlib.contextmanager
@@ -110,10 +122,18 @@ def _(value: Union[time, date], **kwargs: Any) -> str:
 
 
 @json_serializable.register(int)
-@json_serializable.register(float)
 @json_serializable.register(type(None))
 @json_serializable.register(str)
 def _(value, **kwargs):  # type: ignore [no-untyped-def]
+    return value
+
+
+@json_serializable.register(float)
+def _(value, **kwargs):  # type: ignore [no-untyped-def]
+    if math.isnan(value):
+        return "NaN"
+    if math.isinf(value):
+        return "Infinity" if value > 0 else "-Infinity"
     return value
 
 
@@ -123,21 +143,22 @@ def _(value: slice, **kwargs: Any) -> dict:
     return dict(slice_start=value.start, slice_step=value.step, slice_stop=value.stop)
 
 
-@json_serializable.register(Tensor)
+@json_serializable.register(Array)
 def _(value, **kwargs: Any):
+    # todo: why are we compressing this?
     compression_fn = kwargs.pop("compression_fn", None)
     if compression_fn:
         try:
             return value.compress(compression_fn)
         except TypeError:
             pass
-
-    return json_serializable(value.data, **kwargs)
+    return json_serializable(value.tolist(), **kwargs)
 
 
 def register_numpy_post_import_hook(np: Any) -> None:
     @json_serializable.register(np.generic)
     def _(value, **kwargs):  # type: ignore [no-untyped-def]
+
         obj = value.item()
         if value.dtype.kind == "f" or value.dtype == "bfloat16":
             # value is a numpy float with precision greater than that of native python float
@@ -145,24 +166,23 @@ def register_numpy_post_import_hook(np: Any) -> None:
             # in these cases, obj.item() does not return a native
             # python float (in the first case - to avoid loss of precision,
             # so we need to explicitly cast this down to a 64bit float)
-            return float(obj)
-        return obj
+            obj = float(obj)
+        return json_serializable(obj)
 
     @json_serializable.register(np.ndarray)
     def _(value, **kwargs):  # type: ignore [no-untyped-def]
-        # todo: why are we compressing this?
-        compression_fn = kwargs.get("compression_fn", False)
-        if compression_fn:
-            return json_serializable(Tensor(value), **kwargs)
+
         # need to do this conversion (np.tolist converts bfloat16 to int for py3.6)
         obj = value.astype(float) if value.dtype == "bfloat16" else value
-        return obj.tolist()
+        obj = Array(obj, source=value.__class__)
+        return json_serializable(obj, **kwargs)
 
 
 def register_tensorflow_post_import_hook(tf: Any) -> None:
     @json_serializable.register(tf.Tensor)
     @json_serializable.register(tf.Variable)
     def _(value, **kwargs):  # type: ignore [no-untyped-def]
+
         try:
             obj = value.numpy()
         except AttributeError:
@@ -170,8 +190,7 @@ def register_tensorflow_post_import_hook(tf: Any) -> None:
                 obj = value.eval()
             except ValueError:
                 obj = value.eval(session=tf.compat.v1.Session())
-
-        obj = Tensor(obj, source=value)
+        obj = Array(obj, source=value.__class__)
         return json_serializable(obj, **kwargs)
 
     # @json_serializable.register(tf.RaggedTensor)
@@ -198,10 +217,8 @@ def register_torch_post_import_hook(torch: Any) -> None:
     @json_serializable.register(torch.autograd.Variable)
     def _(value, **kwargs):  # type: ignore [no-untyped-def]
 
-        obj = value.detach().cpu()
-        obj = obj.numpy() if obj.size() else obj.item()
-
-        obj = Tensor(obj, source=value)
+        obj = value.detach().cpu().numpy()
+        obj = Array(obj, source=value.__class__)
         return json_serializable(obj, **kwargs)
 
 
@@ -209,8 +226,9 @@ def register_jax_post_import_hook(jax: Any) -> None:
     @json_serializable.register(jax.numpy.ndarray)
     @json_serializable.register(jax.numpy.DeviceArray)
     def _(value, **kwargs):  # type: ignore [no-untyped-def]
+
         obj = jax.device_get(value)
-        obj = Tensor(obj, source=value)
+        obj = Array(obj, source=value.__class__)
         return json_serializable(obj, **kwargs)
 
 
