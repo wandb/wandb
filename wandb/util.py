@@ -55,6 +55,7 @@ import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
 import yaml
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -1261,7 +1262,13 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)
+    response = requests.get(
+        source_url,
+        stream=True,
+        timeout=5,
+        headers=(_thread_local_api_settings.headers or {}),
+        cookies=(_thread_local_api_settings.cookies or {}),
+    )
     response.raise_for_status()
 
     if os.sep in dest_path:

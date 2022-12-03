@@ -44,6 +44,7 @@ from wandb import __version__
 from wandb import env
 from wandb.old.settings import Settings
 from wandb import util
+from .thread_local_settings import _thread_local_api_settings
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -55,20 +56,6 @@ from .progress import Progress
 
 logger = logging.getLogger(__name__)
 
-
-# Context variable for setting API settings (api keys, etc.) for internal and public apis thread-locally
-class _ThreadLocalApiSettings(threading.local):
-    api_key: typing.Optional[str]
-    cookies: typing.Optional[typing.Dict]
-    headers: typing.Optional[typing.Dict]
-
-    def __init__(self) -> None:
-        self.api_key = None
-        self.cookies = None
-        self.headers = None
-
-
-_thread_local_api_settings: _ThreadLocalApiSettings = _ThreadLocalApiSettings()
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):

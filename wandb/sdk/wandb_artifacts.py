@@ -34,7 +34,7 @@ import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 from wandb.sdk.internal import progress
-from wandb.sdk.internal.internal_api import _thread_local_api_settings
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
