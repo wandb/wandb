@@ -1437,11 +1437,11 @@ workflows:
             - "slack-notify-on-start"
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-      - shut_down_cluster:
-          requires:
-            - spin_up_cluster
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+#      - shut_down_cluster:
+#          requires:
+#            - spin_up_cluster
+#          context: slack-secrets
+#          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # run the tests
       - cloud_test:
           name: "cloud-test-cpu"
