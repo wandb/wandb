@@ -54,5 +54,5 @@ WORKDIR /wandb/wandb
 # use torch wheels with CUDA 11.7 support
 RUN sed -i -e 's/whl\/cpu/whl\/cu117/g' tox.ini
 ENV DATE=$UTC_DATE
-CMD ["tail", "-f", "/dev/null"]
-#CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py39,pod-store"]
+#CMD ["tail", "-f", "/dev/null"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py39,pod-store"]
