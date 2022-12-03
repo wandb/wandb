@@ -630,7 +630,7 @@ jobs:
         type: string
       image_name:
         type: string
-      python_minor_version:
+      python_version:
         type: string
         default: "9"
       git_branch:
@@ -661,7 +661,7 @@ jobs:
                   cd << parameters.path >>
                   docker build \
                     -t << parameters.image_name >> \
-                    --build-arg PYTHON_MINOR_VERSION=<< parameters.python_minor_version >> \
+                    --build-arg PYTHON_VERSION=<< parameters.python_version >> \
                     --build-arg GIT_BRANCH=<< parameters.git_branch >> \
                     --build-arg UTC_DATE=$(date -u +%Y%m%d) \
                     .

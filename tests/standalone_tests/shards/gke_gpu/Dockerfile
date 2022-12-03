@@ -8,7 +8,7 @@ RUN apt-key adv --fetch-keys \
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG PYTHON_MINOR_VERSION=9
+ARG PYTHON_VERSION=3.9
 ARG GIT_BRANCH=master
 ARG TOX_VERSION=3.24.0
 ARG UTC_DATE
@@ -20,9 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     sudo \
     git \
-    python3.${PYTHON_MINOR_VERSION} \
+    python${PYTHON_VERSION} \
     python3-pip \
-    python3.${PYTHON_MINOR_VERSION}-dev \
+    python${PYTHON_VERSION}-dev \
     build-essential \
     libsndfile1 \
     ffmpeg \
@@ -55,4 +55,4 @@ WORKDIR /wandb/wandb
 RUN sed -i -e 's/whl\/cpu/whl\/cu117/g' tox.ini
 ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
-CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py3${PYTHON_MINOR_VERSION},pod-store"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py39,pod-store"]
