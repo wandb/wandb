@@ -12,6 +12,7 @@ canonicalsrc =
     .tox/func-s_sklearn-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf115-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf21-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_tf24-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf25-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf26-py37/lib/python3.7/site-packages/wandb/
 
