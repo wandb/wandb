@@ -10,13 +10,13 @@ from datetime import date, time
 from functools import singledispatch
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Generator,
     Optional,
     Sequence,
     Union,
-    TYPE_CHECKING,
 )
 
 from wandb.sdk.interface.artifacts import Artifact
@@ -25,7 +25,7 @@ from .import_hooks import register_post_import_hook
 
 # from wandb.sdk.data_types.base_types.media import Media
 if TYPE_CHECKING:
-    import numpy as np
+    import numpy as np  # type: ignore [import]
 
 
 JSONTypes = Union[None, bool, int, float, str, list, dict]
@@ -55,10 +55,10 @@ class Array:
         self._source = ".".join([source.__module__, source.__name__])
 
     def compress(self, compression_fn: Callable) -> dict:
-        return compression_fn(self._data, source=self._source)
+        return compression_fn(self._data, source=self._source)  # type: ignore [no-any-return]
 
     def tolist(self) -> list:
-        return self._data.tolist()
+        return self._data.tolist()  # type: ignore [no-any-return]
 
 
 @contextlib.contextmanager
@@ -144,7 +144,7 @@ def _(value: slice, **kwargs: Any) -> dict:
 
 
 @json_serializable.register(Array)
-def _(value, **kwargs: Any):
+def _(value: Array, **kwargs: Any) -> JSONTypes:
     # todo: why are we compressing this?
     compression_fn = kwargs.pop("compression_fn", None)
     if compression_fn:
