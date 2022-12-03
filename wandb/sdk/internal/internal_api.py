@@ -1773,7 +1773,12 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)
+        response = requests.get(
+            url,
+            cookies=_thread_local_api_settings.cookies or {},
+            headers=_thread_local_api_settings.headers or {},
+            stream=True,
+        )
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 
