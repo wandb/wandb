@@ -630,9 +630,9 @@ jobs:
         type: string
       image_name:
         type: string
-      python_version:
+      python_minor_version:
         type: string
-        default: "3.10"
+        default: "9"
       git_branch:
         type: string
         default: "main"
@@ -661,7 +661,7 @@ jobs:
                   cd << parameters.path >>
                   docker build \
                     -t << parameters.image_name >> \
-                    --build-arg PYTHON_VERSION=<< parameters.python_version >> \
+                    --build-arg PYTHON_MINOR_VERSION=<< parameters.python_minor_version >> \
                     --build-arg GIT_BRANCH=<< parameters.git_branch >> \
                     --build-arg UTC_DATE=$(date -u +%Y%m%d) \
                     .
@@ -1403,8 +1403,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:

@@ -1,8 +1,8 @@
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_MINOR_VERSION=9
 ARG GIT_BRANCH=master
 ARG TOX_VERSION=3.24.0
 ARG UTC_DATE
@@ -14,9 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     sudo \
     git \
-    python${PYTHON_VERSION} \
+    python3.${PYTHON_MINOR_VERSION} \
     python3-pip \
-    python${PYTHON_VERSION}-dev \
+    python3.${PYTHON_MINOR_VERSION}-dev \
     build-essential \
     libsndfile1 \
     ffmpeg \
@@ -46,4 +46,4 @@ RUN PATH=/home/sdk/.local/bin:$PATH
 WORKDIR /wandb/wandb
 ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
-CMD ["python", "-m", "tox", "-v", "-e", "standalone-cpu-py39,pod-store"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-cpu-py3${PYTHON_MINOR_VERSION},pod-store"]

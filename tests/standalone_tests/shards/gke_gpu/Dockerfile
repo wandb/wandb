@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+FROM nvidia/cuda:11.7.1-runtime-ubuntu20.04
 
 # todo: rm once nvidia updates their docker images
 RUN apt-key adv --fetch-keys \
@@ -8,7 +8,7 @@ RUN apt-key adv --fetch-keys \
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_MINOR_VERSION=9
 ARG GIT_BRANCH=master
 ARG TOX_VERSION=3.24.0
 ARG UTC_DATE
@@ -20,9 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     sudo \
     git \
-    python${PYTHON_VERSION} \
+    python3.${PYTHON_MINOR_VERSION} \
     python3-pip \
-    python${PYTHON_VERSION}-dev \
+    python3.${PYTHON_MINOR_VERSION}-dev \
     build-essential \
     libsndfile1 \
     ffmpeg \
@@ -51,8 +51,8 @@ RUN git clone https://github.com/wandb/wandb.git /wandb/wandb \
 RUN PATH=/home/sdk/.local/bin:$PATH
 
 WORKDIR /wandb/wandb
-# use torch wheels with CUDA 11.3 support
-RUN sed -i -e 's/whl\/cpu/whl\/cu113/g' tox.ini
+# use torch wheels with CUDA 11.7 support
+RUN sed -i -e 's/whl\/cpu/whl\/cu117/g' tox.ini
 ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
-CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py39,pod-store"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py3${PYTHON_MINOR_VERSION},pod-store"]
