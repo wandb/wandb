@@ -438,7 +438,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
+        blocks: Optional["wandb.apis.reports.util.Block"] = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
@@ -2503,6 +2503,22 @@ class Sweep(Attrs):
     """
     )
 
+    LEGACY_QUERY = gql(
+        """
+    query Sweep($project: String, $entity: String, $name: String!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                state
+                bestLoss
+                config
+            }
+        }
+    }
+    """
+    )
+
     def __init__(self, client, entity, project, sweep_id, attrs=None):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
@@ -2616,10 +2632,16 @@ class Sweep(Attrs):
         }
         variables.update(kwargs)
 
-        response = client.execute(query, variable_values=variables)
-        if response.get("project") is None:
-            return None
-        elif response["project"].get("sweep") is None:
+        response = None
+        try:
+            response = client.execute(query, variable_values=variables)
+        except Exception:
+            # Don't handle exception, rely on legacy query
+            # TODO(gst): Implement updated introspection workaround
+            query = cls.LEGACY_QUERY
+            response = client.execute(query, variable_values=variables)
+
+        if not response or not response.get("project", {}).get("sweep"):
             return None
 
         sweep_response = response["project"]["sweep"]
@@ -3638,7 +3660,7 @@ class ProjectArtifactCollections(Paginator):
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequences(after: $cursor) {
+                    artifactCollections(after: $cursor) {
                         pageInfo {
                             endCursor
                             hasNextPage
@@ -3683,7 +3705,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "totalCount"
             ]
         else:
@@ -3692,7 +3714,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "pageInfo"
             ]["hasNextPage"]
         else:
@@ -3701,7 +3723,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "edges"
             ][-1]["cursor"]
         else:
@@ -3720,9 +3742,9 @@ class ProjectArtifactCollections(Paginator):
                 self.type_name,
                 r["node"],
             )
-            for r in self.last_response["project"]["artifactType"]["artifactSequences"][
-                "edges"
-            ]
+            for r in self.last_response["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
         ]
 
 
@@ -3851,7 +3873,7 @@ class ArtifactType:
         entity: str,
         project: str,
         type_name: str,
-        attrs: Mapping[str, Any] = None,
+        attrs: Optional[Mapping[str, Any]] = None,
     ):
         self.client = client
         self.entity = entity
@@ -3967,7 +3989,7 @@ class ArtifactCollection:
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequence(name: $artifactCollectionName) {
+                    artifactCollection(name: $artifactCollectionName) {
                         id
                         name
                         description
@@ -3991,10 +4013,10 @@ class ArtifactCollection:
             response is None
             or response.get("project") is None
             or response["project"].get("artifactType") is None
-            or response["project"]["artifactType"].get("artifactSequence") is None
+            or response["project"]["artifactType"].get("artifactCollection") is None
         ):
             raise ValueError("Could not find artifact type %s" % self.type)
-        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
     def __repr__(self):
@@ -4248,6 +4270,7 @@ class Artifact(artifacts.Artifact):
         self._entity = entity
         self._project = project
         self._artifact_name = name
+        self._artifact_collection_name = name.split(":")[0]
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -4255,12 +4278,15 @@ class Artifact(artifacts.Artifact):
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
         self._version_index = self._attrs.get("versionIndex", None)
+        # We will only show aliases under the Collection this artifact version is fetched from
+        # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
-            and a["artifactCollectionName"] == self._sequence_name
+            and a["artifactCollectionName"] == self._artifact_collection_name
         ]
+        self._frozen_aliases = [a for a in self._aliases]
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4766,25 +4792,149 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        aliases = None
+        if not valid:
+            # If valid, wandb backend version >= 0.13.0.
+            # This means we can safely remove aliases from this updateArtifact request since we'll be calling
+            # the alias endpoints below in _save_alias_changes.
+            # If not valid, wandb backend version < 0.13.0. This requires aliases to be sent in updateArtifact.
+            aliases = [
+                {
+                    "artifactCollectionName": self._artifact_collection_name,
+                    "alias": alias,
+                }
+                for alias in self._aliases
+            ]
+
         self.client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
-                "aliases": [
-                    {
-                        "artifactCollectionName": self._sequence_name,
-                        "alias": alias,
-                    }
-                    for alias in self._aliases
-                ],
+                "aliases": aliases,
             },
         )
+        # Save locally modified aliases
+        self._save_alias_changes()
         return True
 
     def wait(self):
         return self
+
+    @normalize_exceptions
+    def _save_alias_changes(self):
+        """
+        Convenience function called by artifact.save() to persist alias changes
+        on this artifact to the wandb backend.
+        """
+
+        aliases_to_add = set(self._aliases) - set(self._frozen_aliases)
+        aliases_to_remove = set(self._frozen_aliases) - set(self._aliases)
+
+        # Introspect
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        if not valid:
+            return
+
+        if len(aliases_to_add) > 0:
+            add_mutation = gql(
+                """
+            mutation addAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                addAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                add_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_add
+                    ],
+                },
+            )
+
+        if len(aliases_to_remove) > 0:
+            delete_mutation = gql(
+                """
+            mutation deleteAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                deleteAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                delete_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_remove
+                    ],
+                },
+            )
+
+        # reset local state
+        self._frozen_aliases = self._aliases
+        return True
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -5025,7 +5175,7 @@ class ArtifactVersions(Paginator):
         query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
             project(name: $project, entityName: $entity) {
                 artifactType(name: $type) {
-                    artifactSequence(name: $collection) {
+                    artifactCollection(name: $collection) {
                         name
                         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
                             totalCount
@@ -5065,7 +5215,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters or {}
+        self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.order = order
         variables = {
             "project": self.project,
@@ -5080,7 +5230,7 @@ class ArtifactVersions(Paginator):
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["totalCount"]
         else:
@@ -5089,7 +5239,7 @@ class ArtifactVersions(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["pageInfo"]["hasNextPage"]
         else:
@@ -5098,14 +5248,14 @@ class ArtifactVersions(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["edges"][-1]["cursor"]
         else:
             return None
 
     def convert_objects(self):
-        if self.last_response["project"]["artifactType"]["artifactSequence"] is None:
+        if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
             Artifact(
@@ -5115,9 +5265,9 @@ class ArtifactVersions(Paginator):
                 self.collection_name + ":" + a["version"],
                 a["node"],
             )
-            for a in self.last_response["project"]["artifactType"]["artifactSequence"][
-                "artifacts"
-            ]["edges"]
+            for a in self.last_response["project"]["artifactType"][
+                "artifactCollection"
+            ]["artifacts"]["edges"]
         ]
 
 
@@ -5217,7 +5367,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
 
-    def __init__(self, api: Api, name, path: str = None) -> None:
+    def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
             self._job_artifact = api.artifact(name, type="job")
         except CommError:
@@ -5271,7 +5421,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
@@ -5289,7 +5439,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("source", {}).get("image")
@@ -5300,7 +5450,7 @@ class Job:
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint

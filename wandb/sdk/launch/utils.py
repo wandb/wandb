@@ -13,6 +13,7 @@ import wandb
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, LaunchError
+from wandb.sdk.launch.wandb_reference import WandbReference
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
@@ -44,7 +45,7 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
-LOG_PREFIX = f"{click.style('launch:', fg='magenta')}: "
+LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -122,6 +123,7 @@ def construct_launch_spec(
     launch_config: Optional[Dict[str, Any]],
     cuda: Optional[bool],
     run_id: Optional[str],
+    repository: Optional[str],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -180,6 +182,13 @@ def construct_launch_spec(
     if run_id is not None:
         launch_spec["run_id"] = run_id
 
+    if repository:
+        launch_config = launch_config or {}
+        if launch_config.get("registry"):
+            launch_config["registry"]["url"] = repository
+        else:
+            launch_config["registry"] = {"url": repository}
+
     return launch_spec
 
 
@@ -198,35 +207,20 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     """Parses wandb uri to retrieve entity, project and run name."""
-    uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
-    stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
-    stripped_uri = re.sub(
-        _WANDB_DEV_URI_REGEX, "", stripped_uri
-    )  # also for testing just run it twice
-    stripped_uri = re.sub(
-        _WANDB_LOCAL_DEV_URI_REGEX, "", stripped_uri
-    )  # also for testing just run it twice
-    stripped_uri = re.sub(
-        _WANDB_QA_URI_REGEX, "", stripped_uri
-    )  # also for testing just run it twice
-    try:
-        entity, project, _, name = stripped_uri.split("/")[1:]
-    except ValueError as e:
-        raise LaunchError(f"Trouble parsing wandb uri {uri}: {e}")
-    return entity, project, name
+    ref = WandbReference.parse(uri)
+    if not ref or not ref.entity or not ref.project or not ref.run_id:
+        raise LaunchError(f"Trouble parsing wandb uri {uri}")
+    return (ref.entity, ref.project, ref.run_id)
 
 
 def is_bare_wandb_uri(uri: str) -> bool:
-    """Checks if the uri is of the format /entity/project/runs/run_name"""
+    """Checks if the uri is of the format
+    /<entity>/<project>/runs/<run_name>[other stuff]
+    or
+    /<entity>/<project>/artifacts/job/<job_name>[other stuff]
+    """
     _logger.info(f"Checking if uri {uri} is bare...")
-    if not uri.startswith("/"):
-        return False
-    result = uri.split("/")[1:]
-    # a bare wandb uri will have 4 parts, with the last being the run name
-    # and the second last being "runs"
-    if len(result) == 4 and result[-2] == "runs":
-        return True
-    return False
+    return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
 
 
 def fetch_wandb_project_run_info(
@@ -414,6 +408,20 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
+def _make_refspec_from_version(version: Optional[str]) -> List[str]:
+    """
+    Helper to create a refspec that checks for the existence of origin/main
+    and the version, if provided.
+    """
+    if version:
+        return [f"+{version}"]
+
+    return [
+        "+refs/heads/main*:refs/remotes/origin/main*",
+        "+refs/heads/master*:refs/remotes/origin/master*",
+    ]
+
+
 def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
@@ -428,7 +436,8 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     _logger.info("Fetching git repo")
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
-    origin.fetch()
+    refspec = _make_refspec_from_version(version)
+    origin.fetch(refspec=refspec, depth=1)
 
     if version is not None:
         try:
@@ -453,7 +462,9 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
         try:
             repo.create_head(version, origin.refs[version])
             repo.heads[version].checkout()
-            wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
+            wandb.termlog(
+                f"{LOG_PREFIX}No git branch passed, defaulted to branch: {version}"
+            )
         except (AttributeError, IndexError) as e:
             raise LaunchError(
                 "Unable to checkout default version '%s' of git repo %s "

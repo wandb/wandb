@@ -101,7 +101,10 @@ class _Manager:
         self._atexit_lambda = None
         self._hooks = None
 
-        self._service = service._Service(_use_grpc=_use_grpc)
+        self._service = service._Service(
+            _python_executable=settings._executable,
+            _use_grpc=_use_grpc,
+        )
 
         token = _ManagerToken.from_environment()
         if not token:
@@ -178,7 +181,7 @@ class _Manager:
         response = svc_iface._svc_inform_attach(attach_id=attach_id)
         return settings_dict_from_pbmap(response._settings_map)
 
-    def _inform_finish(self, run_id: str = None) -> None:
+    def _inform_finish(self, run_id: Optional[str] = None) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_finish(run_id=run_id)
 

@@ -7,7 +7,7 @@ FuncT = TypeVar("FuncT", bound=Callable[..., Any])
 requirement_env_var_mapping: Dict[str, str] = {}
 
 
-def requires(requirement: str) -> FuncT:
+def requires(requirement: str) -> FuncT:  # type: ignore
     """
     The decorator for gating features.
     """

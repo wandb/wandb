@@ -59,7 +59,7 @@ class Progress:
         return bites
 
     def rewind(self) -> None:
-        self.callback(0, -self.bytes_read)
+        self.callback(-self.bytes_read, 0)
         self.bytes_read = 0
         self.file.seek(0)
 
