@@ -1121,7 +1121,9 @@ class TestNameMappings:
 
 class TestPanels:
     def test_bar_plot(self):
-        p = wr.BarPlot(metrics=["metric"], orientation="h")
+        p = wr.BarPlot(metrics="metric", orientation="h")
+        assert p.metrics == ["metric"]
+        assert p.orientation == "h"
         vars(p)
 
     @pytest.mark.skip(reason="Nothing special to test")
@@ -1135,6 +1137,8 @@ class TestPanels:
     def test_line_plot(self):
         p = wr.LinePlot(x="x", y=["y1", "y2"])
         vars(p)
+        assert p.x == "x"
+        assert p.y == ["y1", "y2"]
 
     @pytest.mark.skip(reason="Nothing special to test")
     def test_markdown_panel(self):
@@ -1148,10 +1152,13 @@ class TestPanels:
         p = wr.ParallelCoordinatesPlot(
             columns=[wr.PCColumn("c::config1"), "c::config2"]
         )
+        assert p.columns[0].metric == "c::config1"
+        assert p.columns[1].metric == "c::config2"
         vars(p)
 
     def test_parameter_importance_plot(self):
         p = wr.ParameterImportancePlot(with_respect_to="metric")
+        assert p.with_respect_to == "metric"
         vars(p)
 
     @pytest.mark.skip(reason="Nothing special to test")
@@ -1160,10 +1167,14 @@ class TestPanels:
 
     def test_scalar_chart(self):
         p = wr.ScalarChart(metric="metric")
+        assert p.metric == "metric"
         vars(p)
 
     def test_scatter_plot(self):
         p = wr.ScatterPlot(x="x", y="y", z="z")
+        assert p.x == "s::x"
+        assert p.y == "s::y"
+        assert p.z == "s::z"
         vars(p)
 
     @pytest.mark.skip(reason="Nothing special to test")
