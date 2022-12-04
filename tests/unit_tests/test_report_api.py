@@ -15,7 +15,14 @@ from wandb.apis.reports.util import (
     PanelMetricsHelper,
     collides,
 )
-from wandb.apis.reports.validators import Between, OneOf, TypeValidator
+from wandb.apis.reports.validators import (
+    Between,
+    LayoutDict,
+    Length,
+    OneOf,
+    OrderString,
+    TypeValidator,
+)
 
 
 @pytest.mark.usefixtures("user")
@@ -1076,7 +1083,7 @@ class TestNameMappings:
             ["c::metric.with.dots", "config:metric.value.with.dots"],
             pytest.param(
                 "metric",
-                "config:metric.value",
+                "config:metric",
                 marks=pytest.mark.xfail(reason="Unable to disambiguate"),
             ),
             pytest.param(
@@ -1112,41 +1119,54 @@ class TestNameMappings:
         assert result2 == remapped
 
 
-@pytest.mark.skip(reason="Nothing special to test")
 class TestPanels:
     def test_bar_plot(self):
-        raise
+        p = wr.BarPlot(metrics=["metric"], orientation="h")
+        vars(p)
 
+    @pytest.mark.skip(reason="Nothing special to test")
     def test_code_comparer(self):
         raise
 
     def test_custom_chart(self):
-        raise
+        p = wr.CustomChart()
+        vars(p)
 
     def test_line_plot(self):
-        raise
+        p = wr.LinePlot(x="x", y=["y1", "y2"])
+        vars(p)
 
+    @pytest.mark.skip(reason="Nothing special to test")
     def test_markdown_panel(self):
         raise
 
+    @pytest.mark.skip(reason="Nothing special to test")
     def test_media_browser(self):
         raise
 
     def test_parallel_coordinates_plot(self):
-        raise
+        p = wr.ParallelCoordinatesPlot(
+            columns=[wr.PCColumn("c::config1"), "c::config2"]
+        )
+        vars(p)
 
     def test_parameter_importance_plot(self):
-        raise
+        p = wr.ParameterImportancePlot(with_respect_to="metric")
+        vars(p)
 
+    @pytest.mark.skip(reason="Nothing special to test")
     def test_run_comparer(self):
         raise
 
     def test_scalar_chart(self):
-        raise
+        p = wr.ScalarChart(metric="metric")
+        vars(p)
 
     def test_scatter_plot(self):
-        raise
+        p = wr.ScatterPlot(x="x", y="y", z="z")
+        vars(p)
 
+    @pytest.mark.skip(reason="Nothing special to test")
     def test_weave_table_panel(self):
         raise
 
@@ -1197,7 +1217,134 @@ class TestTemplates:
 
 
 class TestValidators:
-    pass
+    @pytest.mark.parametrize(
+        "typ,value,expect",
+        [
+            (int, 1, "pass"),
+            (int, "a", "fail"),
+            (str, "a", "pass"),
+            (str, 1, "fail"),
+            (bool, True, "pass"),
+            (bool, "a", "fail"),
+            (bool, "a", "fail"),
+            (list, [], "pass"),
+            (list, [1, 2, 3], "pass"),
+            (list, 1, "fail"),
+        ],
+    )
+    def test_type_validator(self, typ, value, expect):
+        v = TypeValidator(typ)
+        if expect == "pass":
+            v.call("Validator", value)
+        else:
+            with pytest.raises(TypeError):
+                v.call("Validator", value)
+
+    @pytest.mark.parametrize(
+        "options,value,expect",
+        [
+            ([1, 2, 3], 1, "pass"),
+            ([1, 2, 3], 4, "fail"),
+            ([1, 2, 3], "abc", "fail"),
+            ([], "abc", "fail"),
+            (["a"], "abc", "fail"),
+            (["a"], "a", "pass"),
+        ],
+    )
+    def test_one_of_validator(self, options, value, expect):
+        v = OneOf(options)
+        if expect == "pass":
+            v.call("Validator", value)
+        else:
+            with pytest.raises(ValueError):
+                v.call("Validator", value)
+
+    @pytest.mark.parametrize(
+        "k,value,expect",
+        [
+            (2, ("a", "b"), "pass"),
+            (1, ("a", "b"), "fail"),
+            (3, ("a", "b"), "fail"),
+            (2, "a", "fail"),
+        ],
+    )
+    def test_length_validator(self, k, value, expect):
+        v = Length(k)
+        if expect == "pass":
+            v.call("Validator", value)
+        else:
+            with pytest.raises(ValueError):
+                v.call("Validator", value)
+
+    @pytest.mark.parametrize(
+        "lb,ub,value,expect",
+        [
+            (0, 5, 3, "pass"),
+            (0, 5, -1, "fail"),
+            (0, 5, 6, "fail"),
+        ],
+    )
+    def test_between_validator(self, lb, ub, value, expect):
+        v = Between(lb, ub)
+        if expect == "pass":
+            v.call("Validator", value)
+        else:
+            with pytest.raises(ValueError):
+                v.call("Validator", value)
+
+    @pytest.mark.parametrize(
+        "value,expect",
+        [
+            (
+                "+metric",
+                "pass",
+            ),
+            (
+                "-metric",
+                "pass",
+            ),
+            (
+                "metric",
+                "fail",
+            ),
+        ],
+    )
+    def test_orderstring_validator(self, value, expect):
+        v = OrderString()
+        if expect == "pass":
+            v.call("Validator", value)
+        else:
+            with pytest.raises(ValueError):
+                v.call("Validator", value)
+
+    @pytest.mark.parametrize(
+        "value,expect",
+        [
+            (
+                {"x": 0, "y": 0, "w": 0, "h": 0},
+                "pass",
+            ),
+            (
+                {"x": 0, "y": 0, "z": 0, "h": 0},
+                "fail",
+            ),
+            (
+                {"x": 0, "y": 0},
+                "fail",
+            ),
+            (
+                {"z": 0, "h": 0},
+                "fail",
+            ),
+        ],
+    )
+    def test_layoutdict_validator(self, value, expect):
+        v = LayoutDict()
+        if expect == "pass":
+            v.call("Validator", value)
+        else:
+            with pytest.raises(ValueError):
+                v.call("Validator", value)
 
 
 class TestHelpers:
@@ -1205,6 +1352,15 @@ class TestHelpers:
         k = wr.LineKey("metric")
         vars(k)
 
+    def test_linekey_from_panel_agg(self):
+        pass
+
+    def test_linekey_from_runset_agg(self):
+        pass
+
     def test_pccolumn(self):
         c = wr.PCColumn("c::metric")
         vars(c)
+
+    def test_pccolumn_from_json(self):
+        pass
