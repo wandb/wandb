@@ -567,7 +567,7 @@ class CodeComparer(Panel):
 class ParallelCoordinatesPlot(Panel):
     columns: list = Attr(
         json_path="spec.config.columns",
-        validators=[TypeValidator(PCColumn, how="keys")],
+        validators=[TypeValidator(Union[PCColumn, str], how="keys")],
     )
     title: Optional[str] = Attr(json_path="spec.config.chartTitle")
 
@@ -595,7 +595,13 @@ class ParallelCoordinatesPlot(Panel):
     @columns.setter
     def columns(self, new_columns):
         json_path = self._get_path("columns")
-        specs = [c.spec for c in new_columns]
+        cols = []
+        for c in new_columns:
+            if isinstance(c, PCColumn):
+                cols.append(c)
+            else:
+                cols.append(PCColumn(c))
+        specs = [c.spec for c in cols]
         nested_set(self, json_path, specs)
 
     @property
