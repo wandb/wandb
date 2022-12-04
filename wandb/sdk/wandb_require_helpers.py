@@ -4,7 +4,9 @@ from typing import Any, Callable, Dict, TypeVar, cast
 
 FuncT = TypeVar("FuncT", bound=Callable[..., Any])
 
-requirement_env_var_mapping: Dict[str, str] = {}
+requirement_env_var_mapping: Dict[str, str] = {
+    "report-editing:v0": "WANDB_REQUIRE_REPORT_EDITING_V0"
+}
 
 
 def requires(requirement: str) -> FuncT:  # type: ignore
