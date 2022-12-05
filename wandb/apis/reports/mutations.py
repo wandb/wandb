@@ -1,5 +1,32 @@
 from wandb_gql import gql
 
+VIEW_REPORT = gql(
+    """
+    query SpecificReport($reportId: ID!) {
+        view(id: $reportId) {
+        id
+        type
+        name
+        displayName
+        description
+        project {
+            id
+            name
+            entityName
+        }
+        createdAt
+        updatedAt
+        spec
+        previewUrl
+        user {
+            name
+            username
+            userInfo
+        }
+        }
+    }
+    """
+)
 UPSERT_VIEW = gql(
     """
     mutation upsertView(
@@ -38,50 +65,6 @@ UPSERT_VIEW = gql(
             }
             spec
             updatedAt
-        }
-        inserted
-        }
-    }
-"""
-)
-
-CREATE_PROJECT = gql(
-    """
-    mutation upsertModel(
-        $description: String
-        $entityName: String
-        $id: String
-        $name: String
-        $framework: String
-        $access: String
-        $views: JSONString
-    ) {
-        upsertModel(
-        input: {
-            description: $description
-            entityName: $entityName
-            id: $id
-            name: $name
-            framework: $framework
-            access: $access
-            views: $views
-        }
-        ) {
-        project {
-            id
-            name
-            entityName
-            description
-            access
-            views
-        }
-        model {
-            id
-            name
-            entityName
-            description
-            access
-            views
         }
         inserted
         }
