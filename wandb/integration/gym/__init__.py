@@ -25,9 +25,7 @@ def monitor():
             _gym_version_lt_0_26 = False
 
     # breaking change in gym 0.26.0
-    vcr_recorder_attribute = (
-        "ImageRecorder" if _gym_version_lt_0_26 else "VideoRecorder"
-    )
+    vcr_recorder_attribute = "ImageEncoder" if _gym_version_lt_0_26 else "VideoRecorder"
     recorder = getattr(vcr, vcr_recorder_attribute)
     path = "output_path" if _gym_version_lt_0_26 else "path"
 
