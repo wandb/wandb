@@ -65,6 +65,7 @@ class GitRepo:
         try:
             return self.repo.git.rev_parse("--show-toplevel")
         except exc.GitCommandError as e:
+            # todo: collect telemetry on this
             logger.error(f"git root error: {e}")
             return None
 

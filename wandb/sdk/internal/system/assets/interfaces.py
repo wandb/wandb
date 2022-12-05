@@ -170,11 +170,9 @@ class MetricsMonitor:
     def finish(self) -> None:
         if self._process is None:
             return None
-        if self._process.is_alive():
+        try:
             self._process.join()
             logger.info(f"Joined {self._process.name}")
+        except Exception as e:
+            logger.warning(f"Failed to join {self._process.name}: {e}")
         self._process = None
-
-        for metric in self.metrics:
-            if hasattr(metric, "process"):
-                metric.process = None
