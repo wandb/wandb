@@ -675,7 +675,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
     return d, True
 
 
-def tensor_to_json_friendly_types(obj):
+def tensor_to_json_friendly_types(obj) -> Tuple[Any, bool]:
     typename = get_full_typename(obj)
 
     if is_tf_eager_tensor_typename(typename):
@@ -700,10 +700,10 @@ def tensor_to_json_friendly_types(obj):
         if obj.size():
             obj = obj.cpu().detach().numpy()
         else:
-            obj = obj.item()
+            return obj.item(), True
     elif is_jax_tensor_typename(typename):
         obj = get_jax_tensor(obj)
-    return obj
+    return obj, False
 
 
 def json_friendly(  # noqa: C901
@@ -711,8 +711,9 @@ def json_friendly(  # noqa: C901
 ) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
     """Convert an object into something that's more becoming of JSON"""
     converted = True
-    obj = tensor_to_json_friendly_types(obj)
-
+    obj, tensor_converted = tensor_to_json_friendly_types(obj)
+    if tensor_converted:
+        return obj, tensor_converted
     if is_numpy_array(obj):
         if obj.size == 1:
             obj = obj.flatten()[0]
@@ -937,7 +938,7 @@ def make_json_if_not_number(
 def make_safe_for_json(obj: Any) -> Any:  # noqa: C901
     """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
     Converts numpy array to list. Used for artifact metadata"""
-    obj = tensor_to_json_friendly_types(obj)
+    obj, _ = tensor_to_json_friendly_types(obj)
 
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
