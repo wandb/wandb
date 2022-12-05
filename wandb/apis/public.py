@@ -1048,7 +1048,8 @@ class Paginator:
 
     def __getitem__(self, index):
         loaded = True
-        while loaded and index > len(self.objects) - 1:
+        stop = index.stop if isinstance(index, slice) else index
+        while loaded and stop > len(self.objects) - 1:
             loaded = self._load_page()
         return self.objects[index]
 
