@@ -675,11 +675,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
     return d, True
 
 
-def json_friendly(  # noqa: C901
-    obj: Any,
-) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
-    """Convert an object into something that's more becoming of JSON"""
-    converted = True
+def tensor_to_json_friendly_types(obj):
     typename = get_full_typename(obj)
 
     if is_tf_eager_tensor_typename(typename):
@@ -704,9 +700,18 @@ def json_friendly(  # noqa: C901
         if obj.size():
             obj = obj.cpu().detach().numpy()
         else:
-            return obj.item(), True
+            obj = obj.item()
     elif is_jax_tensor_typename(typename):
         obj = get_jax_tensor(obj)
+    return obj
+
+
+def json_friendly(  # noqa: C901
+    obj: Any,
+) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
+    """Convert an object into something that's more becoming of JSON"""
+    converted = True
+    obj = tensor_to_json_friendly_types(obj)
 
     if is_numpy_array(obj):
         if obj.size == 1:
@@ -932,33 +937,7 @@ def make_json_if_not_number(
 def make_safe_for_json(obj: Any) -> Any:  # noqa: C901
     """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
     Converts numpy array to list. Used for artifact metadata"""
-
-    # Copied from json_friendly logic for handling tensor types
-    typename = get_full_typename(obj)
-    if is_tf_eager_tensor_typename(typename):
-        obj = obj.numpy()
-    elif is_tf_tensor_typename(typename):
-        try:
-            obj = obj.eval()
-        except RuntimeError:
-            obj = obj.numpy()
-    elif is_pytorch_tensor_typename(typename) or is_fastai_tensor_typename(typename):
-        try:
-            if obj.requires_grad:
-                obj = obj.detach().numpy()
-        except AttributeError:
-            pass  # before 0.4 is only present on variables
-        try:
-            obj = obj.data
-        except RuntimeError:
-            pass  # happens for Tensors before 0.4
-
-        if obj.size():
-            obj = obj.cpu().detach().numpy()
-        else:
-            return obj.item()
-    elif is_jax_tensor_typename(typename):
-        obj = get_jax_tensor(obj)
+    obj = tensor_to_json_friendly_types(obj)
 
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
