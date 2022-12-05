@@ -4,6 +4,7 @@ import string
 import sys
 from typing import Any, Dict, List, Optional, Union
 
+import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
@@ -108,24 +109,35 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self.save_best_only:
             self._check_filepath()
 
-    def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None) -> None:
+        self._is_old_tf_keras_version: Optional[bool] = None
+
+    def on_train_batch_end(
+        self, batch: int, logs: Optional[Dict[str, float]] = None
+    ) -> None:
         if self._should_save_on_batch(batch):
-            # Save the model
-            self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
-            # Get filepath where the model checkpoint is saved.
-            filepath = self._get_file_path(
-                epoch=self._current_epoch, batch=batch, logs=logs
-            )
+            if self.is_old_tf_keras_version:
+                # Save the model and get filepath
+                self._save_model(epoch=self._current_epoch, logs=logs)
+                filepath = self._get_file_path(epoch=self._current_epoch, logs=logs)
+            else:
+                # Save the model and get filepath
+                self._save_model(epoch=self._current_epoch, batch=batch, logs=logs)
+                filepath = self._get_file_path(
+                    epoch=self._current_epoch, batch=batch, logs=logs
+                )
             # Log the model as artifact
             aliases = ["latest", f"epoch_{self._current_epoch}_batch_{batch}"]
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
-    def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, float]] = None) -> None:
         super().on_epoch_end(epoch, logs)
         # Check if model checkpoint is created at the end of epoch.
         if self.save_freq == "epoch":
             # Get filepath where the model checkpoint is saved.
-            filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
+            if self.is_old_tf_keras_version:
+                filepath = self._get_file_path(epoch=epoch, logs=logs)
+            else:
+                filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
             # Log the model as artifact
             aliases = ["latest", f"epoch_{epoch}"]
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
@@ -171,3 +183,15 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
                 "This ensures correct interpretation of the logged artifacts.",
                 repeat=False,
             )
+
+    @property
+    def is_old_tf_keras_version(self) -> Optional[bool]:
+        if self._is_old_tf_keras_version is None:
+            from pkg_resources import parse_version
+
+            if parse_version(tf.keras.__version__) < parse_version("2.6.0"):
+                self._is_old_tf_keras_version = True
+            else:
+                self._is_old_tf_keras_version = False
+
+        return self._is_old_tf_keras_version

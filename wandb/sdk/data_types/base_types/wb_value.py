@@ -124,7 +124,7 @@ class WBValue:
     @staticmethod
     def init_from_json(
         json_obj: dict, source_artifact: "PublicArtifact"
-    ) -> "Optional[WBValue]":
+    ) -> Optional["WBValue"]:
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
         attribute to the passed in source artifact. This is critical for artifact bookkeeping. If you choose to create

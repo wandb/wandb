@@ -252,7 +252,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                 else:
                     self._config = config_dict
 
-    def _teardown(self, exit_code: int = None):
+    def _teardown(self, exit_code: Optional[int] = None):
         exit_code = exit_code or 0
         self._teardown_manager(exit_code=exit_code)
 
