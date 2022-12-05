@@ -14,7 +14,6 @@ Threads:
 
 
 import atexit
-from datetime import datetime
 import logging
 import os
 import queue
@@ -22,28 +21,26 @@ import sys
 import threading
 import time
 import traceback
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import psutil
+
 import wandb
 from wandb.util import sentry_exc, sentry_set_scope
 
-from . import handler
-from . import internal_util
-from . import sender
-from . import settings_static
-from . import writer
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog
-
+from . import handler, internal_util, sender, settings_static, writer
 
 if TYPE_CHECKING:
-    from .settings_static import SettingsDict, SettingsStatic
-    from typing import Any, List, Optional
     from queue import Queue
-    from .internal_util import RecordLoopThread
-    from wandb.proto.wandb_internal_pb2 import Record, Result
     from threading import Event
+
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+
+    from .internal_util import RecordLoopThread
+    from .settings_static import SettingsDict, SettingsStatic
 
 
 logger = logging.getLogger(__name__)
@@ -53,8 +50,8 @@ def wandb_internal(
     settings: "SettingsDict",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
-    port: int = None,
-    user_pid: int = None,
+    port: Optional[int] = None,
+    user_pid: Optional[int] = None,
 ) -> None:
     """Internal process function entrypoint.
 
@@ -182,7 +179,9 @@ def _setup_tracelog() -> None:
         tracelog.enable(tracelog_mode)
 
 
-def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:
+def configure_logging(
+    log_fname: str, log_level: int, run_id: Optional[str] = None
+) -> None:
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")
@@ -362,9 +361,9 @@ class WriterThread(internal_util.RecordLoopThread):
 class ProcessCheck:
     """Class to help watch a process id to detect when it is dead."""
 
-    check_process_last: "Optional[float]"
+    check_process_last: Optional[float]
 
-    def __init__(self, settings: "SettingsStatic", user_pid: "Optional[int]") -> None:
+    def __init__(self, settings: "SettingsStatic", user_pid: Optional[int]) -> None:
         self.settings = settings
         self.pid = user_pid
         self.check_process_last = None

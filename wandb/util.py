@@ -3,13 +3,11 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-from datetime import date, datetime, timedelta
 import errno
 import functools
 import gzip
 import hashlib
 import importlib
-from importlib import import_module
 import json
 import logging
 import math
@@ -23,41 +21,73 @@ import re
 import shlex
 import socket
 import sys
-from sys import getsizeof
 import tarfile
 import tempfile
 import threading
 import time
 import traceback
+import urllib
+from datetime import date, datetime, timedelta
+from importlib import import_module
+from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
+    IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     Generator,
-    IO,
     List,
     Mapping,
+    NewType,
     Optional,
     Sequence,
+    Set,
     TextIO,
     Tuple,
     Type,
     Union,
 )
-import urllib
 from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
-import wandb
-from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
-from wandb.errors import CommError, term, UsageError
 import yaml
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
+import wandb
+from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
+from wandb.errors import CommError, UsageError, term
+
+if TYPE_CHECKING:
+    import wandb.apis.public
+    import wandb.sdk.internal.settings_static
+    import wandb.sdk.wandb_artifacts
+    import wandb.sdk.wandb_settings
+
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+
+ETag = NewType("ETag", str)
+RawMD5 = NewType("RawMD5", bytes)
+HexMD5 = NewType("HexMD5", str)
+B64MD5 = NewType("B64MD5", str)
+
+# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
+# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
+# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
+LogicalFilePathStr = NewType("LogicalFilePathStr", str)
+
+# `FilePathStr` represents a path to a file on the local filesystem.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.Path
+FilePathStr = NewType("FilePathStr", str)
+
+# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
+URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -65,6 +95,16 @@ _not_importable = set()
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
+
+# From https://docs.docker.com/engine/reference/commandline/tag/
+# "Name components may contain lowercase letters, digits and separators.
+# A separator is defined as a period, one or two underscores, or one or more dashes.
+# A name component may not start or end with a separator."
+DOCKER_IMAGE_NAME_SEPARATOR = "(?:__|[._]|[-]+)"
+RE_DOCKER_IMAGE_NAME_SEPARATOR_START = re.compile("^" + DOCKER_IMAGE_NAME_SEPARATOR)
+RE_DOCKER_IMAGE_NAME_SEPARATOR_END = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "$")
+RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "{2,}")
+RE_DOCKER_IMAGE_NAME_CHARS = re.compile(r"[^a-z0-9._\-]")
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -78,6 +118,8 @@ PLATFORM_LINUX = "linux"
 PLATFORM_BSD = "bsd"
 PLATFORM_DARWIN = "darwin"
 PLATFORM_UNKNOWN = "unknown"
+
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
 
 def get_platform_name() -> str:
@@ -254,6 +296,10 @@ def sentry_set_scope(
             if value is not None and value != "":
                 scope.set_tag(tag, value)
 
+    # Track session so we can get metrics about error free rate
+    if sentry_hub:
+        sentry_hub.start_session()
+
 
 def vendor_setup() -> Callable:
     """This enables us to use the vendor directory for packages we don't depend on
@@ -270,18 +316,13 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
             sys.path.insert(1, p)
 
     return reset_import_path
-
-
-def apple_gpu_stats_binary() -> str:
-    parent_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
 
 
 def vendor_import(name: str) -> Any:
@@ -573,6 +614,68 @@ def matplotlib_contains_images(obj: Any) -> bool:
     return any(len(ax.images) > 0 for ax in obj.axes)
 
 
+def _numpy_generic_convert(obj: Any) -> Any:
+    obj = obj.item()
+    if isinstance(obj, float) and math.isnan(obj):
+        obj = None
+    elif isinstance(obj, np.generic) and (
+        obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+    ):
+        # obj is a numpy float with precision greater than that of native python float
+        # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+        # in these cases, obj.item() does not return a native
+        # python float (in the first case - to avoid loss of precision,
+        # so we need to explicitly cast this down to a 64bit float)
+        obj = float(obj)
+    return obj
+
+
+def _find_all_matching_keys(
+    d: Dict,
+    match_fn: Callable[[Any], bool],
+    visited: Optional[Set[int]] = None,
+    key_path: Tuple[Any, ...] = (),
+) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
+    """Recursively find all keys that satisfies a match function.
+
+    Args:
+       d: The dict to search.
+       match_fn: The function to determine if the key is a match.
+       visited: Keep track of visited nodes so we dont recurse forever.
+       key_path: Keep track of all the keys to get to the current node.
+    Yields:
+       (key_path, key): The location where the key was found, and the key
+    """
+
+    if visited is None:
+        visited = set()
+    me = id(d)
+    if me not in visited:
+        visited.add(me)
+        for key, value in d.items():
+            if match_fn(key):
+                yield key_path, key
+            if isinstance(value, dict):
+                yield from _find_all_matching_keys(
+                    value,
+                    match_fn,
+                    visited=visited,
+                    key_path=tuple(list(key_path) + [key]),
+                )
+
+
+def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
+    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
+    if not np_keys:
+        return d, False
+    for key_path, key in np_keys:
+        ptr = d
+        for k in key_path:
+            ptr = ptr[k]
+        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
+    return d, True
+
+
 def json_friendly(  # noqa: C901
     obj: Any,
 ) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
@@ -612,19 +715,7 @@ def json_friendly(  # noqa: C901
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = obj.item()
-        if isinstance(obj, float) and math.isnan(obj):
-            obj = None
-        elif isinstance(obj, np.generic) and (
-            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
-        ):
-            # obj is a numpy float with precision greater than that of native python float
-            # (i.e., float96 or float128) or it is of custom type such as bfloat16.
-            # in these cases, obj.item() does not return a native
-            # python float (in the first case - to avoid loss of precision,
-            # so we need to explicitly cast this down to a 64bit float)
-            obj = float(obj)
-
+        obj = _numpy_generic_convert(obj)
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -637,6 +728,8 @@ def json_friendly(  # noqa: C901
         )
     elif isinstance(obj, float) and math.isnan(obj):
         obj = None
+    elif isinstance(obj, dict) and np:
+        obj, converted = _sanitize_numpy_keys(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -838,7 +931,8 @@ def make_json_if_not_number(
 
 
 def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Also converts to lists and dicts."""
+    """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
+    Converts numpy array to list. Used for artifact metadata"""
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
@@ -854,6 +948,10 @@ def make_safe_for_json(obj: Any) -> Any:
             return "Infinity"
         elif obj == float("-inf"):
             return "-Infinity"
+    elif is_numpy_array(obj):
+        return [make_safe_for_json(v) for v in obj.tolist()]
+    elif isinstance(obj, slice):
+        return dict(slice_start=obj.start, slice_step=obj.step, slice_stop=obj.stop)
     return obj
 
 
@@ -866,6 +964,15 @@ def mkdir_exists_ok(path: str) -> bool:
             return False
         else:
             raise
+
+
+def no_retry_4xx(e: Exception) -> bool:
+    if not isinstance(e, requests.HTTPError):
+        return True
+    if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
+        return True
+    body = json.loads(e.response.content)
+    raise UsageError(body["errors"][0]["message"])
 
 
 def no_retry_auth(e: Any) -> bool:
@@ -995,12 +1102,12 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def md5_file(path: str) -> str:
+def md5_file(path: str) -> B64MD5:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
+    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
 
 
 def get_log_file_path() -> str:
@@ -1187,7 +1294,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1211,7 +1318,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
@@ -1366,14 +1473,14 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     return None
 
 
-def to_forward_slash_path(path: str) -> str:
+def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return path
+    return LogicalFilePathStr(path)
 
 
-def to_native_slash_path(path: str) -> str:
-    return path.replace("/", os.sep)
+def to_native_slash_path(path: str) -> FilePathStr:
+    return FilePathStr(path.replace("/", os.sep))
 
 
 def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
@@ -1479,7 +1586,7 @@ def _has_internet() -> bool:
 
 def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
     rand = rand or random
-    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))  # type: ignore
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
@@ -1523,7 +1630,7 @@ def _is_databricks() -> bool:
     if "dbutils" in sys.modules:
         dbutils = sys.modules["dbutils"]
         if hasattr(dbutils, "shell"):
-            shell = dbutils.shell  # type: ignore
+            shell = dbutils.shell
             if hasattr(shell, "sc"):
                 sc = shell.sc
                 if hasattr(sc, "appName"):
@@ -1603,7 +1710,7 @@ def artifact_to_json(
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
     if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name  # type: ignore
+        sequence_name = artifact._sequence_name
     else:
         sequence_name = artifact.name.split(":")[0]
 
@@ -1784,9 +1891,28 @@ def make_artifact_name_safe(name: str) -> str:
 
 def make_docker_image_name_safe(name: str) -> str:
     """Make a docker image name safe for use in artifacts"""
-    return re.sub(r"[^a-z0-9_\-.]", "", name)
+    safe_chars = RE_DOCKER_IMAGE_NAME_CHARS.sub("__", name.lower())
+    deduped = RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT.sub("__", safe_chars)
+    trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
+    trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
+    return trimmed if trimmed else "image"
 
 
-def has_main_file(path: str) -> bool:
-    """Check if a directory has a main.py file"""
-    return path != "<python with no main file>"
+def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively merge two dictionaries.
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            if isinstance(value, list):
+                if key in destination:
+                    destination[key].extend(value)
+                else:
+                    destination[key] = value
+            else:
+                destination[key] = value
+    return destination

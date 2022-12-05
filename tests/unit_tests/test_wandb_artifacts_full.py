@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta, timezone
 import time
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
 import wandb
+from wandb.errors import WaitTimeoutError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -193,3 +194,54 @@ def test_local_references(wandb_init):
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
     run.finish()
+
+
+def test_artifact_wait_success(wandb_init):
+    # Test artifact wait() timeout parameter
+    timeout = 60
+    leeway = 0.50
+    run = wandb_init()
+    artifact = wandb.Artifact("art", type="dataset")
+    start_timestamp = time.time()
+    run.log_artifact(artifact).wait(timeout=timeout)
+    elapsed_time = time.time() - start_timestamp
+    assert elapsed_time < timeout * (1 + leeway)
+    run.finish()
+
+
+@pytest.mark.parametrize("timeout", [0, 1e-6])
+def test_artifact_wait_failure(wandb_init, timeout):
+    # Test to expect WaitTimeoutError when wait timeout is reached and large image
+    # wasn't uploaded yet
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    run = wandb_init()
+    with pytest.raises(WaitTimeoutError):
+        artifact = wandb.Artifact("art", type="image")
+        artifact.add(image, "image")
+        run.log_artifact(artifact).wait(timeout=timeout)
+    run.finish()
+
+
+@pytest.mark.skip(
+    reason="TODO(spencerpearson): this test passes locally, but flakes in CI. After much investigation, I still have no clue.",
+    # examples of flakes:
+    #   https://app.circleci.com/pipelines/github/wandb/wandb/16334/workflows/319d3e58-853e-46ec-8a3f-088cac41351c/jobs/325741/tests#failed-test-0
+    #   https://app.circleci.com/pipelines/github/wandb/wandb/16392/workflows/b26b3e63-c8d8-45f4-b7db-00f84b11f8b8/jobs/327312
+)
+def test_artifact_metadata_save(wandb_init, relay_server):
+    # Test artifact metadata sucessfully saved for len(numpy) > 32
+    dummy_metadata = np.array([0] * 33)
+    with relay_server():
+        run = wandb_init()
+        artifact = wandb.Artifact(
+            name="art", type="dataset", metadata={"initMetadata": dummy_metadata}
+        )
+        run.log_artifact(artifact)
+        artifact.wait().metadata.update({"updateMetadata": dummy_metadata})
+        artifact.save()
+        saved_artifact = run.use_artifact("art:latest")
+        art_metadata = saved_artifact.metadata
+        assert "initMetadata" in art_metadata
+        assert "updateMetadata" in art_metadata
+        assert art_metadata["initMetadata"] == art_metadata["updateMetadata"]
+        run.finish()

@@ -3,14 +3,15 @@ import io
 import os
 import platform
 
-from bokeh.plotting import figure
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
-from PIL import Image
 import pytest
 import rdkit.Chem
+import responses
 import wandb
+from bokeh.plotting import figure
+from PIL import Image
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
@@ -289,6 +290,47 @@ def test_max_images(mock_run):
     path = os.path.join(run.dir, "media/images/test2_0_0.png")
     assert subdict(meta, expected) == expected
     assert os.path.exists(path)
+
+
+@pytest.fixture
+def mock_reference_get_responses():
+    with responses.RequestsMock() as rsps:
+        yield rsps
+
+
+def test_image_refs(mock_reference_get_responses):
+    mock_reference_get_responses.add(
+        method="GET",
+        url="http://nonexistent/puppy.jpg",
+        body=b"test",
+        headers={"etag": "testEtag", "content-length": "200"},
+    )
+    image_obj = wandb.Image("http://nonexistent/puppy.jpg")
+    art = wandb.Artifact("image_ref_test", "images")
+    art.add(image_obj, "image_ref")
+    image_expected = {
+        "path": "media/images/75c13e5a637fb8052da9/puppy.jpg",
+        "sha256": "75c13e5a637fb8052da99792fca8323c06b138966cd30482e84d62c83adc01ee",
+        "_type": "image-file",
+        "format": "jpg",
+    }
+    manifest_expected = {
+        "image_ref.image-file.json": {
+            "digest": "SZvdv5ouAEq2DEOgVBwOog==",
+            "size": 173,
+        },
+        "media/images/75c13e5a637fb8052da9/puppy.jpg": {
+            "digest": "testEtag",
+            "ref": "http://nonexistent/puppy.jpg",
+            "extra": {"etag": "testEtag"},
+            "size": 200,
+        },
+    }
+    assert subdict(image_obj.to_json(art), image_expected) == image_expected
+    assert (
+        subdict(art.manifest.to_manifest_json()["contents"], manifest_expected)
+        == manifest_expected
+    )
 
 
 def test_guess_mode():
@@ -1115,8 +1157,32 @@ def test_object3d_numpy(
     obj2.bind_to_run(run, "object3d", 1)
     obj3.bind_to_run(run, "object3d", 2)
     assert obj1.to_json(run)["_type"] == "object3D-file"
+    assert obj1.to_json(run)["path"].endswith(".pts.json")
     assert obj2.to_json(run)["_type"] == "object3D-file"
+    assert obj2.to_json(run)["path"].endswith(".pts.json")
     assert obj3.to_json(run)["_type"] == "object3D-file"
+    assert obj3.to_json(run)["path"].endswith(".pts.json")
+
+
+def test_object3d_from_numpy(
+    mock_run,
+    point_cloud_1,
+    point_cloud_2,
+    point_cloud_3,
+):
+    run = mock_run()
+    obj1 = wandb.Object3D.from_numpy(point_cloud_1)
+    obj2 = wandb.Object3D.from_numpy(point_cloud_2)
+    obj3 = wandb.Object3D.from_numpy(point_cloud_3)
+    obj1.bind_to_run(run, "object3d", 0)
+    obj2.bind_to_run(run, "object3d", 1)
+    obj3.bind_to_run(run, "object3d", 2)
+    assert obj1.to_json(run)["_type"] == "object3D-file"
+    assert obj1.to_json(run)["path"].endswith(".pts.json")
+    assert obj2.to_json(run)["_type"] == "object3D-file"
+    assert obj2.to_json(run)["path"].endswith(".pts.json")
+    assert obj3.to_json(run)["_type"] == "object3D-file"
+    assert obj3.to_json(run)["path"].endswith(".pts.json")
 
 
 def test_object3d_dict(mock_run):
@@ -1128,6 +1194,28 @@ def test_object3d_dict(mock_run):
     )
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
+    assert obj.to_json(run)["path"].endswith(".pts.json")
+
+
+def test_object3d_from_point_cloud(mock_run):
+    run = mock_run()
+    obj = wandb.Object3D.from_point_cloud([], [], [], "lidar/beta")
+    obj.bind_to_run(run, "object3D", 0)
+    assert obj.to_json(run)["_type"] == "object3D-file"
+    assert obj.to_json(run)["path"].endswith(".pts.json")
+
+
+def test_object3d_from_point_cloud_default_type(mock_run):
+    run = mock_run()
+    obj = wandb.Object3D.from_point_cloud([], [], [])
+    obj.bind_to_run(run, "object3D", 0)
+    assert obj.to_json(run)["_type"] == "object3D-file"
+    assert obj.to_json(run)["path"].endswith(".pts.json")
+
+
+def test_object3d_from_point_cloud_invalid():
+    with pytest.raises(ValueError):
+        wandb.Object3D.from_point_cloud([], [], [], "invalid point cloud type!")
 
 
 def test_object3d_dict_invalid():
@@ -1147,21 +1235,100 @@ def test_object3d_dict_invalid_string():
 
 
 @pytest.mark.parametrize(
-    "file_name",
+    "file_info",
     [
-        "cube.obj",
-        "Box.gltf",
+        {"name": "cube.obj", "path_endswith": ".obj"},
+        {"name": "Box.gltf", "path_endswith": ".gltf"},
+        {"name": "point_cloud.pts.json", "path_endswith": ".pts.json"},
     ],
 )
-def test_object3d_obj(mock_run, assets_path, file_name):
+def test_object3d_obj_open_file(mock_run, assets_path, file_info):
     run = mock_run()
-    with open(assets_path(file_name)) as f:
-        obj = wandb.Object3D(f)
+    with open(assets_path(file_info["name"])) as open_file:
+        obj = wandb.Object3D(open_file)
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
+    assert obj.to_json(run)["path"].endswith(file_info["path_endswith"])
 
 
-def test_object3d_io(mock_run, assets_path):
+@pytest.mark.parametrize(
+    "file_info",
+    [
+        {"name": "cube.obj", "path_endswith": ".obj"},
+        {"name": "Box.gltf", "path_endswith": ".gltf"},
+        {"name": "point_cloud.pts.json", "path_endswith": ".pts.json"},
+    ],
+)
+def test_object3d_from_file_with_path(mock_run, assets_path, file_info):
+    run = mock_run()
+    full_path = str(assets_path(file_info["name"]))
+    # precondition since this is how object_3d detects file path case
+    assert isinstance(full_path, str)
+    obj = wandb.Object3D.from_file(full_path)
+    obj.bind_to_run(run, "object3D", 0)
+    assert obj.to_json(run)["_type"] == "object3D-file"
+    assert obj.to_json(run)["path"].endswith(file_info["path_endswith"])
+
+
+@pytest.mark.parametrize(
+    "file_info",
+    [
+        {"name": "cube.obj", "type": "obj", "path_endswith": ".obj"},
+        {"name": "Box.gltf", "type": "gltf", "path_endswith": ".gltf"},
+        {
+            "name": "point_cloud.pts.json",
+            "type": "pts.json",
+            "path_endswith": ".pts.json",
+        },
+    ],
+)
+def test_object3d_from_file_with_textio(mock_run, assets_path, file_info):
+    run = mock_run()
+    with open(assets_path(file_info["name"])) as textio:
+        # precondition, since read prop is how object_3d detects textio case
+        assert hasattr(textio, "read")
+        obj = wandb.Object3D(textio, file_type=file_info["type"])
+        obj.bind_to_run(run, "object3D", 0)
+        assert obj.to_json(run)["_type"] == "object3D-file"
+        assert obj.to_json(run)["path"].endswith(file_info["path_endswith"])
+
+
+def test_object3d_from_file_with_textio_invalid_file_type(assets_path):
+    textio = io.StringIO("some text")
+    with pytest.raises(ValueError):
+        _ = wandb.Object3D.from_file(textio)
+
+
+def test_object3d_from_file_with_textio_missing_file_type(mock_run, assets_path):
+    run = mock_run()
+    with open(assets_path("point_cloud.pts.json")) as textio:
+        assert hasattr(textio, "read")
+        obj = wandb.Object3D.from_file(textio)
+        obj.bind_to_run(run, "object3D", 0)
+        assert obj.to_json(run)["_type"] == "object3D-file"
+        assert obj.to_json(run)["path"].endswith(".pts.json")
+
+
+@pytest.mark.parametrize(
+    "file_info",
+    [
+        {"name": "cube.obj", "path_endswith": "obj"},
+        {"name": "Box.gltf", "path_endswith": "gltf"},
+        {"name": "point_cloud.pts.json", "path_endswith": ".pts.json"},
+    ],
+)
+def test_object3d_from_file_with_open_file(mock_run, assets_path, file_info):
+    run = mock_run()
+    with open(assets_path(file_info["name"])) as open_file:
+        # precondition, since this is how object_3d detects open file case
+        assert hasattr(open_file, "name")
+        obj = wandb.Object3D(open_file)
+        obj.bind_to_run(run, "object3D", 0)
+        assert obj.to_json(run)["_type"] == "object3D-file"
+        assert obj.to_json(run)["path"].endswith(file_info["path_endswith"])
+
+
+def test_object3d_textio(mock_run, assets_path):
     run = mock_run()
     with open(assets_path("Box.gltf")) as f:
         io_obj = io.StringIO(f.read())
@@ -1169,11 +1336,14 @@ def test_object3d_io(mock_run, assets_path):
     obj = wandb.Object3D(io_obj, file_type="obj")
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
+    print(obj.to_json(run)["path"])
+    assert obj.to_json(run)["path"].endswith(".obj")
 
 
 @pytest.mark.parametrize(
     "object3d",
     [
+        [[1, 2, 3]],  # looks valid, but is sequence
         np.array([1]),
         np.array(
             [
@@ -1188,6 +1358,8 @@ def test_object3d_io(mock_run, assets_path):
 def test_object3d_unsupported_numpy(object3d):
     with pytest.raises(ValueError):
         wandb.Object3D(object3d)
+    with pytest.raises(ValueError):
+        wandb.Object3D.from_numpy(object3d)
 
 
 def test_object3d_unsupported_io(assets_path):
@@ -1217,6 +1389,24 @@ def test_object3d_seq_to_json(mock_run, point_cloud_1, assets_path):
         )
     assert obj["_type"] == "object3D"
     assert obj["count"] == 3
+
+
+def test_object3d_label_is_optional(mock_run):
+    box_with_label = {
+        "corners": [],
+        "label": "i am a label",
+        "color": [0, 0, 0],
+    }
+    box_no_label = {"corners": [], "color": [0, 0, 0]}
+    wandb.Object3D.from_point_cloud(points=[], boxes=[box_no_label, box_with_label])
+    assert True
+
+
+def test_object3d_score_is_optional(mock_run):
+    box_with_score = {"corners": [], "score": 95, "color": [0, 0, 0]}
+    box_no_score = {"corners": [], "color": [0, 0, 0]}
+    wandb.Object3D.from_point_cloud(points=[], boxes=[box_no_score, box_with_score])
+    assert True
 
 
 ################################################################################

@@ -4,8 +4,8 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 """
 
 import os
+import platform
 import subprocess
-import sys
 import tempfile
 import time
 from typing import Any, Dict, Optional
@@ -21,8 +21,13 @@ class _Service:
     _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
 
-    def __init__(self, _use_grpc: bool = False) -> None:
+    def __init__(
+        self,
+        _python_executable: str,
+        _use_grpc: bool = False,
+    ) -> None:
         self._use_grpc = _use_grpc
+        self._python_executable = _python_executable
         self._stub = None
         self._grpc_port = None
         self._sock_port = None
@@ -37,7 +42,9 @@ class _Service:
         else:
             self._service_interface = ServiceSockInterface()
 
-    def _wait_for_ports(self, fname: str, proc: subprocess.Popen = None) -> bool:
+    def _wait_for_ports(
+        self, fname: str, proc: Optional[subprocess.Popen] = None
+    ) -> bool:
         time_max = time.time() + 30
         while time.time() < time_max:
             if proc and proc.poll():
@@ -68,7 +75,12 @@ class _Service:
         # - https://github.com/wandb/wandb/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
 
-        kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
+        kwargs: Dict[str, Any] = dict(close_fds=True)
+        # flags to handle keyboard interrupt signal that is causing a hang
+        if platform.system() == "Windows":
+            kwargs.update(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)  # type: ignore [attr-defined]
+        else:
+            kwargs.update(start_new_session=True)
 
         pid = os.getpid()
 
@@ -76,7 +88,8 @@ class _Service:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
             pid_str = str(os.getpid())
-            exec_cmd_list = [sys.executable, "-m"]
+            executable = self._python_executable
+            exec_cmd_list = [executable, "-m"]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]

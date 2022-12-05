@@ -10,7 +10,6 @@ import numpy as np
 import tensorflow as tf
 import wandb
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--log_dir", type=str, help="Where to store tensorboard files")
 args = parser.parse_args()

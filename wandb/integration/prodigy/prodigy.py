@@ -17,12 +17,13 @@ wandb.finish()
 
 import base64
 import collections.abc
-from copy import deepcopy
 import io
 import urllib
+from copy import deepcopy
 
 import pandas as pd
 from PIL import Image
+
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing
@@ -31,7 +32,7 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 def named_entity(docs):
     """Creates a named entity visualization.
-    Taken from https://github.com/wandb/wandb/blob/master/wandb/plots/named_entity.py
+    Taken from https://github.com/wandb/wandb/blob/main/wandb/plots/named_entity.py
     """
 
     spacy = util.get_module(

@@ -8,19 +8,21 @@ from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
 from kubernetes.client.models.v1_job import V1Job  # type: ignore
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
+
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module, load_json_yaml_dict
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
+from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..utils import (
-    get_kube_context_and_api_client,
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    get_kube_context_and_api_client,
 )
+from .abstract import AbstractRun, AbstractRunner, Status
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
@@ -61,7 +63,7 @@ class KubernetesSubmittedRun(AbstractRun):
     def wait(self) -> bool:
         while True:
             status = self.get_status()
-            wandb.termlog(f"Job {self.name} status: {status}")
+            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
             if status.state != "running":
                 break
             time.sleep(5)
@@ -81,9 +83,7 @@ class KubernetesSubmittedRun(AbstractRun):
         except Exception as e:
             if self._fail_count == 1:
                 wandb.termlog(
-                    "Failed to get pod status for job: {}. Will wait up to 10 minutes for job to start.".format(
-                        self.name
-                    )
+                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to 10 minutes for job to start."
                 )
             self._fail_count += 1
             if self._fail_count > MAX_KUBERNETES_RETRIES:
@@ -169,6 +169,13 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
+        if resource_args.get("security_context"):
+            pod_spec["securityContext"] = resource_args.get("security_context")
+        if resource_args.get("volumes") is not None:
+            vols = resource_args.get("volumes")
+            if not isinstance(vols, list):
+                raise LaunchError("volumes must be a list of volume specifications")
+            pod_spec["volumes"] = vols
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -196,6 +203,13 @@ class KubernetesRunner(AbstractRunner):
                     cont.get("resources") != container_resources
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
+            if resource_args.get("volume_mounts") is not None:
+                vol_mounts = resource_args.get("volume_mounts")
+                if not isinstance(vol_mounts, list):
+                    raise LaunchError(
+                        "volume mounts must be a list of volume mount specifications"
+                    )
+                cont["volumeMounts"] = vol_mounts
             cont["security_context"] = {
                 "allowPrivilegeEscalation": False,
                 "capabilities": {"drop": ["ALL"]},
@@ -203,7 +217,7 @@ class KubernetesRunner(AbstractRunner):
             }
         if multi_container_override:
             wandb.termwarn(
-                "Container overrides (e.g. resource limits) were provided with multiple containers specified: overrides will be applied to all containers."
+                "{LOG_PREFIX}Container overrides (e.g. resource limits) were provided with multiple containers specified: overrides will be applied to all containers."
             )
 
     def wait_job_launch(
@@ -229,9 +243,7 @@ class KubernetesRunner(AbstractRunner):
 
         pod_names = [pi.metadata.name for pi in pods.items]
         wandb.termlog(
-            "Job {job} created on pod(s) {pod_names}. See logs with e.g. `kubectl logs {first_pod}`.".format(
-                job=job_name, pod_names=", ".join(pod_names), first_pod=pod_names[0]
-            )
+            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]} -n {namespace}`."
         )
         return pod_names
 
@@ -255,7 +267,7 @@ class KubernetesRunner(AbstractRunner):
         resource_args = launch_project.resource_args.get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
-                "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
+                f"{LOG_PREFIX}Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
@@ -289,7 +301,9 @@ class KubernetesRunner(AbstractRunner):
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
         if not job_metadata.get("name"):
-            job_metadata["generateName"] = "launch-"
+            job_metadata[
+                "generateName"
+            ] = f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
@@ -309,7 +323,7 @@ class KubernetesRunner(AbstractRunner):
         secret = None
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
-                "Docker args are not supported for Kubernetes. Not using docker args"
+                f"{LOG_PREFIX}Docker args are not supported for Kubernetes. Not using docker args"
             )
         # only need to do this if user is providing image, on build, our image sets an entrypoint
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
@@ -345,7 +359,7 @@ class KubernetesRunner(AbstractRunner):
             if repository is None:
                 # allow local registry usage for eg local clusters but throw a warning
                 wandb.termwarn(
-                    "Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
+                    f"{LOG_PREFIX}Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
             assert entry_point is not None
             image_uri = builder.build_image(
@@ -365,6 +379,7 @@ class KubernetesRunner(AbstractRunner):
         for cont in containers:
             cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
         pod_spec["containers"] = containers
+
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:

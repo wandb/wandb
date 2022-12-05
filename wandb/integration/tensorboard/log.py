@@ -1,15 +1,16 @@
 import io
 import re
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
-from wandb.sdk.lib import telemetry
 import wandb.util
+from wandb.sdk.lib import telemetry
 from wandb.viz import custom_chart
 
 if TYPE_CHECKING:
     import numpy as np  # type: ignore
+
     from wandb.sdk.internal.tb_watcher import TBHistory
 
 # We have at least the default namestep and a global step to track
@@ -103,7 +104,7 @@ def tf_summary_to_dict(  # noqa: C901
 
     def encode_images(_img_strs: List[bytes], _value: Any) -> None:
         try:
-            from PIL import Image  # type: ignore
+            from PIL import Image
         except ImportError:
             wandb.termwarn(
                 "Install pillow if you are logging images with Tensorboard. "

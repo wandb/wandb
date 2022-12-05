@@ -1,6 +1,5 @@
 # flake8: noqa
-
-from .reports import (
+from ._blocks import (
     H1,
     H2,
     H3,
@@ -12,8 +11,6 @@ from .reports import (
     HorizontalRule,
     Image,
     LaTeXBlock,
-    InlineLaTeX,
-    InlineCode,
     MarkdownBlock,
     OrderedList,
     P,
@@ -21,8 +18,9 @@ from .reports import (
     SoundCloud,
     Spotify,
     TableOfContents,
-    Twitter,
     UnorderedList,
     Video,
-    WeaveBlock,
+    WeaveBlockArtifact,
+    WeaveBlockArtifactVersionedFile,
+    WeaveBlockSummaryTable,
 )

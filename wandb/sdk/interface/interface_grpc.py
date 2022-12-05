@@ -5,18 +5,18 @@ Manage backend sender.
 """
 
 import logging
-from typing import Any, Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import grpc
+
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .message_future_poll import MessageFuturePoll
-
 
 if TYPE_CHECKING:
     from ..wandb_run import Run
@@ -26,15 +26,16 @@ logger = logging.getLogger("wandb")
 
 
 class InterfaceGrpc(InterfaceBase):
-
     _stub: Optional[pbgrpc.InternalServiceStub]
     _stream_id: Optional[str]
+    _mailbox: Mailbox
 
-    def __init__(self) -> None:
+    def __init__(self, mailbox: Mailbox) -> None:
         super().__init__()
         self._stub = None
         self._process_check = None
         self._stream_id = None
+        self._mailbox = mailbox
 
     def _hack_set_run(self, run: "Run") -> None:
         super()._hack_set_run(run)
@@ -54,7 +55,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(check_version)
         run_result = self._stub.CheckVersion(check_version)
-        return run_result
+        return run_result  # type: ignore
 
     def _communicate_attach(
         self, attach: pb.AttachRequest
@@ -62,15 +63,15 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(attach)
         resp = self._stub.Attach(attach)
-        return resp
+        return resp  # type: ignore
 
     def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
+        self, run: pb.RunRecord, timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         assert self._stub
         self._assign(run)
         run_result = self._stub.RunUpdate(run)
-        return run_result
+        return run_result  # type: ignore
 
     def _publish_run(self, run: pb.RunRecord) -> None:
         assert self._stub
@@ -102,7 +103,7 @@ class InterfaceGrpc(InterfaceBase):
         except grpc.RpcError as e:
             logger.info(f"GET SUMMARY TIMEOUT: {e}")
             resp = pb.GetSummaryResponse()
-        return resp
+        return resp  # type: ignore
 
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         assert self._stub
@@ -152,7 +153,7 @@ class InterfaceGrpc(InterfaceBase):
         except grpc.RpcError as e:
             logger.info(f"RUNSTART TIMEOUT: {e}")
             run_start_response = pb.RunStartResponse()
-        return run_start_response
+        return run_start_response  # type: ignore
 
     def _publish_files(self, files: pb.FilesRecord) -> None:
         assert self._stub
@@ -223,7 +224,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(status)
         status_response = self._stub.Status(status)
-        return status_response
+        return status_response  # type: ignore
 
     def _communicate_network_status(
         self, status: pb.NetworkStatusRequest
@@ -267,7 +268,21 @@ class InterfaceGrpc(InterfaceBase):
         except grpc.RpcError as e:
             logger.info(f"POLL EXIT TIMEOUT: {e}")
             ret = pb.PollExitResponse()
-        return ret
+        return ret  # type: ignore
+
+    def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
+        assert self._stub
+        self._assign(keepalive)
+        _ = self._stub.Keepalive(keepalive)
+        return None
+
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
+        assert self._stub
+        self._assign(server_info)
+        ret = self._stub.ServerInfo(server_info)
+        return ret  # type: ignore
 
     def _communicate_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
@@ -275,7 +290,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(sampled_history)
         ret = self._stub.SampledHistory(sampled_history)
-        return ret
+        return ret  # type: ignore
 
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         assert self._stub
@@ -290,6 +305,75 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(resume)
         _ = self._stub.Resume(resume)
+
+    def _deliver(self, result: pb.Result) -> MailboxHandle:
+        # TODO: rework grpc implementation to be asynchronous?
+        # for now we will just emulate the mailbox protocol
+        handle = self._mailbox.get_handle()
+        mailbox_slot = handle.address
+        result.control.mailbox_slot = mailbox_slot
+        self._mailbox.deliver(result)
+        return handle
+
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        assert self._stub
+        self._assign(run)
+        run_result = self._stub.RunUpdate(run)
+        result = pb.Result(run_result=run_result)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(get_summary)
+        try:
+            get_summary_response = self._stub.GetSummary(get_summary)
+        except grpc.RpcError as e:
+            logger.info(f"GET SUMMARY TIMEOUT: {e}")
+            get_summary_response = pb.GetSummaryResponse()
+        response = pb.Response(get_summary_response=get_summary_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_exit(self, run_exit: pb.RunExitRecord) -> MailboxHandle:
+        assert self._stub
+        self._assign(run_exit)
+        exit_result = self._stub.RunExit(run_exit)
+        result = pb.Result(exit_result=exit_result)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(poll_exit)
+        poll_exit_response = self._stub.PollExit(poll_exit)
+        response = pb.Response(poll_exit_response=poll_exit_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
+        assert self._stub
+        self._assign(server_info)
+        server_info_response = self._stub.ServerInfo(server_info)
+        response = pb.Response(server_info_response=server_info_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        assert self._stub
+        self._assign(sampled_history)
+        sampled_history_response = self._stub.SampledHistory(sampled_history)
+        response = pb.Response(sampled_history_response=sampled_history_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
 
     def join(self) -> None:
         super().join()

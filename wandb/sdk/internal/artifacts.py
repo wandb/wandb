@@ -3,20 +3,20 @@ import os
 import sys
 import tempfile
 import threading
-from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
-from wandb import util
 import wandb.filesync.step_prepare
+from wandb import util
 
 from ..interface.artifacts import ArtifactEntry, ArtifactManifest
 
-
 if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
+
     from .file_pusher import FilePusher
-    from wandb.proto import wandb_internal_pb2
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -263,6 +263,8 @@ class ArtifactSaver:
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = "wandb-artifact://{}/{}".format(
-                        util.b64_to_hex_id(artifact_id), artifact_file_path
+                    entry.ref = util.URIStr(
+                        "wandb-artifact://{}/{}".format(
+                            util.b64_to_hex_id(artifact_id), artifact_file_path
+                        )
                     )

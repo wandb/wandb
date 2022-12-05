@@ -3,18 +3,18 @@
 Start up grpc or socket transport servers.
 """
 
-from concurrent import futures
 import logging
 import os
 import sys
+from concurrent import futures
 from typing import Optional
 
 import wandb
 
+from ..lib import tracelog
 from . import port_file
 from .server_sock import SocketServer
 from .streams import StreamMux
-from ..lib import tracelog
 
 
 class WandbServer:
@@ -28,11 +28,11 @@ class WandbServer:
 
     def __init__(
         self,
-        grpc_port: int = None,
-        sock_port: int = None,
-        port_fname: str = None,
-        address: str = None,
-        pid: int = None,
+        grpc_port: Optional[int] = None,
+        sock_port: Optional[int] = None,
+        port_fname: Optional[str] = None,
+        address: Optional[str] = None,
+        pid: Optional[int] = None,
         debug: bool = True,
         serve_grpc: bool = False,
         serve_sock: bool = False,
@@ -65,9 +65,11 @@ class WandbServer:
         pf.write(self._port_fname)
 
     def _start_grpc(self, mux: StreamMux) -> int:
-        from .server_grpc import WandbServicer
         import grpc
+
         from wandb.proto import wandb_server_pb2_grpc as spb_grpc
+
+        from .server_grpc import WandbServicer
 
         address: str = self._address or "127.0.0.1"
         port: int = self._grpc_port or 0

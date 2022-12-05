@@ -1,8 +1,8 @@
 import os
-import pytest
 import queue
 import threading
 
+import pytest
 import wandb
 from wandb.sdk.lib.printer import INFO
 
@@ -131,7 +131,7 @@ def test_exit_poll_local(
     mock_server.ctx["local_none"] = local_none
     publish_util()
 
-    out_of_date = collect_responses.poll_exit_resp.local_info.out_of_date
+    out_of_date = collect_responses.server_info_resp.local_info.out_of_date
     if empty_query:
         assert out_of_date
     elif local_none:
@@ -151,7 +151,7 @@ def test_server_response_message_malformed_level(
         },
     ]
     publish_util()
-    server_messages = collect_responses.poll_exit_resp.server_messages.item
+    server_messages = collect_responses.server_info_resp.server_messages.item
     assert len(server_messages) == 1
     assert server_messages[0].level == INFO
 
@@ -167,6 +167,6 @@ def test_server_response_message_level(
         },
     ]
     publish_util()
-    server_messages = collect_responses.poll_exit_resp.server_messages.item
+    server_messages = collect_responses.server_info_resp.server_messages.item
     assert len(server_messages) == 1
     assert server_messages[0].level == int(messageLevel)

@@ -9,32 +9,33 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-from abc import abstractmethod
 import json
 import logging
 import os
 import sys
 import time
-from typing import Any, Iterable, NewType, Optional, Tuple, TYPE_CHECKING, Union
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
+    WandBJSONEncoderOld,
     get_h5_typename,
     json_dumps_safer,
     json_dumps_safer_history,
     json_friendly,
-    json_friendly_val,
+    make_safe_for_json,
     maybe_compress_summary,
-    WandBJSONEncoderOld,
 )
 
+from ..data_types.utils import history_dict_to_json, val_to_json
+from ..lib.mailbox import MailboxHandle
+from ..wandb_artifacts import Artifact
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
-from ..data_types.utils import history_dict_to_json, val_to_json
-from ..wandb_artifacts import Artifact
 
 GlobStr = NewType("GlobStr", str)
 
@@ -97,7 +98,7 @@ class InterfaceBase:
         raise NotImplementedError
 
     def communicate_check_version(
-        self, current_version: str = None
+        self, current_version: Optional[str] = None
     ) -> Optional[pb.CheckVersionResponse]:
         check_version = pb.CheckVersionRequest()
         if current_version:
@@ -146,10 +147,10 @@ class InterfaceBase:
 
     def _make_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
-        obj: pb.ConfigRecord = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
+        obj: Optional[pb.ConfigRecord] = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
@@ -189,9 +190,9 @@ class InterfaceBase:
 
     def publish_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
     ) -> None:
         cfg = self._make_config(data=data, key=key, val=val)
 
@@ -217,14 +218,14 @@ class InterfaceBase:
         raise NotImplementedError
 
     def communicate_run(
-        self, run_obj: "Run", timeout: int = None
+        self, run_obj: "Run", timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         run = self._make_run(run_obj)
         return self._communicate_run(run, timeout=timeout)
 
     @abstractmethod
     def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
+        self, run: pb.RunRecord, timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         raise NotImplementedError
 
@@ -377,13 +378,15 @@ class InterfaceBase:
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+            proto_artifact.metadata = json.dumps(make_safe_for_json(artifact.metadata))
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
     def _make_artifact_manifest(
-        self, artifact_manifest: ArtifactManifest, obj: pb.ArtifactManifest = None
+        self,
+        artifact_manifest: ArtifactManifest,
+        obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
         proto_manifest.version = artifact_manifest.version()  # type: ignore
@@ -563,7 +566,11 @@ class InterfaceBase:
         raise NotImplementedError
 
     def publish_history(
-        self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
+        self,
+        data: dict,
+        step: Optional[int] = None,
+        run: Optional["Run"] = None,
+        publish_step: bool = True,
     ) -> None:
         run = run or self._run
         data = history_dict_to_json(run, data, step=step)
@@ -685,6 +692,25 @@ class InterfaceBase:
     ) -> Optional[pb.PollExitResponse]:
         raise NotImplementedError
 
+    def publish_keepalive(self) -> None:
+        keepalive = pb.KeepaliveRequest()
+        self._publish_keepalive(keepalive)
+
+    @abstractmethod
+    def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
+        raise NotImplementedError
+
+    def communicate_server_info(self) -> Optional[pb.ServerInfoResponse]:
+        server_info = pb.ServerInfoRequest()
+        resp = self._communicate_server_info(server_info)
+        return resp
+
+    @abstractmethod
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -693,4 +719,56 @@ class InterfaceBase:
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:
+        raise NotImplementedError
+
+    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
+        run = self._make_run(run_obj)
+        return self._deliver_run(run)
+
+    @abstractmethod
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_summary(self) -> MailboxHandle:
+        get_summary = pb.GetSummaryRequest()
+        return self._deliver_get_summary(get_summary)
+
+    @abstractmethod
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:
+        exit_data = self._make_exit(exit_code)
+        return self._deliver_exit(exit_data)
+
+    @abstractmethod
+    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_poll_exit(self) -> MailboxHandle:
+        poll_exit = pb.PollExitRequest()
+        return self._deliver_poll_exit(poll_exit)
+
+    @abstractmethod
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_server_info(self) -> MailboxHandle:
+        server_info = pb.ServerInfoRequest()
+        return self._deliver_request_server_info(server_info)
+
+    @abstractmethod
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_sampled_history(self) -> MailboxHandle:
+        sampled_history = pb.SampledHistoryRequest()
+        return self._deliver_request_sampled_history(sampled_history)
+
+    @abstractmethod
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
         raise NotImplementedError

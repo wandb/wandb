@@ -170,6 +170,7 @@ def coverage_coveragerc_check(toxenv_list, args):
     paths = cf.get("paths", "canonicalsrc")
     paths = paths.split()
 
+    toxenv_list = list(set(toxenv_list))
     toxenv_list.sort()
 
     # lets generate what paths should look like

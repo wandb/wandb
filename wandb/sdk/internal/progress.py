@@ -4,7 +4,7 @@ progress.
 
 import os
 import sys
-from typing import IO, Optional, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, Optional
 
 from wandb.errors import CommError
 
@@ -59,7 +59,7 @@ class Progress:
         return bites
 
     def rewind(self) -> None:
-        self.callback(0, -self.bytes_read)
+        self.callback(-self.bytes_read, 0)
         self.bytes_read = 0
         self.file.seek(0)
 

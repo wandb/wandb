@@ -1,5 +1,4 @@
 import atexit
-from contextlib import contextmanager
 import logging
 import os
 import platform
@@ -9,35 +8,35 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import threading
+import time
+import urllib
+import webbrowser
+from contextlib import contextmanager
 from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
-import urllib
 
 import click
-from click.testing import CliRunner
 import git
 import nbformat
 import psutil
 import pytest
 import requests
-import webbrowser
-
-from . import utils
 import wandb
-from wandb import wandb_sdk
+from click.testing import CliRunner
+from wandb import Api, wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.lib.module import unset_globals
 from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.lib.module import unset_globals
 from wandb.util import mkdir_exists_ok
-from wandb import Api
 
+from . import utils
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 
@@ -635,11 +634,17 @@ class MockProcess:
 
 
 @pytest.fixture()
-def _internal_sender(record_q, internal_result_q, internal_process):
+def internal_mailbox():
+    return Mailbox()
+
+
+@pytest.fixture()
+def _internal_sender(record_q, internal_result_q, internal_process, internal_mailbox):
     return InterfaceQueue(
         record_q=record_q,
         result_q=internal_result_q,
         process=internal_process,
+        mailbox=internal_mailbox,
     )
 
 
@@ -795,20 +800,19 @@ def _stop_backend(
 ):
     def stop_backend_func(threads=None):
         threads = threads or ()
-        done = False
-        _internal_sender.publish_exit(0)
-        for _ in range(30):
-            poll_exit_resp = _internal_sender.communicate_poll_exit()
-            if poll_exit_resp:
-                done = poll_exit_resp.done
-                if done:
-                    collect_responses.poll_exit_resp = poll_exit_resp
-                    break
-            time.sleep(1)
+
+        handle = _internal_sender.deliver_exit(0)
+        record = handle.wait(timeout=30)
+        assert record
+
+        server_info_handle = _internal_sender.deliver_request_server_info()
+        result = server_info_handle.wait(timeout=30)
+        assert result
+        collect_responses.server_info_resp = result.response.server_info_response
+
         _internal_sender.join()
         for t in threads:
             t.join()
-        assert done, "backend didnt shutdown"
 
     yield stop_backend_func
 

@@ -102,6 +102,18 @@ class SweepError(Error):
     pass
 
 
+class WaitTimeoutError(Error):
+    """Raised when wait() timeout occurs before process is finished"""
+
+    pass
+
+
+class MailboxError(Error):
+    """Generic Mailbox Exception"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
@@ -114,4 +126,5 @@ __all__ = [
     "ExecutionError",
     "LaunchError",
     "SweepError",
+    "WaitTimeoutError",
 ]

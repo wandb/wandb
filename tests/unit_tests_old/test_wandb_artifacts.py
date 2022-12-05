@@ -1,10 +1,11 @@
 import base64
 import hashlib
 from typing import Callable
-import pytest
-from wandb import util
-import wandb
+
 import numpy as np
+import pytest
+import wandb
+from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
@@ -130,7 +131,7 @@ def mock_http(artifact, path=False, headers={}):
     return mock
 
 
-def md5_string(string):
+def md5_string(string) -> util.B64MD5:
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")

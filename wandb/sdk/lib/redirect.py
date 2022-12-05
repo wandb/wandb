@@ -1,12 +1,11 @@
 try:
     import fcntl
     import pty
-    import tty
     import termios
+    import tty
 except ImportError:  # windows
     pty = tty = termios = fcntl = None  # type: ignore
 
-from collections import defaultdict
 import itertools
 import logging
 import os
@@ -17,6 +16,7 @@ import struct
 import sys
 import threading
 import time
+from collections import defaultdict
 
 import wandb
 

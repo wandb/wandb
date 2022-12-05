@@ -15,20 +15,12 @@ import logging
 import os
 import sys
 import threading
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 
-from . import wandb_manager
-from . import wandb_settings
+from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
-
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
 logger = None
@@ -260,7 +252,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                 else:
                     self._config = config_dict
 
-    def _teardown(self, exit_code: int = None):
+    def _teardown(self, exit_code: Optional[int] = None):
         exit_code = exit_code or 0
         self._teardown_manager(exit_code=exit_code)
 

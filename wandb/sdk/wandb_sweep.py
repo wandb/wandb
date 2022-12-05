@@ -1,5 +1,5 @@
-from typing import Callable, Dict, Optional, Union
 import urllib.parse
+from typing import Callable, Dict, Optional, Union
 
 import wandb
 from wandb import env
@@ -30,8 +30,8 @@ def _get_sweep_url(api, sweep_id):
 
 def sweep(
     sweep: Union[dict, Callable],
-    entity: str = None,
-    project: str = None,
+    entity: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
