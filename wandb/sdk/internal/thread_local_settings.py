@@ -1,6 +1,7 @@
 import threading
 import typing
 
+
 # Context variable for setting API settings (api keys, etc.) for internal and public apis thread-locally
 class _ThreadLocalApiSettings(threading.local):
     api_key: typing.Optional[str]
