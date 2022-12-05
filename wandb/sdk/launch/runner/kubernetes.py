@@ -375,11 +375,11 @@ class KubernetesRunner(AbstractRunner):
 
         # reassemble spec
         given_env_vars = resource_args.get("env", [])
-        kuberenetes_style_env_vars = [
+        kubernetes_style_env_vars = [
             {"name": k, "value": v} for k, v in env_vars.items()
         ]
         for cont in containers:
-            cont["env"] = given_env_vars + kuberenetes_style_env_vars
+            cont["env"] = given_env_vars + kubernetes_style_env_vars
         pod_spec["containers"] = containers
 
         pod_template["spec"] = pod_spec
