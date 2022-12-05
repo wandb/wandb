@@ -15,9 +15,8 @@ def monitor():
     global _gym_version_lt_0_26
 
     if _gym_version_lt_0_26 is None:
-        from pkg_resources import parse_version
-
         import gym  # type: ignore
+        from pkg_resources import parse_version
 
         if parse_version(gym.__version__) < parse_version("0.26.0"):
             _gym_version_lt_0_26 = True
