@@ -295,6 +295,8 @@ class StreamMux:
                 exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
+        # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
+        # timeout = max(stream._settings._exit_timeout for stream in streams.values())
         got_result = self._mailbox.wait_all(
             handles=exit_handles, timeout=-1, on_progress_all=self._on_progress_exit_all
         )
@@ -392,7 +394,7 @@ class StreamMux:
     def _loop(self) -> None:
         while not self._stopped.is_set():
             if self._check_orphaned():
-                # parent process is gone, let other threads know we need to shutdown
+                # parent process is gone, let other threads know we need to shut down
                 self._stopped.set()
             try:
                 action = self._action_q.get(timeout=1)
