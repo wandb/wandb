@@ -16,7 +16,7 @@ class RelayLink:
         relay_link = os.environ.get("RELAY_LINK")
         if not relay_link:
             return
-        self._relay_link_url = f"{relay_link}/relay-link"
+        self._relay_link_url = f"{relay_link}/_control"
         self._disabled = False
         print("Using relay link:", self._relay_link_url)
         self._session = requests.Session()

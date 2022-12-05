@@ -475,17 +475,81 @@ class InjectedResponse:
         }
 
 
+from collections import defaultdict
+
+
+class RelayControlObject:
+    def __init__(self) -> None:
+        self._event = threading.Event()
+        self._event.set()
+        self._thread = None
+
+    def set(self, delay=None) -> None:
+        if not delay:
+            self._event.set()
+            return
+        delayed_call = threading.Timer(delay, self.set)
+        self._thread = delayed_call
+        delayed_call.start()
+
+    def clear(self) -> None:
+        self._event.clear()
+
+    def wait(self) -> None:
+        self._event.wait()
+
+
+class RelayControl:
+    def __init__(self) -> None:
+        self._controls = defaultdict(RelayControlObject)
+
+    def _signature(selt, request: "flask.Request"):
+        endpoint = request.path.split('/')[-1]
+        return endpoint
+
+    def process(self, request: "flask.Request"):
+        sig = self._signature(request)
+        obj = self._controls[sig]
+        print("check", sig, obj._event.is_set())
+        obj.wait()
+        print("waitdone")
+
+    def _relay_set_active(self, sig, delay=None):
+        obj = self._controls[sig]
+        obj.set(delay=delay)
+        print("active", sig, delay)
+
+    def _relay_set_paused(self, sig):
+        obj = self._controls[sig]
+        obj.clear()
+        print("pause", sig)
+
+    def control(self, request: "flask.Request"):
+        request = flask.request
+        request_data = request.get_json()
+        command = request_data.get("command")
+        service = request_data.get("service")
+        if command == "pause":
+            self._relay_set_paused(service)
+        elif command == "unpause":
+            self._relay_set_active(service)
+        elif command == "delay":
+            delay_time = request_data.get("time")
+            self._relay_set_paused(service)
+            self._relay_set_active(service, delay=delay_time)
+        return {"hello": "there"}
+
+
 class RelayServer:
     def __init__(
         self,
         base_url: str,
         inject: Optional[List[InjectedResponse]] = None,
-        relay_link: bool = False,
     ) -> None:
         # todo for the future:
         #  - consider switching from Flask to Quart
         #  - async app will allow for better failure injection/poor network perf
-        self._relay_link = relay_link
+        self.relay_control = RelayControl()
         self.app = flask.Flask(__name__)
         self.app.logger.setLevel(logging.INFO)
         self.app.register_error_handler(DeliberateHTTPError, self.handle_http_exception)
@@ -513,13 +577,12 @@ class RelayServer:
             view_func=self.storage_file,
             methods=["PUT", "GET"],
         )
-        if relay_link:
-            self.app.add_url_rule(
-                rule="/relay-link",
-                endpoint="relay_link",
-                view_func=self.relay_link,
-                methods=["POST"],
-            )
+        self.app.add_url_rule(
+            rule="/_control",
+            endpoint="_control",
+            view_func=self.control,
+            methods=["POST"],
+        )
         # @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
         self.port = self._get_free_port()
         self.base_url = urllib.parse.urlparse(base_url)
@@ -532,11 +595,6 @@ class RelayServer:
 
         # injected responses
         self.inject = inject or []
-
-        # relay link commands
-        self._relay_link_commands = {}
-        self._relay_link_commands["active"] = threading.Event()
-        self._relay_set_active()
 
         # useful when debugging:
         # self.after_request_fn = self.app.after_request(self.after_request_fn)
@@ -617,9 +675,7 @@ class RelayServer:
         request_data = request.get_json()
         response_data = response.json() or {}
 
-        if self._relay_link:
-            active = self._relay_link_commands.get("active")
-            active.wait()
+        self.relay_control.process(request)
 
         # store raw data
         raw_data: "RawRequestResponse" = {
@@ -709,23 +765,5 @@ class RelayServer:
 
         return relayed_response.json()
 
-    def _relay_set_active(self):
-        self._relay_link_commands["active"].set()
-
-    def _relay_set_paused(self):
-        self._relay_link_commands["active"].clear()
-
-    def relay_link(self) -> Mapping[str, str]:
-        request = flask.request
-        request_data = request.get_json()
-        command = request_data.get("command")
-        if command == "pause":
-            self._relay_set_paused()
-        elif command == "unpause":
-            self._relay_set_active()
-        elif command == "delay":
-            self._relay_set_paused()
-            delay_time = request_data.get("time")
-            delayed_call = threading.Timer(delay_time, self._relay_set_active)
-            delayed_call.start()
-        return {"hello": "there"}
+    def control(self) -> Mapping[str, str]:
+        return self.relay_control.control(flask.request)

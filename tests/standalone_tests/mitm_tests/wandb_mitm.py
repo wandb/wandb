@@ -26,7 +26,7 @@ def startup_relay(base_url):
     inject = []
     log = logging.getLogger("werkzeug")
     log.setLevel(logging.ERROR)
-    _relay_server = RelayServer(base_url=base_url, inject=inject, relay_link=True)
+    _relay_server = RelayServer(base_url=base_url, inject=inject)
     _relay_server.start()
     return _relay_server.relay_url
 
