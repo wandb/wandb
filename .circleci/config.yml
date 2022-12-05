@@ -366,6 +366,33 @@ jobs:
             ./wandb.pex -c "import wandb; wandb.init(mode='offline'); wandb.finish()"
       - save-test-results
 
+  protobuf-compatability:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Check protobuf version compatibility
+          command: |
+            pip install -U pip
+            pip install .
+            python tools/check-protobuf-version-compatibility.py
+          no_output_timeout: 5m
+      - save-test-results
+
   win:
     parameters:
       python_version_major:
@@ -1062,6 +1089,15 @@ workflows:
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
       #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10 ]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1307,6 +1343,7 @@ workflows:
       - pex:
           name: "pex"
 
+
   # todo: needs love
   #  manual_test:
   #    when: << pipeline.parameters.manual_test >>
@@ -1376,6 +1413,15 @@ workflows:
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
       #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10 ]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1403,8 +1449,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:
