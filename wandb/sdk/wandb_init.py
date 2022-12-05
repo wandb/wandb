@@ -1107,7 +1107,6 @@ def init(
         # mess with sentry's ability to send out errors before the program ends.
         sentry_exc(e, delay=True)
         # reraise(*sys.exc_info())
-        # six.raise_from(Exception("problem"), e)
     finally:
         if error_seen:
             wandb.termerror("Abnormal program exit")
