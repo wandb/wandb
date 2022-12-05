@@ -143,6 +143,9 @@ class Api:
     def get_run_state(self, *args, **kwargs):
         return self.api.get_run_state(*args, **kwargs)
 
+    def create_run_queue(self, *args, **kwargs):
+        return self.api.create_run_queue(*args, **kwargs)
+
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)
 
@@ -151,6 +154,13 @@ class Api:
 
     def pop_from_run_queue(self, *args, **kwargs):
         return self.api.pop_from_run_queue(*args, **kwargs)
+
+    def create_default_resource_config(self, *args, **kwargs):
+        return self.api.create_default_resource_config(*args, **kwargs)
+
+    # TODO(gst): delete
+    def fetch_default_resource_configs(self, *args, **kwargs):
+        return self.api.fetch_default_resource_configs(*args, **kwargs)
 
     def ack_run_queue_item(self, *args, **kwargs):
         return self.api.ack_run_queue_item(*args, **kwargs)

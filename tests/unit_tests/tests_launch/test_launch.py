@@ -136,5 +136,3 @@ def test_launch_create_default_resource_config(
         res = api.create_default_resource_config(user, drc_resource, drc_json)
 
         assert res
-
-

@@ -6,7 +6,7 @@ import time
 import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.apis.internal import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
 
 
@@ -402,16 +402,17 @@ def test_launch_add_repository(
         queued_run.delete()
         run.finish()
 
+
 def test_launch_add_to_queue_with_drc(
     relay_server, user, monkeypatch, wandb_init, test_settings
 ):
-    queue = "default"
+    queue = "default1"
     proj = "test1"
     repo = "testing123"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
-    settings = test_settings({"project": proj})
-    api = InternalApi()
+    settings = test_settings({"project": proj, "entity": user})
+    api = InternalApi({"project": proj, "entity": user})
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
@@ -440,41 +441,56 @@ def test_launch_add_to_queue_with_drc(
             "local-process": {
                 "volume_mount": "/awdaw/w/w/d/www",
                 "node_selector": {
-                    "orange": "peanut"
+                    "nested": {
+                        "super_nested": {"orange": "peanut"}
+                    }
                 },
                 "env": [
                     "CURIOUS_GEORGE=21",
-                    "ZOO_PLANKTON=2",
+                    "ZOO_PLANKTON=2"
                 ]
             }
         }
     }"""
 
-    drc_json = json.dumps(drc_config)
+    drc_json = json.dumps(json.loads(drc_config))
 
-    with relay_server():
-        run = wandb_init(settings=settings).finish()
+    with relay_server() as relay:
+        run = wandb_init(settings=settings)
         res = api.create_default_resource_config(user, drc_resource, drc_json)
-        assert res['success']
+        assert res["success"]
 
         api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT",
-            default_resource_config_id=res['defaultResourceConfigID'],
-        )
-        time.sleep(1)
-        
-        run_queue = api.get_project_run_queues(user, proj)[0]
-        assert run_queue['defaultResourceConfigID'] == res['defaultResourceConfigID']
-
-        queued_run = launch_add(
-            uri=uri,
             entity=user,
             project=proj,
-            entry_point=entry_point,
-            repository="testing123",
+            queue_name=queue,
+            access="PROJECT",
+            default_resource_config_id=res["defaultResourceConfigID"],
         )
 
-        assert queued_run.state == "pending"
+        run_queue = api.get_project_run_queues(user, proj)[0]
+        assert run_queue["defaultResourceConfigID"] == res["defaultResourceConfigID"]
 
-        queued_run.delete()
+        try:
+            queued_run = launch_add(
+                uri=uri,
+                entity=user,
+                project=proj,
+                entry_point=entry_point,
+                repository="testing123",
+                queue_name=queue,
+            )
+            assert queued_run.state == "pending"
+
+            queued_run.delete()
+        except Exception as e:
+            print(">>>> RRI@!!!", str(e))
+
         run.finish()
+
+    for req in relay.context.raw_data:
+        q = req["request"].get("query")
+        if q and "mutation" in q:
+            print(q.split("(")[0], req["request"].get("variables"))
+
+    assert 0

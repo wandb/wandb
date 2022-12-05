@@ -1007,9 +1007,9 @@ class Api:
 
     @normalize_exceptions
     def create_run_queue(
-        self, 
-        entity: str, 
-        project: str, 
+        self,
+        entity: str,
+        project: str,
         queue_name: str,
         access: str,
         default_resource_config_id: str = None,
@@ -1022,8 +1022,8 @@ class Api:
                     entityName: $entity,
                     projectName: $project,
                     queueName: $queueName,
-                    defaultResourceConfigID: $defaultResourceConfigID,
                     access: $access,
+                    defaultResourceConfigID: $defaultResourceConfigID,
                 }
             ) {
                 success
@@ -1040,7 +1040,9 @@ class Api:
         }
 
         if default_resource_config_id:
-            variable_values.update({"defaultResourceConfigID": default_resource_config_id})
+            variable_values.update(
+                {"defaultResourceConfigID": default_resource_config_id}
+            )
 
         result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
             "createRunQueue"
@@ -1231,32 +1233,69 @@ class Api:
         return result
 
     @normalize_exceptions
-    def create_default_resource_config(self, entity_name: str, resource: str, config: str):
+    def create_default_resource_config(
+        self, entity_name: str, resource: str, config: str
+    ):
         mutation = gql(
             """
-            mutation createDefaultResourceConfig($entityName: String!, $resource: String!, $config: JSONString!) {
-                createDefaultResourceConfig(input: {
-                    entityName: $entityName,
-                    resource: $resource,
-                    config: $config,
-                }) {
-                    defaultResourceConfigID
-                    success
-                }
+        mutation createDefaultResourceConfig($entityName: String!, $resource: String!, $config: JSONString!) {
+            createDefaultResourceConfig(input: {
+                entityName: $entityName,
+                resource: $resource,
+                config: $config,
+            }) {
+                defaultResourceConfigID
+                success
             }
-            """
+        }
+        """
         )
 
         response = self.gql(
-            mutation, variable_values={
-                "entityName": entity_name, "resource": resource, "config": config
-            }
+            mutation,
+            variable_values={
+                "entityName": entity_name,
+                "resource": resource,
+                "config": config,
+            },
         )
 
         if not response["createDefaultResourceConfig"]["success"]:
             raise CommError("Error creating default resource configuration")
 
         return response["createDefaultResourceConfig"]
+
+    # TODO(gst): delete me
+    @normalize_exceptions
+    def fetch_default_resource_configs(self, entity_name: str):
+        mutation = gql(
+            """
+        query FetchDRCs($entityName: String!) {
+            entity(name: $entityName) {
+                defaultResourceConfigs {
+                    edges {
+                        node {
+                            id
+                            scope {
+                                Type
+                                ID
+                            }
+                        }
+                        cursor
+                    }
+                }
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "entityName": entity_name,
+            },
+        )
+
+        return response
 
     @normalize_exceptions
     def create_launch_agent(
