@@ -7,7 +7,6 @@ import os
 import re
 import socket
 import sys
-from abc import ABC
 from copy import deepcopy
 from typing import (
     IO,
@@ -23,7 +22,6 @@ from typing import (
     Sequence,
     TextIO,
     Tuple,
-    TypeVar,
     Union,
 )
 
@@ -50,30 +48,27 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
-        from typing import Literal, Protocol, TypedDict
+        from typing import Literal, TypedDict
     else:
-        from typing_extensions import Literal, Protocol, TypedDict
-
-    import wandb.sdk.internal.settings_static
-    import wandb.sdk.wandb_settings
+        from typing_extensions import Literal, TypedDict
 
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
 
-        artifactID: str
+        artifactID: str  # noqa: N815
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]
+        artifactManifestID: Optional[str]  # noqa: N815
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
-        displayName: str
-        uploadUrl: Optional[str]
-        uploadHeaders: Sequence[str]
+        displayName: str  # noqa: N815
+        uploadUrl: Optional[str]  # noqa: N815
+        uploadHeaders: Sequence[str]  # noqa: N815
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
@@ -89,8 +84,7 @@ if TYPE_CHECKING:
         entity: Optional[str]
         project: Optional[str]
 
-    _Response = TypeVar("_Response", bound=MutableMapping)
-    _ArtifactVersion = TypeVar("_ArtifactVersion", bound=MutableMapping)
+    _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
@@ -129,7 +123,9 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+            days=7
+        ),
         environ: MutableMapping = os.environ,
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
@@ -1041,12 +1037,65 @@ class Api:
         return result
 
     @normalize_exceptions
+    def push_to_run_queue_by_name(
+        self, entity: str, project: str, queue_name: str, run_spec: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Queryless mutation, should be used before legacy fallback method
+        """
+
+        mutation = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+        variables = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "runSpec": run_spec,
+        }
+        try:
+            result: Optional[Dict[str, Any]] = self.gql(
+                mutation, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
+        except Exception:
+            result = None
+
+        return result
+
+    @normalize_exceptions
     def push_to_run_queue(
         self, queue_name: str, launch_spec: Dict[str, str]
     ) -> Optional[Dict[str, Any]]:
-        # TODO(kdg): add pushToRunQueueByName to avoid this extra query
         entity = launch_spec["entity"]
         project = launch_spec["project"]
+        run_spec = json.dumps(launch_spec)
+
+        push_result = self.push_to_run_queue_by_name(
+            entity, project, queue_name, run_spec
+        )
+
+        if push_result:
+            return push_result
+
+        """ Legacy Method """
         queues_found = self.get_project_run_queues(entity, project)
         matching_queues = [
             q
@@ -1063,9 +1112,7 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    "No default queue existing for {}/{} creating one.".format(
-                        entity, project
-                    )
+                    f"No default queue existing for entity: {entity} in project: {project}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
@@ -1076,25 +1123,19 @@ class Api:
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
-                            entity, project
-                        )
+                        f"Unable to create default queue for entity: {entity} on project: {project}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
 
             else:
                 wandb.termwarn(
-                    "Unable to push to run queue {}. Queue not found.".format(
-                        queue_name
-                    )
+                    f"Unable to push to run queue {queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
-                "Unable to push to run queue {}. More than one queue found with this name.".format(
-                    queue_name
-                )
+                f"Unable to push to run queue {queue_name}. More than one queue found with this name."
             )
             return None
         else:
@@ -1796,9 +1837,9 @@ class Api:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file
             already existed and was up-to-date.
         """
-        fileName = metadata["name"]
-        path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
-        if self.file_current(fileName, util.B64MD5(metadata["md5"])):
+        filename = metadata["name"]
+        path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
+        if self.file_current(filename, util.B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -1842,7 +1883,6 @@ class Api:
                 response = requests.models.Response()
                 response.status_code = e.response.status_code
                 response.headers = e.response.headers
-                response.raw = e.response.internal_response
                 raise requests.exceptions.RequestException(e.message, response=response)
             else:
                 raise requests.exceptions.ConnectionError(e.message)
@@ -1891,7 +1931,7 @@ class Api:
             is_aws_retryable = (
                 "x-amz-meta-md5" in extra_headers
                 and status_code == 400
-                and "RequestTimeout" in response_content
+                and "RequestTimeout" in str(response_content)
             )
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
@@ -1953,18 +1993,6 @@ class Api:
         if project_name is None:
             project_name = self.settings("project")
 
-        # don't retry on validation or not found errors
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         response = self.gql(
             mutation,
             variable_values={
@@ -1973,7 +2001,7 @@ class Api:
                 "projectName": project_name,
                 "sweep": sweep_id,
             },
-            check_retry_fn=no_retry_4xx,
+            check_retry_fn=util.no_retry_4xx,
         )
         result: dict = response["createAgent"]["agent"]
         return result
@@ -2135,7 +2163,7 @@ class Api:
             }
         }
         """
-        # FIXME(jhr): we need protocol versioning to know schema is not supported
+        # TODO(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
 
         # launchScheduler was introduced in core v0.14.0
@@ -2164,19 +2192,6 @@ class Api:
             )
         )
 
-        # don't retry on validation errors
-        # TODO(jhr): generalize error handling routines
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
 
@@ -2197,7 +2212,7 @@ class Api:
                         "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
-                    check_retry_fn=no_retry_4xx,
+                    check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
                 raise e
@@ -2262,8 +2277,8 @@ class Api:
         project, run = self.parse_slug(project, run=run)
         urls = self.download_urls(project, run, entity)
         responses = []
-        for fileName in urls:
-            _, response = self.download_write_file(urls[fileName])
+        for filename in urls:
+            _, response = self.download_write_file(urls[filename])
             if response:
                 responses.append(response)
 
@@ -2549,7 +2564,7 @@ class Api:
         description: Optional[str] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
-        aliases: List[Dict[str, str]] = None,
+        aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,
@@ -2713,17 +2728,9 @@ class Api:
         """
         )
 
-        # retry conflict errors for 2 minutes, default to no_auth_retry
-        check_retry_fn = util.make_check_retry_fn(
-            check_fn=util.check_retry_conflict,
-            check_timedelta=datetime.timedelta(minutes=2),
-            fallback_retry_fn=util.no_retry_auth,
-        )
-
-        response: "_Response" = self.gql(  # type: ignore
+        response: "_Response" = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
-            check_retry_fn=check_retry_fn,
             timeout=60,
         )
         return response

@@ -29,9 +29,9 @@ class InterfaceQueue(InterfaceShared):
 
     def __init__(
         self,
-        record_q: "Queue[pb.Record]" = None,
-        result_q: "Queue[pb.Result]" = None,
-        process: BaseProcess = None,
+        record_q: Optional["Queue[pb.Record]"] = None,
+        result_q: Optional["Queue[pb.Result]"] = None,
+        process: Optional[BaseProcess] = None,
         process_check: bool = True,
         mailbox: Optional[Mailbox] = None,
     ) -> None:
@@ -49,7 +49,7 @@ class InterfaceQueue(InterfaceShared):
                 self.record_q, self.result_q, mailbox=self._mailbox
             )
 
-    def _publish(self, record: "pb.Record", local: bool = None) -> None:
+    def _publish(self, record: "pb.Record", local: Optional[bool] = None) -> None:
         if self._process_check and self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
         if local:

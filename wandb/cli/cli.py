@@ -925,6 +925,9 @@ def sweep(
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
+                        launch_config.get("registry", {}).get(
+                            "url", None
+                        ),  # repository
                     )
                 ),
             }
@@ -1101,6 +1104,19 @@ def sweep(
     help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
     "built by default and you must set --cuda=False to build a CPU-only image.",
 )
+@click.option(
+    "--build",
+    "-b",
+    is_flag=True,
+    help="Flag to build an associated job and push to queue as an image job.",
+)
+@click.option(
+    "--repository",
+    "-rg",
+    is_flag=False,
+    default=None,
+    help="Name of a remote repository. Will be used to push a built image to.",
+)
 @display_error
 def launch(
     uri,
@@ -1118,6 +1134,8 @@ def launch(
     run_async,
     resource_args,
     cuda,
+    build,
+    repository,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
@@ -1179,7 +1197,13 @@ def launch(
     elif resource is None:
         resource = "local-container"
 
-    check_logged_in(api)
+    if build and queue is None:
+        raise LaunchError("Build flag requires a queue to be set")
+
+    try:
+        check_logged_in(api)
+    except Exception as e:
+        print(e)
 
     run_id = config.get("run_id")
 
@@ -1203,6 +1227,7 @@ def launch(
                 synchronous=(not run_async),
                 cuda=cuda,
                 run_id=run_id,
+                repository=repository,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1227,7 +1252,9 @@ def launch(
             args_dict,
             resource_args,
             cuda=cuda,
+            build=build,
             run_id=run_id,
+            repository=repository,
         )
 
 
@@ -1742,6 +1769,8 @@ def put(path, name, description, type, alias):
     artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
     # Re-create the artifact and actually upload any files needed
     run.log_artifact(artifact, aliases=alias)
+    artifact.wait()
+
     wandb.termlog(
         "Artifact uploaded, use this artifact in a run by adding:\n", prefix=False
     )

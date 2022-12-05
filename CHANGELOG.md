@@ -1,3 +1,39 @@
+## 0.13.5 (November 3, 2022)
+
+### :magic_wand: Enhancements
+* feat(artifacts): add an option to upload image references by @estellazx in https://github.com/wandb/wandb/pull/4303
+### :hammer: Fixes
+* fix(launch): generate more readable image names by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4379
+* fix(artifacts): use hash(`etag`+`url`) instead of just `etag`, as key,  in artifacts cache by @speezepearson in https://github.com/wandb/wandb/pull/4371
+* fix(artifacts): wait for artifact to commit before telling the user it's ready when using `wandb artifact put` by @speezepearson in https://github.com/wandb/wandb/pull/4381
+* fix(sdk): prefix vendor watchdog library by @raubitsj in https://github.com/wandb/wandb/pull/4389
+* fix(artifacts): fix `Circular reference detected` error, when updating metadata with numpy array longer than 32 elements by @estellazx in https://github.com/wandb/wandb/pull/4221
+* fix(integrations): add a random string to run_id on SageMaker not to break DDP mode by @dmitryduev in https://github.com/wandb/wandb/pull/4276
+### :gear: Dev
+* ci(sdk): make sure we dont shutdown test cluster before grabbing results by @raubitsj in https://github.com/wandb/wandb/pull/4361
+* test(artifacts): add standalone artifact test to nightly cpu suite by @raubitsj in https://github.com/wandb/wandb/pull/4360
+* chore(sdk): rename default branch to `main` by @raubitsj in https://github.com/wandb/wandb/pull/4374
+* build(sdk): update mypy extension for protobuf type checking by @dmitryduev in https://github.com/wandb/wandb/pull/4392
+* chore(sdk): update codeql-analysis.yml branch name by @zythosec in https://github.com/wandb/wandb/pull/4393
+* ci(sdk): move functional import tests to nightly and expand python version coverage by @dmitryduev in https://github.com/wandb/wandb/pull/4395
+* ci(sdk): add Slack notification for failed nightly import tests by @dmitryduev in https://github.com/wandb/wandb/pull/4403
+* test(cli): fix broken CLI tests that attempt uploading non-existent artifacts by @dmitryduev in https://github.com/wandb/wandb/pull/4426
+### :nail_care: Cleanup
+* fix(launch): job creation through use_artifact instead of log_artifact by @KyleGoyette in https://github.com/wandb/wandb/pull/4337
+* ci(sdk): add a GH action to automate parts of the release process by @dmitryduev in https://github.com/wandb/wandb/pull/4355
+* fix(media): 3D Point Clouds now viewable in UI in all situations by @ssisk in https://github.com/wandb/wandb/pull/4353
+* fix(launch): Git URLs were failing if fsmonitor is enabled by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4333
+* style(sdk): ignore new proto generated file directories by @raubitsj in https://github.com/wandb/wandb/pull/4354
+* chore(launch): fix a bug preventing Run Queue deletion in the SDK  by @gtarpenning in https://github.com/wandb/wandb/pull/4321
+* chore(launch): add support for `pushToRunQueueByName` mutation by @gtarpenning in https://github.com/wandb/wandb/pull/4292
+* refactor(sdk): refactor system metrics monitoring and probing by @dmitryduev in https://github.com/wandb/wandb/pull/4213
+* style(sdk): fix gitattribute for protobuf generated files by @raubitsj in https://github.com/wandb/wandb/pull/4400
+
+## New Contributors
+* @ssisk made their first contribution in https://github.com/wandb/wandb/pull/4353
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.4...v0.13.5
+
 ## 0.13.4 (October 5, 2022)
 
 ### :magic_wand: Enhancements
