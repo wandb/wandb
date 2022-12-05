@@ -43,8 +43,9 @@ def monitor():
     def del_(self):
         self.orig_close()
 
-    vcr.VideoRecorder.__del__ = del_
-    vcr.VideoRecorder.close = close
+    if not _gym_version_lt_0_26:
+        recorder.__del__ = del_
+    recorder.close = close
     wandb.patched["gym"].append(
         [
             f"gym.wrappers.monitoring.video_recorder.{vcr_recorder_attribute}",
