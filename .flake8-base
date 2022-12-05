@@ -32,7 +32,6 @@ exclude =
     ./wandb/integration/magic.py
     ./wandb/integration/keras/keras.py
     ./wandb/integration/metaflow/
-    ./wandb/sdk/internal/internal_api.py
     ./wandb/keras/
     ./wandb/superagent/
     ./wandb/plots/
