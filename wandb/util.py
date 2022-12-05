@@ -675,7 +675,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
     return d, True
 
 
-def tensor_to_json_friendly_types(obj) -> Tuple[Any, bool]:
+def tensor_to_json_friendly_types(obj: Any) -> Tuple[Any, bool]:
     typename = get_full_typename(obj)
 
     if is_tf_eager_tensor_typename(typename):
