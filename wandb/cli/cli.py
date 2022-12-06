@@ -870,9 +870,14 @@ def sweep(
 
     _launch_scheduler_spec = None
     if launch_config is not None or queue:
-        launch_config = util.load_json_yaml_dict(launch_config)
-        # if launch_config is None:
-        #     raise LaunchError(f"Invalid format for launch config at {launch_config}")
+        if launch_config:
+            launch_config = util.load_json_yaml_dict(launch_config)
+            if launch_config is None:
+                raise LaunchError(
+                    f"Invalid format for launch config at {launch_config}"
+                )
+        else:
+            launch_config = {}
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
 
         if entity is None or project is None:
@@ -917,8 +922,6 @@ def sweep(
                             project,
                             "--job",
                             _job,
-                            "--resource",
-                            launch_config.get("resource"),
                             # TODO(hupo): Add num-workers as option in launch config
                             # "--num_workers",
                             # launch_config.get("scheduler", {}).get("num_workers", 1),
