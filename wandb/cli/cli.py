@@ -692,6 +692,11 @@ def sync(
     default=False,
     help="Resume a sweep to continue running new runs.",
 )
+@click.option(
+    "--queue",
+    default=None,
+    help="Set sweep name",
+)
 @click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
@@ -704,12 +709,13 @@ def sweep(
     program,
     settings,
     update,
-    launch_config,
+    launch_config,  # TODO(gst): deprecate
     stop,
     cancel,
     pause,
     resume,
     config_yaml_or_sweep_id,
+    queue,
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -863,10 +869,10 @@ def sweep(
     )
 
     _launch_scheduler_spec = None
-    if launch_config is not None:
+    if launch_config is not None or queue:
         launch_config = util.load_json_yaml_dict(launch_config)
-        if launch_config is None:
-            raise LaunchError(f"Invalid format for launch config at {launch_config}")
+        # if launch_config is None:
+        #     raise LaunchError(f"Invalid format for launch config at {launch_config}")
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
 
         if entity is None or project is None:
@@ -886,7 +892,7 @@ def sweep(
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": launch_config.get("queue", "default"),
+                "queue": queue or launch_config.get("queue", "default"),
                 "run_spec": json.dumps(
                     construct_launch_spec(
                         "placeholder-uri-scheduler",  # uri
@@ -898,13 +904,15 @@ def sweep(
                         launch_config.get("scheduler", {}).get(
                             "docker_image", None
                         ),  # docker_image,
-                        launch_config.get("scheduler", {}).get("resource"),  # resource,
+                        launch_config.get("scheduler", {}).get(
+                            "resource", "local-process"
+                        ),  # resource,
                         [
                             "wandb",
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            launch_config.get("queue", "default"),
+                            queue or launch_config.get("queue", "default"),
                             "--project",
                             project,
                             "--job",
@@ -968,7 +976,7 @@ def sweep(
     if sweep_path.find(" ") >= 0:
         sweep_path = f'"{sweep_path}"'
 
-    if launch_config is not None:
+    if launch_config is not None or queue:
         wandb.termlog("Scheduler added to launch queue. Starting sweep...")
     else:
         wandb.termlog(
