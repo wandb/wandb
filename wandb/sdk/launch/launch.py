@@ -30,6 +30,7 @@ def resolve_agent_config(
     project: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[List[str]],
+    config: Optional[str] = None,  # Path to config file
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
         "entity": api.default_entity,
@@ -41,11 +42,11 @@ def resolve_agent_config(
         "build": {},
         "runner": {},
     }
-
+    config_path = config or LAUNCH_CONFIG_FILE
     resolved_config: Dict[str, Any] = defaults
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+    if os.path.exists(os.path.expanduser(config_path)):
         config = {}
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+        with open(os.path.expanduser(config_path)) as f:
             try:
                 config = yaml.safe_load(f)
                 print(config)
