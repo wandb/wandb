@@ -1,10 +1,9 @@
 import collections
-from six.moves.collections_abc import Iterable
+from collections.abc import Iterable
 import functools
 import logging
 import sys
 
-from six import string_types
 from promise import Promise, promise_for_dict, is_thenable
 
 from ..error import GraphQLError, GraphQLLocatedError
@@ -336,7 +335,7 @@ def complete_abstract_value(exe_context, return_type, field_asts, info, result):
         else:
             runtime_type = get_default_resolve_type_fn(result, exe_context.context_value, info, return_type)
 
-    if isinstance(runtime_type, string_types):
+    if isinstance(runtime_type, str):
         runtime_type = info.schema.get_type(runtime_type)
 
     if not isinstance(runtime_type, GraphQLObjectType):
