@@ -1,5 +1,5 @@
 import sys
-from six.moves.collections_abc import Iterable
+from collections.abc import Iterable
 from functools import partial
 
 from promise import Promise, is_thenable

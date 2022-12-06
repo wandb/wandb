@@ -168,7 +168,11 @@ class MetricsMonitor:
             logger.info(f"Started {self._process.name}")
 
     def finish(self) -> None:
-        if self._process is not None:
+        if self._process is None:
+            return None
+        try:
             self._process.join()
             logger.info(f"Joined {self._process.name}")
-            self._process = None
+        except Exception as e:
+            logger.warning(f"Failed to join {self._process.name}: {e}")
+        self._process = None
