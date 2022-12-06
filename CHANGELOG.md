@@ -16,7 +16,7 @@
 * fix(public-api): change `artifactSequence` to `artifactCollection` in public GQL requests by @tssweeney in https://github.com/wandb/wandb/pull/4531
 * fix(integrations): fix TF compatibility issues with `WandbModelCheckpoint` by @soumik12345 in https://github.com/wandb/wandb/pull/4432
 * fix(integrations): make Keras WandbCallback compatible with TF version >= 2.11.0 by @ayulockin in https://github.com/wandb/wandb/pull/4533
-* fix(integrations): update gym integration to match last version by @dmitryduev in https://github.com/wandb/wandb/pull/4571
+* fix(integrations): update gym integration to match last version by @younik in https://github.com/wandb/wandb/pull/4571
 * fix(sdk): harden internal thread management in SystemMetrics by @dmitryduev in https://github.com/wandb/wandb/pull/4439
 ### :books: Docs
 * docs(sdk): remove non-existent argument `table_key` from `plot_table()` doc string by @janosh in https://github.com/wandb/wandb/pull/4495
@@ -49,6 +49,7 @@
 ## New Contributors
 * @moredatarequired made their first contribution in https://github.com/wandb/wandb/pull/4508
 * @soumik12345 made their first contribution in https://github.com/wandb/wandb/pull/4391
+* @younik made their first contribution in https://github.com/wandb/wandb/pull/4571
 
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.5...v0.13.6
 
