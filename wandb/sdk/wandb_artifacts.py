@@ -1101,7 +1101,7 @@ class MultiHandler(StorageHandler):
 
     @property
     def scheme(self) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def load_path(
         self,

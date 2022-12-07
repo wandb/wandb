@@ -194,12 +194,12 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     @staticmethod
     def _deserialize(path: str) -> SavedModelObjType:
         """Returns the model object from a path. Allowed to throw errors"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
         """Validates the model object. Allowed to throw errors"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def _serialize(obj: SavedModelObjType, dir_or_file_path: str) -> None:
@@ -207,7 +207,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         files needed for deserialization should be saved. A directory will always be passed if
         _path_extension is an empty string, else a single file will be passed. Allowed to throw errors
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     # Private Class Methods
     @classmethod
