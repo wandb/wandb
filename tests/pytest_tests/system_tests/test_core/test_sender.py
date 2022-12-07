@@ -176,6 +176,7 @@ def test_save_now_write_after_policy(relay_server, user, mock_run, backend_inter
     assert uploaded_files.count("test.txt") == 1
 
 
+@pytest.mark.flaky
 def test_save_now_existing_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
