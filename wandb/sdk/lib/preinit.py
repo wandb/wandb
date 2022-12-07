@@ -26,7 +26,7 @@ class PreInitObject:
         if not key.startswith("_"):
             raise wandb.Error(f"You must call wandb.init() before {self._name}.{key}")
         else:
-            raise AttributeError()
+            raise AttributeError
 
 
 def PreInitCallable(  # noqa: N802

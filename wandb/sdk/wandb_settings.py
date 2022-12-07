@@ -1059,7 +1059,7 @@ class Settings:
         self.__unexpected_args: Set[str] = set()
 
         # Set default settings values
-        # We start off with the class attributes and `default_props`' dicts
+        # We start off with the class attributes and `default_props` dicts
         # and then create Property objects.
         # Once initialized, attributes are to only be updated using the `update` method
         default_props = self._default_props()
