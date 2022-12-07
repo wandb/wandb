@@ -5,9 +5,9 @@ tag:
   skips:
     - platform: win
 depend:
-    requirements:
-        - numpy
-        - sklearn
-        - sacred
+  requirements:
+    - numpy
+    - scikit-learn
+    - sacred
 assert:
   - :yea:exit: 0

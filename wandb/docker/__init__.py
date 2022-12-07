@@ -65,7 +65,7 @@ def run(
     args: List[Any],
     capture_stdout: bool = True,
     capture_stderr: bool = True,
-    input: bytes = None,
+    input: Optional[bytes] = None,
     return_stderr: bool = False,
     env: Optional[Dict[str, str]] = None,
 ) -> Union[str, Tuple[str, str]]:
@@ -206,7 +206,7 @@ def image_id(image_name: str) -> Optional[str]:
         digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
         try:
             if digests is None:
-                raise ValueError()
+                raise ValueError
             im_id: str = json.loads(digests)[0]
             return im_id
         except (ValueError, IndexError):
