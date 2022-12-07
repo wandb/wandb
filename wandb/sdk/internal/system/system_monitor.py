@@ -161,7 +161,10 @@ class SystemMonitor:
         self._shutdown_event.set()
         for asset in self.assets:
             asset.finish()
-        self._process.join()
+        try:
+            self._process.join()
+        except Exception as e:
+            logger.error(f"Error joining system monitor process: {e}")
         self._process = None
 
     def probe(self, publish: bool = True) -> None:

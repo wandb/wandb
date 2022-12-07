@@ -10,7 +10,7 @@ import socket
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb import util
@@ -21,7 +21,6 @@ from . import run as internal_run
 
 if TYPE_CHECKING:
     from queue import PriorityQueue
-    from typing import Dict, List, Optional
 
     from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
     from tensorboard.compat.proto.event_pb2 import ProtoEvent
@@ -110,7 +109,7 @@ class TBWatcher:
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer: Optional[TBEventConsumer] = None
+        self._consumer: Optional["TBEventConsumer"] = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
@@ -119,8 +118,8 @@ class TBWatcher:
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
 
-    def _calculate_namespace(self, logdir: str, rootdir: str) -> "Optional[str]":
-        namespace: "Optional[str]"
+    def _calculate_namespace(self, logdir: str, rootdir: str) -> Optional[str]:
+        namespace: Optional[str]
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -182,7 +181,7 @@ class TBDirWatcher:
         tbwatcher: "TBWatcher",
         logdir: str,
         save: bool,
-        namespace: "Optional[str]",
+        namespace: Optional[str],
         queue: "PriorityQueue",
         force: bool = False,
     ) -> None:
@@ -226,7 +225,9 @@ class TBDirWatcher:
             path, self._hostname, self._tbwatcher._settings._start_time
         )
 
-    def _loader(self, save: bool = True, namespace: str = None) -> "EventFileLoader":
+    def _loader(
+        self, save: bool = True, namespace: Optional[str] = None
+    ) -> "EventFileLoader":
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
@@ -284,7 +285,7 @@ class TBDirWatcher:
 
     def _thread_body(self) -> None:
         """Check for new events every second"""
-        shutdown_time: "Optional[float]" = None
+        shutdown_time: Optional[float] = None
         while True:
             self._process_events()
             if self._shutdown.is_set():
@@ -318,7 +319,7 @@ class TBDirWatcher:
 class Event:
     """An event wrapper to enable priority queueing"""
 
-    def __init__(self, event: "ProtoEvent", namespace: "Optional[str]"):
+    def __init__(self, event: "ProtoEvent", namespace: Optional[str]):
         self.event = event
         self.namespace = namespace
         self.created_at = time.time()
@@ -416,7 +417,9 @@ class TBEventConsumer:
         for item in items:
             self._save_row(item)
 
-    def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
+    def _handle_event(
+        self, event: "ProtoEvent", history: Optional["TBHistory"] = None
+    ) -> None:
         wandb.tensorboard._log(
             event.event,
             step=event.event.step,
