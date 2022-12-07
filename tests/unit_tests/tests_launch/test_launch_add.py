@@ -277,7 +277,7 @@ def test_push_to_runqueue_exists(
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
         if q and "mutation pushToRunQueueByName(" in str(q):
-            assert comm["response"]["data"] is not None
+            assert comm["response"].get("data") is not None
         elif q and "mutation pushToRunQueue(" in str(q):
             raise Exception("should not be falling back to legacy here")
 
