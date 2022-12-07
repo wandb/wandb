@@ -92,7 +92,6 @@ def test_joined_table_logging(wandb_init):
     assert True
 
 
-# @pytest.mark.skip(reason="Currently seems to fail in CI")
 def test_log_with_dir_sep_windows(wandb_init):
     image = np.zeros((28, 28))
     run = wandb_init()
@@ -102,7 +101,6 @@ def test_log_with_dir_sep_windows(wandb_init):
     assert True
 
 
-# @pytest.mark.skip(reason="Currently seems to fail in CI")
 def test_log_with_back_slash_windows(wandb_init):
     run = wandb_init()
     wb_image = wandb.Image(np.zeros((28, 28)))

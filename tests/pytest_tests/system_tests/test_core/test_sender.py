@@ -163,7 +163,7 @@ def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.flaky
 def test_save_now_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -187,7 +187,8 @@ def test_save_now_existing_file(relay_server, user, mock_run, backend_interface)
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.flaky
+# @pytest.mark.flaky
 def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -227,7 +228,7 @@ def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("checkpoints/test_2.txt") == 1
 
 
-@pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.flaky
 def test_save_now_relative_path(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -242,7 +243,8 @@ def test_save_now_relative_path(relay_server, user, mock_run, backend_interface)
     assert uploaded_files.count("foo/test.txt") == 1
 
 
-@pytest.mark.xfail(reason="TODO: This test is flakey")
+@pytest.mark.flaky
+# @pytest.mark.xfail(reason="TODO: This test is flaky")
 def test_save_now_twice(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
