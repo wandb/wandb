@@ -1,6 +1,7 @@
 import time
 import unittest.mock
 
+import pytest
 import wandb
 import wandb.sdk.verify.verify as wandb_verify
 from wandb.apis import InternalApi
