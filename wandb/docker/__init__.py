@@ -206,7 +206,7 @@ def image_id(image_name: str) -> Optional[str]:
         digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
         try:
             if digests is None:
-                raise ValueError()
+                raise ValueError
             im_id: str = json.loads(digests)[0]
             return im_id
         except (ValueError, IndexError):
