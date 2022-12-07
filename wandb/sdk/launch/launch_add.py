@@ -153,6 +153,11 @@ def _launch_add(
     )
 
     if build:
+        if resource == "local-process":
+            raise LaunchError(
+                "Cannot build a docker image for the resource: local-process"
+            )
+
         if launch_spec.get("job") is not None:
             wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
