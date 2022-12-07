@@ -1,9 +1,11 @@
 import unittest.mock
 
+import pytest
 import wandb.sdk.verify.verify as wandb_verify
 from wandb.apis import InternalApi
 
 
+@pytest.mark.timeout(300)
 def test_check_logged_in(wandb_init):
     internal_api = unittest.mock.MagicMock(spec=InternalApi)
     internal_api.api_key = None

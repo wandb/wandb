@@ -6,6 +6,16 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb.apis import InternalApi
 
 
+def test_check_logged_in(wandb_init):
+    internal_api = unittest.mock.MagicMock(spec=InternalApi)
+    internal_api.api_key = None
+    assert not wandb_verify.check_logged_in(internal_api, "localhost:8000")
+
+    run = wandb_init()
+    assert wandb_verify.check_logged_in(InternalApi(), run.settings.base_url)
+    run.finish()
+
+
 def test_print_results(capsys):
     failed_test_or_tests = ["test1", "test2"]
     wandb_verify.print_results(None, warning=True)
@@ -38,6 +48,7 @@ def test_check_secure_requests(capsys):
     assert "\u274C" in captured
 
 
+@pytest.mark.timeout(300)
 def test_retry_fn():
     i = 0
 
@@ -75,6 +86,7 @@ def test_check_cors_configuration(test_settings, capsys):
     assert "\u274C" in captured
 
 
+@pytest.mark.timeout(300)
 def test_check_wandb_version(capsys):
     api = InternalApi()
 

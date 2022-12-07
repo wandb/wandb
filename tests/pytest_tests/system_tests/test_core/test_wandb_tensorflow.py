@@ -85,6 +85,7 @@ def test_compat_tensorboard(relay_server, wandb_init):
     wandb.tensorboard.unpatch()
 
 
+@pytest.mark.timeout(300)
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",
@@ -140,6 +141,7 @@ def test_tensorboard_log_with_wandb_log(relay_server, wandb_init):
     wandb.tensorboard.unpatch()
 
 
+@pytest.mark.timeout(300)
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",
@@ -176,6 +178,7 @@ def test_add_pr_curve(relay_server, wandb_init):
     wandb.tensorboard.unpatch()
 
 
+@pytest.mark.timeout(300)
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",
