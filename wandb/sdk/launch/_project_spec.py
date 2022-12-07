@@ -154,7 +154,7 @@ class LaunchProject:
 
         python_version = (self.python_version or "3").replace("+", "dev")
         generated_name = "{}_base:{}".format(
-            self.target_project.replace(" ", "-"), python_version
+            self.target_project.replace(" ", "-").lower(), python_version
         )
         return self._base_image or generated_name
 
