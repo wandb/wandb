@@ -141,6 +141,7 @@ def test_login(test_settings):
     wandb.finish()
 
 
+@pytest.mark.flaky
 def test_login_anonymous():
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         wandb.login(anonymous="must")

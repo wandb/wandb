@@ -367,6 +367,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
     assert _scheduler.is_alive() is False
 
 
+@pytest.mark.flaky
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 @pytest.mark.parametrize("num_workers", [1, 8])
 def test_sweep_scheduler_sweeps_run_and_heartbeat(
