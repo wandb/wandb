@@ -2,12 +2,16 @@ import base64
 import hashlib
 import os
 import tempfile
-from typing import Optional
+from pathlib import Path
+from typing import Callable, Mapping, Optional, Tuple, Type, Union
+from unittest.mock import Mock, call
 
 import pytest
+import requests
 import responses
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.sdk.lib import retry
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
@@ -72,3 +76,283 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             assert response is not None
         else:
             assert response is None
+
+
+@pytest.fixture
+def some_file(tmp_path: Path):
+    p = tmp_path / "some_file.txt"
+    p.write_text("some text")
+    return p
+
+
+MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
+
+
+class TestUploadFile:
+    class TestSimple:
+        def test_adds_headers_to_request(
+            self, mock_responses: responses.RequestsMock, some_file: Path
+        ):
+            response_callback = Mock(return_value=(200, {}, "success!"))
+            mock_responses.add_callback(
+                "PUT", "http://example.com/upload-dst", response_callback
+            )
+            internal.InternalApi().upload_file(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+                extra_headers={"X-Test": "test"},
+            )
+            assert response_callback.call_args[0][0].headers["X-Test"] == "test"
+
+        def test_returns_response_on_success(
+            self, mock_responses: responses.RequestsMock, some_file: Path
+        ):
+            mock_responses.add(
+                "PUT", "http://example.com/upload-dst", status=200, body="success!"
+            )
+            resp = internal.InternalApi().upload_file(
+                "http://example.com/upload-dst", some_file.open("rb")
+            )
+            assert resp.content == b"success!"
+
+        @pytest.mark.parametrize(
+            "response,expected_errtype",
+            [
+                ((400, {}, ""), requests.exceptions.HTTPError),
+                ((500, {}, ""), retry.TransientError),
+                ((502, {}, ""), retry.TransientError),
+                (requests.exceptions.ConnectionError(), retry.TransientError),
+                (requests.exceptions.Timeout(), retry.TransientError),
+                (RuntimeError("oh no"), RuntimeError),
+            ],
+        )
+        def test_returns_transienterror_on_transient_issues(
+            self,
+            mock_responses: responses.RequestsMock,
+            some_file: Path,
+            response: MockResponseOrException,
+            expected_errtype: Type[Exception],
+        ):
+            mock_responses.add_callback(
+                "PUT",
+                "http://example.com/upload-dst",
+                Mock(return_value=response),
+            )
+            with pytest.raises(expected_errtype):
+                internal.InternalApi().upload_file(
+                    "http://example.com/upload-dst", some_file.open("rb")
+                )
+
+    class TestProgressCallback:
+        def test_smoke(self, mock_responses: responses.RequestsMock, some_file: Path):
+            file_contents = "some text"
+            some_file.write_text(file_contents)
+
+            def response_callback(request: requests.models.PreparedRequest):
+                assert request.body.read() == file_contents.encode()
+                return (200, {}, "success!")
+
+            mock_responses.add_callback(
+                "PUT", "http://example.com/upload-dst", response_callback
+            )
+
+            progress_callback = Mock()
+            internal.InternalApi().upload_file(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+                callback=progress_callback,
+            )
+
+            assert progress_callback.call_args_list == [
+                call(len(file_contents), len(file_contents))
+            ]
+
+        def test_handles_multiple_calls(
+            self, mock_responses: responses.RequestsMock, some_file: Path
+        ):
+            some_file.write_text("12345")
+
+            def response_callback(request: requests.models.PreparedRequest):
+                assert request.body.read(2) == b"12"
+                assert request.body.read(2) == b"34"
+                assert request.body.read() == b"5"
+                assert request.body.read() == b""
+                return (200, {}, "success!")
+
+            mock_responses.add_callback(
+                "PUT", "http://example.com/upload-dst", response_callback
+            )
+
+            progress_callback = Mock()
+            internal.InternalApi().upload_file(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+                callback=progress_callback,
+            )
+
+            assert progress_callback.call_args_list == [
+                call(2, 2),
+                call(2, 4),
+                call(1, 5),
+                call(0, 5),
+            ]
+
+        @pytest.mark.parametrize(
+            "failure",
+            [
+                requests.exceptions.Timeout(),
+                requests.exceptions.ConnectionError(),
+                (500, {}, ""),
+            ],
+        )
+        def test_rewinds_on_failure(
+            self,
+            mock_responses: responses.RequestsMock,
+            some_file: Path,
+            failure: MockResponseOrException,
+        ):
+            some_file.write_text("1234567")
+
+            def response_callback(request: requests.models.PreparedRequest):
+                assert request.body.read(2) == b"12"
+                assert request.body.read(2) == b"34"
+                return failure
+
+            mock_responses.add_callback(
+                "PUT", "http://example.com/upload-dst", response_callback
+            )
+
+            progress_callback = Mock()
+            with pytest.raises(Exception):
+                internal.InternalApi().upload_file(
+                    "http://example.com/upload-dst",
+                    some_file.open("rb"),
+                    callback=progress_callback,
+                )
+
+            assert progress_callback.call_args_list == [
+                call(2, 2),
+                call(2, 4),
+                call(-4, 0),
+            ]
+
+    @pytest.mark.parametrize(
+        "request_headers,response,expected_errtype",
+        [
+            (
+                {"x-amz-meta-md5": "1234"},
+                (400, {}, "blah blah RequestTimeout blah blah"),
+                retry.TransientError,
+            ),
+            (
+                {"x-amz-meta-md5": "1234"},
+                (400, {}, "non-timeout-related error message"),
+                requests.RequestException,
+            ),
+            (
+                {"x-amz-meta-md5": "1234"},
+                requests.exceptions.ConnectionError(),
+                retry.TransientError,
+            ),
+            (
+                {},
+                (400, {}, "blah blah RequestTimeout blah blah"),
+                requests.RequestException,
+            ),
+        ],
+    )
+    def test_transient_failure_on_special_aws_request_timeout(
+        self,
+        mock_responses: responses.RequestsMock,
+        some_file: Path,
+        request_headers: Mapping[str, str],
+        response,
+        expected_errtype: Type[Exception],
+    ):
+        mock_responses.add_callback(
+            "PUT", "http://example.com/upload-dst", Mock(return_value=response)
+        )
+        with pytest.raises(expected_errtype):
+            internal.InternalApi().upload_file(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+                extra_headers=request_headers,
+            )
+
+    class TestAzure:
+        MAGIC_HEADERS = {"x-ms-blob-type": "SomeBlobType"}
+
+        @pytest.mark.parametrize(
+            "request_headers,uses_azure_lib",
+            [
+                ({}, False),
+                (MAGIC_HEADERS, True),
+            ],
+        )
+        def test_uses_azure_lib_if_available(
+            self,
+            mock_responses: responses.RequestsMock,
+            some_file: Path,
+            request_headers: Mapping[str, str],
+            uses_azure_lib: bool,
+        ):
+            api = internal.InternalApi()
+
+            if uses_azure_lib:
+                api._azure_blob_module = Mock()
+            else:
+                mock_responses.add("PUT", "http://example.com/upload-dst")
+
+            api.upload_file(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+                extra_headers=request_headers,
+            )
+
+            if uses_azure_lib:
+                api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
+            else:
+                assert len(mock_responses.calls) == 1
+
+        @pytest.mark.parametrize(
+            "response,expected_errtype,check_err",
+            [
+                (
+                    (400, {}, "my-reason"),
+                    requests.RequestException,
+                    lambda e: e.response.status_code == 400 and "my-reason" in str(e),
+                ),
+                (
+                    (500, {}, "my-reason"),
+                    retry.TransientError,
+                    lambda e: (
+                        e.exception.response.status_code == 500
+                        and "my-reason" in str(e.exception)
+                    ),
+                ),
+                (
+                    requests.exceptions.ConnectionError("my-reason"),
+                    retry.TransientError,
+                    lambda e: "my-reason" in str(e.exception),
+                ),
+            ],
+        )
+        def test_translates_azure_err_to_normal_err(
+            self,
+            mock_responses: responses.RequestsMock,
+            some_file: Path,
+            response: MockResponseOrException,
+            expected_errtype: Type[Exception],
+            check_err: Callable[[Exception], bool],
+        ):
+            mock_responses.add_callback(
+                "PUT", "https://example.com/foo/bar/baz", Mock(return_value=response)
+            )
+            with pytest.raises(expected_errtype) as e:
+                internal.InternalApi().upload_file(
+                    "https://example.com/foo/bar/baz",
+                    some_file.open("rb"),
+                    extra_headers=self.MAGIC_HEADERS,
+                )
+
+            assert check_err(e.value), e.value
