@@ -493,7 +493,6 @@ message Request {
     KeepaliveRequest      keepalive = 17;
     SyncStatusRequest     sync_status = 18;
     CancelRequest         cancel = 19;
-    RespondRequest        respond = 20;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -901,13 +900,4 @@ message CancelRequest {
 }
 
 message CancelResponse {
-}
-
-/*
- * RespondRequest:
- */
-message RespondRequest {
-  Result result = 1;
-
-  // Internal message, no _info field needed
 }

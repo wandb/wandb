@@ -77,9 +77,12 @@ class Retry(Generic[_R]):
         self, wait_seconds: float, cancel_event: Optional[threading.Event]
     ) -> bool:
         if not cancel_event:
+            # print("REGULAR")
             self._sleep_fn(wait_seconds)
             return False
+        # print("CANCELLABLE", cancel_event)
         cancelled = cancel_event.wait(wait_seconds)
+        # print("CANCELLED", cancel_event, cancelled)
         return cancelled
 
     @property

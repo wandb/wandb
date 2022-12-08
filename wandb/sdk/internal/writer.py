@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Optional, Callable
 
 from ..lib import tracelog, proto_util
-from . import datastore, flow_control
+from . import context, datastore, flow_control
 from .settings_static import SettingsStatic
 
 if TYPE_CHECKING:
@@ -24,6 +24,7 @@ class WriteManager:
     _ds: Optional[datastore.DataStore]
     _flow_control: Optional[flow_control.FlowControl]
     _sender_status_report: Optional["SenderStatusReportRequest"]
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -31,11 +32,13 @@ class WriteManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         sender_q: "Queue[Record]",
+        context_keeper: context.ContextKeeper,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._sender_q = sender_q
+        self._context_keeper = context_keeper
         self._ds = None
         self._flow_control = None
         # self._debug = False
@@ -62,10 +65,13 @@ class WriteManager:
         )
 
     def _forward_record(self, record: "Record") -> None:
+        self._context_keeper.add_from_record(record)
         tracelog.log_message_queue(record, self._sender_q)
+        # print("FORWARD1", record)
         self._sender_q.put(record)
 
     def _write_record(self, record: "Record") -> int:
+        # print("WRITE1", record)
         assert self._ds
         ret = self._ds.write(record)
         assert ret is not None
@@ -122,6 +128,12 @@ class WriteManager:
     def write_request_sender_status_report(self, record: "Record") -> None:
         self._sender_status_report = record.request.sender_status_report
 
+    def write_request_cancel(self, record: "Record") -> None:
+        print("GOT cancel", record)
+        cancel_id = record.request.cancel.cancel_slot
+        self._context_keeper.cancel(cancel_id)
+        print("GOT cancel done", record)
+
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
         self._result_q.put(result)
@@ -131,6 +143,9 @@ class WriteManager:
             self._ds.close()
         if self._flow_control:
             self._flow_control.flush()
+        print("FIN")
+        self._context_keeper._debug_print_orphans()
+        print("FIN2")
 
     def debounce(self) -> None:
         pass

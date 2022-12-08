@@ -123,7 +123,6 @@ class HandleManager:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
-        self._context_keeper.add_from_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
@@ -150,8 +149,11 @@ class HandleManager:
             # tracelog.log_message_queue(record, self._sender_q)
             # self._sender_q.put(record)
             tracelog.log_message_queue(record, self._writer_q)
+            print("WRITE1")
             self._writer_q.put(record)
+            return
         if not record.control.local and self._writer_q:
+            print("WRITE2")
             tracelog.log_message_queue(record, self._writer_q)
             self._writer_q.put(record)
 
@@ -165,12 +167,9 @@ class HandleManager:
         pass
 
     def handle_request_cancel(self, record: Record) -> None:
-        cancel_id = record.request.cancel.cancel_slot
-        self._context_keeper.cancel(cancel_id)
-
-    def handle_request_respond(self, record: Record) -> None:
-        result = record.request.respond.result
-        self._respond_result(result)
+        self._dispatch_record(record)
+        # cancel_id = record.request.cancel.cancel_slot
+        # self._context_keeper.cancel(cancel_id)
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -200,6 +199,7 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
+        print("HANDLERUN1")
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:
@@ -847,7 +847,7 @@ class HandleManager:
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
-        self._context_keeper._debug_print_orphans()
+        # self._context_keeper._debug_print_orphans()
 
     def __next__(self) -> Record:
         return self._record_q.get(block=True)
