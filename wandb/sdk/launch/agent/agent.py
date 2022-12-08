@@ -177,7 +177,7 @@ class LaunchAgent:
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, self._api)
         _logger.info("Fetching resource...")
-        resource = launch_spec.get("resource") or "local-process"
+        resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: (launch_spec.get("docker", {}) or {}).get("args", {})
             or {},

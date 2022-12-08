@@ -152,7 +152,6 @@ class AbstractRunner(ABC):
                     launch_project.target_project,
                 )
             except CommError as e:
-                wandb.termerror(str(e))
                 wandb.termerror(
                     "Error acking run queue item. Item lease may have ended or another process may have acked it."
                 )
