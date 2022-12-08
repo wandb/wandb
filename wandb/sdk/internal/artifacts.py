@@ -9,7 +9,7 @@ import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 
-from ..interface.artifacts import ArtifactEntry, ArtifactManifest
+from ..interface.artifacts import ArtifactEntry, ArtifactManifest, get_staging_dir
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2
@@ -80,6 +80,41 @@ class ArtifactSaver:
         self._server_artifact = None
 
     def save(
+        self,
+        type: str,
+        name: str,
+        client_id: str,
+        sequence_client_id: str,
+        distributed_id: Optional[str] = None,
+        finalize: bool = True,
+        metadata: Optional[Dict] = None,
+        description: Optional[str] = None,
+        aliases: Optional[Sequence[str]] = None,
+        labels: Optional[List[str]] = None,
+        use_after_commit: bool = False,
+        incremental: bool = False,
+        history_step: Optional[int] = None,
+    ) -> Optional[Dict]:
+        try:
+            return self._save_internal(
+                type,
+                name,
+                client_id,
+                sequence_client_id,
+                distributed_id,
+                finalize,
+                metadata,
+                description,
+                aliases,
+                labels,
+                use_after_commit,
+                incremental,
+                history_step,
+            )
+        finally:
+            self._cleanup_staged_entries()
+
+    def _save_internal(
         self,
         type: str,
         name: str,
@@ -268,3 +303,18 @@ class ArtifactSaver:
                             util.b64_to_hex_id(artifact_id), artifact_file_path
                         )
                     )
+
+    def _cleanup_staged_entries(self) -> None:
+        """Remove all staging copies of local files.
+
+        We made a staging copy of each local file to freeze it at "add" time.
+        We need to delete them once we've uploaded the file or confirmed we
+        already have a committed copy.
+        """
+        staging_dir = get_staging_dir()
+        for entry in self._manifest.entries.values():
+            if entry.local_path and entry.local_path.startswith(staging_dir):
+                try:
+                    os.remove(entry.local_path)
+                except OSError:
+                    pass
