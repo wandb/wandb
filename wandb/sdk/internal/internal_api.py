@@ -182,7 +182,7 @@ class Api:
         self._file_stream_api = None
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
-        self.upload_file_retry = normalize_exceptions(
+        self._upload_file_retrier = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
         self._client_id_mapping: Dict[str, str] = {}
@@ -1950,6 +1950,12 @@ class Api:
                 util.sentry_reraise(e)
 
         return response
+
+    def upload_file_retry(
+        self, *args: Any, **kwargs: Any
+    ) -> Optional[requests.Response]:
+        """Uploads a file, like upload_file, but retries on failure"""
+        return self._upload_file_retrier(*args, **kwargs)
 
     @normalize_exceptions
     def register_agent(
