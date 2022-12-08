@@ -6,7 +6,7 @@ import os
 import platform
 from typing import Any, Dict, Mapping, Optional, Tuple, Union
 
-import dockerpycreds  # type: ignore
+from wandb.vendor.dockerpycreds import dockerpycreds  # type: ignore
 
 IS_WINDOWS_PLATFORM = platform.system() == "Windows"
 DOCKER_CONFIG_FILENAME = os.path.join(".docker", "config.json")

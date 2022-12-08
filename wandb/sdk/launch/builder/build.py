@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pkg_resources
 import yaml
-from dockerpycreds.utils import find_executable  # type: ignore
-from six.moves import shlex_quote
+from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable  # type: ignore
+from shlex import quote as shlex_quote
 
 import wandb
 import wandb.docker as docker

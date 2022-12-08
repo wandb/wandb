@@ -21,7 +21,7 @@ import yaml
 from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
-from dockerpycreds.utils import find_executable
+from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable
 
 import wandb
 
