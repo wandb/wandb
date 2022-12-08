@@ -108,7 +108,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self.data_table_columns = data_table_columns
         self.pred_table_columns = pred_table_columns
 
-    def on_train_begin(self, logs: Dict[str, float] = None) -> None:
+    def on_train_begin(self, logs: Optional[Dict[str, float]] = None) -> None:
         # Initialize the data_table
         self.init_data_table(column_names=self.data_table_columns)
         # Log the ground truth data
