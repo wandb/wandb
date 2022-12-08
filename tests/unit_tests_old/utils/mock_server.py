@@ -1749,7 +1749,7 @@ def create_app(user_ctx=None):
                 return json.dumps(
                     {
                         "data": {
-                            "ProbeServerAckRunQueueItemInput": {
+                            "AckRunQueueItemInputInfoType": {
                                 "inputFields": [
                                     {"name": "entityName"},
                                     {"name": "projectName"},
@@ -1760,7 +1760,7 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps(
-                    {"data": {"ProbeServerAckRunQueueItemInput": {"inputFields": []}}}
+                    {"data": {"AckRunQueueItemInputInfoType": {"inputFields": []}}}
                 )
         if "query LaunchAgent" in body["query"]:
             if ctx["gorilla_supports_launch_agents"]:

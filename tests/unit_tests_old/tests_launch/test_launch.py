@@ -754,7 +754,12 @@ def test_launch_agent_different_project_in_spec(
     # mock_load_backend_agent,
     capsys,
 ):
-    live_mock_server.set_ctx({"invalid_launch_spec_project": True})
+    live_mock_server.set_ctx(
+        {
+            "invalid_launch_spec_project": True,
+            "ack_run_queue_item_supports_project_info": False,
+        }
+    )
     monkeypatch.setattr(
         wandb.sdk.launch.agent.LaunchAgent,
         "pop_from_queue",
