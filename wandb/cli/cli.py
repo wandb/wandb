@@ -692,6 +692,11 @@ def sync(
     default=False,
     help="Resume a sweep to continue running new runs.",
 )
+@click.option(
+    "--queue",
+    default=None,
+    help="Set sweep name",
+)
 @click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
@@ -704,12 +709,13 @@ def sweep(
     program,
     settings,
     update,
-    launch_config,
+    launch_config,  # TODO(gst): deprecate
     stop,
     cancel,
     pause,
     resume,
     config_yaml_or_sweep_id,
+    queue,
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -863,10 +869,15 @@ def sweep(
     )
 
     _launch_scheduler_spec = None
-    if launch_config is not None:
-        launch_config = util.load_json_yaml_dict(launch_config)
-        if launch_config is None:
-            raise LaunchError(f"Invalid format for launch config at {launch_config}")
+    if launch_config is not None or queue:
+        if launch_config:
+            launch_config = util.load_json_yaml_dict(launch_config)
+            if launch_config is None:
+                raise LaunchError(
+                    f"Invalid format for launch config at {launch_config}"
+                )
+        else:
+            launch_config = {}
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
 
         if entity is None or project is None:
@@ -886,7 +897,7 @@ def sweep(
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": launch_config.get("queue", "default"),
+                "queue": queue or launch_config.get("queue", "default"),
                 "run_spec": json.dumps(
                     construct_launch_spec(
                         "placeholder-uri-scheduler",  # uri
@@ -906,13 +917,11 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            launch_config.get("queue", "default"),
+                            queue or launch_config.get("queue", "default"),
                             "--project",
                             project,
                             "--job",
                             _job,
-                            "--resource",
-                            launch_config.get("resource", "local-process"),
                             # TODO(hupo): Add num-workers as option in launch config
                             # "--num_workers",
                             # launch_config.get("scheduler", {}).get("num_workers", 1),
@@ -970,7 +979,7 @@ def sweep(
     if sweep_path.find(" ") >= 0:
         sweep_path = f'"{sweep_path}"'
 
-    if launch_config is not None:
+    if launch_config is not None or queue:
         wandb.termlog("Scheduler added to launch queue. Starting sweep...")
     else:
         wandb.termlog(
@@ -1192,10 +1201,7 @@ def launch(
     else:
         config = {}
 
-    if resource is None and config.get("resource") is not None:
-        resource = config.get("resource")
-    elif resource is None:
-        resource = "local-container"
+    resource = resource or config.get("resource") or "local-container"
 
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
