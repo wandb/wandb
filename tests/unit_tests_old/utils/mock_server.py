@@ -104,6 +104,7 @@ def default_ctx():
         "server_settings": False,
         "server_messages": None,
         "latest_arti_id": None,
+        "ack_run_queue_item_supports_project_info": True,
     }
 
 
@@ -1743,6 +1744,24 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {}})
+        if "query ProbeServerAckRunQueueItemInput" in body["query"]:
+            if ctx["ack_run_queue_item_supports_project_info"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "ProbeServerAckRunQueueItemInput": {
+                                "inputFields": [
+                                    {"name": "entityName"},
+                                    {"name": "projectName"},
+                                ]
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps(
+                    {"data": {"ProbeServerAckRunQueueItemInput": {"inputFields": []}}}
+                )
         if "query LaunchAgent" in body["query"]:
             if ctx["gorilla_supports_launch_agents"]:
                 return json.dumps(
