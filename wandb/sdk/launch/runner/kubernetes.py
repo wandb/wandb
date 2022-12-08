@@ -165,8 +165,8 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
         if resource_args.get("node_name"):
             pod_spec["nodeName"] = resource_args.get("node_name")
-        if resource_args.get("node_selectors"):
-            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        if resource_args.get("node_selector"):
+            pod_spec["nodeSelector"] = resource_args.get("node_selector")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
         if resource_args.get("security_context"):
@@ -374,10 +374,12 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["image"] = image_uri
 
         # reassemble spec
-        given_env_vars = resource_args.get("env", {})
-        merged_env_vars = {**env_vars, **given_env_vars}
+        given_env_vars = resource_args.get("env", [])
+        kubernetes_style_env_vars = [
+            {"name": k, "value": v} for k, v in env_vars.items()
+        ]
         for cont in containers:
-            cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
+            cont["env"] = given_env_vars + kubernetes_style_env_vars
         pod_spec["containers"] = containers
 
         pod_template["spec"] = pod_spec
