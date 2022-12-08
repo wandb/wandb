@@ -2778,13 +2778,19 @@ class File(Attrs):
             replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
             root (str): Local directory to save the file.  Defaults to ".".
+            exist_ok (boolean): If `True`, will not raise ValueError if file already
+                exists and will not re-download unless replace=True. Defaults to `False`.
 
         Raises:
-            `ValueError` if file already exists and replace=False
+            `ValueError` if file already exists and replace=False and exist_ok=False.
         """
         path = os.path.join(root, self.name)
-        if os.path.exists(path) and not replace and not exist_ok:
-            raise ValueError("File already exists, pass replace=True to overwrite")
+        if os.path.exists(path):
+            if not replace and not exist_ok:
+                raise ValueError("File already exists, pass replace=True to overwrite")
+            elif not replace and exist_ok:
+                return open(path)
+
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path)
 
