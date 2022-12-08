@@ -67,9 +67,7 @@ class ContextKeeper:
     def cancel(self, context_id: str) -> None:
         item = self.get(context_id)
         if item:
-            print("CANCELLING", item)
             item.cancel()
-            print("DONE CANCELLING", item)
 
     def _debug_print_orphans(self) -> None:
         # TODO: add debug setting?

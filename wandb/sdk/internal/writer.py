@@ -129,10 +129,8 @@ class WriteManager:
         self._sender_status_report = record.request.sender_status_report
 
     def write_request_cancel(self, record: "Record") -> None:
-        print("GOT cancel", record)
         cancel_id = record.request.cancel.cancel_slot
         self._context_keeper.cancel(cancel_id)
-        print("GOT cancel done", record)
 
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
@@ -143,9 +141,7 @@ class WriteManager:
             self._ds.close()
         if self._flow_control:
             self._flow_control.flush()
-        print("FIN")
         self._context_keeper._debug_print_orphans()
-        print("FIN2")
 
     def debounce(self) -> None:
         pass

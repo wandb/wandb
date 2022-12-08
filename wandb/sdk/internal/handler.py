@@ -149,11 +149,9 @@ class HandleManager:
             # tracelog.log_message_queue(record, self._sender_q)
             # self._sender_q.put(record)
             tracelog.log_message_queue(record, self._writer_q)
-            print("WRITE1")
             self._writer_q.put(record)
             return
         if not record.control.local and self._writer_q:
-            print("WRITE2")
             tracelog.log_message_queue(record, self._writer_q)
             self._writer_q.put(record)
 
@@ -199,7 +197,6 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
-        print("HANDLERUN1")
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:

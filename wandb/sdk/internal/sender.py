@@ -323,17 +323,14 @@ class SendManager:
 
         context_id = context.context_id_from_record(record)
         api_context = self._context_keeper.get(context_id)
-        # print("SEND1", record, api_context)
         try:
             self._api.set_local_context(api_context)
             send_handler(record)
         except ContextCancelledError:
             logger.debug(f"Record cancelled: {record_type}")
             self._context_keeper.release(context_id)
-            print("SENDC", api_context)
         finally:
             self._api.clear_local_context()
-        # print("SEND2", api_context)
 
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
