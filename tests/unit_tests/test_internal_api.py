@@ -3,15 +3,19 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Tuple, Type, Union
+from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, Union
 from unittest.mock import Mock, call
 
 import pytest
 import requests
 import responses
+
+import wandb.errors
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.sdk.lib import retry
+
+from .test_retry import mock_time, MockTime  # noqa: F401
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
@@ -356,3 +360,62 @@ class TestUploadFile:
                 )
 
             assert check_err(e.value), e.value
+
+
+class TestUploadFileRetry:
+    @pytest.mark.parametrize(
+        ["schedule", "num_requests"],
+        [
+            ([200, 0], 1),
+            ([500, 500, 200, 0], 3),
+        ],
+    )
+    def test_stops_after_success(
+        self,
+        some_file: Path,
+        mock_responses: responses.RequestsMock,
+        schedule: Sequence[int],
+        num_requests: int,
+    ):
+        handler = Mock(side_effect=[(status, {}, "") for status in schedule])
+        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
+
+        internal.InternalApi().upload_file_retry(
+            "http://example.com/upload-dst",
+            some_file.open("rb"),
+        )
+
+        assert handler.call_count == num_requests
+
+    def test_stops_after_bad_status(
+        self,
+        some_file: Path,
+        mock_responses: responses.RequestsMock,
+    ):
+        handler = Mock(side_effect=[(400, {}, "")])
+        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
+
+        with pytest.raises(wandb.errors.CommError):
+            internal.InternalApi().upload_file_retry(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+            )
+        assert handler.call_count == 1
+
+    def test_stops_after_retry_limit_exceeded(
+        self,
+        some_file: Path,
+        mock_responses: responses.RequestsMock,
+    ):
+        num_retries = 8
+        handler = Mock(return_value=(500, {}, ""))
+        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
+
+        with pytest.raises(wandb.errors.CommError):
+            internal.InternalApi().upload_file_retry(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+                num_retries=num_retries,
+            )
+
+        assert handler.call_count == num_retries + 1
