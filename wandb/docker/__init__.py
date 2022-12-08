@@ -5,10 +5,10 @@ import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
-from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable  # type: ignore
 
 from wandb.docker import auth, www_authenticate
 from wandb.errors import DockerError
+from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable
 
 entrypoint = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "wandb-entrypoint.sh"

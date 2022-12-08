@@ -20,9 +20,6 @@ import click
 import yaml
 from click.exceptions import ClickException
 
-# pycreds has a find_executable that works in windows
-from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable
-
 import wandb
 
 # from wandb.old.core import wandb_dir
@@ -35,6 +32,9 @@ from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
+
+# pycreds has a find_executable that works in windows
+from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())

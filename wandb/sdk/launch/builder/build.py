@@ -5,17 +5,17 @@ import shlex
 import shutil
 import sys
 import tempfile
+from shlex import quote as shlex_quote
 from typing import Any, Dict, List, Optional, Tuple
 
 import pkg_resources
 import yaml
-from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable  # type: ignore
-from shlex import quote as shlex_quote
 
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
+from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable
 
 from ...lib.git import GitRepo
 from .._project_spec import (
