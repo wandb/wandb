@@ -37,9 +37,13 @@ class Validator(ABC):
             attr_name += " values"
             for v in value.values():
                 self.call(attr_name, v)
-        else:
+        elif self.how is None:
             attr_name += " object"
             self.call(attr_name, value)
+        else:
+            raise ValueError(
+                'Validator setting `how` must be one of ("keys", "values", None)'
+            )
 
 
 class TypeValidator(Validator):

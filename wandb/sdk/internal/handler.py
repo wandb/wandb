@@ -742,7 +742,7 @@ class HandleManager:
             self._metric_defines[metric.step_metric] = m
             mr = Record()
             mr.metric.CopyFrom(m)
-            mr.control.local = True  # Dont store this, just send it
+            mr.control.local = True  # Don't store this, just send it
             self._dispatch_record(mr)
 
         self._dispatch_record(record)
