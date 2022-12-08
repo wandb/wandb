@@ -460,6 +460,10 @@ class SendManager:
         run_done.run.CopyFrom(self._run)
         self._interface._publish_run_done(run_done)
 
+    def send_request_run_done(self, record: "Record") -> None:
+        # todo? this is just a noop to please wandb sync
+        assert record.request.run_done
+
     def send_request_defer(self, record: "Record") -> None:  # noqa: C901
         defer = record.request.defer
         state = defer.state
