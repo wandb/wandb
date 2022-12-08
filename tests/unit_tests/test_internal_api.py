@@ -363,6 +363,13 @@ class TestUploadFile:
 
 
 class TestUploadFileRetry:
+    """Tests the retry logic of upload_file_retry.
+
+    Testing the file-upload logic itself is done in TestUploadFile, above;
+    this class just tests the retry logic (though it does make a couple
+    assumptions about status codes, like "400 isn't retriable, 500 is.")
+    """
+
     @pytest.mark.parametrize(
         ["schedule", "num_requests"],
         [
