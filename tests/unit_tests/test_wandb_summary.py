@@ -35,7 +35,7 @@ class MockCallback:
             if item.key == key and item.value == value:
                 return self
 
-        raise AssertionError()
+        raise AssertionError
 
     def check_removes(self, key: Tuple[str]) -> "MockCallback":
         assert self.summary_record is not None
@@ -44,7 +44,7 @@ class MockCallback:
             if item.key == key:
                 return self
 
-        raise AssertionError()
+        raise AssertionError
 
 
 def create_summary_and_mock(

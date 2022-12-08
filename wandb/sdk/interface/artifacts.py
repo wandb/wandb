@@ -116,10 +116,10 @@ class ArtifactManifest:
         self.entries = entries or {}
 
     def to_manifest_json(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def digest(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def add_entry(self, entry):
         if (

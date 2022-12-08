@@ -256,9 +256,9 @@ class SockClient:
             except socket.timeout:
                 break
             except ConnectionResetError:
-                raise SockClientClosedError()
+                raise SockClientClosedError
             except OSError:
-                raise SockClientClosedError()
+                raise SockClientClosedError
             finally:
                 if timeout:
                     self._sock.settimeout(None)
@@ -266,7 +266,7 @@ class SockClient:
             if data_len == 0:
                 # socket.recv() will return 0 bytes if socket was shutdown
                 # caller will handle this condition like other connection problems
-                raise SockClientClosedError()
+                raise SockClientClosedError
             self._buffer.put(data, data_len)
         return None
 
