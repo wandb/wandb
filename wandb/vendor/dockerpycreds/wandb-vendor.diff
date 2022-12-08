@@ -1,0 +1,89 @@
+diff --git a/.circleci/config.yml b/.circleci/config.yml
+deleted file mode 100644
+index 19a4242..0000000
+--- a/.circleci/config.yml
++++ /dev/null
+@@ -1,14 +0,0 @@
+-version: 2
+-jobs:
+-  test:
+-    machine: true
+-    steps:
+-      - checkout
+-      - run: docker build -t docker/pycreds-test .
+-      - run: docker run docker/pycreds-test
+-
+-workflows:
+-  version: 2
+-  all:
+-    jobs:
+-      - test
+diff --git a/.gitignore b/.gitignore
+deleted file mode 100644
+index a0ccbd5..0000000
+--- a/.gitignore
++++ /dev/null
+@@ -1,8 +0,0 @@
+-*.egg_info
+-*.egg-info
+-*.pyc
+-__pycache__
+-.coverage
+-build/
+-dist/
+-.cache
+diff --git a/dockerpycreds/store.py b/dockerpycreds/store.py
+index 3f51e4a..46e028a 100644
+--- a/dockerpycreds/store.py
++++ b/dockerpycreds/store.py
+@@ -2,8 +2,6 @@ import json
+ import os
+ import subprocess
+
+-import six
+-
+ from . import constants
+ from . import errors
+ from .utils import create_environment_dict
+@@ -30,7 +28,7 @@ class Store(object):
+         """ Retrieve credentials for `server`. If no credentials are found,
+             a `StoreError` will be raised.
+         """
+-        if not isinstance(server, six.binary_type):
++        if not isinstance(server, bytes):
+             server = server.encode('utf-8')
+         data = self._execute('get', server)
+         result = json.loads(data.decode('utf-8'))
+@@ -61,7 +59,7 @@ class Store(object):
+         """ Erase credentials for `server`. Raises a `StoreError` if an error
+             occurs.
+         """
+-        if not isinstance(server, six.binary_type):
++        if not isinstance(server, bytes):
+             server = server.encode('utf-8')
+         self._execute('erase', server)
+
+@@ -75,20 +73,9 @@ class Store(object):
+         output = None
+         env = create_environment_dict(self.environment)
+         try:
+-            if six.PY3:
+-                output = subprocess.check_output(
+-                    [self.exe, subcmd], input=data_input, env=env,
+-                )
+-            else:
+-                process = subprocess.Popen(
+-                    [self.exe, subcmd], stdin=subprocess.PIPE,
+-                    stdout=subprocess.PIPE, env=env,
+-                )
+-                output, err = process.communicate(data_input)
+-                if process.returncode != 0:
+-                    raise subprocess.CalledProcessError(
+-                        returncode=process.returncode, cmd='', output=output
+-                    )
++            output = subprocess.check_output(
++                [self.exe, subcmd], input=data_input, env=env,
++            )
+         except subprocess.CalledProcessError as e:
+             raise errors.process_store_error(e, self.program)
+         except OSError as e:
