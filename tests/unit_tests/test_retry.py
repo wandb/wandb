@@ -8,6 +8,8 @@ from unittest import mock
 import pytest
 from wandb.sdk.lib import retry
 
+from .conftest import set_contextvar
+
 
 @dataclasses.dataclass
 class MockTime:
@@ -24,12 +26,12 @@ def mock_time() -> Iterator[MockTime]:
         nonlocal now
         now += datetime.timedelta(seconds=seconds)
 
-    with mock.patch(
-        "wandb.sdk.lib.retry.NOW_FN",
-        wraps=lambda: now,
-    ) as mock_now, mock.patch(
-        "wandb.sdk.lib.retry.SLEEP_FN", side_effect=_sleep
-    ) as mock_sleep:
+    mock_now = mock.Mock(wraps=lambda: now)
+    mock_sleep = mock.Mock(side_effect=_sleep)
+
+    with set_contextvar(retry.NOW_FN, mock_now), set_contextvar(
+        retry.SLEEP_FN, mock.Mock(side_effect=_sleep)
+    ):
         yield MockTime(now=mock_now, sleep=mock_sleep)
 
 

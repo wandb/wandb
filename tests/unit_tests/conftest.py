@@ -1,3 +1,4 @@
+import contextvars
 import dataclasses
 import io
 import json
@@ -29,6 +30,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    TypeVar,
     Union,
 )
 
@@ -86,6 +88,20 @@ class ConsoleFormatter:
     YELLOW = "\033[93m"
     RED = "\033[91m"
     END = "\033[0m"
+
+
+_T = TypeVar("_T")
+
+
+@contextmanager
+def set_contextvar(
+    var: contextvars.ContextVar[_T], value: _T
+) -> Generator[None, None, None]:
+    token = var.set(value)
+    try:
+        yield
+    finally:
+        var.reset(token)
 
 
 # --------------------------------

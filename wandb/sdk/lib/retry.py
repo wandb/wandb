@@ -1,3 +1,4 @@
+import contextvars
 import datetime
 import functools
 import logging
@@ -16,8 +17,20 @@ logger = logging.getLogger(__name__)
 
 # To let tests mock out the retry logic's now()/sleep() funcs, this file
 # should only use these variables, not call the stdlib funcs directly.
-NOW_FN = datetime.datetime.now
-SLEEP_FN = time.sleep
+NOW_FN: contextvars.ContextVar[
+    Callable[[], datetime.datetime]
+] = contextvars.ContextVar("NOW_FN", default=datetime.datetime.now)
+SLEEP_FN: contextvars.ContextVar[Callable[[float], None]] = contextvars.ContextVar(
+    "SLEEP_FN", default=time.sleep
+)
+
+
+def _now() -> datetime.datetime:
+    return NOW_FN.get()()
+
+
+def _sleep(seconds: float) -> None:
+    SLEEP_FN.get()(seconds)
 
 
 class TransientError(Exception):
@@ -102,7 +115,7 @@ class Retry(Generic[_R]):
         )
 
         sleep = sleep_base
-        now = NOW_FN()
+        now = _now()
         start_time = now
         start_time_triggered = None
 
@@ -115,12 +128,12 @@ class Retry(Generic[_R]):
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(
                     minutes=1
                 ):
-                    self._last_print = NOW_FN()
+                    self._last_print = _now()
                     if self.retry_callback:
                         self.retry_callback(
                             200,
                             "{} resolved after {}, resuming normal operation.".format(
-                                self._error_prefix, NOW_FN() - start_time
+                                self._error_prefix, _now() - start_time
                             ),
                         )
                 return result
@@ -134,7 +147,7 @@ class Retry(Generic[_R]):
                 if self._num_iter >= num_retries:
                     raise
 
-                now = NOW_FN()
+                now = _now()
 
                 # handle a triggered secondary check which could have a shortened timeout
                 if isinstance(retry_timedelta_triggered, datetime.timedelta):
@@ -169,11 +182,11 @@ class Retry(Generic[_R]):
                         )
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
-            SLEEP_FN(sleep + random.random() * 0.25 * sleep)
+            _sleep(sleep + random.random() * 0.25 * sleep)
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS
-            now = NOW_FN()
+            now = _now()
 
             self._num_iter += 1
 
