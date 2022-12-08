@@ -1357,7 +1357,6 @@ class InjectedResponse:
     method: str
     url: str
     body: Union[str, Exception]
-    # json: Optional[Dict[str, Any]] = None
     status: int = 200
     content_type: str = "text/plain"
     # todo: add more fields for other types of responses?

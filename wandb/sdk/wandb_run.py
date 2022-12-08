@@ -230,10 +230,10 @@ class RunStatusChecker:
         run_result = result.run_result
         run._set_run_obj(run_result.run)
 
-        if run_result and run_result.error:
+        if run_result and run_result.error and run_result.error.message:
             error_message = run_result.error.message
             logger.error(f"encountered error: {error_message}")
-            # TODO: for now, we simply fails the run in case we get an error.
+            # TODO: for now, we simply fail the run in case we get an error.
             #  In the future, we will transition to offline mode and allow the user
             #  to provide an option to gracefully complete the run
             #  (e.g. with a call-back to move the run_dir to a persistent store).

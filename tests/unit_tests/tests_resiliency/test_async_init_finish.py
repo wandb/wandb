@@ -11,14 +11,14 @@ from ..conftest import DeliberateHTTPError, InjectedResponse, TokenizedCircularP
 @pytest.fixture(scope="function")
 def inject_upsert_run(base_url, user):
     def helper(
-        body: Union[str, Exception] = "{'reason': 'gorilla is monkeying around'}",
+        body: Union[str, Exception] = '{"message": "gorilla is monkeying around"}',
         status: int = 200,
         application_pattern: str = "0",
     ) -> InjectedResponse:
         def match_upsert_run_request(_, other):
             return b"upsertBucket" in other.body
 
-        if status > 299:
+        if status > 399:
             message = body if isinstance(body, str) else "::".join(body.args)
             body = DeliberateHTTPError(status_code=status, message=message)
         return InjectedResponse(
@@ -46,20 +46,20 @@ def inject_upsert_run(base_url, user):
             1e-6,
             86400,
             "112",
-            "🐢 Communicating with wandb, run links not yet available",
+            "Communicating with wandb, run links not yet available",
         ),
         (
             1,
             86400,
             "11112",
-            "🐢 Communicating with wandb, run links not yet available",
+            "Communicating with wandb, run links not yet available",
         ),
         # alternate between failing and not failing
         (
             1e-6,
             86400,
             "10",
-            "🐢 Communicating with wandb, run links not yet available",
+            "Communicating with wandb, run links not yet available",
         ),
     ],
 )
@@ -93,6 +93,60 @@ def test_flaky_server_response_init_policy_async(
         captured = capsys.readouterr().err
         assert message in captured
         assert len(relay.context.summary) == 1
+
+
+@pytest.mark.parametrize(
+    "init_timeout,finish_timeout,application_pattern,message",
+    [
+        (
+            15,
+            86400,
+            "01112",
+            "",
+        ),
+        (
+            1e-5,
+            86400,
+            "110112",
+            "Communicating with wandb, run links not yet available",
+        ),
+    ],
+)
+def test_flaky_server_response_init_policy_async_update_run_props(
+    wandb_init,
+    relay_server,
+    inject_upsert_run,
+    init_timeout,
+    finish_timeout,
+    application_pattern,
+    message,
+    capsys,
+):
+    with relay_server(
+        inject=[
+            inject_upsert_run(
+                status=409,  # see check_retry_conflict_or_gone,
+                application_pattern=application_pattern,
+            )
+        ]
+    ):
+        run = wandb_init(
+            settings=wandb.Settings(
+                init_timeout=init_timeout,
+                init_policy="async",
+                finish_timeout=finish_timeout,
+            )
+        )
+        run.name = "good-run"
+        run.notes = "this is a good, quality run"
+        run.tags = ["nice"]
+        run.finish()
+
+        captured = capsys.readouterr().err
+        if message:
+            assert message in captured
+        # ensure that SyncStatCh thread did not get killed
+        assert "SyncStatCh" not in captured
 
 
 @pytest.mark.skip(
