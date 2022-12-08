@@ -9,13 +9,12 @@ from unittest.mock import Mock, call
 import pytest
 import requests
 import responses
-
 import wandb.errors
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.sdk.lib import retry
 
-from .test_retry import mock_time, MockTime  # noqa: F401
+from .test_retry import MockTime, mock_time  # noqa: F401
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
