@@ -18,6 +18,21 @@ class Media:
     _source_path: pathlib.Path
     _is_temp_path: bool
     _bind_path: Optional[pathlib.Path]
+    _size: int
+    _sha256: str
+
+    def to_json(self) -> dict:
+        """Serialize this media object to JSON.
+
+        Returns:
+            dict: A JSON representation of this media object.
+        """
+        return {
+            "_type": self.OBJ_TYPE,
+            "size": self._size,
+            "sha256": self._sha256,
+            "path": str(self._bind_path),
+        }
 
     def bind_to_run(
         self, interface, start: pathlib.Path, *namespace, suffix: str = ""

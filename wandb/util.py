@@ -334,6 +334,7 @@ def vendor_import(name: str) -> Any:
 def get_module(name: str, required: Optional[Union[str, bool]] = None) -> Any:
     """
     Return module or None. Absolute import is required.
+    
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     :param (str) required: A string to raise a ValueError if missing
     :return: (module|None) If import succeeds, the module will be returned.

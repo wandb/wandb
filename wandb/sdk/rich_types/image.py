@@ -2,22 +2,23 @@ import io
 import pathlib
 from typing import TYPE_CHECKING, Optional, Union, List
 
-try:
-    from typing_extensions import Protocol, runtime_checkable
-except ImportError:
-    from typing import Protocol, runtime_checkable
+# try:
+#     from typing_extensions import Protocol, runtime_checkable
+# except ImportError:
+#     from typing import Protocol, runtime_checkable
 
 from .image_mask import ImageMask
 from .bounding_boxes_2d import BoundingBoxes2D
-import PIL.Image
 
 from .media import Media
+import wandb.util as util
 
 if TYPE_CHECKING:
     import matplotlib.artist.Artist  # type: ignore
     import numpy as np
     import tensorflow as tf
     import torch
+    import PIL.Image
 
 
 class Image(Media):
@@ -62,17 +63,17 @@ class Image(Media):
             self.from_path(data_or_path)
         elif isinstance(data_or_path, Image):
             self.from_image(data_or_path)
-        elif isinstance(data_or_path, np.ndarray):
+        elif util.is_numpy_array(data_or_path):
             self.from_numpy(data_or_path, mode=mode)
-        elif isinstance(data_or_path, torch.Tensor):
+        elif util.is_pytorch_tensor_typename(util.get_full_typename(data_or_path)):
             self.from_torch(data_or_path, mode=mode)
-        elif isinstance(data_or_path, tf.Tensor):
+        elif util.is_tf_tensor_typename(util.get_full_typename(data_or_path)):
             self.from_tensorflow(data_or_path, mode=mode)
-        elif isinstance(data_or_path, matplotlib.artist.Artist):
+        elif util.is_matplotlib_typename(util.get_full_typename(data_or_path)):
             self.from_matplotlib(data_or_path)
         else:
             raise ValueError(
-                "Image must be initialized with a path, PIL.Image, or bytes"
+                "Image data must be a PIL.Image, numpy array, torch tensor, tensorflow tensor, matplotlib object, or path to an image file"
             )
 
         self._caption = caption
@@ -109,7 +110,7 @@ class Image(Media):
                 for bounding_box in self._bounding_boxes
             }
         if self._masks:
-            serialized["masks"] = {k: mask.to_json() for k, mask in self._masks.items()}
+            serialized["masks"] = {mask._name: mask.to_json() for mask in self._masks}
         return serialized
 
     def bind_to_run(
@@ -148,6 +149,7 @@ class Image(Media):
         """
         for name, mask in masks.items():
             if isinstance(mask, ImageMask):
+                assert mask._name == name
                 self._masks.append(mask)
             elif isinstance(mask, dict):
                 self._masks.append(ImageMask(mask, name=name))
@@ -164,6 +166,7 @@ class Image(Media):
         """
         for name, bounding_box in bounding_boxes.items():
             if isinstance(bounding_box, BoundingBoxes2D):
+                assert bounding_box._name == name
                 self._bounding_boxes.append(bounding_box)
             elif isinstance(bounding_box, dict):
                 self._bounding_boxes.append(BoundingBoxes2D(bounding_box, name=name))
@@ -191,10 +194,6 @@ class Image(Media):
         self._source_path = path
         self._is_temp_path = False
         self._format = path.suffix[1:].lower()
-        with PIL.Image.open(path) as image:
-            image.load()
-            self._width = image.width
-            self._height = image.height
         self._size = self._source_path.stat().st_size
         self._sha256 = self._compute_sha256(self._source_path)
 
@@ -217,6 +216,22 @@ class Image(Media):
         self._size = self._source_path.stat().st_size
         self._sha256 = self._compute_sha256(self._source_path)
 
+    def from_array(self, array: "np.ndarray", mode: Optional[str] = None) -> None:
+        """Create an image from a numpy array.
+
+        Args:
+            array (np.ndarray): The numpy array to create this image from.
+            mode (Optional[str], optional): The mode to create this image in. Defaults to None.
+        """
+
+        PIL_Image = util.get_module(
+            "PIL.Image",
+            required="Pillow is required to use images. Install with `python -m pip install pillow`",
+        )
+
+        image = PIL_Image.fromarray(array, mode=mode)
+        self.from_pillow(image)
+
     def from_numpy(self, array: "np.ndarray", mode: Optional[str] = None) -> None:
         """Create an image from a numpy array.
 
@@ -224,29 +239,17 @@ class Image(Media):
             array (np.ndarray): The numpy array to create this image from.
             mode (Optional[str], optional): The mode to create this image in. Defaults to None.
         """
-        import torch
 
-        if isinstance(array, torch.Tensor):
-            import torchvision.utils
-
-            if hasattr(array, "detach"):
-                array = array.detach()
-
-            tensor = torchvision.utils.make_grid(array, normalize=True)
-            tensor = tensor.permute(1, 2, 0).mul(255).clamp(0, 255).byte().cpu().numpy()
-        else:
-            tensor = array.__array__()
-            if tensor.ndim > 2:
-                tensor = tensor.squeeze()
-            min_value = tensor.min()
-            if min_value < 0:
-                tensor = (tensor - min_value) / tensor.ptp() * 255
-            if tensor.max() <= 1:
-                tensor = (tensor * 255).astype("int32")
-            tensor = tensor.clip(0, 255).astype("uint8")
-
-        image = PIL.Image.fromarray(tensor, mode=mode)
-        self.from_pillow(image)
+        tensor = array
+        if tensor.ndim > 2:
+            tensor = tensor.squeeze()
+        min_value = tensor.min()
+        if min_value < 0:
+            tensor = (tensor - min_value) / tensor.ptp() * 255
+        if tensor.max() <= 1:
+            tensor = (tensor * 255).astype("int32")
+        tensor = tensor.clip(0, 255).astype("uint8")
+        self.from_array(array, mode=mode)
 
     def from_torch(self, tensor: "torch.Tensor", mode: Optional[str] = None) -> None:
         """Create an image from a torch tensor.
@@ -256,8 +259,19 @@ class Image(Media):
             mode (Optional[str], optional): The mode to create this image in. Defaults to None.
         """
 
+        torchvision_utils = util.get_module(
+            "torchvision.utils",
+            required="torchvision is required to use images. Install with `python -m pip install torchvision`",
+        )
+
+        if hasattr(tensor, "detach"):
+            tensor = tensor.detach()
+
+        tensor = torchvision_utils.make_grid(tensor, normalize=True)
+        tensor = tensor.permute(1, 2, 0).mul(255).clamp(0, 255).byte().cpu().numpy()
+
         array = tensor.numpy()
-        self.from_numpy(array, mode=mode)
+        self.from_array(array)
 
     def from_tensorflow(self, tensor: "tf.Tensor", mode: Optional[str] = None) -> None:
         """Create an image from a tensorflow tensor.
@@ -280,6 +294,7 @@ class Image(Media):
         """
         buf = io.BytesIO()
         format = format or self.DEFAULT_FORMAT
+        figure = util.ensure_matplotlib_figure(figure)
         figure.savefig(buf, format=format)
         self.from_buffer(buf)
 
@@ -290,7 +305,12 @@ class Image(Media):
             buf (io.BytesIO): The buffer to create this image from.
         """
 
-        with PIL.Image.open(buf) as image:
+        PIL_Image = util.get_module(
+            "PIL.Image",
+            required="Pillow is required to use images. Install with `python -m pip install pillow`",
+        )
+
+        with PIL_Image.open(buf) as image:
             self.from_pillow(image)
 
     def from_image(self, image: "Image") -> None:
