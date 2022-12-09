@@ -1012,7 +1012,7 @@ class Api:
         project: str,
         queue_name: str,
         access: str,
-        default_resource_config_id: str = None,
+        default_resource_config_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         query = gql(
             """
@@ -1088,9 +1088,8 @@ class Api:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
-        except Exception as e:
+        except Exception:
             result = None
-            raise Exception(e)
 
         return result
 
@@ -1235,14 +1234,18 @@ class Api:
     @normalize_exceptions
     def create_default_resource_config(
         self, entity_name: str, resource: str, config: str
-    ):
+    ) -> Optional[Dict[str, Any]]:
         mutation = gql(
             """
-        mutation createDefaultResourceConfig($entityName: String!, $resource: String!, $config: JSONString!) {
+        mutation createDefaultResourceConfig(
+            $entityName: String!,
+            $resource: String!,
+            $config: JSONString!
+        ) {
             createDefaultResourceConfig(input: {
                 entityName: $entityName,
                 resource: $resource,
-                config: $config,
+                config: $config
             }) {
                 defaultResourceConfigID
                 success
@@ -1260,14 +1263,18 @@ class Api:
             },
         )
 
-        if not response["createDefaultResourceConfig"]["success"]:
+        if not response or not response.get("createDefaultResourceConfig", {}).get(
+            "success"
+        ):
             raise CommError("Error creating default resource configuration")
 
-        return response["createDefaultResourceConfig"]
+        result: Optional[Dict[str, Any]] = response["createDefaultResourceConfig"]
+        return result
 
-    # TODO(gst): delete me
     @normalize_exceptions
-    def fetch_default_resource_configs(self, entity_name: str):
+    def fetch_default_resource_configs(
+        self, entity_name: str
+    ) -> Optional[Dict[str, Any]]:
         mutation = gql(
             """
         query FetchDRCs($entityName: String!) {
@@ -1295,7 +1302,13 @@ class Api:
             },
         )
 
-        return response
+        if not response or not response.get("entity", {}).get("defaultResourceConfigs"):
+            raise CommError("Error fetching default resource configurations")
+
+        result: Optional[Dict[str, Any]] = response.get("entity", {}).get(
+            "defaultResourceConfigs"
+        )
+        return result
 
     @normalize_exceptions
     def create_launch_agent(

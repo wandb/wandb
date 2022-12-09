@@ -18,7 +18,6 @@ def push_to_queue(api: Api, queue_name: str, launch_spec: Dict[str, Any]) -> Any
     try:
         res = api.push_to_run_queue(queue_name, launch_spec)
     except Exception as e:
-        raise Exception(e)
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
     return res

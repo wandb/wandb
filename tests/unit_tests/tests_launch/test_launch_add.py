@@ -2,7 +2,6 @@ import json
 import os
 from unittest import mock
 
-import time
 import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
@@ -477,42 +476,37 @@ def test_launch_add_to_queue_with_drc(
 
     drc_json = json.dumps(json.loads(drc_config))
 
-    with relay_server() as relay:
+    with relay_server():
         run = wandb_init(settings=settings)
         res = api.create_default_resource_config(user, drc_resource, drc_json)
         assert res["success"]
+
+        drcs = api.fetch_default_resource_configs(user)
+        assert len(drcs["edges"]) == 1
+        drc_id = drcs["edges"][0]["node"]["id"]
 
         api.create_run_queue(
             entity=user,
             project=proj,
             queue_name=queue,
             access="PROJECT",
-            default_resource_config_id=res["defaultResourceConfigID"],
+            default_resource_config_id=drc_id,
         )
 
-        run_queue = api.get_project_run_queues(user, proj)[0]
-        assert run_queue["defaultResourceConfigID"] == res["defaultResourceConfigID"]
+        queued_run = launch_add(
+            uri=uri,
+            entity=user,
+            project=proj,
+            entry_point=entry_point,
+            repository="testing123",
+            queue_name=queue,
+        )
+        assert queued_run.state == "pending"
 
-        try:
-            queued_run = launch_add(
-                uri=uri,
-                entity=user,
-                project=proj,
-                entry_point=entry_point,
-                repository="testing123",
-                queue_name=queue,
-            )
-            assert queued_run.state == "pending"
-
-            queued_run.delete()
-        except Exception as e:
-            print(">>>> RRI@!!!", str(e))
+        rqi = api.pop_from_run_queue(queue, user, proj)
+        assert rqi["runSpec"]["resource"] == drc_resource
+        assert (
+            rqi["runSpec"]["resource_args"] == json.loads(drc_config)["resource_args"]
+        )
 
         run.finish()
-
-    for req in relay.context.raw_data:
-        q = req["request"].get("query")
-        if q and "mutation" in q:
-            print(q.split("(")[0], req["request"].get("variables"))
-
-    assert 0
