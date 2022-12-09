@@ -158,7 +158,6 @@ class Api:
     def create_default_resource_config(self, *args, **kwargs):
         return self.api.create_default_resource_config(*args, **kwargs)
 
-    # TODO(gst): delete
     def fetch_default_resource_configs(self, *args, **kwargs):
         return self.api.fetch_default_resource_configs(*args, **kwargs)
 
