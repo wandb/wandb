@@ -448,7 +448,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
         launch_spec.get("overrides", {}),
-        launch_spec.get("resource", "local"),
+        launch_spec.get("resource", None),
         launch_spec.get("resource_args", {}),
         launch_spec.get("cuda", None),
         launch_spec.get("run_id", None),

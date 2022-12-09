@@ -1,4 +1,4 @@
-from six.moves.collections_abc import Mapping, Hashable
+from collections.abc import Mapping, Hashable
 import collections
 import copy
 
