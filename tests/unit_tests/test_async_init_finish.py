@@ -5,7 +5,11 @@ from unittest import mock
 import pytest
 import wandb
 
-from ..conftest import DeliberateHTTPError, InjectedResponse, TokenizedCircularPattern
+from tests.unit_tests.conftest import (
+    DeliberateHTTPError,
+    InjectedResponse,
+    TokenizedCircularPattern,
+)
 
 
 @pytest.fixture(scope="function")
