@@ -92,7 +92,7 @@ class FlowControl:
     _settings: SettingsStatic
     _forward_record_cb: Callable[[Any, "Record"], None]
     _write_record_cb: Callable[[Any, "Record"], int]
-    _ensure_flushed_cb: Callable[[Any, int], None]
+    _recover_records_cb: Callable[[Any, int, int], None]
 
     _track_prev_written_offset: int
     _track_last_written_offset: int
@@ -115,7 +115,7 @@ class FlowControl:
         settings: SettingsStatic,
         forward_record: Callable[["Record"], None],
         write_record: Callable[["Record"], int],
-        ensure_flushed: Callable[["int"], None],
+        recover_records: Callable[[int, int], None],
         _threshold_bytes_high: int = 4 * 1024 * 1024,  # 4MiB
         _threshold_bytes_mid: int = 2 * 1024 * 1024,  # 2MiB
         _threshold_bytes_low: int = 1 * 1024 * 1024,  # 1MiB
@@ -125,7 +125,7 @@ class FlowControl:
         self._settings = settings
         self._forward_record_cb = forward_record  # type: ignore
         self._write_record_cb = write_record  # type: ignore
-        self._ensure_flushed_cb = ensure_flushed  # type: ignore
+        self._recover_records_cb = recover_records  # type: ignore
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
         self._threshold_bytes_high = _threshold_bytes_high
@@ -178,7 +178,7 @@ class FlowControl:
             StateRecovering: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
                 fsm.FsmEntry(self._should_forward, StateForwarding, self._quiesce),
-                fsm.FsmEntry(self._should_reqread, StateRecovering, self._reqread),
+                fsm.FsmEntry(self._should_recover, StateRecovering, self._recover),
             ],
         }
         self._fsm = fsm.Fsm(
@@ -220,17 +220,6 @@ class FlowControl:
     def _ensure_flushed(self, end_offset: int) -> None:
         if self._ensure_flushed_cb:
             self._ensure_flushed_cb(end_offset)
-
-    def _send_recovering_read(self, start: int, end: int) -> None:
-        record = pb.Record()
-        request = pb.Request()
-        # last_write_offset = self._track_last_written_offset
-        sender_read = pb.SenderReadRequest(start_offset=start, end_offset=end)
-        request.sender_read.CopyFrom(sender_read)
-        record.request.CopyFrom(request)
-        self._ensure_flushed(end)
-        self._forward_record(record)
-        # print("MARK", last_write_offset)
 
     def _send_mark(self) -> None:
         record = pb.Record()
@@ -312,7 +301,7 @@ class FlowControl:
         record = inputs
         return _is_local_record(record)
 
-    def _should_reqread(self, inputs: "Record") -> bool:
+    def _should_recover(self, inputs: "Record") -> bool:
         # do we have a large enough read to do
         behind = self._recovering_bytes_behind()
         # print("BEHIND", behind)
@@ -335,6 +324,7 @@ class FlowControl:
         # print("Qf:", self._track_last_forwarded_offset)
         # print("Qp:", self._track_prev_written_offset)
         # print("Qw:", self._track_last_written_offset)
+        # FIXME: only read if there is stuff to read
 
         start = max(
             self._track_last_recovering_offset, self._track_last_forwarded_offset
@@ -346,11 +336,11 @@ class FlowControl:
         )
         # print("QUIESCE", start, end, record)
         if end > start:
-            self._send_recovering_read(start, end)
+            self._recover_records_cb(start, end)
 
         self._track_last_recovering_offset = end
 
-    def _reqread(self, inputs: "Record") -> None:
+    def _recover(self, inputs: "Record") -> None:
         self._doread(inputs, read_last=True)
         self._send_mark()
         self._mark_recovering_offset = self._track_last_written_offset
@@ -360,7 +350,7 @@ class FlowControl:
     def _quiesce(self, inputs: "Record") -> None:
         self._doread(inputs)
 
-    def send_with_flow_control(self, record: "Record") -> None:
+    def flow(self, record: "Record") -> None:
         self._process_record(record)
 
         if not _is_control_record(record) and not _is_local_record(record):

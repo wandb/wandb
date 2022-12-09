@@ -60,7 +60,7 @@ class WriteManager:
             settings=self._settings,
             write_record=self._write_record,
             forward_record=self._forward_record,
-            ensure_flushed=self._ensure_flushed,
+            recover_records=self._recover_records,
             **kwargs,
         )
 
@@ -83,6 +83,17 @@ class WriteManager:
         if self._ds:
             self._ds.ensure_flushed(offset)
 
+    def _recover_records(self, start: int, end: int) -> None:
+        record = pb.Record()
+        request = pb.Request()
+        # last_write_offset = self._track_last_written_offset
+        sender_read = pb.SenderReadRequest(start_offset=start, end_offset=end)
+        request.sender_read.CopyFrom(sender_read)
+        record.request.CopyFrom(request)
+        self._ensure_flushed(end)
+        self._forward_record(record)
+        # print("MARK", last_write_offset)
+
     def _write(self, record: "Record") -> None:
         if not self._ds:
             self.open()
@@ -95,7 +106,7 @@ class WriteManager:
             return
 
         # FlowControl will write data to disk and throttle sending to the sender
-        self._flow_control.send_with_flow_control(record)
+        self._flow_control.flow(record)
 
     def write(self, record: "Record") -> None:
         record_type = record.WhichOneof("record_type")
