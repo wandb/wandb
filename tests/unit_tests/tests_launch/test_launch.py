@@ -1,6 +1,7 @@
+import json
+
 import pytest
 import wandb
-import json
 from wandb.errors import LaunchError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run

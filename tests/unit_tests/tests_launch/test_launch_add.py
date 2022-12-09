@@ -4,8 +4,8 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public import Api as PublicApi
 from wandb.apis.internal import Api as InternalApi
+from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.launch_add import launch_add
 
 
