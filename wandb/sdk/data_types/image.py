@@ -17,8 +17,8 @@ from .helper_types.image_mask import ImageMask
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
     import numpy as np  # type: ignore
-    import PIL  # type: ignore
     import torch  # type: ignore
+    from PIL.Image import Image as PILImage
 
     from wandb.apis.public import Artifact as PublicArtifact
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_run import Run as LocalRun
 
     ImageDataType = Union[
-        "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
+        "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
     ImageDataOrPathType = Union[str, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
@@ -116,7 +116,7 @@ class Image(BatchableMedia):
     _caption: Optional[str]
     _width: Optional[int]
     _height: Optional[int]
-    _image: Optional["PIL.Image"]
+    _image: Optional["PILImage"]
     _classes: Optional["Classes"]
     _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
     _masks: Optional[Dict[str, "ImageMask"]]
@@ -218,7 +218,7 @@ class Image(BatchableMedia):
                     for key in total_classes.keys()
                 ]
             )
-        if self.image:
+        if self.image is not None:
             self._width, self._height = self.image.size
         self._free_ram()
 
@@ -249,6 +249,7 @@ class Image(BatchableMedia):
         )
         self._set_file(path, is_tmp=False)
         self._image = pil_image.open(path)
+        assert self._image is not None
         self._image.load()
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
@@ -264,7 +265,7 @@ class Image(BatchableMedia):
     def _initialize_from_data(
         self,
         data: "ImageDataType",
-        mode: str = None,
+        mode: Optional[str] = None,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -281,7 +282,7 @@ class Image(BatchableMedia):
                 "torchvision.utils", "torchvision is required to render images"
             )
             if hasattr(data, "requires_grad") and data.requires_grad:
-                data = data.detach()
+                data = data.detach()  # type: ignore
             data = vis_util.make_grid(data, normalize=True)
             self._image = pil_image.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
@@ -297,6 +298,7 @@ class Image(BatchableMedia):
 
         tmp_path = os.path.join(MEDIA_TMP.name, str(util.generate_id()) + ".png")
         self.format = "png"
+        assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
@@ -504,7 +506,7 @@ class Image(BatchableMedia):
 
         def size_equals_image(image: "Image") -> bool:
             img_width, img_height = image.image.size  # type: ignore
-            return img_width == width and img_height == height  # type: ignore
+            return img_width == width and img_height == height
 
         sizes_match = all(size_equals_image(img) for img in seq)
         if not sizes_match:
@@ -613,9 +615,9 @@ class Image(BatchableMedia):
             self_image = self.image
             other_image = other.image
             if self_image is not None:
-                self_image = list(self_image.getdata())
+                self_image = list(self_image.getdata())  # type: ignore
             if other_image is not None:
-                other_image = list(other_image.getdata())
+                other_image = list(other_image.getdata())  # type: ignore
 
             return (
                 self._grouping == other._grouping
@@ -640,7 +642,7 @@ class Image(BatchableMedia):
             self._image = None
 
     @property
-    def image(self) -> Optional["PIL.Image"]:
+    def image(self) -> Optional["PILImage"]:
         if self._image is None:
             if self._path is not None and not self.path_is_reference(self._path):
                 pil_image = util.get_module(

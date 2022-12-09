@@ -53,7 +53,6 @@ from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
-from wandb.sdk.wandb_require_helpers import requires
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -343,32 +342,48 @@ class Api:
         """
     )
 
-    VIEW_REPORT_QUERY = gql(
+    CREATE_PROJECT = gql(
         """
-        query SpecificReport($reportId: ID!) {
-            view(id: $reportId) {
-            id
-            type
-            name
-            displayName
-            description
+        mutation upsertModel(
+            $description: String
+            $entityName: String
+            $id: String
+            $name: String
+            $framework: String
+            $access: String
+            $views: JSONString
+        ) {
+            upsertModel(
+            input: {
+                description: $description
+                entityName: $entityName
+                id: $id
+                name: $name
+                framework: $framework
+                access: $access
+                views: $views
+            }
+            ) {
             project {
                 id
                 name
                 entityName
+                description
+                access
+                views
             }
-            createdAt
-            updatedAt
-            spec
-            previewUrl
-            user {
+            model {
+                id
                 name
-                username
-                userInfo
+                entityName
+                description
+                access
+                views
             }
+            inserted
             }
         }
-        """
+    """
     )
 
     def __init__(
@@ -416,7 +431,6 @@ class Api:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
 
-    @requires("report-editing:v0")
     def create_report(
         self,
         project: str,
@@ -424,7 +438,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
+        blocks: Optional["wandb.apis.reports.util.Block"] = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
@@ -432,9 +446,11 @@ class Api:
             blocks = []
         return wandb.apis.reports.Report(
             project, entity, title, description, width, blocks
-        )
+        ).save()
 
-    @requires("report-editing:v0")
+    def create_project(self, name: str, entity: str):
+        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """
         Get report at a given path.
@@ -450,19 +466,7 @@ class Api:
         Raises:
             wandb.Error if path is invalid
         """
-        try:
-            entity, project, *_, _report_id = path.split("/")
-            *_, report_id = _report_id.split("--")
-        except ValueError as e:
-            raise ValueError("path must be `entity/project/reports/reportId`") from e
-        else:
-            r = self.client.execute(
-                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
-            )
-            # breakpoint()
-            viewspec = r["view"]
-            viewspec["spec"] = json.loads(viewspec["spec"])
-            return wandb.apis.reports.Report.from_json(viewspec)
+        return wandb.apis.reports.Report.from_url(path)
 
     def create_user(self, email, admin=False):
         """Creates a new user
@@ -975,7 +979,7 @@ class Attrs:
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
         if key == "user":
-            raise AttributeError()
+            raise AttributeError
         if key in self._attrs.keys():
             return self._attrs[key]
         elif name in self._attrs.keys():
@@ -1016,18 +1020,18 @@ class Paginator:
 
     @property
     def length(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def more(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def cursor(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def convert_objects(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def update_variables(self):
         self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
@@ -2499,6 +2503,22 @@ class Sweep(Attrs):
     """
     )
 
+    LEGACY_QUERY = gql(
+        """
+    query Sweep($project: String, $entity: String, $name: String!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                state
+                bestLoss
+                config
+            }
+        }
+    }
+    """
+    )
+
     def __init__(self, client, entity, project, sweep_id, attrs=None):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
@@ -2612,10 +2632,20 @@ class Sweep(Attrs):
         }
         variables.update(kwargs)
 
-        response = client.execute(query, variable_values=variables)
-        if response.get("project") is None:
-            return None
-        elif response["project"].get("sweep") is None:
+        response = None
+        try:
+            response = client.execute(query, variable_values=variables)
+        except Exception:
+            # Don't handle exception, rely on legacy query
+            # TODO(gst): Implement updated introspection workaround
+            query = cls.LEGACY_QUERY
+            response = client.execute(query, variable_values=variables)
+
+        if (
+            not response
+            or not response.get("project")
+            or not response["project"].get("sweep")
+        ):
             return None
 
         sweep_response = response["project"]["sweep"]
@@ -3049,13 +3079,10 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
-
     from pkg_resources import parse_version
 
-    def __init__(self, run_set):
-        self.run_set = run_set
-        self.panel_metrics_helper = PanelMetricsHelper()
-
+    SPACER = "----------"
+    DECIMAL_SPACER = ";;;"
     FRONTEND_NAME_MAPPING = {
         "ID": "name",
         "Name": "displayName",
@@ -3110,6 +3137,10 @@ class PythonMongoishQueryGenerator:
             ast.NameConstant: "value",
         }
 
+    def __init__(self, run_set):
+        self.run_set = run_set
+        self.panel_metrics_helper = PanelMetricsHelper()
+
     def _handle_compare(self, node):
         # only left side can be a col
         left = self.front_to_back(self._handle_fields(node.left))
@@ -3133,13 +3164,41 @@ class PythonMongoishQueryGenerator:
     def _handle_ops(self, node):
         return self.AST_OPERATORS.get(type(node))
 
+    def _replace_numeric_dots(self, s):
+        numeric_dots = []
+        for i, (l, m, r) in enumerate(zip(s, s[1:], s[2:]), 1):
+            if m == ".":
+                if (
+                    l.isdigit()
+                    and r.isdigit()  # 1.2
+                    or l.isdigit()
+                    and r == " "  # 1.
+                    or l == " "
+                    and r.isdigit()  # .2
+                ):
+                    numeric_dots.append(i)
+        # Edge: Catch number ending in dot at end of string
+        if s[-2].isdigit() and s[-1] == ".":
+            numeric_dots.append(len(s) - 1)
+        numeric_dots = [-1] + numeric_dots + [len(s)]
+
+        substrs = []
+        for start, stop in zip(numeric_dots, numeric_dots[1:]):
+            substrs.append(s[start + 1 : stop])
+            substrs.append(self.DECIMAL_SPACER)
+        substrs = substrs[:-1]
+        return "".join(substrs)
+
     def _convert(self, filterstr):
-        _conversion = filterstr.replace(".", "__________")  # this is so silly
-        # return _conversion
-        return "(" + _conversion + ")"  # wrap expr to make it eval-able
+        _conversion = (
+            self._replace_numeric_dots(filterstr)  # temporarily sub numeric dots
+            .replace(".", self.SPACER)  # Allow dotted fields
+            .replace(self.DECIMAL_SPACER, ".")  # add them back
+        )
+        return "(" + _conversion + ")"
 
     def _unconvert(self, field_name):
-        return field_name.replace("__________", ".")  # maximum silly, but it works!
+        return field_name.replace(self.SPACER, ".")  # Allow dotted fields
 
     def python_to_mongo(self, filterstr):
         try:
@@ -3249,15 +3308,48 @@ class PanelMetricsHelper:
     def special_front_to_back(self, name):
         if name is None:
             return name
-        elif name in self.RUN_MAPPING:
+
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+
+        # special case for config
+        if name.startswith("c::"):
+            name = name[3:]
+            return f"config:{name}.value{rest}"
+
+        # special case for summary
+        if name.startswith("s::"):
+            name = name[3:] + rest
+            return f"summary:{name}"
+
+        name = name + rest
+        if name in self.RUN_MAPPING:
             return "run:" + self.RUN_MAPPING[name]
-        elif name in self.FRONTEND_NAME_MAPPING:
+        if name in self.FRONTEND_NAME_MAPPING:
             return "summary:" + self.FRONTEND_NAME_MAPPING[name]
-        elif name == "Index":
+        if name == "Index":
             return name
         return "summary:" + name
 
     def special_back_to_front(self, name):
+        if name is not None:
+            kind, rest = name.split(":", 1)
+
+            if kind == "config":
+                pieces = rest.split(".")
+                if len(pieces) <= 1:
+                    raise ValueError(f"Invalid name: {name}")
+                elif len(pieces) == 2:
+                    name = pieces[0]
+                elif len(pieces) >= 3:
+                    name = pieces[:1] + pieces[2:]
+                    name = ".".join(name)
+                return f"c::{name}"
+
+            elif kind == "summary":
+                name = rest
+                return f"s::{name}"
+
         if name is None:
             return name
         elif "summary:" in name:
@@ -3561,39 +3653,40 @@ class ProjectArtifactTypes(Paginator):
         ]
 
 
-class ProjectArtifactCollections(Paginator):
-    QUERY = gql(
-        """
-        query ProjectArtifactCollections(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!
-            $cursor: String,
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifactSequences(after: $cursor) {
-                        pageInfo {
-                            endCursor
-                            hasNextPage
-                        }
-                        totalCount
-                        edges {
-                            node {
-                                id
-                                name
-                                description
-                                createdAt
-                            }
-                            cursor
-                        }
-                    }
-                }
-            }
-        }
-    """
+def server_supports_artifact_collections_gql_edges(
+    client: RetryingClient, warn: bool = False
+) -> bool:
+    # TODO: Validate this version
+    # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b
+    # CLI version was bumped to "0.12.11" on Mar 3, 2022: https://github.com/wandb/core/commit/328396fa7c89a2178d510a1be9c0d4451f350d7b
+    supported = client.version_supported("0.12.11")  # edges were merged on
+    if not supported and warn:
+        # First local release to include the above is 0.9.50: https://github.com/wandb/local/releases/tag/0.9.50
+        wandb.termwarn(
+            "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
+        )
+    return supported
+
+
+def artifact_collection_edge_name(server_supports_artifact_collections: bool) -> str:
+    return (
+        "artifactCollection"
+        if server_supports_artifact_collections
+        else "artifactSequence"
     )
 
+
+def artifact_collection_plural_edge_name(
+    server_supports_artifact_collections: bool,
+) -> str:
+    return (
+        "artifactCollections"
+        if server_supports_artifact_collections
+        else "artifactSequences"
+    )
+
+
+class ProjectArtifactCollections(Paginator):
     def __init__(
         self,
         client: Client,
@@ -3612,12 +3705,47 @@ class ProjectArtifactCollections(Paginator):
             "artifactTypeName": type_name,
         }
 
+        self.QUERY = gql(
+            """
+            query ProjectArtifactCollections(
+                $entityName: String!,
+                $projectName: String!,
+                $artifactTypeName: String!
+                $cursor: String,
+            ) {
+                project(name: $projectName, entityName: $entityName) {
+                    artifactType(name: $artifactTypeName) {
+                        artifactCollections: %s(after: $cursor) {
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                            totalCount
+                            edges {
+                                node {
+                                    id
+                                    name
+                                    description
+                                    createdAt
+                                }
+                                cursor
+                            }
+                        }
+                    }
+                }
+            }
+        """
+            % artifact_collection_plural_edge_name(
+                server_supports_artifact_collections_gql_edges(client)
+            )
+        )
+
         super().__init__(client, variable_values, per_page)
 
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "totalCount"
             ]
         else:
@@ -3626,7 +3754,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "pageInfo"
             ]["hasNextPage"]
         else:
@@ -3635,7 +3763,7 @@ class ProjectArtifactCollections(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequences"][
+            return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "edges"
             ][-1]["cursor"]
         else:
@@ -3654,9 +3782,9 @@ class ProjectArtifactCollections(Paginator):
                 self.type_name,
                 r["node"],
             )
-            for r in self.last_response["project"]["artifactType"]["artifactSequences"][
-                "edges"
-            ]
+            for r in self.last_response["project"]["artifactType"][
+                "artifactCollections"
+            ]["edges"]
         ]
 
 
@@ -3785,7 +3913,7 @@ class ArtifactType:
         entity: str,
         project: str,
         type_name: str,
-        attrs: Mapping[str, Any] = None,
+        attrs: Optional[Mapping[str, Any]] = None,
     ):
         self.client = client
         self.entity = entity
@@ -3901,7 +4029,7 @@ class ArtifactCollection:
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactSequence(name: $artifactCollectionName) {
+                    artifactCollection: %s(name: $artifactCollectionName) {
                         id
                         name
                         description
@@ -3911,6 +4039,9 @@ class ArtifactCollection:
             }
         }
         """
+            % artifact_collection_edge_name(
+                server_supports_artifact_collections_gql_edges(self.client)
+            )
         )
         response = self.client.execute(
             query,
@@ -3925,10 +4056,10 @@ class ArtifactCollection:
             response is None
             or response.get("project") is None
             or response["project"].get("artifactType") is None
-            or response["project"]["artifactType"].get("artifactSequence") is None
+            or response["project"]["artifactType"].get("artifactCollection") is None
         ):
             raise ValueError("Could not find artifact type %s" % self.type)
-        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
     def __repr__(self):
@@ -4182,6 +4313,7 @@ class Artifact(artifacts.Artifact):
         self._entity = entity
         self._project = project
         self._artifact_name = name
+        self._artifact_collection_name = name.split(":")[0]
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -4189,12 +4321,15 @@ class Artifact(artifacts.Artifact):
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
         self._version_index = self._attrs.get("versionIndex", None)
+        # We will only show aliases under the Collection this artifact version is fetched from
+        # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
             a["alias"]
             for a in self._attrs["aliases"]
             if not re.match(r"^v\d+$", a["alias"])
-            and a["artifactCollectionName"] == self._sequence_name
+            and a["artifactCollectionName"] == self._artifact_collection_name
         ]
+        self._frozen_aliases = [a for a in self._aliases]
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
@@ -4700,25 +4835,149 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        aliases = None
+        if not valid:
+            # If valid, wandb backend version >= 0.13.0.
+            # This means we can safely remove aliases from this updateArtifact request since we'll be calling
+            # the alias endpoints below in _save_alias_changes.
+            # If not valid, wandb backend version < 0.13.0. This requires aliases to be sent in updateArtifact.
+            aliases = [
+                {
+                    "artifactCollectionName": self._artifact_collection_name,
+                    "alias": alias,
+                }
+                for alias in self._aliases
+            ]
+
         self.client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
                 "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
-                "aliases": [
-                    {
-                        "artifactCollectionName": self._sequence_name,
-                        "alias": alias,
-                    }
-                    for alias in self._aliases
-                ],
+                "aliases": aliases,
             },
         )
+        # Save locally modified aliases
+        self._save_alias_changes()
         return True
 
     def wait(self):
         return self
+
+    @normalize_exceptions
+    def _save_alias_changes(self):
+        """
+        Convenience function called by artifact.save() to persist alias changes
+        on this artifact to the wandb backend.
+        """
+
+        aliases_to_add = set(self._aliases) - set(self._frozen_aliases)
+        aliases_to_remove = set(self._frozen_aliases) - set(self._aliases)
+
+        # Introspect
+        introspect_query = gql(
+            """
+            query ProbeServerAddAliasesInput {
+               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+            """
+        )
+        res = self.client.execute(introspect_query)
+        valid = res.get("AddAliasesInputInfoType")
+        if not valid:
+            return
+
+        if len(aliases_to_add) > 0:
+            add_mutation = gql(
+                """
+            mutation addAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                addAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                add_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_add
+                    ],
+                },
+            )
+
+        if len(aliases_to_remove) > 0:
+            delete_mutation = gql(
+                """
+            mutation deleteAliases(
+                $artifactID: ID!,
+                $aliases: [ArtifactCollectionAliasInput!]!,
+            ) {
+                deleteAliases(
+                    input: {
+                        artifactID: $artifactID,
+                        aliases: $aliases,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+            )
+            self.client.execute(
+                delete_mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "aliases": [
+                        {
+                            "artifactCollectionName": self._artifact_collection_name,
+                            "alias": alias,
+                            "entityName": self._entity,
+                            "projectName": self._project,
+                        }
+                        for alias in aliases_to_remove
+                    ],
+                },
+            )
+
+        # reset local state
+        self._frozen_aliases = self._aliases
+        return True
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -4954,36 +5213,6 @@ class ArtifactVersions(Paginator):
     This is generally used indirectly via the `Api`.artifact_versions method
     """
 
-    QUERY = gql(
-        """
-        query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
-            project(name: $project, entityName: $entity) {
-                artifactType(name: $type) {
-                    artifactSequence(name: $collection) {
-                        name
-                        artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-                            totalCount
-                            edges {
-                                node {
-                                    ...ArtifactFragment
-                                }
-                                version
-                                cursor
-                            }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        %s
-        """
-        % ARTIFACT_FRAGMENT
-    )
-
     def __init__(
         self,
         client: Client,
@@ -4999,7 +5228,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters or {}
+        self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.order = order
         variables = {
             "project": self.project,
@@ -5009,12 +5238,46 @@ class ArtifactVersions(Paginator):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
+        self.QUERY = gql(
+            """
+            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+                project(name: $project, entityName: $entity) {
+                    artifactType(name: $type) {
+                        artifactCollection: %s(name: $collection) {
+                            name
+                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+                                totalCount
+                                edges {
+                                    node {
+                                        ...ArtifactFragment
+                                    }
+                                    version
+                                    cursor
+                                }
+                                pageInfo {
+                                    endCursor
+                                    hasNextPage
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            %s
+            """
+            % (
+                artifact_collection_edge_name(
+                    server_supports_artifact_collections_gql_edges(client)
+                ),
+                ARTIFACT_FRAGMENT,
+            )
+        )
         super().__init__(client, variables, per_page)
 
     @property
     def length(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["totalCount"]
         else:
@@ -5023,7 +5286,7 @@ class ArtifactVersions(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["pageInfo"]["hasNextPage"]
         else:
@@ -5032,14 +5295,14 @@ class ArtifactVersions(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactSequence"][
+            return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
             ]["edges"][-1]["cursor"]
         else:
             return None
 
     def convert_objects(self):
-        if self.last_response["project"]["artifactType"]["artifactSequence"] is None:
+        if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
         return [
             Artifact(
@@ -5049,9 +5312,9 @@ class ArtifactVersions(Paginator):
                 self.collection_name + ":" + a["version"],
                 a["node"],
             )
-            for a in self.last_response["project"]["artifactType"]["artifactSequence"][
-                "artifacts"
-            ]["edges"]
+            for a in self.last_response["project"]["artifactType"][
+                "artifactCollection"
+            ]["artifacts"]["edges"]
         ]
 
 
@@ -5151,7 +5414,7 @@ class Job:
     _project: str
     _entrypoint: List[str]
 
-    def __init__(self, api: Api, name, path: str = None) -> None:
+    def __init__(self, api: Api, name, path: Optional[str] = None) -> None:
         try:
             self._job_artifact = api.artifact(name, type="job")
         except CommError:
@@ -5205,7 +5468,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
@@ -5223,7 +5486,7 @@ class Job:
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("source", {}).get("image")
@@ -5234,7 +5497,7 @@ class Job:
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
         if self._args:
-            launch_project.override_args = self._args
+            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint

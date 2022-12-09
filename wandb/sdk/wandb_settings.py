@@ -380,6 +380,7 @@ class Settings:
     _kaggle: bool
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
+    _log_level: int
     _noop: bool
     _offline: bool
     _os: str
@@ -1007,7 +1008,7 @@ class Settings:
         self.__unexpected_args: Set[str] = set()
 
         # Set default settings values
-        # We start off with the class attributes and `default_props`' dicts
+        # We start off with the class attributes and `default_props` dicts
         # and then create Property objects.
         # Once initialized, attributes are to only be updated using the `update` method
         default_props = self._default_props()
@@ -1220,7 +1221,7 @@ class Settings:
     def items(self) -> ItemsView[str, Any]:
         return self.make_static().items()
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.make_static().get(key, default)
 
     def freeze(self) -> None:
@@ -1395,7 +1396,12 @@ class Settings:
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
 
-        settings["_executable"] = sys.executable
+        # one special case here is running inside a PEX environment,
+        # see https://pex.readthedocs.io/en/latest/index.html for more info about PEX
+        _executable = self._executable or os.environ.get("PEX") or sys.executable
+        if _executable is None or _executable == "":
+            _executable = "python3"
+        settings["_executable"] = _executable
 
         settings["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
 

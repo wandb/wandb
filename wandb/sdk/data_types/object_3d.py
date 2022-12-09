@@ -112,12 +112,12 @@ class Object3D(BatchableMedia):
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
-            data_or_path = data_or_path.name  # type: ignore
+            data_or_path = data_or_path.name
 
         if hasattr(data_or_path, "read"):
             if hasattr(data_or_path, "seek"):
-                data_or_path.seek(0)  # type: ignore
-            object_3d = data_or_path.read()  # type: ignore
+                data_or_path.seek(0)
+            object_3d = data_or_path.read()
 
             extension = kwargs.pop("file_type", None)
             if extension is None:
@@ -220,7 +220,9 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def from_file(
-        cls, data_or_path: Union["TextIO", str], file_type: "FileFormat3D" = None
+        cls,
+        data_or_path: Union["TextIO", str],
+        file_type: Optional["FileFormat3D"] = None,
     ) -> "Object3D":
         # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
         #     raise ValueError(
