@@ -1975,7 +1975,7 @@ class Run:
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
-            traceback.print_exception(*sys.exc_info())
+            traceback.print_exc()
         else:
             self._on_final()
         finally:
@@ -2978,9 +2978,12 @@ class Run:
         exc_val: BaseException,
         exc_tb: TracebackType,
     ) -> bool:
-        exit_code = 0 if exc_type is None else 1
-        self._finish(exit_code)
-        return exc_type is None
+        exception_raised = exc_type is not None
+        if exception_raised:
+            traceback.print_exception(exc_type, exc_val, exc_tb)
+        exit_code = 1 if exception_raised else 0
+        self._finish(exit_code=exit_code)
+        return not exception_raised
 
     @_run_decorator._attach
     def mark_preempting(self) -> None:
