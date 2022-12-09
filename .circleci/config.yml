@@ -741,10 +741,11 @@ jobs:
           command: gcloud --quiet components update
       - create_gke_cluster:
           cluster: << parameters.cluster >>
+      - get_gke_cluster_credentials:
+          cluster: << parameters.cluster >>
       - run:
           name: "Install GPU drivers"
           command: |
-            gcloud components install --quiet gke-gcloud-auth-plugin
             kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
       # conditionally post a notification to slack if the job failed
       - when:
