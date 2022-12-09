@@ -2,6 +2,7 @@ import base64
 import hashlib
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Mapping, Optional
 
@@ -225,6 +226,24 @@ def test_add_named_dir():
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
         "size": 5,
     }
+
+
+def test_multi_add():
+    artifact = wandb.Artifact(type="dataset", name="poly-art")
+    size = 2**27  # 128MB, large enough that it takes >1ms to add.
+    filename = "data.bin"
+    with open(filename, "wb") as f:
+        f.truncate(size)
+
+    # Add 8 copies simultaneously.
+    with ThreadPoolExecutor(max_workers=8) as e:
+        for _ in range(8):
+            e.submit(lambda: artifact.add_file(filename))
+
+    # There should be only one file in the artifact.
+    manifest = artifact.manifest.to_manifest_json()
+    assert len(manifest["contents"]) == 1
+    assert manifest["contents"][filename]["size"] == size
 
 
 def test_add_reference_local_file():
