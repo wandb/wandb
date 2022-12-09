@@ -5,6 +5,7 @@ import contextlib
 import hashlib
 import os
 import random
+import tempfile
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -1018,3 +1019,13 @@ def get_artifacts_cache() -> ArtifactsCache:
         cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
         _artifacts_cache = ArtifactsCache(cache_dir)
     return _artifacts_cache
+
+
+def get_staging_dir() -> util.FilePathStr:
+    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+    util.mkdir_exists_ok(path)
+    return os.path.abspath(os.path.expanduser(path))
+
+
+def get_new_staging_file() -> IO:
+    return tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False)
