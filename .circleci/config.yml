@@ -128,6 +128,7 @@ commands:
           name: "Setup gcloud"
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+            gcloud components install --quiet gke-gcloud-auth-plugin
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
@@ -742,7 +743,9 @@ jobs:
           cluster: << parameters.cluster >>
       - run:
           name: "Install GPU drivers"
-          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+          command: |
+            gcloud components install --quiet gke-gcloud-auth-plugin
+            kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
