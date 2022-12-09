@@ -1397,7 +1397,11 @@ class Settings:
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
 
-        _executable = self._executable or shutil.which("python") or sys.executable
+        _executable = (
+            os.environ.get(wandb.env._EXECUTABLE, self._executable)
+            or sys.executable
+            or shutil.which("python")
+        )
         if _executable is None or _executable == "":
             _executable = "python3"
         settings["_executable"] = _executable
