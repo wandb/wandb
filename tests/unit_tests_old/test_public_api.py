@@ -8,12 +8,20 @@ Tests for the `wandb.apis.PublicApi` module.
 import json
 import os
 import platform
+from unittest import mock
 
 import pytest
 import requests
 import wandb
 
 from tests.unit_tests_old import utils
+from wandb.sdk.internal.internal_api import Api as InternalApi
+
+
+@pytest.fixture
+def mock_upload_file_retry():
+    with mock.patch.object(InternalApi, "upload_file_retry") as upload_file_retry:
+        yield upload_file_retry
 
 
 def test_from_path(mock_server, api):
@@ -176,16 +184,20 @@ def test_run_file_direct(runner, mock_server, api):
         )
 
 
-def test_run_upload_file(runner, mock_server, api):
+def test_run_upload_file(runner, mock_server, api, mock_upload_file_retry: mock.Mock):
     with runner.isolated_filesystem():
         run = api.run("test/test/test")
         with open("new_file.pb", "w") as f:
             f.write("TEST")
         file = run.upload_file("new_file.pb")
         assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
+        mock_upload_file_retry.assert_called_once()
+        assert file.url in str(mock_upload_file_retry.call_args[0])
 
 
-def test_run_upload_file_relative(runner, mock_server, api):
+def test_run_upload_file_relative(
+    runner, mock_server, api, mock_upload_file_retry: mock.Mock
+):
     with runner.isolated_filesystem():
         run = api.run("test/test/test")
         wandb.util.mkdir_exists_ok("foo")
@@ -194,9 +206,10 @@ def test_run_upload_file_relative(runner, mock_server, api):
             f.write("TEST")
         file = run.upload_file("new_file.pb", "../")
         assert file.url == "https://api.wandb.ai/storage?file=foo/new_file.pb"
+        mock_upload_file_retry.assert_called_once()
 
 
-def test_upload_file_retry(runner, mock_server, api):
+def test_upload_file_retry(runner, mock_server, api, mock_upload_file_retry: mock.Mock):
     mock_server.set_context("fail_storage_count", 4)
     with runner.isolated_filesystem():
         run = api.run("test/test/test")
@@ -204,9 +217,12 @@ def test_upload_file_retry(runner, mock_server, api):
             f.write("TEST")
         file = run.upload_file("new_file.pb")
         assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
+        mock_upload_file_retry.assert_called_once()
 
 
-def test_upload_file_inject_retry(runner, mock_server, api, inject_requests):
+def test_upload_file_inject_retry(
+    runner, mock_server, api, inject_requests, mock_upload_file_retry: mock.Mock
+):
     match = inject_requests.Match(path_suffix="/storage", count=2)
     inject_requests.add(
         match=match, requests_error=requests.exceptions.ConnectionError()
@@ -217,6 +233,7 @@ def test_upload_file_inject_retry(runner, mock_server, api, inject_requests):
             f.write("TEST")
         file = run.upload_file("new_file.pb")
         assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
+        mock_upload_file_retry.assert_called_once()
 
 
 def test_runs_from_path(mock_server, api):
