@@ -1083,7 +1083,7 @@ class Api:
             ):
                 return None
 
-        mutationWithoutRunspec = gql(
+        mutation_no_runspec = gql(
             """
         mutation pushToRunQueueByName(
             $entityName: String!,
@@ -1107,7 +1107,7 @@ class Api:
 
         try:
             result = self.gql(
-                mutationWithoutRunspec, variables, check_retry_fn=util.no_retry_4xx
+                mutation_no_runspec, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
         except Exception:
             result = None
