@@ -2785,11 +2785,11 @@ class File(Attrs):
             `ValueError` if file already exists, replace=False and exist_ok=False.
         """
         path = os.path.join(root, self.name)
-        if os.path.exists(path):
-            if not replace and not exist_ok:
-                raise ValueError("File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error.")
-            elif not replace and exist_ok:
+        if os.path.exists(path) and not replace:
+            if exist_ok:
                 return open(path)
+            else:
+                raise ValueError("File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error.")
 
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path)
