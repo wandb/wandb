@@ -2782,12 +2782,12 @@ class File(Attrs):
                 exists and will not re-download unless replace=True. Defaults to `False`.
 
         Raises:
-            `ValueError` if file already exists and replace=False and exist_ok=False.
+            `ValueError` if file already exists, replace=False and exist_ok=False.
         """
         path = os.path.join(root, self.name)
         if os.path.exists(path):
             if not replace and not exist_ok:
-                raise ValueError("File already exists, pass replace=True to overwrite")
+                raise ValueError("File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error.")
             elif not replace and exist_ok:
                 return open(path)
 
