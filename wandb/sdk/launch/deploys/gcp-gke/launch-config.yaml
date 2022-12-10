@@ -1,0 +1,86 @@
+# role for handling builds and jobs within the wandb namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wandb
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/warn-version: latest
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: wandb
+  name: wandb-launch-agent
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "secrets", "pods/log"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wandb-launch-serviceaccount
+  namespace: wandb
+---
+# role binding for namespaced role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wandb-launch-role-binding
+  namespace: wandb
+subjects:
+  - kind: ServiceAccount
+    name: wandb-launch-serviceaccount
+    namespace: wandb
+roleRef:
+  kind: Role
+  name: wandb-launch-agent
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+data:
+  launch-config.yaml: |
+    base_url: https://api.wandb.ai # TODO: set url
+    project: # TODO: set project
+    max_jobs: 1
+    registry:
+      url: # TODO: set registry
+      region: us-central1
+    build:
+      type: kaniko
+      cloud-provider: gcp
+      build-context-store: # set to build context bucket
+      credentials:
+        secret-name: kaniko-secret
+        secret-mount-path: /secret
+    runner:
+      type: kubernetes
+      namespace: wandb
+kind: ConfigMap
+metadata:
+  name: wandb-launch-configmap
+  namespace: wandb
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wandb-api-key
+  namespace: wandb
+type: kubernetes.io/basic-auth
+stringData:
+  password: # TODO: set api key
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kaniko-secret
+  namespace: wandb
+stringData:
+  kaniko-secret.json: |
+    # TODO: set to gcp credentials json contents
