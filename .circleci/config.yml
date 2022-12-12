@@ -206,7 +206,6 @@ commands:
       - run:
           name: "Get gke cluster credentials"
           command: |
-            gcloud components install gke-gcloud-auth-plugin
             gcloud container clusters get-credentials << parameters.cluster >>
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
@@ -678,7 +677,7 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-            - gke/install
+            - gcloud/install
             - run:
                 name: "Update gcloud components"
                 command: gcloud --quiet components update
@@ -742,6 +741,7 @@ jobs:
           command: |
             gcloud --quiet components update
             gcloud --quiet components install kubectl
+      - setup_gcloud
 #      - create_gke_cluster:
 #          cluster: << parameters.cluster >>
       - get_gke_cluster_credentials:
@@ -854,7 +854,7 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - go/install
-            - gke/install
+            - gcloud/install
             - run:
                 name: "Update gcloud components"
                 command: gcloud --quiet components update
