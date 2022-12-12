@@ -7,6 +7,7 @@ import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
 @pytest.fixture
@@ -79,7 +80,10 @@ def test_launch_add_delete_queued_run(
     with relay_server():
         run = wandb_init(settings=settings)
         api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT"
+            entity=user,
+            project=LAUNCH_DEFAULT_PROJECT,
+            queue_name=queue,
+            access="PROJECT",
         )
 
         queued_run = launch_add(
@@ -89,6 +93,7 @@ def test_launch_add_delete_queued_run(
             queue_name=queue,
             entry_point=entry_point,
             config={"resource": "local-process"},
+            project_queue=LAUNCH_DEFAULT_PROJECT,
         )
 
         assert queued_run.state == "pending"
@@ -197,7 +202,10 @@ def test_launch_build_push_job(
             json.dump(launch_config, f)
 
         internal_api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT"
+            entity=user,
+            project=LAUNCH_DEFAULT_PROJECT,
+            queue_name=queue,
+            access="PROJECT",
         )
 
         queued_run = launch_add(
@@ -209,6 +217,7 @@ def test_launch_build_push_job(
             job="DELETE ME",
             entry_point=entry_point,
             config=override_config,
+            project_queue=LAUNCH_DEFAULT_PROJECT,
         )
 
         assert queued_run.state == "pending"
@@ -324,9 +333,11 @@ def test_push_to_runqueue_exists(
     with relay_server() as relay:
         run = wandb_init(settings=settings)
         api = wandb.sdk.internal.internal_api.Api()
-        api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
+        api.create_run_queue(
+            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
+        )
 
-        result = api.push_to_run_queue(queue, args)
+        result = api.push_to_run_queue(queue, args, LAUNCH_DEFAULT_PROJECT)
 
         assert result["runQueueItemId"]
 
@@ -397,9 +408,11 @@ def test_push_to_runqueue_old_server(
         run = wandb_init(settings=settings)
         api = wandb.sdk.internal.internal_api.Api()
 
-        api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
+        api.create_run_queue(
+            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
+        )
 
-        result = api.push_to_run_queue(queue, args)
+        result = api.push_to_run_queue(queue, args, LAUNCH_DEFAULT_PROJECT)
         run.finish()
 
         assert result["runQueueItemId"]
@@ -444,7 +457,10 @@ def test_launch_add_repository(
     with relay_server():
         run = wandb_init(settings=settings)
         api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT"
+            entity=user,
+            project=LAUNCH_DEFAULT_PROJECT,
+            queue_name=queue,
+            access="PROJECT",
         )
 
         queued_run = launch_add(
@@ -454,6 +470,7 @@ def test_launch_add_repository(
             entry_point=entry_point,
             repository="testing123",
             config={"resource": "sagemaker"},
+            project_queue=LAUNCH_DEFAULT_PROJECT,
         )
 
         assert queued_run.state == "pending"
