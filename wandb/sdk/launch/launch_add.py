@@ -15,9 +15,11 @@ from wandb.sdk.launch.utils import (
 )
 
 
-def push_to_queue(api: Api, queue_name: str, launch_spec: Dict[str, Any]) -> Any:
+def push_to_queue(
+    api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
+) -> Any:
     try:
-        res = api.push_to_run_queue(queue_name, launch_spec)
+        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -137,7 +139,7 @@ def _launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
-    project_queue: Optional[str] = None,
+    project_queue: Optional[str] = LAUNCH_DEFAULT_PROJECT,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -185,11 +187,9 @@ def _launch_add(
 
     if queue_name is None:
         queue_name = "default"
-    if project_queue is None:
-        project_queue = LAUNCH_DEFAULT_PROJECT
 
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec)
+    res = push_to_queue(api, queue_name, launch_spec, project_queue)
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
