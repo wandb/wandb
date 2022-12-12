@@ -735,12 +735,14 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
+      - gcloud/install
       - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
-      - create_gke_cluster:
-          cluster: << parameters.cluster >>
+          name: "Update gcloud components and install kubectl"
+          command: |
+            gcloud --quiet components update
+            gcloud --quiet components install kubectl
+#      - create_gke_cluster:
+#          cluster: << parameters.cluster >>
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
       - run:
