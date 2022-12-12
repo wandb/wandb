@@ -139,7 +139,7 @@ def _launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
-    project_queue: Optional[str] = LAUNCH_DEFAULT_PROJECT,
+    project_queue: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -187,7 +187,9 @@ def _launch_add(
 
     if queue_name is None:
         queue_name = "default"
-
+    if project_queue is None:
+        project_queue = LAUNCH_DEFAULT_PROJECT
+    print("PROJECT QUEUE", project_queue)
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue_name, launch_spec, project_queue)
 
@@ -204,9 +206,10 @@ def _launch_add(
 
     queued_run = public_api.queued_run(
         launch_spec["entity"],
-        project_queue,
+        launch_spec["project"],
         queue_name,
         res["runQueueItemId"],
         container_job,
+        project_queue,
     )
     return queued_run  # type: ignore

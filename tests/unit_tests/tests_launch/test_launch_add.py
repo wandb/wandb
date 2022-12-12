@@ -73,7 +73,7 @@ def test_launch_add_delete_queued_run(
     proj = "test2"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
-    settings = test_settings({"project": proj})
+    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     api = InternalApi()
 
@@ -104,10 +104,10 @@ def test_launch_add_delete_queued_run(
 
 
 # TODO(gst): Identify root cause of (threaded?) artifact creation error
-@pytest.mark.xfail(
-    strict=False,
-    reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
-)
+# @pytest.mark.xfail(
+#     strict=False,
+#     reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
+# )
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
@@ -153,6 +153,10 @@ def test_launch_build_push_job(
     proj = "test8"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
+    settings_mr = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
+    # create project for artifacts
+    run_artifact = wandb_init(settings=settings_mr)
+    run_artifact.finish()
     settings = test_settings({"project": proj})
     internal_api = InternalApi()
     public_api = PublicApi()
@@ -224,12 +228,14 @@ def test_launch_build_push_job(
         assert queued_run.entity == user
         assert queued_run.project == proj
         assert queued_run.container_job is True
+        assert queued_run.project_queue == LAUNCH_DEFAULT_PROJECT
 
-        rqi = internal_api.pop_from_run_queue(queue, user, proj)
+        rqi = internal_api.pop_from_run_queue(queue, user, LAUNCH_DEFAULT_PROJECT)
 
         assert rqi["runSpec"]["uri"] is None
         assert rqi["runSpec"]["job"] != "DELETE ME"
         assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{release_image}:v0"
+        assert rqi["runSpec"]["project"] == proj
 
         job = public_api.job(rqi["runSpec"]["job"])
         run.finish()
@@ -251,7 +257,7 @@ def test_launch_add_default_specify(
         "entry_point": entry_point,
         "resource": "local-container",
     }
-    settings = test_settings({"project": proj})
+    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     with relay_server() as relay:
         run = wandb_init(settings=settings)
@@ -263,6 +269,7 @@ def test_launch_add_default_specify(
     assert queued_run.entity == args["entity"]
     assert queued_run.project == args["project"]
     assert queued_run.queue_name == args["queue_name"]
+    assert queued_run.project_queue == LAUNCH_DEFAULT_PROJECT
 
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
@@ -328,7 +335,7 @@ def test_push_to_runqueue_exists(
         "resource": "local-process",
     }
 
-    settings = test_settings({"project": proj})
+    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     with relay_server() as relay:
         run = wandb_init(settings=settings)
@@ -359,7 +366,7 @@ def test_push_to_default_runqueue_notexist(
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
 
-    settings = test_settings({"project": proj})
+    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     launch_spec = {
         "uri": uri,
@@ -371,7 +378,9 @@ def test_push_to_default_runqueue_notexist(
 
     with relay_server():
         run = wandb_init(settings=settings)
-        res = api.push_to_run_queue("nonexistent-queue", launch_spec)
+        res = api.push_to_run_queue(
+            "nonexistent-queue", launch_spec, LAUNCH_DEFAULT_PROJECT
+        )
         run.finish()
 
         assert not res
@@ -397,7 +406,7 @@ def test_push_to_runqueue_old_server(
         "entry_point": entry_point,
         "resource": "local-process",
     }
-    settings = test_settings({"project": proj})
+    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.push_to_run_queue_by_name",
@@ -434,11 +443,13 @@ def test_push_with_repository(
         "registry": {"url": "repo123"},
         "resource": "sagemaker",
     }
-    settings = test_settings({"project": proj})
+    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     with relay_server():
         run = wandb_init(settings=settings)
-        res = api.push_to_run_queue("nonexistent-queue", launch_spec)
+        res = api.push_to_run_queue(
+            "nonexistent-queue", launch_spec, LAUNCH_DEFAULT_PROJECT
+        )
         run.finish()
 
         assert not res
@@ -451,7 +462,7 @@ def test_launch_add_repository(
     proj = "test1"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
-    settings = test_settings({"project": proj})
+    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
     api = InternalApi()
 
     with relay_server():

@@ -872,7 +872,13 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_name, run_queue_item_id, container_job=False
+        self,
+        entity,
+        project,
+        queue_name,
+        run_queue_item_id,
+        container_job=False,
+        project_queue=None,
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -884,6 +890,7 @@ class Api:
             queue_name,
             run_queue_item_id,
             container_job=container_job,
+            project_queue=project_queue,
         )
 
     @normalize_exceptions
@@ -2330,7 +2337,7 @@ class QueuedRun:
             """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
         }
@@ -2358,7 +2365,7 @@ class QueuedRun:
         """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
             "itemId": self.id,
@@ -2404,7 +2411,7 @@ class QueuedRun:
             query,
             variable_values={
                 "entityName": self.entity,
-                "projectName": self.project,
+                "projectName": self.project_queue,
                 "runQueueName": self.queue_name,
             },
         )
