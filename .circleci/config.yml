@@ -55,7 +55,7 @@ parameters:
     default: "gcr.io"
   gcp_cluster_name:
     type: string
-    default: "gke-yea"
+    default: "sdk-nightly"
   manual_nightly:
     type: boolean
     default: false
@@ -126,10 +126,12 @@ commands:
         default: << pipeline.parameters.gcp_cluster_name >>
     steps:
       - run:
-          name: "Setup gcloud"
+          name: "Setup gcloud and kubectl"
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-            gcloud components install --quiet gke-gcloud-auth-plugin
+            gcloud --quiet components update
+            gcloud --quiet components install gke-gcloud-auth-plugin
+            gcloud --quiet components install kubectl
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
@@ -678,9 +680,7 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - gcloud/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - setup_gcloud
             - setup_docker_buildx:
                 docker_layer_caching: false
             - run:
@@ -693,7 +693,6 @@ jobs:
                     --build-arg GIT_BRANCH=<< parameters.git_branch >> \
                     --build-arg UTC_DATE=$(date -u +%Y%m%d) \
                     .
-            - setup_gcloud
             - run:
                 name: "Push << parameters.description >> to container registry"
                 command: |
@@ -736,14 +735,9 @@ jobs:
       - checkout
       - go/install
       - gcloud/install
-      - run:
-          name: "Update gcloud components and install kubectl"
-          command: |
-            gcloud --quiet components update
-            gcloud --quiet components install kubectl
       - setup_gcloud
-#      - create_gke_cluster:
-#          cluster: << parameters.cluster >>
+      - create_gke_cluster:
+          cluster: << parameters.cluster >>
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
       - run:
@@ -777,10 +771,7 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
       - setup_gcloud
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
@@ -855,9 +846,6 @@ jobs:
           steps:
             - go/install
             - gcloud/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
             - setup_gcloud
             - get_gke_cluster_credentials:
                 cluster: << parameters.cluster >>
@@ -1130,7 +1118,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: true
           requires:
