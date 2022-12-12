@@ -8,6 +8,7 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
     construct_launch_spec,
     validate_launch_spec_source,
@@ -41,6 +42,7 @@ def launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    project_queue: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -69,6 +71,8 @@ def launch_add(
             to that job artifact to queue
     repository: optional string to control the name of the remote repository, used when
         pushing images to a registry
+    project_queue: optional string to control the name of the project for the queue. Primarily used
+        for back compatibility with project scoped queues
 
 
     Example:
@@ -110,6 +114,7 @@ def launch_add(
         run_id=run_id,
         build=build,
         repository=repository,
+        project_queue=project_queue,
     )
 
 
@@ -132,6 +137,7 @@ def _launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    project_queue: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -179,6 +185,8 @@ def _launch_add(
 
     if queue_name is None:
         queue_name = "default"
+    if project_queue is None:
+        project_queue = LAUNCH_DEFAULT_PROJECT
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue_name, launch_spec)
@@ -196,7 +204,7 @@ def _launch_add(
 
     queued_run = public_api.queued_run(
         launch_spec["entity"],
-        launch_spec["project"],
+        project_queue,
         queue_name,
         res["runQueueItemId"],
         container_job,

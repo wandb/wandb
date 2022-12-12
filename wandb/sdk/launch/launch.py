@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+import wandb
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError, LaunchError
 
@@ -15,6 +16,7 @@ from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
+    LAUNCH_DEFAULT_PROJECT,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
@@ -33,6 +35,7 @@ def resolve_agent_config(
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
         "entity": api.default_entity,
+        "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
         "queues": ["default"],
         "api_key": api.api_key,
@@ -41,7 +44,7 @@ def resolve_agent_config(
         "build": {},
         "runner": {},
     }
-
+    user_set_project = False
     resolved_config: Dict[str, Any] = defaults
     if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         config = {}
@@ -51,9 +54,12 @@ def resolve_agent_config(
                 print(config)
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
+        if config.get("project") is not None:
+            user_set_project = True
         resolved_config.update(dict(config))
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
+        user_set_project = True
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
     if os.environ.get("WANDB_API_KEY") is not None:
@@ -67,6 +73,7 @@ def resolve_agent_config(
 
     if project is not None:
         resolved_config.update({"project": project})
+        user_set_project = True
     if entity is not None:
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
@@ -86,6 +93,11 @@ def resolve_agent_config(
             entity=resolved_config["entity"],
         )
         api = Api(default_settings=settings)
+
+    if user_set_project:
+        wandb.termwarn(
+            "Specifying a project for the launch agent will be deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
+        )
 
     return resolved_config, api
 

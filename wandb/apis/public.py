@@ -5511,6 +5511,7 @@ class Job:
         resource="local-container",
         resource_args=None,
         cuda=False,
+        project_queue=None,
     ):
         from wandb.sdk.launch import launch_add
 
@@ -5536,5 +5537,6 @@ class Job:
             resource=resource,
             resource_args=resource_args,
             cuda=cuda,
+            project_queue=project_queue,
         )
         return queued_run

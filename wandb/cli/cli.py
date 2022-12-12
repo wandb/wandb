@@ -1126,6 +1126,13 @@ def sweep(
     default=None,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
+# TODO: this is only included for back compat. But we should remove this in the future
+@click.option(
+    "--project-queue",
+    "-pq",
+    help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
+    default=None,
+)
 @display_error
 def launch(
     uri,
@@ -1145,6 +1152,7 @@ def launch(
     cuda,
     build,
     repository,
+    project_queue,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
@@ -1261,6 +1269,7 @@ def launch(
             build=build,
             run_id=run_id,
             repository=repository,
+            project_queue=project_queue,
         )
 
 

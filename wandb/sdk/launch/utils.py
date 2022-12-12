@@ -42,6 +42,7 @@ PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
+LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 
 _logger = logging.getLogger(__name__)
