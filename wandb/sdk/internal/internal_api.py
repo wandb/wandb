@@ -1220,7 +1220,7 @@ class Api:
                     "inputFields", [{}]
                 )
             ]
-            print(self.server_ack_run_queue_item_input_info)
+
         return self.server_ack_run_queue_item_input_info
 
     @normalize_exceptions
