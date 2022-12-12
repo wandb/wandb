@@ -44,7 +44,7 @@ def launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
-    project_queue: Optional[str] = None,
+    project_queue: str = LAUNCH_DEFAULT_PROJECT,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -187,9 +187,7 @@ def _launch_add(
 
     if queue_name is None:
         queue_name = "default"
-    if project_queue is None:
-        project_queue = LAUNCH_DEFAULT_PROJECT
-    print("PROJECT QUEUE", project_queue)
+
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue_name, launch_spec, project_queue)
 
