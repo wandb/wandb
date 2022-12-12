@@ -1082,10 +1082,13 @@ class Api:
 
     @normalize_exceptions
     def push_to_run_queue(
-        self, queue_name: str, launch_spec: Dict[str, str]
+        self,
+        queue_name: str,
+        launch_spec: Dict[str, str],
+        project_queue: str,
     ) -> Optional[Dict[str, Any]]:
         entity = launch_spec["entity"]
-        project = launch_spec["project"]
+        project = project_queue
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(

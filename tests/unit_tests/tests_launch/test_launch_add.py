@@ -228,7 +228,7 @@ def test_launch_build_push_job(
         assert job._source_info["source"]["image"] == release_image
 
 
-def test_launch_add_default(
+def test_launch_add_default_specify(
     relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
 ):
     proj = "test_project1"
@@ -241,6 +241,44 @@ def test_launch_add_default(
         "queue_name": "default",
         "entry_point": entry_point,
         "resource": "local-container",
+    }
+    settings = test_settings({"project": proj})
+
+    with relay_server() as relay:
+        run = wandb_init(settings=settings)
+        queued_run = launch_add(**args)
+        run.finish()
+
+    assert queued_run.id
+    assert queued_run.state == "pending"
+    assert queued_run.entity == args["entity"]
+    assert queued_run.project == args["project"]
+    assert queued_run.queue_name == args["queue_name"]
+
+    for comm in relay.context.raw_data:
+        q = comm["request"].get("query")
+        # below should fail for non-existent default queue,
+        # then fallback to legacy method
+        if q and "mutation pushToRunQueueByName(" in str(q):
+            assert comm["response"].get("data", {}).get("pushToRunQueueByName") is None
+        elif q and "mutation pushToRunQueue(" in str(q):
+            assert comm["response"]["data"]["pushToRunQueue"] is not None
+
+
+def test_launch_add_default_specify_project_queue(
+    relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
+):
+    proj = "test_project1"
+    uri = "https://github.com/FooBar/examples.git"
+    entry_point = ["python", "train.py"]
+    args = {
+        "uri": uri,
+        "project": proj,
+        "entity": user,
+        "queue_name": "default",
+        "entry_point": entry_point,
+        "resource": "local-container",
+        "project_queue": proj,
     }
     settings = test_settings({"project": proj})
 

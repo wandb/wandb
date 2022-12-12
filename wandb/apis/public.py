@@ -51,7 +51,7 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 
 if TYPE_CHECKING:
@@ -2270,6 +2270,7 @@ class QueuedRun:
         queue_name,
         run_queue_item_id,
         container_job=False,
+        project_queue=None,
     ):
         self.client = client
         self._entity = entity
@@ -2279,6 +2280,7 @@ class QueuedRun:
         self.sweep = None
         self._run = None
         self.container_job = container_job
+        self.project_queue = project_queue or LAUNCH_DEFAULT_PROJECT
 
     @property
     def queue_name(self):
