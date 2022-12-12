@@ -2277,7 +2277,7 @@ class QueuedRun:
         queue_name,
         run_queue_item_id,
         container_job=False,
-        project_queue=None,
+        project_queue=LAUNCH_DEFAULT_PROJECT,
     ):
         self.client = client
         self._entity = entity
@@ -2287,7 +2287,7 @@ class QueuedRun:
         self.sweep = None
         self._run = None
         self.container_job = container_job
-        self.project_queue = project_queue or LAUNCH_DEFAULT_PROJECT
+        self.project_queue = project_queue
 
     @property
     def queue_name(self):
