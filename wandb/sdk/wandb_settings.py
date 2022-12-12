@@ -396,6 +396,7 @@ class Settings:
     _os: str
     _platform: str
     _python: str
+    _ram_buffer: int
     _require_service: str
     _runqueue_item_id: str
     _save_requirements: bool
@@ -509,6 +510,7 @@ class Settings:
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _ram_buffer={"preprocessor": int},
             _flow_control={
                 "value": _FLOW_CONTROL_DEFAULT,
                 "preprocessor": _str_as_bool,

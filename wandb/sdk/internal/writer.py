@@ -1,7 +1,7 @@
 """Writer thread."""
 
 import logging
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Optional, Set, Callable
 
 from ..lib import tracelog, proto_util
 from . import context, datastore, flow_control
@@ -25,6 +25,7 @@ class WriteManager:
     _flow_control: Optional[flow_control.FlowControl]
     _sender_status_report: Optional["SenderStatusReportRequest"]
     _context_keeper: context.ContextKeeper
+    _sender_cancel_set: Set[str]
 
     def __init__(
         self,
@@ -39,6 +40,7 @@ class WriteManager:
         self._result_q = result_q
         self._sender_q = sender_q
         self._context_keeper = context_keeper
+        self._sender_cancel_set = set()
         self._ds = None
         self._flow_control = None
         # self._debug = False
@@ -88,6 +90,8 @@ class WriteManager:
         request = pb.Request()
         # last_write_offset = self._track_last_written_offset
         sender_read = pb.SenderReadRequest(start_offset=start, end_offset=end)
+        for cancel_id in self._sender_cancel_set:
+            sender_read.add_cancel_list(cancel_id)
         request.sender_read.CopyFrom(sender_read)
         record.request.CopyFrom(request)
         self._ensure_flushed(end)
@@ -141,7 +145,9 @@ class WriteManager:
 
     def write_request_cancel(self, record: "Record") -> None:
         cancel_id = record.request.cancel.cancel_slot
-        self._context_keeper.cancel(cancel_id)
+        cancelled = self._context_keeper.cancel(cancel_id)
+        if not cancelled:
+            self._sender_cancel_set.add(cancel_id)
 
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)

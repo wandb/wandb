@@ -64,10 +64,12 @@ class ContextKeeper:
             return
         _ = self._active_items.pop(context_id, None)
 
-    def cancel(self, context_id: str) -> None:
+    def cancel(self, context_id: str) -> bool:
         item = self.get(context_id)
         if item:
             item.cancel()
+            return True
+        return False
 
     def _debug_print_orphans(self) -> None:
         # TODO: add debug setting?

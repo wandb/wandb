@@ -128,9 +128,14 @@ class FlowControl:
         self._recover_records_cb = recover_records  # type: ignore
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
-        self._threshold_bytes_high = _threshold_bytes_high
-        self._threshold_bytes_mid = _threshold_bytes_mid
-        self._threshold_bytes_low = _threshold_bytes_low
+        if settings._ram_buffer:
+            self._threshold_bytes_high = settings._ram_buffer
+            self._threshold_bytes_mid = settings._ram_buffer // 2
+            self._threshold_bytes_low = settings._ram_buffer // 4
+        else:
+            self._threshold_bytes_high = _threshold_bytes_high
+            self._threshold_bytes_mid = _threshold_bytes_mid
+            self._threshold_bytes_low = _threshold_bytes_low
         # self._threshold_bytes_high = 1000
         # self._threshold_block_mid = 64  # 2MB
         # self._threshold_block_low = 16  # 512kB

@@ -29,6 +29,7 @@ class SettingsStatic:
     _jupyter_path: Optional[str]
     _jupyter_name: Optional[str]
     _jupyter_root: Optional[str]
+    _ram_buffer: Optional[int]
     _require_service: Optional[str]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
