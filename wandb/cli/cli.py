@@ -1275,12 +1275,12 @@ def launch(
             git_version,
             docker_image,
             args_dict,
+            project_queue,
             resource_args,
             cuda=cuda,
             build=build,
             run_id=run_id,
             repository=repository,
-            project_queue=project_queue,
         )
 
 
