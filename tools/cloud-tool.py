@@ -3,8 +3,12 @@ import logging
 import subprocess
 import sys
 from dataclasses import dataclass, fields
-from typing import Any, List, Literal
+from typing import Any, List
 
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
 
 Command = Literal["gke", "gce"]
 
@@ -256,9 +260,9 @@ class GCE:
             "sudo apt update; "
             "sudo apt install -y python3-pip; "
             "pip3 install --upgrade pip; "
-            "pip3 install --upgrade setuptools wheel; "
+            "pip3 install --upgrade wheel; "
             "pip3 install --upgrade wandb distributed; "
-            "wandb login; ",
+            # "wandb login; ",
         ]
         self.logger.print(" ".join(cmd))
         p = subprocess.run(cmd)
@@ -297,7 +301,7 @@ if __name__ == "__main__":
     )
 
     subparsers = parser.add_subparsers(
-        dest="target", title="target", description=f"target platform"
+        dest="target", title="target", description="target platform"
     )
 
     subparsers_store = {command: subparsers.add_parser(command) for command in commands}
