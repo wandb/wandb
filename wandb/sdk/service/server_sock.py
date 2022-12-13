@@ -104,11 +104,11 @@ class SockServerReadThread(threading.Thread):
                 break
             assert sreq, "read_server_request should never timeout"
             sreq_type = sreq.WhichOneof("server_request_type")
-            shandler_str = "server_" + sreq_type
+            shandler_str = "server_" + sreq_type  # type: ignore
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(  # type: ignore
                 self, shandler_str, None
             )
-            assert shandler, f"unknown handle: {shandler_str}"
+            assert shandler, f"unknown handle: {shandler_str}"  # type: ignore
             shandler(sreq)
 
     def stop(self) -> None:

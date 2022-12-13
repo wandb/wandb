@@ -234,7 +234,21 @@ patch_tf_keras()
 ### For gradient logging ###
 
 
-class _CustomOptimizer(tf.keras.optimizers.Optimizer):
+def _get_custom_optimizer_parent_class():
+    from pkg_resources import parse_version
+
+    if parse_version(tf.__version__) >= parse_version("2.9.0"):
+        custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
+    else:
+        custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
+
+    return custom_optimizer_parent_class
+
+
+_custom_optimizer_parent_class = _get_custom_optimizer_parent_class()
+
+
+class _CustomOptimizer(_custom_optimizer_parent_class):
     def __init__(self):
         super().__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
@@ -369,6 +383,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             processors where appropriate.
         log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
             Set to 1 to log every epoch, 2 to log every other epoch, and so on. Has no effect when log_evaluation is False.
+        compute_flops: (bool) Compute the FLOPs of your Keras Sequential or Functional model in GigaFLOPs unit.
     """
 
     def __init__(
@@ -398,6 +413,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        compute_flops=False,
         **kwargs,
     ):
         if wandb.run is None:
@@ -459,6 +475,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.class_colors = np.array(class_colors) if class_colors is not None else None
         self.log_batch_frequency = log_batch_frequency
         self.log_best_prefix = log_best_prefix
+        self.compute_flops = compute_flops
 
         self._prediction_batch_size = None
 
@@ -699,7 +716,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     f"Skipping logging validation data. Error: {str(e)}"
                 )
 
-        if _can_compute_flops():
+        if self.compute_flops and _can_compute_flops():
             try:
                 wandb.summary["GFLOPs"] = self.get_flops()
             except Exception as e:
@@ -1067,8 +1084,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         flops = tf.compat.v1.profiler.profile(
             graph=frozen_func.graph, run_meta=run_meta, cmd="scope", options=opts
         )
-
-        tf.compat.v1.reset_default_graph()
 
         # convert to GFLOPs
         return (flops.total_float_ops / 1e9) / 2

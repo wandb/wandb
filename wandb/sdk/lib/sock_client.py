@@ -165,11 +165,11 @@ class SockClient:
     def send_and_recv(
         self,
         *,
-        inform_init: spb.ServerInformInitRequest = None,
-        inform_start: spb.ServerInformStartRequest = None,
-        inform_attach: spb.ServerInformAttachRequest = None,
-        inform_finish: spb.ServerInformFinishRequest = None,
-        inform_teardown: spb.ServerInformTeardownRequest = None,
+        inform_init: Optional[spb.ServerInformInitRequest] = None,
+        inform_start: Optional[spb.ServerInformStartRequest] = None,
+        inform_attach: Optional[spb.ServerInformAttachRequest] = None,
+        inform_finish: Optional[spb.ServerInformFinishRequest] = None,
+        inform_teardown: Optional[spb.ServerInformTeardownRequest] = None,
     ) -> spb.ServerResponse:
         self.send(
             inform_init=inform_init,
@@ -189,11 +189,11 @@ class SockClient:
     def send(
         self,
         *,
-        inform_init: spb.ServerInformInitRequest = None,
-        inform_start: spb.ServerInformStartRequest = None,
-        inform_attach: spb.ServerInformAttachRequest = None,
-        inform_finish: spb.ServerInformFinishRequest = None,
-        inform_teardown: spb.ServerInformTeardownRequest = None,
+        inform_init: Optional[spb.ServerInformInitRequest] = None,
+        inform_start: Optional[spb.ServerInformStartRequest] = None,
+        inform_attach: Optional[spb.ServerInformAttachRequest] = None,
+        inform_finish: Optional[spb.ServerInformFinishRequest] = None,
+        inform_teardown: Optional[spb.ServerInformTeardownRequest] = None,
     ) -> None:
         server_req = spb.ServerRequest()
         if inform_init:
@@ -235,7 +235,7 @@ class SockClient:
                 return rec_data
         return None
 
-    def _read_packet_bytes(self, timeout: int = None) -> Optional[bytes]:
+    def _read_packet_bytes(self, timeout: Optional[int] = None) -> Optional[bytes]:
         """Read full message from socket.
 
         Args:
@@ -256,9 +256,9 @@ class SockClient:
             except socket.timeout:
                 break
             except ConnectionResetError:
-                raise SockClientClosedError()
+                raise SockClientClosedError
             except OSError:
-                raise SockClientClosedError()
+                raise SockClientClosedError
             finally:
                 if timeout:
                     self._sock.settimeout(None)
@@ -266,7 +266,7 @@ class SockClient:
             if data_len == 0:
                 # socket.recv() will return 0 bytes if socket was shutdown
                 # caller will handle this condition like other connection problems
-                raise SockClientClosedError()
+                raise SockClientClosedError
             self._buffer.put(data, data_len)
         return None
 
@@ -279,7 +279,9 @@ class SockClient:
         tracelog.log_message_recv(rec, self._sockid)
         return rec
 
-    def read_server_response(self, timeout: int = None) -> Optional[spb.ServerResponse]:
+    def read_server_response(
+        self, timeout: Optional[int] = None
+    ) -> Optional[spb.ServerResponse]:
         data = self._read_packet_bytes(timeout=timeout)
         if not data:
             return None

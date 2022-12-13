@@ -2,10 +2,14 @@ import base64
 import hashlib
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from typing import Mapping, Optional
 
 import numpy as np
 import pytest
+import requests
+import responses
 import wandb
 import wandb.data_types as data_types
 from wandb import util
@@ -136,7 +140,7 @@ def mock_http(artifact, path=False, headers=None):
     return mock
 
 
-def md5_string(string):
+def md5_string(string: str) -> util.B64MD5:
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")
@@ -222,6 +226,24 @@ def test_add_named_dir():
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
         "size": 5,
     }
+
+
+def test_multi_add():
+    artifact = wandb.Artifact(type="dataset", name="poly-art")
+    size = 2**27  # 128MB, large enough that it takes >1ms to add.
+    filename = "data.bin"
+    with open(filename, "wb") as f:
+        f.truncate(size)
+
+    # Add 8 copies simultaneously.
+    with ThreadPoolExecutor(max_workers=8) as e:
+        for _ in range(8):
+            e.submit(lambda: artifact.add_file(filename))
+
+    # There should be only one file in the artifact.
+    manifest = artifact.manifest.to_manifest_json()
+    assert len(manifest["contents"]) == 1
+    assert manifest["contents"][filename]["size"] == size
 
 
 def test_add_reference_local_file():
@@ -965,3 +987,78 @@ def test_interface_commit_hash():
     artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         artifact.commit_hash()
+
+
+@pytest.mark.parametrize(
+    "headers,expected_digest",
+    [
+        ({"ETag": "my-etag"}, "my-etag"),
+        # TODO(spencerpearson): I think this test is wrong:
+        # if no etag is provided, shouldn't we hash the response body, not simply use the URL?
+        (None, "https://example.com/foo.json?bar=abc"),
+    ],
+)
+def test_http_storage_handler_uses_etag_for_digest(
+    headers: Optional[Mapping[str, str]], expected_digest: Optional[str]
+):
+    with responses.RequestsMock() as rsps, requests.Session() as session:
+        rsps.add(
+            "GET",
+            "https://example.com/foo.json?bar=abc",
+            json={"result": 1},
+            headers=headers,
+        )
+        handler = wandb.wandb_sdk.wandb_artifacts.HTTPHandler(session)
+
+        art = wandb.Artifact("test", type="dataset")
+        [entry] = handler.store_path(
+            art, "https://example.com/foo.json?bar=abc", "foo.json"
+        )
+        assert entry.path == "foo.json"
+        assert entry.ref == "https://example.com/foo.json?bar=abc"
+        assert entry.digest == expected_digest
+
+
+def test_s3_storage_handler_load_path_uses_cache(tmp_path):
+    uri = "s3://some-bucket/path/to/file.json"
+    etag = "some etag"
+
+    cache = wandb.wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
+    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
+    with opener() as f:
+        f.write(123 * "a")
+
+    handler = wandb.wandb_sdk.wandb_artifacts.S3Handler()
+    handler._cache = cache
+
+    local_path = handler.load_path(
+        wandb.Artifact("test", type="dataset"),
+        wandb.wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=etag,
+            size=123,
+        ),
+        local=True,
+    )
+    assert local_path == path
+
+
+def test_tracking_storage_handler():
+    art = wandb.wandb_sdk.wandb_artifacts.Artifact("test", "dataset")
+    handler = wandb.wandb_sdk.wandb_artifacts.TrackingHandler()
+    [entry] = handler.store_path(art, path="/path/to/file.txt", name="some-file")
+    assert entry.path == "some-file"
+    assert entry.ref == "/path/to/file.txt"
+    assert entry.digest == entry.ref
+
+    # TODO(spencerpearson): THIS TEST IS BROKEN. I'm pretty sure.
+    # I'm commenting it out rather than fixing it because this commit should be a no-op.
+    #
+    # Empirically, this test fails with:
+    #   AssertionError: assert 'some-file' == '/path/to/file.txt'
+    # But 'some-file' started out as a `name`, i.e. a util.LogicalFilePathStr,
+    # representing the location of the file *within the artifact*
+    # rather than *on the filesystem*.
+    #
+    # assert handler.load_path(art, entry) == "/path/to/file.txt"

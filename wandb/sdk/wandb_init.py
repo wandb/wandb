@@ -504,7 +504,7 @@ class _WandbInit:
         )
         return drun
 
-    def _on_init_progress(self, handle: MailboxHandle) -> None:
+    def _on_progress_init(self, handle: MailboxHandle) -> None:
         assert self.printer
         line = "Waiting for wandb.init()...\r"
         percent_done = handle.percent_done
@@ -666,6 +666,7 @@ class _WandbInit:
 
         backend._hack_set_run(run)
         assert backend.interface
+        mailbox.enable_keepalive()
         backend.interface.publish_header()
 
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
@@ -694,7 +695,7 @@ class _WandbInit:
             )
             handle = backend.interface.deliver_run(run)
             result = handle.wait(
-                timeout=self.settings.init_timeout, on_progress=self._on_init_progress
+                timeout=self.settings.init_timeout, on_progress=self._on_progress_init
             )
             if result:
                 run_result = result.run_result
@@ -834,6 +835,7 @@ def _attach(
     backend._hack_set_run(run)
     assert backend.interface
 
+    mailbox.enable_keepalive()
     resp = backend.interface.communicate_attach(attach_id)
     if not resp:
         raise UsageError("problem")
@@ -850,12 +852,12 @@ def init(
     config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
-    reinit: bool = None,
+    reinit: Optional[bool] = None,
     tags: Optional[Sequence] = None,
     group: Optional[str] = None,
     name: Optional[str] = None,
     notes: Optional[str] = None,
-    magic: Union[dict, str, bool] = None,
+    magic: Optional[Union[dict, str, bool]] = None,
     config_exclude_keys=None,
     config_include_keys=None,
     anonymous: Optional[str] = None,
@@ -1105,7 +1107,6 @@ def init(
         # mess with sentry's ability to send out errors before the program ends.
         sentry_exc(e, delay=True)
         # reraise(*sys.exc_info())
-        # six.raise_from(Exception("problem"), e)
     finally:
         if error_seen:
             wandb.termerror("Abnormal program exit")

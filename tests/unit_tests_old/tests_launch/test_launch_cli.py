@@ -29,32 +29,6 @@ def kill_agent_on_update_job(monkeypatch):
     )
 
 
-def test_launch_add_default(runner, test_settings, live_mock_server):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--project=test_project",
-        "--entity=mock_server_entity",
-        "--queue=default",
-    ]
-    result = runner.invoke(cli.launch, args)
-    assert result.exit_code == 0
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-
-
-def test_launch_add_config_file(runner, test_settings, live_mock_server):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--project=test_project",
-        "--entity=mock_server_entity",
-        "--queue=default",
-    ]
-    result = runner.invoke(cli.launch, args)
-    assert result.exit_code == 0
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-
-
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.flaky
@@ -465,21 +439,6 @@ def test_launch_agent_launch_error_continue(
         )
         assert "blah blah" in result.output
         assert "except caught, acked item" in result.output
-
-
-def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--entity",
-        "mock_server_entity",
-        "--queue",
-    ]
-    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
-    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli.launch, args)
-
-        assert "Could not connect with current API-key." in result.output
 
 
 def test_launch_name_run_id_environment_variable(

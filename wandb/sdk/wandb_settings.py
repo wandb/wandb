@@ -380,6 +380,7 @@ class Settings:
     _kaggle: bool
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
+    _log_level: int
     _noop: bool
     _offline: bool
     _os: str
@@ -394,6 +395,7 @@ class Settings:
     _stats_pid: int  # (internal) base pid for system stats
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
+    _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -470,6 +472,7 @@ class Settings:
     start_method: str
     strict: bool
     summary_errors: int
+    summary_timeout: int
     summary_warnings: int
     sweep_id: str
     sweep_param_path: str
@@ -519,8 +522,9 @@ class Settings:
             },
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
-            _stats_sample_rate_seconds={"value": 2.0},
+            _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
+            _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -559,7 +563,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            init_timeout={"value": 30, "preprocessor": lambda x: int(x)},
+            init_timeout={"value": 60, "preprocessor": lambda x: int(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -635,6 +639,7 @@ class Settings:
             silent={"value": "False", "preprocessor": _str_as_bool},
             start_method={"validator": self._validate_start_method},
             strict={"preprocessor": _str_as_bool},
+            summary_timeout={"value": 60, "preprocessor": lambda x: int(x)},
             summary_warnings={
                 "value": 5,
                 "preprocessor": lambda x: int(x),
@@ -1003,7 +1008,7 @@ class Settings:
         self.__unexpected_args: Set[str] = set()
 
         # Set default settings values
-        # We start off with the class attributes and `default_props`' dicts
+        # We start off with the class attributes and `default_props` dicts
         # and then create Property objects.
         # Once initialized, attributes are to only be updated using the `update` method
         default_props = self._default_props()
@@ -1216,7 +1221,7 @@ class Settings:
     def items(self) -> ItemsView[str, Any]:
         return self.make_static().items()
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.make_static().get(key, default)
 
     def freeze(self) -> None:
@@ -1391,7 +1396,12 @@ class Settings:
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
 
-        settings["_executable"] = sys.executable
+        # one special case here is running inside a PEX environment,
+        # see https://pex.readthedocs.io/en/latest/index.html for more info about PEX
+        _executable = self._executable or os.environ.get("PEX") or sys.executable
+        if _executable is None or _executable == "":
+            _executable = "python3"
+        settings["_executable"] = _executable
 
         settings["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
 

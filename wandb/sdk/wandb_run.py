@@ -33,12 +33,17 @@ from typing import (
 import requests
 
 import wandb
-from wandb import errors, trigger
+from wandb import errors, trigger, util
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
+from wandb.proto.wandb_internal_pb2 import (
+    MetricRecord,
+    PollExitResponse,
+    RunRecord,
+    ServerInfoResponse,
+)
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -74,6 +79,7 @@ from .lib import (
 from .lib.exit_hooks import ExitHooks
 from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
+from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
@@ -393,7 +399,9 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
+    _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
+    _server_info_response: Optional[ServerInfoResponse]
 
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
@@ -409,6 +417,7 @@ class Run:
     _settings: Settings
 
     _launch_artifacts: Optional[Dict[str, Any]]
+    _printer: Union["PrinterTerm", "PrinterJupyter"]
 
     def __init__(
         self,
@@ -496,6 +505,8 @@ class Run:
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
+        self._server_info_response = None
+        self._poll_exit_handle = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -710,7 +721,7 @@ class Run:
             self._torch_history = wandb.wandb_torch.TorchHistory()
         return self._torch_history
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
@@ -718,24 +729,24 @@ class Run:
         cp.freeze()
         return cp
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
@@ -757,7 +768,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
@@ -777,7 +788,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
@@ -796,7 +807,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def id(self) -> str:
         """Returns the identifier for this run."""
@@ -804,7 +815,7 @@ class Run:
             assert self._run_id is not None
         return self._run_id
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
@@ -818,7 +829,7 @@ class Run:
         ]
         return "/".join(parts)
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def path(self) -> str:
         """Returns the path to the run.
@@ -835,7 +846,7 @@ class Run:
             else (self._run_obj.start_time.ToMicroseconds() / 1e6)
         )
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
@@ -844,19 +855,19 @@ class Run:
     def _get_starting_step(self) -> int:
         return self._starting_step if not self._run_obj else self._run_obj.starting_step
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
         return self._get_starting_step()
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
         return self._run_obj.resumed if self._run_obj else False
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def step(self) -> int:
         """Returns the current value of the step.
@@ -869,7 +880,7 @@ class Run:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.project if run_obj else ""
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
@@ -882,12 +893,12 @@ class Run:
         )
         return "dryrun" if self._settings._offline else "run"
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def offline(self) -> bool:
         return self._settings._offline
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def disabled(self) -> bool:
         return self._settings._noop
@@ -896,7 +907,7 @@ class Run:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.run_group if run_obj else ""
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
@@ -910,13 +921,13 @@ class Run:
         """
         return self._get_group()
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
@@ -926,7 +937,7 @@ class Run:
     def log_code(
         self,
         root: str = ".",
-        name: str = None,
+        name: Optional[str] = None,
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
@@ -1014,13 +1025,13 @@ class Run:
             return None
         return self._settings.sweep_url
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def url(self) -> Optional[str]:
         """Returns the W&B url associated with the run."""
         return self.get_url()
 
-    @property  # type: ignore
+    @property
     @_run_decorator._attach
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
@@ -1030,7 +1041,10 @@ class Run:
         return self._entity or ""
 
     def _label_internal(
-        self, code: str = None, repo: str = None, code_version: str = None
+        self,
+        code: Optional[str] = None,
+        repo: Optional[str] = None,
+        code_version: Optional[str] = None,
     ) -> None:
         with telemetry.context(run=self) as tel:
             if code and RE_LABEL.match(code):
@@ -1042,9 +1056,9 @@ class Run:
 
     def _label(
         self,
-        code: str = None,
-        repo: str = None,
-        code_version: str = None,
+        code: Optional[str] = None,
+        repo: Optional[str] = None,
+        code_version: Optional[str] = None,
         **kwargs: str,
     ) -> None:
         if self._settings.label_disable:
@@ -1136,15 +1150,15 @@ class Run:
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
     def _repr_mimebundle_(
-        self, include: Any = None, exclude: Any = None
+        self, include: Optional[Any] = None, exclude: Optional[Any] = None
     ) -> Dict[str, str]:
         return {"text/html": self.to_html(hidden=True)}
 
     def _config_callback(
         self,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
-        data: Dict[str, object] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
+        data: Optional[Dict[str, object]] = None,
     ) -> None:
         logger.info(f"config_cb {key} {val} {data}")
         if self._backend and self._backend.interface:
@@ -1194,13 +1208,24 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
+    def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
+        pass
+        # TODO(jhr): enable printing for get_summary in later mailbox dev phase
+        # line = "Waiting for run.summary data..."
+        # self._printer.display(line)
+
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
         if not self._backend or not self._backend.interface:
             return {}
-        ret = self._backend.interface.communicate_get_summary()
-        if not ret:
+        handle = self._backend.interface.deliver_get_summary()
+        result = handle.wait(
+            timeout=self._settings.summary_timeout,
+            on_progress=self._on_progress_get_summary,
+        )
+        if not result:
             return {}
-        return proto_util.dict_from_proto_list(ret.item)
+        get_summary_response = result.response.get_summary_response
+        return proto_util.dict_from_proto_list(get_summary_response.item)
 
     def _metric_callback(self, metric_record: MetricRecord) -> None:
         if self._backend and self._backend.interface:
@@ -1704,7 +1729,9 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
+    def finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
@@ -1716,7 +1743,9 @@ class Run:
         """
         return self._finish(exit_code, quiet)
 
-    def _finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
+    def _finish(
+        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+    ) -> None:
         if quiet is not None:
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
@@ -1744,7 +1773,7 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def join(self, exit_code: int = None) -> None:
+    def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
             field_name=deprecate.Deprecated.run__join,
@@ -1765,7 +1794,6 @@ class Run:
 
         Arguments:
             vega_spec_name: the name of the spec for the plot
-            table_key: the key used to log the data table
             data_table: a wandb.Table object containing the data to
                 be used on the visualization
             fields: a dict mapping from table keys to fields that the custom
@@ -1803,7 +1831,7 @@ class Run:
         self,
         stdout_slave_fd: Optional[int],
         stderr_slave_fd: Optional[int],
-        console: SettingsConsole = None,
+        console: Optional[SettingsConsole] = None,
     ) -> None:
         if console is None:
             console = self._settings._console
@@ -1915,7 +1943,7 @@ class Run:
             self._err_redir.uninstall()
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code: int = None) -> None:
+    def _atexit_cleanup(self, exit_code: Optional[int] = None) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return
@@ -2046,6 +2074,17 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+    def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
+        import pkg_resources
+
+        installed_packages_list = sorted(
+            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
+        )
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
+        return installed_packages_list, input_types, output_types
+
     def _log_job(self) -> None:
         # don't produce a job if the run is sourced from a job
         if (
@@ -2053,25 +2092,25 @@ class Run:
             is not None
         ):
             return
+
         artifact = None
-        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
-        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
-
-        import pkg_resources
-
-        installed_packages_list = sorted(
-            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
-        )
+        (
+            installed_packages_list,
+            input_types,
+            output_types,
+        ) = self._make_job_source_reqs()
 
         for job_creation_function in [
             self._create_repo_job,
             self._create_artifact_job,
             self._create_image_job,
         ]:
-            artifact = job_creation_function(
+            artifact = job_creation_function(  # type: ignore
                 input_types, output_types, installed_packages_list
             )
+
             if artifact:
+                self.use_artifact(artifact)
                 logger.info(f"Created job using {job_creation_function.__name__}")
                 break
             else:
@@ -2101,7 +2140,7 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         """Create a job version artifact from a repo."""
         has_repo = self._remote_url is not None and self._commit is not None
         program_relpath = self._settings.program_relpath
@@ -2136,15 +2175,14 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list, patch_path
         )
-        artifact = self.log_artifact(job_artifact)
-        return artifact
+        return job_artifact
 
     def _create_artifact_job(
         self,
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-    ) -> "Optional[Artifact]":
+    ) -> Optional["Artifact"]:
         if (
             self._code_artifact_info is None
             or self._run_obj is None
@@ -2172,18 +2210,20 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
-        artifact = self.log_artifact(job_artifact)
-        return artifact
+        return job_artifact
 
     def _create_image_job(
         self,
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-    ) -> "Optional[Artifact]":
-        docker_image_name = os.getenv("WANDB_DOCKER")
-        if docker_image_name is None:
+        docker_image_name: Optional[str] = None,
+    ) -> Optional["Artifact"]:
+        docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
+
+        if not docker_image_name:
             return None
+
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
 
         source_info: JobSourceDict = {
@@ -2197,8 +2237,43 @@ class Run:
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
+
+        return job_artifact
+
+    def _log_job_artifact_with_image(self, docker_image_name: str) -> Artifact:
+        packages, in_types, out_types = self._make_job_source_reqs()
+        job_artifact = self._create_image_job(
+            in_types, out_types, packages, docker_image_name
+        )
+
         artifact = self.log_artifact(job_artifact)
-        return artifact
+
+        if not artifact:
+            raise wandb.Error(f"Job Artifact log unsuccessful: {artifact}")
+        else:
+            return artifact
+
+    def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
+        handle = probe_handle.get_mailbox_handle()
+        if handle:
+            result = handle.wait(timeout=0)
+            if not result:
+                return
+            probe_handle.set_probe_result(result)
+        assert self._backend and self._backend.interface
+        handle = self._backend.interface.deliver_poll_exit()
+        probe_handle.set_mailbox_handle(handle)
+
+    def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
+        probe_handles = progress_handle.get_probe_handles()
+        assert probe_handles and len(probe_handles) == 1
+
+        result = probe_handles[0].get_probe_result()
+        if not result:
+            return
+        self._footer_file_pusher_status_info(
+            result.response.poll_exit_response, printer=self._printer
+        )
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -2211,32 +2286,40 @@ class Run:
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
-        if self._backend and self._backend.interface:
-            # TODO: we need to handle catastrophic failure better
-            # some tests were timing out on sending exit for reasons not clear to me
-            self._backend.interface.publish_exit(self._exit_code)
+        assert self._backend and self._backend.interface
+        exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        exit_handle.add_probe(on_probe=self._on_probe_exit)
 
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        while not (self._poll_exit_response and self._poll_exit_response.done):
-            if self._backend and self._backend.interface:
-                self._poll_exit_response = (
-                    self._backend.interface.communicate_poll_exit()
-                )
-                logger.info(f"got exit ret: {self._poll_exit_response}")
-                self._footer_file_pusher_status_info(
-                    self._poll_exit_response,
-                    printer=self._printer,
-                )
-            time.sleep(0.1)
+        _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
-        if self._backend and self._backend.interface:
-            self._sampled_history = (
-                self._backend.interface.communicate_sampled_history()
-            )
-            self._final_summary = self._backend.interface.communicate_get_summary()
+        # dispatch all our final requests
+        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        server_info_handle = self._backend.interface.deliver_request_server_info()
+        final_summary_handle = self._backend.interface.deliver_get_summary()
+        sampled_history_handle = (
+            self._backend.interface.deliver_request_sampled_history()
+        )
+
+        # wait for them, its ok to do this serially but this can be improved
+        result = poll_exit_handle.wait(timeout=-1)
+        assert result
+        self._poll_exit_response = result.response.poll_exit_response
+
+        result = server_info_handle.wait(timeout=-1)
+        assert result
+        self._server_info_response = result.response.server_info_response
+
+        result = sampled_history_handle.wait(timeout=-1)
+        assert result
+        self._sampled_history = result.response.sampled_history_response
+
+        result = final_summary_handle.wait(timeout=-1)
+        assert result
+        self._final_summary = result.response.get_summary_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2257,6 +2340,7 @@ class Run:
             self._sampled_history,
             self._final_summary,
             self._poll_exit_response,
+            self._server_info_response,
             self._check_version,
             self._reporter,
             self._quiet,
@@ -2269,11 +2353,11 @@ class Run:
         self,
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
-        step_sync: bool = None,
-        hidden: bool = None,
-        summary: str = None,
-        goal: str = None,
-        overwrite: bool = None,
+        step_sync: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+        summary: Optional[str] = None,
+        goal: Optional[str] = None,
+        overwrite: Optional[bool] = None,
         **kwargs: Any,
     ) -> wandb_metric.Metric:
         """Define metric properties which will later be logged with `wandb.log()`.
@@ -2303,11 +2387,11 @@ class Run:
         self,
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
-        step_sync: bool = None,
-        hidden: bool = None,
-        summary: str = None,
-        goal: str = None,
-        overwrite: bool = None,
+        step_sync: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+        summary: Optional[str] = None,
+        goal: Optional[str] = None,
+        overwrite: Optional[bool] = None,
         **kwargs: Any,
     ) -> wandb_metric.Metric:
         if not name:
@@ -2856,7 +2940,7 @@ class Run:
         self,
         title: str,
         text: str,
-        level: Union[str, "AlertLevel"] = None,
+        level: Optional[Union[str, "AlertLevel"]] = None,
         wait_duration: Union[int, float, timedelta, None] = None,
     ) -> None:
         """Launch an alert with the given title and text.
@@ -3056,6 +3140,7 @@ class Run:
         sampled_history: Optional["SampledHistoryResponse"] = None,
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
+        server_info_response: Optional[ServerInfoResponse] = None,
         check_version: Optional["CheckVersionResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
@@ -3072,7 +3157,7 @@ class Run:
         )
 
         Run._footer_sync_info(
-            pool_exit_response=poll_exit_response,
+            poll_exit_response=poll_exit_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3082,7 +3167,7 @@ class Run:
             check_version=check_version, quiet=quiet, settings=settings, printer=printer
         )
         Run._footer_local_warn(
-            poll_exit_response=poll_exit_response,
+            server_info_response=server_info_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3091,7 +3176,7 @@ class Run:
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
         )
         Run._footer_server_messages(
-            poll_exit_response=poll_exit_response,
+            server_info_response=server_info_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3122,7 +3207,7 @@ class Run:
     @staticmethod
     def _footer_file_pusher_status_info(
         poll_exit_responses: Optional[
-            Union[PollExitResponse, Dict[str, Optional[PollExitResponse]]]
+            Union[PollExitResponse, List[Optional[PollExitResponse]]]
         ] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
@@ -3133,10 +3218,8 @@ class Run:
             Run._footer_single_run_file_pusher_status_info(
                 poll_exit_responses, printer=printer
             )
-        elif isinstance(poll_exit_responses, dict):
-            poll_exit_responses_list = [
-                response for response in poll_exit_responses.values()
-            ]
+        elif isinstance(poll_exit_responses, list):
+            poll_exit_responses_list = poll_exit_responses
             assert all(
                 response is None or isinstance(response, PollExitResponse)
                 for response in poll_exit_responses_list
@@ -3154,7 +3237,7 @@ class Run:
         else:
             raise ValueError(
                 f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
-                "Expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+                "Expected either None, PollExitResponse or a List[Union[PollExitResponse, None]]"
             )
 
     @staticmethod
@@ -3250,7 +3333,7 @@ class Run:
 
     @staticmethod
     def _footer_sync_info(
-        pool_exit_response: Optional[PollExitResponse] = None,
+        poll_exit_response: Optional[PollExitResponse] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3276,10 +3359,10 @@ class Run:
                 info = [
                     f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
                 ]
-            if pool_exit_response and pool_exit_response.file_counts:
+            if poll_exit_response and poll_exit_response.file_counts:
 
                 logger.info("logging synced files")
-                file_counts = pool_exit_response.file_counts
+                file_counts = poll_exit_response.file_counts
                 info.append(
                     f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
                     f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
@@ -3379,7 +3462,7 @@ class Run:
 
     @staticmethod
     def _footer_local_warn(
-        poll_exit_response: Optional[PollExitResponse] = None,
+        server_info_response: Optional[ServerInfoResponse] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3392,11 +3475,11 @@ class Run:
         if settings._offline:
             return
 
-        if not poll_exit_response or not poll_exit_response.local_info:
+        if not server_info_response or not server_info_response.local_info:
             return
 
         if settings.is_local:
-            local_info = poll_exit_response.local_info
+            local_info = server_info_response.local_info
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
@@ -3408,7 +3491,7 @@ class Run:
 
     @staticmethod
     def _footer_server_messages(
-        poll_exit_response: Optional[PollExitResponse] = None,
+        server_info_response: Optional[ServerInfoResponse] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3421,8 +3504,8 @@ class Run:
         if settings.disable_hints:
             return
 
-        if poll_exit_response and poll_exit_response.server_messages:
-            for message in poll_exit_response.server_messages.item:
+        if server_info_response and server_info_response.server_messages:
+            for message in server_info_response.server_messages.item:
                 printer.display(
                     message.html_text if printer._html else message.utf_text,
                     default_text=message.plain_text,
@@ -3555,7 +3638,7 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int = None, quiet: bool = None) -> None:
+def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
     """Marks a run as finished, and finishes uploading all data.
 
     This is used when creating multiple runs in the same process.
@@ -3718,7 +3801,9 @@ class _LazyArtifact(ArtifactInterface):
     def get(self, name: str) -> "WBValue":
         return self._assert_instance().get(name)
 
-    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> util.FilePathStr:
         return self._assert_instance().download(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:
