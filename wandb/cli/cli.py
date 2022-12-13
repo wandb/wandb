@@ -32,7 +32,11 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    check_logged_in,
+    construct_launch_spec,
+)
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
 
@@ -697,6 +701,11 @@ def sync(
     default=None,
     help="Set sweep name",
 )
+@click.option(
+    "--project_queue",
+    default=LAUNCH_DEFAULT_PROJECT,
+    help="Set sweep name",
+)
 @click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
@@ -716,6 +725,7 @@ def sweep(
     resume,
     config_yaml_or_sweep_id,
     queue,
+    project_queue,
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -898,6 +908,7 @@ def sweep(
         _launch_scheduler_spec = json.dumps(
             {
                 "queue": queue or launch_config.get("queue", "default"),
+                "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
                         "placeholder-uri-scheduler",  # uri

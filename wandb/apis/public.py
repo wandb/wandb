@@ -5544,8 +5544,8 @@ class Job:
             entity=entity or self._entity,
             queue=queue,
             resource=resource,
+            project_queue=project_queue,
             resource_args=resource_args,
             cuda=cuda,
-            project_queue=project_queue,
         )
         return queued_run

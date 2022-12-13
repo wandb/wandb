@@ -39,12 +39,12 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
+    project_queue: Optional[str] = LAUNCH_DEFAULT_PROJECT,
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
-    project_queue: str = LAUNCH_DEFAULT_PROJECT,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -111,12 +111,12 @@ def launch_add(
         version,
         docker_image,
         params,
+        project_queue,
         resource_args,
         cuda,
         run_id=run_id,
         build=build,
         repository=repository,
-        project_queue=project_queue,
     )
 
 
@@ -134,12 +134,12 @@ def _launch_add(
     version: Optional[str],
     docker_image: Optional[str],
     params: Optional[Dict[str, Any]],
+    project_queue: str,
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
-    project_queue: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -193,7 +193,7 @@ def _launch_add(
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+    wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     container_job = False

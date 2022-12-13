@@ -308,6 +308,7 @@ def test_launch_add_default_specify_project_queue(
     assert queued_run.entity == args["entity"]
     assert queued_run.project == args["project"]
     assert queued_run.queue_name == args["queue_name"]
+    assert queued_run.project_queue == proj
 
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
