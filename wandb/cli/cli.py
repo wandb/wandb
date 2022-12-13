@@ -1130,8 +1130,8 @@ def sweep(
 @click.option(
     "--project-queue",
     "-pq",
-    help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
     default=None,
+    help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
 )
 @display_error
 def launch(
