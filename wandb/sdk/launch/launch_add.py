@@ -39,7 +39,7 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
-    project_queue: Optional[str] = LAUNCH_DEFAULT_PROJECT,
+    project_queue: str = LAUNCH_DEFAULT_PROJECT,
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
