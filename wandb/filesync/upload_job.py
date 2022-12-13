@@ -86,7 +86,7 @@ class UploadJob(threading.Thread):
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
                 if hasattr(e, "response"):
-                    message = e.response.content  # type: ignore[attr-defined]
+                    message = e.response.content
                 wandb.termerror(
                     'Error uploading "{}": {}, {}'.format(
                         self.save_path, type(e).__name__, message

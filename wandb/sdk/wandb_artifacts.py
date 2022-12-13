@@ -48,6 +48,7 @@ from .interface.artifacts import (  # noqa: F401
     StoragePolicy,
     b64_string_to_hex,
     get_artifacts_cache,
+    get_new_staging_file,
     md5_file_b64,
     md5_string,
 )
@@ -584,7 +585,9 @@ class Artifact(ArtifactInterface):
             "Cannot call get on an artifact before it has been logged or in offline mode"
         )
 
-    def download(self, root: str = None, recursive: bool = False) -> util.FilePathStr:
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> util.FilePathStr:
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 
@@ -728,17 +731,16 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
-        if not hit:
-            with cache_open() as f:
-                shutil.copyfile(path, f.name)
+        with get_new_staging_file() as f:
+            staging_path = f.name
+            shutil.copyfile(path, staging_path)
 
         entry = ArtifactManifestEntry(
-            name,
-            None,
+            path=name,
+            ref=None,
             digest=digest,
             size=size,
-            local_path=cache_path,
+            local_path=staging_path,
         )
 
         self._manifest.add_entry(entry)
@@ -843,7 +845,7 @@ class ArtifactManifestEntry(ArtifactEntry):
         digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag],
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
-        extra: Dict = None,
+        extra: Optional[Dict] = None,
         local_path: Optional[str] = None,
     ):
         if local_path is not None and size is None:
@@ -883,7 +885,7 @@ class WandbStoragePolicy(StoragePolicy):
     def from_config(cls, config: Dict) -> "WandbStoragePolicy":
         return cls(config=config)
 
-    def __init__(self, config: Dict = None) -> None:
+    def __init__(self, config: Optional[Dict] = None) -> None:
         self._cache = get_artifacts_cache()
         self._config = config or {}
         self._session = requests.Session()
@@ -997,15 +999,12 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
-        # write-through cache
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
-            entry.size if entry.size is not None else 0,
-        )
-        if not hit and entry.local_path is not None:
-            with cache_open() as f:
-                shutil.copyfile(entry.local_path, f.name)
-            entry.local_path = cache_path
+        """Upload a file to the artifact store.
+
+        Returns:
+            True if the file was a duplicate (did not need to be uploaded),
+            False if it needed to be uploaded or was a reference (nothing to dedupe).
+        """
 
         def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
             return {
@@ -1018,22 +1017,33 @@ class WandbStoragePolicy(StoragePolicy):
         resp = preparer.prepare(_prepare_fn)
 
         entry.birth_artifact_id = resp.birth_artifact_id
-        exists = resp.upload_url is None
-        if not exists:
-            if entry.local_path is not None:
-                with open(entry.local_path, "rb") as file:
-                    # This fails if we don't send the first byte before the signed URL
-                    # expires.
-                    self._api.upload_file_retry(
-                        resp.upload_url,
-                        file,
-                        progress_callback,
-                        extra_headers={
-                            header.split(":", 1)[0]: header.split(":", 1)[1]
-                            for header in (resp.upload_headers or {})
-                        },
-                    )
-        return exists
+        if resp.upload_url is None:
+            return True
+        if entry.local_path is None:
+            return False
+
+        with open(entry.local_path, "rb") as file:
+            # This fails if we don't send the first byte before the signed URL expires.
+            self._api.upload_file_retry(
+                resp.upload_url,
+                file,
+                progress_callback,
+                extra_headers={
+                    header.split(":", 1)[0]: header.split(":", 1)[1]
+                    for header in (resp.upload_headers or {})
+                },
+            )
+
+        # Cache upon successful upload.
+        _, hit, cache_open = self._cache.check_md5_obj_path(
+            util.B64MD5(entry.digest),
+            entry.size if entry.size is not None else 0,
+        )
+        if not hit:
+            with cache_open() as f:
+                shutil.copyfile(entry.local_path, f.name)
+
+        return False
 
 
 # Don't use this yet!
@@ -1102,7 +1112,7 @@ class MultiHandler(StorageHandler):
 
     @property
     def scheme(self) -> str:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def load_path(
         self,
@@ -1529,7 +1539,7 @@ class S3Handler(StorageHandler):
         self,
         obj: "boto3.s3.Object",
         path: str,
-        name: str = None,
+        name: Optional[str] = None,
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
