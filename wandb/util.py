@@ -8,6 +8,7 @@ import functools
 import gzip
 import hashlib
 import importlib
+import importlib.util
 import json
 import logging
 import math
@@ -331,16 +332,47 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def get_module(name: str, required: Optional[Union[str, bool]] = None) -> Any:
+def import_module_lazy(name: str) -> Any:
+    """
+    Import a module lazily, only when it is used.
+
+    :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
+    """
+    try:
+        return sys.modules[name]
+    except KeyError:
+        module_spec = importlib.util.find_spec(name)
+        if not module_spec:
+            raise ModuleNotFoundError
+
+        module = importlib.util.module_from_spec(module_spec)
+        sys.modules[name] = module
+
+        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
+        lazy_loader.exec_module(module)
+
+        return module
+
+
+def get_module(
+    name: str,
+    required: Optional[Union[str, bool]] = None,
+    lazy: bool = True,
+) -> Any:
     """
     Return module or None. Absolute import is required.
+
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     :param (str) required: A string to raise a ValueError if missing
+    :param (bool) lazy: If True, return a lazy loader for the module.
     :return: (module|None) If import succeeds, the module will be returned.
     """
     if name not in _not_importable:
         try:
-            return import_module(name)
+            if not lazy:
+                return import_module(name)
+            else:
+                return import_module_lazy(name)
         except Exception:
             _not_importable.add(name)
             msg = f"Error importing optional module {name}"
