@@ -747,39 +747,6 @@ def test_launch_agent_instance(test_settings, live_mock_server):
     assert get_agent_response["name"] == "test_agent"
 
 
-@pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
-@pytest.mark.timeout(240)
-def test_launch_agent_different_project_in_spec(
-    test_settings,
-    live_mock_server,
-    mocked_fetchable_git_repo,
-    monkeypatch,
-    # mock_load_backend_agent,
-    capsys,
-):
-    live_mock_server.set_ctx({"invalid_launch_spec_project": True})
-    monkeypatch.setattr(
-        wandb.sdk.launch.agent.LaunchAgent,
-        "pop_from_queue",
-        lambda c, queue: patched_pop_from_queue(c, queue),
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    config = {
-        "entity": "mock_server_entity",
-        "project": "test_project",
-    }
-    launch.create_and_run_agent(api, config)
-    _, err = capsys.readouterr()
-
-    assert (
-        "Launch agents only support sending runs to their own project and entity. This run will be sent to mock_server_entity/test_project"
-        in err
-    )
-
-
 def test_agent_queues_notfound(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
