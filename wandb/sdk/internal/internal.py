@@ -156,7 +156,7 @@ def wandb_internal(
     for thread in threads:
         thread.join()
 
-    def close_internal_log():
+    def close_internal_log() -> None:
         root = logging.getLogger("wandb")
         for _handler in root.handlers[:]:
             _handler.close()
