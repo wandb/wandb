@@ -48,6 +48,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
+from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
@@ -2199,8 +2200,6 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
-            from wandb.old.summary import HTTPSummary
-
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
         return self._summary

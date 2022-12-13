@@ -8,7 +8,6 @@ import functools
 import gzip
 import hashlib
 import importlib
-import importlib.util
 import json
 import logging
 import math
@@ -316,7 +315,7 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0", "promise-2.3.0")
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -332,48 +331,16 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def import_module_lazy(name: str) -> Any:
-    """
-    Import a module lazily, only when it is used.
-
-    :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
-    """
-    try:
-        return sys.modules[name]
-    except KeyError:
-        module_spec = importlib.util.find_spec(name)
-        if not module_spec:
-            raise ModuleNotFoundError
-
-        module = importlib.util.module_from_spec(module_spec)
-        sys.modules[name] = module
-
-        assert module_spec.loader is not None
-        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
-        lazy_loader.exec_module(module)
-
-        return module
-
-
-def get_module(
-    name: str,
-    required: Optional[Union[str, bool]] = None,
-    lazy: bool = True,
-) -> Any:
+def get_module(name: str, required: Optional[Union[str, bool]] = None) -> Any:
     """
     Return module or None. Absolute import is required.
-
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     :param (str) required: A string to raise a ValueError if missing
-    :param (bool) lazy: If True, return a lazy loader for the module.
     :return: (module|None) If import succeeds, the module will be returned.
     """
     if name not in _not_importable:
         try:
-            if not lazy:
-                return import_module(name)
-            else:
-                return import_module_lazy(name)
+            return import_module(name)
         except Exception:
             _not_importable.add(name)
             msg = f"Error importing optional module {name}"
