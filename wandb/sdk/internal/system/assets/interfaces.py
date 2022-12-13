@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from wandb.sdk.interface.interface import FilesDict
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-import wandb
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 
