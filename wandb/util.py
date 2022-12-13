@@ -348,6 +348,7 @@ def import_module_lazy(name: str) -> Any:
         module = importlib.util.module_from_spec(module_spec)
         sys.modules[name] = module
 
+        assert module_spec.loader is not None
         lazy_loader = importlib.util.LazyLoader(module_spec.loader)
         lazy_loader.exec_module(module)
 
