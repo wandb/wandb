@@ -126,7 +126,7 @@ class MetricsMonitor:
                     try:
                         metric.sample()
                     except Exception as e:
-                        wandb.termerror(f"Failed to sample metric: {e}", repeat=False)
+                        logger.error(f"Failed to sample metric: {e}")
                 self._shutdown_event.wait(self.sampling_interval)
                 if self._shutdown_event.is_set():
                     break
@@ -143,7 +143,7 @@ class MetricsMonitor:
                 #     aggregated_metrics, metric.serialize()
                 # )
             except Exception as e:
-                wandb.termerror(f"Failed to serialize metric: {e}", repeat=False)
+                logger.error(f"Failed to serialize metric: {e}")
         return aggregated_metrics
 
     def publish(self) -> None:
@@ -155,7 +155,7 @@ class MetricsMonitor:
             for metric in self.metrics:
                 metric.clear()
         except Exception as e:
-            wandb.termerror(f"Failed to publish metrics: {e}", repeat=False)
+            logger.error(f"Failed to publish metrics: {e}")
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
