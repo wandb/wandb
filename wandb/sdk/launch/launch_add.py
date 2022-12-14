@@ -187,7 +187,10 @@ def _launch_add(
 
     updated_spec = res.get("runSpec")
     if updated_spec:
-        launch_spec = updated_spec
+        if updated_spec.get("resource_args"):
+            launch_spec["resource_args"] = updated_spec.get("resource_args")
+        if updated_spec.get("resource"):
+            launch_spec["resource"] = updated_spec.get("resource")
 
     wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
