@@ -1061,6 +1061,7 @@ class Api:
                 }
             ) {
                 runQueueItemId
+                runSpec
             }
         }
         """
@@ -1074,6 +1075,39 @@ class Api:
         try:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
+        except Exception as e:
+            if (
+                'Cannot query field "runSpec" on type "PushToRunQueueByNamePayload"'
+                not in str(e)
+            ):
+                return None
+
+        mutation_no_runspec = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+
+        try:
+            result = self.gql(
+                mutation_no_runspec, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
         except Exception:
             result = None
