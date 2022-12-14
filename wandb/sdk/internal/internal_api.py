@@ -1077,9 +1077,13 @@ class Api:
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
 
-            run_spec = json.loads(result.get("runSpec"))
-            if run_spec and run_spec != "{}":
+            if not result:
+                return None
+
+            if result.get("runSpec"):
+                run_spec = json.loads(str(result["runSpec"]))
                 result["runSpec"] = run_spec
+
             return result
         except Exception as e:
             if (
