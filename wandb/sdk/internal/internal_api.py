@@ -1080,7 +1080,7 @@ class Api:
 
         return result
 
-    # @normalize_exceptions
+    @normalize_exceptions
     def push_to_run_queue(
         self,
         queue_name: str,

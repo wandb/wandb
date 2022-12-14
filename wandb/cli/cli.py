@@ -702,9 +702,9 @@ def sync(
     help="Set sweep name",
 )
 @click.option(
-    "--project_queue",
+    "--project-queue",
     default=LAUNCH_DEFAULT_PROJECT,
-    help="Set sweep name",
+    help="Specify sweeps launch project",
 )
 @click.argument("config_yaml_or_sweep_id")
 @display_error
