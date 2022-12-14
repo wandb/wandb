@@ -193,6 +193,11 @@ def _launch_add(
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
+
+    updated_spec = res.get("runSpec")
+    if updated_spec:
+        launch_spec = updated_spec
+
     wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
