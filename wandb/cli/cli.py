@@ -1391,7 +1391,9 @@ def scheduler(
     kwargs = {}
     for i, _arg in enumerate(ctx.args):
         if isinstance(_arg, str) and _arg.startswith("--"):
-            kwargs[_arg[2:]] = ctx.args[i + 1]
+            # convert input kwargs from hyphens to underscores
+            _key = _arg[2:].replace("-", "_")
+            kwargs[_key] = ctx.args[i + 1]
 
     _scheduler = load_scheduler("sweep")(
         api,

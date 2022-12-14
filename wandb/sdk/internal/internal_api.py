@@ -1166,7 +1166,7 @@ class Api:
 
             else:
                 wandb.termwarn(
-                    f"Unable to push to run queue {queue_name}. Queue not found."
+                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
