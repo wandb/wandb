@@ -528,6 +528,7 @@ def test_display_updated_runspec(
             entry_point=entry_point,
             repository="testing123",
             config={"resource": "kubernetes"},
+            project_queue=proj,
         )
 
         run.finish()
