@@ -2242,6 +2242,8 @@ class Run:
 
     def _log_job_artifact_with_image(self, docker_image_name: str) -> Artifact:
         packages, in_types, out_types = self._make_job_source_reqs()
+        # Reset job args, removing call to --build
+        self._settings.update(_args=[])
         job_artifact = self._create_image_job(
             in_types, out_types, packages, docker_image_name
         )
