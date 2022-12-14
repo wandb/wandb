@@ -21,7 +21,6 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
-@typing_extensions.final
 class Record(google.protobuf.message.Message):
     """***********************
     Records and Results
@@ -140,7 +139,6 @@ class Record(google.protobuf.message.Message):
 
 global___Record = Record
 
-@typing_extensions.final
 class Control(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -168,7 +166,6 @@ class Control(google.protobuf.message.Message):
 
 global___Control = Control
 
-@typing_extensions.final
 class Result(google.protobuf.message.Message):
     """
     Result: all results
@@ -226,7 +223,6 @@ class Result(google.protobuf.message.Message):
 
 global___Result = Result
 
-@typing_extensions.final
 class FinalRecord(google.protobuf.message.Message):
     """
     FinalRecord
@@ -247,7 +243,6 @@ class FinalRecord(google.protobuf.message.Message):
 
 global___FinalRecord = FinalRecord
 
-@typing_extensions.final
 class HeaderRecord(google.protobuf.message.Message):
     """
     HeaderRecord
@@ -268,7 +263,6 @@ class HeaderRecord(google.protobuf.message.Message):
 
 global___HeaderRecord = HeaderRecord
 
-@typing_extensions.final
 class FooterRecord(google.protobuf.message.Message):
     """
     FooterRecord
@@ -289,7 +283,6 @@ class FooterRecord(google.protobuf.message.Message):
 
 global___FooterRecord = FooterRecord
 
-@typing_extensions.final
 class RunRecord(google.protobuf.message.Message):
     """
     RunRecord: wandb/sdk/wandb_run/Run
@@ -377,7 +370,6 @@ class RunRecord(google.protobuf.message.Message):
 
 global___RunRecord = RunRecord
 
-@typing_extensions.final
 class GitRepoRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -395,7 +387,6 @@ class GitRepoRecord(google.protobuf.message.Message):
 
 global___GitRepoRecord = GitRepoRecord
 
-@typing_extensions.final
 class RunUpdateResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -416,7 +407,6 @@ class RunUpdateResult(google.protobuf.message.Message):
 
 global___RunUpdateResult = RunUpdateResult
 
-@typing_extensions.final
 class ErrorInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -453,7 +443,6 @@ class ErrorInfo(google.protobuf.message.Message):
 
 global___ErrorInfo = ErrorInfo
 
-@typing_extensions.final
 class RunExitRecord(google.protobuf.message.Message):
     """
     RunExitRecord: exit status of process
@@ -480,7 +469,6 @@ class RunExitRecord(google.protobuf.message.Message):
 
 global___RunExitRecord = RunExitRecord
 
-@typing_extensions.final
 class RunExitResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -490,7 +478,6 @@ class RunExitResult(google.protobuf.message.Message):
 
 global___RunExitResult = RunExitResult
 
-@typing_extensions.final
 class RunPreemptingRecord(google.protobuf.message.Message):
     """
     RunPreemptingRecord: run being preempted
@@ -511,7 +498,6 @@ class RunPreemptingRecord(google.protobuf.message.Message):
 
 global___RunPreemptingRecord = RunPreemptingRecord
 
-@typing_extensions.final
 class RunPreemptingResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -521,7 +507,6 @@ class RunPreemptingResult(google.protobuf.message.Message):
 
 global___RunPreemptingResult = RunPreemptingResult
 
-@typing_extensions.final
 class SettingsRecord(google.protobuf.message.Message):
     """
     SettingsRecord: wandb/sdk/wandb_settings/Settings
@@ -546,7 +531,6 @@ class SettingsRecord(google.protobuf.message.Message):
 
 global___SettingsRecord = SettingsRecord
 
-@typing_extensions.final
 class SettingsItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -564,7 +548,6 @@ class SettingsItem(google.protobuf.message.Message):
 
 global___SettingsItem = SettingsItem
 
-@typing_extensions.final
 class HistoryStep(google.protobuf.message.Message):
     """
     HistoryRecord: wandb/sdk/wandb_history/History
@@ -583,7 +566,6 @@ class HistoryStep(google.protobuf.message.Message):
 
 global___HistoryStep = HistoryStep
 
-@typing_extensions.final
 class HistoryRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -608,7 +590,6 @@ class HistoryRecord(google.protobuf.message.Message):
 
 global___HistoryRecord = HistoryRecord
 
-@typing_extensions.final
 class HistoryItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -630,7 +611,6 @@ class HistoryItem(google.protobuf.message.Message):
 
 global___HistoryItem = HistoryItem
 
-@typing_extensions.final
 class HistoryResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -640,7 +620,6 @@ class HistoryResult(google.protobuf.message.Message):
 
 global___HistoryResult = HistoryResult
 
-@typing_extensions.final
 class OutputRecord(google.protobuf.message.Message):
     """
     OutputRecord: console output
@@ -684,7 +663,6 @@ class OutputRecord(google.protobuf.message.Message):
 
 global___OutputRecord = OutputRecord
 
-@typing_extensions.final
 class OutputResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -694,7 +672,6 @@ class OutputResult(google.protobuf.message.Message):
 
 global___OutputResult = OutputResult
 
-@typing_extensions.final
 class OutputRawRecord(google.protobuf.message.Message):
     """
     OutputRawRecord: raw console output
@@ -738,7 +715,6 @@ class OutputRawRecord(google.protobuf.message.Message):
 
 global___OutputRawRecord = OutputRawRecord
 
-@typing_extensions.final
 class OutputRawResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -748,7 +724,6 @@ class OutputRawResult(google.protobuf.message.Message):
 
 global___OutputRawResult = OutputRawResult
 
-@typing_extensions.final
 class MetricRecord(google.protobuf.message.Message):
     """
     MetricRecord: wandb/sdk/wandb_metric/Metric
@@ -816,7 +791,6 @@ class MetricRecord(google.protobuf.message.Message):
 
 global___MetricRecord = MetricRecord
 
-@typing_extensions.final
 class MetricResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -826,7 +800,6 @@ class MetricResult(google.protobuf.message.Message):
 
 global___MetricResult = MetricResult
 
-@typing_extensions.final
 class MetricOptions(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -848,7 +821,6 @@ class MetricOptions(google.protobuf.message.Message):
 
 global___MetricOptions = MetricOptions
 
-@typing_extensions.final
 class MetricControl(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -863,7 +835,6 @@ class MetricControl(google.protobuf.message.Message):
 
 global___MetricControl = MetricControl
 
-@typing_extensions.final
 class MetricSummary(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -896,7 +867,6 @@ class MetricSummary(google.protobuf.message.Message):
 
 global___MetricSummary = MetricSummary
 
-@typing_extensions.final
 class ConfigRecord(google.protobuf.message.Message):
     """
     ConfigRecord: wandb/sdk/wandb_config/Config
@@ -925,7 +895,6 @@ class ConfigRecord(google.protobuf.message.Message):
 
 global___ConfigRecord = ConfigRecord
 
-@typing_extensions.final
 class ConfigItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -947,7 +916,6 @@ class ConfigItem(google.protobuf.message.Message):
 
 global___ConfigItem = ConfigItem
 
-@typing_extensions.final
 class ConfigResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -957,7 +925,6 @@ class ConfigResult(google.protobuf.message.Message):
 
 global___ConfigResult = ConfigResult
 
-@typing_extensions.final
 class SummaryRecord(google.protobuf.message.Message):
     """
     SummaryRecord: wandb/sdk/wandb_summary/Summary
@@ -986,7 +953,6 @@ class SummaryRecord(google.protobuf.message.Message):
 
 global___SummaryRecord = SummaryRecord
 
-@typing_extensions.final
 class SummaryItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1008,7 +974,6 @@ class SummaryItem(google.protobuf.message.Message):
 
 global___SummaryItem = SummaryItem
 
-@typing_extensions.final
 class SummaryResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1018,7 +983,6 @@ class SummaryResult(google.protobuf.message.Message):
 
 global___SummaryResult = SummaryResult
 
-@typing_extensions.final
 class FilesRecord(google.protobuf.message.Message):
     """
     FilesRecord: files added to run
@@ -1043,7 +1007,6 @@ class FilesRecord(google.protobuf.message.Message):
 
 global___FilesRecord = FilesRecord
 
-@typing_extensions.final
 class FilesItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1079,7 +1042,6 @@ class FilesItem(google.protobuf.message.Message):
 
 global___FilesItem = FilesItem
 
-@typing_extensions.final
 class FilesResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1089,7 +1051,6 @@ class FilesResult(google.protobuf.message.Message):
 
 global___FilesResult = FilesResult
 
-@typing_extensions.final
 class StatsRecord(google.protobuf.message.Message):
     """
     StatsRecord: system metrics
@@ -1132,7 +1093,6 @@ class StatsRecord(google.protobuf.message.Message):
 
 global___StatsRecord = StatsRecord
 
-@typing_extensions.final
 class StatsItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1150,7 +1110,6 @@ class StatsItem(google.protobuf.message.Message):
 
 global___StatsItem = StatsItem
 
-@typing_extensions.final
 class ArtifactRecord(google.protobuf.message.Message):
     """
     ArtifactRecord: track artifacts
@@ -1224,7 +1183,6 @@ class ArtifactRecord(google.protobuf.message.Message):
 
 global___ArtifactRecord = ArtifactRecord
 
-@typing_extensions.final
 class ArtifactManifest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1250,7 +1208,6 @@ class ArtifactManifest(google.protobuf.message.Message):
 
 global___ArtifactManifest = ArtifactManifest
 
-@typing_extensions.final
 class ArtifactManifestEntry(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1287,7 +1244,6 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
 
 global___ArtifactManifestEntry = ArtifactManifestEntry
 
-@typing_extensions.final
 class ExtraItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1305,7 +1261,6 @@ class ExtraItem(google.protobuf.message.Message):
 
 global___ExtraItem = ExtraItem
 
-@typing_extensions.final
 class StoragePolicyConfigItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1323,7 +1278,6 @@ class StoragePolicyConfigItem(google.protobuf.message.Message):
 
 global___StoragePolicyConfigItem = StoragePolicyConfigItem
 
-@typing_extensions.final
 class ArtifactResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1333,7 +1287,6 @@ class ArtifactResult(google.protobuf.message.Message):
 
 global___ArtifactResult = ArtifactResult
 
-@typing_extensions.final
 class LinkArtifactResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1343,7 +1296,6 @@ class LinkArtifactResult(google.protobuf.message.Message):
 
 global___LinkArtifactResult = LinkArtifactResult
 
-@typing_extensions.final
 class LinkArtifactRecord(google.protobuf.message.Message):
     """
     LinkArtifactRecord: link artifact to portfolio
@@ -1383,7 +1335,6 @@ class LinkArtifactRecord(google.protobuf.message.Message):
 
 global___LinkArtifactRecord = LinkArtifactRecord
 
-@typing_extensions.final
 class TBRecord(google.protobuf.message.Message):
     """
     TBRecord: store tb locations
@@ -1413,7 +1364,6 @@ class TBRecord(google.protobuf.message.Message):
 
 global___TBRecord = TBRecord
 
-@typing_extensions.final
 class TBResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1423,7 +1373,6 @@ class TBResult(google.protobuf.message.Message):
 
 global___TBResult = TBResult
 
-@typing_extensions.final
 class AlertRecord(google.protobuf.message.Message):
     """
     AlertRecord: store alert notifications
@@ -1456,7 +1405,6 @@ class AlertRecord(google.protobuf.message.Message):
 
 global___AlertRecord = AlertRecord
 
-@typing_extensions.final
 class AlertResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1466,7 +1414,6 @@ class AlertResult(google.protobuf.message.Message):
 
 global___AlertResult = AlertResult
 
-@typing_extensions.final
 class Request(google.protobuf.message.Message):
     """***********************
     Requests and Responses
@@ -1576,7 +1523,6 @@ class Request(google.protobuf.message.Message):
 
 global___Request = Request
 
-@typing_extensions.final
 class Response(google.protobuf.message.Message):
     """
     Response: all non persistent responses to Requests
@@ -1662,7 +1608,6 @@ class Response(google.protobuf.message.Message):
 
 global___Response = Response
 
-@typing_extensions.final
 class DeferRequest(google.protobuf.message.Message):
     """
     DeferRequest: internal message to defer work
@@ -1717,7 +1662,6 @@ class DeferRequest(google.protobuf.message.Message):
 
 global___DeferRequest = DeferRequest
 
-@typing_extensions.final
 class PauseRequest(google.protobuf.message.Message):
     """
     PauseRequest: internal message to pause the heartbeat
@@ -1738,7 +1682,6 @@ class PauseRequest(google.protobuf.message.Message):
 
 global___PauseRequest = PauseRequest
 
-@typing_extensions.final
 class PauseResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1748,7 +1691,6 @@ class PauseResponse(google.protobuf.message.Message):
 
 global___PauseResponse = PauseResponse
 
-@typing_extensions.final
 class ResumeRequest(google.protobuf.message.Message):
     """
     ResumeRequest: internal message to resume the heartbeat
@@ -1769,7 +1711,6 @@ class ResumeRequest(google.protobuf.message.Message):
 
 global___ResumeRequest = ResumeRequest
 
-@typing_extensions.final
 class ResumeResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1779,7 +1720,6 @@ class ResumeResponse(google.protobuf.message.Message):
 
 global___ResumeResponse = ResumeResponse
 
-@typing_extensions.final
 class LoginRequest(google.protobuf.message.Message):
     """
     LoginRequest: wandb/sdk/wandb_login
@@ -1803,7 +1743,6 @@ class LoginRequest(google.protobuf.message.Message):
 
 global___LoginRequest = LoginRequest
 
-@typing_extensions.final
 class LoginResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1818,7 +1757,6 @@ class LoginResponse(google.protobuf.message.Message):
 
 global___LoginResponse = LoginResponse
 
-@typing_extensions.final
 class GetSummaryRequest(google.protobuf.message.Message):
     """
     GetSummaryRequest: request consolidated summary
@@ -1839,7 +1777,6 @@ class GetSummaryRequest(google.protobuf.message.Message):
 
 global___GetSummaryRequest = GetSummaryRequest
 
-@typing_extensions.final
 class GetSummaryResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1855,7 +1792,6 @@ class GetSummaryResponse(google.protobuf.message.Message):
 
 global___GetSummaryResponse = GetSummaryResponse
 
-@typing_extensions.final
 class StatusRequest(google.protobuf.message.Message):
     """
     StatusRequest:
@@ -1876,7 +1812,6 @@ class StatusRequest(google.protobuf.message.Message):
 
 global___StatusRequest = StatusRequest
 
-@typing_extensions.final
 class StatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1891,7 +1826,6 @@ class StatusResponse(google.protobuf.message.Message):
 
 global___StatusResponse = StatusResponse
 
-@typing_extensions.final
 class StopStatusRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1908,7 +1842,6 @@ class StopStatusRequest(google.protobuf.message.Message):
 
 global___StopStatusRequest = StopStatusRequest
 
-@typing_extensions.final
 class StopStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1923,7 +1856,6 @@ class StopStatusResponse(google.protobuf.message.Message):
 
 global___StopStatusResponse = StopStatusResponse
 
-@typing_extensions.final
 class NetworkStatusRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1940,7 +1872,6 @@ class NetworkStatusRequest(google.protobuf.message.Message):
 
 global___NetworkStatusRequest = NetworkStatusRequest
 
-@typing_extensions.final
 class NetworkStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1956,7 +1887,6 @@ class NetworkStatusResponse(google.protobuf.message.Message):
 
 global___NetworkStatusResponse = NetworkStatusResponse
 
-@typing_extensions.final
 class HttpResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1974,7 +1904,6 @@ class HttpResponse(google.protobuf.message.Message):
 
 global___HttpResponse = HttpResponse
 
-@typing_extensions.final
 class PollExitRequest(google.protobuf.message.Message):
     """
     PollExitRequest:
@@ -1995,7 +1924,6 @@ class PollExitRequest(google.protobuf.message.Message):
 
 global___PollExitRequest = PollExitRequest
 
-@typing_extensions.final
 class PollExitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2023,7 +1951,6 @@ class PollExitResponse(google.protobuf.message.Message):
 
 global___PollExitResponse = PollExitResponse
 
-@typing_extensions.final
 class ServerInfoRequest(google.protobuf.message.Message):
     """
     ServerInfoRequest:
@@ -2044,7 +1971,6 @@ class ServerInfoRequest(google.protobuf.message.Message):
 
 global___ServerInfoRequest = ServerInfoRequest
 
-@typing_extensions.final
 class ServerInfoResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2065,7 +1991,6 @@ class ServerInfoResponse(google.protobuf.message.Message):
 
 global___ServerInfoResponse = ServerInfoResponse
 
-@typing_extensions.final
 class ServerMessages(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2081,7 +2006,6 @@ class ServerMessages(google.protobuf.message.Message):
 
 global___ServerMessages = ServerMessages
 
-@typing_extensions.final
 class ServerMessage(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2108,7 +2032,6 @@ class ServerMessage(google.protobuf.message.Message):
 
 global___ServerMessage = ServerMessage
 
-@typing_extensions.final
 class FileCounts(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2132,7 +2055,6 @@ class FileCounts(google.protobuf.message.Message):
 
 global___FileCounts = FileCounts
 
-@typing_extensions.final
 class FilePusherStats(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2153,7 +2075,6 @@ class FilePusherStats(google.protobuf.message.Message):
 
 global___FilePusherStats = FilePusherStats
 
-@typing_extensions.final
 class LocalInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2171,7 +2092,6 @@ class LocalInfo(google.protobuf.message.Message):
 
 global___LocalInfo = LocalInfo
 
-@typing_extensions.final
 class ShutdownRequest(google.protobuf.message.Message):
     """
     ShutdownRequest:
@@ -2192,7 +2112,6 @@ class ShutdownRequest(google.protobuf.message.Message):
 
 global___ShutdownRequest = ShutdownRequest
 
-@typing_extensions.final
 class ShutdownResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2202,7 +2121,6 @@ class ShutdownResponse(google.protobuf.message.Message):
 
 global___ShutdownResponse = ShutdownResponse
 
-@typing_extensions.final
 class AttachRequest(google.protobuf.message.Message):
     """
     AttachRequest:
@@ -2226,7 +2144,6 @@ class AttachRequest(google.protobuf.message.Message):
 
 global___AttachRequest = AttachRequest
 
-@typing_extensions.final
 class AttachResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2247,7 +2164,6 @@ class AttachResponse(google.protobuf.message.Message):
 
 global___AttachResponse = AttachResponse
 
-@typing_extensions.final
 class TestInjectRequest(google.protobuf.message.Message):
     """
     TestInjectRequest:
@@ -2310,7 +2226,6 @@ class TestInjectRequest(google.protobuf.message.Message):
 
 global___TestInjectRequest = TestInjectRequest
 
-@typing_extensions.final
 class TestInjectResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2320,7 +2235,6 @@ class TestInjectResponse(google.protobuf.message.Message):
 
 global___TestInjectResponse = TestInjectResponse
 
-@typing_extensions.final
 class HistoryAction(google.protobuf.message.Message):
     """
     PartialHistoryRequest:
@@ -2339,7 +2253,6 @@ class HistoryAction(google.protobuf.message.Message):
 
 global___HistoryAction = HistoryAction
 
-@typing_extensions.final
 class PartialHistoryRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2368,7 +2281,6 @@ class PartialHistoryRequest(google.protobuf.message.Message):
 
 global___PartialHistoryRequest = PartialHistoryRequest
 
-@typing_extensions.final
 class PartialHistoryResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2378,7 +2290,6 @@ class PartialHistoryResponse(google.protobuf.message.Message):
 
 global___PartialHistoryResponse = PartialHistoryResponse
 
-@typing_extensions.final
 class SampledHistoryRequest(google.protobuf.message.Message):
     """
     SampledHistoryRequest:
@@ -2399,7 +2310,6 @@ class SampledHistoryRequest(google.protobuf.message.Message):
 
 global___SampledHistoryRequest = SampledHistoryRequest
 
-@typing_extensions.final
 class SampledHistoryItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2426,7 +2336,6 @@ class SampledHistoryItem(google.protobuf.message.Message):
 
 global___SampledHistoryItem = SampledHistoryItem
 
-@typing_extensions.final
 class SampledHistoryResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2442,7 +2351,6 @@ class SampledHistoryResponse(google.protobuf.message.Message):
 
 global___SampledHistoryResponse = SampledHistoryResponse
 
-@typing_extensions.final
 class RunStartRequest(google.protobuf.message.Message):
     """
     RunStartRequest: start the run
@@ -2467,7 +2375,6 @@ class RunStartRequest(google.protobuf.message.Message):
 
 global___RunStartRequest = RunStartRequest
 
-@typing_extensions.final
 class RunStartResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2477,7 +2384,6 @@ class RunStartResponse(google.protobuf.message.Message):
 
 global___RunStartResponse = RunStartResponse
 
-@typing_extensions.final
 class CheckVersionRequest(google.protobuf.message.Message):
     """
     CheckVersion:
@@ -2501,7 +2407,6 @@ class CheckVersionRequest(google.protobuf.message.Message):
 
 global___CheckVersionRequest = CheckVersionRequest
 
-@typing_extensions.final
 class CheckVersionResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2522,7 +2427,6 @@ class CheckVersionResponse(google.protobuf.message.Message):
 
 global___CheckVersionResponse = CheckVersionResponse
 
-@typing_extensions.final
 class LogArtifactRequest(google.protobuf.message.Message):
     """
     LogArtifact:
@@ -2550,7 +2454,6 @@ class LogArtifactRequest(google.protobuf.message.Message):
 
 global___LogArtifactRequest = LogArtifactRequest
 
-@typing_extensions.final
 class LogArtifactResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2568,7 +2471,6 @@ class LogArtifactResponse(google.protobuf.message.Message):
 
 global___LogArtifactResponse = LogArtifactResponse
 
-@typing_extensions.final
 class ArtifactSendRequest(google.protobuf.message.Message):
     """
     ArtifactSend:
@@ -2593,7 +2495,6 @@ class ArtifactSendRequest(google.protobuf.message.Message):
 
 global___ArtifactSendRequest = ArtifactSendRequest
 
-@typing_extensions.final
 class ArtifactSendResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2608,7 +2509,6 @@ class ArtifactSendResponse(google.protobuf.message.Message):
 
 global___ArtifactSendResponse = ArtifactSendResponse
 
-@typing_extensions.final
 class ArtifactPollRequest(google.protobuf.message.Message):
     """
     ArtifactPoll:
@@ -2632,7 +2532,6 @@ class ArtifactPollRequest(google.protobuf.message.Message):
 
 global___ArtifactPollRequest = ArtifactPollRequest
 
-@typing_extensions.final
 class ArtifactPollResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -2653,7 +2552,6 @@ class ArtifactPollResponse(google.protobuf.message.Message):
 
 global___ArtifactPollResponse = ArtifactPollResponse
 
-@typing_extensions.final
 class ArtifactDoneRequest(google.protobuf.message.Message):
     """
     ArtifactDone:
@@ -2678,7 +2576,6 @@ class ArtifactDoneRequest(google.protobuf.message.Message):
 
 global___ArtifactDoneRequest = ArtifactDoneRequest
 
-@typing_extensions.final
 class KeepaliveRequest(google.protobuf.message.Message):
     """
     Keepalive:
@@ -2699,7 +2596,6 @@ class KeepaliveRequest(google.protobuf.message.Message):
 
 global___KeepaliveRequest = KeepaliveRequest
 
-@typing_extensions.final
 class KeepaliveResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
