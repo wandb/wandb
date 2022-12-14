@@ -173,7 +173,10 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
     def mock_launch_add(*args, **kwargs):
-        return Mock(spec=public.QueuedRun)
+
+        mock = Mock(spec=public.QueuedRun)
+        mock.args = Mock(return_value=args)
+        return mock
 
     monkeypatch.setattr(
         "wandb.sdk.launch.launch_add._launch_add",
@@ -194,12 +197,25 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     _scheduler = Scheduler(api, sweep_id=sweep_id, entity=user, project=_project)
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
+    assert _scheduler._project_queue == _project
     _scheduler.start()
     assert _scheduler.state == SchedulerState.COMPLETED
     assert _scheduler.is_alive() is False
     assert len(_scheduler._runs) == 1
     assert isinstance(_scheduler._runs["foo_run"].queued_run, public.QueuedRun)
     assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
+    assert _scheduler._runs["foo_run"].queued_run.args()[-3] == _project
+
+    _project_queue = "test-project-queue"
+    _scheduler2 = Scheduler(
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        project_queue=_project_queue,
+    )
+    _scheduler2.start()
+    assert _scheduler2._runs["foo_run"].queued_run.args()[-3] == _project_queue
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
