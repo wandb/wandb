@@ -3,14 +3,15 @@
 import logging
 from typing import TYPE_CHECKING, Optional, Set, Callable
 
+from wandb.proto import wandb_internal_pb2 as pb
+
 from ..lib import tracelog, proto_util
 from . import context, datastore, flow_control
 from .settings_static import SettingsStatic
 
+
 if TYPE_CHECKING:
     from queue import Queue
-
-    from wandb.proto.wandb_internal_pb2 import Record, Result, SenderStatusReportRequest
 
 
 logger = logging.getLogger(__name__)
@@ -18,21 +19,21 @@ logger = logging.getLogger(__name__)
 
 class WriteManager:
     _settings: SettingsStatic
-    _record_q: "Queue[Record]"
-    _result_q: "Queue[Result]"
-    _sender_q: "Queue[Record]"
+    _record_q: "Queue[pb.Record]"
+    _result_q: "Queue[pb.Result]"
+    _sender_q: "Queue[pb.Record]"
     _ds: Optional[datastore.DataStore]
     _flow_control: Optional[flow_control.FlowControl]
-    _sender_status_report: Optional["SenderStatusReportRequest"]
+    _sender_status_report: Optional["pb.SenderStatusReportRequest"]
     _context_keeper: context.ContextKeeper
     _sender_cancel_set: Set[str]
 
     def __init__(
         self,
         settings: SettingsStatic,
-        record_q: "Queue[Record]",
-        result_q: "Queue[Result]",
-        sender_q: "Queue[Record]",
+        record_q: "Queue[pb.Record]",
+        result_q: "Queue[pb.Result]",
+        sender_q: "Queue[pb.Record]",
         context_keeper: context.ContextKeeper,
     ):
         self._settings = settings
@@ -66,13 +67,13 @@ class WriteManager:
             **kwargs,
         )
 
-    def _forward_record(self, record: "Record") -> None:
+    def _forward_record(self, record: "pb.Record") -> None:
         self._context_keeper.add_from_record(record)
         tracelog.log_message_queue(record, self._sender_q)
         # print("FORWARD1", record)
         self._sender_q.put(record)
 
-    def _write_record(self, record: "Record") -> int:
+    def _write_record(self, record: "pb.Record") -> int:
         # print("WRITE1", record)
         assert self._ds
         ret = self._ds.write(record)
@@ -91,14 +92,14 @@ class WriteManager:
         # last_write_offset = self._track_last_written_offset
         sender_read = pb.SenderReadRequest(start_offset=start, end_offset=end)
         for cancel_id in self._sender_cancel_set:
-            sender_read.add_cancel_list(cancel_id)
+            sender_read.cancel_list.append(cancel_id)
         request.sender_read.CopyFrom(sender_read)
         record.request.CopyFrom(request)
         self._ensure_flushed(end)
         self._forward_record(record)
         # print("MARK", last_write_offset)
 
-    def _write(self, record: "Record") -> None:
+    def _write(self, record: "pb.Record") -> None:
         if not self._ds:
             self.open()
         assert self._flow_control
@@ -112,26 +113,26 @@ class WriteManager:
         # FlowControl will write data to disk and throttle sending to the sender
         self._flow_control.flow(record)
 
-    def write(self, record: "Record") -> None:
+    def write(self, record: "pb.Record") -> None:
         record_type = record.WhichOneof("record_type")
         assert record_type
         writer_str = "write_" + record_type
-        write_handler: Callable[[Record], None] = getattr(self, writer_str, None)  # type: ignore
+        write_handler: Callable[["pb.Record"], None] = getattr(self, writer_str, None)  # type: ignore
         if write_handler:
             return write_handler(record)
         # assert write_handler, f"unknown handle: {writer_str}"
         self._write(record)
 
-    def write_request(self, record: "Record") -> None:
+    def write_request(self, record: "pb.Record") -> None:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         write_request_str = "write_request_" + request_type
-        write_request_handler: Callable[[Record], None] = getattr(self, write_request_str, None)  # type: ignore
+        write_request_handler: Callable[["pb.Record"], None] = getattr(self, write_request_str, None)  # type: ignore
         if write_request_handler:
             return write_request_handler(record)
         self._write(record)
 
-    def write_request_sync_status(self, record: "Record") -> None:
+    def write_request_sync_status(self, record: "pb.Record") -> None:
         result = proto_util._result_from_record(record)
         if self._sender_status_report:
             result.response.sync_status_response.last_synced_time.CopyFrom(
@@ -140,10 +141,10 @@ class WriteManager:
         # todo: add logic to populate sync_status_response
         self._respond_result(result)
 
-    def write_request_sender_status_report(self, record: "Record") -> None:
+    def write_request_sender_status_report(self, record: "pb.Record") -> None:
         self._sender_status_report = record.request.sender_status_report
 
-    def write_request_cancel(self, record: "Record") -> None:
+    def write_request_cancel(self, record: "pb.Record") -> None:
         cancel_id = record.request.cancel.cancel_slot
         cancelled = self._context_keeper.cancel(cancel_id)
         if not cancelled:
