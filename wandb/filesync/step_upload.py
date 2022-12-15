@@ -23,9 +23,9 @@ if TYPE_CHECKING:
     from wandb.sdk.internal import file_stream, internal_api, progress
 
     if sys.version_info >= (3, 8):
-        from typing import TypedDict
+        from typing import Protocol, TypedDict
     else:
-        from typing_extensions import TypedDict
+        from typing_extensions import Protocol, TypedDict
 
     class ArtifactStatus(TypedDict):
         finalize: bool
@@ -33,6 +33,24 @@ if TYPE_CHECKING:
         commit_requested: bool
         pre_commit_callbacks: MutableSet["PreCommitFn"]
         post_commit_callbacks: MutableSet["PostCommitFn"]
+
+    class AbstractStepUpload(Protocol):
+        def __init__(
+            self,
+            api: "internal_api.Api",
+            stats: "stats.Stats",
+            event_queue: "queue.Queue[Event]",
+            max_jobs: int,
+            file_stream: "file_stream.FileStreamApi",
+            silent: bool = False,
+        ) -> None:
+            pass
+
+        def start(self) -> None:
+            pass
+
+        def is_alive(self) -> bool:
+            pass
 
 
 PreCommitFn = Callable[[], None]
