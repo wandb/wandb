@@ -33,9 +33,10 @@ def preprocess_data(
     import json
 
     import numpy as np
-    import wandb
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
+
+    import wandb
 
     def add_wandb_visualization(run, mlpipeline_ui_metadata_path):
         """NOTE: To use this, you must modify your component to have an output called `mlpipeline_ui_metadata_path` AND call `wandb.init` yourself inside that component.
@@ -96,8 +97,9 @@ def train_model(
 
     import joblib
     import numpy as np
-    import wandb
     from sklearn.ensemble import RandomForestClassifier
+
+    import wandb
 
     def add_wandb_visualization(run, mlpipeline_ui_metadata_path):
         """NOTE: To use this, you must modify your component to have an output called `mlpipeline_ui_metadata_path` AND call `wandb.init` yourself inside that component.
@@ -155,9 +157,10 @@ def test_model(
 
     import joblib
     import numpy as np
-    import wandb
     from sklearn.ensemble import RandomForestClassifier  # noqa: F401
     from sklearn.metrics import accuracy_score, precision_score, recall_score
+
+    import wandb
 
     def add_wandb_visualization(run, mlpipeline_ui_metadata_path):
         """NOTE: To use this, you must modify your component to have an output called `mlpipeline_ui_metadata_path` AND call `wandb.init` yourself inside that component.

@@ -1,4 +1,5 @@
 import pytest
+
 from wandb.sdk.wandb_require_helpers import RequiresMixin, requires
 
 

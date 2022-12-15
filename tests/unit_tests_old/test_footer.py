@@ -3,6 +3,7 @@ footer tests.
 """
 
 import pytest
+
 import wandb
 
 

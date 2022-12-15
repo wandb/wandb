@@ -2,6 +2,7 @@ import random
 from typing import List
 
 import pytest
+
 from wandb.errors import LaunchError
 from wandb.sdk.launch.utils import diff_pip_requirements, parse_wandb_uri
 

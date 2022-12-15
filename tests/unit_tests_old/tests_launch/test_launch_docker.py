@@ -5,6 +5,7 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+
 import wandb
 from wandb.errors import DockerError
 from wandb.sdk.launch._project_spec import (

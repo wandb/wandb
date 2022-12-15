@@ -11,8 +11,8 @@ import platform
 
 import pytest
 import requests
-import wandb
 
+import wandb
 from tests.unit_tests_old import utils
 
 

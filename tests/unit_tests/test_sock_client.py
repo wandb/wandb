@@ -1,4 +1,5 @@
 import pytest
+
 from wandb.sdk.lib import sock_client
 
 

@@ -6,6 +6,7 @@ import pytest
 pytest.importorskip("sweeps")
 
 import sweeps
+
 import wandb
 
 

@@ -14,6 +14,7 @@ import plotly
 import pytest
 import requests
 import tensorflow as tf
+
 import wandb
 from wandb import util
 

@@ -12,6 +12,7 @@ from sklearn.ensemble import (  # noqa: F401
 )
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+
 from wandb.integration.metaflow import wandb_log
 
 os.environ["WANDB_SILENT"] = "true"

@@ -1,7 +1,8 @@
 import numpy as np
 import tensorflow as tf
-import wandb
 from tensorflow.keras.callbacks import TensorBoard
+
+import wandb
 from wandb.keras import WandbCallback
 
 wandb.tensorboard.patch(root_logdir="logs")

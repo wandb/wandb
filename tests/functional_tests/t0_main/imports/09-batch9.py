@@ -31,6 +31,7 @@ assert:
 import mmcls  # noqa: F401
 import mmocr  # noqa: F401
 import mmseg  # noqa: F401
+
 import wandb
 
 run = wandb.init()

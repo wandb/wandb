@@ -5,10 +5,11 @@ from unittest import mock
 import numpy as np
 import pytest
 import tqdm
+from click.testing import CliRunner
+
 import wandb
 import wandb.sdk.lib.redirect
 import wandb.util
-from click.testing import CliRunner
 from wandb.cli import cli
 
 console_modes = ["wrap"]
