@@ -930,8 +930,7 @@ def make_json_if_not_number(
 
 
 def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
-    Converts numpy array to list. Used for artifact metadata"""
+    """Replace invalid json floats with strings. Also converts to lists and dicts."""
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
@@ -947,10 +946,6 @@ def make_safe_for_json(obj: Any) -> Any:
             return "Infinity"
         elif obj == float("-inf"):
             return "-Infinity"
-    elif is_numpy_array(obj):
-        return [make_safe_for_json(v) for v in obj.tolist()]
-    elif isinstance(obj, slice):
-        return dict(slice_start=obj.start, slice_step=obj.step, slice_stop=obj.stop)
     return obj
 
 
