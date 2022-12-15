@@ -1060,9 +1060,9 @@ def sweep(
     "-r",
     metavar="BACKEND",
     default=None,
-    help="Execution resource to use for run. Supported values: 'local'."
-    " If passed in, will override the resource value passed in using a config file."
-    " Defaults to 'local'.",
+    help="Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker'. "
+    " This is now a required parameter if pushing to a queue with no resource configuration. "
+    " If passed in, will override the resource value passed in using a config file.",
 )
 @click.option(
     "--docker-image",
