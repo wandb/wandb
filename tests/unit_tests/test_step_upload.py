@@ -126,6 +126,30 @@ class TestFinish:
 
 
 class TestUpload:
+
+    def test_upload(
+        self,
+        step_upload_cls: Type["AbstractStepUpload"],
+        tmp_path: Path,
+    ):
+        f = tmp_path / "file"
+        f.write_text("stuff")
+
+        api = Mock(
+            upload_urls=mock_upload_urls,
+            upload_file_retry=Mock(),
+        )
+
+        q = queue.Queue()
+        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+
+        step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
+        step_upload.start()
+
+        finish_and_wait(q)
+        api.upload_file_retry.assert_called_once()
+        assert api.upload_file_retry.call_args[0][0] == mock_upload_urls("my-proj", ["save_name"])[2]["save_name"]["url"]
+
     def test_reuploads_if_event_during_upload(
         self,
         step_upload_cls: Type["AbstractStepUpload"],
@@ -154,6 +178,10 @@ class TestUpload:
 
         assert upload_started.wait(2)
         q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        # TODO(spencerpearson): if we RequestUpload _several_ more times,
+        # it seems like we should still only reupload once?
+        # But as of 2022-12-15, the behavior is to reupload several more times,
+        # the not-yet-actionable requests no being deduped against each other.
 
         time.sleep(0.1)  # TODO: better way to wait for the message to be processed
         upload_finished.set()
