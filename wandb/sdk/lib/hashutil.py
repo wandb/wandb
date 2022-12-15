@@ -23,21 +23,22 @@ def b64_to_hex_id(string: B64MD5) -> HexMD5:
 def hex_to_b64_id(encoded_string: Union[str, bytes]) -> B64MD5:
     if isinstance(encoded_string, bytes):
         encoded_string = encoded_string.decode("utf-8")
-    return base64.standard_b64encode(bytes.fromhex(encoded_string)).decode("utf-8")
+    as_str = bytes.fromhex(encoded_string)
+    return B64MD5(base64.standard_b64encode(as_str).decode("utf-8"))
 
 
-def md5_file_b64(*paths: PathLike) -> B64MD5:
+def md5_file_b64(*paths: Union[str, PathLike]) -> B64MD5:
     return _b64_from_hasher(_md5_file_hasher(*paths))
 
 
-def md5_file_hex(*paths: PathLike) -> HexMD5:
+def md5_file_hex(*paths: Union[str, PathLike]) -> HexMD5:
     return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
-def _md5_file_hasher(*paths: PathLike) -> "hashlib._Hash":
-    hash_md5 = hashlib.md5()
-    for path in sorted(paths):
+def _md5_file_hasher(*paths: Union[str, PathLike]) -> "hashlib._Hash":
+    md5_hash = hashlib.md5()
+    for path in sorted(str(p) for p in paths):
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(64 * 1024), b""):
-                hash_md5.update(chunk)
-    return hash_md5
+                md5_hash.update(chunk)
+    return md5_hash

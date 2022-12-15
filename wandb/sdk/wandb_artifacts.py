@@ -52,6 +52,7 @@ from .interface.artifacts import (  # noqa: F401
 from .lib.hashutil import (
     B64MD5,
     ETag,
+    HexMD5,
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
@@ -834,7 +835,7 @@ class ArtifactManifestV1(ArtifactManifest):
             "contents": contents,
         }
 
-    def digest(self) -> str:
+    def digest(self) -> HexMD5:
         hasher = hashlib.md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
@@ -975,7 +976,7 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
-        md5_hex = b64_to_hex_id(manifest_entry.digest)
+        md5_hex = b64_to_hex_id(B64MD5(manifest_entry.digest))
 
         if storage_layout == StorageLayout.V1:
             return "{}/artifacts/{}/{}".format(
