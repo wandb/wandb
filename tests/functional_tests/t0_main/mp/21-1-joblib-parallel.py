@@ -3,8 +3,9 @@
 # based on issue https://wandb.atlassian.net/browse/CLI-548
 from math import sqrt
 
-import wandb
 from joblib import Parallel, delayed
+
+import wandb
 
 
 def f(x):

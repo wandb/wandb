@@ -2,10 +2,10 @@ import itertools
 from warnings import simplefilter
 
 import numpy as np
-from sklearn import metrics
-from sklearn.utils.multiclass import unique_labels
 
 import wandb
+from sklearn import metrics
+from sklearn.utils.multiclass import unique_labels
 from wandb.sklearn import utils
 
 # ignore all future warnings

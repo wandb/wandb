@@ -4,8 +4,9 @@ import shutil
 import time
 
 import numpy as np
-import wandb
 from PIL import Image
+
+import wandb
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:

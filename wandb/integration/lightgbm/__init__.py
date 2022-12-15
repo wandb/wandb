@@ -13,9 +13,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 import lightgbm  # type: ignore
-from lightgbm import Booster
-
 import wandb
+from lightgbm import Booster
 from wandb.sdk.lib import telemetry as wb_telemetry
 
 MINIMIZE_METRICS = [

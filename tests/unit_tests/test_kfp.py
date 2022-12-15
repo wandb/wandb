@@ -4,9 +4,10 @@ from unittest.mock import patch
 
 import kfp
 import pytest
-import wandb
 from kfp.components import InputPath, OutputPath, create_component_from_func
 from kfp.components._structures import InputSpec, OutputSpec
+
+import wandb
 from wandb.integration.kfp import unpatch_kfp, wandb_log
 
 
@@ -38,6 +39,7 @@ def test_noop_decorator_does_not_modify_inputs():
         ):
             import joblib
             import numpy as np
+
             from sklearn.ensemble import RandomForestClassifier
 
             with open(x_train_path, "rb") as f:
@@ -80,6 +82,7 @@ def test_decorator_does_not_modify_inputs():
     ):
         import joblib
         import numpy as np
+
         from sklearn.ensemble import RandomForestClassifier
 
         with open(x_train_path, "rb") as f:

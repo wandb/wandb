@@ -6,6 +6,7 @@ import os
 
 import pandas as pd
 from metaflow import FlowSpec, Parameter, step
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split

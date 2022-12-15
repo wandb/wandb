@@ -36,8 +36,9 @@ import time
 from collections import defaultdict
 from datetime import datetime
 
-import wandb
 from tqdm import tqdm
+
+import wandb
 
 parser = argparse.ArgumentParser(description="artifacts load test")
 

@@ -1,8 +1,8 @@
 from warnings import simplefilter
 
 import numpy as np
-import sklearn
 
+import sklearn
 import wandb
 from wandb.sklearn import utils
 

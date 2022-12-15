@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """Test lightgbm integration."""
 
-import lightgbm as lgb
 import pandas as pd
 import requests
+
+import lightgbm as lgb
 import wandb
 from wandb.integration.lightgbm import log_summary, wandb_callback
 

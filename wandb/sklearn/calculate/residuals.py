@@ -1,8 +1,7 @@
 from warnings import simplefilter
 
-from sklearn import model_selection
-
 import wandb
+from sklearn import model_selection
 from wandb.sklearn import utils
 
 # ignore all future warnings

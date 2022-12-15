@@ -16,6 +16,7 @@ wandb/vendor/
 
 [tool.isort]
 profile = "black"
+src_paths = ["wandb", "tests"]
 skip = ["wandb/__init__.py"]
-extend_skip_glob = ["wandb/proto/**", "wandb/vendor/**"]
+extend_skip_glob = ["wandb/vendor/**", "wandb/proto/**"]
 skip_gitignore = "True"

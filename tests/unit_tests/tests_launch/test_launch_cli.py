@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 import wandb
 from wandb.cli import cli
 

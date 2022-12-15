@@ -56,8 +56,9 @@ import sys
 from unittest.mock import Mock
 from zipfile import ZipFile
 
-import wandb
 from prodigy_connect import Connect
+
+import wandb
 from wandb.integration.prodigy import upload_dataset
 
 sys.modules["prodigy"] = Mock()

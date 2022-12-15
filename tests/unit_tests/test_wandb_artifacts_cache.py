@@ -4,6 +4,7 @@ import random
 from multiprocessing import Pool
 
 import pytest
+
 import wandb
 from wandb import wandb_sdk
 

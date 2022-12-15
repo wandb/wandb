@@ -33,6 +33,7 @@ def preprocess_data(
     import json
 
     import numpy as np
+
     import wandb
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
@@ -96,6 +97,7 @@ def train_model(
 
     import joblib
     import numpy as np
+
     import wandb
     from sklearn.ensemble import RandomForestClassifier
 
@@ -155,6 +157,7 @@ def test_model(
 
     import joblib
     import numpy as np
+
     import wandb
     from sklearn.ensemble import RandomForestClassifier  # noqa: F401
     from sklearn.metrics import accuracy_score, precision_score, recall_score

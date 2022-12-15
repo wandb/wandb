@@ -6,8 +6,9 @@ import kfp
 import kfp.dsl as dsl
 from kfp import components
 from kubernetes.client.models import V1EnvVar
-from wandb.integration.kfp import wandb_log
 from wandb_probe import wandb_probe_package
+
+from wandb.integration.kfp import wandb_log
 
 
 def add_wandb_env_variables(op):
@@ -32,6 +33,7 @@ def preprocess_data(
     seed: int = 1337,
 ):
     import numpy as np
+
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
 
@@ -61,6 +63,7 @@ def train_model(
 ):
     import joblib
     import numpy as np
+
     from sklearn.ensemble import RandomForestClassifier
 
     with open(X_train_path, "rb") as f:
@@ -87,6 +90,7 @@ def test_model(
 
     import joblib
     import numpy as np
+
     from sklearn.ensemble import RandomForestClassifier  # noqa: F401
     from sklearn.metrics import accuracy_score, precision_score, recall_score
 

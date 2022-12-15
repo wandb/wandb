@@ -9,6 +9,7 @@ from unittest.mock import Mock, call
 import pytest
 import requests
 import responses
+
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.sdk.lib import retry

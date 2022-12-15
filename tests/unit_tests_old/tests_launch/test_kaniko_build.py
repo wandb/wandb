@@ -8,8 +8,10 @@ from unittest.mock import MagicMock
 import boto3
 import kubernetes
 import pytest
-import wandb
 from google.cloud import storage
+
+import wandb
+from tests.unit_tests_old.utils import fixture_open
 from wandb.errors import LaunchError
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko import (
@@ -17,8 +19,6 @@ from wandb.sdk.launch.builder.kaniko import (
     _create_dockerfile_configmap,
     _wait_for_completion,
 )
-
-from tests.unit_tests_old.utils import fixture_open
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 

@@ -5,11 +5,12 @@ Based on:
 """
 
 import numpy as np
-import wandb
 from _test_support import get_wandb_api_key_file
 from ray import tune
 from ray.air import session
 from ray.tune.integration.wandb import wandb_mixin
+
+import wandb
 
 
 @wandb_mixin

@@ -3,9 +3,9 @@ from warnings import simplefilter
 
 import numpy as np
 from joblib import Parallel, delayed
-from sklearn.base import clone
 
 import wandb
+from sklearn.base import clone
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

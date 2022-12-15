@@ -10,8 +10,9 @@ import PIL
 import plotly.graph_objs as go
 import tensorflow
 import torch
-import wandb
 from pkg_resources import parse_version
+
+import wandb
 
 
 def dummy_torch_tensor(size, requires_grad=True):

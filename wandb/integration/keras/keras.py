@@ -20,8 +20,9 @@ from wandb.util import add_import_hook
 
 
 def _check_keras_version():
-    from keras import __version__ as keras_version
     from pkg_resources import parse_version
+
+    from keras import __version__ as keras_version
 
     if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(

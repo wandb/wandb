@@ -23,10 +23,10 @@ from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     import cloudpickle  # type: ignore
-    import sklearn  # type: ignore
     import tensorflow  # type: ignore
     import torch  # type: ignore
 
+    import sklearn  # type: ignore
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ..wandb_artifacts import Artifact as LocalArtifact

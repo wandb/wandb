@@ -3,11 +3,12 @@ import random
 
 import kfp
 import kfp.dsl as dsl
-import wandb
 from kfp import components
 from kubernetes.client.models import V1EnvVar
-from wandb.integration.kfp import wandb_log
 from wandb_probe import wandb_probe_package
+
+import wandb
+from wandb.integration.kfp import wandb_log
 
 
 def add_wandb_env_variables(op):

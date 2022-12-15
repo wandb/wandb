@@ -2,6 +2,7 @@
 from typing import Any, Dict, List
 
 import pytest
+
 import wandb
 
 # Sweep configs used for testing

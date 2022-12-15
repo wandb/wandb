@@ -4,8 +4,8 @@ from collections.abc import Iterable, Sequence
 import numpy as np
 import pandas as pd
 import scipy
-import sklearn
 
+import sklearn
 import wandb
 
 chart_limit = 1000

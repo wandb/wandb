@@ -4,6 +4,7 @@ config tests.
 
 import pytest
 import yaml
+
 from wandb import wandb_sdk
 
 

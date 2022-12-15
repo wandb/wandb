@@ -5,6 +5,7 @@ import subprocess
 import unittest.mock
 
 import pytest
+
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.system.system_info import SystemInfo

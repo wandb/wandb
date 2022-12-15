@@ -2,8 +2,8 @@
 from warnings import simplefilter
 
 import pandas as pd
-import sklearn
 
+import sklearn
 import wandb
 from wandb.sklearn import calculate, utils
 

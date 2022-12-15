@@ -5,6 +5,7 @@ import subprocess
 import traceback
 
 import pytest
+
 import wandb
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli

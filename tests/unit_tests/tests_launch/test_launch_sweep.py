@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.utils import construct_launch_spec

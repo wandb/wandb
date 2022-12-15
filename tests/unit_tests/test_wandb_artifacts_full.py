@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import WaitTimeoutError
