@@ -146,7 +146,8 @@ class SystemMonitor:
             logger.error(f"Error publishing last batch of metrics: {e}")
 
     def start(self) -> None:
-        if self._process is None and not self._shutdown_event.is_set():
+        self._shutdown_event.clear()
+        if self._process is None:
             logger.info("Starting system monitor")
             # self._process = mp.Process(target=self._start, name="SystemMonitor")
             self._process = threading.Thread(

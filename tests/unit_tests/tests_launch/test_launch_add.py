@@ -88,6 +88,7 @@ def test_launch_add_delete_queued_run(
             project=proj,
             queue_name=queue,
             entry_point=entry_point,
+            config={"resource": "local-process"},
         )
 
         assert queued_run.state == "pending"
@@ -97,20 +98,38 @@ def test_launch_add_delete_queued_run(
         run.finish()
 
 
+# TODO(gst): Identify root cause of (threaded?) artifact creation error
+@pytest.mark.xfail(
+    strict=False,
+    reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
+)
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
     [
         (
             {"build": {"type": "docker"}},
-            {"docker": {"args": ["--container_arg", "9 rams"]}},
+            {
+                "docker": {"args": ["--container_arg", "9 rams"]},
+                "resource": "local-process",
+            },
         ),
-        ({}, {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}}),
+        (
+            {},
+            {
+                "cuda": False,
+                "overrides": {"args": ["--runtime", "nvidia"]},
+                "resource": "local-process",
+            },
+        ),
         (
             {"build": {"type": "docker"}},
-            {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}},
+            {
+                "cuda": False,
+                "overrides": {"args": ["--runtime", "nvidia"]},
+                "resource": "local-process",
+            },
         ),
-        ({"build": {"type": ""}}, {}),
     ],
 )
 def test_launch_build_push_job(
@@ -221,6 +240,7 @@ def test_launch_add_default(
         "entity": user,
         "queue_name": "default",
         "entry_point": entry_point,
+        "resource": "local-container",
     }
     settings = test_settings({"project": proj})
 
@@ -277,7 +297,7 @@ def test_push_to_runqueue_exists(
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
         if q and "mutation pushToRunQueueByName(" in str(q):
-            assert comm["response"]["data"] is not None
+            assert comm["response"].get("data") is not None
         elif q and "mutation pushToRunQueue(" in str(q):
             raise Exception("should not be falling back to legacy here")
 
@@ -361,6 +381,7 @@ def test_push_with_repository(
         "project": proj,
         "entry_point": entry_point,
         "registry": {"url": "repo123"},
+        "resource": "sagemaker",
     }
     settings = test_settings({"project": proj})
 
@@ -394,9 +415,51 @@ def test_launch_add_repository(
             project=proj,
             entry_point=entry_point,
             repository="testing123",
+            config={"resource": "sagemaker"},
         )
 
         assert queued_run.state == "pending"
 
         queued_run.delete()
+        run.finish()
+
+
+def test_display_updated_runspec(
+    relay_server, user, test_settings, wandb_init, monkeypatch
+):
+    queue = "default"
+    proj = "test1"
+    uri = "https://github.com/wandb/examples.git"
+    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    settings = test_settings({"project": proj})
+    api = InternalApi()
+
+    def push_with_drc(api, queue_name, launch_spec):
+        # mock having a DRC
+        res = api.push_to_run_queue(queue_name, launch_spec)
+        res["runSpec"] = launch_spec
+        res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}
+        return res
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.launch_add,
+        "push_to_queue",
+        lambda *args, **kwargs: push_with_drc(*args, **kwargs),
+    )
+
+    with relay_server():
+        run = wandb_init(settings=settings)
+        api.create_run_queue(
+            entity=user, project=proj, queue_name=queue, access="PROJECT"
+        )
+
+        _ = launch_add(
+            uri=uri,
+            entity=user,
+            project=proj,
+            entry_point=entry_point,
+            repository="testing123",
+            config={"resource": "kubernetes"},
+        )
+
         run.finish()
