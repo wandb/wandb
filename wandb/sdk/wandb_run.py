@@ -1874,7 +1874,6 @@ class Run:
         self,
     ) -> SyncStatus:
         """Get sync info from the internal backend, about the current run's sync status."""
-
         if self._backend and self._backend.interface:
             handle_sync_status = self._backend.interface.deliver_request_sync_status()
             result = handle_sync_status.wait(timeout=-1)
