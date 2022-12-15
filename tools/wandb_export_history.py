@@ -20,6 +20,7 @@ import sqlite3
 from typing import Dict, Iterator, List
 
 import pandas as pd  # type: ignore
+
 import wandb
 
 DB_FILE = "run.db"
