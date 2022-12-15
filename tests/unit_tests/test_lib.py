@@ -1,10 +1,11 @@
 import os
 import platform
 import shutil
+import stat
 from unittest.mock import patch
 
 from wandb import wandb_lib
-from wandb.wandb_lib.filesystem import copy_or_overwrite_changed
+from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 
 
 def test_write_netrc():
@@ -70,9 +71,9 @@ def test_copy_or_overwrite_changed_bad_permissions(tmp_path):
     target_path = tmp_path / "target_file"
 
     source_path.write_text("original")
-    os.chmod(source_path, 0o444)
+    target_path.write_text("altered")
+    os.chmod(target_path, 0o600)
 
-    os.chmod(target_path, 0o444)
     dest_path = copy_or_overwrite_changed(source_path, target_path)
-    assert dest_path.read_text() == "original"
-    assert dest_path.stat().st_mode == 0o666
+    assert dest_path.stat().st_mode & stat.S_IWOTH == stat.S_IWOTH
+    assert dest_path.read_text() == "original", dest_path.stat().st_mode

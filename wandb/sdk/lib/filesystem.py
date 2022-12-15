@@ -101,6 +101,7 @@ def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> P
         or os.stat(source_path).st_mtime != os.stat(target_path).st_mtime
     )
 
+    permissions_plus_write = source_path.stat().st_mode | WRITE_PERMISSIONS
     if need_copy:
         _safe_makedirs(os.path.dirname(target_path))
         try:
@@ -109,9 +110,9 @@ def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> P
         except PermissionError:
             # If the file is read-only try to make it writable. Let any exceptions after
             # this point propagate since we can't fix them.
-            os.chmod(target_path, WRITE_PERMISSIONS)
+            os.chmod(target_path, permissions_plus_write)
             shutil.copy2(source_path, target_path)
         # Prevent future permissions issues by universal write permissions now.
-        os.chmod(target_path, WRITE_PERMISSIONS)
+        os.chmod(target_path, permissions_plus_write)
 
     return target_path
