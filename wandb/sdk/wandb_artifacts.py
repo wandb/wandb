@@ -52,7 +52,6 @@ from .interface.artifacts import (  # noqa: F401
 from .lib.hashutil import (
     B64MD5,
     ETag,
-    b64_string_to_hex,
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
@@ -418,7 +417,7 @@ class Artifact(ArtifactInterface):
         if is_tmp:
             file_path, file_name = os.path.split(name)
             file_name_parts = file_name.split(".")
-            file_name_parts[0] = b64_string_to_hex(digest)[:20]
+            file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
         return self._add_local_file(name, local_path, digest=digest)
@@ -976,7 +975,7 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
-        md5_hex = b64_string_to_hex(manifest_entry.digest)
+        md5_hex = b64_to_hex_id(manifest_entry.digest)
 
         if storage_layout == StorageLayout.V1:
             return "{}/artifacts/{}/{}".format(

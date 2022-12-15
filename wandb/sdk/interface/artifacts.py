@@ -18,7 +18,7 @@ from typing import (
 import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
-from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_string_to_hex
+from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -845,7 +845,7 @@ class ArtifactsCache:
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
-        hex_md5 = b64_string_to_hex(b64_md5)
+        hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
