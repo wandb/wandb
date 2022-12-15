@@ -4,6 +4,7 @@ orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.10.1
   go: circleci/go@1.7.1
+  gcloud: circleci/gcp-cli@3.0.0
   gke: circleci/gcp-gke@1.4.0
 
 parameters:
@@ -54,7 +55,7 @@ parameters:
     default: "gcr.io"
   gcp_cluster_name:
     type: string
-    default: "gke-yea"
+    default: "sdk-nightly"
   manual_nightly:
     type: boolean
     default: false
@@ -125,9 +126,12 @@ commands:
         default: << pipeline.parameters.gcp_cluster_name >>
     steps:
       - run:
-          name: "Setup gcloud"
+          name: "Setup gcloud and kubectl"
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+            gcloud --quiet components update
+            gcloud --quiet components install gke-gcloud-auth-plugin
+            gcloud --quiet components install kubectl
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
@@ -204,7 +208,6 @@ commands:
       - run:
           name: "Get gke cluster credentials"
           command: |
-            gcloud components install gke-gcloud-auth-plugin
             gcloud container clusters get-credentials << parameters.cluster >>
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
@@ -676,10 +679,8 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
+            - setup_gcloud
             - setup_docker_buildx:
                 docker_layer_caching: false
             - run:
@@ -692,7 +693,6 @@ jobs:
                     --build-arg GIT_BRANCH=<< parameters.git_branch >> \
                     --build-arg UTC_DATE=$(date -u +%Y%m%d) \
                     .
-            - setup_gcloud
             - run:
                 name: "Push << parameters.description >> to container registry"
                 command: |
@@ -734,15 +734,16 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
+      - setup_gcloud
       - create_gke_cluster:
+          cluster: << parameters.cluster >>
+      - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
       - run:
           name: "Install GPU drivers"
-          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+          command: |
+            kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
@@ -770,10 +771,7 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
       - setup_gcloud
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
@@ -847,10 +845,7 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - go/install
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
             - setup_gcloud
             - get_gke_cluster_credentials:
                 cluster: << parameters.cluster >>
@@ -1123,7 +1118,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: true
           requires:

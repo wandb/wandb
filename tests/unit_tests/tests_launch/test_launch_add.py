@@ -297,7 +297,7 @@ def test_push_to_runqueue_exists(
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
         if q and "mutation pushToRunQueueByName(" in str(q):
-            assert comm["response"]["data"] is not None
+            assert comm["response"].get("data") is not None
         elif q and "mutation pushToRunQueue(" in str(q):
             raise Exception("should not be falling back to legacy here")
 
@@ -421,4 +421,45 @@ def test_launch_add_repository(
         assert queued_run.state == "pending"
 
         queued_run.delete()
+        run.finish()
+
+
+def test_display_updated_runspec(
+    relay_server, user, test_settings, wandb_init, monkeypatch
+):
+    queue = "default"
+    proj = "test1"
+    uri = "https://github.com/wandb/examples.git"
+    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+    settings = test_settings({"project": proj})
+    api = InternalApi()
+
+    def push_with_drc(api, queue_name, launch_spec):
+        # mock having a DRC
+        res = api.push_to_run_queue(queue_name, launch_spec)
+        res["runSpec"] = launch_spec
+        res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}
+        return res
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.launch_add,
+        "push_to_queue",
+        lambda *args, **kwargs: push_with_drc(*args, **kwargs),
+    )
+
+    with relay_server():
+        run = wandb_init(settings=settings)
+        api.create_run_queue(
+            entity=user, project=proj, queue_name=queue, access="PROJECT"
+        )
+
+        _ = launch_add(
+            uri=uri,
+            entity=user,
+            project=proj,
+            entry_point=entry_point,
+            repository="testing123",
+            config={"resource": "kubernetes"},
+        )
+
         run.finish()
