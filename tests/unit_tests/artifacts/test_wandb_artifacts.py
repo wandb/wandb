@@ -1019,11 +1019,10 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
-def test_s3_storage_handler_load_path_uses_cache(tmp_path):
+def test_s3_storage_handler_load_path_uses_cache(cache):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = wandb.wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
