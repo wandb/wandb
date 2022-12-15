@@ -278,11 +278,6 @@ def test_enforces_max_jobs(
     tmp_path: Path,
 ):
     max_jobs = 3
-    n_uploads = 5
-
-    files = [tmp_path / f"file-{i}" for i in range(n_uploads)]
-    for i, f in enumerate(files):
-        f.write_text(f"file {i}")
 
     q = queue.Queue()
 
@@ -301,25 +296,30 @@ def test_enforces_max_jobs(
         upload_file_retry=mock_upload
     )
 
-    step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q, max_jobs=max_jobs)
-    for i, f in enumerate(files):
-        q.put(RequestUpload(path=str(f), save_name=f"save_name-{i}", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+    def add_job():
+        f = make_tmp_file(tmp_path)
+        q.put(RequestUpload(path=str(f), save_name=str(f), artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
 
+    step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q, max_jobs=max_jobs)
     step_upload.start()
 
     with upload_started:
-        while len(waiters) < max_jobs:
-            upload_started.wait(2)
 
+        # first few jobs should start without blocking
+        for _ in range(max_jobs):
+            add_job()
+            assert upload_started.wait(0.5)
+
+        # next job should block...
+        add_job()
         assert not upload_started.wait(0.1)
+
+        # ...until we release one of the first jobs
+        for w in waiters:
+            w.set()
+        assert upload_started.wait(2)
 
     for w in waiters:
         w.set()
-
-    with upload_started:
-        while len(waiters) < n_uploads:
-            upload_started.wait(2)
-            for w in waiters:
-                w.set()
 
     finish_and_wait(q)
