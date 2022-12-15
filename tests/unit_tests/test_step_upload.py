@@ -241,6 +241,8 @@ class TestArtifactCommit:
         step_upload.start()
 
         assert upload_started.wait(2)
+        q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=True))
+        time.sleep(0.1)  # TODO: better way to wait for the message to be processed
         api.commit_artifact.assert_not_called()
 
         upload_finished.set()
