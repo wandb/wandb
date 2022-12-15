@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 from shutil import copyfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import unquote
 
 from wandb import util
@@ -46,7 +46,7 @@ class SystemInfo:
         logger.debug("System info init done")
 
     # todo: refactor these _save_* methods
-    def _save_pip(self) -> None:
+    def _save_pip(self, files: Dict[str, Tuple[str, str]]) -> None:
         """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""
         logger.debug(
             "Saving list of pip packages installed into the current environment"
@@ -62,6 +62,7 @@ class SystemInfo:
                 os.path.join(self.settings.files_dir, REQUIREMENTS_FNAME), "w"
             ) as f:
                 f.write("\n".join(installed_packages_list))
+            files["files"].append((os.path.basename(REQUIREMENTS_FNAME), "now"))
         except Exception as e:
             logger.exception(f"Error saving pip packages: {e}")
         logger.debug("Saving pip packages done")
@@ -243,9 +244,10 @@ class SystemInfo:
         return data
 
     def publish(self, system_info: dict) -> None:
+        files = dict(files=[])
         # save pip, conda, code patches to disk
         if self.settings._save_requirements:
-            self._save_pip()
+            self._save_pip(files)
             self._save_conda()
         if self.settings.save_code:
             self._save_code()
@@ -257,7 +259,7 @@ class SystemInfo:
             f.write(s)
             f.write("\n")
         base_name = os.path.basename(self.metadata_file_name)
-        files = dict(files=[(base_name, "now")])
+        files["files"].append((base_name, "now"))
 
         if self.saved_program:
             saved_program = os.path.join("code", self.saved_program)
