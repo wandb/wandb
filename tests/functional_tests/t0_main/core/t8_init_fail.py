@@ -19,5 +19,5 @@ import wandb
 
 try:
     wandb.init()
-except wandb.errors.UsageError:
+except wandb.errors.CommError:
     pass
