@@ -1,3 +1,10 @@
+## 0.13.7 (December 14, 2022)
+
+### :hammer: Fixes
+* revert(artifacts): revert `Circular reference detected` change to resolve `Object of type Tensor is not JSON serializable` by @raubitsj in https://github.com/wandb/wandb/pull/4629
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.6...v0.13.7
+
 ## 0.13.6 (December 6, 2022)
 
 ### :magic_wand: Enhancements
