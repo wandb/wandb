@@ -292,6 +292,14 @@ class InterfaceGrpc(InterfaceBase):
         ret = self._stub.SampledHistory(sampled_history)
         return ret  # type: ignore
 
+    def _communicate_get_run(
+        self, get_run: pb.GetRunRequest
+    ) -> Optional[pb.GetRunResponse]:
+        assert self._stub
+        self._assign(get_run)
+        ret = self._stub.GetRun(get_run)
+        return ret  # type: ignore
+
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         assert self._stub
         # TODO: implement?
@@ -376,15 +384,13 @@ class InterfaceGrpc(InterfaceBase):
         return handle
 
     def _deliver_request_get_run(self, get_run: pb.GetRunRequest) -> MailboxHandle:
-        # TODO: implement me!
-        return None  # type: ignore
-        # assert self._stub
-        # self._assign(run)
-        # run_response = self._stub.RunUpdate(run)
-        # response = pb.Response(run_response=run_response)
-        # result = pb.Result(response=response)
-        # handle = self._deliver(result)
-        # return handle
+        assert self._stub
+        self._assign(get_run)
+        get_run_response = self._stub.GetRun(get_run)
+        response = pb.Response(get_run_response=get_run_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
 
     def join(self) -> None:
         super().join()

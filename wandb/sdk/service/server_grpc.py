@@ -89,9 +89,9 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
     def ServerInfo(  # noqa: N802
-        self, poll_exit: pb.ServerInfoRequest, context: grpc.ServicerContext
+        self, server_info: pb.ServerInfoRequest, context: grpc.ServicerContext
     ) -> pb.ServerInfoResponse:
-        stream_id = poll_exit._info.stream_id
+        stream_id = server_info._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
         result = iface.communicate_server_info()
         assert result  # TODO: handle errors
@@ -103,6 +103,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         stream_id = get_summary._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
         result = iface.communicate_get_summary()
+        assert result  # TODO: handle errors
+        return result
+
+    def GetRun(  # noqa: N802
+        self, get_run: pb.GetRunRequest, context: grpc.ServicerContext
+    ) -> pb.GetRunResponse:
+        stream_id = get_run._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        result = iface.communicate_get_run()
         assert result  # TODO: handle errors
         return result
 

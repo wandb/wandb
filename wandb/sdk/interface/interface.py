@@ -341,6 +341,16 @@ class InterfaceBase:
     ) -> Optional[pb.GetSummaryResponse]:
         raise NotImplementedError
 
+    def communicate_get_run(self) -> Optional[pb.GetRunResponse]:
+        get_run = pb.GetRunRequest()
+        return self._communicate_get_run(get_run)
+
+    @abstractmethod
+    def _communicate_get_run(
+        self, get_run: pb.GetRunRequest
+    ) -> Optional[pb.GetRunResponse]:
+        raise NotImplementedError
+
     def communicate_sampled_history(self) -> Optional[pb.SampledHistoryResponse]:
         sampled_history = pb.SampledHistoryRequest()
         resp = self._communicate_sampled_history(sampled_history)

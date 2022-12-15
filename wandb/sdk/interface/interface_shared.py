@@ -521,6 +521,17 @@ class InterfaceShared(InterfaceBase):
         assert sampled_history_response
         return sampled_history_response
 
+    def _communicate_get_run(
+        self, get_run: pb.GetRunRequest
+    ) -> Optional[pb.GetRunResponse]:
+        record = self._make_request(get_run=get_run)
+        result = self._communicate(record)
+        if result is None:
+            return None
+        get_run_response = result.response.get_run_response
+        assert get_run_response
+        return get_run_response
+
     def _communicate_shutdown(self) -> None:
         # shutdown
         request = pb.Request(shutdown=pb.ShutdownRequest())
