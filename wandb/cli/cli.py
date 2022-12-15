@@ -1369,9 +1369,15 @@ def scheduler(
 
     # Future-proofing hack to pull any kwargs that get passed in through the CLI
     kwargs = {}
-    for i, _arg in enumerate(ctx.args):
+    cur_key = ""
+    for _arg in ctx.args:
         if isinstance(_arg, str) and _arg.startswith("--"):
-            kwargs[_arg[2:]] = ctx.args[i + 1]
+            cur_key = _arg[2:]
+            kwargs[cur_key] = ""
+        elif cur_key:
+            kwargs[cur_key] += _arg + " "
+    # clean up spaces
+    kwargs = {key: val.strip() for key, val in kwargs.items()}
 
     _scheduler = load_scheduler("sweep")(
         api,
