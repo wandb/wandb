@@ -75,7 +75,9 @@ def test_tensorflow_keras_saved_model():
 class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
-        return self.copy(self.local_path, os.path.join(root, self.name))
+        dest = os.path.join(root, self.name)
+        shutil.copyfile(self.local_path, os.path.join(root, self.name))
+        return dest
 
 
 class ArtifactEntryPatch(ArtifactEntry):

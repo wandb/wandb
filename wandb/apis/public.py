@@ -52,7 +52,7 @@ from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
-from wandb.sdk.lib import ipython, retry
+from wandb.sdk.lib import filesystem, ipython, retry
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -4087,23 +4087,6 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
     def parent_artifact(self):
         return self._parent_artifact
 
-    def copy(self, cache_path, target_path):
-        # can't have colons in Windows
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(target_path)
-            target_path = head + tail.replace(":", "-")
-
-        need_copy = (
-            not os.path.isfile(target_path)
-            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
-        )
-        if need_copy:
-            util.mkdir_exists_ok(os.path.dirname(target_path))
-            # We use copy2, which preserves file metadata including modified
-            # time (which we use above to check whether we should do the copy).
-            shutil.copy2(cache_path, target_path)
-        return target_path
-
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
@@ -4120,7 +4103,8 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
                 self._parent_artifact, self.name, manifest.entries[self.name]
             )
 
-        return self.copy(cache_path, os.path.join(root, self.name))
+        dest_path = os.path.join(root, self.name)
+        return filesystem.copy_or_overwrite_changed(cache_path, dest_path)
 
     def ref_target(self):
         manifest = self._parent_artifact._load_manifest()
