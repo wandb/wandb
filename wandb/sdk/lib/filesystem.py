@@ -4,8 +4,9 @@ import os
 import platform
 import re
 import shutil
+import stat
 import threading
-from os import stat
+from os import PathLike
 from typing import BinaryIO
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ class CRDedupedFile(WriteSerializingFile):
         super().close()
 
 
-def copy_or_overwrite_changed(source_path, target_path):
+def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> PathLike:
     """Copy source_path to target_path, unless it already exists with the same mtime.
 
     We liberally add write permissions to deal with the case of multiple users needing

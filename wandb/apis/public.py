@@ -4087,6 +4087,9 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
     def parent_artifact(self):
         return self._parent_artifact
 
+    def copy(self, cache_path, target_path):
+        raise NotImplementedError()
+
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
