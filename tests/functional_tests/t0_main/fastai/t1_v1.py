@@ -1,6 +1,5 @@
-from fastai.vision import *  # noqa: F403
-
 import wandb
+from fastai.vision import *  # noqa: F403
 from wandb.fastai import WandbCallback
 
 wandb.init()

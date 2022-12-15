@@ -3,9 +3,8 @@
 Compare to a run in a single process, base usage of `run.log`"""
 import multiprocessing as mp
 
-import yea
-
 import wandb
+import yea
 
 
 def process_parent():

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
-
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import (

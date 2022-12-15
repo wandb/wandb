@@ -5,7 +5,6 @@ from itertools import product
 from typing import Optional, Union
 
 import pytest
-
 import wandb
 import wandb.apis.reports as wr
 from wandb.apis.reports.util import (

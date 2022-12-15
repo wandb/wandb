@@ -10,11 +10,10 @@ import random
 import numpy as np
 import torch
 import torch.optim as optim
+import wandb
 from ray import tune
 from ray.tune.examples.mnist_pytorch import ConvNet, get_data_loaders, test, train
 from ray.tune.integration.wandb import WandbLogger, wandb_mixin
-
-import wandb
 
 
 @wandb_mixin

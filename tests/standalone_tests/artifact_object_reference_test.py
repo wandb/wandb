@@ -7,9 +7,8 @@ import time
 from math import cos, pi, sin
 
 import numpy as np
-from bokeh.plotting import figure
-
 import wandb
+from bokeh.plotting import figure
 from wandb.sdk.interface import artifacts
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")

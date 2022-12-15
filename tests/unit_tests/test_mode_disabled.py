@@ -7,7 +7,6 @@ import pickle
 from unittest import mock
 
 import pytest  # type: ignore
-
 import wandb
 
 

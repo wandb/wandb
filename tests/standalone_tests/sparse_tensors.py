@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F  # noqa: N812
 import torch.optim as optim
-
 import wandb
 
 CONTEXT_SIZE = 2

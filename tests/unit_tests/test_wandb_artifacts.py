@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 import requests
 import responses
-
 import wandb
 import wandb.data_types as data_types
 from wandb import util

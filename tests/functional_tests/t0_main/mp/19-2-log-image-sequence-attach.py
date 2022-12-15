@@ -2,9 +2,8 @@ import multiprocessing as mp
 import os
 
 import numpy as np
-import yea
-
 import wandb
+import yea
 
 
 def process_child(attach_id):

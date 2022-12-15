@@ -1,9 +1,8 @@
 import pytest
+import wandb
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Dense, Flatten, Reshape
 from tensorflow.keras.models import Sequential
-
-import wandb
 from wandb.keras import WandbCallback
 
 

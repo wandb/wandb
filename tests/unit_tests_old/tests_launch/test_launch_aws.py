@@ -7,11 +7,9 @@ from unittest.mock import MagicMock
 import boto3
 import botocore
 import pytest
-
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
-from tests.unit_tests_old.utils import fixture_open
 from wandb.sdk.launch.runner.aws import (
     SagemakerSubmittedRun,
     get_aws_credentials,
@@ -19,6 +17,8 @@ from wandb.sdk.launch.runner.aws import (
     get_region,
     validate_sagemaker_requirements,
 )
+
+from tests.unit_tests_old.utils import fixture_open
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 

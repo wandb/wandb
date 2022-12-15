@@ -9,10 +9,9 @@ import pandas as pd
 import pytest
 import rdkit.Chem
 import responses
+import wandb
 from bokeh.plotting import figure
 from PIL import Image
-
-import wandb
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 

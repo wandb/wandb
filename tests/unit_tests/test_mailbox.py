@@ -6,7 +6,6 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from parameterized import parameterized
-
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib.mailbox import Mailbox, MailboxProbe, MailboxProgress
 

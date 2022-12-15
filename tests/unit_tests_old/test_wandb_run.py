@@ -7,7 +7,6 @@ from unittest import mock
 
 import git
 import pytest
-
 import wandb
 from wandb import env
 

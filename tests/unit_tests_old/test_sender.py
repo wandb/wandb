@@ -3,10 +3,10 @@ import queue
 import threading
 
 import pytest
-
 import wandb
-from tests.unit_tests_old import utils
 from wandb.sdk.lib.printer import INFO
+
+from tests.unit_tests_old import utils
 
 
 def test_send_status_request_stopped(mock_server, backend_interface):

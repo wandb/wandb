@@ -8,7 +8,6 @@ import time
 import numpy as np
 import pytest
 import tqdm
-
 import wandb
 
 impls = [wandb.wandb_sdk.lib.redirect.StreamWrapper]

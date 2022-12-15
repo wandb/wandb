@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-
 import wandb
 from wandb.sdk.wandb_init import init as real_wandb_init
 from wandb.viz import custom_chart

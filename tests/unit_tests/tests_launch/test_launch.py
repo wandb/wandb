@@ -1,5 +1,4 @@
 import pytest
-
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.internal.internal_api import Api as InternalApi

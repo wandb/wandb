@@ -47,7 +47,6 @@ import kornia  # noqa: F401
 import nanodet  # noqa: F401
 import segmentation_models_pytorch  # noqa: F401
 import sentence_transformers  # noqa: F401
-
 import wandb
 
 run = wandb.init()
