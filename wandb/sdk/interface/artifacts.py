@@ -16,8 +16,9 @@ from typing import (
 )
 
 import wandb
-from wandb import env, hashutil, util
+from wandb import env, util
 from wandb.data_types import WBValue
+from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_string_to_hex
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -96,7 +97,7 @@ class ArtifactManifest:
 class ArtifactEntry:
     path: util.LogicalFilePathStr
     ref: Optional[Union[util.FilePathStr, util.URIStr]]
-    digest: Union[hashutil.B64MD5, util.URIStr, util.FilePathStr, hashutil.ETag]
+    digest: Union[B64MD5, util.URIStr, util.FilePathStr, ETag]
     birth_artifact_id: Optional[str]
     size: Optional[int]
     extra: Dict
@@ -842,9 +843,9 @@ class ArtifactsCache:
         self._artifacts_by_client_id = {}
 
     def check_md5_obj_path(
-        self, b64_md5: hashutil.B64MD5, size: int
+        self, b64_md5: B64MD5, size: int
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
-        hex_md5 = hashutil.b64_string_to_hex(b64_md5)
+        hex_md5 = b64_string_to_hex(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
@@ -857,7 +858,7 @@ class ArtifactsCache:
     def check_etag_obj_path(
         self,
         url: util.URIStr,
-        etag: hashutil.ETag,
+        etag: ETag,
         size: int,
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
         hexhash = hashlib.sha256(

@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
-from wandb import hashutil, util
+from wandb import util
+from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_file_b64
 
 from ..interface.artifacts import ArtifactEntry, ArtifactManifest, get_staging_dir
 
@@ -232,7 +233,7 @@ class ArtifactSaver:
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
-            digest = hashutil.md5_file_b64(path)
+            digest = md5_file_b64(path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
@@ -300,7 +301,7 @@ class ArtifactSaver:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = util.URIStr(
                         "wandb-artifact://{}/{}".format(
-                            hashutil.b64_to_hex_id(artifact_id), artifact_file_path
+                            b64_to_hex_id(artifact_id), artifact_file_path
                         )
                     )
 

@@ -6,8 +6,9 @@ import shutil
 import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
-from wandb import hashutil, util
+from wandb import util
 from wandb.filesync import dir_watcher, step_upload
+from wandb.sdk.lib.hashutil import md5_file_b64
 
 if TYPE_CHECKING:
     import tempfile
@@ -92,7 +93,7 @@ class StepChecksum:
                     # "prepare" file upload flow, in which we prepare the files in
                     # the database before uploading them. This is currently only
                     # used for artifact manifests
-                    checksum = hashutil.md5_file_b64(path)
+                    checksum = md5_file_b64(path)
                 self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(
