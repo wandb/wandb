@@ -323,3 +323,38 @@ def test_enforces_max_jobs(
         w.set()
 
     finish_and_wait(q)
+
+def test_is_alive_until_last_job_finishes(
+    step_upload_cls: Type["AbstractStepUpload"],
+    tmp_path: Path,
+):
+    q = queue.Queue()
+
+    upload_started = threading.Event()
+    upload_finished = threading.Event()
+
+    def mock_upload(*args, **kwargs):
+        upload_started.set()
+        upload_finished.wait()
+
+    api = Mock(
+        upload_urls=mock_upload_urls,
+        upload_file_retry=mock_upload
+    )
+
+    step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
+    step_upload.start()
+
+    f = make_tmp_file(tmp_path)
+    q.put(RequestUpload(path=str(f), save_name=str(f), artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+    assert upload_started.wait(2)
+
+    done = threading.Event()
+    q.put(RequestFinish(callback=done.set))
+
+    time.sleep(0.1)  # TODO: better way to wait for the message to be processed
+    assert step_upload.is_alive()
+
+    upload_finished.set()
+    assert done.wait(2)
+    assert not step_upload.is_alive()
