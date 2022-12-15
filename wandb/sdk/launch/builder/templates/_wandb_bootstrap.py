@@ -67,7 +67,7 @@ def main() -> None:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
-                    reqs.append(req.strip())
+                    reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:
