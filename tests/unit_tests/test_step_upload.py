@@ -1,6 +1,7 @@
 import time
 import queue
 from pathlib import Path
+import random
 import threading
 from typing import TYPE_CHECKING, Any, Iterator, MutableSequence, Sequence, Type
 from unittest.mock import Mock
@@ -36,6 +37,12 @@ def mock_upload_urls(
         file: {"url": f"http://localhost/{file}"}
         for file in files
     }
+
+
+def make_tmp_file(tmp_path: Path) -> Path:
+    f = tmp_path / str(random.random())
+    f.write_text(str(random.random()))
+    return f
 
 
 def make_step_upload(
@@ -96,9 +103,6 @@ class TestFinish:
         step_upload_cls: Type["AbstractStepUpload"],
         tmp_path: Path,
     ):
-        f = tmp_path / "file"
-        f.write_text("stuff")
-
         upload_started = threading.Event()
         upload_finished = threading.Event()
 
@@ -113,7 +117,7 @@ class TestFinish:
 
         done = threading.Event()
         q = queue.Queue()
-        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
         q.put(RequestFinish(callback=done.set))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
@@ -132,16 +136,13 @@ class TestUpload:
         step_upload_cls: Type["AbstractStepUpload"],
         tmp_path: Path,
     ):
-        f = tmp_path / "file"
-        f.write_text("stuff")
-
         api = Mock(
             upload_urls=mock_upload_urls,
             upload_file_retry=Mock(),
         )
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
@@ -155,8 +156,7 @@ class TestUpload:
         step_upload_cls: Type["AbstractStepUpload"],
         tmp_path: Path,
     ):
-        f = tmp_path / "file"
-        f.write_text("stuff")
+        f = make_tmp_file(tmp_path)
 
         upload_started = threading.Event()
         upload_finished = threading.Event()
@@ -222,9 +222,6 @@ class TestArtifactCommit:
         step_upload_cls: Type["AbstractStepUpload"],
         tmp_path: Path,
     ):
-        f = tmp_path / "file"
-        f.write_text("stuff")
-
         upload_started = threading.Event()
         upload_finished = threading.Event()
 
@@ -238,8 +235,7 @@ class TestArtifactCommit:
         )
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
-        q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=True))
+        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
@@ -256,9 +252,6 @@ class TestArtifactCommit:
         step_upload_cls: Type["AbstractStepUpload"],
         tmp_path: Path,
     ):
-        f = tmp_path / "file"
-        f.write_text("stuff")
-
         def mock_upload(*args, **kwargs):
             raise Exception("upload failed")
 
@@ -268,7 +261,7 @@ class TestArtifactCommit:
         )
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
+        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
         q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=True))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
