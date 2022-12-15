@@ -1,9 +1,6 @@
-import json
-
+from dataclasses import dataclass
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal import flow_control, settings_static
-
-from dataclasses import dataclass
 
 
 @dataclass
@@ -65,7 +62,7 @@ class RecordFactory:
             self._done = True
             return None
         try:
-            req = self._op_list[self._index]
+            _ = self._op_list[self._index]
         except IndexError:
             self._done = True
             return None
@@ -119,7 +116,7 @@ class RecordSim:
     def forward_record(self, record):
         write_id = record.history.step.num
         # print("F:", record)
-        # print("F:", write_id)
+        print("F:", write_id)
         op = self._f.op_lookup_record(record) or Op()
         op._record = record
 
@@ -170,6 +167,7 @@ class RecordSim:
             index += 1
         self._forward_index = index
         if self._debug:
+            print("C:", current_time)
             print("B:", len(self._forward_ops) - index)
 
     def _send_backlog_length(self):
@@ -270,15 +268,15 @@ def test_slow_grow():
     op_list = []
 
     # grow req queue
-    for x in range(20):
+    for _x in range(20):
         op_list.append(Op(dispatch_delay=1, retire_delay=2))
 
     # maintain req queue
-    for x in range(20):
+    for _x in range(20):
         op_list.append(Op(dispatch_delay=1, retire_delay=1))
 
     # drain req queue
-    for x in range(20):
+    for _x in range(20):
         op_list.append(Op(dispatch_delay=2, retire_delay=1))
 
     simulate(op_list)

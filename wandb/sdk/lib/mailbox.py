@@ -236,7 +236,7 @@ class MailboxHandle:
     def _time(self) -> float:
         return time.monotonic()
 
-    def wait(
+    def wait(  # noqa: C901
         self,
         *,
         timeout: float,

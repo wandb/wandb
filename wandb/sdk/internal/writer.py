@@ -117,7 +117,9 @@ class WriteManager:
         record_type = record.WhichOneof("record_type")
         assert record_type
         writer_str = "write_" + record_type
-        write_handler: Callable[["pb.Record"], None] = getattr(self, writer_str, None)  # type: ignore
+        write_handler: Optional[Callable[["pb.Record"], None]] = getattr(
+            self, writer_str, None
+        )
         if write_handler:
             return write_handler(record)
         # assert write_handler, f"unknown handle: {writer_str}"
@@ -127,7 +129,9 @@ class WriteManager:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         write_request_str = "write_request_" + request_type
-        write_request_handler: Callable[["pb.Record"], None] = getattr(self, write_request_str, None)  # type: ignore
+        write_request_handler: Optional[Callable[["pb.Record"], None]] = getattr(
+            self, write_request_str, None
+        )
         if write_request_handler:
             return write_request_handler(record)
         self._write(record)
@@ -150,7 +154,7 @@ class WriteManager:
         if not cancelled:
             self._sender_cancel_set.add(cancel_id)
 
-    def _respond_result(self, result: "Result") -> None:
+    def _respond_result(self, result: "pb.Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
         self._result_q.put(result)
 

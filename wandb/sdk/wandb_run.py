@@ -42,6 +42,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
+    Result,
     RunRecord,
     ServerInfoResponse,
     SyncStatusResponse,
@@ -188,7 +189,13 @@ class RunStatusChecker:
         self._retry_thread.start()
 
     def _loop_check_status(
-        self, *, lock, set_handle, timeout, request, process
+        self,
+        *,
+        lock: threading.Lock,
+        set_handle: Any,
+        timeout: int,
+        request: Any,
+        process: Any,
     ) -> None:
         local_handle: Optional[MailboxHandle] = None
         join_requested = False
@@ -196,13 +203,14 @@ class RunStatusChecker:
             time_probe = time.monotonic()
             if not local_handle:
                 local_handle = request()
+            assert local_handle
 
             with lock:
                 if self._join_event.is_set():
                     return
                 set_handle(local_handle)
             result = local_handle.wait(timeout=timeout)
-            with self._stop_status_lock:
+            with lock:
                 set_handle(None)
 
             if result:
@@ -213,7 +221,7 @@ class RunStatusChecker:
             join_requested = self._join_event.wait(timeout=wait_time)
 
     def check_network_status(self) -> None:
-        def _process_network_status(result):
+        def _process_network_status(result: Result) -> None:
             network_status = result.response.network_status_response
             for hr in network_status.network_responses:
                 if (
@@ -236,7 +244,7 @@ class RunStatusChecker:
         )
 
     def check_stop_status(self) -> None:
-        def _process_stop_status(result):
+        def _process_stop_status(result: Result) -> None:
             stop_status = result.response.stop_status_response
             if stop_status.run_should_stop:
                 # TODO(frz): This check is required

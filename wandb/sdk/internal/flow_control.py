@@ -55,7 +55,7 @@ State machine:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -90,9 +90,9 @@ def _is_control_record(record: "Record") -> bool:
 
 class FlowControl:
     _settings: SettingsStatic
-    _forward_record_cb: Callable[[Any, "Record"], None]
-    _write_record_cb: Callable[[Any, "Record"], int]
-    _recover_records_cb: Callable[[Any, int, int], None]
+    _forward_record_cb: Callable[["Record"], None]
+    _write_record_cb: Callable[["Record"], int]
+    _recover_records_cb: Callable[[int, int], None]
 
     _track_prev_written_offset: int
     _track_last_written_offset: int
@@ -123,9 +123,9 @@ class FlowControl:
         _recovering_bytes_min: int = 32 * 1024,  # 32KiB
     ) -> None:
         self._settings = settings
-        self._forward_record_cb = forward_record  # type: ignore
-        self._write_record_cb = write_record  # type: ignore
-        self._recover_records_cb = recover_records  # type: ignore
+        self._forward_record_cb = forward_record
+        self._write_record_cb = write_record
+        self._recover_records_cb = recover_records
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
         if settings._ram_buffer:
@@ -222,10 +222,6 @@ class FlowControl:
         self._track_prev_written_offset = self._track_last_written_offset
         self._track_last_written_offset = offset
 
-    def _ensure_flushed(self, end_offset: int) -> None:
-        if self._ensure_flushed_cb:
-            self._ensure_flushed_cb(end_offset)
-
     def _send_mark(self) -> None:
         record = pb.Record()
         request = pb.Request()
@@ -274,7 +270,7 @@ class FlowControl:
         # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
         return False
 
-    def _should_recover(self, inputs: "Record") -> bool:
+    def _should_recover_old(self, inputs: "Record") -> bool:
         # print(
         #     f"SHOULD_RECOVER1: {self._track_last_forwarded_offset} {self._mark_forwarded_offset} {self._mark_reported_offset}"
         # )

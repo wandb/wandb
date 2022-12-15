@@ -20,7 +20,7 @@ class RelayLink:
         self._disabled = False
         print("Using relay link:", self._relay_link_url)
         self._session = requests.Session()
-        
+
     def _sendit(self, data) -> None:
         prepared_relayed_request = requests.Request(
             method="POST",

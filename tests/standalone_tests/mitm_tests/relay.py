@@ -89,7 +89,6 @@ class ConsoleFormatter:
     END = "\033[0m"
 
 
-
 class DeliberateHTTPError(Exception):
     def __init__(self, message, status_code: int = 500):
         Exception.__init__(self)
@@ -504,7 +503,7 @@ class RelayControl:
         self._controls = defaultdict(RelayControlObject)
 
     def _signature(selt, request: "flask.Request"):
-        endpoint = request.path.split('/')[-1]
+        endpoint = request.path.split("/")[-1]
         return endpoint
 
     def process(self, request: "flask.Request"):

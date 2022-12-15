@@ -239,6 +239,26 @@ class InterfaceGrpc(InterfaceBase):
         # TODO: implement
         return None
 
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(status)
+        # TODO: implement
+        network_status_response = pb.NetworkStatusResponse()
+        response = pb.Response(network_status_response=network_status_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(status)
+        # TODO: implement
+        stop_status_response = pb.StopStatusResponse()
+        response = pb.Response(stop_status_response=stop_status_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def _communicate_stop_status(
         self, status: pb.StopStatusRequest
     ) -> Optional[pb.StopStatusResponse]:
@@ -383,8 +403,26 @@ class InterfaceGrpc(InterfaceBase):
     def _deliver_request_sync_status(
         self, sync_status: pb.SyncStatusRequest
     ) -> MailboxHandle:
-        # todo: implement me
-        pass
+        assert self._stub
+        self._assign(sync_status)
+        sync_status_response = self._stub.SyncStatus(sync_status)
+        response = pb.Response(sync_status_response=sync_status_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(run_start)
+        try:
+            run_start_response = self._stub.RunStart(run_start)
+        except grpc.RpcError as e:
+            logger.info(f"RUNSTART TIMEOUT: {e}")
+            run_start_response = pb.RunStartResponse()
+        response = pb.Response(run_start_response=run_start_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
 
     def join(self) -> None:
         super().join()
