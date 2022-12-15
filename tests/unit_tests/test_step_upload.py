@@ -50,6 +50,12 @@ def make_step_upload(
     return cls(**kwargs)
 
 
+def finish_and_wait(command_queue: queue.Queue):
+    done = threading.Event()
+    command_queue.put(RequestFinish(callback=done.set))
+    assert done.wait(2)
+
+
 class TestFinish:
 
     @pytest.mark.parametrize(
@@ -76,16 +82,14 @@ class TestFinish:
         step_upload_cls: Type["AbstractStepUpload"],
         commands: Sequence[Event],
     ):
-        done = threading.Event()
         q = queue.Queue()
         for command in commands:
             q.put(command)
-        q.put(RequestFinish(callback=done.set))
 
         step_upload = make_step_upload(step_upload_cls, event_queue=q)
         step_upload.start()
 
-        assert done.wait(2)
+        finish_and_wait(q)
 
     def test_no_finish_until_jobs_done(
         self,
@@ -154,9 +158,7 @@ class TestUpload:
         time.sleep(0.1)  # TODO: better way to wait for the message to be processed
         upload_finished.set()
 
-        done = threading.Event()
-        q.put(RequestFinish(callback=done.set))
-        assert done.wait(2)
+        finish_and_wait(q)
         assert api.upload_file_retry.call_count == 2
 
 
@@ -174,15 +176,13 @@ class TestArtifactCommit:
 
         api = Mock()
 
-        done = threading.Event()
         q = queue.Queue()
         q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=finalize))
-        q.put(RequestFinish(callback=done.set))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
-        assert done.wait(2)
+        finish_and_wait(q)
 
         if finalize:
             assert api.commit_artifact.call_args[0][0] == "my-art"
@@ -209,21 +209,18 @@ class TestArtifactCommit:
             upload_file_retry=mock_upload,
         )
 
-        done = threading.Event()
         q = queue.Queue()
         q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
         q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=True))
-        q.put(RequestFinish(callback=done.set))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
         assert upload_started.wait(2)
-        assert not done.wait(0.1)
         api.commit_artifact.assert_not_called()
 
         upload_finished.set()
-        assert done.wait(2)
+        finish_and_wait(q)
         api.commit_artifact.assert_called_once()
 
     def test_no_commit_if_upload_fails(
@@ -242,16 +239,14 @@ class TestArtifactCommit:
             upload_file_retry=mock_upload,
         )
 
-        done = threading.Event()
         q = queue.Queue()
         q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
         q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=True))
-        q.put(RequestFinish(callback=done.set))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
-        assert done.wait(2)
+        finish_and_wait(q)
         api.commit_artifact.assert_not_called()
 
 
@@ -287,9 +282,6 @@ def test_enforces_max_jobs(
     for i, f in enumerate(files):
         q.put(RequestUpload(path=str(f), save_name=f"save_name-{i}", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
 
-    done = threading.Event()
-    q.put(RequestFinish(callback=done.set))
-
     step_upload.start()
 
     with upload_started:
@@ -307,4 +299,4 @@ def test_enforces_max_jobs(
             for w in waiters:
                 w.set()
 
-    assert done.wait(2)
+    finish_and_wait(q)
