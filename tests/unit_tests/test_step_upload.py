@@ -206,11 +206,15 @@ class TestUpload:
         # TODO(spencerpearson): if we RequestUpload _several_ more times,
         # it seems like we should still only reupload once?
         # But as of 2022-12-15, the behavior is to reupload several more times,
-        # the not-yet-actionable requests no being deduped against each other.
+        # the not-yet-actionable requests not being deduped against each other.
 
         time.sleep(0.1)  # TODO: better way to wait for the message to be processed
+        assert api.upload_file_retry.call_count == 1
         unblock.set()
-        api.wait_for_upload(2).set()
+
+        unblock = api.wait_for_upload(2)
+        assert unblock
+        unblock.set()
 
         finish_and_wait(q)
         assert api.upload_file_retry.call_count == 2
