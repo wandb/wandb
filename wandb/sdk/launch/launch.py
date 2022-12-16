@@ -96,7 +96,7 @@ def resolve_agent_config(
 
     if user_set_project:
         wandb.termwarn(
-            "Specifying a project for the launch agent will be deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
+            "Specifying a project for the launch agent is deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
         )
 
     return resolved_config, api

@@ -173,7 +173,6 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
     def mock_launch_add(*args, **kwargs):
-
         mock = Mock(spec=public.QueuedRun)
         mock.args = Mock(return_value=args)
         return mock

@@ -235,7 +235,7 @@ def test_launch_build_push_job(
         assert rqi["runSpec"]["uri"] is None
         assert rqi["runSpec"]["job"] != "DELETE ME"
         assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{release_image}:v0"
-        # rqi pushed to launch proj, but confirm its still pointed at our end project
+        # rqi pushed to launch proj, but confirm it's still pointed at our end project
         assert rqi["runSpec"]["project"] == proj
 
         job = public_api.job(rqi["runSpec"]["job"])
