@@ -134,7 +134,7 @@ def _launch_add(
     version: Optional[str],
     docker_image: Optional[str],
     params: Optional[Dict[str, Any]],
-    project_queue: str,
+    project_queue: Optional[str],
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
