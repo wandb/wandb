@@ -11,7 +11,9 @@ __logger__ = logging.getLogger(__name__)
 
 # Statically register backend defined in wandb
 WANDB_RUNNERS: List[str] = [
+    "local",
     "local-container",
+    "bare",
     "local-process",
     "gcp-vertex",
     "sagemaker",
@@ -23,11 +25,11 @@ def load_backend(
     backend_name: str, api: Api, backend_config: Dict[str, Any]
 ) -> AbstractRunner:
     # Static backends
-    if backend_name in ["local-container"]:
+    if backend_name in ["local", "local-container"]:
         from .local_container import LocalContainerRunner
 
         return LocalContainerRunner(api, backend_config)
-    elif backend_name in ["local-process"]:
+    elif backend_name in ["bare", "local-process"]:
         from .local_process import LocalProcessRunner
 
         return LocalProcessRunner(api, backend_config)
