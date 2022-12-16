@@ -14,6 +14,7 @@ from wandb.filesync.step_upload import (
     RequestCommitArtifact,
     RequestUpload,
 )
+from wandb.filesync.step_upload_async import StepUploadAsync
 
 if TYPE_CHECKING:
     from wandb.filesync.step_upload import AbstractStepUpload
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture(params=[
     StepUpload,
+    StepUploadAsync,
 ])
 def step_upload_cls(request) -> Iterator[Type["AbstractStepUpload"]]:
     return request.param
