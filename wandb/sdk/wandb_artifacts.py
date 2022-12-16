@@ -35,6 +35,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 from wandb.sdk.internal import progress
+from wandb.util import LogicalFilePathStr
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
@@ -776,7 +777,7 @@ class ArtifactManifestV1(ArtifactManifest):
         entries: Mapping[str, ArtifactManifestEntry]
         entries = {
             name: ArtifactManifestEntry(
-                path=name,
+                path=LogicalFilePathStr(name),
                 digest=val["digest"],
                 birth_artifact_id=val.get("birthArtifactID"),
                 ref=val.get("ref"),
@@ -1177,7 +1178,7 @@ class TrackingHandler(StorageHandler):
             "Artifact references with unsupported schemes cannot be checksummed: %s"
             % path
         )
-        name = name or url.path[1:]  # strip leading slash
+        name = LogicalFilePathStr(name or url.path[1:])  # strip leading slash
         return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
 
@@ -1280,7 +1281,7 @@ class LocalFileHandler(StorageHandler):
                         logical_path = os.path.join(name, logical_path)
 
                     entry = ArtifactManifestEntry(
-                        path=logical_path,
+                        path=LogicalFilePathStr(logical_path),
                         ref=util.FilePathStr(os.path.join(path, logical_path)),
                         size=os.path.getsize(physical_path),
                         digest=md5(physical_path),
@@ -1291,7 +1292,7 @@ class LocalFileHandler(StorageHandler):
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                path=name,
+                path=LogicalFilePathStr(name),
                 ref=path,
                 size=os.path.getsize(local_path),
                 digest=md5(local_path),
@@ -1440,7 +1441,11 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
+            return [
+                ArtifactManifestEntry(
+                    path=LogicalFilePathStr(name) or key, ref=path, digest=path
+                )
+            ]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -1539,7 +1544,7 @@ class S3Handler(StorageHandler):
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            path=str(posix_name),
+            path=LogicalFilePathStr(str(posix_name)),
             ref=util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
             digest=util.ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
@@ -1684,7 +1689,11 @@ class GCSHandler(StorageHandler):
             )
 
         if not checksum:
-            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
+            return [
+                ArtifactManifestEntry(
+                    path=LogicalFilePathStr(name) or key, ref=path, digest=path
+                )
+            ]
 
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
@@ -1756,7 +1765,7 @@ class GCSHandler(StorageHandler):
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            path=str(posix_name),
+            path=LogicalFilePathStr(str(posix_name)),
             ref=util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
             digest=obj.md5_hash,
             size=obj.size,
@@ -1835,7 +1844,7 @@ class HTTPHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        name = name or os.path.basename(path)
+        name = LogicalFilePathStr(name or os.path.basename(path))
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
@@ -1978,7 +1987,7 @@ class WBArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                path=name or os.path.basename(path),
+                path=LogicalFilePathStr(name or os.path.basename(path)),
                 ref=path,
                 size=0,
                 digest=entry.digest,
@@ -2045,7 +2054,7 @@ class WBLocalArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                path=name or os.path.basename(path),
+                path=LogicalFilePathStr(name or os.path.basename(path)),
                 ref=path,
                 size=0,
                 digest=target_entry.digest,
