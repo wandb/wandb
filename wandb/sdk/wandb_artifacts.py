@@ -1443,7 +1443,7 @@ class S3Handler(StorageHandler):
         if not checksum:
             return [
                 ArtifactManifestEntry(
-                    path=LogicalFilePathStr(name) or key, ref=path, digest=path
+                    path=LogicalFilePathStr(name or key), ref=path, digest=path
                 )
             ]
 
@@ -1691,7 +1691,7 @@ class GCSHandler(StorageHandler):
         if not checksum:
             return [
                 ArtifactManifestEntry(
-                    path=LogicalFilePathStr(name) or key, ref=path, digest=path
+                    path=LogicalFilePathStr(name or key), ref=path, digest=path
                 )
             ]
 
