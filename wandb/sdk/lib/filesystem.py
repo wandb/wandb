@@ -1,4 +1,3 @@
-import errno
 import os
 import re
 import threading
