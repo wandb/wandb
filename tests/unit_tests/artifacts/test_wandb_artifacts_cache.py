@@ -109,6 +109,8 @@ def _cache_writer(artifact_cache):
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="flaky")
 def test_check_write_parallel(cache):
     num_parallel = 5
 
