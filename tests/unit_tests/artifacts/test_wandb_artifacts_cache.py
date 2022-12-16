@@ -172,7 +172,8 @@ def test_artifacts_cache_cleanup_tmp_files(cache):
     assert reclaimed_bytes == 1000
 
 
-def test_cache_cleanup_allows_upload(wandb_init):
+
+def test_cache_cleanup_allows_upload(wandb_init, cache, monkeypatch):
     # You're here because this test is flaky, aren't you? Sorry.
     #
     # Other concurrent tests fill the cache up; I tried isolating this test
@@ -185,12 +186,15 @@ def test_cache_cleanup_allows_upload(wandb_init):
     # trust it enough to leave it without a paragraph of expository. If it's
     # flaking again and you don't have better ideas we should disable it.
 
-    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    monkeypatch.setattr(wandb.sdk.interface.artifacts, "_artifacts_cache", cache)
+    assert cache == wandb_sdk.wandb_artifacts.get_artifacts_cache()
     cache.cleanup(0)
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
     with open("test-file", "wb") as f:
         f.truncate(2**20)
+        f.flush()
+        os.fsync(f)
     artifact.add_file("test-file")
 
     # We haven't cached it and can't reclaim its bytes.
@@ -204,3 +208,27 @@ def test_cache_cleanup_allows_upload(wandb_init):
 
     # It's now been cached and can be reclaimed.
     assert cache.cleanup(0) >= 2**20
+
+
+def test_s3_storage_handler_load_path_uses_cache(cache):
+    uri = "s3://some-bucket/path/to/file.json"
+    etag = "some etag"
+
+    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
+    with opener() as f:
+        f.write(123 * "a")
+
+    handler = wandb_sdk.wandb_artifacts.S3Handler()
+    handler._cache = cache
+
+    local_path = handler.load_path(
+        wandb.Artifact("test", type="dataset"),
+        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=etag,
+            size=123,
+        ),
+        local=True,
+    )
+    assert local_path == path
