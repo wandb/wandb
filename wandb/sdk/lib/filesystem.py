@@ -6,15 +6,15 @@ from typing import BinaryIO
 
 
 def mkdir_exists_ok(dir_name: str) -> None:
-    try:
-        os.makedirs(dir_name)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-    if not os.path.isdir(dir_name):
-        raise Exception("not dir")
+    """Create `dir_name` and any parent directories if they don't exist.
+
+    Raises:
+        FileExistsError: if `dir_name` exists and is not a directory.
+        PermissionError: if `dir_name` is not writable.
+    """
+    os.makedirs(dir_name, exist_ok=True)
     if not os.access(dir_name, os.W_OK):
-        raise Exception(f"cant write: {dir_name}")
+        raise PermissionError(f"{dir_name} is not writable")
 
 
 class WriteSerializingFile:
