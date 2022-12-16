@@ -917,7 +917,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            queue or launch_config.get("queue", "default"),
+                            f"\"{queue or launch_config.get('queue', 'default')}\"",
                             "--project",
                             project,
                             "--job",
@@ -1369,15 +1369,9 @@ def scheduler(
 
     # Future-proofing hack to pull any kwargs that get passed in through the CLI
     kwargs = {}
-    cur_key = ""
-    for _arg in ctx.args:
+    for i, _arg in enumerate(ctx.args):
         if isinstance(_arg, str) and _arg.startswith("--"):
-            cur_key = _arg[2:]
-            kwargs[cur_key] = ""
-        elif cur_key:
-            kwargs[cur_key] += _arg + " "
-    # clean up spaces
-    kwargs = {key: val.strip() for key, val in kwargs.items()}
+            kwargs[_arg[2:]] = ctx.args[i + 1]
 
     _scheduler = load_scheduler("sweep")(
         api,
