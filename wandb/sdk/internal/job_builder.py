@@ -22,6 +22,7 @@ else:
 JOB_TYPES = ["git", "artifact", "image"]
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
+JOB_ARTIFACT_TYPE = "job"
 
 
 class GitSourceDict(TypedDict):
@@ -97,7 +98,7 @@ class JobBuilder:
 
         name = make_artifact_name_safe(f"job-{remote}-{self.program_relpath}")
 
-        artifact = Artifact(name, "jobbuilder")
+        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
             artifact.add_file(
                 os.path.join(self._settings.files_dir, DIFF_FNAME),
@@ -117,12 +118,12 @@ class JobBuilder:
 
         name = f"job-{self._logged_code_artifact['name']}-{self.program_relpath}"
 
-        artifact = Artifact(name, "jobbuilder")
+        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         return artifact, source
 
     def _build_image_job(self) -> Tuple[Artifact, ImageSourceDict]:
         name = make_artifact_name_safe(f"job-{self._settings.docker}")
-        artifact = Artifact(name, "jobbuilder")
+        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         source: ImageSourceDict = {
             "image": self._settings.docker,
             "args": self.args,
