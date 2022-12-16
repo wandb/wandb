@@ -27,7 +27,7 @@ def _add_any(
         name: `str` - the name of the object which is added to an artifact.
 
     Returns:
-        Type[Any] - Union[None, ArtifactManifestEntry, etc]
+        Type[Any] - Union[None, ArtifactEntry, etc]
 
     """
     if isinstance(path_or_obj, ArtifactEntry):

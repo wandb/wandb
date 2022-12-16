@@ -1195,20 +1195,20 @@ class ArtifactManifest(google.protobuf.message.Message):
     @property
     def storage_policy_config(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StoragePolicyConfigItem]: ...
     @property
-    def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactManifestEntry]: ...
+    def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactEntry]: ...
     def __init__(
         self,
         *,
         version: builtins.int = ...,
         storage_policy: builtins.str = ...,
         storage_policy_config: collections.abc.Iterable[global___StoragePolicyConfigItem] | None = ...,
-        contents: collections.abc.Iterable[global___ArtifactManifestEntry] | None = ...,
+        contents: collections.abc.Iterable[global___ArtifactEntry] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["contents", b"contents", "storage_policy", b"storage_policy", "storage_policy_config", b"storage_policy_config", "version", b"version"]) -> None: ...
 
 global___ArtifactManifest = ArtifactManifest
 
-class ArtifactManifestEntry(google.protobuf.message.Message):
+class ArtifactEntry(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     PATH_FIELD_NUMBER: builtins.int
@@ -1242,7 +1242,7 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "ref", b"ref", "size", b"size"]) -> None: ...
 
-global___ArtifactManifestEntry = ArtifactManifestEntry
+global___ArtifactEntry = ArtifactEntry
 
 class ExtraItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor

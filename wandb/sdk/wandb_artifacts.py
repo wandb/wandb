@@ -735,9 +735,8 @@ class Artifact(ArtifactInterface):
             staging_path = f.name
             shutil.copyfile(path, staging_path)
 
-        entry = ArtifactManifestEntry(
+        entry = ArtifactEntry(
             path=name,
-            ref=None,
             digest=digest,
             size=size,
             local_path=staging_path,
@@ -774,9 +773,9 @@ class ArtifactManifestV1(ArtifactManifest):
         if storage_policy_cls is None:
             raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
 
-        entries: Mapping[str, ArtifactManifestEntry]
+        entries: Mapping[str, ArtifactEntry]
         entries = {
-            name: ArtifactManifestEntry(
+            name: ArtifactEntry(
                 path=name,
                 digest=val["digest"],
                 birth_artifact_id=val.get("birthArtifactID"),
@@ -836,44 +835,6 @@ class ArtifactManifestV1(ArtifactManifest):
             hasher.update(f"{name}:{entry.digest}\n".encode())
         return hasher.hexdigest()
 
-
-class ArtifactManifestEntry(ArtifactEntry):
-    def __init__(
-        self,
-        path: str,
-        ref: Optional[Union[util.FilePathStr, util.URIStr]],
-        digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag],
-        birth_artifact_id: Optional[str] = None,
-        size: Optional[int] = None,
-        extra: Optional[Dict] = None,
-        local_path: Optional[str] = None,
-    ):
-        if local_path is not None and size is None:
-            raise AssertionError(
-                "programming error, size required when local_path specified"
-            )
-        self.path = util.to_forward_slash_path(path)
-        self.ref = ref  # This is None for files stored in the artifact.
-        self.digest = digest
-        self.birth_artifact_id = birth_artifact_id
-        self.size = size
-        self.extra = extra or {}
-        # This is not stored in the manifest json, it's only used in the process
-        # of saving
-        self.local_path = local_path
-
-    def ref_target(self) -> str:
-        if self.ref is None:
-            raise ValueError("Only reference entries support ref_target().")
-        return self.ref
-
-    def __repr__(self) -> str:
-        if self.ref is not None:
-            summary = f"ref: {self.ref}/{self.path}"
-        else:
-            summary = "digest: %s" % self.digest
-
-        return "<ManifestEntry %s>" % summary
 
 
 class WandbStoragePolicy(StoragePolicy):
@@ -1215,7 +1176,7 @@ class TrackingHandler(StorageHandler):
             % path
         )
         name = name or url.path[1:]  # strip leading slash
-        return [ArtifactManifestEntry(name, path, digest=path)]
+        return [ArtifactEntry(path=name, ref=path, digest=path)]
 
 
 DEFAULT_MAX_OBJECTS = 10000
@@ -1316,9 +1277,9 @@ class LocalFileHandler(StorageHandler):
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
 
-                    entry = ArtifactManifestEntry(
-                        logical_path,
-                        util.FilePathStr(os.path.join(path, logical_path)),
+                    entry = ArtifactEntry(
+                        path=logical_path,
+                        ref=util.FilePathStr(os.path.join(path, logical_path)),
                         size=os.path.getsize(physical_path),
                         digest=md5(physical_path),
                     )
@@ -1327,9 +1288,9 @@ class LocalFileHandler(StorageHandler):
                 termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
-            entry = ArtifactManifestEntry(
-                name,
-                path,
+            entry = ArtifactEntry(
+                path=name,
+                ref=path,
                 size=os.path.getsize(local_path),
                 digest=md5(local_path),
             )
@@ -1477,7 +1438,7 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [ArtifactManifestEntry(name or key, path, digest=path)]
+            return [ArtifactEntry(path=name or key, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -1542,7 +1503,7 @@ class S3Handler(StorageHandler):
         name: Optional[str] = None,
         prefix: str = "",
         multi: bool = False,
-    ) -> ArtifactManifestEntry:
+    ) -> ArtifactEntry:
         """
         Arguments:
             obj: The S3 object
@@ -1575,10 +1536,10 @@ class S3Handler(StorageHandler):
             relpath = posix_key.relative_to(posix_prefix)
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
-        return ArtifactManifestEntry(
-            str(posix_name),
-            util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
-            util.ETag(self._etag_from_obj(obj)),
+        return ArtifactEntry(
+            path=str(posix_name),
+            ref=util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
+            digest=util.ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
         )
@@ -1721,7 +1682,7 @@ class GCSHandler(StorageHandler):
             )
 
         if not checksum:
-            return [ArtifactManifestEntry(name or key, path, digest=path)]
+            return [ArtifactEntry(path=name or key, ref=path, digest=path)]
 
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
@@ -1759,7 +1720,7 @@ class GCSHandler(StorageHandler):
         name: Optional[str] = None,
         prefix: str = "",
         multi: bool = False,
-    ) -> ArtifactManifestEntry:
+    ) -> ArtifactEntry:
         """
         Arguments:
             obj: The GCS object
@@ -1792,10 +1753,10 @@ class GCSHandler(StorageHandler):
             relpath = posix_key.relative_to(posix_prefix)
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
-        return ArtifactManifestEntry(
-            str(posix_name),
-            util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
-            obj.md5_hash,
+        return ArtifactEntry(
+            path=str(posix_name),
+            ref=util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
+            digest=obj.md5_hash,
             size=obj.size,
             extra=self._extra_from_obj(obj),
         )
@@ -1874,7 +1835,7 @@ class HTTPHandler(StorageHandler):
     ) -> Sequence[ArtifactEntry]:
         name = name or os.path.basename(path)
         if not checksum:
-            return [ArtifactManifestEntry(name, path, digest=path)]
+            return [ArtifactEntry(path=name, ref=path, digest=path)]
 
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
@@ -1882,7 +1843,7 @@ class HTTPHandler(StorageHandler):
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
         return [
-            ArtifactManifestEntry(name, path, digest=digest, size=size, extra=extra)
+            ArtifactEntry(path=name, ref=path, digest=digest, size=size, extra=extra)
         ]
 
     def _entry_from_headers(
@@ -1939,7 +1900,7 @@ class WBArtifactHandler(StorageHandler):
         and a new symlink is created and returned to the caller.
 
         Arguments:
-            manifest_entry (ArtifactManifestEntry): The index entry to load
+            manifest_entry (ArtifactEntry): The index entry to load
 
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
@@ -1985,7 +1946,7 @@ class WBArtifactHandler(StorageHandler):
             name (str): If specified, the logical name that should map to `path`
 
         Returns:
-            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
+            (list[ArtifactEntry]): A list of manifest entries to store within the artifact
         """
 
         # Recursively resolve the reference until a concrete asset is found
@@ -2012,9 +1973,9 @@ class WBArtifactHandler(StorageHandler):
 
         # Return the new entry
         return [
-            ArtifactManifestEntry(
-                name or os.path.basename(path),
-                path,
+            ArtifactEntry(
+                path=name or os.path.basename(path),
+                ref=path,
                 size=0,
                 digest=entry.digest,
             )
@@ -2066,7 +2027,7 @@ class WBLocalArtifactHandler(StorageHandler):
             name (str): If specified, the logical name that should map to `path`
 
         Returns:
-            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
+            (list[ArtifactEntry]): A list of manifest entries to store within the artifact
         """
         client_id = util.host_from_path(path)
         target_path = util.uri_from_path(path)
@@ -2079,9 +2040,9 @@ class WBLocalArtifactHandler(StorageHandler):
 
         # Return the new entry
         return [
-            ArtifactManifestEntry(
-                name or os.path.basename(path),
-                path,
+            ArtifactEntry(
+                path=name or os.path.basename(path),
+                ref=path,
                 size=0,
                 digest=target_entry.digest,
             )

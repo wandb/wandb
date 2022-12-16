@@ -6,6 +6,7 @@ import hashlib
 import os
 import random
 import tempfile
+from dataclasses import dataclass, field
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -143,14 +144,20 @@ class ArtifactManifest:
         ]
 
 
+@dataclass
 class ArtifactEntry:
     path: util.LogicalFilePathStr
-    ref: Optional[Union[util.FilePathStr, util.URIStr]]
     digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag]
-    birth_artifact_id: Optional[str]
-    size: Optional[int]
-    extra: Dict
-    local_path: Optional[str]
+    ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
+    birth_artifact_id: Optional[str] = None
+    size: Optional[int] = None
+    extra: Dict = field(default_factory=dict)
+    local_path: Optional[str] = None
+
+    def __post_init__(self):
+        if self.local_path and self.size is None:
+            raise ValueError("size required when local_path specified")
+        self.path = util.to_forward_slash_path(self.path)
 
     def parent_artifact(self) -> "Artifact":
         """
@@ -183,7 +190,9 @@ class ArtifactEntry:
         Raises:
             ValueError: If this artifact entry was not a reference.
         """
-        raise NotImplementedError
+        if self.ref is None:
+            raise ValueError("Only reference entries support ref_target().")
+        return self.ref
 
     def ref_url(self) -> str:
         """
@@ -425,7 +434,7 @@ class Artifact:
             Exception: if problem
 
         Returns:
-            ArtifactManifestEntry: the added manifest entry
+            ArtifactEntry: the added manifest entry
 
         """
         raise NotImplementedError
@@ -500,7 +509,7 @@ class Artifact:
             Exception: If problem.
 
         Returns:
-            List[ArtifactManifestEntry]: The added manifest entries.
+            List[ArtifactEntry]: The added manifest entries.
 
         Examples:
             Adding an HTTP link:
@@ -537,7 +546,7 @@ class Artifact:
             name: (str) The path within the artifact to add the object.
 
         Returns:
-            ArtifactManifestEntry: the added manifest entry
+            ArtifactEntry: the added manifest entry
 
         Examples:
             Basic usage
@@ -760,7 +769,7 @@ class Artifact:
             item: (wandb.WBValue) The object to add.
 
         Returns:
-            ArtifactManifestEntry: the added manifest entry
+            ArtifactEntry: the added manifest entry
 
         Examples:
             Basic usage
@@ -855,7 +864,7 @@ class StorageHandler:
         corresponding index entry.
 
         :param manifest_entry: The index entry to load
-        :type manifest_entry: ArtifactManifestEntry
+        :type manifest_entry: ArtifactEntry
         :return: A path to the file represented by `index_entry`
         :rtype: str
         """
@@ -872,7 +881,7 @@ class StorageHandler:
         :param name: If specified, the logical name that should map to `path`
         :type name: str
         :return: A list of manifest entries to store within the artifact
-        :rtype: list(ArtifactManifestEntry)
+        :rtype: list(ArtifactEntry)
         """
         pass
 
