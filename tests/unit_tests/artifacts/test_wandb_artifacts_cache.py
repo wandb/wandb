@@ -172,7 +172,6 @@ def test_artifacts_cache_cleanup_tmp_files(cache):
     assert reclaimed_bytes == 1000
 
 
-
 def test_cache_cleanup_allows_upload(wandb_init, cache, monkeypatch):
     # You're here because this test is flaky, aren't you? Sorry.
     #
