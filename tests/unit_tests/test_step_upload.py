@@ -3,7 +3,15 @@ import queue
 from pathlib import Path
 import random
 import threading
-from typing import TYPE_CHECKING, Any, Iterator, MutableSequence, Sequence, Type
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Iterator,
+    MutableSequence,
+    Optional,
+    Sequence,
+    Type,
+)
 from unittest.mock import Mock
 import pytest
 from wandb.filesync import stats
@@ -19,24 +27,23 @@ if TYPE_CHECKING:
     from wandb.filesync.step_upload import AbstractStepUpload
 
 
-@pytest.fixture(params=[
-    StepUpload,
-])
+@pytest.fixture(params=[StepUpload])
 def step_upload_cls(request) -> Iterator[Type["AbstractStepUpload"]]:
     return request.param
 
 
 def mock_upload_urls(
-        project: str,
-        files,
-        run=None,
-        entity=None,
-        description=None,
+    project: str,
+    files,
+    run=None,
+    entity=None,
+    description=None,
 ):
-    return "some-bucket", [], {
-        file: {"url": f"http://localhost/{file}"}
-        for file in files
-    }
+    return (
+        "some-bucket",
+        [],
+        {file: {"url": f"http://localhost/{file}"} for file in files},
+    )
 
 
 def make_tmp_file(tmp_path: Path) -> Path:
@@ -49,12 +56,38 @@ def make_step_upload(
     cls: Type["AbstractStepUpload"],
     **kwargs: Any,
 ) -> "AbstractStepUpload":
-    kwargs.setdefault("api", Mock())
-    kwargs.setdefault("stats", stats.Stats())
-    kwargs.setdefault("event_queue", queue.Queue())
-    kwargs.setdefault("max_jobs", 10)
-    kwargs.setdefault("file_stream", Mock())
-    return cls(**kwargs)
+    return cls(
+        **{
+            "api": Mock(),
+            "stats": stats.Stats(),
+            "event_queue": queue.Queue(),
+            "max_jobs": 10,
+            "file_stream": Mock(),
+            **kwargs,
+        }
+    )
+
+
+def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
+    return RequestUpload(
+        path=path,
+        **{
+            "save_name": str(path),
+            "artifact_id": None,
+            "md5": None,
+            "copied": False,
+            "save_fn": None,
+            "digest": None,
+            **kwargs,
+        },
+    )
+
+
+def make_request_commit(artifact_id: str, **kwargs: Any) -> RequestCommitArtifact:
+    return RequestCommitArtifact(
+        artifact_id=artifact_id,
+        **{"before_commit": None, "on_commit": None, "finalize": True, **kwargs},
+    )
 
 
 def finish_and_wait(command_queue: queue.Queue):
@@ -63,25 +96,50 @@ def finish_and_wait(command_queue: queue.Queue):
     assert done.wait(2)
 
 
-class TestFinish:
+class UploadBlockingMockApi(Mock):
+    def __init__(self, *args, **kwargs):
 
+        super().__init__(
+            *args,
+            **kwargs,
+            upload_urls=Mock(wraps=mock_upload_urls),
+            upload_file_retry=Mock(wraps=self._mock_upload),
+        )
+
+        self.mock_upload_file_waiters: MutableSequence[threading.Event] = []
+        self.mock_upload_started = threading.Condition()
+
+    def wait_for_upload(self, timeout: float) -> Optional[threading.Event]:
+        with self.mock_upload_started:
+            if not self.mock_upload_started.wait_for(
+                lambda: len(self.mock_upload_file_waiters) > 0,
+                timeout=timeout,
+            ):
+                return None
+            return self.mock_upload_file_waiters.pop()
+
+    def _mock_upload(self, *args, **kwargs):
+        ev = threading.Event()
+        with self.mock_upload_started:
+            self.mock_upload_file_waiters.append(ev)
+            self.mock_upload_started.notify_all()
+        ev.wait()
+
+
+class TestFinish:
     @pytest.mark.parametrize(
         ["commands"],
         [
             ([],),
-            ([
-                RequestUpload(path="some/path", save_name="some/savename", artifact_id="artid", md5="123", copied=False, save_fn=None, digest=None),
-            ],),
-            ([
-                RequestCommitArtifact(artifact_id=None, before_commit=None, on_commit=None, finalize=True),
-            ],),
-            ([
-                RequestCommitArtifact(artifact_id="artid", before_commit=None, on_commit=None, finalize=True),
-            ],),
-            ([
-                RequestUpload(path="some/path", save_name="some/savename", artifact_id="artid", md5="123", copied=False, save_fn=None, digest=None),
-                RequestCommitArtifact(artifact_id="artid", before_commit=None, on_commit=None, finalize=True),
-            ],),
+            ([make_request_upload(Path("some/path"))],),
+            ([make_request_upload(Path("some/path"), artifact_id="artid")],),
+            ([make_request_commit("artid")],),
+            (
+                [
+                    make_request_upload(Path("some/path"), artifact_id="artid"),
+                    make_request_commit("artid"),
+                ],
+            ),
         ],
     )
     def test_finishes(
@@ -103,34 +161,23 @@ class TestFinish:
         step_upload_cls: Type["AbstractStepUpload"],
         tmp_path: Path,
     ):
-        upload_started = threading.Event()
-        upload_finished = threading.Event()
-
-        def mock_upload(*args, **kwargs):
-            upload_started.set()
-            upload_finished.wait()
-
-        api = Mock(
-            upload_urls=mock_upload_urls,
-            upload_file_retry=mock_upload,
-        )
+        api = UploadBlockingMockApi()
 
         done = threading.Event()
         q = queue.Queue()
-        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
         q.put(RequestFinish(callback=done.set))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
-        assert upload_started.wait(2)
+        unblock = api.wait_for_upload(2)
         assert not done.wait(0.1)
-        upload_finished.set()
+        unblock.set()
         assert done.wait(2)
 
 
 class TestUpload:
-
     def test_upload(
         self,
         step_upload_cls: Type["AbstractStepUpload"],
@@ -142,14 +189,18 @@ class TestUpload:
         )
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        cmd = make_request_upload(make_tmp_file(tmp_path))
+        q.put(cmd)
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
         finish_and_wait(q)
         api.upload_file_retry.assert_called_once()
-        assert api.upload_file_retry.call_args[0][0] == mock_upload_urls("my-proj", ["save_name"])[2]["save_name"]["url"]
+        assert (
+            api.upload_file_retry.call_args[0][0]
+            == mock_upload_urls("my-proj", [cmd.save_name])[2][cmd.save_name]["url"]
+        )
 
     def test_reuploads_if_event_during_upload(
         self,
@@ -158,33 +209,24 @@ class TestUpload:
     ):
         f = make_tmp_file(tmp_path)
 
-        upload_started = threading.Event()
-        upload_finished = threading.Event()
-
-        def mock_upload(*args, **kwargs):
-            upload_started.set()
-            upload_finished.wait()
-
-        api = Mock(
-            upload_urls=mock_upload_urls,
-            upload_file_retry=Mock(wraps=mock_upload),
-        )
+        api = UploadBlockingMockApi()
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        q.put(make_request_upload(f))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
-        assert upload_started.wait(2)
-        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        unblock = api.wait_for_upload(2)
+        q.put(make_request_upload(f))
         # TODO(spencerpearson): if we RequestUpload _several_ more times,
         # it seems like we should still only reupload once?
         # But as of 2022-12-15, the behavior is to reupload several more times,
         # the not-yet-actionable requests no being deduped against each other.
 
         time.sleep(0.1)  # TODO: better way to wait for the message to be processed
-        upload_finished.set()
+        unblock.set()
+        api.wait_for_upload(2).set()
 
         finish_and_wait(q)
         assert api.upload_file_retry.call_count == 2
@@ -199,28 +241,18 @@ class TestUpload:
 
         f = make_tmp_file(tmp_path)
 
-        upload_started = threading.Event()
-        upload_finished = threading.Event()
-
-        def mock_upload(*args, **kwargs):
-            upload_started.set()
-            upload_finished.wait()
-
-        api = Mock(
-            upload_urls=mock_upload_urls,
-            upload_file_retry=Mock(wraps=mock_upload),
-        )
+        api = UploadBlockingMockApi()
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=copied, save_fn=None, digest=None))
+        q.put(make_request_upload(f, copied=copied))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
-        assert upload_started.wait(2)
+        unblock = api.wait_for_upload(2)
         assert f.exists()
 
-        upload_finished.set()
+        unblock.set()
 
         finish_and_wait(q)
 
@@ -231,7 +263,6 @@ class TestUpload:
 
 
 class TestArtifactCommit:
-
     @pytest.mark.parametrize(
         ["finalize"],
         [(True,), (False,)],
@@ -245,7 +276,7 @@ class TestArtifactCommit:
         api = Mock()
 
         q = queue.Queue()
-        q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=finalize))
+        q.put(make_request_commit("my-art", finalize=finalize))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
@@ -263,30 +294,23 @@ class TestArtifactCommit:
         step_upload_cls: Type["AbstractStepUpload"],
         tmp_path: Path,
     ):
-        upload_started = threading.Event()
-        upload_finished = threading.Event()
-
-        def mock_upload(*args, **kwargs):
-            upload_started.set()
-            upload_finished.wait()
-
-        api = Mock(
-            upload_urls=mock_upload_urls,
-            upload_file_retry=mock_upload,
-        )
+        api = UploadBlockingMockApi()
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
+        q.put(make_request_upload(make_tmp_file(tmp_path), artifact_id="my-art"))
+        q.put(make_request_commit("my-art"))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
 
-        assert upload_started.wait(2)
-        q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=True))
-        time.sleep(0.1)  # TODO: better way to wait for the message to be processed
+        unblock = api.wait_for_upload(2)
+
+        time.sleep(
+            0.1
+        )  # TODO: better way to wait for the Commit message to be processed
         api.commit_artifact.assert_not_called()
 
-        upload_finished.set()
+        unblock.set()
         finish_and_wait(q)
         api.commit_artifact.assert_called_once()
 
@@ -304,8 +328,8 @@ class TestArtifactCommit:
         )
 
         q = queue.Queue()
-        q.put(RequestUpload(path=str(make_tmp_file(tmp_path)), save_name="save_name", artifact_id="my-art", md5=None, copied=False, save_fn=None, digest=None))
-        q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=None, on_commit=None, finalize=True))
+        q.put(make_request_upload(make_tmp_file(tmp_path), artifact_id="my-art"))
+        q.put(make_request_commit("my-art"))
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
@@ -321,7 +345,14 @@ class TestArtifactCommit:
         )
 
         q = queue.Queue()
-        q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=lambda: events.append("before"), on_commit=lambda: events.append("on"), finalize=True))
+        q.put(
+            make_request_commit(
+                "my-art",
+                before_commit=lambda: events.append("before"),
+                on_commit=lambda: events.append("on"),
+                finalize=True,
+            )
+        )
 
         step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
         step_upload.start()
@@ -329,7 +360,6 @@ class TestArtifactCommit:
         finish_and_wait(q)
 
         assert events == ["before", "commit", "on"]
-
 
 
 def test_enforces_max_jobs(
@@ -340,48 +370,37 @@ def test_enforces_max_jobs(
 
     q = queue.Queue()
 
-    waiters: MutableSequence[threading.Event] = []
-    upload_started = threading.Condition()
-
-    def mock_upload(*args, **kwargs):
-        with upload_started:
-            cont = threading.Event()
-            waiters.append(cont)
-            upload_started.notify_all()
-        cont.wait()
-
-    api = Mock(
-        upload_urls=mock_upload_urls,
-        upload_file_retry=mock_upload
-    )
+    api = UploadBlockingMockApi()
 
     def add_job():
-        f = make_tmp_file(tmp_path)
-        q.put(RequestUpload(path=str(f), save_name=str(f), artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
 
-    step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q, max_jobs=max_jobs)
+    step_upload = make_step_upload(
+        step_upload_cls, api=api, event_queue=q, max_jobs=max_jobs
+    )
     step_upload.start()
 
-    with upload_started:
+    waiters = []
 
-        # first few jobs should start without blocking
-        for i in range(max_jobs):
-            add_job()
-            assert upload_started.wait(0.5), i
-
-        # next job should block...
+    # first few jobs should start without blocking
+    for _ in range(max_jobs):
         add_job()
-        assert not upload_started.wait(0.1)
+        waiters.append(api.wait_for_upload(0.1))
 
-        # ...until we release one of the first jobs
-        for w in waiters:
-            w.set()
-        assert upload_started.wait(2)
+    # next job should block...
+    add_job()
+    assert not api.wait_for_upload(0.1)
 
+    # ...until we release one of the first jobs
+    waiters.pop().set()
+    waiters.append(api.wait_for_upload(0.1))
+
+    # let all jobs finish, to release the threads
     for w in waiters:
         w.set()
 
     finish_and_wait(q)
+
 
 def test_is_alive_until_last_job_finishes(
     step_upload_cls: Type["AbstractStepUpload"],
@@ -389,24 +408,13 @@ def test_is_alive_until_last_job_finishes(
 ):
     q = queue.Queue()
 
-    upload_started = threading.Event()
-    upload_finished = threading.Event()
-
-    def mock_upload(*args, **kwargs):
-        upload_started.set()
-        upload_finished.wait()
-
-    api = Mock(
-        upload_urls=mock_upload_urls,
-        upload_file_retry=mock_upload
-    )
+    api = UploadBlockingMockApi()
 
     step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
     step_upload.start()
 
-    f = make_tmp_file(tmp_path)
-    q.put(RequestUpload(path=str(f), save_name=str(f), artifact_id=None, md5=None, copied=False, save_fn=None, digest=None))
-    assert upload_started.wait(2)
+    q.put(make_request_upload(make_tmp_file(tmp_path)))
+    unblock = api.wait_for_upload(2)
 
     done = threading.Event()
     q.put(RequestFinish(callback=done.set))
@@ -414,6 +422,6 @@ def test_is_alive_until_last_job_finishes(
     time.sleep(0.1)  # TODO: better way to wait for the message to be processed
     assert step_upload.is_alive()
 
-    upload_finished.set()
+    unblock.set()
     assert done.wait(2)
     assert not step_upload.is_alive()
