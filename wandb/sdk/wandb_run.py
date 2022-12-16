@@ -2245,7 +2245,6 @@ class Run:
         self, docker_image_name: str, args: Optional[List[str]] = None
     ) -> Artifact:
         packages, in_types, out_types = self._make_job_source_reqs()
-        # Reset job args, removing call to --build
         job_artifact = self._create_image_job(
             in_types,
             out_types,
