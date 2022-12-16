@@ -10,7 +10,6 @@ from shutil import copyfile
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
-from wandb import util
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.filenames import (
     CONDA_ENVIRONMENTS_FNAME,

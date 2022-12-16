@@ -3,7 +3,6 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-import errno
 import functools
 import gzip
 import hashlib
