@@ -699,7 +699,7 @@ def sync(
 @click.option(
     "--queue",
     default=None,
-    help="Set sweep name",
+    help="The name of a launch queue (configured with a resource), available in the current user or team.",
 )
 @click.option(
     "--project-queue",

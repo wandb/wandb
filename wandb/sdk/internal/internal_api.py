@@ -1076,6 +1076,15 @@ class Api:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
+
+            if not result:
+                return None
+
+            if result.get("runSpec"):
+                run_spec = json.loads(str(result["runSpec"]))
+                result["runSpec"] = run_spec
+
+            return result
         except Exception as e:
             if (
                 'Cannot query field "runSpec" on type "PushToRunQueueByNamePayload"'
