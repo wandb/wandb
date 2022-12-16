@@ -88,14 +88,14 @@ class JobBuilder:
         source: GitSourceDict = {
             "entrypoint": [
                 sys.executable.split("/")[-1],
-                self._settings.program_relpath,
+                self.program_relpath,
             ],
-            "args": self._settings._args,
+            "args": self.args,
             "remote": remote,
             "commit": commit,
         }
 
-        name = make_artifact_name_safe(f"job-{remote}-{self._settings.program_relpath}")
+        name = make_artifact_name_safe(f"job-{remote}-{self.program_relpath}")
 
         artifact = Artifact(name, "jobbuilder")
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -109,15 +109,13 @@ class JobBuilder:
         source: ArtifactSourceDict = {
             "entrypoint": [
                 sys.executable.split("/")[-1],
-                self._settings.program_relpath,
+                self.program_relpath,
             ],
-            "args": self._settings._args,
+            "args": self.args,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
 
-        name = (
-            f"job-{self._logged_code_artifact['name']}-{self._settings.program_relpath}"
-        )
+        name = f"job-{self._logged_code_artifact['name']}-{self.program_relpath}"
 
         artifact = Artifact(name, "jobbuilder")
         return artifact, source
@@ -127,7 +125,7 @@ class JobBuilder:
         artifact = Artifact(name, "jobbuilder")
         source: ImageSourceDict = {
             "image": self._settings.docker,
-            "args": self._settings._args,
+            "args": self.args,
         }
         return artifact, source
 
@@ -145,7 +143,9 @@ class JobBuilder:
                 metadata = json.load(f)
         source_type = None
         git_info = metadata.get("git", {})
-        print("DOCKER", self._settings.docker)
+        docker = metadata.get("docker", None)
+        self.program_relpath = metadata.get("codePath", None)
+        self.args = metadata.get("args", None)
         if git_info.get("remote") is not None and git_info.get("commit") is not None:
             artifact, source = self._build_repo_job(
                 git_info.get("remote"), git_info.get("commit")
@@ -154,7 +154,7 @@ class JobBuilder:
         elif self._logged_code_artifact is not None:
             artifact, source = self._build_artifact_job()
             source_type = "artifact"
-        elif self._settings.docker:
+        elif docker is not None:
             artifact, source = self._build_image_job()
             source_type = "image"
         else:
@@ -168,7 +168,7 @@ class JobBuilder:
             "source": source,
             "input_types": input_types,
             "output_types": output_types,
-            "runtime": self._settings._python,
+            "runtime": metadata.get("python", None),
         }
 
         with artifact.new_file("wandb-job.json") as f:

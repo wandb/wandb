@@ -400,7 +400,13 @@ class SendManager:
             )
         self._config_save(config_value_dict)
         # job builder saves config, but omits _wandb key
-        self._job_builder._set_config({key: self._consolidated_config[key] for key in self._consolidated_config if key != "_wandb"})
+        self._job_builder._set_config(
+            {
+                key: self._consolidated_config[key]
+                for key in self._consolidated_config
+                if key != "_wandb"
+            }
+        )
         self._config_needs_debounce = False
 
     def send_request_status(self, record: "Record") -> None:
@@ -491,7 +497,9 @@ class SendManager:
             self._output_raw_finish()
             transition_state()
         elif state == defer.FLUSH_JOB:
-            if not self._settings._offline:
+            if not hasattr(self._settings, "_offline") or (
+                hasattr(self._settings, "_offline") and not self._settings._offline
+            ):
                 artifact = self._job_builder._build()
                 print("artifact", artifact)
                 if artifact is not None:
@@ -969,7 +977,7 @@ class SendManager:
     def _update_summary(self) -> None:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
-        print("Summary dict: ", summary_dict)
+        # print("Summary dict: ", summary_dict)
         self._job_builder._set_summary(summary_dict)
         if self._metadata_summary:
             summary_dict["_wandb"] = self._metadata_summary
@@ -1233,6 +1241,7 @@ class SendManager:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
 
     def send_request_log_artifact(self, record: "Record") -> None:
+        print("CALLED SEND REQUEST LOG ARTIFACT")
         assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
@@ -1242,10 +1251,6 @@ class SendManager:
             res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
-            self._job_builder._logged_code_artifact = {
-                "id": res["id"],
-                "name": artifact.name,
-            }
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
@@ -1316,7 +1321,7 @@ class SendManager:
                 return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        return saver.save(
+        res = saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1330,6 +1335,12 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
+        if artifact.type == "code":
+            self._job_builder._logged_code_artifact = {
+                "id": res["id"],
+                "name": artifact.name,
+            }
+        return res
 
     def send_alert(self, record: "Record") -> None:
         from pkg_resources import parse_version
@@ -1401,7 +1412,7 @@ class SendManager:
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
-
+        print("Calling get_local_info")
         if self._settings._offline:
             local_info.out_of_date = False
             return local_info
