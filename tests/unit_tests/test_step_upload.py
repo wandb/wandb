@@ -189,6 +189,46 @@ class TestUpload:
         finish_and_wait(q)
         assert api.upload_file_retry.call_count == 2
 
+    @pytest.mark.parametrize("copied", [True, False])
+    def test_deletes_after_upload_iff_copied(
+        self,
+        step_upload_cls: Type["AbstractStepUpload"],
+        tmp_path: Path,
+        copied: bool,
+    ):
+
+        f = make_tmp_file(tmp_path)
+
+        upload_started = threading.Event()
+        upload_finished = threading.Event()
+
+        def mock_upload(*args, **kwargs):
+            upload_started.set()
+            upload_finished.wait()
+
+        api = Mock(
+            upload_urls=mock_upload_urls,
+            upload_file_retry=Mock(wraps=mock_upload),
+        )
+
+        q = queue.Queue()
+        q.put(RequestUpload(path=str(f), save_name="save_name", artifact_id=None, md5=None, copied=copied, save_fn=None, digest=None))
+
+        step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
+        step_upload.start()
+
+        assert upload_started.wait(2)
+        assert f.exists()
+
+        upload_finished.set()
+
+        finish_and_wait(q)
+
+        if copied:
+            assert not f.exists()
+        else:
+            assert f.exists()
+
 
 class TestArtifactCommit:
 
