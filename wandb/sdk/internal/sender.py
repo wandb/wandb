@@ -47,6 +47,7 @@ from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 from . import artifacts, file_stream, internal_api, update
 from .file_pusher import FilePusher
+from .job_builder import JobBuilder
 from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
@@ -244,6 +245,9 @@ class SendManager:
         self._output_raw_streams = dict()
         self._output_raw_file = None
 
+        # job builder
+        self._job_builder = JobBuilder(settings)
+
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
@@ -395,6 +399,8 @@ class SendManager:
                 name=self._run.run_id, config=config_value_dict, **self._api_settings  # type: ignore
             )
         self._config_save(config_value_dict)
+        # job builder saves config, but omits _wandb key
+        self._job_builder._set_config({key: self._consolidated_config[key] for key in self._consolidated_config if key != "_wandb"})
         self._config_needs_debounce = False
 
     def send_request_status(self, record: "Record") -> None:
@@ -483,6 +489,21 @@ class SendManager:
             transition_state()
         elif state == defer.FLUSH_OUTPUT:
             self._output_raw_finish()
+            transition_state()
+        elif state == defer.FLUSH_JOB:
+            if not self._settings._offline:
+                artifact = self._job_builder._build()
+                print("artifact", artifact)
+                if artifact is not None:
+                    proto_artifact = self._interface._make_artifact(artifact)
+                    proto_artifact.run_id = self._run.run_id
+                    proto_artifact.project = self._run.project
+                    proto_artifact.entity = self._run.entity
+                    proto_artifact.user_created = True
+                    proto_artifact.use_after_commit = True
+                    proto_artifact.finalize = True
+
+                    self._interface._publish_artifact(proto_artifact)
             transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
@@ -948,6 +969,8 @@ class SendManager:
     def _update_summary(self) -> None:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
+        print("Summary dict: ", summary_dict)
+        self._job_builder._set_summary(summary_dict)
         if self._metadata_summary:
             summary_dict["_wandb"] = self._metadata_summary
         json_summary = json.dumps(summary_dict)
@@ -1219,6 +1242,10 @@ class SendManager:
             res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
+            self._job_builder._logged_code_artifact = {
+                "id": res["id"],
+                "name": artifact.name,
+            }
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (

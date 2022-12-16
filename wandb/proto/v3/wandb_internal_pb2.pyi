@@ -1628,12 +1628,13 @@ class DeferRequest(google.protobuf.message.Message):
         FLUSH_SUM: DeferRequest._DeferState.ValueType  # 4
         FLUSH_DEBOUNCER: DeferRequest._DeferState.ValueType  # 5
         FLUSH_OUTPUT: DeferRequest._DeferState.ValueType  # 6
-        FLUSH_DIR: DeferRequest._DeferState.ValueType  # 7
-        FLUSH_FP: DeferRequest._DeferState.ValueType  # 8
-        JOIN_FP: DeferRequest._DeferState.ValueType  # 9
-        FLUSH_FS: DeferRequest._DeferState.ValueType  # 10
-        FLUSH_FINAL: DeferRequest._DeferState.ValueType  # 11
-        END: DeferRequest._DeferState.ValueType  # 12
+        FLUSH_JOB: DeferRequest._DeferState.ValueType  # 7
+        FLUSH_DIR: DeferRequest._DeferState.ValueType  # 8
+        FLUSH_FP: DeferRequest._DeferState.ValueType  # 9
+        JOIN_FP: DeferRequest._DeferState.ValueType  # 10
+        FLUSH_FS: DeferRequest._DeferState.ValueType  # 11
+        FLUSH_FINAL: DeferRequest._DeferState.ValueType  # 12
+        END: DeferRequest._DeferState.ValueType  # 13
 
     class DeferState(_DeferState, metaclass=_DeferStateEnumTypeWrapper): ...
     BEGIN: DeferRequest.DeferState.ValueType  # 0
@@ -1643,12 +1644,13 @@ class DeferRequest(google.protobuf.message.Message):
     FLUSH_SUM: DeferRequest.DeferState.ValueType  # 4
     FLUSH_DEBOUNCER: DeferRequest.DeferState.ValueType  # 5
     FLUSH_OUTPUT: DeferRequest.DeferState.ValueType  # 6
-    FLUSH_DIR: DeferRequest.DeferState.ValueType  # 7
-    FLUSH_FP: DeferRequest.DeferState.ValueType  # 8
-    JOIN_FP: DeferRequest.DeferState.ValueType  # 9
-    FLUSH_FS: DeferRequest.DeferState.ValueType  # 10
-    FLUSH_FINAL: DeferRequest.DeferState.ValueType  # 11
-    END: DeferRequest.DeferState.ValueType  # 12
+    FLUSH_JOB: DeferRequest.DeferState.ValueType  # 7
+    FLUSH_DIR: DeferRequest.DeferState.ValueType  # 8
+    FLUSH_FP: DeferRequest.DeferState.ValueType  # 9
+    JOIN_FP: DeferRequest.DeferState.ValueType  # 10
+    FLUSH_FS: DeferRequest.DeferState.ValueType  # 11
+    FLUSH_FINAL: DeferRequest.DeferState.ValueType  # 12
+    END: DeferRequest.DeferState.ValueType  # 13
 
     STATE_FIELD_NUMBER: builtins.int
     state: global___DeferRequest.DeferState.ValueType
