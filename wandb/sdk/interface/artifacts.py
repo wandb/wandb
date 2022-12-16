@@ -155,9 +155,11 @@ class ArtifactManifestEntry:
     local_path: Optional[str] = None
 
     def __post_init__(self):
+        self.path = util.to_forward_slash_path(self.path)
+        if self.extra is None:
+            self.extra = {}
         if self.local_path and self.size is None:
             raise ValueError("size required when local_path specified")
-        self.path = util.to_forward_slash_path(self.path)
 
     def parent_artifact(self) -> "Artifact":
         """
