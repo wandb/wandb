@@ -4066,15 +4066,18 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
-class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
+class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
     def __init__(
-        self, name: str, entry: "artifacts.ArtifactEntry", parent_artifact: "Artifact"
+        self,
+        name: str,
+        entry: "artifacts.ArtifactManifestEntry",
+        parent_artifact: "Artifact",
     ):
         self.name = name
         self.entry = entry
         self._parent_artifact = parent_artifact
 
-        # Have to copy over a bunch of variables to get this ArtifactEntry interface
+        # Have to copy over a bunch of variables to get this ArtifactManifestEntry interface
         # to work properly
         self.path = entry.path
         self.ref = entry.ref
@@ -4656,7 +4659,7 @@ class Artifact(artifacts.Artifact):
             if wb_class == wandb.Table:
                 self.download(recursive=True)
 
-            # Get the ArtifactEntry
+            # Get the ArtifactManifestEntry
             item = self.get_path(entry.path)
             item_path = item.download()
 
@@ -5105,7 +5108,7 @@ class Artifact(artifacts.Artifact):
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
-        """Helper function determines if an ArtifactEntry in manifest is an artifact reference"""
+        """Helper function determines if an ArtifactManifestEntry in manifest is an artifact reference"""
         return (
             entry.ref is not None
             and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"

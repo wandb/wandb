@@ -111,7 +111,7 @@ class StepChecksum:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(
                             save_fn: "internal_artifacts.SaveFn",
-                            entry: "artifacts.ArtifactEntry",
+                            entry: "artifacts.ArtifactManifestEntry",
                         ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(
                                 entry, progress_callback

@@ -90,7 +90,7 @@ def bytes_to_hex(bytestr):
 
 
 class ArtifactManifest:
-    entries: Dict[str, "ArtifactEntry"]
+    entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
     # TODO: we don't need artifact here.
@@ -131,7 +131,7 @@ class ArtifactManifest:
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
-    def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
+    def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
         return self.entries.get(path)
 
     def get_entries_in_directory(self, directory):
@@ -145,7 +145,7 @@ class ArtifactManifest:
 
 
 @dataclass
-class ArtifactEntry:
+class ArtifactManifestEntry:
     path: util.LogicalFilePathStr
     digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag]
     ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
@@ -434,7 +434,7 @@ class Artifact:
             Exception: if problem
 
         Returns:
-            ArtifactEntry: the added manifest entry
+            ArtifactManifestEntry: the added manifest entry
 
         """
         raise NotImplementedError
@@ -469,7 +469,7 @@ class Artifact:
 
     def add_reference(
         self,
-        uri: Union[ArtifactEntry, str],
+        uri: Union[ArtifactManifestEntry, str],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -509,7 +509,7 @@ class Artifact:
             Exception: If problem.
 
         Returns:
-            List[ArtifactEntry]: The added manifest entries.
+            List[ArtifactManifestEntry]: The added manifest entries.
 
         Examples:
             Adding an HTTP link:
@@ -546,7 +546,7 @@ class Artifact:
             name: (str) The path within the artifact to add the object.
 
         Returns:
-            ArtifactEntry: the added manifest entry
+            ArtifactManifestEntry: the added manifest entry
 
         Examples:
             Basic usage
@@ -566,7 +566,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> ArtifactEntry:
+    def get_path(self, name: str) -> ArtifactManifestEntry:
         """
         Gets the path to the file located at the artifact relative `name`.
 
@@ -769,7 +769,7 @@ class Artifact:
             item: (wandb.WBValue) The object to add.
 
         Returns:
-            ArtifactEntry: the added manifest entry
+            ArtifactManifestEntry: the added manifest entry
 
         Examples:
             Basic usage
@@ -815,7 +815,7 @@ class StoragePolicy:
         pass
 
     def load_file(
-        self, artifact: Artifact, name: str, manifest_entry: ArtifactEntry
+        self, artifact: Artifact, name: str, manifest_entry: ArtifactManifestEntry
     ) -> str:
         raise NotImplementedError
 
@@ -823,7 +823,7 @@ class StoragePolicy:
         self,
         artifact_id: str,
         artifact_manifest_id: str,
-        entry: ArtifactEntry,
+        entry: ArtifactManifestEntry,
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
@@ -838,7 +838,7 @@ class StoragePolicy:
         self,
         artifact: Artifact,
         name: str,
-        manifest_entry: ArtifactEntry,
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> str:
         raise NotImplementedError
@@ -856,7 +856,7 @@ class StorageHandler:
     def load_path(
         self,
         artifact: Artifact,
-        manifest_entry: ArtifactEntry,
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
         """
@@ -864,7 +864,7 @@ class StorageHandler:
         corresponding index entry.
 
         :param manifest_entry: The index entry to load
-        :type manifest_entry: ArtifactEntry
+        :type manifest_entry: ArtifactManifestEntry
         :return: A path to the file represented by `index_entry`
         :rtype: str
         """
@@ -872,7 +872,7 @@ class StorageHandler:
 
     def store_path(
         self, artifact, path, name=None, checksum=True, max_objects=None
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Sequence[ArtifactManifestEntry]:
         """
         Stores the file or directory at the given path within the specified artifact.
 
@@ -881,7 +881,7 @@ class StorageHandler:
         :param name: If specified, the logical name that should map to `path`
         :type name: str
         :return: A list of manifest entries to store within the artifact
-        :rtype: list(ArtifactEntry)
+        :rtype: list(ArtifactManifestEntry)
         """
         pass
 

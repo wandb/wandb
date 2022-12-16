@@ -394,10 +394,10 @@ message ArtifactManifest {
   int32                             version = 1;
   string                            storage_policy = 2;
   repeated StoragePolicyConfigItem  storage_policy_config = 3;
-  repeated ArtifactEntry    contents = 4;
+  repeated ArtifactManifestEntry    contents = 4;
 }
 
-message ArtifactEntry {
+message ArtifactManifestEntry {
   string                path = 1;
   string                digest = 2;
   string                ref = 3;
