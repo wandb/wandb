@@ -13,6 +13,7 @@ import responses
 import wandb
 import wandb.data_types as data_types
 from wandb import util
+from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -144,6 +145,12 @@ def md5_string(string: str) -> util.B64MD5:
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")
+
+
+def test_unsized_manifest_entry():
+    with pytest.raises(ValueError) as e:
+        ArtifactManifestEntry(path="foo", digest="123", local_path="some/file.txt")
+    assert "size required" in str(e.value)
 
 
 def test_add_one_file():
