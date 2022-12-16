@@ -46,23 +46,22 @@ class StepUploadAsync:
 
         self._artifact_failures = {}
 
-        self._run_loop_thread = threading.Thread(target=self._loop.run_until_complete, args=[self.run()], daemon=True)
+        self._run_loop_thread = threading.Thread(target=self._run_sync, daemon=True)
 
-    async def run(self) -> None:
+    def _run_sync(self) -> None:
+        finish = self._loop.run_until_complete(self.run())
+        if finish.callback is not None:
+            finish.callback()
+
+    async def run(self) -> step_upload_sync.RequestFinish:
         while True:
             cmd = await self._loop.run_in_executor(None, self._event_queue.get)
             print("got", cmd)
             if isinstance(cmd, step_upload_sync.RequestFinish):
-                break
+                return cmd
 
             self._unfinished_cmds.add(cmd)
             asyncio.create_task(self._handle_cmd(cmd))
-
-        async with self._cmd_finished_cond:
-            while self._unfinished_cmds:
-                await self._cmd_finished_cond.wait()
-
-        await self._loop.run_in_executor(None, cmd.callback)
 
     async def _handle_cmd(self, cmd: Command) -> None:
         async with self._semaphore:
@@ -124,6 +123,11 @@ class StepUploadAsync:
 
         if artifact_id in self._artifact_failures:
             raise self._artifact_failures[artifact_id]
+
+    async def _wait_until_idle(self) -> None:
+        async with self._cmd_finished_cond:
+            while self._unfinished_cmds:
+                await self._cmd_finished_cond.wait()
 
     def start(self) -> None:
         self._run_loop_thread.start()
