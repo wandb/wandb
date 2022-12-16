@@ -18,6 +18,7 @@ from wandb.sdk.lib.filenames import (
     METADATA_FNAME,
     REQUIREMENTS_FNAME,
 )
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.git import GitRepo
 
 from .assets.interfaces import Interface
@@ -93,7 +94,7 @@ class SystemInfo:
 
         root: str = self.git.root or os.getcwd()
         program_relative: str = self.settings.program_relpath
-        util.mkdir_exists_ok(
+        mkdir_exists_ok(
             os.path.join(
                 self.settings.files_dir, "code", os.path.dirname(program_relative)
             )

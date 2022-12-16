@@ -27,6 +27,7 @@ from typing import Optional
 
 import wandb
 from wandb import util
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
@@ -1108,7 +1109,7 @@ class Audio(BatchableMedia):
             required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile",
         )
         base_path = os.path.join(run.dir, "media", "audio")
-        util.mkdir_exists_ok(base_path)
+        mkdir_exists_ok(base_path)
         meta = {
             "_type": "audio",
             "count": len(audio_list),

@@ -5,7 +5,7 @@ import unittest.mock
 
 import pytest
 import wandb
-from wandb.util import mkdir_exists_ok
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 
 def test_save_live_existing_file(relay_server, user, mock_run, backend_interface):

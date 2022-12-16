@@ -59,6 +59,7 @@ import yaml
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -947,17 +948,6 @@ def make_safe_for_json(obj: Any) -> Any:
         elif obj == float("-inf"):
             return "-Infinity"
     return obj
-
-
-def mkdir_exists_ok(path: str) -> bool:
-    try:
-        os.makedirs(path)
-        return True
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            return False
-        else:
-            raise
 
 
 def no_retry_4xx(e: Exception) -> bool:

@@ -53,6 +53,7 @@ from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -4098,7 +4099,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
             or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
         )
         if need_copy:
-            util.mkdir_exists_ok(os.path.dirname(target_path))
+            mkdir_exists_ok(os.path.dirname(target_path))
             # We use copy2, which preserves file metadata including modified
             # time (which we use above to check whether we should do the copy).
             shutil.copy2(cache_path, target_path)

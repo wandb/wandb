@@ -78,6 +78,7 @@ from .lib import (
 )
 from .lib.exit_hooks import ExitHooks
 from .lib.filenames import DIFF_FNAME
+from .lib.filesystem import mkdir_exists_ok
 from .lib.git import GitRepo
 from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
@@ -1688,7 +1689,7 @@ class Run:
             file_name = os.path.relpath(path, base_path)
             abs_path = os.path.abspath(path)
             wandb_path = os.path.join(self._settings.files_dir, file_name)
-            wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
+            mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
             if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
                 os.remove(wandb_path)

@@ -10,6 +10,7 @@ import requests
 from requests.compat import urljoin
 
 import wandb
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 try:
     from IPython.core.getipython import get_ipython
@@ -488,7 +489,7 @@ class Notebook:
             )
             state_path = os.path.join("code", "_session_history.ipynb")
             wandb.run._set_config_wandb("session_history", state_path)
-            wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
+            mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
             with open(
                 os.path.join(self.settings._tmp_code_dir, "_session_history.ipynb"),
                 "w",

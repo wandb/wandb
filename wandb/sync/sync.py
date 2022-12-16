@@ -16,7 +16,8 @@ import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import datastore, handler, sender, tb_watcher
-from wandb.util import check_and_warn_old, mkdir_exists_ok
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"

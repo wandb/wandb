@@ -5,7 +5,7 @@ import os
 from unittest import mock
 
 import wandb
-from wandb.util import mkdir_exists_ok
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 if __name__ == "__main__":
     wandb.login()
