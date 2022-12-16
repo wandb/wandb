@@ -2641,7 +2641,11 @@ class Sweep(Attrs):
             query = cls.LEGACY_QUERY
             response = client.execute(query, variable_values=variables)
 
-        if not response or not response.get("project", {}).get("sweep"):
+        if (
+            not response
+            or not response.get("project")
+            or not response["project"].get("sweep")
+        ):
             return None
 
         sweep_response = response["project"]["sweep"]
@@ -4864,7 +4868,7 @@ class Artifact(artifacts.Artifact):
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
+                "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": aliases,
             },
         )
