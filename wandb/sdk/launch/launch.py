@@ -178,7 +178,7 @@ def run(
     version: Optional[str] = None,
     parameters: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
-    resource: str = "local",
+    resource: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -201,7 +201,8 @@ def run(
     parameters: Parameters (dictionary) for the entry point command. Defaults to using the
         the parameters used to run the original run.
     name: Name run under which to launch the run.
-    resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    resource: Execution backend for the run: W&B provides built-in support for "local-container"
+        and "local-process" backends
     resource_args: Resource related arguments for launching runs onto a remote backend.
         Will be stored on the constructed launch config under ``resource_args``.
     project: Target project to send launched run to
@@ -209,7 +210,7 @@ def run(
     config: A dictionary containing the configuration for the run. May also contain
     resource specific arguments under the key "resource_args".
     synchronous: Whether to block while waiting for a run to complete. Defaults to True.
-        Note that if ``synchronous`` is False and ``backend`` is "local", this
+        Note that if ``synchronous`` is False and ``backend`` is "local-container", this
         method will return, but the current process will block when exiting until
         the local run completes. If the current process is interrupted, any
         asynchronous runs launched via this method will be terminated. If
@@ -239,6 +240,10 @@ def run(
     """
     if config is None:
         config = {}
+
+    # default to local container for runs without a queue
+    if resource is None:
+        resource = "local-container"
 
     submitted_run_obj = _run(
         uri=uri,

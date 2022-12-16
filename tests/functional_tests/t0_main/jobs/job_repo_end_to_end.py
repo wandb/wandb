@@ -43,7 +43,7 @@ kwargs = {
     "docker_config": {},
     "git_info": {},
     "overrides": {},
-    "resource": "local",
+    "resource": "local-container",
     "resource_args": {},
     "cuda": False,
     "run_id": None,
