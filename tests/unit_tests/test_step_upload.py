@@ -213,6 +213,7 @@ class TestArtifactCommit:
         finish_and_wait(q)
 
         if finalize:
+            api.commit_artifact.assert_called_once()
             assert api.commit_artifact.call_args[0][0] == "my-art"
         else:
             api.commit_artifact.assert_not_called()
@@ -272,6 +273,24 @@ class TestArtifactCommit:
         finish_and_wait(q)
         api.commit_artifact.assert_not_called()
 
+    def test_calls_callbacks(self, step_upload_cls: Type["AbstractStepUpload"]):
+
+        events = []
+        api = Mock(
+            commit_artifact=lambda *args, **kwargs: events.append("commit"),
+        )
+
+        q = queue.Queue()
+        q.put(RequestCommitArtifact(artifact_id="my-art", before_commit=lambda: events.append("before"), on_commit=lambda: events.append("on"), finalize=True))
+
+        step_upload = make_step_upload(step_upload_cls, api=api, event_queue=q)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+        assert events == ["before", "commit", "on"]
+
+
 
 def test_enforces_max_jobs(
     step_upload_cls: Type["AbstractStepUpload"],
@@ -306,9 +325,9 @@ def test_enforces_max_jobs(
     with upload_started:
 
         # first few jobs should start without blocking
-        for _ in range(max_jobs):
+        for i in range(max_jobs):
             add_job()
-            assert upload_started.wait(0.5)
+            assert upload_started.wait(0.5), i
 
         # next job should block...
         add_job()
