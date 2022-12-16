@@ -4073,19 +4073,17 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         entry: "artifacts.ArtifactManifestEntry",
         parent_artifact: "Artifact",
     ):
+        super().__init__(
+            path=entry.path,
+            digest=entry.digest,
+            ref=entry.ref,
+            birth_artifact_id=entry.birth_artifact_id,
+            size=entry.size,
+            extra=entry.extra,
+            local_path=entry.local_path,
+        )
         self.name = name
-        self.entry = entry
         self._parent_artifact = parent_artifact
-
-        # Have to copy over a bunch of variables to get this ArtifactManifestEntry interface
-        # to work properly
-        self.path = entry.path
-        self.ref = entry.ref
-        self.digest = entry.digest
-        self.birth_artifact_id = entry.birth_artifact_id
-        self.size = entry.size
-        self.extra = entry.extra
-        self.local_path = entry.local_path
 
     def parent_artifact(self):
         return self._parent_artifact
@@ -4111,7 +4109,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
         manifest = self._parent_artifact._load_manifest()
-        if self.entry.ref is not None:
+        if self.ref is not None:
             cache_path = manifest.storage_policy.load_reference(
                 self._parent_artifact,
                 self.name,
@@ -4127,7 +4125,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
 
     def ref_target(self):
         manifest = self._parent_artifact._load_manifest()
-        if self.entry.ref is not None:
+        if self.ref is not None:
             return manifest.storage_policy.load_reference(
                 self._parent_artifact,
                 self.name,
