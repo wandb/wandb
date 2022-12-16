@@ -1,9 +1,12 @@
+import os
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import numpy as np
 import pytest
 import wandb
+from wandb import wandb_sdk
 from wandb.errors import WaitTimeoutError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
@@ -178,6 +181,49 @@ def test_artifact_finish_distributed_id(wandb_init):
 #         assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="flaky on CI")
+def test_edit_after_add(wandb_init):
+    artifact = wandb.Artifact(name="hi-art", type="dataset")
+    filename = "file1.txt"
+    open(filename, "w").write("hello!")
+    artifact.add_file(filename)
+    open(filename, "w").write("goodbye.")
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+        artifact.wait()
+    with wandb_init() as run:
+        art_path = run.use_artifact("hi-art:latest").download()
+
+    # The file from the retrieved artifact should match the original.
+    assert open(os.path.join(art_path, filename)).read() == "hello!"
+    # While the local file should have the edit applied.
+    assert open(filename).read() == "goodbye."
+
+
+def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_dir = Path(wandb_sdk.interface.artifacts.get_staging_dir())
+
+    def dir_size():
+        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
+
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open("random.bin", "wb") as f:
+        f.write(np.random.bytes(4096))
+    artifact.add_file("random.bin")
+
+    # The file is staged until it's finalized.
+    assert dir_size() == 4096
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The staging directory should be empty again.
+    assert dir_size() == 0
+
+
 def test_local_references(wandb_init):
 
     run = wandb_init()
@@ -220,28 +266,3 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
-
-
-@pytest.mark.xfail(
-    reason="TODO(spencerpearson): this test passes locally, but flakes in CI. After much investigation, I still have no clue.",
-    # examples of flakes:
-    #   https://app.circleci.com/pipelines/github/wandb/wandb/16334/workflows/319d3e58-853e-46ec-8a3f-088cac41351c/jobs/325741/tests#failed-test-0
-    #   https://app.circleci.com/pipelines/github/wandb/wandb/16392/workflows/b26b3e63-c8d8-45f4-b7db-00f84b11f8b8/jobs/327312
-)
-def test_artifact_metadata_save(wandb_init, relay_server):
-    # Test artifact metadata sucessfully saved for len(numpy) > 32
-    dummy_metadata = np.array([0] * 33)
-    with relay_server():
-        run = wandb_init()
-        artifact = wandb.Artifact(
-            name="art", type="dataset", metadata={"initMetadata": dummy_metadata}
-        )
-        run.log_artifact(artifact)
-        artifact.wait().metadata.update({"updateMetadata": dummy_metadata})
-        artifact.save()
-        saved_artifact = run.use_artifact("art:latest")
-        art_metadata = saved_artifact.metadata
-        assert "initMetadata" in art_metadata
-        assert "updateMetadata" in art_metadata
-        assert art_metadata["initMetadata"] == art_metadata["updateMetadata"]
-        run.finish()
