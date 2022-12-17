@@ -553,7 +553,7 @@ def internal_wm(
             os.makedirs(run_dir)
             hm = WriteManager(
                 settings=SettingsStatic(settings.make_static()),
-                record_q=internal_record_q,
+                record_q=internal_writer_q,
                 result_q=internal_result_q,
                 sender_q=internal_sender_q,
                 context_keeper=_internal_context_keeper,
@@ -608,7 +608,7 @@ def start_send_thread(
 def start_write_thread(
     internal_writer_q, internal_get_record, stopped_event, internal_process
 ):
-    def start_send(write_manager):
+    def start_write(write_manager):
         def target():
             try:
                 while True:
@@ -629,7 +629,7 @@ def start_write_thread(
         t.start()
         return t
 
-    yield start_send
+    yield start_write
     stopped_event.set()
 
 
