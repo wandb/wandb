@@ -449,6 +449,10 @@ class Api:
         ).save()
 
     def create_project(self, name: str, entity: str):
+        if name == "model-registry2":
+            raise wandb.Error(
+                "Cannot create proejct with protected name, model-registry"
+            )
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":

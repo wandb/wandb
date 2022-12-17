@@ -959,6 +959,11 @@ class Api:
         }
         """
         )
+        if self.format_project(project) == "model-registry":
+            raise wandb.Error(
+                "Cannot create project with protected name, 'model-registry'"
+            )
+
         response = self.gql(
             mutation,
             variable_values={
@@ -1525,6 +1530,11 @@ class Api:
         kwargs = {}
         if num_retries is not None:
             kwargs["num_retries"] = num_retries
+
+        if (project or util.auto_project_name(program_path)) == "model-registry":
+            raise CommError(
+                "Cannot initiate run under protected project, model-registry"
+            )
 
         variable_values = {
             "id": id,
