@@ -1,5 +1,8 @@
 plugin:
   - wandb
+tag:
+  shards:
+    - standalone-mitm
 option:
   - :wandb:mitm
 command:

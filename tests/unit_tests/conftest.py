@@ -657,8 +657,8 @@ def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
 @pytest.fixture()
 def _start_backend(
     internal_hm,
-    internal_wm,
     internal_sm,
+    internal_wm,
     _internal_sender,
     start_handle_thread,
     start_write_thread,
