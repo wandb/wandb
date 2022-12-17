@@ -675,7 +675,7 @@ def _start_backend(
             _run = _internal_sender.communicate_run(run)
             if initial_start:
                 _internal_sender.communicate_run_start(_run.run)
-        return ht, st
+        return ht, wt, st
 
     yield start_backend_func
 

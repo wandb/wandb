@@ -28,8 +28,8 @@ Usage:
 
 import sys
 from abc import abstractmethod
-from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union
 from dataclasses import dataclass
+from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, runtime_checkable

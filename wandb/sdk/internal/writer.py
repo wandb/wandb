@@ -1,14 +1,13 @@
 """Writer thread."""
 
 import logging
-from typing import TYPE_CHECKING, Optional, Set, Callable
+from typing import TYPE_CHECKING, Callable, Optional, Set
 
 from wandb.proto import wandb_internal_pb2 as pb
 
-from ..lib import tracelog, proto_util
+from ..lib import proto_util, tracelog
 from . import context, datastore, flow_control
 from .settings_static import SettingsStatic
-
 
 if TYPE_CHECKING:
     from queue import Queue
