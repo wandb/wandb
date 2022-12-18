@@ -497,9 +497,11 @@ class SendManager:
             self._output_raw_finish()
             transition_state()
         elif state == defer.FLUSH_JOB:
-            if not hasattr(self._settings, "_offline") or (
-                hasattr(self._settings, "_offline") and not self._settings._offline
-            ):
+            print("flush job", self._job_builder.used_job)
+            if (
+                not hasattr(self._settings, "_offline")
+                or (hasattr(self._settings, "_offline") and not self._settings._offline)
+            ) and not self._job_builder.used_job:
                 artifact = self._job_builder._build()
                 print("artifact", artifact)
                 if artifact is not None:
@@ -1239,6 +1241,19 @@ class SendManager:
                 )
             except Exception as e:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
+
+    def send_use_artifact(self, record: "Record") -> None:
+        """
+        This function doesn't actually send anything, it is just used
+        internally
+        """
+        print(
+            "called send_use_artifact",
+            record.use_artifact.type,
+        )
+        use = record.use_artifact
+        if use.type == "job":
+            self._job_builder.used_job = True
 
     def send_request_log_artifact(self, record: "Record") -> None:
         print("CALLED SEND REQUEST LOG ARTIFACT")

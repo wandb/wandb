@@ -2628,7 +2628,6 @@ class Run:
                 artifact.id,
                 use_as=use_as or artifact_or_name,
             )
-            return artifact
         else:
             artifact = artifact_or_name
             if aliases is None:
@@ -2648,7 +2647,6 @@ class Run:
                 )
                 artifact.wait()
                 artifact._use_as = use_as or artifact.name
-                return artifact
             elif isinstance(artifact, public.Artifact):
                 if (
                     self._launch_artifact_mapping
@@ -2662,12 +2660,14 @@ class Run:
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
                 )
-                return artifact
             else:
                 raise ValueError(
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
+        print("PUBLISHING USE ARTIFACT")
+        self._backend.interface.publish_use_artifact(artifact)
+        return artifact
 
     @_run_decorator._attach
     def log_artifact(

@@ -440,6 +440,21 @@ class InterfaceBase:
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         raise NotImplementedError
 
+    def publish_use_artifact(
+        self,
+        artifact: Union[PublicArtifact, Artifact],
+    ):
+        use_artifact = pb.UseArtifactRecord()
+        use_artifact.id = artifact.id
+        use_artifact.type = artifact.type
+        use_artifact.name = artifact.name
+
+        self._publish_use_artifact(use_artifact)
+
+    @abstractmethod
+    def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
+        raise NotImplementedError
+
     def communicate_artifact(
         self,
         run: "Run",

@@ -70,6 +70,7 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
+        self.used_job = False
 
     def _set_config(self, config: Config):
         self._config = config

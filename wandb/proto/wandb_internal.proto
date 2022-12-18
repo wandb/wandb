@@ -45,6 +45,7 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
+    UseArtifactRecord use_artifact = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -843,4 +844,18 @@ message KeepaliveRequest {
 }
 
 message KeepaliveResponse {
+}
+
+/*
+* UseArtifact:
+*/
+message UseArtifactRecord {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+
+  // Internal message, no _info field needed
+}
+
+message UseArtifactResult {
 }
