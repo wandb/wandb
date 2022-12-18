@@ -13,9 +13,9 @@ from unittest import mock
 import pytest
 import requests
 import wandb
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 from tests.unit_tests_old import utils
-from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 @pytest.fixture
