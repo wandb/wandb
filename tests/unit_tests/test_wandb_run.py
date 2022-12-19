@@ -454,3 +454,47 @@ def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
             # whose field 2 corresponds to unexpected arguments in Settings
             assert 2 in telemetry.get("11", [])
             run.finish()
+
+
+# def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
+#     _ = git_repo_fn(commit_msg="initial commit")
+#     test_settings.update(
+#         {"enable_job_creation": True, "program_relpath": "./blah/test_program.py"}
+#     )
+#     run = wandb.init(settings=test_settings)
+#     run.finish()
+#     ctx = live_mock_server.get_ctx()
+#     artifact_name = list(ctx["artifacts"].keys())[0]
+#     assert artifact_name == wandb.util.make_artifact_name_safe(
+#         f"job-{run._settings.git_remote_url}_{run._settings.program_relpath}"
+# )
+
+
+# def test_artifact_job_creation(live_mock_server, test_settings, runner):
+#     with runner.isolated_filesystem():
+#         with open("test.py", "w") as f:
+#             f.write('print("test")')
+#         test_settings.update(
+#             {
+#                 "enable_job_creation": True,
+#                 "disable_git": True,
+#                 "program_relpath": "./blah/test_program.py",
+#             }
+#         )
+#         run = wandb.init(settings=test_settings)
+#         run.log_code()
+#         run.finish()
+#         ctx = live_mock_server.get_ctx()
+#         code_artifact_name = list(ctx["artifacts"].keys())[0]
+#         job_artifact_name = list(ctx["artifacts"].keys())[1]
+#         assert job_artifact_name == f"job-{code_artifact_name}"
+
+
+# def test_container_job_creation(live_mock_server, test_settings):
+#     test_settings.update({"enable_job_creation": True, "disable_git": True})
+#     with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:v0"):
+#         run = wandb.init(settings=test_settings)
+#         run.finish()
+#         ctx = live_mock_server.get_ctx()
+#         artifact_name = list(ctx["artifacts"].keys())[0]
+#         assert artifact_name == "job-dummy-container_v0"
