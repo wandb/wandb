@@ -2217,8 +2217,8 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-        args: Optional[List[str]],
         docker_image_name: Optional[str],
+        args: Optional[List[str]] = None,
     ) -> Optional["Artifact"]:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
