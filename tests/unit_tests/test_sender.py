@@ -5,7 +5,7 @@ import unittest.mock
 
 import pytest
 import wandb
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.lib import filesystem
 
 
 def test_save_live_existing_file(relay_server, user, mock_run, backend_interface):
@@ -77,7 +77,7 @@ def test_save_live_glob_multi_write(
 
     with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("checkpoints/*", "live")]})
-        mkdir_exists_ok(os.path.join(run.dir, "checkpoints"))
+        filesystem.mkdir_exists_ok(os.path.join(run.dir, "checkpoints"))
         test_file_1 = os.path.join(run.dir, "checkpoints", "test_1.txt")
         test_file_2 = os.path.join(run.dir, "checkpoints", "test_2.txt")
         # To debug this test adds some prints to the dir_watcher.py _on_file_* handlers
@@ -204,7 +204,7 @@ def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("checkpoints/*", "now")]})
-        mkdir_exists_ok(os.path.join(run.dir, "checkpoints"))
+        filesystem.mkdir_exists_ok(os.path.join(run.dir, "checkpoints"))
         test_file_1 = os.path.join(run.dir, "checkpoints", "test_1.txt")
         test_file_2 = os.path.join(run.dir, "checkpoints", "test_2.txt")
         print("Wrote file 1")
@@ -229,7 +229,7 @@ def test_save_now_relative_path(relay_server, user, mock_run, backend_interface)
     with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("foo/test.txt", "now")]})
         test_file = os.path.join(run.dir, "foo", "test.txt")
-        mkdir_exists_ok(os.path.dirname(test_file))
+        filesystem.mkdir_exists_ok(os.path.dirname(test_file))
         with open(test_file, "w") as f:
             f.write("TEST TEST")
         time.sleep(1.5)
@@ -245,7 +245,7 @@ def test_save_now_twice(relay_server, user, mock_run, backend_interface):
         file_path = os.path.join("foo", "test.txt")
         interface.publish_files({"files": [(file_path, "now")]})
         test_file = os.path.join(run.dir, file_path)
-        mkdir_exists_ok(os.path.dirname(test_file))
+        filesystem.mkdir_exists_ok(os.path.dirname(test_file))
         with open(test_file, "w") as f:
             f.write("TEST TEST")
         time.sleep(1.5)

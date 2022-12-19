@@ -31,7 +31,7 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.module import unset_globals

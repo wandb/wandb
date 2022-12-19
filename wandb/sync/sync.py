@@ -16,7 +16,7 @@ import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import datastore, handler, sender, tb_watcher
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.lib import filesystem
 from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
@@ -172,7 +172,7 @@ class SyncThread(threading.Thread):
             settings, record_q, None, False, sender_record_q, None, new_interface
         )
 
-        mkdir_exists_ok(settings.files_dir)
+        filesystem.mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
         watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
 
