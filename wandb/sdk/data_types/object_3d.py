@@ -33,7 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
-    numeric = Union[int, float, np.integer, np.float]
+    numeric = Union[int, float, np.integer, np.float_]
     FileFormat3D = Literal[
         "obj",
         "gltf",
