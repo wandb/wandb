@@ -402,9 +402,9 @@ class FlowControl:
     def _quiesce(self, inputs: "Record") -> None:
         # print("Q1")
         record = inputs
-        written = not _is_control_record(record) and not _is_local_record(record)
+        # written = not _is_control_record(record) and not _is_local_record(record)
         # FIXME: can quiesce ever be a record?
-        assert written == False
+        # assert written == False
         self._doread(inputs, read_last=True)
         # print("Q2")
 
