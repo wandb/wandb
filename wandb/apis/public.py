@@ -5532,7 +5532,7 @@ class Job:
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,
             entity=entity or self._entity,
-            queue=queue,
+            queue_name=queue,
             resource=resource,
             resource_args=resource_args,
             cuda=cuda,
