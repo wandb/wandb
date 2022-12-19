@@ -141,7 +141,7 @@ class VertexRunner(AbstractRunner):
             image_uri = launch_project.docker_image
         else:
 
-            repository = construct_gcp_image_uri(
+            repository = construct_gcp_repo_uri(
                 launch_project,
                 gcp_artifact_repo,
                 gcp_project,
@@ -212,7 +212,7 @@ class VertexRunner(AbstractRunner):
         return submitted_run
 
 
-def construct_gcp_image_uri(
+def construct_gcp_repo_uri(
     launch_project: LaunchProject,
     gcp_repo: str,
     gcp_project: str,
