@@ -312,6 +312,7 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
+        # DEBUG print("PROC REC", record.num)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -401,12 +402,13 @@ class SendManager:
             data = self._ds.scan_data()
             pb = wandb_internal_pb2.Record()
             pb.ParseFromString(data)
+            # DEBUG print("READ REC", pb.num, off, start, end)
             self.send(pb)
-            # print("GOT REC", pb.num)
             # print("GOT REC h", pb.history.step.num)
             off = self._ds.get_offset()
             self._report_sender_status(off)
             # print("GOT OFF", off)
+        # DEBUG print(" DONE", off, start, end)
         # print("DONE")
 
     def send_request_check_version(self, record: "Record") -> None:
