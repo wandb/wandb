@@ -13,6 +13,18 @@ def test_md5_string():
 
 
 @given(st.binary())
+def test_hex_to_b64_id(data):
+    hex_str = data.hex()
+    assert hashutil.hex_to_b64_id(hex_str) == base64.b64encode(data).decode("ascii")
+
+
+@given(st.binary())
+def test_hex_to_b64_id_bytes(data):
+    hex_bytes = data.hex().encode("ascii")
+    assert hashutil.hex_to_b64_id(hex_bytes) == base64.b64encode(data).decode("ascii")
+
+
+@given(st.binary())
 def test_b64_to_hex_id(data):
     b64str = base64.b64encode(data).decode("ascii")
     assert hashutil.b64_to_hex_id(b64str) == data.hex()
