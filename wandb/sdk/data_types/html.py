@@ -2,7 +2,7 @@ import os
 from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb import util
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.lib import filesystem
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -100,7 +100,7 @@ class Html(BatchableMedia):
         step: Union[int, str],
     ) -> dict:
         base_path = os.path.join(run.dir, cls.get_media_subdir())
-        mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
 
         meta = {
             "_type": "html",
