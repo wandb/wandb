@@ -168,7 +168,6 @@ class FlowControl:
         self._telemetry_overflow = False
 
         self._debug = False
-        # self._debug = True
 
         # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
@@ -178,7 +177,7 @@ class FlowControl:
             ],
             StatePausing: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
-                fsm.FsmEntry(self._should_recover, StateRecovering),
+                fsm.FsmEntry(self._should_recover, StateRecovering, self._recover),
             ],
             StateRecovering: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
@@ -266,6 +265,7 @@ class FlowControl:
         # )
         if self._forwarded_bytes_behind() >= self._threshold_bytes_high:
             # print("PAUSE", self._track_last_forwarded_offset)
+            # print("# FSM pause")
             return True
         # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
         return False
@@ -295,12 +295,16 @@ class FlowControl:
         # )
         if self._recovering_bytes_behind() < self._threshold_bytes_low:
             # print("FORWARD")
+            # print("# FSM forward")
             return True
         return False
 
     def _should_quiesce(self, inputs: "Record") -> bool:
         record = inputs
-        return _is_local_record(record)
+        quiesce = _is_local_record(record)
+        # if quiesce:
+        #     print("# FSM quiesce")
+        return quiesce
 
     def _should_recover(self, inputs: "Record") -> bool:
         # do we have a large enough read to do
@@ -317,6 +321,7 @@ class FlowControl:
         ):
             # print("ALREADY SENT")
             return False
+        # print("# FSM recover")
         return True
 
     def _doread(self, record: "Record", read_last: bool = False) -> None:
@@ -335,13 +340,14 @@ class FlowControl:
             if read_last
             else self._track_prev_written_offset
         )
-        # print("QUIESCE", start, end, record)
+        # print("DOREAD", start, end, record)
         if end > start:
             self._recover_records_cb(start, end)
 
         self._track_last_recovering_offset = end
 
     def _recover(self, inputs: "Record") -> None:
+        # print("XXXXXXXXXX")
         self._doread(inputs, read_last=True)
         self._send_mark()
         self._mark_recovering_offset = self._track_last_written_offset
@@ -352,11 +358,13 @@ class FlowControl:
         self._doread(inputs)
 
     def flow(self, record: "Record") -> None:
+        # print("# FLOW", record.num)
         self._process_record(record)
 
         if not _is_control_record(record) and not _is_local_record(record):
             self._write_record(record)
 
+        # print("# FSM", record.num)
         self._fsm.input(record)
 
 

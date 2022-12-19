@@ -120,6 +120,7 @@ class Fsm(Generic[T_FsmInputs]):
             action(inputs)
 
         if prev_state != new_state:
+            # print("FSM", new_state)
             if isinstance(self._state, FsmStateEnter):
                 # print("ON_ENTER")
                 self._state.on_enter(inputs)

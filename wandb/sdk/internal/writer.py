@@ -26,6 +26,7 @@ class WriteManager:
     _sender_status_report: Optional["pb.SenderStatusReportRequest"]
     _context_keeper: context.ContextKeeper
     _sender_cancel_set: Set[str]
+    _record_num: int
 
     def __init__(
         self,
@@ -46,6 +47,7 @@ class WriteManager:
         # self._debug = False
         self._sender_status_report = None
         self._debug = True
+        self._record_num = 0
 
     def open(self) -> None:
         self._ds = datastore.DataStore()
@@ -67,9 +69,12 @@ class WriteManager:
         )
 
     def _forward_record(self, record: "pb.Record") -> None:
+        # record_type = record.WhichOneof("record_type")
+        # print("### F", record.num, record_type)
+        # if record.num == 0:
+        #     print("DEBUG", record)
         self._context_keeper.add_from_record(record)
         tracelog.log_message_queue(record, self._sender_q)
-        # print("FORWARD1", record)
         self._sender_q.put(record)
 
     def _write_record(self, record: "pb.Record") -> int:
@@ -114,6 +119,9 @@ class WriteManager:
 
     def write(self, record: "pb.Record") -> None:
         record_type = record.WhichOneof("record_type")
+        self._record_num += 1
+        record.num = self._record_num
+        # print("### W", record.num, record_type)
         assert record_type
         writer_str = "write_" + record_type
         write_handler: Optional[Callable[["pb.Record"], None]] = getattr(
@@ -128,6 +136,7 @@ class WriteManager:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         write_request_str = "write_request_" + request_type
+        # print("### Wreq", record.num, request_type)
         write_request_handler: Optional[Callable[["pb.Record"], None]] = getattr(
             self, write_request_str, None
         )
