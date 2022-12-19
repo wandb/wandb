@@ -928,7 +928,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            queue or launch_config.get("queue", "default"),
+                            f"\"{queue or launch_config.get('queue', 'default')}\"",
                             "--project",
                             project,
                             "--job",
