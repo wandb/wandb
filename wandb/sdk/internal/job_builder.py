@@ -19,7 +19,6 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import TypedDict
 
-JOB_TYPES = ["git", "artifact", "image"]
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
 JOB_ARTIFACT_TYPE = "job"
@@ -138,16 +137,20 @@ class JobBuilder:
         ):
             return None
         metadata = {}
-        # TODO: it appears that settings static don't get the git url or commit
-        # so for now, use metadata file
+        # TODO: settings static is not populated with several
+        # fields that are in settings in offline mode. Instead
+        # use metadata file to pull these fields.
         if os.path.exists(os.path.join(self._settings.files_dir, METADATA_FNAME)):
             with open(os.path.join(self._settings.files_dir, METADATA_FNAME), "r") as f:
                 metadata = json.load(f)
+        else:
+            return None
+
         source_type = None
         git_info = metadata.get("git", {})
         docker = metadata.get("docker", None)
         self.program_relpath = metadata.get("codePath", None)
-        self.args = metadata.get("args", None)
+        self.args = metadata.get("args", [])
         if git_info.get("remote") is not None and git_info.get("commit") is not None:
             artifact, source = self._build_repo_job(
                 git_info.get("remote"), git_info.get("commit")
@@ -159,8 +162,11 @@ class JobBuilder:
         elif docker is not None:
             artifact, source = self._build_image_job()
             source_type = "image"
-        else:
+
+        # need an entrypoint for git and artifact jobs
+        if source_type in ["git", "artifact"] and self.program_relpath is None:
             return None
+
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()
 

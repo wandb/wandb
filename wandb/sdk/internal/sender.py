@@ -497,13 +497,11 @@ class SendManager:
             self._output_raw_finish()
             transition_state()
         elif state == defer.FLUSH_JOB:
-            print("flush job", self._job_builder.used_job)
             if (
                 not hasattr(self._settings, "_offline")
                 or (hasattr(self._settings, "_offline") and not self._settings._offline)
             ) and not self._job_builder.used_job:
                 artifact = self._job_builder._build()
-                print("artifact", artifact)
                 if artifact is not None:
                     proto_artifact = self._interface._make_artifact(artifact)
                     proto_artifact.run_id = self._run.run_id
@@ -979,7 +977,6 @@ class SendManager:
     def _update_summary(self) -> None:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
-        # print("Summary dict: ", summary_dict)
         self._job_builder._set_summary(summary_dict)
         if self._metadata_summary:
             summary_dict["_wandb"] = self._metadata_summary
@@ -1247,16 +1244,11 @@ class SendManager:
         This function doesn't actually send anything, it is just used
         internally
         """
-        print(
-            "called send_use_artifact",
-            record.use_artifact.type,
-        )
         use = record.use_artifact
         if use.type == "job":
             self._job_builder.used_job = True
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        print("CALLED SEND REQUEST LOG ARTIFACT")
         assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
@@ -1427,7 +1419,6 @@ class SendManager:
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
-        print("Calling get_local_info")
         if self._settings._offline:
             local_info.out_of_date = False
             return local_info
