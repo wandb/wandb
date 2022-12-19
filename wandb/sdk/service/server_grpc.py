@@ -170,7 +170,6 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         iface._publish_use_artifact(use_artifact)
         result = pb.UseArtifactResult()
         return result
-    )
 
     def ArtifactSend(  # noqa: N802
         self, art_send: pb.ArtifactSendRequest, context: grpc.ServicerContext

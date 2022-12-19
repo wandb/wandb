@@ -2665,8 +2665,8 @@ class Run:
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
-        print("PUBLISHING USE ARTIFACT")
-        self._backend.interface.publish_use_artifact(artifact)
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_use_artifact(artifact)
         return artifact
 
     @_run_decorator._attach

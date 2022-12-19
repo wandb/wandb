@@ -71,17 +71,11 @@ class JobBuilder:
         self._logged_code_artifact = None
         self.used_job = False
 
-    def _set_config(self, config: Config):
+    def _set_config(self, config: Config) -> None:
         self._config = config
 
-    def _set_summary(self, summary: Summary):
+    def _set_summary(self, summary: Dict[str, Any]) -> None:
         self._summary = summary
-
-    def create_input_types(self, config: Config):
-        raise NotImplementedError
-
-    def create_output_types(self, summary: Summary):
-        raise NotImplementedError
 
     def _build_repo_job(
         self, remote: str, commit: str
@@ -131,7 +125,6 @@ class JobBuilder:
         return artifact, source
 
     def _build(self) -> Optional[Artifact]:
-        artifact = None
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):
@@ -145,7 +138,7 @@ class JobBuilder:
                 metadata = json.load(f)
         else:
             return None
-
+        artifact = None
         source_type = None
         git_info = metadata.get("git", {})
         docker = metadata.get("docker", None)
@@ -162,6 +155,9 @@ class JobBuilder:
         elif docker is not None:
             artifact, source = self._build_image_job()
             source_type = "image"
+
+        if artifact is None:
+            return None
 
         # need an entrypoint for git and artifact jobs
         if source_type in ["git", "artifact"] and self.program_relpath is None:

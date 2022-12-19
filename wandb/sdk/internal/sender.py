@@ -47,7 +47,7 @@ from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 from . import artifacts, file_stream, internal_api, update
 from .file_pusher import FilePusher
-from .job_builder import JobBuilder
+from .job_builder import ArtifactInfoForJob, JobBuilder
 from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
@@ -502,7 +502,7 @@ class SendManager:
                 or (hasattr(self._settings, "_offline") and not self._settings._offline)
             ) and not self._job_builder.used_job:
                 artifact = self._job_builder._build()
-                if artifact is not None:
+                if artifact is not None and self._run is not None:
                     proto_artifact = self._interface._make_artifact(artifact)
                     proto_artifact.run_id = self._run.run_id
                     proto_artifact.project = self._run.project
@@ -1342,11 +1342,15 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
+        # if we logged code, save the id so we can use it in the job
+        # builder
         if artifact.type == "code":
-            self._job_builder._logged_code_artifact = {
-                "id": res["id"],
-                "name": artifact.name,
-            }
+            self._job_builder._logged_code_artifact = ArtifactInfoForJob(
+                {
+                    "id": res["id"],
+                    "name": artifact.name,
+                }
+            )
         return res
 
     def send_alert(self, record: "Record") -> None:

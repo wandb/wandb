@@ -442,7 +442,7 @@ class InterfaceBase:
 
     def publish_use_artifact(
         self,
-        artifact: Union[PublicArtifact, Artifact],
+        artifact: Artifact,
     ):
         use_artifact = pb.UseArtifactRecord()
         use_artifact.id = artifact.id
