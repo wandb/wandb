@@ -6,8 +6,8 @@ import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch._project_spec import (
-    create_project_from_spec,
     compute_command_args,
+    create_project_from_spec,
 )
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
