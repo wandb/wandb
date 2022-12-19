@@ -16,7 +16,7 @@ def test_add_table_from_dataframe(wandb_init):
 
     import pandas as pd
 
-    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=float)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
 
