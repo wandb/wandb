@@ -771,6 +771,7 @@ def start_send_thread(
                         break
             except Exception as e:
                 stopped_event.set()
+                print("RAISE_SEND", e)
                 internal_process._alive = False
 
         t = threading.Thread(target=target)
@@ -798,8 +799,9 @@ def start_write_thread(
                         write_manager.write(payload)
                     elif stopped_event.is_set():
                         break
-            except Exception:
+            except Exception as e:
                 stopped_event.set()
+                print("RAISE_WRIT", e)
                 internal_process._alive = False
 
         t = threading.Thread(target=target)
