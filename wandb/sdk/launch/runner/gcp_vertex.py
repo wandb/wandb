@@ -15,7 +15,7 @@ from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder
-from ..builder.build import construct_gcp_image_uri, get_env_vars_dict
+from ..builder.build import get_env_vars_dict
 from ..utils import LOG_PREFIX, PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -210,6 +210,15 @@ class VertexRunner(AbstractRunner):
             os._exit(0)
 
         return submitted_run
+
+
+def construct_gcp_image_uri(
+    launch_project: LaunchProject,
+    gcp_repo: str,
+    gcp_project: str,
+    gcp_registry: str,
+) -> str:
+    return "/".join([gcp_registry, gcp_project, gcp_repo, launch_project.image_name])
 
 
 def get_gcp_config(config: str = "default") -> Any:

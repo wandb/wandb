@@ -8,6 +8,11 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.gcp_vertex import get_gcp_config, run_shell
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
+from wandb.sdk.launch.runner.gcp_vertex import construct_gcp_image_uri
+from wandb.sdk.launch._project_spec import (
+    create_project_from_spec,
+    fetch_and_validate_project,
+)
 
 SUCCEEDED = "PipelineState.PIPELINE_STATE_SUCCEEDED"
 FAILED = "PipelineState.PIPELINE_STATE_FAILED"
@@ -100,6 +105,30 @@ def setup_mock_aiplatform(status, monkeypatch):
         lambda config: patched_get_gcp_config(config),
     )
     return job_dict
+
+
+def test_gcp_uri(test_settings, live_mock_server, mocked_fetchable_git_repo):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    test_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "cuda": None,
+        "resource": "local",
+        "resource_args": {},
+    }
+    test_project = create_project_from_spec(test_spec, api)
+    test_project = fetch_and_validate_project(test_project, api)
+
+    uri = construct_gcp_image_uri(
+        test_project, "test-repo", "test-project", "test-registry"
+    )
+    assert (
+        "test-registry/test-project/test-repo/wandb.ai__mock_server_entity__test__runs__1"
+        in uri
+    )
 
 
 @pytest.mark.timeout(320)
