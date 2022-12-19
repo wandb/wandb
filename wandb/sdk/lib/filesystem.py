@@ -1,10 +1,12 @@
 import os
 import re
 import threading
-from typing import BinaryIO
+from typing import BinaryIO, Union
+
+AnyPath = Union[str, bytes, os.PathLike]
 
 
-def mkdir_exists_ok(dir_name: str) -> None:
+def mkdir_exists_ok(dir_name: AnyPath) -> None:
     """Create `dir_name` and any parent directories if they don't exist.
 
     Raises:
