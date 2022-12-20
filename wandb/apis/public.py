@@ -51,7 +51,10 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
+from wandb.sdk.internal.thread_local_settings import (
+    _thread_local_api_settings,
+    _ThreadLocalApiSettings,
+)
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 
@@ -4714,9 +4717,26 @@ class Artifact(artifacts.Artifact):
 
         download_logger = _ArtifactDownloadLogger(nfiles=nfiles)
 
+        def _download_file_with_thread_local_api_settings(
+            name,
+            root,
+            download_logger: _ArtifactDownloadLogger,
+            thread_local_settings: _ThreadLocalApiSettings,
+        ):
+            _thread_local_api_settings.api_key = thread_local_settings.api_key
+            _thread_local_api_settings.cookies = thread_local_settings.cookies
+            _thread_local_api_settings.headers = thread_local_settings.headers
+
+            return self._download_file(name, root, download_logger)
+
         pool = multiprocessing.dummy.Pool(32)
         pool.map(
-            partial(self._download_file, root=dirpath, download_logger=download_logger),
+            partial(
+                self._download_file_with_thread_local_api_settings,
+                root=dirpath,
+                download_logger=download_logger,
+                thread_local_settings=_thread_local_api_settings,
+            ),
             manifest.entries,
         )
         if recursive:
