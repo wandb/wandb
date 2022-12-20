@@ -10,6 +10,7 @@ from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNA
 from wandb.util import make_artifact_name_safe
 from wandb.sdk.wandb_artifacts import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
+
 from .settings_static import SettingsStatic
 
 if sys.version_info >= (3, 8):
