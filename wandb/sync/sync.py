@@ -158,10 +158,10 @@ class SyncThread(threading.Thread):
         new_interface = InterfaceQueue(record_q)
         context_keeper = context.ContextKeeper()
         send_manager = sender.SendManager(
-            send_manager._settings,
-            sender_record_q,
-            queue.Queue(),
-            new_interface,
+            settings=send_manager._settings,
+            record_q=sender_record_q,
+            result_q=queue.Queue(),
+            interface=new_interface,
             context_keeper=context_keeper,
         )
         record = send_manager._interface._make_record(run=proto_run)
@@ -173,13 +173,12 @@ class SyncThread(threading.Thread):
         )
 
         handle_manager = handler.HandleManager(
-            settings,
-            record_q,
-            None,
-            False,
-            sender_record_q,
-            None,
-            new_interface,
+            settings=settings,
+            record_q=record_q,
+            result_q=None,
+            stopped=False,
+            writer_q=sender_record_q,
+            interface=new_interface,
             context_keeper=context_keeper,
         )
 
