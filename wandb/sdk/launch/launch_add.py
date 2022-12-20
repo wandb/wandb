@@ -153,6 +153,11 @@ def _launch_add(
     )
 
     if build:
+        if resource == "local-process":
+            raise LaunchError(
+                "Cannot build a docker image for the resource: local-process"
+            )
+
         if launch_spec.get("job") is not None:
             wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
@@ -177,9 +182,16 @@ def _launch_add(
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue_name, launch_spec)
-
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
+
+    updated_spec = res.get("runSpec")
+    if updated_spec:
+        if updated_spec.get("resource_args"):
+            launch_spec["resource_args"] = updated_spec.get("resource_args")
+        if updated_spec.get("resource"):
+            launch_spec["resource"] = updated_spec.get("resource")
+
     wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()

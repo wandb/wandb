@@ -11,6 +11,7 @@ wandb/vendor/
 | wandb/offline-run*
 | __pycache__
 | .pyc
+| .tox/
 '''
 
 [tool.isort]
