@@ -4868,7 +4868,7 @@ class Artifact(artifacts.Artifact):
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
+                "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": aliases,
             },
         )
@@ -5532,7 +5532,7 @@ class Job:
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,
             entity=entity or self._entity,
-            queue=queue,
+            queue_name=queue,
             resource=resource,
             resource_args=resource_args,
             cuda=cuda,

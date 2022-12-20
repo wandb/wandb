@@ -695,7 +695,7 @@ def sync(
 @click.option(
     "--queue",
     default=None,
-    help="Set sweep name",
+    help="The name of a launch queue (configured with a resource), available in the current user or team.",
 )
 @click.argument("config_yaml_or_sweep_id")
 @display_error
@@ -917,7 +917,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            queue or launch_config.get("queue", "default"),
+                            f"\"{queue or launch_config.get('queue', 'default')}\"",
                             "--project",
                             project,
                             "--job",
