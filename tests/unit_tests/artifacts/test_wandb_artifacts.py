@@ -239,36 +239,38 @@ def test_multi_add():
     assert manifest["contents"][filename]["size"] == size
 
 
-def test_add_reference_local_file():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
+def test_add_reference_local_file(tmp_path):
+    file = tmp_path / "file1.txt"
+    file.write_text("hello")
+    uri = file.as_uri()
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    e = artifact.add_reference("file://file1.txt")[0]
-    assert e.ref_target() == "file://file1.txt"
+    e = artifact.add_reference(uri)[0]
+    assert e.ref_target() == uri
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": "file://file1.txt",
+        "ref": uri,
         "size": 5,
     }
 
 
-def test_add_reference_local_file_no_checksum():
+def test_add_reference_local_file_no_checksum(tmp_path):
+    file = tmp_path / "file1.txt"
+    file.write_text("hello")
+    uri = file.as_uri()
 
-    with open("file1.txt", "w") as f:
-        f.write("hello")
-    size = os.path.getsize("file1.txt")
+    size = os.path.getsize(file)
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_reference("file://file1.txt", checksum=False)
+    artifact.add_reference(uri, checksum=False)
 
     assert artifact.digest == "415f3bca4b095cbbbbc47e0d44079e05"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": md5_string(str(size)),
-        "ref": "file://file1.txt",
+        "ref": uri,
         "size": size,
     }
 
@@ -378,6 +380,22 @@ def test_add_reference_local_dir_with_name():
         "ref": "file://"
         + os.path.join(os.getcwd(), "top", "nest", "nest", "file3.txt"),
         "size": 4,
+    }
+
+
+def test_add_reference_local_dir_by_uri(tmp_path):
+    ugly_path = tmp_path / "i=D" / "has !@#$%^&[]()|',`~ awful taste in file names"
+    ugly_path.mkdir(parents=True)
+    file = ugly_path / "file.txt"
+    file.write_text("sorry")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_reference(ugly_path.as_uri())
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["file.txt"] == {
+        "digest": "c88OOIlx7k7DTo2u3Q02zA==",
+        "ref": file.as_uri(),
+        "size": 5,
     }
 
 
@@ -580,18 +598,19 @@ def test_add_http_reference_path():
     }
 
 
-def test_add_reference_named_local_file():
+def test_add_reference_named_local_file(tmp_path):
+    file = tmp_path / "file1.txt"
+    file.write_text("hello")
+    uri = file.as_uri()
 
-    with open("file1.txt", "w") as f:
-        f.write("hello")
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_reference("file://file1.txt", name="great-file.txt")
+    artifact.add_reference(uri, name="great-file.txt")
 
     assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["great-file.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": "file://file1.txt",
+        "ref": uri,
         "size": 5,
     }
 
