@@ -52,6 +52,7 @@ from .interface.artifacts import (  # noqa: F401
     md5_file_b64,
     md5_string,
 )
+from .lib import filesystem
 
 if TYPE_CHECKING:
 
@@ -385,7 +386,7 @@ class Artifact(ArtifactInterface):
         if os.path.exists(path):
             raise ValueError(f'File with name "{name}" already exists at "{path}"')
 
-        util.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(os.path.dirname(path))
         try:
             with util.fsync_open(path, mode, encoding) as f:
                 yield f
@@ -1264,7 +1265,7 @@ class LocalFileHandler(StorageHandler):
                 % (local_path, manifest_entry.digest, md5)
             )
 
-        util.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(os.path.dirname(path))
 
         with cache_open() as f:
             shutil.copy(local_path, f.name)
