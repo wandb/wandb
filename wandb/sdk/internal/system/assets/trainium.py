@@ -1,6 +1,7 @@
 import json
 import logging
 import multiprocessing as mp
+import pathlib
 import subprocess
 import sys
 import threading
@@ -28,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 
 NEURON_LS_COMMAND = ["neuron-ls"]
-NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", "neuron_monitor_config.json"]
+NEURON_MONITOR_CONFIG = pathlib.Path(__file__).parent / "neuron_monitor_config.json"
+NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", NEURON_MONITOR_CONFIG]
 # fixme:
 # NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
 # NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
