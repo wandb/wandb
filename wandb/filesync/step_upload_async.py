@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import threading
-from typing import TYPE_CHECKING, Awaitable, TypeVar, Union
+from typing import TYPE_CHECKING, MutableMapping, MutableSet, TypeVar, Union
 
 import wandb
 from wandb.filesync import stats
@@ -42,9 +42,9 @@ class StepUploadAsync:
         self._semaphore = asyncio.Semaphore(max_jobs, loop=self._loop)
 
         self._cmd_finished_cond = asyncio.Condition(loop=self._loop)
-        self._unfinished_cmds = set()
+        self._unfinished_cmds: MutableSet[Command] = set()
 
-        self._artifact_failures = {}
+        self._artifact_failures: MutableMapping[str, Exception] = {}
 
         self._run_loop_thread = threading.Thread(target=self._run_sync, daemon=True)
 
