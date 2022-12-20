@@ -157,7 +157,7 @@ def clean_up():
 def filesystem_isolate(tmp_path):
     # Click>=8 implements temp_dir argument which depends on python>=3.7
     kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
-    with CliRunner().isolated_filesystem(**kwargs)
+    with CliRunner().isolated_filesystem(**kwargs):
         yield
 
 
