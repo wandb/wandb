@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
 from wandb import util
 from wandb.filesync import dir_watcher, step_upload
-from wandb.sdk.lib.hashutil import md5_file_b64
 
 if TYPE_CHECKING:
     import tempfile
@@ -22,11 +21,7 @@ if TYPE_CHECKING:
 class RequestUpload(NamedTuple):
     path: str
     save_name: dir_watcher.SaveName
-    artifact_id: Optional[str]
     copy: bool
-    use_prepare_flow: bool
-    save_fn: Optional[step_upload.SaveFn]
-    digest: Optional[str]
 
 
 class RequestStoreManifestFiles(NamedTuple):
@@ -87,23 +82,16 @@ class StepChecksum:
                     except OSError:
                         shutil._USE_CP_SENDFILE = False  # type: ignore[attr-defined]
                         shutil.copy2(req.path, path)
-                checksum = None
-                if req.use_prepare_flow:
-                    # passing a checksum through indicates that we'd like to use the
-                    # "prepare" file upload flow, in which we prepare the files in
-                    # the database before uploading them. This is currently only
-                    # used for artifact manifests
-                    checksum = md5_file_b64(path)
                 self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(
                         path,
                         req.save_name,
-                        req.artifact_id,
-                        checksum,
+                        None,
+                        None,
                         req.copy,
-                        req.save_fn,
-                        req.digest,
+                        None,
+                        None,
                     )
                 )
             elif isinstance(req, RequestStoreManifestFiles):
