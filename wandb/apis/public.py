@@ -51,8 +51,8 @@ from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
-from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 from wandb.sdk.lib import filesystem, ipython, retry
+from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
 if TYPE_CHECKING:
     import wandb.apis.reports

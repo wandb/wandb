@@ -49,6 +49,7 @@ from .interface.artifacts import (  # noqa: F401
     get_artifacts_cache,
     get_new_staging_file,
 )
+from .lib import filesystem
 from .lib.hashutil import (
     B64MD5,
     ETag,
@@ -58,7 +59,6 @@ from .lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
-from .lib import filesystem
 
 if TYPE_CHECKING:
 
