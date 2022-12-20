@@ -1243,8 +1243,9 @@ class LocalFileHandler(StorageHandler):
         manifest_entry: ArtifactEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
-        url = urlparse(manifest_entry.ref)
-        local_path = f"{str(url.netloc)}{str(url.path)}"
+        if manifest_entry.ref is None:
+            raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
+        local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
         if not os.path.exists(local_path):
             raise ValueError(
                 "Local file reference: Failed to find file at path %s" % local_path
@@ -1278,8 +1279,7 @@ class LocalFileHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactEntry]:
-        url = urlparse(path)
-        local_path = f"{url.netloc}{url.path}"
+        local_path = util.local_file_uri_to_path(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
