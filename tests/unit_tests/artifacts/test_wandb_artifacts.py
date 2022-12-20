@@ -12,9 +12,9 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
-import wandb.wandb_sdk.interface as wandb_interface
-import wandb.wandb_sdk.wandb_artifacts as wandb_artifacts
+import wandb.sdk.interface as wandb_interface
 from wandb import util
+from wandb.sdk import wandb_artifacts
 
 
 def mock_boto(artifact, path=False, content_type=None):
