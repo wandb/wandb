@@ -47,7 +47,7 @@ from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 from . import artifacts, file_stream, internal_api, update
 from .file_pusher import FilePusher
-from .job_builder import ArtifactInfoForJob, JobBuilder
+from .job_builder import JobBuilder
 from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:

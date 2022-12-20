@@ -77,7 +77,6 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer

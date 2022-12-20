@@ -162,7 +162,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.LinkArtifactResult()
         return result
 
-    def UseArtifact(
+    def UseArtifact(  # noqa: N802
         self, use_artifact: pb.UseArtifactRecord, context: grpc.ServicerContext
     ) -> pb.UseArtifactResult:
         stream_id = use_artifact._info.stream_id
