@@ -27,6 +27,7 @@ from typing import Optional
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import filesystem
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
@@ -1108,7 +1109,7 @@ class Audio(BatchableMedia):
             required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile",
         )
         base_path = os.path.join(run.dir, "media", "audio")
-        util.mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
         meta = {
             "_type": "audio",
             "count": len(audio_list),
@@ -1556,7 +1557,7 @@ class Node(WBValue):
         self._attributes = {"name": None}
         self.in_edges = {}  # indexed by source node id
         self.out_edges = {}  # indexed by dest node id
-        # optional object (eg. PyTorch Parameter or Module) that this Node represents
+        # optional object (e.g. PyTorch Parameter or Module) that this Node represents
         self.obj = None
 
         if node is not None:
