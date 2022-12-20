@@ -95,8 +95,6 @@ class StepUploadAsync:
             ))
             print("done uploading", cmd)
 
-        self._file_stream.push_success(cmd.artifact_id, cmd.save_name)
-
     async def _do_commit_artifact(self, cmd: step_upload_sync.RequestCommitArtifact) -> None:
         try:
             await self._wait_for_all_artifact_uploads_to_finish(cmd.artifact_id)
