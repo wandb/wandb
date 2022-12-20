@@ -1,5 +1,6 @@
 import pytest
 import wandb
+import wandb.old.summary
 
 
 @pytest.fixture
