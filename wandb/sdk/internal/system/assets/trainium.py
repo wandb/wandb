@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 NEURON_LS_COMMAND = ["neuron-ls"]
 NEURON_MONITOR_CONFIG = pathlib.Path(__file__).parent / "neuron_monitor_config.json"
-NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", NEURON_MONITOR_CONFIG]
+NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", str(NEURON_MONITOR_CONFIG)]
 # fixme:
 # NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
 # NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
@@ -70,7 +70,7 @@ class NeuronCoreStats:
     name: str = "trn.{i}.{key}"  # for per-core stats
     samples: "Deque[_Stats]"
 
-    def neuron_monitor(self):
+    def neuron_monitor(self) -> None:
         popen = subprocess.Popen(
             NEURON_MONITOR_COMMAND,
             shell=False,
@@ -88,7 +88,7 @@ class NeuronCoreStats:
     def __init__(self, pid: int) -> None:
         self.pid = pid
         # self.pid = 16851  # fixme
-        self.raw_samples = deque(maxlen=10)
+        self.raw_samples: "Deque[bytes]" = deque(maxlen=10)
         self.samples = deque()
         self.shutdown_event = threading.Event()
 
@@ -101,7 +101,7 @@ class NeuronCoreStats:
 
     def sample(self) -> None:
         try:
-            raw_stats = json.loads(self.raw_samples[-1])
+            raw_stats = json.loads(self.raw_samples[-1])  # type: ignore
             # if "neuron_runtime_data" not in raw_stats:
             #     return None
             neuron_runtime_data = [
@@ -130,9 +130,9 @@ class NeuronCoreStats:
             ]
             # memory usage breakdown
             usage_breakdown = neuron_runtime_used_bytes["usage_breakdown"]
-            host_memory_usage = _HostMemoryUsage(**usage_breakdown["host"])
+            host_memory_usage = _HostMemoryUsage(**usage_breakdown["host"])  # type: ignore
             neuroncore_memory_usage = [
-                _NeuronCoreMemoryUsage(**v)
+                _NeuronCoreMemoryUsage(**v)  # type: ignore
                 for v in usage_breakdown["neuroncore_memory_usage"].values()
             ]
 
@@ -246,7 +246,7 @@ class Trainium:
         # stop the raw data acquisition threads
         for metric in self.metrics:
             if hasattr(metric, "shutdown_event"):
-                logger.debug(f"Stopping neuron-monitor thread")
+                logger.debug("Stopping neuron-monitor thread")
                 metric.shutdown_event.set()
 
     def probe(self) -> dict:
