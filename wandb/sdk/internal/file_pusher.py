@@ -113,11 +113,7 @@ class FilePusher:
         self,
         save_name: dir_watcher.SaveName,
         path: str,
-        artifact_id: Optional[str] = None,
         copy: bool = True,
-        use_prepare_flow: bool = False,
-        save_fn: Optional[step_upload.SaveFn] = None,
-        digest: Optional[str] = None,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
         Arguments:
@@ -135,11 +131,7 @@ class FilePusher:
         event = step_checksum.RequestUpload(
             path,
             dir_watcher.SaveName(save_name),
-            artifact_id,
             copy,
-            use_prepare_flow,
-            save_fn,
-            digest,
         )
         self._incoming_queue.put(event)
 
