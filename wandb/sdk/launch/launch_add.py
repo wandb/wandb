@@ -5,7 +5,10 @@ import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
-from wandb.sdk.launch._project_spec import create_project_from_spec
+from wandb.sdk.launch._project_spec import (
+    compute_command_args,
+    create_project_from_spec,
+)
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
     LOG_PREFIX,
@@ -170,7 +173,8 @@ def _launch_add(
             job_type="launch_job",
         )
 
-        job_artifact = run._log_job_artifact_with_image(docker_image_uri)
+        args = compute_command_args(launch_project.override_args)
+        job_artifact = run._log_job_artifact_with_image(docker_image_uri, args)
         job_name = job_artifact.wait().name
 
         job = f"{launch_spec['entity']}/{launch_spec['project']}/{job_name}"
