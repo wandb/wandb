@@ -4263,6 +4263,18 @@ class Artifact(artifacts.Artifact):
                         directUrl
                     }
                 }
+                sourceSequence: artifactSequence {
+                    id
+                    name 
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+                }
                 ...ArtifactFragment
             }
         }
@@ -4295,11 +4307,15 @@ class Artifact(artifacts.Artifact):
                                 [alias["artifactCollectionName"], alias["alias"]]
                             )
                             break
-
+            source_sequence_project = (
+                response["artifact"].get("sourceSequence", {}).get("project", {})
+            )
+            project_name = source_sequence_project.get("name")
+            entity_name = source_sequence_project.get("entity", {}).get("name")
             artifact = cls(
                 client=client,
-                entity=None,
-                project=None,
+                entity=entity_name,
+                project=project_name,
                 name=name,
                 attrs=response["artifact"],
             )
