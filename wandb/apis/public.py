@@ -4732,7 +4732,7 @@ class Artifact(artifacts.Artifact):
         pool = multiprocessing.dummy.Pool(32)
         pool.map(
             partial(
-                self._download_file_with_thread_local_api_settings,
+                _download_file_with_thread_local_api_settings,
                 root=dirpath,
                 download_logger=download_logger,
                 thread_local_settings=_thread_local_api_settings,
