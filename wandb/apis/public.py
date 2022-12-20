@@ -987,7 +987,7 @@ class Attrs:
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
         if key == "user":
-            raise AttributeError()
+            raise AttributeError
         if key in self._attrs.keys():
             return self._attrs[key]
         elif name in self._attrs.keys():
@@ -1028,18 +1028,18 @@ class Paginator:
 
     @property
     def length(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def more(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def cursor(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def convert_objects(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def update_variables(self):
         self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
@@ -2649,7 +2649,11 @@ class Sweep(Attrs):
             query = cls.LEGACY_QUERY
             response = client.execute(query, variable_values=variables)
 
-        if not response or not response.get("project", {}).get("sweep"):
+        if (
+            not response
+            or not response.get("project")
+            or not response["project"].get("sweep")
+        ):
             return None
 
         sweep_response = response["project"]["sweep"]
@@ -4872,7 +4876,7 @@ class Artifact(artifacts.Artifact):
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
+                "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": aliases,
             },
         )
@@ -5536,7 +5540,7 @@ class Job:
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,
             entity=entity or self._entity,
-            queue=queue,
+            queue_name=queue,
             resource=resource,
             resource_args=resource_args,
             cuda=cuda,
