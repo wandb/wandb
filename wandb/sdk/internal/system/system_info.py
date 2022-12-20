@@ -10,8 +10,8 @@ from shutil import copyfile
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
-from wandb import util
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.filenames import (
     CONDA_ENVIRONMENTS_FNAME,
     DIFF_FNAME,
@@ -93,7 +93,7 @@ class SystemInfo:
 
         root: str = self.git.root or os.getcwd()
         program_relative: str = self.settings.program_relpath
-        util.mkdir_exists_ok(
+        filesystem.mkdir_exists_ok(
             os.path.join(
                 self.settings.files_dir, "code", os.path.dirname(program_relative)
             )

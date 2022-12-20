@@ -22,6 +22,7 @@ from typing import (
 import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
+from wandb.sdk.lib import filesystem
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -894,7 +895,7 @@ class ArtifactsCache:
 
     def __init__(self, cache_dir):
         self._cache_dir = cache_dir
-        util.mkdir_exists_ok(self._cache_dir)
+        filesystem.mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id = {}
@@ -910,7 +911,7 @@ class ArtifactsCache:
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
-        util.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(os.path.dirname(path))
         return path, False, opener
 
     # TODO(spencerpearson): this method at least needs its signature changed.
@@ -929,7 +930,7 @@ class ArtifactsCache:
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
-        util.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(os.path.dirname(path))
         return path, False, opener
 
     def get_artifact(self, artifact_id):
@@ -1034,7 +1035,7 @@ def get_artifacts_cache() -> ArtifactsCache:
 
 def get_staging_dir() -> util.FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    util.mkdir_exists_ok(path)
+    filesystem.mkdir_exists_ok(path)
     return os.path.abspath(os.path.expanduser(path))
 
 
