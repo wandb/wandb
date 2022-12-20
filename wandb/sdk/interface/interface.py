@@ -443,7 +443,10 @@ class InterfaceBase:
     def publish_use_artifact(
         self,
         artifact: Artifact,
-    ):
+    ) -> None:
+        # use_artifact is either a public.Artifact or a wandb.Artifact that has been
+        # waited on and has an id
+        assert artifact.id is not None, "Artifact must have an id"
         use_artifact = pb.UseArtifactRecord()
         use_artifact.id = artifact.id
         use_artifact.type = artifact.type

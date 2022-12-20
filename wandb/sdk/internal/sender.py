@@ -399,14 +399,6 @@ class SendManager:
                 name=self._run.run_id, config=config_value_dict, **self._api_settings  # type: ignore
             )
         self._config_save(config_value_dict)
-        # job builder saves config, but omits _wandb key
-        self._job_builder._set_config(
-            {
-                key: self._consolidated_config[key]
-                for key in self._consolidated_config
-                if key != "_wandb"
-            }
-        )
         self._config_needs_debounce = False
 
     def send_request_status(self, record: "Record") -> None:
@@ -497,21 +489,7 @@ class SendManager:
             self._output_raw_finish()
             transition_state()
         elif state == defer.FLUSH_JOB:
-            if (
-                not hasattr(self._settings, "_offline")
-                or (hasattr(self._settings, "_offline") and not self._settings._offline)
-            ) and not self._job_builder.used_job:
-                artifact = self._job_builder._build()
-                if artifact is not None and self._run is not None:
-                    proto_artifact = self._interface._make_artifact(artifact)
-                    proto_artifact.run_id = self._run.run_id
-                    proto_artifact.project = self._run.project
-                    proto_artifact.entity = self._run.entity
-                    proto_artifact.user_created = True
-                    proto_artifact.use_after_commit = True
-                    proto_artifact.finalize = True
-
-                    self._interface._publish_artifact(proto_artifact)
+            self._flush_job()
             transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
@@ -977,7 +955,6 @@ class SendManager:
     def _update_summary(self) -> None:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
-        self._job_builder._set_summary(summary_dict)
         if self._metadata_summary:
             summary_dict["_wandb"] = self._metadata_summary
         json_summary = json.dumps(summary_dict)
@@ -1246,7 +1223,7 @@ class SendManager:
         """
         use = record.use_artifact
         if use.type == "job":
-            self._job_builder.used_job = True
+            self._job_builder._used_job = True
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1342,15 +1319,8 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
-        # if we logged code, save the id so we can use it in the job
-        # builder
-        if artifact.type == "code" and res is not None:
-            self._job_builder._logged_code_artifact = ArtifactInfoForJob(
-                {
-                    "id": res["id"],
-                    "name": artifact.name,
-                }
-            )
+
+        self._job_builder._set_logged_code_artifact(res, artifact)
         return res
 
     def send_alert(self, record: "Record") -> None:
@@ -1441,6 +1411,33 @@ class SendManager:
                 "latestVersionString", latest_local_version
             )
         return local_info
+
+    def _flush_job(self) -> None:
+        self._job_builder._set_config(
+            {
+                key: self._consolidated_config[key]
+                for key in self._consolidated_config
+                if key != "_wandb"
+            }
+        )
+        summary_dict = self._cached_summary.copy()
+        summary_dict.pop("_wandb", None)
+        self._job_builder._set_summary(summary_dict)
+        if (
+            not hasattr(self._settings, "_offline")
+            or (hasattr(self._settings, "_offline") and not self._settings._offline)
+        ) and not self._job_builder._used_job:
+            artifact = self._job_builder.build()
+            if artifact is not None and self._run is not None:
+                proto_artifact = self._interface._make_artifact(artifact)
+                proto_artifact.run_id = self._run.run_id
+                proto_artifact.project = self._run.project
+                proto_artifact.entity = self._run.entity
+                proto_artifact.user_created = True
+                proto_artifact.use_after_commit = True
+                proto_artifact.finalize = True
+
+                self._interface._publish_artifact(proto_artifact)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)
