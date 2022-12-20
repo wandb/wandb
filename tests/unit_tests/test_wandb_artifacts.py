@@ -388,6 +388,22 @@ def test_add_reference_local_dir_with_name():
     }
 
 
+def test_add_reference_local_dir_by_uri(tmp_path):
+    ugly_path = tmp_path / "i=D" / "has !@#$%^&[]()|',`~ awful taste in file names"
+    ugly_path.mkdir(parents=True)
+    file = ugly_path / "file.txt"
+    file.write_text("sorry")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_reference(ugly_path.as_uri())
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["file.txt"] == {
+        "digest": "c88OOIlx7k7DTo2u3Q02zA==",
+        "ref": file.as_uri(),
+        "size": 5,
+    }
+
+
 def test_add_s3_reference_object():
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
