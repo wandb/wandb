@@ -153,8 +153,8 @@ def clean_up():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate():
-    with CliRunner().isolated_filesystem():
+def filesystem_isolate(tmp_path):
+    with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
 
@@ -549,8 +549,12 @@ def internal_wm(
     def helper(settings):
         with runner.isolated_filesystem():
             wandb_file = settings.sync_file
+
+            # this is hacky, but we dont have a clean rundir always
+            # so lets at least make sure we can write to this dir
             run_dir = Path(wandb_file).parent
             os.makedirs(run_dir)
+
             hm = WriteManager(
                 settings=SettingsStatic(settings.make_static()),
                 record_q=internal_writer_q,
