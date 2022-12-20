@@ -12,6 +12,7 @@ import platform
 import pytest
 import requests
 import wandb
+from wandb.sdk.lib import filesystem
 
 from tests.unit_tests_old import utils
 
@@ -188,7 +189,7 @@ def test_run_upload_file(runner, mock_server, api):
 def test_run_upload_file_relative(runner, mock_server, api):
     with runner.isolated_filesystem():
         run = api.run("test/test/test")
-        wandb.util.mkdir_exists_ok("foo")
+        filesystem.mkdir_exists_ok("foo")
         os.chdir("foo")
         with open("new_file.pb", "w") as f:
             f.write("TEST")
