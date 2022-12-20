@@ -201,8 +201,7 @@ def run(
     parameters: Parameters (dictionary) for the entry point command. Defaults to using the
         the parameters used to run the original run.
     name: Name run under which to launch the run.
-    resource: Execution backend for the run: W&B provides built-in support for "local-container"
-        and "local-process" backends
+    resource: Execution backend for the run.
     resource_args: Resource related arguments for launching runs onto a remote backend.
         Will be stored on the constructed launch config under ``resource_args``.
     project: Target project to send launched run to
