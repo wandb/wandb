@@ -1557,7 +1557,7 @@ class Node(WBValue):
         self._attributes = {"name": None}
         self.in_edges = {}  # indexed by source node id
         self.out_edges = {}  # indexed by dest node id
-        # optional object (eg. PyTorch Parameter or Module) that this Node represents
+        # optional object (e.g. PyTorch Parameter or Module) that this Node represents
         self.obj = None
 
         if node is not None:
