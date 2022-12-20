@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 

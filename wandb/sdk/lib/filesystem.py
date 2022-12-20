@@ -15,7 +15,7 @@ def mkdir_exists_ok(dir_name: AnyPath) -> None:
     """
     os.makedirs(dir_name, exist_ok=True)
     if not os.access(dir_name, os.W_OK):
-        raise PermissionError(f"{dir_name} is not writable")
+        raise PermissionError(f"{dir_name!s} is not writable")
 
 
 class WriteSerializingFile:
