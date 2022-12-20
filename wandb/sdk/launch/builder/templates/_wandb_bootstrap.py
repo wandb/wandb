@@ -33,13 +33,18 @@ def install_deps(
         deps (str[], None): The dependencies that failed to install
     """
     try:
-        print("installing {}...".format(", ".join(deps)))
+        # Include only uri if @ is present
+        clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
+
+        print("installing {}...".format(", ".join(clean_deps)))
         sys.stdout.flush()
         subprocess.check_output(
-            ["pip", "install"] + OPTS + deps, stderr=subprocess.STDOUT
+            ["pip", "install"] + OPTS + clean_deps, stderr=subprocess.STDOUT
         )
         if failed is not None and len(failed) > 0:
-            sys.stderr.write("ERROR: Unable to install: {}".format(", ".join(deps)))
+            sys.stderr.write(
+                "ERROR: Unable to install: {}".format(", ".join(clean_deps))
+            )
             sys.stderr.flush()
         return failed
     except subprocess.CalledProcessError as e:
@@ -50,7 +55,7 @@ def install_deps(
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
         if len(failed) > num_failed:
-            return install_deps(list(set(deps) - failed), failed)
+            return install_deps(list(set(clean_deps) - failed), failed)
         else:
             return failed
 
@@ -67,7 +72,7 @@ def main() -> None:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
-                    reqs.append(req.strip())
+                    reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:

@@ -39,7 +39,7 @@ def test_sweeps_on_launch(
     with relay_server():
         run = wandb_init(settings=settings)
         # log fake job to use in scheduler
-        job_artifact = run._log_job_artifact_with_image(docker_image)
+        job_artifact = run._log_job_artifact_with_image(docker_image, args=[])
         job_name = job_artifact.wait().name
 
         api = wandb.sdk.internal.internal_api.Api()
