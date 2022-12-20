@@ -54,7 +54,7 @@ from wandb.errors import CommError, UsageError
 _preinit = wandb.wandb_lib.preinit
 _lazyloader = wandb.wandb_lib.lazyloader
 
-# Call import module hook to setup any needed require hooks
+# Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
 
 from wandb import wandb_torch

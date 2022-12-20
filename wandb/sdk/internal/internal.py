@@ -162,6 +162,12 @@ def wandb_internal(
     for thread in threads:
         thread.join()
 
+    def close_internal_log() -> None:
+        root = logging.getLogger("wandb")
+        for _handler in root.handlers[:]:
+            _handler.close()
+            root.removeHandler(_handler)
+
     for thread in threads:
         exc_info = thread.get_exception()
         if exc_info:
@@ -175,6 +181,8 @@ def wandb_internal(
                 # and potentially just fail the one stream.
                 os._exit(-1)
             sys.exit(-1)
+
+    close_internal_log()
 
 
 def _setup_tracelog() -> None:

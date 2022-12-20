@@ -16,6 +16,12 @@ from wandb.util import CheckRetryFnType
 logger = logging.getLogger(__name__)
 
 
+# To let tests mock out the retry logic's now()/sleep() funcs, this file
+# should only use these variables, not call the stdlib funcs directly.
+NOW_FN = datetime.datetime.now
+SLEEP_FN = time.sleep
+
+
 class TransientError(Exception):
     """Exception type designated for errors that may only be temporary
 
@@ -52,10 +58,6 @@ class Retry(Generic[_R]):
         retryable_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
         error_prefix: str = "Network error",
         retry_callback: Optional[Callable[[int, str], Any]] = None,
-        sleep_fn_for_testing: Callable[[float], None] = time.sleep,
-        datetime_now_fn_for_testing: Callable[
-            [], datetime.datetime
-        ] = datetime.datetime.now,
     ) -> None:
         self._call_fn = call_fn
         self._check_retry_fn = check_retry_fn
@@ -70,19 +72,14 @@ class Retry(Generic[_R]):
             self._retryable_exceptions = (TransientError,)
         self._index = 0
         self.retry_callback = retry_callback
-        self._sleep_fn = sleep_fn_for_testing
-        self._datetime_now_fn = datetime_now_fn_for_testing
 
     def _sleep_check_cancelled(
         self, wait_seconds: float, cancel_event: Optional[threading.Event]
     ) -> bool:
         if not cancel_event:
-            # print("REGULAR")
-            self._sleep_fn(wait_seconds)
+            SLEEP_FN(wait_seconds)
             return False
-        # print("CANCELLABLE", cancel_event)
         cancelled = cancel_event.wait(wait_seconds)
-        # print("CANCELLED", cancel_event, cancelled)
         return cancelled
 
     @property
@@ -120,7 +117,7 @@ class Retry(Generic[_R]):
         )
 
         sleep = sleep_base
-        now = self._datetime_now_fn()
+        now = NOW_FN()
         start_time = now
         start_time_triggered = None
 
@@ -133,12 +130,12 @@ class Retry(Generic[_R]):
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(
                     minutes=1
                 ):
-                    self._last_print = self._datetime_now_fn()
+                    self._last_print = NOW_FN()
                     if self.retry_callback:
                         self.retry_callback(
                             200,
                             "{} resolved after {}, resuming normal operation.".format(
-                                self._error_prefix, self._datetime_now_fn() - start_time
+                                self._error_prefix, NOW_FN() - start_time
                             ),
                         )
                 return result
@@ -152,7 +149,7 @@ class Retry(Generic[_R]):
                 if self._num_iter >= num_retries:
                     raise
 
-                now = self._datetime_now_fn()
+                now = NOW_FN()
 
                 # handle a triggered secondary check which could have a shortened timeout
                 if isinstance(retry_timedelta_triggered, datetime.timedelta):
@@ -195,7 +192,7 @@ class Retry(Generic[_R]):
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS
-            now = self._datetime_now_fn()
+            now = NOW_FN()
 
             self._num_iter += 1
 

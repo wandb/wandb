@@ -48,11 +48,10 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
-from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
-from wandb.sdk.lib import ipython, retry
+from wandb.sdk.lib import filesystem, ipython, retry
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -2200,6 +2199,8 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
+            from wandb.old.summary import HTTPSummary
+
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
         return self._summary
@@ -4098,7 +4099,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
             or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
         )
         if need_copy:
-            util.mkdir_exists_ok(os.path.dirname(target_path))
+            filesystem.mkdir_exists_ok(os.path.dirname(target_path))
             # We use copy2, which preserves file metadata including modified
             # time (which we use above to check whether we should do the copy).
             shutil.copy2(cache_path, target_path)

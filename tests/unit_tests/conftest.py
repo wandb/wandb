@@ -50,6 +50,7 @@ from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.writer import WriteManager
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 
@@ -166,7 +167,7 @@ def filesystem_isolate(tmp_path):
 def local_settings(filesystem_isolate):
     """Place global settings in an isolated dir"""
     config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
-    wandb.util.mkdir_exists_ok(os.path.join(".config", "wandb"))
+    filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
 
     # todo: this breaks things in unexpected places
     # todo: get rid of wandb.old
@@ -228,7 +229,7 @@ def mocked_ipython(mocker):
 @pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem(), git.Repo.init(".") as repo:
-        wandb.util.mkdir_exists_ok("wandb")
+        filesystem.mkdir_exists_ok("wandb")
         # Because the forked process doesn't use my monkey patch above
         with open(os.path.join("wandb", "settings"), "w") as f:
             f.write("[default]\nproject: test")
