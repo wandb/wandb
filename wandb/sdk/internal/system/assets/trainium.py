@@ -27,11 +27,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# NEURON_LS_COMMAND = ["neuron-ls"]
-# NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", "neuron_monitor_config.json"]
+NEURON_LS_COMMAND = ["neuron-ls"]
+NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", "neuron_monitor_config.json"]
 # fixme:
-NEURON_LS_COMMAND = ["ls", "-lhtr"]
-NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
+# NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
+# NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
 
 
 class _NeuronCoreMemoryUsage(TypedDict):
@@ -42,9 +42,21 @@ class _NeuronCoreMemoryUsage(TypedDict):
     tensors: int
 
 
+class _HostMemoryUsage(TypedDict):
+    application_memory: int
+    constants: int
+    dma_buffers: int
+    tensors: int
+
+
 class _Stats(TypedDict):
-    neuroncore_utilization: List[float]
-    neuroncore_memory_usage: List[_NeuronCoreMemoryUsage]
+    neuroncore_utilization: List[float]  # per neuron core utilization
+    host_total_memory_usage: int  # total memory usage in bytes
+    neuron_device_total_memory_usage: int  # total memory usage
+    host_memory_usage: _HostMemoryUsage  # host memory usage breakdown
+    neuroncore_memory_usage: List[
+        _NeuronCoreMemoryUsage
+    ]  # per core memory usage breakdown
 
 
 class NeuronCoreStats:
@@ -52,7 +64,8 @@ class NeuronCoreStats:
     AWS Trainium stats per Neuron Core.
     """
 
-    name = "trn.{i}.{}"
+    base_name: str = "trn.{key}"  # for global stats
+    name: str = "trn.{i}.{key}"  # for per-core stats
     samples: "Deque[_Stats]"
 
     def neuron_monitor(self):
@@ -70,7 +83,9 @@ class NeuronCoreStats:
             if raw_data:
                 self.raw_samples.append(raw_data)
 
-    def __init__(self) -> None:
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        # self.pid = 16851  # fixme
         self.raw_samples = deque(maxlen=10)
         self.samples = deque()
         self.shutdown_event = threading.Event()
@@ -85,13 +100,54 @@ class NeuronCoreStats:
     def sample(self) -> None:
         try:
             raw_stats = json.loads(self.raw_samples[-1])
-            print(raw_stats)
-            # stats: _Stats = ...
-            #
-            # self.samples.append(stats)
+            # if "neuron_runtime_data" not in raw_stats:
+            #     return None
+            neuron_runtime_data = [
+                entry["report"]
+                for entry in raw_stats["neuron_runtime_data"]
+                if entry["pid"] == self.pid
+            ][
+                0
+            ]  # there should be only one entry with the pid
 
-        except Exception as e:
-            logger.exception(f"Neuron core stats error: {e}")
+            neuroncores_in_use = neuron_runtime_data["neuroncore_counters"][
+                "neuroncores_in_use"
+            ]
+            # per-core utilization stats:
+            neuroncore_utilization = [
+                v["neuroncore_utilization"] for k, v in neuroncores_in_use.items()
+            ]
+            # memory usage
+            neuron_runtime_used_bytes = neuron_runtime_data["memory_used"][
+                "neuron_runtime_used_bytes"
+            ]
+            # memory usage totals
+            host_total_memory_usage = neuron_runtime_used_bytes["host"]
+            neuron_device_total_memory_usage = neuron_runtime_used_bytes[
+                "neuron_device"
+            ]
+            # memory usage breakdown
+            usage_breakdown = neuron_runtime_used_bytes["usage_breakdown"]
+            host_memory_usage = _HostMemoryUsage(**usage_breakdown["host"])
+            neuroncore_memory_usage = [
+                _NeuronCoreMemoryUsage(**v)
+                for v in usage_breakdown["neuroncore_memory_usage"].values()
+            ]
+
+            stats: _Stats = _Stats(
+                neuroncore_utilization=neuroncore_utilization,
+                host_total_memory_usage=host_total_memory_usage,
+                neuron_device_total_memory_usage=neuron_device_total_memory_usage,
+                host_memory_usage=host_memory_usage,
+                neuroncore_memory_usage=neuroncore_memory_usage,
+            )
+            self.samples.append(stats)
+
+        except Exception as e:  # noqa
+            # logger.exception(f"Neuron core stats error: {e}")
+            # import traceback
+            # print(traceback.format_exc())
+            pass
 
     def clear(self) -> None:
         self.samples.clear()
@@ -100,11 +156,44 @@ class NeuronCoreStats:
         if not self.samples:
             return {}
         stats = {}
-        if self.samples:
-            for key in self.samples[0].keys():
-                samples = [s[key] for s in self.samples]  # type: ignore
-                aggregate = aggregate_mean(samples)
-                stats[self.name.format(key)] = aggregate
+        # aggregate totals
+        keys_totals = (
+            "host_total_memory_usage",
+            "neuron_device_total_memory_usage",
+        )
+        for key in keys_totals:
+            stats[self.base_name.format(key=key)] = aggregate_mean(
+                [s[key] for s in self.samples]  # type: ignore
+            )
+        # aggregate neuroncore utilization
+        for i in range(len(self.samples[0]["neuroncore_utilization"])):
+            stats[self.name.format(i=i, key="neuroncore_utilization")] = aggregate_mean(
+                [s["neuroncore_utilization"][i] for s in self.samples]
+            )
+
+        # aggregate host memory usage breakdown
+        keys_host_memory_usage = self.samples[0]["host_memory_usage"].keys()
+        for key in keys_host_memory_usage:
+            stats[
+                self.base_name.format(key=f"host_memory_usage.{key}")
+            ] = aggregate_mean(
+                [s["host_memory_usage"][key] for s in self.samples]  # type: ignore
+            )
+
+        # aggregate per-core memory usage stats
+        keys_neuroncore_memory_usage = self.samples[0]["neuroncore_memory_usage"][
+            0
+        ].keys()
+        for i in range(len(self.samples[0]["neuroncore_memory_usage"])):  # per core
+            for key in keys_neuroncore_memory_usage:
+                stats[
+                    self.name.format(i=i, key=f"neuroncore_memory_usage.{key}")
+                ] = aggregate_mean(
+                    [s["neuroncore_memory_usage"][i][key] for s in self.samples]  # type: ignore
+                )
+
+        print(stats)
+
         return stats
 
 
@@ -118,7 +207,7 @@ class Trainium:
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
-            NeuronCoreStats(),
+            NeuronCoreStats(settings._stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
@@ -155,7 +244,7 @@ class Trainium:
         # stop the raw data acquisition threads
         for metric in self.metrics:
             if hasattr(metric, "shutdown_event"):
-                print("*** shutting down", metric.name)
+                logger.debug(f"Stopping neuron-monitor thread")
                 metric.shutdown_event.set()
 
     def probe(self) -> dict:
