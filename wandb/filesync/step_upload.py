@@ -94,7 +94,6 @@ class StepUpload:
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
-        self._finished = False
         self.silent = silent
 
     def _thread_body(self) -> None:
@@ -110,9 +109,7 @@ class StepUpload:
             self._handle_event(event)
 
         # We've received a finish event. At this point, further Upload requests
-        # are invalid. Mark that we're done, which is used to tell the last
-        # upload job that it is last.
-        self._finished = True
+        # are invalid.
 
         # After a finish event is received, iterate through the event queue
         # one by one and process all remaining events.
@@ -228,10 +225,3 @@ class StepUpload:
 
     def is_alive(self) -> bool:
         return self._thread.is_alive()
-
-    def finish(self) -> None:
-        self._finished = True
-
-    def shutdown(self) -> None:
-        self.finish()
-        self._thread.join()
