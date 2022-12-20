@@ -106,6 +106,7 @@ class JobBuilder:
         }
 
         name = make_artifact_name_safe(f"job-{remote}-{program_relpath}")
+        print("NAME", name)
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -128,7 +129,7 @@ class JobBuilder:
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
 
-        name = f"job-{self._logged_code_artifact['name']}-{program_relpath}"
+        name = f"job-{self._logged_code_artifact['name']}"
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         return artifact, source
@@ -217,7 +218,7 @@ class JobBuilder:
         # fields that are in settings in offline mode. Instead
         # use metadata file to pull these fields.
         if os.path.exists(os.path.join(self._settings.files_dir, METADATA_FNAME)):
-            with open(os.path.join(self._settings.files_dir, METADATA_FNAME), "r") as f:
+            with open(os.path.join(self._settings.files_dir, METADATA_FNAME)) as f:
                 metadata = json.load(f)
         else:
             return None
