@@ -1344,7 +1344,7 @@ class SendManager:
         )
         # if we logged code, save the id so we can use it in the job
         # builder
-        if artifact.type == "code":
+        if artifact.type == "code" and res is not None:
             self._job_builder._logged_code_artifact = ArtifactInfoForJob(
                 {
                     "id": res["id"],
