@@ -18,6 +18,7 @@ from typing import (
 import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 
 if TYPE_CHECKING:
