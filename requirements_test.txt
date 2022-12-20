@@ -1,0 +1,10 @@
+pytest
+pytest-cov
+pytest-xdist
+pytest-flask
+pytest-split
+pytest-mock
+pytest-timeout
+pytest-openfiles
+pytest-flakefinder
+parameterized
