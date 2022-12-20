@@ -23,8 +23,9 @@ import nbformat
 import psutil
 import pytest
 import requests
-import wandb
 from click.testing import CliRunner
+
+import wandb
 from wandb import Api, wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -176,7 +177,7 @@ def test_dir(test_name):
     test_dir = os.path.join(root, "logs", test_name)
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
-    mkdir_exists_ok(test_dir)
+    filesystem.mkdir_exists_ok(test_dir)
     os.chdir(test_dir)
     yield test_dir
     os.chdir(orig_dir)
@@ -192,7 +193,7 @@ def disable_git_save():
 def git_repo(runner):
     with runner.isolated_filesystem():
         with git.Repo.init(".") as repo:
-            mkdir_exists_ok("wandb")
+            filesystem.mkdir_exists_ok("wandb")
             # Because the forked process doesn't use my monkey patch above
             with open(os.path.join("wandb", "settings"), "w") as f:
                 f.write("[default]\nproject: test")
@@ -211,7 +212,7 @@ def git_repo_fn(runner):
         commit_msg: Optional[str] = None,
     ):
         with git.Repo.init(path) as repo:
-            mkdir_exists_ok("wandb")
+            filesystem.mkdir_exists_ok("wandb")
             if remote_url is not None:
                 repo.create_remote(remote_name, remote_url)
             if commit_msg is not None:
@@ -241,7 +242,7 @@ def test_settings(test_dir, mocker, live_mock_server):
     wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
     wandb_dir = os.path.join(test_dir, "wandb")
-    mkdir_exists_ok(wandb_dir)
+    filesystem.mkdir_exists_ok(wandb_dir)
     settings = wandb.Settings(
         api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
@@ -325,7 +326,7 @@ def local_settings(mocker):
     """Place global settings in an isolated dir"""
     with CliRunner().isolated_filesystem():
         cfg_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
-        mkdir_exists_ok(os.path.join(".config", "wandb"))
+        filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
         mocker.patch("wandb.old.settings.Settings._global_path", return_value=cfg_path)
         yield
 
