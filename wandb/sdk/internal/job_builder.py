@@ -25,9 +25,13 @@ JOB_FNAME = "wandb-job.json"
 JOB_ARTIFACT_TYPE = "job"
 
 
-class GitSourceDict(TypedDict):
+class GitInfo(TypedDict):
     remote: str
     commit: str
+
+
+class GitSourceDict(TypedDict):
+    git: GitInfo
     entrypoint: List[str]
     args: Sequence[str]
 
@@ -101,12 +105,13 @@ class JobBuilder:
                 program_relpath,
             ],
             "args": args,
-            "remote": remote,
-            "commit": commit,
+            "git": {
+                "remote": remote,
+                "commit": commit,
+            },
         }
 
-        name = make_artifact_name_safe(f"job-{remote}-{program_relpath}")
-        print("NAME", name)
+        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -175,7 +180,7 @@ class JobBuilder:
             artifact, source = self._build_repo_job(
                 remote, commit, program_relpath, args
             )
-            source_type = "git"
+            source_type = "repo"
         elif self._has_artifact_job_ingredients(program_relpath):
             assert program_relpath is not None
             artifact, source = self._build_artifact_job(program_relpath, args)
