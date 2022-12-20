@@ -7,4 +7,5 @@ pytest-mock
 pytest-timeout
 pytest-openfiles
 pytest-flakefinder
+pytest-rerunfailures
 parameterized
