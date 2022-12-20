@@ -23,9 +23,8 @@ import nbformat
 import psutil
 import pytest
 import requests
-from click.testing import CliRunner
-
 import wandb
+from click.testing import CliRunner
 from wandb import Api, wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue

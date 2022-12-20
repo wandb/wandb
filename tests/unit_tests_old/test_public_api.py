@@ -12,6 +12,7 @@ import platform
 import pytest
 import requests
 import wandb
+from wandb.sdk.lib import filesystem
 
 from tests.unit_tests_old import utils
 
