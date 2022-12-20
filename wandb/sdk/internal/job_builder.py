@@ -6,10 +6,10 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
-from wandb.util import make_artifact_name_safe
-from wandb.sdk.wandb_artifacts import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
+from wandb.sdk.wandb_artifacts import Artifact
+from wandb.util import make_artifact_name_safe
 
 from .settings_static import SettingsStatic
 
