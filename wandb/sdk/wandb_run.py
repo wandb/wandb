@@ -1768,7 +1768,7 @@ class Run:
             file_name = os.path.relpath(path, base_path)
             abs_path = os.path.abspath(path)
             wandb_path = os.path.join(self._settings.files_dir, file_name)
-            wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
+            filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
             if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
                 os.remove(wandb_path)
@@ -2302,6 +2302,7 @@ class Run:
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
         docker_image_name: Optional[str] = None,
+        args: Optional[List[str]] = None,
     ) -> Optional["Artifact"]:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
@@ -2309,11 +2310,11 @@ class Run:
             return None
 
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
-
+        s_args: Sequence[str] = args if args is not None else self._settings._args
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "source": {"image": docker_image_name, "args": self._settings._args},
+            "source": {"image": docker_image_name, "args": s_args},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
@@ -2324,10 +2325,16 @@ class Run:
 
         return job_artifact
 
-    def _log_job_artifact_with_image(self, docker_image_name: str) -> Artifact:
+    def _log_job_artifact_with_image(
+        self, docker_image_name: str, args: Optional[List[str]] = None
+    ) -> Artifact:
         packages, in_types, out_types = self._make_job_source_reqs()
         job_artifact = self._create_image_job(
-            in_types, out_types, packages, docker_image_name
+            in_types,
+            out_types,
+            packages,
+            args=args,
+            docker_image_name=docker_image_name,
         )
 
         artifact = self.log_artifact(job_artifact)

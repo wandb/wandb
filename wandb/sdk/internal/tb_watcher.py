@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import wandb
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
+from wandb.sdk.lib import filesystem
 from wandb.viz import CustomChart
 
 from . import run as internal_run
@@ -48,7 +49,7 @@ def _link_and_save_file(
     file_name = os.path.relpath(path, base_path)
     abs_path = os.path.abspath(path)
     wandb_path = os.path.join(files_dir, file_name)
-    util.mkdir_exists_ok(os.path.dirname(wandb_path))
+    filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
     # We overwrite existing symlinks because namespaces can change in Tensorboard
     if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
         os.remove(wandb_path)
