@@ -44,9 +44,9 @@ class WriteManager:
         self._sender_cancel_set = set()
         self._ds = None
         self._flow_control = None
-        # self._debug = False
+        self._debug = False
         self._sender_status_report = None
-        self._debug = True
+        # self._debug = True
         self._record_num = 0
 
     def open(self) -> None:
