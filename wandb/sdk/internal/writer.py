@@ -80,6 +80,8 @@ class WriteManager:
     def _write_record(self, record: "pb.Record") -> int:
         # print("WRITE1", record)
         assert self._ds
+        self._record_num += 1
+        record.num = self._record_num
         ret = self._ds.write(record)
         assert ret is not None
 
@@ -119,8 +121,6 @@ class WriteManager:
 
     def write(self, record: "pb.Record") -> None:
         record_type = record.WhichOneof("record_type")
-        self._record_num += 1
-        record.num = self._record_num
         # print("### W", record.num, record_type)
         assert record_type
         writer_str = "write_" + record_type
