@@ -1,23 +1,19 @@
-import time
 import queue
-from pathlib import Path
 import random
 import threading
-from typing import (
-    Any,
-    MutableSequence,
-    Optional,
-    Sequence,
-)
+import time
+from pathlib import Path
+from typing import Any, MutableSequence, Optional, Sequence
 from unittest.mock import Mock
+
 import pytest
 from wandb.filesync import stats
 from wandb.filesync.step_upload import (
-    StepUpload,
     Event,
-    RequestFinish,
     RequestCommitArtifact,
+    RequestFinish,
     RequestUpload,
+    StepUpload,
 )
 
 
