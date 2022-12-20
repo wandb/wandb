@@ -44,14 +44,14 @@ class WriteManager:
         self._sender_cancel_set = set()
         self._ds = None
         self._flow_control = None
-        self._debug = False
+        self._flow_debug = False
         self._sender_status_report = None
-        # self._debug = True
         self._record_num = 0
 
     def open(self) -> None:
         self._ds = datastore.DataStore()
         self._ds.open_for_write(self._settings.sync_file)
+        # TODO(mempressure): for debug use only, remove this eventually
         debug_kwargs = dict(
             _threshold_bytes_high=1000,
             _threshold_bytes_mid=500,
@@ -59,7 +59,7 @@ class WriteManager:
             _mark_granularity_bytes=100,
             _recovering_bytes_min=300,
         )
-        kwargs = debug_kwargs if self._debug else {}
+        kwargs = debug_kwargs if self._flow_debug else {}
         self._flow_control = flow_control.FlowControl(
             settings=self._settings,
             write_record=self._write_record,
@@ -69,16 +69,11 @@ class WriteManager:
         )
 
     def _forward_record(self, record: "pb.Record") -> None:
-        # record_type = record.WhichOneof("record_type")
-        # print("### F", record.num, record_type)
-        # if record.num == 0:
-        #     print("DEBUG", record)
         self._context_keeper.add_from_record(record)
         tracelog.log_message_queue(record, self._sender_q)
         self._sender_q.put(record)
 
     def _write_record(self, record: "pb.Record") -> int:
-        # print("WRITE1", record)
         assert self._ds
         self._record_num += 1
         record.num = self._record_num
@@ -95,7 +90,6 @@ class WriteManager:
     def _recover_records(self, start: int, end: int) -> None:
         record = pb.Record()
         request = pb.Request()
-        # last_write_offset = self._track_last_written_offset
         sender_read = pb.SenderReadRequest(start_offset=start, end_offset=end)
         for cancel_id in self._sender_cancel_set:
             sender_read.cancel_list.append(cancel_id)
@@ -103,7 +97,6 @@ class WriteManager:
         record.request.CopyFrom(request)
         self._ensure_flushed(end)
         self._forward_record(record)
-        # print("MARK", last_write_offset)
 
     def _write(self, record: "pb.Record") -> None:
         if not self._ds:
@@ -121,22 +114,17 @@ class WriteManager:
 
     def write(self, record: "pb.Record") -> None:
         record_type = record.WhichOneof("record_type")
-        # print("### W", record.num, record_type)
         assert record_type
         writer_str = "write_" + record_type
-        write_handler: Optional[Callable[["pb.Record"], None]] = getattr(
-            self, writer_str, None
+        write_handler: Callable[["pb.Record"], None] = getattr(
+            self, writer_str, self._write
         )
-        if write_handler:
-            return write_handler(record)
-        # assert write_handler, f"unknown handle: {writer_str}"
-        self._write(record)
+        write_handler(record)
 
     def write_request(self, record: "pb.Record") -> None:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         write_request_str = "write_request_" + request_type
-        # print("### Wreq", record.num, request_type)
         write_request_handler: Optional[Callable[["pb.Record"], None]] = getattr(
             self, write_request_str, None
         )
@@ -150,7 +138,7 @@ class WriteManager:
             result.response.sync_status_response.last_synced_time.CopyFrom(
                 self._sender_status_report.last_synced_time
             )
-        # todo: add logic to populate sync_status_response
+        # TODO(mempressure): add logic to populate sync_status_response
         self._respond_result(result)
 
     def write_request_sender_status_report(self, record: "pb.Record") -> None:

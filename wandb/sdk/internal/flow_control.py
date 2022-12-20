@@ -142,9 +142,6 @@ class FlowControl:
             self._threshold_bytes_high = _threshold_bytes_high
             self._threshold_bytes_mid = _threshold_bytes_mid
             self._threshold_bytes_low = _threshold_bytes_low
-        # self._threshold_bytes_high = 1000
-        # self._threshold_block_mid = 64  # 2MB
-        # self._threshold_block_low = 16  # 512kB
         self._mark_granularity_bytes = _mark_granularity_bytes
         self._recovering_bytes_min = _recovering_bytes_min
 
@@ -286,25 +283,6 @@ class FlowControl:
         # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
         return False
 
-    def _should_recover_old(self, inputs: "Record") -> bool:
-        # print(
-        #     f"SHOULD_RECOVER1: {self._track_last_forwarded_offset} {self._mark_forwarded_offset} {self._mark_reported_offset}"
-        # )
-        if (
-            self._track_last_forwarded_offset
-            == self._mark_forwarded_offset
-            == self._mark_reported_offset
-        ):
-            # print("RECOVER1")
-            return True
-        # print(
-        #     f"SHOULD_RECOVER2: {self._forwarded_bytes_behind()} {self._threshold_bytes_mid}"
-        # )
-        if self._forwarded_bytes_behind() <= self._threshold_bytes_mid:
-            # print("RECOVER2")
-            return True
-        return False
-
     def _should_unpause(self, inputs: "Record") -> bool:
         bytes_behind = self._forwarded_bytes_behind()
         if bytes_behind <= self._threshold_bytes_low:
@@ -361,7 +339,7 @@ class FlowControl:
         # print("Qf:", self._track_last_forwarded_offset)
         # print("Qp:", self._track_prev_written_offset)
         # print("Qw:", self._track_last_written_offset)
-        # FIXME: only read if there is stuff to read
+        # TODO(mempressure): only read if there is stuff to read
 
         start = max(
             self._track_last_recovering_offset, self._track_last_forwarded_offset
@@ -373,17 +351,13 @@ class FlowControl:
         )
         if self._debug:
             print("DOREAD", start, end, record)
-        # print("DOREAD", start, end, read_last, record)
 
-        # DEBUG print("DOREAD", start, end)
         if end > start:
             self._recover_records_cb(start, end)
 
         self._track_last_recovering_offset = end
-        # DEBUG print("READUPD", end)
 
     def _recover(self, inputs: "Record") -> None:
-        # print("XXXXXXXXXX")
         self._doread(inputs, read_last=True)
         self._send_mark()
         self._mark_recovering_offset = self._track_last_written_offset
@@ -392,28 +366,18 @@ class FlowControl:
 
     def _pause(self, inputs: "Record") -> None:
         pass
-        # send mark.. but right now we are sending it onenter
 
     def _unpause(self, inputs: "Record") -> None:
-        # print("UNPAUSE")
         self._doread(inputs, read_last=True)
-        # print("UNPAUSE2")
 
     def _quiesce(self, inputs: "Record") -> None:
-        # print("Q1")
-        record = inputs
-        # written = not _is_control_record(record) and not _is_local_record(record)
-        # FIXME: can quiesce ever be a record?
-        # assert written == False
+        # TODO(mempressure): can quiesce ever be a record?
         self._doread(inputs, read_last=True)
-        # print("Q2")
 
     def _forward(self, inputs: "Record") -> None:
         self._doread(inputs, read_last=False)
 
     def flow(self, record: "Record") -> None:
-        # print("FLO1", record.num, _get_request_type(record) or _get_record_type(record))
-        # print("FLO2", record.num, record)
         if self._debug:
             print("# FLOW", record.num)
             print("# FLOW-DEBUG", record)
@@ -422,7 +386,6 @@ class FlowControl:
         if not _is_control_record(record) and not _is_local_record(record):
             self._write_record(record)
 
-        # print("# FSM", record.num)
         self._fsm.input(record)
 
 

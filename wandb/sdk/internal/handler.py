@@ -145,7 +145,7 @@ class HandleManager:
             # print("Always", record)
             record.control.always_send = True
         if not self._settings._offline or always_send:
-            # FIXME: audit this
+            # TODO(mempressure): audit this
             # tracelog.log_message_queue(record, self._sender_q)
             # self._sender_q.put(record)
             tracelog.log_message_queue(record, self._writer_q)
@@ -233,7 +233,7 @@ class HandleManager:
         if flush:
             self._dispatch_record(record)
         elif not self._settings._offline:
-            # FIXME: audit this
+            # TODO(mempressure): audit this
             # tracelog.log_message_queue(record, self._sender_q)
             # self._sender_q.put(record)
             tracelog.log_message_queue(record, self._writer_q)
@@ -732,7 +732,7 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
-        # FIXME: do something better
+        # TODO(mempressure): do something better
         # self._dispatch_record(record, always_send=True)
         assert record.control.req_resp
         result = proto_util._result_from_record(record)

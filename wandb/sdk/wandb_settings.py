@@ -45,11 +45,6 @@ from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
 # Module level defaults
-#   Flow control is temporarily disabled while being validated.
-#     Eventually enabled by default and later removed as setting.
-
-# FIXME(jhr): this the below line should be uncommented
-# _FLOW_CONTROL_DEFAULT: bool = False
 _FLOW_CONTROL_DEFAULT: bool = True
 
 

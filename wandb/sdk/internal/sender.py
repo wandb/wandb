@@ -258,7 +258,7 @@ class SendManager:
         self._sender_status_last = 0
         self._sender_status_threshold = (
             4 * 1024
-        )  # FIXME(jhr): maybe a block?  maybe time based?
+        )  # TODO(mempressure): maybe a block?  maybe time based?
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
@@ -477,7 +477,7 @@ class SendManager:
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
-    # FIXME: figure out what to do here, for now this is moved to the handler
+    # TODO(mempressure): figure out what to do here, for now this is moved to the handler
     # def send_request_status(self, record: "Record") -> None:
     #     assert record.control.req_resp
     #     result = proto_util._result_from_record(record)
