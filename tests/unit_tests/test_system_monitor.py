@@ -117,7 +117,7 @@ def test_asset_registry():
     # test that the asset registry is populated with the correct assets
     # should be updated if new assets are added
     registry = asset_registry._registry
-    assert len(registry) == 8
+    assert len(registry) == 9
     for asset in (CPU, Disk, Memory, GPU, GPUApple, IPU, Network, TPU):
         assert asset in registry
 
