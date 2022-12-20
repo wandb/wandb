@@ -151,8 +151,8 @@ def clean_up():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate():
-    with CliRunner().isolated_filesystem():
+def filesystem_isolate(tmp_path):
+    with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
 
