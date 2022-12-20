@@ -10,9 +10,9 @@ import numpy as np
 import pytest
 import requests
 import responses
+import wandb.data_types as data_types
 import wandb.wandb_sdk.interface as wandb_interface
 import wandb.wandb_sdk.wandb_artifacts as wandb_artifacts
-import wandb.data_types as data_types
 from wandb import util
 
 
