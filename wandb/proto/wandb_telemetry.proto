@@ -163,6 +163,7 @@ message Env {
   bool start_forkserver = 7;  // multiprocessing forkserver
   bool start_thread = 8;      // thread start method
   bool maybe_mp = 9; // maybe user running multiprocessing
+  bool trainium = 10; // AWS Trainium env detected
 }
 
 message Labels {
