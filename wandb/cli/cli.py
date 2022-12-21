@@ -37,6 +37,7 @@ from wandb.sdk.launch.utils import (
     check_logged_in,
     construct_launch_spec,
 )
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
 
@@ -402,7 +403,7 @@ def init(ctx, project, entity, reset, mode):
     api.set_setting("project", project, persist=True)
     api.set_setting("base_url", api.settings().get("base_url"), persist=True)
 
-    util.mkdir_exists_ok(wandb_dir())
+    filesystem.mkdir_exists_ok(wandb_dir())
     with open(os.path.join(wandb_dir(), ".gitignore"), "w") as file:
         file.write("*\n!settings")
 
@@ -1927,7 +1928,7 @@ def pull(run, project, entity):
             sys.stdout.write("File %s\r" % name)
             dirname = os.path.dirname(name)
             if dirname != "":
-                wandb.util.mkdir_exists_ok(dirname)
+                filesystem.mkdir_exists_ok(dirname)
             with click.progressbar(
                 length=length,
                 label="File %s" % name,
@@ -2056,7 +2057,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
                     "Failed to apply patch, try un-staging any un-committed changes"
                 )
 
-    util.mkdir_exists_ok(wandb_dir())
+    filesystem.mkdir_exists_ok(wandb_dir())
     config_path = os.path.join(wandb_dir(), "config.yaml")
     config = Config()
     for k, v in json_config.items():

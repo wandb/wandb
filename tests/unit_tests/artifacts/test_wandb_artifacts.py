@@ -12,7 +12,9 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
+import wandb.sdk.interface as wandb_interface
 from wandb import util
+from wandb.sdk import wandb_artifacts
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -146,6 +148,14 @@ def md5_string(string: str) -> util.B64MD5:
     return base64.b64encode(hash_md5.digest()).decode("ascii")
 
 
+def test_unsized_manifest_entry():
+    with pytest.raises(ValueError) as e:
+        wandb_artifacts.ArtifactManifestEntry(
+            path="foo", digest="123", local_path="some/file.txt"
+        )
+    assert "size required" in str(e.value)
+
+
 def test_add_one_file():
     with open("file1.txt", "w") as f:
         f.write("hello")
@@ -246,36 +256,38 @@ def test_multi_add():
     assert manifest["contents"][filename]["size"] == size
 
 
-def test_add_reference_local_file():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
+def test_add_reference_local_file(tmp_path):
+    file = tmp_path / "file1.txt"
+    file.write_text("hello")
+    uri = file.as_uri()
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    e = artifact.add_reference("file://file1.txt")[0]
-    assert e.ref_target() == "file://file1.txt"
+    e = artifact.add_reference(uri)[0]
+    assert e.ref_target() == uri
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": "file://file1.txt",
+        "ref": uri,
         "size": 5,
     }
 
 
-def test_add_reference_local_file_no_checksum():
+def test_add_reference_local_file_no_checksum(tmp_path):
+    file = tmp_path / "file1.txt"
+    file.write_text("hello")
+    uri = file.as_uri()
 
-    with open("file1.txt", "w") as f:
-        f.write("hello")
-    size = os.path.getsize("file1.txt")
+    size = os.path.getsize(file)
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_reference("file://file1.txt", checksum=False)
+    artifact.add_reference(uri, checksum=False)
 
     assert artifact.digest == "415f3bca4b095cbbbbc47e0d44079e05"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": md5_string(str(size)),
-        "ref": "file://file1.txt",
+        "ref": uri,
         "size": size,
     }
 
@@ -385,6 +397,22 @@ def test_add_reference_local_dir_with_name():
         "ref": "file://"
         + os.path.join(os.getcwd(), "top", "nest", "nest", "file3.txt"),
         "size": 4,
+    }
+
+
+def test_add_reference_local_dir_by_uri(tmp_path):
+    ugly_path = tmp_path / "i=D" / "has !@#$%^&[]()|',`~ awful taste in file names"
+    ugly_path.mkdir(parents=True)
+    file = ugly_path / "file.txt"
+    file.write_text("sorry")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_reference(ugly_path.as_uri())
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["file.txt"] == {
+        "digest": "c88OOIlx7k7DTo2u3Q02zA==",
+        "ref": file.as_uri(),
+        "size": 5,
     }
 
 
@@ -587,18 +615,19 @@ def test_add_http_reference_path():
     }
 
 
-def test_add_reference_named_local_file():
+def test_add_reference_named_local_file(tmp_path):
+    file = tmp_path / "file1.txt"
+    file.write_text("hello")
+    uri = file.as_uri()
 
-    with open("file1.txt", "w") as f:
-        f.write("hello")
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_reference("file://file1.txt", name="great-file.txt")
+    artifact.add_reference(uri, name="great-file.txt")
 
     assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["great-file.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": "file://file1.txt",
+        "ref": uri,
         "size": 5,
     }
 
@@ -754,19 +783,19 @@ def test_add_obj_using_brackets(assets_path):
 
 
 def test_artifact_interface_link():
-    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    art = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         _ = art.link("boom")
 
 
 def test_artifact_interface_get_item():
-    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    art = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         _ = art["my-image"]
 
 
 def test_artifact_interface_set_item():
-    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    art = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         art["my-image"] = 1
 
@@ -984,7 +1013,7 @@ def test_add_partition_folder():
 
 
 def test_interface_commit_hash():
-    artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
+    artifact = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         artifact.commit_hash()
 
@@ -1008,7 +1037,7 @@ def test_http_storage_handler_uses_etag_for_digest(
             json={"result": 1},
             headers=headers,
         )
-        handler = wandb.wandb_sdk.wandb_artifacts.HTTPHandler(session)
+        handler = wandb_artifacts.HTTPHandler(session)
 
         art = wandb.Artifact("test", type="dataset")
         [entry] = handler.store_path(
@@ -1023,17 +1052,17 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = wandb.wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
+    cache = wandb_artifacts.ArtifactsCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb.wandb_sdk.wandb_artifacts.S3Handler()
+    handler = wandb_artifacts.S3Handler()
     handler._cache = cache
 
     local_path = handler.load_path(
         wandb.Artifact("test", type="dataset"),
-        wandb.wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+        wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -1045,8 +1074,8 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
 
 
 def test_tracking_storage_handler():
-    art = wandb.wandb_sdk.wandb_artifacts.Artifact("test", "dataset")
-    handler = wandb.wandb_sdk.wandb_artifacts.TrackingHandler()
+    art = wandb_artifacts.Artifact("test", "dataset")
+    handler = wandb_artifacts.TrackingHandler()
     [entry] = handler.store_path(art, path="/path/to/file.txt", name="some-file")
     assert entry.path == "some-file"
     assert entry.ref == "/path/to/file.txt"
