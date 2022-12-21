@@ -79,6 +79,7 @@ def setup_mock_aiplatform(status, monkeypatch):
             "command": [],
             "env": {},
         },
+        "wait_for_resource_creation": lambda: None,
     }
 
     monkeypatch.setattr(
