@@ -103,7 +103,7 @@ if TYPE_CHECKING:
     )
 
     from .data_types.base_types.wb_value import WBValue
-    from .interface.artifacts import ArtifactEntry, ArtifactManifest
+    from .interface.artifacts import ArtifactManifest, ArtifactManifestEntry
     from .interface.interface import FilesDict, PolicyName
     from .lib.printer import PrinterJupyter, PrinterTerm
     from .wandb_alerts import AlertLevel
@@ -1685,7 +1685,7 @@ class Run:
             file_name = os.path.relpath(path, base_path)
             abs_path = os.path.abspath(path)
             wandb_path = os.path.join(self._settings.files_dir, file_name)
-            wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
+            filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
             if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
                 os.remove(wandb_path)
@@ -3676,7 +3676,7 @@ class _LazyArtifact(ArtifactInterface):
 
     # def add_reference(
     #     self,
-    #     uri: Union["ArtifactEntry", str],
+    #     uri: Union["ArtifactManifestEntry", str],
     #     name: Optional[str] = None,
     #     checksum: bool = True,
     #     max_objects: Optional[int] = None,
@@ -3686,7 +3686,7 @@ class _LazyArtifact(ArtifactInterface):
     # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
     #     return self._assert_instance().add(obj, name)
 
-    def get_path(self, name: str) -> "ArtifactEntry":
+    def get_path(self, name: str) -> "ArtifactManifestEntry":
         return self._assert_instance().get_path(name)
 
     def get(self, name: str) -> "WBValue":

@@ -6,12 +6,14 @@ import wandb
 import wandb.data_types as data_types
 from wandb.data_types import _SavedModel
 from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
-from wandb.sdk.interface.artifacts import ArtifactEntry
+from wandb.sdk.interface.artifacts import ArtifactManifestEntry
 
 
 def _add_any(
     artifact: ArtifactInterface,
-    path_or_obj: Union[str, ArtifactEntry, data_types.WBValue],  # todo: add dataframe
+    path_or_obj: Union[
+        str, ArtifactManifestEntry, data_types.WBValue
+    ],  # todo: add dataframe
     name: Optional[str],
 ) -> Any:
     """High-level wrapper to add object(s) to an artifact - calls any of the .add* methods
@@ -21,7 +23,7 @@ def _add_any(
     Args:
         artifact: `ArtifactInterface` - most likely a LocalArtifact created with `wandb.Artifact(...)`
 
-        path_or_obj: `Union[str, ArtifactEntry, data_types.WBValue]` - either a str or valid object which
+        path_or_obj: `Union[str, ArtifactManifestEntry, data_types.WBValue]` - either a str or valid object which
         indicates what to add to an artifact.
 
         name: `str` - the name of the object which is added to an artifact.
@@ -30,7 +32,7 @@ def _add_any(
         Type[Any] - Union[None, ArtifactManifestEntry, etc]
 
     """
-    if isinstance(path_or_obj, ArtifactEntry):
+    if isinstance(path_or_obj, ArtifactManifestEntry):
         return artifact.add_reference(path_or_obj, name)
     elif isinstance(path_or_obj, data_types.WBValue):
         return artifact.add(path_or_obj, name)
@@ -44,14 +46,14 @@ def _add_any(
                 f.write(json.dumps(path_or_obj, sort_keys=True))
     else:
         raise ValueError(
-            f"Expected `path_or_obj` to be instance of `ArtifactEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
+            f"Expected `path_or_obj` to be instance of `ArtifactManifestEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
         )
 
 
 def _log_artifact_version(
     name: str,
     type: str,
-    entries: Dict[str, Union[str, ArtifactEntry, data_types.WBValue]],
+    entries: Dict[str, Union[str, ArtifactManifestEntry, data_types.WBValue]],
     aliases: Optional[Union[str, List[str]]] = None,
     description: Optional[str] = None,
     metadata: Optional[dict] = None,

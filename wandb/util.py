@@ -3,7 +3,6 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-import errno
 import functools
 import gzip
 import hashlib
@@ -60,6 +59,7 @@ import yaml
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
+from wandb.sdk.lib import filesystem
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -982,17 +982,6 @@ def make_safe_for_json(obj: Any) -> Any:
     return obj
 
 
-def mkdir_exists_ok(path: str) -> bool:
-    try:
-        os.makedirs(path)
-        return True
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            return False
-        else:
-            raise
-
-
 def no_retry_4xx(e: Exception) -> bool:
     if not isinstance(e, requests.HTTPError):
         return True
@@ -1400,7 +1389,7 @@ def download_file_from_url(
     response.raise_for_status()
 
     if os.sep in dest_path:
-        mkdir_exists_ok(os.path.dirname(dest_path))
+        filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
     with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)
