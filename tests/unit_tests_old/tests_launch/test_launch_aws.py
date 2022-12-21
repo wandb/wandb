@@ -568,7 +568,7 @@ def test_no_OuputDataConfig(
         wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
+        "wandb.sdk.launch.launch.DEFAULT_CONFIG_FILE", "./random-nonexistant-file.yaml"
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"

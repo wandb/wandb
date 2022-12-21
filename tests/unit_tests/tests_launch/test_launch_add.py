@@ -187,7 +187,7 @@ def test_launch_build_push_job(
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
-        "LAUNCH_CONFIG_FILE",
+        "DEFAULT_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
 

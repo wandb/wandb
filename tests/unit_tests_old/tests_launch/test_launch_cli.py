@@ -44,7 +44,7 @@ def test_launch_agent_base(
 ):
     monkeypatch.setattr(
         wandb.sdk.launch.utils,
-        "LAUNCH_CONFIG_FILE",
+        "DEFAULT_CONFIG_FILE",
         os.path.join("./config/wandb/launch-config.yaml"),
     )
     launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
@@ -400,6 +400,18 @@ def test_launch_agent_project_environment_variable(
     assert (
         "You must specify a project name or set WANDB_PROJECT environment variable."
         not in str(result.output)
+    )
+
+
+def test_launch_agent_no_project(runner, test_settings, live_mock_server, monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch.DEFAULT_CONFIG_FILE", "./random-nonexistant-file.yaml"
+    )
+    result = runner.invoke(cli.launch_agent)
+    assert result.exit_code == 1
+    assert (
+        "You must specify a project name or set WANDB_PROJECT environment variable."
+        in str(result.output)
     )
 
 
