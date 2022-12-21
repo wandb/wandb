@@ -1,0 +1,10 @@
+tag:
+  shard: standalone-cpu
+  platforms:
+    - linux
+    - mac
+    - win
+plugin:
+  - wandb
+assert:
+  - :yea:exit: 0

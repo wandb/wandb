@@ -935,6 +935,9 @@ if __name__ == "__main__":
         # test_distributed_artifact_simple,
         test_simple_partition_table,
     ]
+
+    errors = {}
+
     for ndx, test_fn in enumerate(test_fns):
         try:
             test_fn()
@@ -942,10 +945,16 @@ if __name__ == "__main__":
             print(f"{ndx+1}/{len(test_fns)} Complete")
         except Exception as exception:
             print(f"error on function {test_fn.__name__}")
-            raise exception
+            errors[test_fn.__name__] = exception
 
     if WANDB_PROJECT_ENV is not None:
         os.environ["WANDB_PROJECT"] = WANDB_PROJECT_ENV
 
     if WANDB_SILENT_ENV is not None:
         os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
+
+    if errors:
+        print(f"\n{len(errors)} errors")
+        for test, error in errors.items():
+            print(f"- {test}:\n{error}")
+        raise Exception("Errors")
