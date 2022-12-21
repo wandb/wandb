@@ -15,11 +15,9 @@ from wandb.sdk.interface.artifacts import (
 )
 
 if TYPE_CHECKING:
-    from wandb.proto import wandb_internal_pb2
+    from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
-
-    from ..file_pusher import FilePusher
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -31,37 +29,6 @@ if TYPE_CHECKING:
             self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
         ) -> Any:
             pass
-
-
-def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
-    if manifest.version == 1:
-        contents = {
-            content.path: {
-                "digest": content.digest,
-                "birthArtifactID": content.birth_artifact_id
-                if content.birth_artifact_id
-                else None,
-                "ref": content.ref if content.ref else None,
-                "size": content.size if content.size is not None else None,
-                "local_path": content.local_path if content.local_path else None,
-                "extra": {
-                    extra.key: json.loads(extra.value_json) for extra in content.extra
-                },
-            }
-            for content in manifest.contents
-        }
-    else:
-        raise Exception(f"unknown artifact manifest version: {manifest.version}")
-
-    return {
-        "version": manifest.version,
-        "storagePolicy": manifest.storage_policy,
-        "storagePolicyConfig": {
-            config.key: json.loads(config.value_json)
-            for config in manifest.storage_policy_config
-        },
-        "contents": contents,
-    }
 
 
 class ArtifactSaver:
