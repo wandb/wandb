@@ -49,18 +49,18 @@ class StreamThread(threading.Thread):
 
 
 class StreamRecord:
-    _record_q: "multiprocessing.Queue[pb.Record]"
-    _result_q: "multiprocessing.Queue[pb.Result]"
-    _relay_q: "multiprocessing.Queue[pb.Result]"
+    _record_q: "queue.Queue[pb.Record]"
+    _result_q: "queue.Queue[pb.Result]"
+    _relay_q: "queue.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
 
     def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
         self._mailbox = mailbox
-        self._record_q = multiprocessing.Queue()
-        self._result_q = multiprocessing.Queue()
-        self._relay_q = multiprocessing.Queue()
+        self._record_q = queue.Queue()
+        self._result_q = queue.Queue()
+        self._relay_q = queue.Queue()
         process = multiprocessing.current_process()
         self._iface = InterfaceRelay(
             record_q=self._record_q,

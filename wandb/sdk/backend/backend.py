@@ -8,6 +8,7 @@ import importlib.machinery
 import logging
 import multiprocessing
 import os
+import queue
 import sys
 import threading
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
@@ -53,8 +54,8 @@ class Backend:
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
     _settings: Optional[Settings]
-    record_q: Optional["multiprocessing.Queue[Record]"]
-    result_q: Optional["multiprocessing.Queue[Result]"]
+    record_q: Optional["queue.Queue[Record]"]
+    result_q: Optional["queue.Queue[Result]"]
     _mailbox: Mailbox
 
     def __init__(
@@ -188,8 +189,8 @@ class Backend:
             self._ensure_launched_manager()
             return
 
-        self.record_q = self._multiprocessing.Queue()
-        self.result_q = self._multiprocessing.Queue()
+        self.record_q = queue.Queue()
+        self.result_q = queue.Queue()
         user_pid = os.getpid()
 
         if start_method == "thread":
