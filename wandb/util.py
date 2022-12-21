@@ -53,7 +53,6 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-import shortuuid  # type: ignore
 import yaml
 
 import wandb

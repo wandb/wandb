@@ -6,7 +6,6 @@ import shutil
 import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
-import wandb.util
 from wandb.filesync import dir_watcher, step_upload
 from wandb.sdk.lib import filesystem, runid
 
