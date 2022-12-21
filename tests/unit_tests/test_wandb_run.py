@@ -492,7 +492,6 @@ def test_make_job(runner, relay_server, test_settings, user, wandb_init):
         with relay_server() as relay:
             with wandb_init(user, settings=test_settings()) as run:
                 run.log({"x": 2})
-            print(relay.context.raw_data)
             use_count = 0
             create_count = 0
             for data in relay.context.raw_data:
