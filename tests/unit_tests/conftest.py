@@ -71,8 +71,6 @@ if TYPE_CHECKING:
         "uploaded_files",
         "preempting",
         "upsert_sweep",
-        # "use_artifact",
-        "create_artifact",
     ]
 
     class Resolver(TypedDict):
@@ -1197,14 +1195,9 @@ class QueryResolver:
                 "name": "upsert_sweep",
                 "resolver": self.resolve_upsert_sweep,
             },
-            # {
-            #     "name": "use_artifact",
-            #     "resolver": self.resolve_use_artifact,
+            # { "name": "create_artifact",
+            #     "resolver": self.resolve_create_artifact,
             # },
-            {
-                "name": "create_artifact",
-                "resolver": self.resolve_create_artifact,
-            },
         ]
 
     @staticmethod
@@ -1301,26 +1294,6 @@ class QueryResolver:
             data = response_data["data"]["upsertSweep"].get("sweep")
             return data
         return None
-
-    # @staticmethod
-    # def resolve_use_artifact(
-    #     request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
-    # ) -> Optional[Dict[str, Any]]:
-    #     if not isinstance(request_data, dict):
-    #         return None
-    #     query = "useArtifact(" in request_data
-    #     if query:
-    #         post_processed_data = {
-    #             "name": request_data["variables"]["runName"],
-    #             "use_artifact": [
-    #                 {
-    #                     "variables": request_data["variables"],
-    #                     "response": response_data["data"]["useArtifact"]["artifact"],
-    #                 }
-    #             ],
-    #         }
-    #         return post_processed_data
-    #     return None
 
     def resolve_create_artifact(
         self, request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any

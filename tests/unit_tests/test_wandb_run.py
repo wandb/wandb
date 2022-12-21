@@ -1,4 +1,3 @@
-import json
 import os
 import pickle
 import platform
@@ -455,52 +454,3 @@ def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
             # whose field 2 corresponds to unexpected arguments in Settings
             assert 2 in telemetry.get("11", [])
             run.finish()
-
-
-def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_init):
-    art_name = "job-my-test-image"
-    artifact_name = f"{user}/uncategorized/{art_name}"
-    artifact_env = json.dumps({"_wandb_job": f"{artifact_name}:latest"})
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ", WANDB_ARTIFACTS=artifact_env
-    ):
-        artifact = wandb.Artifact(name=art_name, type="job")
-        filename = "file1.txt"
-        open(filename, "w").write("hello!")
-        artifact.add_file(filename)
-        with wandb_init(user) as run:
-            run.log_artifact(artifact)
-            artifact.wait()
-        with relay_server() as relay:
-            with wandb_init(user, settings=test_settings({"launch": True})) as run:
-                run.log({"x": 2})
-            use_count = 0
-            for data in relay.context.raw_data:
-                assert "mutation CreateArtifact(" not in data.get("request", {}).get(
-                    "query", ""
-                )
-                if "mutation UseArtifact(" in data.get("request", {}).get("query", ""):
-                    use_count += 1
-        assert use_count == 1
-
-
-def test_make_job(runner, relay_server, test_settings, user, wandb_init):
-    image_name = "my-test-image"
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ", WANDB_DOCKER=image_name
-    ):
-        with relay_server() as relay:
-            with wandb_init(user, settings=test_settings()) as run:
-                run.log({"x": 2})
-            use_count = 0
-            create_count = 0
-            for data in relay.context.raw_data:
-                if "mutation UseArtifact(" in data.get("request", {}).get("query", ""):
-                    use_count += 1
-                if "mutation CreateArtifact(" in data.get("request", {}).get(
-                    "query", ""
-                ):
-                    create_count += 1
-
-        assert use_count == 1
-        assert create_count == 1

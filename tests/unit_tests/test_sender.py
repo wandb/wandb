@@ -389,7 +389,7 @@ def test_upgrade_removed(
         assert run_result.HasField("error") is False
 
 
-def test_use_job2(backend_interface, mock_run, user, capsys):
+def test_use_job(backend_interface, mock_run, user, capsys):
     run = mock_run(use_magic_mock=True)
     with backend_interface(run) as interface, unittest.mock.patch.object(
         wandb.sdk.internal.sender.SendManager,
