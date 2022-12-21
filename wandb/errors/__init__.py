@@ -114,6 +114,12 @@ class MailboxError(Error):
     pass
 
 
+class ContextCancelledError(Error):
+    """Context cancelled Exception"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",

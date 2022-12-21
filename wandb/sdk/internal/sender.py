@@ -28,6 +28,7 @@ import requests
 
 import wandb
 from wandb import util
+from wandb.errors import ContextCancelledError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
@@ -45,7 +46,7 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-from . import artifacts, file_stream, internal_api, update
+from . import artifacts, context, datastore, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 
@@ -161,6 +162,7 @@ class SendManager:
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
+    _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: Optional["file_stream.FileStreamApi"]
@@ -175,9 +177,13 @@ class SendManager:
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
+    _ds: Optional[datastore.DataStore]
 
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
+
+    _sender_status_last: int
+    _sender_status_threshold: int
 
     def __init__(
         self,
@@ -185,11 +191,15 @@ class SendManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         interface: InterfaceQueue,
+        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
+        self._context_keeper = context_keeper
+
+        self._ds = None
 
         self._fs = None
         self._pusher = None
@@ -244,6 +254,12 @@ class SendManager:
         self._output_raw_streams = dict()
         self._output_raw_file = None
 
+        # sending status
+        self._sender_status_last = 0
+        self._sender_status_threshold = (
+            4 * 1024
+        )  # TODO(mempressure): maybe a block?  maybe time based?
+
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
@@ -277,11 +293,13 @@ class SendManager:
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
+        context_keeper = context.ContextKeeper()
         return SendManager(
             settings=settings,
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
+            context_keeper=context_keeper,
         )
 
     def __len__(self) -> int:
@@ -294,6 +312,7 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
+        # print("PROC REC", record.num)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -302,11 +321,33 @@ class SendManager:
         if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
-        send_handler(record)
+
+        context_id = context.context_id_from_record(record)
+        api_context = self._context_keeper.get(context_id)
+        try:
+            self._api.set_local_context(api_context)
+            send_handler(record)
+        except ContextCancelledError:
+            logger.debug(f"Record cancelled: {record_type}")
+            self._context_keeper.release(context_id)
+        finally:
+            self._api.clear_local_context()
 
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
+
+    def send_request_sender_mark(self, record: "Record") -> None:
+        # we got the mark, send it back to the writer
+        mark_id = record.request.sender_mark.mark_id
+        mark_report = wandb_internal_pb2.SenderMarkReportRequest(mark_id=mark_id)
+        request = wandb_internal_pb2.Request()
+        request.sender_mark_report.CopyFrom(mark_report)
+        record = wandb_internal_pb2.Record()
+        record.request.CopyFrom(request)
+        # tracelog.log_message_queue(record, self._writer_q)
+        # self._writer_q.put(record)
+        self._interface._publish(record)
 
     def send_request(self, record: "Record") -> None:
         request_type = record.request.WhichOneof("request_type")
@@ -320,6 +361,8 @@ class SendManager:
 
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
+        context_id = context.context_id_from_result(result)
+        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
@@ -330,6 +373,43 @@ class SendManager:
                     dictionary.pop(k)
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
+
+    def _report_sender_status(self, offset: int) -> None:
+        if offset < self._sender_status_last + self._sender_status_threshold:
+            return
+        self._sender_status_last = offset
+        status_report = wandb_internal_pb2.SenderStatusReportRequest(
+            _synced_offset=offset
+        )
+        status_time = time.time()
+        status_report.last_synced_time.FromMicroseconds(int(status_time * 1e6))
+        request = wandb_internal_pb2.Request()
+        request.sender_status_report.CopyFrom(status_report)
+        record = wandb_internal_pb2.Record()
+        record.request.CopyFrom(request)
+        self._interface._publish(record)
+
+    def send_request_sender_read(self, record: "Record") -> None:
+        # print("SEND READ vvvvvvvvvv")
+        if self._ds is None:
+            self._ds = datastore.DataStore()
+            self._ds.open_for_scan(self._settings.sync_file)
+        start = record.request.sender_read.start_offset
+        end = record.request.sender_read.end_offset
+        self._ds.seek(start)
+        off = 0
+        while off < end:
+            data = self._ds.scan_data()
+            pb = wandb_internal_pb2.Record()
+            pb.ParseFromString(data)
+            # print("READ REC", pb.num, off, start, end)
+            self.send(pb)
+            # print("GOT REC h", pb.history.step.num)
+            off = self._ds.get_offset()
+            self._report_sender_status(off)
+            # print("GOT OFF", off)
+        # DEBUG print(" DONE", off, start, end)
+        # print("SEND DONE ^^^^^^^^^")
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -369,7 +449,7 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
-        assert record.control.req_resp
+        # assert record.control.req_resp
 
         result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
@@ -397,14 +477,13 @@ class SendManager:
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
-    def send_request_status(self, record: "Record") -> None:
-        assert record.control.req_resp
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
+    # TODO(mempressure): figure out what to do here, for now this is moved to the handler
+    # def send_request_status(self, record: "Record") -> None:
+    #     assert record.control.req_resp
+    #     result = proto_util._result_from_record(record)
+    #     self._respond_result(result)
 
     def send_request_network_status(self, record: "Record") -> None:
-        assert record.control.req_resp
-
         result = proto_util._result_from_record(record)
         status_resp = result.response.network_status_response
         while True:
@@ -826,7 +905,9 @@ class SendManager:
             logger.info("updated run: %s", self._run.run_id)
 
     def _init_run(
-        self, run: "RunRecord", config_dict: Optional[DictWithValues]
+        self,
+        run: "RunRecord",
+        config_dict: Optional[DictWithValues],
     ) -> None:
         # We subtract the previous runs runtime when resuming
         start_time = (
@@ -953,6 +1034,10 @@ class SendManager:
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
+        # print("H:")
+        # import time
+
+        # time.sleep(0.2)
 
     def send_summary(self, record: "Record") -> None:
         summary_dict = proto_util.dict_from_proto_list(record.summary.update)

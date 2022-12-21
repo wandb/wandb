@@ -18,6 +18,7 @@ service InternalService {
   rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
   rpc GetRun(GetRunRequest) returns (GetRunResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
+  rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
   rpc Metric(MetricRecord) returns (MetricResult) {}
@@ -39,6 +40,7 @@ service InternalService {
   // rpc ArtifactCancel(ArtifactCancelRequest) returns (ArtifactCancelResponse) {}
   // rpc ArtifactRelease(ArtifactReleaseRequest) returns (ArtifactReleaseResponse) {}
 
+  rpc Cancel(CancelRequest) returns (CancelResponse) {}
   rpc Keepalive(KeepaliveRequest) returns (KeepaliveResponse) {}
 
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}

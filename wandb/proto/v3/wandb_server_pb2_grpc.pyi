@@ -50,6 +50,10 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.ShutdownRequest,
         wandb.proto.wandb_internal_pb2.ShutdownResponse,
     ]
+    SyncStatus: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.SyncStatusRequest,
+        wandb.proto.wandb_internal_pb2.SyncStatusResponse,
+    ]
     RunExit: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.RunExitRecord,
         wandb.proto.wandb_internal_pb2.RunExitResult,
@@ -114,6 +118,10 @@ class InternalServiceStub:
     ArtifactPoll: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         wandb.proto.wandb_internal_pb2.ArtifactPollResponse,
+    ]
+    Cancel: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.CancelRequest,
+        wandb.proto.wandb_internal_pb2.CancelResponse,
     ]
     Keepalive: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.KeepaliveRequest,
@@ -230,6 +238,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ShutdownResponse: ...
     @abc.abstractmethod
+    def SyncStatus(
+        self,
+        request: wandb.proto.wandb_internal_pb2.SyncStatusRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.SyncStatusResponse: ...
+    @abc.abstractmethod
     def RunExit(
         self,
         request: wandb.proto.wandb_internal_pb2.RunExitRecord,
@@ -326,6 +340,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
+    @abc.abstractmethod
+    def Cancel(
+        self,
+        request: wandb.proto.wandb_internal_pb2.CancelRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.CancelResponse: ...
     @abc.abstractmethod
     def Keepalive(
         self,

@@ -368,6 +368,7 @@ class Feature(google.protobuf.message.Message):
     KERAS_METRICS_LOGGER_FIELD_NUMBER: builtins.int
     KERAS_MODEL_CHECKPOINT_FIELD_NUMBER: builtins.int
     KERAS_WANDB_EVAL_CALLBACK_FIELD_NUMBER: builtins.int
+    FLOW_CONTROL_OVERFLOW_FIELD_NUMBER: builtins.int
     watch: builtins.bool
     """wandb.watch() called"""
     finish: builtins.bool
@@ -448,6 +449,8 @@ class Feature(google.protobuf.message.Message):
     """Keras WandbModelCheckpoint used"""
     keras_wandb_eval_callback: builtins.bool
     """Keras WandbEvalCallback used"""
+    flow_control_overflow: builtins.bool
+    """Hit flow control threshold"""
     def __init__(
         self,
         *,
@@ -491,8 +494,9 @@ class Feature(google.protobuf.message.Message):
         keras_metrics_logger: builtins.bool = ...,
         keras_model_checkpoint: builtins.bool = ...,
         keras_wandb_eval_callback: builtins.bool = ...,
+        flow_control_overflow: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "estimator_hook", b"estimator_hook", "finish", b"finish", "grpc", b"grpc", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "launch", b"launch", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "offline", b"offline", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "launch", b"launch", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "offline", b"offline", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
 
 global___Feature = Feature
 

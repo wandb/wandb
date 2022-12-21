@@ -58,6 +58,7 @@ message Control {
   bool local = 2;     // should not be persisted or synchronized
   string relay_id = 3;  // used by service transport to identify correct stream
   string mailbox_slot = 4;  // mailbox slot
+  bool always_send = 5;  // message to sender
 }
 
 /*
@@ -492,10 +493,16 @@ message Request {
     KeepaliveRequest      keepalive = 17;
     RunDoneRequest        run_done = 18;
     GetRunRequest         get_run = 19;
+    SyncStatusRequest     sync_status = 20;
+    CancelRequest         cancel = 21;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
     ServerInfoRequest     server_info = 67;
+    SenderMarkRequest       sender_mark = 68;
+    SenderMarkReportRequest sender_mark_report = 69;
+    SenderReadRequest       sender_read = 70;
+    SenderStatusReportRequest sender_status_report = 71;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -505,6 +512,7 @@ message Request {
  */
 message Response {
   oneof response_type {
+    KeepaliveResponse      keepalive_response = 18;
     StopStatusResponse     stop_status_response = 19;
     NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
@@ -518,7 +526,8 @@ message Response {
     ArtifactPollResponse   artifact_poll_response = 32;
     RunDoneResponse        run_done_response = 33;
     GetRunResponse         get_run_response = 34;
-    KeepaliveResponse      keepalive_response = 18;
+    SyncStatusResponse     sync_status_response = 35;
+    CancelResponse         cancel_response = 36;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
@@ -638,6 +647,31 @@ message PollExitResponse {
   RunExitResult   exit_result = 2;
   FilePusherStats pusher_stats = 3;
   FileCounts      file_counts = 4;
+}
+
+/*
+ * Sender requests
+ */
+message SenderMarkRequest {
+  int64 mark_id = 1;
+}
+
+message SenderMarkReportRequest {
+  int64 mark_id = 1;
+}
+
+message SenderReadRequest {
+  int64 start_offset = 1;
+  int64 end_offset = 2;
+  repeated string cancel_list = 3;
+}
+
+message SenderStatusReportRequest {
+  int64 _synced_offset = 1;
+  int64 _end_offset = 2;
+  int64 synced_log_index = 3;
+  int64 current_log_index = 4;
+  google.protobuf.Timestamp last_synced_time = 5;
 }
 
 /*
@@ -764,6 +798,20 @@ message SampledHistoryResponse {
 }
 
 /*
+ * SyncStatusRequest:
+ */
+message SyncStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message SyncStatusResponse {
+  float synced_percentage = 1;
+  int64 synced_log_index = 2;
+  int64 current_log_index = 3;
+  google.protobuf.Timestamp last_synced_time = 4;
+}
+
+/*
  * RunStartRequest: start the run
  */
 message RunStartRequest {
@@ -870,4 +918,15 @@ message KeepaliveRequest {
 }
 
 message KeepaliveResponse {
+}
+
+/*
+ * Cancel:
+ */
+message CancelRequest {
+  string cancel_slot = 1;  // mailbox slot
+  _RequestInfo _info = 200;
+}
+
+message CancelResponse {
 }

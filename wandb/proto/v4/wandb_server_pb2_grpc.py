@@ -66,6 +66,11 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.FromString,
                 )
+        self.SyncStatus = channel.unary_unary(
+                '/wandb_internal.InternalService/SyncStatus',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SyncStatusRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SyncStatusResponse.FromString,
+                )
         self.RunExit = channel.unary_unary(
                 '/wandb_internal.InternalService/RunExit',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
@@ -145,6 +150,11 @@ class InternalServiceStub(object):
                 '/wandb_internal.InternalService/ArtifactPoll',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
+                )
+        self.Cancel = channel.unary_unary(
+                '/wandb_internal.InternalService/Cancel',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelResponse.FromString,
                 )
         self.Keepalive = channel.unary_unary(
                 '/wandb_internal.InternalService/Keepalive',
@@ -276,6 +286,12 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SyncStatus(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def RunExit(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -368,6 +384,12 @@ class InternalServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ArtifactPoll(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Cancel(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -504,6 +526,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.SerializeToString,
             ),
+            'SyncStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.SyncStatus,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SyncStatusRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SyncStatusResponse.SerializeToString,
+            ),
             'RunExit': grpc.unary_unary_rpc_method_handler(
                     servicer.RunExit,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.FromString,
@@ -583,6 +610,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.ArtifactPoll,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.SerializeToString,
+            ),
+            'Cancel': grpc.unary_unary_rpc_method_handler(
+                    servicer.Cancel,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelResponse.SerializeToString,
             ),
             'Keepalive': grpc.unary_unary_rpc_method_handler(
                     servicer.Keepalive,
@@ -826,6 +858,23 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Shutdown',
             wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def SyncStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/SyncStatus',
+            wandb_dot_proto_dot_wandb__internal__pb2.SyncStatusRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.SyncStatusResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1098,6 +1147,23 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ArtifactPoll',
             wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Cancel(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Cancel',
+            wandb_dot_proto_dot_wandb__internal__pb2.CancelRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.CancelResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

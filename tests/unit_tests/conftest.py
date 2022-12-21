@@ -45,9 +45,11 @@ import wandb.util
 from click.testing import CliRunner
 from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.internal.writer import WriteManager
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
@@ -481,11 +483,18 @@ def _internal_sender(
 
 
 @pytest.fixture()
+def _internal_context_keeper():
+    context_keeper = context.ContextKeeper()
+    yield context_keeper
+
+
+@pytest.fixture()
 def internal_sm(
     runner,
     internal_sender_q,
     internal_result_q,
     _internal_sender,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -494,6 +503,7 @@ def internal_sm(
                 record_q=internal_sender_q,
                 result_q=internal_result_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
             )
             return sm
 
@@ -511,10 +521,10 @@ def internal_hm(
     runner,
     internal_record_q,
     internal_result_q,
-    internal_sender_q,
     internal_writer_q,
     _internal_sender,
     stopped_event,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -523,9 +533,39 @@ def internal_hm(
                 record_q=internal_record_q,
                 result_q=internal_result_q,
                 stopped=stopped_event,
-                sender_q=internal_sender_q,
                 writer_q=internal_writer_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
+            )
+            return hm
+
+    yield helper
+
+
+@pytest.fixture()
+def internal_wm(
+    runner,
+    internal_writer_q,
+    internal_result_q,
+    internal_sender_q,
+    stopped_event,
+    _internal_context_keeper,
+):
+    def helper(settings):
+        with runner.isolated_filesystem():
+            wandb_file = settings.sync_file
+
+            # this is hacky, but we dont have a clean rundir always
+            # so lets at least make sure we can write to this dir
+            run_dir = Path(wandb_file).parent
+            os.makedirs(run_dir)
+
+            hm = WriteManager(
+                settings=SettingsStatic(settings.make_static()),
+                record_q=internal_writer_q,
+                result_q=internal_result_q,
+                sender_q=internal_sender_q,
+                context_keeper=_internal_context_keeper,
             )
             return hm
 
@@ -574,6 +614,35 @@ def start_send_thread(
 
 
 @pytest.fixture()
+def start_write_thread(
+    internal_writer_q, internal_get_record, stopped_event, internal_process
+):
+    def start_write(write_manager):
+        def target():
+            try:
+                while True:
+                    payload = internal_get_record(
+                        input_q=internal_writer_q, timeout=0.1
+                    )
+                    if payload:
+                        write_manager.write(payload)
+                    elif stopped_event.is_set():
+                        break
+            except Exception:
+                stopped_event.set()
+                internal_process._alive = False
+
+        t = threading.Thread(target=target)
+        t.name = "testing-writer"
+        t.daemon = True
+        t.start()
+        return t
+
+    yield start_write
+    stopped_event.set()
+
+
+@pytest.fixture()
 def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
     def start_handle(handle_manager):
         def target():
@@ -598,20 +667,24 @@ def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
 def _start_backend(
     internal_hm,
     internal_sm,
+    internal_wm,
     _internal_sender,
     start_handle_thread,
+    start_write_thread,
     start_send_thread,
 ):
     def start_backend_func(run=None, initial_run=True, initial_start=True):
         ihm = internal_hm(run.settings)
+        iwm = internal_wm(run.settings)
         ism = internal_sm(run.settings)
         ht = start_handle_thread(ihm)
+        wt = start_write_thread(iwm)
         st = start_send_thread(ism)
         if initial_run:
             _run = _internal_sender.communicate_run(run)
             if initial_start:
                 _internal_sender.communicate_run_start(_run.run)
-        return ht, st
+        return ht, wt, st
 
     yield start_backend_func
 
@@ -1514,7 +1587,7 @@ class RelayServer:
         # replace the relay url with the real backend url (self.base_url)
         url = (
             urllib.parse.urlparse(request.url)
-            ._replace(netloc=self.base_url.netloc)
+            ._replace(netloc=self.base_url.netloc, scheme=self.base_url.scheme)
             .geturl()
         )
         headers = {key: value for (key, value) in request.headers if key != "Host"}

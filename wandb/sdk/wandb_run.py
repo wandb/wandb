@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import IntEnum
 from types import TracebackType
@@ -41,8 +42,10 @@ from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
+    Result,
     RunRecord,
     ServerInfoResponse,
+    SyncStatusResponse,
 )
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -157,6 +160,11 @@ class RunStatusChecker:
     - check the run sync status.
     """
 
+    _stop_status_lock: threading.Lock
+    _stop_status_handle: Optional[MailboxHandle]
+    _network_status_lock: threading.Lock
+    _network_status_handle: Optional[MailboxHandle]
+
     def __init__(
         self,
         interface: InterfaceBase,
@@ -170,12 +178,18 @@ class RunStatusChecker:
         self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
+
+        self._stop_status_lock = threading.Lock()
+        self._stop_status_handle = None
         self._stop_thread = threading.Thread(
             target=self.check_stop_status,
             name="ChkStopThr",
             daemon=True,
         )
-        self._retry_thread = threading.Thread(
+
+        self._network_status_lock = threading.Lock()
+        self._network_status_handle = None
+        self._network_status_thread = threading.Thread(
             target=self.check_network_status,
             name="NetStatThr",
             daemon=True,
@@ -199,7 +213,7 @@ class RunStatusChecker:
 
     def start(self) -> None:
         self._stop_thread.start()
-        self._retry_thread.start()
+        self._network_status_thread.start()
 
         if self._run_sync_status_checker:
             # If at this point init_handle received the response from the backend,
@@ -244,45 +258,94 @@ class RunStatusChecker:
         if not self._join_event.is_set():
             Run._header_run_info(settings=run.settings, printer=run._printer)
 
-    def check_network_status(self) -> None:
+    def _loop_check_status(
+        self,
+        *,
+        lock: threading.Lock,
+        set_handle: Any,
+        timeout: int,
+        request: Any,
+        process: Any,
+    ) -> None:
+        local_handle: Optional[MailboxHandle] = None
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_network_status()
-            if status_response and status_response.network_responses:
-                for hr in status_response.network_responses:
-                    if (
-                        hr.http_status_code == 200 or hr.http_status_code == 0
-                    ):  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog(f"{hr.http_response_text}")
-                    else:
-                        wandb.termlog(
-                            "{} encountered ({}), retrying request".format(
-                                hr.http_status_code, hr.http_response_text.rstrip()
-                            )
+            time_probe = time.monotonic()
+            if not local_handle:
+                local_handle = request()
+            assert local_handle
+
+            with lock:
+                if self._join_event.is_set():
+                    return
+                set_handle(local_handle)
+            result = local_handle.wait(timeout=timeout)
+            with lock:
+                set_handle(None)
+
+            if result:
+                process(result)
+
+            time_elapsed = time.monotonic() - time_probe
+            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
+            join_requested = self._join_event.wait(timeout=wait_time)
+
+    def check_network_status(self) -> None:
+        def _process_network_status(result: Result) -> None:
+            network_status = result.response.network_status_response
+            for hr in network_status.network_responses:
+                if (
+                    hr.http_status_code == 200 or hr.http_status_code == 0
+                ):  # we use 0 for non-http errors (eg wandb errors)
+                    wandb.termlog(f"{hr.http_response_text}")
+                else:
+                    wandb.termlog(
+                        "{} encountered ({}), retrying request".format(
+                            hr.http_status_code, hr.http_response_text.rstrip()
                         )
-            join_requested = self._join_event.wait(self._retry_polling_interval)
+                    )
+
+        self._loop_check_status(
+            lock=self._network_status_lock,
+            set_handle=lambda x: setattr(self, "_network_status_handle", x),
+            timeout=self._retry_polling_interval,
+            request=self._interface.deliver_network_status,
+            process=_process_network_status,
+        )
 
     def check_stop_status(self) -> None:
-        join_requested = False
-        while not join_requested:
-            status_response = self._interface.communicate_stop_status()
-            if status_response and status_response.run_should_stop:
+        def _process_stop_status(result: Result) -> None:
+            stop_status = result.response.stop_status_response
+            if stop_status.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-            join_requested = self._join_event.wait(self._stop_polling_interval)
+
+        self._loop_check_status(
+            lock=self._stop_status_lock,
+            set_handle=lambda x: setattr(self, "_stop_status_handle", x),
+            timeout=self._stop_polling_interval,
+            request=self._interface.deliver_stop_status,
+            process=_process_stop_status,
+        )
 
     def stop(self) -> None:
         self._join_event.set()
         if self._run_init_handle is not None:
             self._run_init_handle.abandon()
+        with self._stop_status_lock:
+            if self._stop_status_handle:
+                self._stop_status_handle.abandon()
+        with self._network_status_lock:
+            if self._network_status_handle:
+                self._network_status_handle.abandon()
 
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
-        self._retry_thread.join()
+        self._network_status_thread.join()
         if self._run_sync_status_checker:
             self._run_sync_status_checker.join()
 
@@ -364,6 +427,31 @@ class _run_decorator:  # noqa: N801
             return func(self, *args, **kwargs)
 
         return wrapper
+
+
+@dataclass
+class SyncStatus:
+    _sync_status_response: Optional[SyncStatusResponse] = field(
+        repr=False, default=None
+    )
+    synced_percentage: float = field(init=False, default=0.0)
+    synced_log_index: int = field(init=False, default=0)
+    current_log_index: int = field(init=False, default=0)
+    last_synced_time: str = field(
+        init=False, default=""
+    )  # todo: should it be datetime?
+    failed_sync: bool = field(init=False, default=False)
+
+    def __post_init__(self) -> None:
+        if self._sync_status_response is None:
+            self.failed_sync = True
+            return
+        self.synced_percentage = self._sync_status_response.synced_percentage
+        self.synced_log_index = self._sync_status_response.synced_log_index
+        self.current_log_index = self._sync_status_response.current_log_index
+        self.last_synced_time = (
+            self._sync_status_response.last_synced_time.ToJsonString()
+        )
 
 
 class Run:
@@ -1862,6 +1950,20 @@ class Run:
             ),
         )
         self._finish(exit_code=exit_code)
+
+    @_run_decorator._attach
+    def sync_status(
+        self,
+    ) -> SyncStatus:
+        """Get sync info from the internal backend, about the current run's sync status."""
+        if self._backend and self._backend.interface:
+            handle_sync_status = self._backend.interface.deliver_request_sync_status()
+            result = handle_sync_status.wait(timeout=-1)
+            sync_status_response = (
+                result.response.sync_status_response if result else None
+            )
+            return SyncStatus(sync_status_response)
+        return SyncStatus()
 
     @staticmethod
     def plot_table(
