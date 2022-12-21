@@ -457,33 +457,13 @@ def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
             run.finish()
 
 
-# test that
 def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_init):
-    # def fetch_mock_artifact(*args, **kwargs):
-    #     artifact = mock.MagicMock()
-    #     artifact.type = "job"
-    #     artifact.download = lambda *args, **kwargs: None
-    #     artifact.digest = "job123"
-    #     return artifact
     art_name = "job-my-test-image"
     artifact_name = f"{user}/uncategorized/{art_name}"
-    # print(artifact_name)
     artifact_env = json.dumps({"_wandb_job": f"{artifact_name}:latest"})
-    # print(artifact_env)
-    # with runner.isolated_filesystem():
-    #     with mock.patch.dict(
-    #         "os.environ", WANDB_ARTIFACTS=artifact_env
-    #     ), mock.patch.object(
-    #         wandb.apis.public.Api,
-    #         "artifact",
-    #         fetch_mock_artifact,
-    #     ), relay_server() as relay:
-    #         run = wandb.init(
-    #             settings=test_settings({"disable_git": True, "launch": True})
-    #         )
-    #         run.finish()
-    # assert False
-    with mock.patch.dict("os.environ", WANDB_ARTIFACTS=artifact_env):
+    with runner.isolated_filesystem(), mock.patch.dict(
+        "os.environ", WANDB_ARTIFACTS=artifact_env
+    ):
         artifact = wandb.Artifact(name=art_name, type="job")
         filename = "file1.txt"
         open(filename, "w").write("hello!")
@@ -494,6 +474,36 @@ def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_in
         with relay_server() as relay:
             with wandb_init(user, settings=test_settings({"launch": True})) as run:
                 run.log({"x": 2})
+            use_count = 0
+            for data in relay.context.raw_data:
+                assert "mutation CreateArtifact" not in data.get("request", {}).get(
+                    "query", ""
+                )
+                if "mutation UseArtifact" in data.get("request", {}).get("query", ""):
+                    use_count += 1
+        assert use_count == 1
 
-            print(relay.context.__dict__)
-    # assert False
+
+def test_make_job(runner, relay_server, test_settings, user, wandb_init):
+    image_name = "my-test-image"
+    with runner.isolated_filesystem(), mock.patch.dict(
+        "os.environ", WANDB_DOCKER=image_name
+    ):
+        with relay_server() as relay:
+            with wandb_init(user, settings=test_settings()) as run:
+                run.log({"x": 2})
+            print(relay.context.raw_data)
+            use_count = 0
+            create_count = 0
+            for data in relay.context.raw_data:
+                if "mutation UseArtifact" not in data.get("request", {}).get(
+                    "query", ""
+                ):
+                    use_count += 1
+                if "mutation CreateArtifact" in data.get("request", {}).get(
+                    "query", ""
+                ):
+                    create_count += 1
+
+        assert use_count == 1
+        assert create_count == 1
