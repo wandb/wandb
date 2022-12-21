@@ -272,8 +272,8 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        def on_commit() -> None:
-            if finalize and use_after_commit:
+        def on_commit(exc: Optional[Exception]) -> None:
+            if exc is None and finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)
             step_prepare.shutdown()
             commit_event.set()

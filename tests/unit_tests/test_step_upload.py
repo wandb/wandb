@@ -3,13 +3,11 @@ import random
 import threading
 import time
 from pathlib import Path
-from typing import Any, MutableSequence, Optional, Sequence
+from typing import Any, MutableSequence, Optional
 from unittest.mock import Mock
 
 import pytest
-from wandb.filesync import stats
 from wandb.filesync.step_upload import (
-    Event,
     RequestCommitArtifact,
     RequestFinish,
     RequestUpload,
@@ -42,8 +40,8 @@ def make_step_upload(
 ) -> "StepUpload":
     return StepUpload(
         **{
-            "api": Mock(),
-            "stats": stats.Stats(),
+            "api": Mock(upload_urls=Mock(wraps=mock_upload_urls)),
+            "stats": Mock(),
             "event_queue": queue.Queue(),
             "max_jobs": 10,
             "file_stream": Mock(),
@@ -111,30 +109,75 @@ class UploadBlockingMockApi(Mock):
 
 
 class TestFinish:
-    @pytest.mark.parametrize(
-        ["commands"],
-        [
-            ([],),
-            ([make_request_upload(Path("some/path"))],),
-            ([make_request_upload(Path("some/path"), artifact_id="artid")],),
-            ([make_request_commit("artid")],),
-            (
-                [
-                    make_request_upload(Path("some/path"), artifact_id="artid"),
-                    make_request_commit("artid"),
-                ],
-            ),
-        ],
-    )
-    def test_finishes(
+
+    def test_finishes_if_first_message(
         self,
-        commands: Sequence[Event],
     ):
         q = queue.Queue()
-        for command in commands:
-            q.put(command)
-
         step_upload = make_step_upload(event_queue=q)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+    def test_finishes_after_uploads(
+        self,
+        tmp_path: Path,
+    ):
+        q = queue.Queue()
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
+        step_upload = make_step_upload(event_queue=q)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+    def test_finishes_after_upload_urls(
+        self,
+        tmp_path: Path,
+    ):
+        q = queue.Queue()
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
+        step_upload = make_step_upload(event_queue=q, api=Mock(
+            upload_urls=Mock(side_effect=Exception("upload_urls failed")),
+        ))
+        step_upload.start()
+
+        finish_and_wait(q)
+
+    def test_finishes_after_failed_upload(
+        self,
+        tmp_path: Path,
+    ):
+        q = queue.Queue()
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
+        step_upload = make_step_upload(event_queue=q, api=Mock(
+            upload_urls=mock_upload_urls,
+            upload_file_retry=Mock(side_effect=Exception("upload failed")),
+        ))
+        step_upload.start()
+
+        finish_and_wait(q)
+
+    def test_finishes_after_artifact_commit(
+        self,
+    ):
+        q = queue.Queue()
+        q.put(make_request_commit("my-artifact"))
+        step_upload = make_step_upload(event_queue=q)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+    def test_finishes_after_failed_artifact_commit(
+        self,
+    ):
+        q = queue.Queue()
+        q.put(make_request_commit("my-artifact"))
+        step_upload = make_step_upload(event_queue=q, api=Mock(
+            upload_urls=mock_upload_urls,
+            commit_artifact=Mock(side_effect=Exception("commit failed")),
+        ))
         step_upload.start()
 
         finish_and_wait(q)
@@ -244,6 +287,28 @@ class TestUpload:
         else:
             assert f.exists()
 
+    @pytest.mark.parametrize(
+        "api",
+        [
+            Mock(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
+            Mock(upload_urls=mock_upload_urls, upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
+        ]
+    )
+    def test_error_doesnt_stop_future_uploads(
+        self,
+        tmp_path: Path,
+        api: Mock,
+    ):
+        q = queue.Queue()
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
+        q.put(make_request_upload(make_tmp_file(tmp_path)))
+
+        step_upload = make_step_upload(api=api, event_queue=q, max_jobs=1)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+
 
 class TestArtifactCommit:
     @pytest.mark.parametrize(
@@ -317,19 +382,27 @@ class TestArtifactCommit:
         finish_and_wait(q)
         api.commit_artifact.assert_not_called()
 
-    def test_calls_callbacks(self):
+    @pytest.mark.parametrize(
+        "commit_exc",
+        [None, Exception("commit failed")],
+    )
+    def test_calls_callbacks(self, commit_exc: Optional[Exception]):
 
         events = []
-        api = Mock(
-            commit_artifact=lambda *args, **kwargs: events.append("commit"),
-        )
+
+        def mock_commit_artifact(*args, **kwargs):
+            events.append("commit")
+            if commit_exc:
+                raise commit_exc
+
+        api = Mock(commit_artifact=mock_commit_artifact)
 
         q = queue.Queue()
         q.put(
             make_request_commit(
                 "my-art",
                 before_commit=lambda: events.append("before"),
-                on_commit=lambda: events.append("on"),
+                on_commit=lambda exc: events.append(("on", exc)),
                 finalize=True,
             )
         )
@@ -339,7 +412,7 @@ class TestArtifactCommit:
 
         finish_and_wait(q)
 
-        assert events == ["before", "commit", "on"]
+        assert events == ["before", "commit", ("on", commit_exc)]
 
 
 def test_enforces_max_jobs(
