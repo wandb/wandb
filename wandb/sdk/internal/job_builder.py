@@ -86,6 +86,10 @@ class JobBuilder:
     def set_summary(self, summary: Dict[str, Any]) -> None:
         self._summary = summary
 
+    @property
+    def used_job(self) -> bool:
+        return self._used_job
+
     def set_used_job(self, val: bool) -> None:
         self._job_builder._used_job = val
 

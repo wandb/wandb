@@ -1414,7 +1414,7 @@ class SendManager:
 
     def _flush_job(self) -> None:
         self._job_builder.set_config(
-            {k: v for k, v in self._consolidated_config if k != "_wandb"}
+            {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
         )
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
@@ -1422,7 +1422,7 @@ class SendManager:
         if (
             not hasattr(self._settings, "_offline")
             or (hasattr(self._settings, "_offline") and not self._settings._offline)
-        ) and not self._job_builder._used_job:
+        ) and not self._job_builder.used_job:
             artifact = self._job_builder.build()
             if artifact is not None and self._run is not None:
                 proto_artifact = self._interface._make_artifact(artifact)
