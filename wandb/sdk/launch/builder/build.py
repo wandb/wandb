@@ -421,22 +421,6 @@ def pull_docker_image(docker_image: str) -> None:
         raise LaunchError(f"Docker server returned error: {e}")
 
 
-def construct_gcp_image_uri(
-    launch_project: LaunchProject,
-    gcp_repo: str,
-    gcp_project: str,
-    gcp_registry: str,
-) -> str:
-    base_uri = launch_project.image_uri
-    return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
-
-
-def construct_gcp_registry_uri(
-    gcp_repo: str, gcp_project: str, gcp_registry: str
-) -> str:
-    return "/".join([gcp_registry, gcp_project, gcp_repo])
-
-
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
     requirements_line = ""
     assert launch_project.project_dir is not None
