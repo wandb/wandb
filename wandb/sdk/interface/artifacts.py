@@ -118,7 +118,7 @@ class ArtifactManifest:
         self.storage_policy = storage_policy
         self.entries = entries or {}
 
-    def to_manifest_json(self):
+    def to_manifest_json(self) -> Dict:
         raise NotImplementedError
 
     def digest(self):
