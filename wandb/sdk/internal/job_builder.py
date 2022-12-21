@@ -91,7 +91,7 @@ class JobBuilder:
         return self._used_job
 
     def set_used_job(self, val: bool) -> None:
-        self._job_builder._used_job = val
+        self._used_job = val
 
     def _set_logged_code_artifact(
         self, res: Optional[Dict], artifact: "ArtifactRecord"
@@ -231,7 +231,7 @@ class JobBuilder:
         # use metadata file to pull these fields.
         if os.path.exists(os.path.join(self._settings.files_dir, METADATA_FNAME)):
             with open(os.path.join(self._settings.files_dir, METADATA_FNAME)) as f:
-                metadata = json.load(f)
+                metadata: Dict = json.load(f)
             return metadata
 
         return None
