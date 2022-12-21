@@ -109,7 +109,6 @@ class UploadBlockingMockApi(Mock):
 
 
 class TestFinish:
-
     def test_finishes_if_first_message(
         self,
     ):
@@ -138,9 +137,12 @@ class TestFinish:
     ):
         q = queue.Queue()
         q.put(make_request_upload(make_tmp_file(tmp_path)))
-        step_upload = make_step_upload(event_queue=q, api=Mock(
-            upload_urls=Mock(side_effect=Exception("upload_urls failed")),
-        ))
+        step_upload = make_step_upload(
+            event_queue=q,
+            api=Mock(
+                upload_urls=Mock(side_effect=Exception("upload_urls failed")),
+            ),
+        )
         step_upload.start()
 
         finish_and_wait(q)
@@ -151,10 +153,13 @@ class TestFinish:
     ):
         q = queue.Queue()
         q.put(make_request_upload(make_tmp_file(tmp_path)))
-        step_upload = make_step_upload(event_queue=q, api=Mock(
-            upload_urls=mock_upload_urls,
-            upload_file_retry=Mock(side_effect=Exception("upload failed")),
-        ))
+        step_upload = make_step_upload(
+            event_queue=q,
+            api=Mock(
+                upload_urls=mock_upload_urls,
+                upload_file_retry=Mock(side_effect=Exception("upload failed")),
+            ),
+        )
         step_upload.start()
 
         finish_and_wait(q)
@@ -174,10 +179,13 @@ class TestFinish:
     ):
         q = queue.Queue()
         q.put(make_request_commit("my-artifact"))
-        step_upload = make_step_upload(event_queue=q, api=Mock(
-            upload_urls=mock_upload_urls,
-            commit_artifact=Mock(side_effect=Exception("commit failed")),
-        ))
+        step_upload = make_step_upload(
+            event_queue=q,
+            api=Mock(
+                upload_urls=mock_upload_urls,
+                commit_artifact=Mock(side_effect=Exception("commit failed")),
+            ),
+        )
         step_upload.start()
 
         finish_and_wait(q)
@@ -291,8 +299,13 @@ class TestUpload:
         "api",
         [
             Mock(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
-            Mock(upload_urls=mock_upload_urls, upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
-        ]
+            Mock(
+                upload_urls=mock_upload_urls,
+                upload_file_retry=Mock(
+                    side_effect=Exception("upload_file_retry failed")
+                ),
+            ),
+        ],
     )
     def test_error_doesnt_stop_future_uploads(
         self,
@@ -307,7 +320,6 @@ class TestUpload:
         step_upload.start()
 
         finish_and_wait(q)
-
 
 
 class TestArtifactCommit:
