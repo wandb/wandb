@@ -13,7 +13,8 @@ def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_in
     ):
         artifact = wandb.Artifact(name=art_name, type="job")
         filename = "file1.txt"
-        open(filename, "w").write("hello!")
+        with open(filename, "w") as fp:
+            fp.write("hello!")
         artifact.add_file(filename)
         with wandb_init(user) as run:
             run.log_artifact(artifact)

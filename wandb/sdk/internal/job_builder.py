@@ -4,7 +4,7 @@ job builder.
 import json
 import os
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
@@ -34,18 +34,18 @@ class GitInfo(TypedDict):
 class GitSourceDict(TypedDict):
     git: GitInfo
     entrypoint: List[str]
-    args: Sequence[str]
+    args: List[str]
 
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
     entrypoint: List[str]
-    args: Sequence[str]
+    args: List[str]
 
 
 class ImageSourceDict(TypedDict):
     image: str
-    args: Sequence[str]
+    args: List[str]
 
 
 class JobSourceDict(TypedDict, total=False):
@@ -80,14 +80,17 @@ class JobBuilder:
         self._logged_code_artifact = None
         self._used_job = False
 
-    def _set_config(self, config: Dict[str, Any]) -> None:
+    def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
 
-    def _set_summary(self, summary: Dict[str, Any]) -> None:
+    def set_summary(self, summary: Dict[str, Any]) -> None:
         self._summary = summary
 
+    def set_used_job(self, val: bool) -> None:
+        self._job_builder._used_job = val
+
     def _set_logged_code_artifact(
-        self, res: Union[Dict, None], artifact: "ArtifactRecord"
+        self, res: Optional[Dict], artifact: "ArtifactRecord"
     ) -> None:
         if artifact.type == "code" and res is not None:
             self._logged_code_artifact = ArtifactInfoForJob(
@@ -102,7 +105,7 @@ class JobBuilder:
     ) -> Tuple[Artifact, GitSourceDict]:
         source: GitSourceDict = {
             "entrypoint": [
-                sys.executable.split("/")[-1],
+                os.path.basename(sys.executable),
                 program_relpath,
             ],
             "args": args,
@@ -128,7 +131,7 @@ class JobBuilder:
         assert isinstance(self._logged_code_artifact, dict)
         source: ArtifactSourceDict = {
             "entrypoint": [
-                sys.executable.split("/")[-1],
+                os.path.basename(sys.executable),
                 program_relpath,
             ],
             "args": args,
@@ -219,17 +222,15 @@ class JobBuilder:
     def _handle_metadata_file(
         self,
     ) -> Optional[Dict]:
-        metadata = {}
         # TODO: settings static is not populated with several
         # fields that are in settings in offline mode. Instead
         # use metadata file to pull these fields.
         if os.path.exists(os.path.join(self._settings.files_dir, METADATA_FNAME)):
             with open(os.path.join(self._settings.files_dir, METADATA_FNAME)) as f:
                 metadata = json.load(f)
-        else:
-            return None
+            return metadata
 
-        return metadata
+        return None
 
     def _has_git_job_ingredients(
         self, git_info: Dict[str, str], program_relpath: Optional[str]

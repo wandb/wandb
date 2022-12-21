@@ -1223,7 +1223,7 @@ class SendManager:
         """
         use = record.use_artifact
         if use.type == "job":
-            self._job_builder._used_job = True
+            self._job_builder.set_used_job(True)
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1413,16 +1413,12 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
-        self._job_builder._set_config(
-            {
-                key: self._consolidated_config[key]
-                for key in self._consolidated_config
-                if key != "_wandb"
-            }
+        self._job_builder.set_config(
+            {k: v for k, v in self._consolidated_config if k != "_wandb"}
         )
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
-        self._job_builder._set_summary(summary_dict)
+        self._job_builder.set_summary(summary_dict)
         if (
             not hasattr(self._settings, "_offline")
             or (hasattr(self._settings, "_offline") and not self._settings._offline)
