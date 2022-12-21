@@ -272,7 +272,12 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
+        commit_exc: Optional[Exception] = None
+
         def on_commit(exc: Optional[Exception]) -> None:
+            nonlocal commit_exc
+            commit_exc = exc
+
             if exc is None and finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)
             step_prepare.shutdown()
@@ -290,6 +295,9 @@ class ArtifactSaver:
         # artifact is committed.
         while not commit_event.is_set():
             commit_event.wait()
+
+        if commit_exc is not None:
+            raise commit_exc
 
         return self._server_artifact
 
