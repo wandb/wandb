@@ -104,7 +104,7 @@ if TYPE_CHECKING:
     )
 
     from .data_types.base_types.wb_value import WBValue
-    from .interface.artifacts import ArtifactEntry, ArtifactManifest
+    from .interface.artifacts import ArtifactManifest, ArtifactManifestEntry
     from .interface.interface import FilesDict, PolicyName
     from .lib.printer import PrinterJupyter, PrinterTerm
     from .wandb_alerts import AlertLevel
@@ -3792,7 +3792,7 @@ class _LazyArtifact(ArtifactInterface):
 
     # def add_reference(
     #     self,
-    #     uri: Union["ArtifactEntry", str],
+    #     uri: Union["ArtifactManifestEntry", str],
     #     name: Optional[str] = None,
     #     checksum: bool = True,
     #     max_objects: Optional[int] = None,
@@ -3802,7 +3802,7 @@ class _LazyArtifact(ArtifactInterface):
     # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
     #     return self._assert_instance().add(obj, name)
 
-    def get_path(self, name: str) -> "ArtifactEntry":
+    def get_path(self, name: str) -> "ArtifactManifestEntry":
         return self._assert_instance().get_path(name)
 
     def get(self, name: str) -> "WBValue":
