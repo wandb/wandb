@@ -887,7 +887,6 @@ class WandbStoragePolicy(StoragePolicy):
     def load_file(
         self,
         artifact: ArtifactInterface,
-        name: str,
         manifest_entry: ArtifactManifestEntry,
     ) -> str:
         path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -923,12 +922,10 @@ class WandbStoragePolicy(StoragePolicy):
 
     def load_reference(
         self,
-        artifact: ArtifactInterface,
-        name: str,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> str:
-        return self._handler.load_path(artifact, manifest_entry, local)
+        return self._handler.load_path(manifest_entry, local)
 
     def _file_url(
         self, api: InternalApi, entity_name: str, manifest_entry: ArtifactManifestEntry
@@ -1041,11 +1038,10 @@ class __S3BucketPolicy(StoragePolicy):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
-        return self._handler.load_path(artifact, manifest_entry, local=local)
+        return self._handler.load_path(manifest_entry, local=local)
 
     def store_path(
         self,
@@ -1081,22 +1077,17 @@ class MultiHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
         url = urlparse(manifest_entry.ref)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
-                return self._default_handler.load_path(
-                    artifact, manifest_entry, local=local
-                )
+                return self._default_handler.load_path(manifest_entry, local=local)
             raise ValueError(
                 'No storage handler registered for scheme "%s"' % str(url.scheme)
             )
-        return self._handlers[str(url.scheme)].load_path(
-            artifact, manifest_entry, local=local
-        )
+        return self._handlers[str(url.scheme)].load_path(manifest_entry, local=local)
 
     def store_path(
         self,
@@ -1144,7 +1135,6 @@ class TrackingHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
@@ -1203,7 +1193,6 @@ class LocalFileHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
@@ -1356,7 +1345,6 @@ class S3Handler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
@@ -1621,7 +1609,6 @@ class GCSHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
@@ -1802,7 +1789,6 @@ class HTTPHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
@@ -1904,7 +1890,6 @@ class WBArtifactHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
@@ -2016,7 +2001,6 @@ class WBLocalArtifactHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:

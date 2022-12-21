@@ -818,7 +818,7 @@ class StoragePolicy:
         pass
 
     def load_file(
-        self, artifact: Artifact, name: str, manifest_entry: ArtifactManifestEntry
+        self, artifact: Artifact, manifest_entry: ArtifactManifestEntry
     ) -> str:
         raise NotImplementedError
 
@@ -839,8 +839,6 @@ class StoragePolicy:
 
     def load_reference(
         self,
-        artifact: Artifact,
-        name: str,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> str:
@@ -858,7 +856,6 @@ class StorageHandler:
 
     def load_path(
         self,
-        artifact: Artifact,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
