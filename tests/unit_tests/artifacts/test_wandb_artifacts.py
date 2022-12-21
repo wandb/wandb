@@ -12,6 +12,7 @@ import wandb
 import wandb.data_types as data_types
 import wandb.sdk.interface as wandb_interface
 from wandb import util
+from wandb.sdk import wandb_artifacts
 from wandb.sdk.lib.hashutil import md5_string
 
 

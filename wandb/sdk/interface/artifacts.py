@@ -99,7 +99,7 @@ class ArtifactManifest:
 @dataclass
 class ArtifactManifestEntry:
     path: util.LogicalFilePathStr
-    digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag]
+    digest: Union[B64MD5, util.URIStr, util.FilePathStr, ETag]
     ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
     birth_artifact_id: Optional[str] = None
     size: Optional[int] = None

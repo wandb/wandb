@@ -734,7 +734,7 @@ class Artifact(ArtifactInterface):
 
     def _add_local_file(
         self, name: str, path: str, digest: Optional[B64MD5] = None
-    ) -> ArtifactManifestManifestEntry:
+    ) -> ArtifactManifestEntry:
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
