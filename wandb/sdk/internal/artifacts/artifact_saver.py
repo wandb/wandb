@@ -14,21 +14,22 @@ from wandb.sdk.interface.artifacts import (
     get_staging_dir,
 )
 
+if sys.version_info >= (3, 8):
+    from typing import Protocol
+else:
+    from typing_extensions import Protocol
+
 if TYPE_CHECKING:
     from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
 
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
 
-    class SaveFn(Protocol):
-        def __call__(
-            self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
-        ) -> Any:
-            pass
+class SaveFn(Protocol):
+    def __call__(
+        self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
+    ) -> Any:
+        pass
 
 
 class ArtifactSaver:
