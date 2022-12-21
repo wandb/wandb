@@ -236,7 +236,7 @@ def check_project_spec(
     project=None,
     entity=None,
     config=None,
-    resource="local",
+    resource="local-container",
     resource_args=None,
     docker_image=None,
 ):
@@ -343,7 +343,7 @@ def test_launch_resource_args(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
-        "resource": "local",
+        "resource": "local-container",
         "resource_args": {"a": "b", "c": "d"},
     }
     mock_with_run_info = launch.run(**kwargs)
@@ -1219,7 +1219,7 @@ def test_launch_entrypoint(test_settings):
         {},
         {},
         {},
-        "local",
+        "local-container",
         {},
         None,
         None,  # run_id
