@@ -476,10 +476,10 @@ def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_in
                 run.log({"x": 2})
             use_count = 0
             for data in relay.context.raw_data:
-                assert "mutation CreateArtifact" not in data.get("request", {}).get(
+                assert "mutation CreateArtifact(" not in data.get("request", {}).get(
                     "query", ""
                 )
-                if "mutation UseArtifact" in data.get("request", {}).get("query", ""):
+                if "mutation UseArtifact(" in data.get("request", {}).get("query", ""):
                     use_count += 1
         assert use_count == 1
 
@@ -496,9 +496,7 @@ def test_make_job(runner, relay_server, test_settings, user, wandb_init):
             use_count = 0
             create_count = 0
             for data in relay.context.raw_data:
-                if "mutation UseArtifact" not in data.get("request", {}).get(
-                    "query", ""
-                ):
+                if "mutation UseArtifact(" in data.get("request", {}).get("query", ""):
                     use_count += 1
                 if "mutation CreateArtifact(" in data.get("request", {}).get(
                     "query", ""
