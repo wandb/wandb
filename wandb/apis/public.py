@@ -12,6 +12,7 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 """
 import ast
 import datetime
+import typing
 import json
 import logging
 import multiprocessing.dummy  # this uses threads
@@ -4705,11 +4706,13 @@ class Artifact(artifacts.Artifact):
             name,
             root,
             download_logger: _ArtifactDownloadLogger,
-            thread_local_settings: _ThreadLocalApiSettings,
+            tlas_api_key: typing.Optional[str],
+            tlas_cookies: typing.Optional[typing.Dict],
+            tlas_headers: typing.Optional[typing.Dict],
         ):
-            _thread_local_api_settings.api_key = thread_local_settings.api_key
-            _thread_local_api_settings.cookies = thread_local_settings.cookies
-            _thread_local_api_settings.headers = thread_local_settings.headers
+            _thread_local_api_settings.api_key = tlas_api_key
+            _thread_local_api_settings.cookies = tlas_cookies
+            _thread_local_api_settings.headers = tlas_headers
 
             return self._download_file(name, root, download_logger)
 
@@ -4719,7 +4722,9 @@ class Artifact(artifacts.Artifact):
                 _download_file_with_thread_local_api_settings,
                 root=dirpath,
                 download_logger=download_logger,
-                thread_local_settings=_thread_local_api_settings,
+                tlas_api_key=_thread_local_api_settings.api_key,
+                tlas_headers={**_thread_local_api_settings.headers},
+                tlas_cookies={**_thread_local_api_settings.cookies},
             ),
             manifest.entries,
         )
