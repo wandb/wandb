@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal import flow_control, settings_static
+from wandb.sdk.wandb_settings import Settings
 
 
 @dataclass
@@ -177,7 +178,7 @@ class RecordSim:
     def respond(self, record):
         self._control_records.append(record)
 
-    def ensure_flushed(self, record):
+    def recover_records(self, start, end):
         pass
 
     def get_controls(self):
@@ -197,12 +198,12 @@ class RecordSim:
         next_time = op._dispatch_time
         self._advance_time(next_time)
 
-        fc.send_with_flow_control(rec)
+        fc.flow(rec)
 
     def process_control_records(self, fc):
         self._do_send_backlog(self._time)
         for record in self._control_records:
-            fc.send_with_flow_control(record)
+            fc.flow(record)
         self._control_records = []
 
     def flush(self):
@@ -225,7 +226,7 @@ def no_test_sim_flow():
         settings=settings,
         write_record=sim.write_record,
         forward_record=sim.forward_record,
-        ensure_flushed=sim.ensure_flushed,
+        recover_records=sim.recover_records,
     )
     f = RecordFactory()
     for _ in range(20):
@@ -235,11 +236,12 @@ def no_test_sim_flow():
             print("C", c)
 
         rec = f.create_record()
-        flow.send_with_flow_control(rec)
+        flow.flow(rec)
 
 
 def simulate(op_list):
-    settings = settings_static.SettingsStatic({})
+    settings_obj = Settings()
+    settings = settings_static.SettingsStatic(settings_obj.make_static())
 
     f = RecordFactory(op_list=op_list)
     sim = RecordSim(f=f)
@@ -247,7 +249,7 @@ def simulate(op_list):
         settings=settings,
         write_record=sim.write_record,
         forward_record=sim.forward_record,
-        ensure_flushed=sim.ensure_flushed,
+        recover_records=sim.recover_records,
         _threshold_bytes_high=1000,
         _threshold_bytes_mid=700,
         _threshold_bytes_low=400,
@@ -264,7 +266,7 @@ def simulate(op_list):
     sim.check()
 
 
-def test_slow_grow():
+def no_test_slow_grow():
     """Generate records at twice the rate we send data."""
     op_list = []
 

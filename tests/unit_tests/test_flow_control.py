@@ -1,5 +1,6 @@
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal import flow_control, settings_static
+from wandb.sdk.wandb_settings import Settings
 
 
 def test_flow():
@@ -12,7 +13,8 @@ def test_flow():
     def recover_records(record):
         pass
 
-    settings = settings_static.SettingsStatic({})
+    settings_obj = Settings()
+    settings = settings_static.SettingsStatic(settings_obj.make_static())
 
     fc = flow_control.FlowControl(
         settings=settings,
@@ -22,4 +24,4 @@ def test_flow():
     )
 
     record = pb.Record()
-    fc.flow(record)
+    # fc.flow(record)
