@@ -203,7 +203,7 @@ def test_flaky_server_response_init_finish_policy_fail(
             )
             if run is not None:
                 run.finish()
-        except:
+        except:  # noqa
             pass
 
         captured = capsys.readouterr().err

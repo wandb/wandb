@@ -13,6 +13,7 @@ else:
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
     from wandb.sdk.interface.interface import FilesDict
     from wandb.sdk.internal.settings_static import SettingsStatic

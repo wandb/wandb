@@ -7,7 +7,8 @@ plugin:
 command:
   timeout: 30
 env:
-  - WANDB_INIT_TIMEOUT: "8"
+  - WANDB_INIT_TIMEOUT: "2"
+  - WANDB_INIT_POLICY: fail
   - WANDB_BASE_URL: http://localhost:9999/bad/bad
   - WANDB_API_KEY: thisisnotavalidkey
 assert:

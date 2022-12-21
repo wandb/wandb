@@ -6,7 +6,6 @@ from typing import Dict, Optional
 
 from wandb.proto.wandb_internal_pb2 import Record, Result
 
-
 logger = logging.getLogger(__name__)
 
 

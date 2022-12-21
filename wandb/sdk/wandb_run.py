@@ -2487,7 +2487,7 @@ class Run:
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        exit_result = exit_handle.wait(
+        exit_handle.wait(
             # timeout=self.settings.finish_timeout,  # todo
             timeout=-1,  # todo: for now, wait indefinitely
             on_progress=self._on_progress_exit,
