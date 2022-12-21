@@ -2488,15 +2488,16 @@ class Run:
         )
 
         exit_result = exit_handle.wait(
-            timeout=self.settings.finish_timeout,
+            # timeout=self.settings.finish_timeout,  # todo
+            timeout=-1,  # todo: for now, wait indefinitely
             on_progress=self._on_progress_exit,
         )
-        if exit_result is None and self.settings.finish_policy == "fail":
-            # TODO: add exit_handle.cancel()
-            raise wandb.errors.CommError(
-                "Timed out waiting for exit response from backend, "
-                "exiting as per 'fail' policy."
-            )
+        # if exit_result is None and self.settings.finish_policy == "fail":
+        #     # todo: would need to cancel all pending requests
+        #     raise wandb.errors.CommError(
+        #         "Timed out waiting for exit response from backend, "
+        #         "exiting as per 'fail' policy."
+        #     )
 
         if (
             self._run_status_checker is not None

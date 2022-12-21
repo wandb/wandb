@@ -1,9 +1,13 @@
 """Context Keeper."""
 
+import logging
 import threading
 from typing import Dict, Optional
 
 from wandb.proto.wandb_internal_pb2 import Record, Result
+
+
+logger = logging.getLogger(__name__)
 
 
 class Context:
@@ -71,11 +75,13 @@ class ContextKeeper:
             return True
         return False
 
-    def _debug_print_orphans(self) -> None:
-        # TODO: add debug setting?
+    def _debug_print_orphans(self, print_to_stdout: bool) -> None:
         for context_id, context in self._active_items.items():
             record = context._debug_record
             record_type = record.WhichOneof("record_type") if record else "unknown"
-            print(
+            message = (
                 f"Context: {context_id} {context.cancel_event.is_set()} {record_type}"
             )
+            logger.warning(message)
+            if print_to_stdout:
+                print(message)

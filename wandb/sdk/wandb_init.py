@@ -709,7 +709,6 @@ class _WandbInit:
                 timeout=timeout,
                 on_progress=self._on_progress_init,
                 release=False,
-                cancel=True,
             )
             if result:
                 run_result = result.run_result
@@ -725,7 +724,7 @@ class _WandbInit:
                     f"encountered error: {error_message}"
                 )
                 error = CommError(error_message)
-                # todo: need to cancel the UpsertBucket request via `run_init_handle`
+                run_init_handle._cancel()
             elif not run_result and policy == "async":
                 logger.warning(
                     "backend process timed out, continuing as per 'async' policy"
@@ -733,8 +732,7 @@ class _WandbInit:
                 # todo: clearly communicate the error to the user, and what happens next
                 self.printer.display(
                     # todo: ask Carey for help with the wording
-                    f'{self.printer.emoji("turtle")} Communicating with wandb, '
-                    "run links not yet available."
+                    "Communicating with wandb, run links not yet available."
                 )
             elif run_result and run_result.error:
                 error_message = run_result.error.message

@@ -159,7 +159,7 @@ class WriteManager:
             self._ds.close()
         if self._flow_control:
             self._flow_control.flush()
-        self._context_keeper._debug_print_orphans()
+        self._context_keeper._debug_print_orphans(print_to_stdout=self._settings._debug)
 
     def debounce(self) -> None:
         pass
