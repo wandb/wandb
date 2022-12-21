@@ -500,7 +500,7 @@ def test_make_job(runner, relay_server, test_settings, user, wandb_init):
                     "query", ""
                 ):
                     use_count += 1
-                if "mutation CreateArtifact" in data.get("request", {}).get(
+                if "mutation CreateArtifact(" in data.get("request", {}).get(
                     "query", ""
                 ):
                     create_count += 1
