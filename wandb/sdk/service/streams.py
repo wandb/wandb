@@ -84,9 +84,6 @@ class StreamRecord:
 
     def join(self) -> None:
         self._iface.join()
-        self._record_q.close()
-        self._result_q.close()
-        self._relay_q.close()
         if self._thread:
             self._thread.join()
 
