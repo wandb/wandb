@@ -2011,9 +2011,7 @@ class Api:
             else:
                 util.sentry_reraise(e)
 
-    def upload_file_retry(
-        self, *args: Any, **kwargs: Any
-    ) -> Optional[httpx.Response]:
+    def upload_file_retry(self, *args: Any, **kwargs: Any) -> Optional[httpx.Response]:
         """Uploads a file, like upload_file, but retries on failure"""
         return self._upload_file_retrier(*args, **kwargs)
 
