@@ -43,6 +43,8 @@ PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
+DEFAULT_PROJECT = "uncategorized"
+DEFAULT_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
@@ -95,14 +97,16 @@ def set_project_entity_defaults(
         if _is_wandb_uri(uri):
             _, source_uri, _ = parse_wandb_uri(uri)
         elif _is_git_uri(uri):
-            source_uri = os.path.splitext(os.path.basename(uri))[0]
-    elif job is not None:
-        source_uri = get_project_from_job(job)
+            uri_project = os.path.splitext(os.path.basename(uri))[0]
+        else:
+            uri_project = DEFAULT_PROJECT
+    else:
+        uri_project = DEFAULT_PROJECT
     if project is None:
         config_project = None
         if launch_config:
             config_project = launch_config.get("project")
-        project = config_project or source_uri or UNCATEGORIZED_PROJECT
+        project = config_project or uri_project or DEFAULT_PROJECT
     if entity is None:
         config_entity = None
         if launch_config:

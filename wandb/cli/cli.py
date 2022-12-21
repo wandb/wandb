@@ -1332,7 +1332,7 @@ def launch_agent(
     if queues is not None:
         queues = queues.split(",")
     agent_config, api = wandb_launch.resolve_agent_config(
-        api, entity, project, max_jobs, queues
+        config, api, entity, project, max_jobs, queues
     )
     if agent_config.get("project") is None:
         raise LaunchError(
