@@ -1072,9 +1072,9 @@ def sweep(
     "-r",
     metavar="BACKEND",
     default=None,
-    help="Execution resource to use for run. Supported values: 'local'."
-    " If passed in, will override the resource value passed in using a config file."
-    " Defaults to 'local'.",
+    help="Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'. "
+    " This is now a required parameter if pushing to a queue with no resource configuration. "
+    " If passed in, will override the resource value passed in using a config file.",
 )
 @click.option(
     "--docker-image",
@@ -1221,7 +1221,7 @@ def launch(
     else:
         config = {}
 
-    resource = resource or config.get("resource") or "local-container"
+    resource = resource or config.get("resource")
 
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
