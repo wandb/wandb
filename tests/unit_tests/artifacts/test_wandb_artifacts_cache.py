@@ -297,3 +297,52 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
         local=True,
     )
     assert local_path == path
+
+
+def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
+    path = "foo/bar"
+    uri = "wandb-artifact://deadbeef/path/to/file.json"
+    artifact = wandb.Artifact("test", type="dataset")
+    manifest_entry = wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+        path=path,
+        ref=uri,
+        digest="XUFAKrxLKna5cZ2REBfFkg==",
+        size=123,
+    )
+
+    handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
+    handler._client = lambda: None
+    monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
+    artifact.get_path = lambda _: artifact
+    artifact.ref_target = lambda: uri
+
+    local_path = handler.load_path(
+        artifact,
+        manifest_entry,
+    )
+    assert local_path == uri
+
+
+def test_wbartifact_handler_load_path_local(monkeypatch):
+    path = "foo/bar"
+    uri = "wandb-artifact://deadbeef/path/to/file.json"
+    artifact = wandb.Artifact("test", type="dataset")
+    manifest_entry = wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+        path=path,
+        ref=uri,
+        digest="XUFAKrxLKna5cZ2REBfFkg==",
+        size=123,
+    )
+
+    handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
+    handler._client = lambda: None
+    monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
+    artifact.get_path = lambda _: artifact
+    artifact.download = lambda: path
+
+    local_path = handler.load_path(
+        artifact,
+        manifest_entry,
+        local=True,
+    )
+    assert local_path == path
