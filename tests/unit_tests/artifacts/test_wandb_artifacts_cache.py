@@ -207,6 +207,32 @@ def test_cache_cleanup_allows_upload(wandb_init, cache, monkeypatch):
     assert cache.cleanup(0) == 2**20
 
 
+def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
+    file = tmp_path / "file.txt"
+    file.write_text("hello")
+    uri = file.as_uri()
+    digest = "XUFAKrxLKna5cZ2REBfFkg=="
+
+    path, _, opener = cache.check_md5_obj_path(b64_md5=digest, size=123)
+    with opener() as f:
+        f.write(123 * "a")
+
+    handler = wandb_sdk.wandb_artifacts.LocalFileHandler()
+    handler._cache = cache
+
+    local_path = handler.load_path(
+        wandb.Artifact("test", type="dataset"),
+        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=digest,
+            size=123,
+        ),
+        local=True,
+    )
+    assert local_path == path
+
+
 def test_s3_storage_handler_load_path_uses_cache(cache):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
