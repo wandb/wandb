@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 import wandb
 import wandb.filesync.step_prepare
 from wandb import util
-
-from ..interface.artifacts import (
+from wandb.sdk.interface.artifacts import (
     ArtifactManifest,
     ArtifactManifestEntry,
     get_staging_dir,
@@ -20,7 +19,7 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
 
-    from .file_pusher import FilePusher
+    from ..file_pusher import FilePusher
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
