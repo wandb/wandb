@@ -96,7 +96,7 @@ def test_flaky_server_response_init_policy_async(
 
         captured = capsys.readouterr().err
         assert message in captured
-        # assert len(relay.context.summary) == 1
+        assert len(relay.context.summary) == 1
 
 
 @pytest.mark.parametrize(
