@@ -27,6 +27,7 @@ from typing import Optional
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import filesystem
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
@@ -1108,7 +1109,7 @@ class Audio(BatchableMedia):
             required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile",
         )
         base_path = os.path.join(run.dir, "media", "audio")
-        util.mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
         meta = {
             "_type": "audio",
             "count": len(audio_list),
@@ -1175,10 +1176,10 @@ class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
     Arguments:
-        table1 (str, wandb.Table, ArtifactEntry):
-            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
+        table1 (str, wandb.Table, ArtifactManifestEntry):
+            the path to a wandb.Table in an artifact, the table object, or ArtifactManifestEntry
         table2 (str, wandb.Table):
-            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
+            the path to a wandb.Table in an artifact, the table object, or ArtifactManifestEntry
         join_key (str, [str, str]):
             key or keys to perform the join
     """
@@ -1246,7 +1247,7 @@ class JoinedTable(Media):
                 table_name = os.path.basename(table._artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
-        # Check if this is an ArtifactEntry
+        # Check if this is an ArtifactManifestEntry
         elif hasattr(table, "ref_url"):
             # Give the new object a unique, yet deterministic name
             name = binascii.hexlify(
