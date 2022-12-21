@@ -15,8 +15,7 @@ from .builder.build import construct_builder_args
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
-    LAUNCH_CONFIG_FILE,
-    LAUNCH_DEFAULT_PROJECT,
+    DEFAULT_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
@@ -27,12 +26,30 @@ _logger = logging.getLogger(__name__)
 
 
 def resolve_agent_config(
+    config_path: Dict[str, Any],
     api: Api,
     entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[List[str]],
 ) -> Tuple[Dict[str, Any], Api]:
+    """Resolve launch agent configuration from possible configuration sources.
+
+    Arguments:
+        config_path: Path to launch agent configuration file
+        api: wandb internal Api client
+        entity: Agent entity hame
+        project: Agent project name
+        max_jobs: Maximum number of jobs to run concurrently
+        queues: List of queues to run jobs from
+
+    Returns:
+        Tuple of resolved agent configuration dictionary and modified
+        wandb internal Api client.
+
+    Raises:
+        LaunchError: If the agent configuration is invalid.
+    """
     defaults = {
         "entity": api.default_entity,
         "project": LAUNCH_DEFAULT_PROJECT,
@@ -45,10 +62,11 @@ def resolve_agent_config(
         "runner": {},
     }
     user_set_project = False
+    config_path = config_path or DEFAULT_CONFIG_FILE
     resolved_config: Dict[str, Any] = defaults
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+    if os.path.exists(os.path.expanduser(config_path)):
         config = {}
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+        with open(os.path.expanduser(config_path)) as f:
             try:
                 config = yaml.safe_load(f)
                 print(config)
@@ -204,32 +222,32 @@ def run(
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
     Arguments:
-    uri: URI of experiment to run. A wandb run uri or a Git repository URI.
-    job: string reference to a wandb.Job eg: wandb/test/my-job:latest
-    api: An instance of a wandb Api from wandb.apis.internal.
-    entry_point: Entry point to run within the project. Defaults to using the entry point used
-        in the original run for wandb URIs, or main.py for git repository URIs.
-    version: For Git-based projects, either a commit hash or a branch name.
-    parameters: Parameters (dictionary) for the entry point command. Defaults to using the
-        the parameters used to run the original run.
-    name: Name run under which to launch the run.
-    resource: Execution backend for the run.
-    resource_args: Resource related arguments for launching runs onto a remote backend.
-        Will be stored on the constructed launch config under ``resource_args``.
-    project: Target project to send launched run to
-    entity: Target entity to send launched run to
-    config: A dictionary containing the configuration for the run. May also contain
-    resource specific arguments under the key "resource_args".
-    synchronous: Whether to block while waiting for a run to complete. Defaults to True.
-        Note that if ``synchronous`` is False and ``backend`` is "local-container", this
-        method will return, but the current process will block when exiting until
-        the local run completes. If the current process is interrupted, any
-        asynchronous runs launched via this method will be terminated. If
-        ``synchronous`` is True and the run fails, the current process will
-        error out as well.
-    cuda: Whether to build a CUDA-enabled docker image or not
-    run_id: ID for the run (To ultimately replace the :name: field)
-    repository: string name of repository path for remote registry
+        uri: URI of experiment to run. A wandb run uri or a Git repository URI.
+        job: string reference to a wandb.Job eg: wandb/test/my-job:latest
+        api: An instance of a wandb Api from wandb.apis.internal.
+        entry_point: Entry point to run within the project. Defaults to using the entry point used
+            in the original run for wandb URIs, or main.py for git repository URIs.
+        version: For Git-based projects, either a commit hash or a branch name.
+        parameters: Parameters (dictionary) for the entry point command. Defaults to using the
+            the parameters used to run the original run.
+        name: Name run under which to launch the run.
+        resource: Execution backend for the run: W&B provides built-in support for "local" backend
+        resource_args: Resource related arguments for launching runs onto a remote backend.
+            Will be stored on the constructed launch config under ``resource_args``.
+        project: Target project to send launched run to
+        entity: Target entity to send launched run to
+        config: A dictionary containing the configuration for the run. May also contain
+        resource specific arguments under the key "resource_args".
+        synchronous: Whether to block while waiting for a run to complete. Defaults to True.
+            Note that if ``synchronous`` is False and ``backend`` is "local", this
+            method will return, but the current process will block when exiting until
+            the local run completes. If the current process is interrupted, any
+            asynchronous runs launched via this method will be terminated. If
+            ``synchronous`` is True and the run fails, the current process will
+            error out as well.
+        cuda: Whether to build a CUDA-enabled docker image or not
+        run_id: ID for the run (To ultimately replace the :name: field)
+        repository: string name of repository path for remote registry
 
     Example:
         import wandb
@@ -277,18 +295,3 @@ def run(
     )
 
     return submitted_run_obj
-
-
-def _wait_for(submitted_run_obj: AbstractRun) -> None:
-    """Wait on the passed-in submitted run, reporting its status to the tracking server."""
-    # Note: there's a small chance we fail to report the run's status to the tracking server if
-    # we're interrupted before we reach the try block below
-    try:
-        if submitted_run_obj.wait():
-            _logger.info("=== Submitted run succeeded ===")
-        else:
-            raise ExecutionError("Submitted run failed")
-    except KeyboardInterrupt:
-        _logger.error("=== Submitted run interrupted, cancelling run ===")
-        submitted_run_obj.cancel()
-        raise

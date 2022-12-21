@@ -25,7 +25,11 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
+from ..utils import (
+    DEFAULT_CONFIG_FILE,
+    LOG_PREFIX,
+    resolve_build_and_registry_config,
+)
 from .abstract import AbstractBuilder
 from .loader import load_builder
 
@@ -525,8 +529,8 @@ def construct_builder_args(
         registry_config = launch_config.get("registry")
 
     default_launch_config = None
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+    if os.path.exists(os.path.expanduser(DEFAULT_CONFIG_FILE)):
+        with open(os.path.expanduser(DEFAULT_CONFIG_FILE)) as f:
             default_launch_config = yaml.safe_load(f)
 
     build_config, registry_config = resolve_build_and_registry_config(

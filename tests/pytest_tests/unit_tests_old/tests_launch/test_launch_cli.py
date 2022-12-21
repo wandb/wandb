@@ -5,7 +5,7 @@ import pytest
 import wandb
 from wandb.cli import cli
 from wandb.errors import LaunchError
-from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE
+from wandb.sdk.launch.utils import DEFAULT_CONFIG_FILE
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
