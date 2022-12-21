@@ -3,6 +3,7 @@ import hashlib
 import os
 import random
 import tempfile
+from dataclasses import dataclass, field
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
 
 
 class ArtifactManifest:
-    entries: Dict[str, "ArtifactEntry"]
+    entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
     # TODO: we don't need artifact here.
@@ -82,7 +83,7 @@ class ArtifactManifest:
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
-    def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
+    def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
         return self.entries.get(path)
 
     def get_entries_in_directory(self, directory):
@@ -95,14 +96,15 @@ class ArtifactManifest:
         ]
 
 
-class ArtifactEntry:
+@dataclass
+class ArtifactManifestEntry:
     path: util.LogicalFilePathStr
-    ref: Optional[Union[util.FilePathStr, util.URIStr]]
     digest: Union[B64MD5, util.URIStr, util.FilePathStr, ETag]
-    birth_artifact_id: Optional[str]
-    size: Optional[int]
-    extra: Dict
-    local_path: Optional[str]
+    ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
+    birth_artifact_id: Optional[str] = None
+    size: Optional[int] = None
+    extra: Dict = field(default_factory=dict)
+    local_path: Optional[str] = None
 
     def parent_artifact(self) -> "Artifact":
         """
@@ -135,7 +137,9 @@ class ArtifactEntry:
         Raises:
             ValueError: If this artifact entry was not a reference.
         """
-        raise NotImplementedError
+        if self.ref is None:
+            raise ValueError("Only reference entries support ref_target().")
+        return self.ref
 
     def ref_url(self) -> str:
         """
@@ -412,7 +416,7 @@ class Artifact:
 
     def add_reference(
         self,
-        uri: Union[ArtifactEntry, str],
+        uri: Union[ArtifactManifestEntry, str],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -509,7 +513,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> ArtifactEntry:
+    def get_path(self, name: str) -> ArtifactManifestEntry:
         """
         Gets the path to the file located at the artifact relative `name`.
 
@@ -758,7 +762,7 @@ class StoragePolicy:
         pass
 
     def load_file(
-        self, artifact: Artifact, name: str, manifest_entry: ArtifactEntry
+        self, artifact: Artifact, name: str, manifest_entry: ArtifactManifestEntry
     ) -> str:
         raise NotImplementedError
 
@@ -766,7 +770,7 @@ class StoragePolicy:
         self,
         artifact_id: str,
         artifact_manifest_id: str,
-        entry: ArtifactEntry,
+        entry: ArtifactManifestEntry,
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
@@ -781,7 +785,7 @@ class StoragePolicy:
         self,
         artifact: Artifact,
         name: str,
-        manifest_entry: ArtifactEntry,
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> str:
         raise NotImplementedError
@@ -799,7 +803,7 @@ class StorageHandler:
     def load_path(
         self,
         artifact: Artifact,
-        manifest_entry: ArtifactEntry,
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
         """
@@ -815,7 +819,7 @@ class StorageHandler:
 
     def store_path(
         self, artifact, path, name=None, checksum=True, max_objects=None
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Sequence[ArtifactManifestEntry]:
         """
         Stores the file or directory at the given path within the specified artifact.
 

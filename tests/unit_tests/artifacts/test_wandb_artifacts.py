@@ -10,7 +10,9 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
+import wandb.sdk.interface as wandb_interface
 from wandb import util
+from wandb.sdk import wandb_artifacts
 from wandb.sdk.lib.hashutil import md5_string
 
 
@@ -137,6 +139,14 @@ def mock_http(artifact, path=False, headers=None):
     handler = artifact._storage_policy._handler._handlers["http"]
     handler._session = mock
     return mock
+
+
+def test_unsized_manifest_entry():
+    with pytest.raises(ValueError) as e:
+        wandb_artifacts.ArtifactManifestEntry(
+            path="foo", digest="123", local_path="some/file.txt"
+        )
+    assert "size required" in str(e.value)
 
 
 def test_add_one_file():
@@ -766,19 +776,19 @@ def test_add_obj_using_brackets(assets_path):
 
 
 def test_artifact_interface_link():
-    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    art = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         _ = art.link("boom")
 
 
 def test_artifact_interface_get_item():
-    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    art = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         _ = art["my-image"]
 
 
 def test_artifact_interface_set_item():
-    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    art = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         art["my-image"] = 1
 
@@ -996,7 +1006,7 @@ def test_add_partition_folder():
 
 
 def test_interface_commit_hash():
-    artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
+    artifact = wandb_interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         artifact.commit_hash()
 
@@ -1020,7 +1030,7 @@ def test_http_storage_handler_uses_etag_for_digest(
             json={"result": 1},
             headers=headers,
         )
-        handler = wandb.wandb_sdk.wandb_artifacts.HTTPHandler(session)
+        handler = wandb_artifacts.HTTPHandler(session)
 
         art = wandb.Artifact("test", type="dataset")
         [entry] = handler.store_path(
@@ -1031,9 +1041,34 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
+def test_s3_storage_handler_load_path_uses_cache(tmp_path):
+    uri = "s3://some-bucket/path/to/file.json"
+    etag = "some etag"
+
+    cache = wandb_artifacts.ArtifactsCache(tmp_path)
+    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
+    with opener() as f:
+        f.write(123 * "a")
+
+    handler = wandb_artifacts.S3Handler()
+    handler._cache = cache
+
+    local_path = handler.load_path(
+        wandb.Artifact("test", type="dataset"),
+        wandb_artifacts.ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=etag,
+            size=123,
+        ),
+        local=True,
+    )
+    assert local_path == path
+
+
 def test_tracking_storage_handler():
-    art = wandb.wandb_sdk.wandb_artifacts.Artifact("test", "dataset")
-    handler = wandb.wandb_sdk.wandb_artifacts.TrackingHandler()
+    art = wandb_artifacts.Artifact("test", "dataset")
+    handler = wandb_artifacts.TrackingHandler()
     [entry] = handler.store_path(art, path="/path/to/file.txt", name="some-file")
     assert entry.path == "some-file"
     assert entry.ref == "/path/to/file.txt"

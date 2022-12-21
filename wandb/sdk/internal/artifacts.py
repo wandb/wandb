@@ -10,7 +10,11 @@ import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 
-from ..interface.artifacts import ArtifactEntry, ArtifactManifest, get_staging_dir
+from ..interface.artifacts import (
+    ArtifactManifest,
+    ArtifactManifestEntry,
+    get_staging_dir,
+)
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2
@@ -26,7 +30,7 @@ if TYPE_CHECKING:
 
     class SaveFn(Protocol):
         def __call__(
-            self, entry: ArtifactEntry, progress_callback: "ProgressFn"
+            self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
         ) -> Any:
             pass
 
