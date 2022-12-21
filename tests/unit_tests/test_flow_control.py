@@ -4,8 +4,8 @@ from wandb.sdk.wandb_settings import Settings
 
 
 def test_flow():
-    def write_record(record):
-        pass
+    def write_record(record) -> int:
+        return 0
 
     def forward_record(record):
         pass
@@ -24,4 +24,5 @@ def test_flow():
     )
 
     record = pb.Record()
-    # fc.flow(record)
+    record.history.CopyFrom(pb.HistoryRecord())
+    fc.flow(record)
