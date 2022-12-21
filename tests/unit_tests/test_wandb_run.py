@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 import platform
@@ -456,45 +457,43 @@ def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
             run.finish()
 
 
-# def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
-#     _ = git_repo_fn(commit_msg="initial commit")
-#     test_settings.update(
-#         {"enable_job_creation": True, "program_relpath": "./blah/test_program.py"}
-#     )
-#     run = wandb.init(settings=test_settings)
-#     run.finish()
-#     ctx = live_mock_server.get_ctx()
-#     artifact_name = list(ctx["artifacts"].keys())[0]
-#     assert artifact_name == wandb.util.make_artifact_name_safe(
-#         f"job-{run._settings.git_remote_url}_{run._settings.program_relpath}"
-# )
+# test that
+def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_init):
+    # def fetch_mock_artifact(*args, **kwargs):
+    #     artifact = mock.MagicMock()
+    #     artifact.type = "job"
+    #     artifact.download = lambda *args, **kwargs: None
+    #     artifact.digest = "job123"
+    #     return artifact
+    art_name = "job-my-test-image"
+    artifact_name = f"{user}/uncategorized/{art_name}"
+    # print(artifact_name)
+    artifact_env = json.dumps({"_wandb_job": f"{artifact_name}:latest"})
+    # print(artifact_env)
+    # with runner.isolated_filesystem():
+    #     with mock.patch.dict(
+    #         "os.environ", WANDB_ARTIFACTS=artifact_env
+    #     ), mock.patch.object(
+    #         wandb.apis.public.Api,
+    #         "artifact",
+    #         fetch_mock_artifact,
+    #     ), relay_server() as relay:
+    #         run = wandb.init(
+    #             settings=test_settings({"disable_git": True, "launch": True})
+    #         )
+    #         run.finish()
+    # assert False
+    with mock.patch.dict("os.environ", WANDB_ARTIFACTS=artifact_env):
+        artifact = wandb.Artifact(name=art_name, type="job")
+        filename = "file1.txt"
+        open(filename, "w").write("hello!")
+        artifact.add_file(filename)
+        with wandb_init(user) as run:
+            run.log_artifact(artifact)
+            artifact.wait()
+        with relay_server() as relay:
+            with wandb_init(user, settings=test_settings({"launch": True})) as run:
+                run.log({"x": 2})
 
-
-# def test_artifact_job_creation(live_mock_server, test_settings, runner):
-#     with runner.isolated_filesystem():
-#         with open("test.py", "w") as f:
-#             f.write('print("test")')
-#         test_settings.update(
-#             {
-#                 "enable_job_creation": True,
-#                 "disable_git": True,
-#                 "program_relpath": "./blah/test_program.py",
-#             }
-#         )
-#         run = wandb.init(settings=test_settings)
-#         run.log_code()
-#         run.finish()
-#         ctx = live_mock_server.get_ctx()
-#         code_artifact_name = list(ctx["artifacts"].keys())[0]
-#         job_artifact_name = list(ctx["artifacts"].keys())[1]
-#         assert job_artifact_name == f"job-{code_artifact_name}"
-
-
-# def test_container_job_creation(live_mock_server, test_settings):
-#     test_settings.update({"enable_job_creation": True, "disable_git": True})
-#     with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:v0"):
-#         run = wandb.init(settings=test_settings)
-#         run.finish()
-#         ctx = live_mock_server.get_ctx()
-#         artifact_name = list(ctx["artifacts"].keys())[0]
-#         assert artifact_name == "job-dummy-container_v0"
+            print(relay.context.__dict__)
+    # assert False
