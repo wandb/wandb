@@ -103,14 +103,14 @@ class WriteManager:
             self.open()
         assert self._flow_control
 
-        # temporarily support flow control being disabled (at first by default)
-        if not self._settings._flow_control:
-            self._write_record(record)
-            self._forward_record(record)
-            return
-
-        # FlowControl will write data to disk and throttle sending to the sender
-        self._flow_control.flow(record)
+        use_flow_control = self._settings._flow_control and not self._settings._offline
+        if use_flow_control:
+            self._flow_control.flow(record)
+        else:
+            if not record.control.local:
+                self._write_record(record)
+            if not self._settings._offline or record.control.always_send:
+                self._forward_record(record)
 
     def write(self, record: "pb.Record") -> None:
         record_type = record.WhichOneof("record_type")

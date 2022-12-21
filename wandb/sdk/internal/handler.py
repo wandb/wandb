@@ -145,18 +145,9 @@ class HandleManager:
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if always_send:
-            # print("Always", record)
             record.control.always_send = True
-        if not self._settings._offline or always_send:
-            # TODO(mempressure): audit this
-            # tracelog.log_message_queue(record, self._sender_q)
-            # self._sender_q.put(record)
-            tracelog.log_message_queue(record, self._writer_q)
-            self._writer_q.put(record)
-            return
-        if not record.control.local and self._writer_q:
-            tracelog.log_message_queue(record, self._writer_q)
-            self._writer_q.put(record)
+        tracelog.log_message_queue(record, self._writer_q)
+        self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
