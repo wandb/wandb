@@ -74,7 +74,7 @@ def sanitize_wandb_api_key(s: str) -> str:
     return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
 
 
-def get_project_from_job(job: str) -> str:
+def get_project_from_job(job: str) -> Optional[str]:
     job_parts = job.split("/")
     if len(job_parts) == 3:
         return job_parts[1]
