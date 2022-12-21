@@ -1061,7 +1061,7 @@ def sweep(
     "-r",
     metavar="BACKEND",
     default=None,
-    help="Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker'. "
+    help="Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'. "
     " This is now a required parameter if pushing to a queue with no resource configuration. "
     " If passed in, will override the resource value passed in using a config file.",
 )
