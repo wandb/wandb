@@ -214,19 +214,3 @@ def get_gcp_config(config: str = "default") -> Any:
             ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
         )[0]
     )
-
-
-def exists_on_gcp(image: str, tag: str) -> bool:
-    out, err = run_shell(
-        [
-            "gcloud",
-            "artifacts",
-            "docker",
-            "images",
-            "list",
-            shlex.quote(image),
-            "--include-tags",
-            f"--filter=tags:{shlex.quote(tag)}",
-        ]
-    )
-    return tag in out and "sha256:" in out
