@@ -51,7 +51,7 @@ from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
-from wandb.sdk.lib import filesystem, ipython, retry
+from wandb.sdk.lib import filesystem, ipython, retry, runid
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -483,7 +483,7 @@ class Api:
         """Sync a local directory containing tfevent files to wandb"""
         from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
 
-        run_id = run_id or util.generate_id()
+        run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
         entity = entity or self.default_entity
         # TODO: pipe through log_path to inform the user how to debug
@@ -1743,7 +1743,7 @@ class Run(Attrs):
     @classmethod
     def create(cls, api, run_id=None, project=None, entity=None):
         """Create a run for the given project"""
-        run_id = run_id or util.generate_id()
+        run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
             """

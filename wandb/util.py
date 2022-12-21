@@ -866,12 +866,6 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
     return launch_browser
 
 
-def generate_id(length: int = 8) -> str:
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return str(run_gen.random(length))
-
-
 def parse_tfjob_config() -> Any:
     """Attempts to parse TFJob config, returning False if it can't find it"""
     if os.getenv("TF_CONFIG"):
