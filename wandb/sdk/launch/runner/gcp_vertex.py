@@ -13,7 +13,7 @@ from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder
-from ..builder.build import construct_gcp_registry_uri, get_env_vars_dict
+from ..builder.build import get_env_vars_dict
 from ..utils import LOG_PREFIX, PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -144,11 +144,7 @@ class VertexRunner(AbstractRunner):
             image_uri = launch_project.docker_image
         else:
             # If docker image is not specified, build it
-            repository = construct_gcp_registry_uri(
-                gcp_artifact_repo,
-                gcp_project,
-                gcp_docker_host,
-            )
+            repository = "/".join([gcp_docker_host, gcp_project, gcp_artifact_repo])
             assert entry_point is not None
             image_uri = builder.build_image(
                 launch_project,
