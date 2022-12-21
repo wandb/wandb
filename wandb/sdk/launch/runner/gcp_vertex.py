@@ -97,6 +97,10 @@ class VertexRunner(AbstractRunner):
         gcp_zone = resource_args.get("gcp_region") or gcp_config["properties"].get(
             "compute", {}
         ).get("zone")
+        if not gcp_zone:
+            raise LaunchError(
+                "Vertex requires a region for compute. Specify a region under key gcp_region."
+            )
         gcp_region = "-".join(gcp_zone.split("-")[:2])
         gcp_staging_bucket = resource_args.get("staging_bucket")
         if not gcp_staging_bucket:
@@ -138,9 +142,10 @@ class VertexRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
+            # Use premade docker image uri
             image_uri = launch_project.docker_image
         else:
-
+            # If docker image is not specified, build it
             repository = construct_gcp_registry_uri(
                 gcp_artifact_repo,
                 gcp_project,
@@ -181,33 +186,27 @@ class VertexRunner(AbstractRunner):
         job = aiplatform.CustomJob(
             display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
         )
-
         submitted_run = VertexSubmittedRun(job)
-
-        # todo: support gcp dataset?
 
         wandb.termlog(
             f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
         )
 
-        # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
-        # on this thread but continues to block the process on another thread. always set sync=False so we can get
-        # the job info (dependent on job._gca_resource)
-        job.run(service_account=service_account, tensorboard=tensorboard, sync=False)
-
-        while not getattr(job._gca_resource, "name", None):
-            # give time for the gcp job object to be created and named, this should only loop a couple times max
-            time.sleep(1)
-
+        if synchronous:
+            job.run(
+                service_account=service_account, tensorboard=tensorboard, sync=False
+            )
+        else:
+            job.submit(
+                service_account=service_account,
+                tensorboard=tensorboard,
+            )
+        job.wait_for_resource_creation()
         wandb.termlog(
             f"{LOG_PREFIX}View your job status and logs at {submitted_run.get_page_link()}."
         )
-
-        # hacky: if user doesn't want blocking behavior, kill both main thread and the background thread. job continues
-        # to run remotely. this obviously doesn't work if we need to do some sort of postprocessing after this run fn
-        if not synchronous:
-            os._exit(0)
-
+        if synchronous:
+            submitted_run.wait()
         return submitted_run
 
 
