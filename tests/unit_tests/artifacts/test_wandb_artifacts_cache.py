@@ -255,3 +255,45 @@ def test_s3_storage_handler_load_path_uses_cache(cache):
         local=True,
     )
     assert local_path == path
+
+
+def test_gcs_storage_handler_load_path_nonlocal():
+    uri = "gs://some-bucket/path/to/file.json"
+    etag = "some etag"
+
+    handler = wandb_sdk.wandb_artifacts.GCSHandler()
+    local_path = handler.load_path(
+        wandb.Artifact("test", type="dataset"),
+        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=etag,
+            size=123,
+        ),
+        # Default: local=False,
+    )
+    assert local_path == uri
+
+
+def test_gcs_storage_handler_load_path_uses_cache(cache):
+    uri = "gs://some-bucket/path/to/file.json"
+    etag = "some etag"
+
+    path, _, opener = cache.check_md5_obj_path(etag, 123)
+    with opener() as f:
+        f.write(123 * "a")
+
+    handler = wandb_sdk.wandb_artifacts.GCSHandler()
+    handler._cache = cache
+
+    local_path = handler.load_path(
+        wandb.Artifact("test", type="dataset"),
+        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=etag,
+            size=123,
+        ),
+        local=True,
+    )
+    assert local_path == path
