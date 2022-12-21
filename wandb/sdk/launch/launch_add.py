@@ -55,7 +55,7 @@ def launch_add(
     project: Target project to send launched run to
     entity: Target entity to send launched run to
     queue: the name of the queue to enqueue the run to
-    resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    resource: Execution backend for the run: W&B provides built-in support for "local-container" backend
     entry_point: Entry point to run within the project. Defaults to using the entry point used
         in the original run for wandb URIs, or main.py for git repository URIs.
     name: Name run under which to launch the run.

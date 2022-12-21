@@ -160,7 +160,7 @@ def test_launch_cli_with_config_file_and_params(
         "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
         "project": "test_project",
         "entity": "mock_server_entity",
-        "resource": "local",
+        "resource": "local-container",
         "overrides": {"args": ["--epochs", "5"]},
     }
     with runner.isolated_filesystem():
@@ -192,7 +192,7 @@ def test_launch_cli_with_config_and_params(
         "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
         "project": "test_project",
         "entity": "mock_server_entity",
-        "resource": "local",
+        "resource": "local-container",
         "overrides": {"args": ["--epochs", "5"]},
     }
     with runner.isolated_filesystem():
