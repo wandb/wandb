@@ -1279,7 +1279,7 @@ def test_launch_build_config_file(
     )
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
-        "LAUNCH_CONFIG_FILE",
+        "DEFAULT_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
     launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
@@ -1312,7 +1312,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         default_settings=test_settings, load_settings=False
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
+        "wandb.sdk.launch.launch.DEFAULT_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
     monkeypatch.setenv("WANDB_ENTITY", "diffentity")
@@ -1328,7 +1328,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
                 f,
             )
         config, returned_api = launch.resolve_agent_config(
-            api, None, None, -1, ["diff-queue"]
+            None, api, None, None, -1, ["diff-queue"]
         )
 
         assert config["registry"] == {"url": "test"}
@@ -1469,7 +1469,7 @@ def test_noop_builder(
     )
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
-        "LAUNCH_CONFIG_FILE",
+        "DEFAULT_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
 
