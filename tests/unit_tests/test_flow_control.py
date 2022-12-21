@@ -9,7 +9,7 @@ def test_flow():
     def forward_record(record):
         pass
 
-    def ensure_flushed(record):
+    def recover_records(record):
         pass
 
     settings = settings_static.SettingsStatic({})
@@ -18,8 +18,8 @@ def test_flow():
         settings=settings,
         write_record=write_record,
         forward_record=forward_record,
-        ensure_flushed=ensure_flushed,
+        recover_records=recover_records,
     )
 
     record = pb.Record()
-    fc.send_with_flow_control(record)
+    fc.flow(record)
