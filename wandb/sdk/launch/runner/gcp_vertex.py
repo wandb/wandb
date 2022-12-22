@@ -90,7 +90,7 @@ class VertexRunner(AbstractRunner):
             resource_args.get("gcp_project")
             or gcp_config["properties"]["core"]["project"]
         )
-        gcp_region = resolve_gcp_region(resource_args, gcp_config)
+        gcp_region = resolve_gcp_region(resource_args, gcp_config, registry_config)
         gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
         gcp_accelerator_type = (
             resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
@@ -191,7 +191,24 @@ def get_gcp_config(config: str = "default") -> Any:
     )
 
 
-def resolve_gcp_region(resource_args, gcp_config):
+def resolve_gcp_region(resource_args, gcp_config, registry_config):
+    """Resolve the GCP region from resource args, gcp config, and registry config.
+
+    Args:
+        resource_args: The resource args passed to the backend.
+        gcp_config: The gcloud config pulled from the local environment.
+        registry_config: The agent level registry config.
+
+    Returns:
+        The GCP region to use for compute and storage.
+
+    Raises:
+        LaunchError: If the region cannot be resolved.
+    """
+    registry_region = registry_config.get("region")
+    if registry_region:
+        # TODO: validate the region is valid
+        return registry_region
     gcp_zone = resource_args.get("gcp_region") or gcp_config["properties"].get(
         "compute", {}
     ).get("zone")
