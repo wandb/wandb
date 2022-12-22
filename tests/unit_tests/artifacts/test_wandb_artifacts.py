@@ -197,6 +197,14 @@ def test_add_new_file():
     }
 
 
+def test_add_after_finalize():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.finalize()
+    with pytest.raises(ValueError) as e:
+        artifact.add_file("file1.txt")
+    assert "Can't add to finalized artifact" in str(e.value)
+
+
 def test_add_new_file_encode_error(capsys):
     with pytest.raises(UnicodeEncodeError):
         artifact = wandb.Artifact(type="dataset", name="my-arty")
