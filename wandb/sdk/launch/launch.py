@@ -32,6 +32,7 @@ def resolve_agent_config(
     project: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[List[str]],
+    config: Optional[str] = None,  # Path to config file
 ) -> Tuple[Dict[str, Any], Api]:
     """Resolve launch agent configuration from possible configuration sources.
 
