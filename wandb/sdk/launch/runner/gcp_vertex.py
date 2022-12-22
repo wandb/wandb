@@ -106,7 +106,6 @@ class VertexRunner(AbstractRunner):
                 "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
             )
         gcp_artifact_repo = resolve_artifact_repo(resource_args, registry_config)
-        resource_args.get("artifact_repo") or registry_config.get("uri")
         gcp_docker_host = (
             resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
         )
