@@ -10,6 +10,11 @@ import threading
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Union
 
+if sys.version_info >= (3, 8):
+    from typing import Final
+else:
+    from typing_extensions import Final
+
 from wandb.sdk.lib import telemetry
 
 from .aggregators import aggregate_mean
@@ -25,7 +30,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-neuron_monitor_config = {
+NEURON_MONITOR_DEFAULT_CONFIG: Final[dict] = {
     "period": "1s",
     "neuron_runtimes": [
         {
@@ -47,8 +52,7 @@ neuron_monitor_config = {
 
 
 # NEURON_LS_COMMAND = ["neuron-ls"]
-# NEURON_MONITOR_CONFIG = pathlib.Path(__file__).parent / "neuron_monitor_config.json"
-# NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", str(NEURON_MONITOR_CONFIG)]
+# NEURON_MONITOR_COMMAND = ["neuron-monitor"]
 # fixme:
 NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
 NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
@@ -90,9 +94,25 @@ class NeuronCoreStats:
     name: str = "trn.{key}"
     samples: "Deque[_Stats]"
 
+    def check_neuron_monitor_config(self) -> None:
+        if not pathlib.Path(self.neuron_monitor_config).exists():
+            logger.warning(
+                "neuron-monitor config file %s does not exist, using default config"
+                % self.neuron_monitor_config,
+            )
+            # mkdir if not exists
+            pathlib.Path(self.neuron_monitor_config).parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            # write default config
+            with open(self.neuron_monitor_config, "w") as f:
+                json.dump(NEURON_MONITOR_DEFAULT_CONFIG, f, indent=4)
+
     def neuron_monitor(self) -> None:
+        self.check_neuron_monitor_config()
+
         popen = subprocess.Popen(
-            NEURON_MONITOR_COMMAND,
+            NEURON_MONITOR_COMMAND + ["-c", self.neuron_monitor_config],
             shell=False,
             stdout=subprocess.PIPE,
             stderr=None,
@@ -105,9 +125,11 @@ class NeuronCoreStats:
             if raw_data:
                 self.raw_samples.append(raw_data)
 
-    def __init__(self, pid: int) -> None:
+    def __init__(self, pid: int, neuron_monitor_config: str) -> None:
         # self.pid = pid
         self.pid = 16851  # fixme
+        # neuron-monitor requires a config file (json)
+        self.neuron_monitor_config = neuron_monitor_config
         self.raw_samples: "Deque[bytes]" = deque(maxlen=10)
         self.samples: "Deque[_Stats]" = deque()
         self.shutdown_event = threading.Event()
@@ -219,7 +241,7 @@ class NeuronCoreStats:
 
         # aggregate the lists
         for k, v in merged_samples.items():
-            stats[k] = aggregate_mean(v)
+            stats[self.name.format(key=k)] = aggregate_mean(v)
 
         return stats
 
@@ -234,7 +256,10 @@ class Trainium:
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
-            NeuronCoreStats(settings._stats_pid),
+            NeuronCoreStats(
+                settings._stats_pid,
+                settings._stats_neuron_monitor_config,
+            ),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
