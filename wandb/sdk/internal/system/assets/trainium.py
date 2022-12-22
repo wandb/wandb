@@ -1,3 +1,4 @@
+import collections
 import dataclasses
 import json
 import logging
@@ -7,7 +8,7 @@ import subprocess
 import sys
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any, Dict, List, Union
 
 from wandb.sdk.lib import telemetry
 
@@ -173,98 +174,52 @@ class NeuronCoreStats:
     def clear(self) -> None:
         self.samples.clear()
 
+    @staticmethod
+    def flatten_stats(sample: _Stats) -> dict:
+        """
+        Flatten _Stats object into a flat dict of numbers.
+        """
+        flattened = {}
+
+        def helper(key: str, value: Any):
+            if isinstance(value, (int, float)):
+                ret = {f"{key}": value}
+                flattened.update(ret)
+                return
+            elif isinstance(value, dict):
+                for kk, vv in value.items():
+                    helper(f"{key}.{kk}", vv)
+                return
+            elif isinstance(value, list):
+                for i, val in enumerate(value):
+                    helper(f"{i}.{key}", val)
+
+        for kkk, vvv in dataclasses.asdict(sample).items():
+            helper(kkk, vvv)
+
+        return flattened
+
     def aggregate(self) -> dict:
         if not self.samples:
             return {}
 
         stats = {}
 
-        n_neuroncores = len(self.samples[-1].neuroncore_utilization)
-
         # Stats could be: numbers or dataclass objects or lists of such.
         # In the latter case that means per-core stats.
         # The dataclass objects are flat containers of numbers.
 
-        # aggregate totals. parse stats based on the structure described above
+        # flatten samples and merge the corresponding values into lists
+        merged_samples: Dict[str, List[Union[int, float]]] = collections.defaultdict(
+            list
+        )
+        for flattened_sample in (self.flatten_stats(sample) for sample in self.samples):
+            for k, v in flattened_sample.items():
+                merged_samples[k].append(v)
 
-        for field in dataclasses.fields(_Stats):
-            key = field.name
-            # last collected sample
-            _value = getattr(self.samples[-1], key)
-            print(f"key: {key}, value: {_value}")
-
-            if isinstance(_value, (int, float)):
-                # global number stats
-                stats[self.name.format(key=key)] = aggregate_mean(
-                    [getattr(s, key) for s in self.samples]
-                )
-            elif isinstance(_value, list):
-                # per-core stats
-                if isinstance(_value[0], (int, float)):
-                    # list of numbers
-                    for i in range(n_neuroncores):
-                        stats[self.name.format(key=f"{i}.{key}")] = aggregate_mean(
-                            [s.neuroncore_utilization[i] for s in self.samples]
-                        )
-                else:
-                    # list of dataclass objects
-                    for subfield in dataclasses.fields(type(_value[0])):
-                        subkey = subfield.name
-                        for i in range(n_neuroncores):
-                            stats[
-                                self.name.format(key=f"{i}.{key}.{subkey}")
-                            ] = aggregate_mean(
-                                [
-                                    getattr(getattr(s, key)[i], subkey)
-                                    for s in self.samples
-                                ]
-                            )
-            else:
-                # dataclass object
-                for subfield in dataclasses.fields(field.type):
-                    subkey = subfield.name
-                    stats[self.name.format(key=f"{key}.{subkey}")] = aggregate_mean(
-                        [getattr(getattr(s, key), subkey) for s in self.samples]
-                    )
-
-        # keys_totals = (
-        #     "host_total_memory_usage",
-        #     "neuron_device_total_memory_usage",
-        # )
-        # for key in keys_totals:
-        #     stats[self.base_name.format(key=key)] = aggregate_mean(
-        #         [getattr(s, key) for s in self.samples]
-        #     )
-        # # aggregate neuroncore utilization
-        # for i in range(n_neuroncores):
-        #     stats[self.name.format(i=i, key="neuroncore_utilization")] = aggregate_mean(
-        #         [s.neuroncore_utilization[i] for s in self.samples]
-        #     )
-        #
-        # # aggregate host memory usage breakdown
-        # keys_host_memory_usage = (
-        #     field.name for field in dataclasses.fields(_HostMemoryUsage)
-        # )
-        # for key in keys_host_memory_usage:
-        #     stats[
-        #         self.base_name.format(key=f"host_memory_usage.{key}")
-        #     ] = aggregate_mean(
-        #         [getattr(s.host_memory_usage, key) for s in self.samples]
-        #     )
-        #
-        # # aggregate per-core memory usage stats
-        # keys_neuroncore_memory_usage = (
-        #     field.name for field in dataclasses.fields(_NeuronCoreMemoryUsage)
-        # )
-        # for key in keys_neuroncore_memory_usage:
-        #     for i in range(n_neuroncores):
-        #         stats[
-        #             self.name.format(i=i, key=f"neuroncore_memory_usage.{key}")
-        #         ] = aggregate_mean(
-        #             [getattr(s.neuroncore_memory_usage[i], key) for s in self.samples]
-        #         )
-
-        print(stats)
+        # aggregate the lists
+        for k, v in merged_samples.items():
+            stats[k] = aggregate_mean(v)
 
         return stats
 
