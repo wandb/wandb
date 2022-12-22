@@ -225,3 +225,50 @@ def test_launch_bad_api_key(runner, monkeypatch, user):
         result = runner.invoke(cli.launch, args)
 
         assert "Could not connect with current API-key." in result.output
+
+
+def test_launch_build_with_local(
+    relay_server,
+    user,
+    monkeypatch,
+    runner,
+):
+    base_args = [
+        "https://foo:bar@github.com/FooTest/Foo.git",
+        "--entity",
+        user,
+        "--entry-point",
+        "python main.py",
+        "--build",
+        "--queue=default",
+        "--resource=local-process",
+    ]
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
+
+    def patched_fetch_and_val(launch_project, _):
+        return launch_project
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "fetch_and_validate_project",
+        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+    )
+
+    monkeypatch.setattr(
+        "wandb.docker",
+        lambda: "docker",
+    )
+
+    with runner.isolated_filesystem(), relay_server():
+        result = runner.invoke(cli.launch, base_args)
+        print(result.output)
+        assert result.exit_code == 1
+        assert (
+            "Cannot build a docker image for the resource: local-process"
+            in result.output
+        )

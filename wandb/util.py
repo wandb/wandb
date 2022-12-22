@@ -3,11 +3,11 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-import errno
 import functools
 import gzip
 import hashlib
 import importlib
+import importlib.util
 import json
 import logging
 import math
@@ -59,6 +59,7 @@ import yaml
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
+from wandb.sdk.lib import filesystem
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -331,16 +332,48 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def get_module(name: str, required: Optional[Union[str, bool]] = None) -> Any:
+def import_module_lazy(name: str) -> Any:
+    """
+    Import a module lazily, only when it is used.
+
+    :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
+    """
+    try:
+        return sys.modules[name]
+    except KeyError:
+        module_spec = importlib.util.find_spec(name)
+        if not module_spec:
+            raise ModuleNotFoundError
+
+        module = importlib.util.module_from_spec(module_spec)
+        sys.modules[name] = module
+
+        assert module_spec.loader is not None
+        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
+        lazy_loader.exec_module(module)
+
+        return module
+
+
+def get_module(
+    name: str,
+    required: Optional[Union[str, bool]] = None,
+    lazy: bool = True,
+) -> Any:
     """
     Return module or None. Absolute import is required.
+
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     :param (str) required: A string to raise a ValueError if missing
+    :param (bool) lazy: If True, return a lazy loader for the module.
     :return: (module|None) If import succeeds, the module will be returned.
     """
     if name not in _not_importable:
         try:
-            return import_module(name)
+            if not lazy:
+                return import_module(name)
+            else:
+                return import_module_lazy(name)
         except Exception:
             _not_importable.add(name)
             msg = f"Error importing optional module {name}"
@@ -934,8 +967,7 @@ def make_json_if_not_number(
 
 
 def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
-    Converts numpy array to list. Used for artifact metadata"""
+    """Replace invalid json floats with strings. Also converts to lists and dicts."""
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
@@ -951,22 +983,7 @@ def make_safe_for_json(obj: Any) -> Any:
             return "Infinity"
         elif obj == float("-inf"):
             return "-Infinity"
-    elif is_numpy_array(obj):
-        return [make_safe_for_json(v) for v in obj.tolist()]
-    elif isinstance(obj, slice):
-        return dict(slice_start=obj.start, slice_step=obj.step, slice_stop=obj.stop)
     return obj
-
-
-def mkdir_exists_ok(path: str) -> bool:
-    try:
-        os.makedirs(path)
-        return True
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            return False
-        else:
-            raise
 
 
 def no_retry_4xx(e: Exception) -> bool:
@@ -1376,7 +1393,7 @@ def download_file_from_url(
     response.raise_for_status()
 
     if os.sep in dest_path:
-        mkdir_exists_ok(os.path.dirname(dest_path))
+        filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
     with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)

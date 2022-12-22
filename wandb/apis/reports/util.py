@@ -1,7 +1,9 @@
+import random
 from typing import (
-    TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
+    Generic,
     List,
     Optional,
     Tuple,
@@ -10,18 +12,13 @@ from typing import (
     get_type_hints,
 )
 
-import wandb
-from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
-
+from ..public import PanelMetricsHelper
 from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
-if TYPE_CHECKING:
-    import wandb.apis.reports.reports
-
-
-Func = TypeVar("Func")
+# Func = TypeVar("Func")
 T = TypeVar("T")
 V = TypeVar("V")
+Func = Callable[[T], V]
 
 
 def generate_name(length: int = 12) -> str:
@@ -31,22 +28,33 @@ def generate_name(length: int = 12) -> str:
     https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
     """
 
-    import numpy as np
+    # Borrowed from numpy: https://github.com/numpy/numpy/blob/v1.23.0/numpy/core/numeric.py#L2069-L2123
+    def base_repr(number: int, base: int, padding: int = 0) -> str:
+        digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        if base > len(digits):
+            raise ValueError("Bases greater than 36 not handled in base_repr.")
+        elif base < 2:
+            raise ValueError("Bases less than 2 not handled in base_repr.")
 
-    rand = np.random.random()
+        num = abs(number)
+        res = []
+        while num:
+            res.append(digits[num % base])
+            num //= base
+        if padding:
+            res.append("0" * padding)
+        if number < 0:
+            res.append("-")
+        return "".join(reversed(res or "0"))
+
+    rand = random.random()
     rand = int(float(str(rand)[2:]))
-    rand36 = np.base_repr(rand, 36)
+    rand36 = base_repr(rand, 36)
     return rand36.lower()[:length]
 
 
-def tuple_factory(value=None, size=1) -> Func:
-    def _tuple_factory():
-        return tuple(value for _ in range(size))
-
-    return _tuple_factory
-
-
 def coalesce(*arg: Any) -> Any:
+    """Return the first non-none value in the list of arguments.  Similar to ?? in C#"""
     return next((a for a in arg if a is not None), None)
 
 
@@ -93,7 +101,9 @@ def nested_set(json: dict, keys: str, value: Any) -> None:
         json[keys[-1]] = value
 
 
-class Property:
+class Property(Generic[T]):
+    """Property descriptor with a default getter and setter."""
+
     def __init__(
         self, fget: Optional[Func] = None, fset: Optional[Func] = None
     ) -> None:
@@ -104,7 +114,7 @@ class Property:
     def __set_name__(self, owner: Any, name: str) -> None:
         self.name = name
 
-    def __get__(self, obj: Any, objtype: Optional[Any] = None) -> Any:
+    def __get__(self, obj: Any, objtype: Optional[Any] = None) -> T:
         if obj is None:
             return self
         if self.fget is None:
@@ -159,8 +169,13 @@ class Typed(Validated):
 
 
 class JSONLinked(Property):
+    """Property that is linked to one or more JSON keys."""
+
     def __init__(
-        self, *args: Func, json_path: Optional[str] = None, **kwargs: Func
+        self,
+        *args: Func,
+        json_path: Optional[Union[str, List[str]]] = None,
+        **kwargs: Func,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.path_or_name = json_path
@@ -242,7 +257,7 @@ class ShortReprMixin:
         return x is None or x == {}
 
 
-class Base(SubclassOnlyABC, ShortReprMixin, RequiresReportEditingMixin):
+class Base(SubclassOnlyABC, ShortReprMixin):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._spec = {}
@@ -271,7 +286,7 @@ class Panel(Base, SubclassOnlyABC):
         self._spec["viewType"] = self.view_type
         self._spec["__id__"] = generate_name()
         self.layout = coalesce(layout, self._default_panel_layout())
-        self.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
+        self.panel_metrics_helper = PanelMetricsHelper()
 
     @property
     def view_type(self) -> str:
@@ -285,14 +300,24 @@ class Panel(Base, SubclassOnlyABC):
     def _default_panel_layout() -> Dict[str, int]:
         return {"x": 0, "y": 0, "w": 8, "h": 6}
 
+    @layout.setter
+    def layout(self, d: Dict[str, int]) -> None:
+        d["x"] = coalesce(d.get("x"), self._default_panel_layout()["x"])
+        d["y"] = coalesce(d.get("y"), self._default_panel_layout()["y"])
+        d["w"] = coalesce(d.get("w"), self._default_panel_layout()["w"])
+        d["h"] = coalesce(d.get("h"), self._default_panel_layout()["h"])
+
+        # json_path = self._get_path("layout")
+        # can't use _get_path because it's not on the obj... if only we had dataclass...
+        json_path = "spec.layout"
+        nested_set(self, json_path, d)
+
 
 class Block(Base, SubclassOnlyABC):
     pass
 
 
-def fix_collisions(
-    panels: "List[wandb.apis.reports.reports.Panel]",
-) -> "List[wandb.apis.reports.reports.Panel]":
+def fix_collisions(panels: List[Panel]) -> List[Panel]:
     x_max = 24
 
     for i, p1 in enumerate(panels):
@@ -313,10 +338,7 @@ def fix_collisions(
     return panels
 
 
-def collides(
-    p1: "wandb.apis.reports.reports.Panel",
-    p2: "wandb.apis.reports.reports.Panel",
-) -> bool:
+def collides(p1: Panel, p2: Panel) -> bool:
     l1, l2 = p1.layout, p2.layout
 
     if (
@@ -331,13 +353,52 @@ def collides(
     return True
 
 
-def shift(
-    p1: "wandb.apis.reports.reports.Panel",
-    p2: "wandb.apis.reports.reports.Panel",
-) -> "Tuple[wandb.apis.reports.reports.Panel, wandb.apis.reports.reports.Panel]":
+def shift(p1: Panel, p2: Panel) -> Tuple[Panel, Panel]:
     l1, l2 = p1.layout, p2.layout
 
     x = l1["x"] + l1["w"] - l2["x"]
     y = l1["y"] + l1["h"] - l2["y"]
 
     return x, y
+
+
+class InlineLaTeX(Base):
+    latex: str = Attr()
+
+    def __init__(self, latex="", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.latex = latex
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
+
+
+class InlineCode(Base):
+    code: str = Attr()
+
+    def __init__(self, code="", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.code = code
+
+    @property
+    def spec(self) -> dict:
+        return {"text": self.code, "inlineCode": True}
+
+
+class Link(Base):
+    text: str = Attr()
+    url: str = Attr()
+
+    def __init__(self, text, url, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+        self.url = url
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "link", "url": self.url, "children": [{"text": self.text}]}
+
+
+def weave_inputs(spec):
+    return spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]

@@ -7,7 +7,6 @@ import os
 import re
 import socket
 import sys
-from abc import ABC
 from copy import deepcopy
 from typing import (
     IO,
@@ -23,7 +22,6 @@ from typing import (
     Sequence,
     TextIO,
     Tuple,
-    TypeVar,
     Union,
 )
 
@@ -50,27 +48,27 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
-        from typing import Literal, Protocol, TypedDict
+        from typing import Literal, TypedDict
     else:
-        from typing_extensions import Literal, Protocol, TypedDict
+        from typing_extensions import Literal, TypedDict
 
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
 
-        artifactID: str
+        artifactID: str  # noqa: N815
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]
+        artifactManifestID: Optional[str]  # noqa: N815
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
-        displayName: str
-        uploadUrl: Optional[str]
-        uploadHeaders: Sequence[str]
+        displayName: str  # noqa: N815
+        uploadUrl: Optional[str]  # noqa: N815
+        uploadHeaders: Sequence[str]  # noqa: N815
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
@@ -125,7 +123,9 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+            days=7
+        ),
         environ: MutableMapping = os.environ,
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
@@ -1061,6 +1061,7 @@ class Api:
                 }
             ) {
                 runQueueItemId
+                runSpec
             }
         }
         """
@@ -1075,6 +1076,48 @@ class Api:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
+
+            if not result:
+                return None
+
+            if result.get("runSpec"):
+                run_spec = json.loads(str(result["runSpec"]))
+                result["runSpec"] = run_spec
+
+            return result
+        except Exception as e:
+            if (
+                'Cannot query field "runSpec" on type "PushToRunQueueByNamePayload"'
+                not in str(e)
+            ):
+                return None
+
+        mutation_no_runspec = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+
+        try:
+            result = self.gql(
+                mutation_no_runspec, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
         except Exception:
             result = None
 
@@ -1082,21 +1125,23 @@ class Api:
 
     @normalize_exceptions
     def push_to_run_queue(
-        self, queue_name: str, launch_spec: Dict[str, str]
+        self,
+        queue_name: str,
+        launch_spec: Dict[str, str],
+        project_queue: str,
     ) -> Optional[Dict[str, Any]]:
         entity = launch_spec["entity"]
-        project = launch_spec["project"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
-            entity, project, queue_name, run_spec
+            entity, project_queue, queue_name, run_spec
         )
 
         if push_result:
             return push_result
 
         """ Legacy Method """
-        queues_found = self.get_project_run_queues(entity, project)
+        queues_found = self.get_project_run_queues(entity, project_queue)
         matching_queues = [
             q
             for q in queues_found
@@ -1112,25 +1157,25 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    f"No default queue existing for entity: {entity} in project: {project}, creating one."
+                    f"No default queue existing for entity: {entity} in project: {project_queue}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
-                    launch_spec["project"],
+                    project_queue,
                     queue_name,
                     access="PROJECT",
                 )
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        f"Unable to create default queue for entity: {entity} on project: {project}. Run could not be added to a queue"
+                        f"Unable to create default queue for entity: {entity} on project: {project_queue}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
 
             else:
                 wandb.termwarn(
-                    f"Unable to push to run queue {queue_name}. Queue not found."
+                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
@@ -1837,9 +1882,9 @@ class Api:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file
             already existed and was up-to-date.
         """
-        fileName = metadata["name"]
-        path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
-        if self.file_current(fileName, util.B64MD5(metadata["md5"])):
+        filename = metadata["name"]
+        path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
+        if self.file_current(filename, util.B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -1883,7 +1928,6 @@ class Api:
                 response = requests.models.Response()
                 response.status_code = e.response.status_code
                 response.headers = e.response.headers
-                response.raw = e.response.internal_response
                 raise requests.exceptions.RequestException(e.message, response=response)
             else:
                 raise requests.exceptions.ConnectionError(e.message)
@@ -1932,7 +1976,7 @@ class Api:
             is_aws_retryable = (
                 "x-amz-meta-md5" in extra_headers
                 and status_code == 400
-                and "RequestTimeout" in response_content
+                and "RequestTimeout" in str(response_content)
             )
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
@@ -2164,7 +2208,7 @@ class Api:
             }
         }
         """
-        # FIXME(jhr): we need protocol versioning to know schema is not supported
+        # TODO(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
 
         # launchScheduler was introduced in core v0.14.0
@@ -2278,8 +2322,8 @@ class Api:
         project, run = self.parse_slug(project, run=run)
         urls = self.download_urls(project, run, entity)
         responses = []
-        for fileName in urls:
-            _, response = self.download_write_file(urls[fileName])
+        for filename in urls:
+            _, response = self.download_write_file(urls[filename])
             if response:
                 responses.append(response)
 
