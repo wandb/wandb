@@ -170,6 +170,8 @@ class VertexRunner(AbstractRunner):
                 service_account=service_account, tensorboard=tensorboard, sync=False
             )
         else:
+            # TODO: this submit command is only in aiplatform >=1.20 which needs
+            # to be flagged or pinned somewhere
             job.submit(
                 service_account=service_account,
                 tensorboard=tensorboard,
