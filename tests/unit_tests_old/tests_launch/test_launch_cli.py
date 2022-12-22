@@ -403,18 +403,6 @@ def test_launch_agent_project_environment_variable(
     )
 
 
-def test_launch_agent_no_project(runner, test_settings, live_mock_server, monkeypatch):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.launch.DEFAULT_CONFIG_FILE", "./random-nonexistant-file.yaml"
-    )
-    result = runner.invoke(cli.launch_agent)
-    assert result.exit_code == 1
-    assert (
-        "You must specify a project name or set WANDB_PROJECT environment variable."
-        in str(result.output)
-    )
-
-
 def test_launch_agent_launch_error_continue(
     runner, test_settings, live_mock_server, monkeypatch
 ):

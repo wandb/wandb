@@ -149,6 +149,14 @@ def test_unsized_manifest_entry():
     assert "size required" in str(e.value)
 
 
+def test_unsized_manifest_entry():
+    with pytest.raises(ValueError) as e:
+        wandb_artifacts.ArtifactManifestEntry(
+            path="foo", digest="123", local_path="some/file.txt"
+        )
+    assert "size required" in str(e.value)
+
+
 def test_add_one_file():
     with open("file1.txt", "w") as f:
         f.write("hello")

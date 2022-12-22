@@ -16,6 +16,7 @@ from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     DEFAULT_CONFIG_FILE,
+    DEFAULT_PROJECT,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
@@ -64,6 +65,7 @@ def resolve_agent_config(
     }
     user_set_project = False
     config_path = config_path or DEFAULT_CONFIG_FILE
+    user_set_project = False
     resolved_config: Dict[str, Any] = defaults
     if os.path.exists(os.path.expanduser(config_path)):
         config = {}
