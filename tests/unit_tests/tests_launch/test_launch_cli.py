@@ -266,7 +266,7 @@ def test_launch_build_with_local(
 
     with runner.isolated_filesystem(), relay_server():
         result = runner.invoke(cli.launch, base_args)
-
+        print(result.output)
         assert result.exit_code == 1
         assert (
             "Cannot build a docker image for the resource: local-process"
