@@ -8,6 +8,7 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.gcp_vertex import (
     get_gcp_config,
     run_shell,
+    resolve_artifact_repo,
 )
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -213,7 +214,7 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
     try:
         launch.run(**kwargs)
     except LaunchError as e:
-        assert "Vertex requires an Artifact Registry repository" in str(e)
+        assert "Vertex requires that you specify" in str(e)
 
 
 def test_vertex_supplied_docker_image(
@@ -273,3 +274,20 @@ properties:
     result = get_gcp_config()
     assert result["properties"]["compute"]["zone"] == "us-east1-b"
     assert result["properties"]["core"]["project"] == "test-project"
+
+
+def test_resolve_artifact_repo():
+    """
+    Test that we set the artifact repo correctly given resource arguments
+    and an agent registry config.
+    """
+    # No resource args, no registry config
+    with pytest.raises(LaunchError):
+        resolve_artifact_repo({}, {})
+
+    resource_args = dict(artifact_repo="resource-repo")
+    registry_config = dict(uri="registry-repo")
+
+    assert resolve_artifact_repo({}, registry_config) == "registry-repo"
+    assert resolve_artifact_repo(resource_args, {}) == "resource-repo"
+    assert resolve_artifact_repo(resource_args, registry_config) == "resource-repo"

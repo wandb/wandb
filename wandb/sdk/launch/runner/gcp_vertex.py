@@ -105,11 +105,8 @@ class VertexRunner(AbstractRunner):
             raise LaunchError(
                 "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
             )
-        gcp_artifact_repo = resource_args.get("artifact_repo")
-        if not gcp_artifact_repo:
-            raise LaunchError(
-                "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key artifact_repo."
-            )
+        gcp_artifact_repo = resolve_artifact_repo(resource_args, registry_config)
+        resource_args.get("artifact_repo") or registry_config.get("uri")
         gcp_docker_host = (
             resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
         )
@@ -210,3 +207,26 @@ def get_gcp_config(config: str = "default") -> Any:
             ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
         )[0]
     )
+
+
+def resolve_artifact_repo(resource_args: dict, registry_config: dict) -> str:
+    """Resolve the Artifact Registry repo from resource args and registry config.
+
+    Args:
+        resource_args: The resource args passed to the backend.
+        registry_config: The registry config from gcloud.
+
+    Returns:
+        The resolved repo as a str.
+
+    Raises:
+        LaunchError: If repo is not set in either resource args or registry config.
+    """
+    gcp_artifact_repo = resource_args.get("artifact_repo") or registry_config.get("uri")
+    if not gcp_artifact_repo:
+        raise LaunchError(
+            "Vertex requires that you specify an Artifact Registry repository. "
+            "Please specify a repo in your resource args under key artifact_repo or "
+            "in your launch agent registry config under key uri."
+        )
+    return gcp_artifact_repo
