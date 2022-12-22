@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: launch-agent
+  namespace: wandb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: launch-agent
+  template:
+    metadata:
+      labels:
+        app: launch-agent
+    spec:
+      serviceAccountName: wandb-launch-serviceaccount
+      containers:
+        - name: launch-agent
+          image: # TODO: set agent image
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: WANDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wandb-api-key
+                  key: password
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /secret/kaniko-secret.json
+          volumeMounts:
+            - name: wandb-launch-config
+              mountPath: /home/launch_agent/.config/wandb
+              readOnly: true
+            - name: kaniko-secret
+              mountPath: /secret
+              readOnly: true
+      volumes:
+        - name: wandb-launch-config
+          configMap:
+            name: wandb-launch-configmap
+        - name: kaniko-secret
+          secret:
+            secretName: kaniko-secret
