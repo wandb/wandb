@@ -1148,6 +1148,6 @@ def init(
         if error_seen:
             wandb.termerror("Abnormal program exit")
             if except_exit:
-                os._exit(-1)
+                os._exit(1)
             raise Exception("problem") from error_seen
     return run

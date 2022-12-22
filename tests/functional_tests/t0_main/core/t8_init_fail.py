@@ -13,12 +13,9 @@ env:
   - WANDB_API_KEY: thisisnotavalidkey
 assert:
   - :wandb:runs_len: 0
-  - :yea:exit: 0
+  - :yea:exit: 1
 """
 
 import wandb
 
-try:
-    wandb.init()
-except Exception:
-    pass
+wandb.init()
