@@ -16,7 +16,7 @@ from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     DEFAULT_CONFIG_FILE,
-    DEFAULT_PROJECT,
+    LAUNCH_DEFAULT_PROJECT,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
