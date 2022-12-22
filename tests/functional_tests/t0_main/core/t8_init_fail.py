@@ -24,7 +24,7 @@ import wandb
 try:
     wandb.init()
 except:  # noqa
-    # We want to test that the atexit handler doesn't crash,
+    # We want to test that the atexit handler doesn't hang,
     # that's why we use a try/except here.
     # Skipping this test on Windows because there we
     # call os._exit(1) that can't be caught.
