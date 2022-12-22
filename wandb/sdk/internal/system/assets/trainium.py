@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import multiprocessing as mp
@@ -6,12 +7,7 @@ import subprocess
 import sys
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, List
-
-if sys.version_info >= (3, 8):
-    from typing import TypedDict
-else:
-    from typing_extensions import TypedDict
+from typing import TYPE_CHECKING, Any, List
 
 from wandb.sdk.lib import telemetry
 
@@ -28,15 +24,37 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-NEURON_LS_COMMAND = ["neuron-ls"]
-NEURON_MONITOR_CONFIG = pathlib.Path(__file__).parent / "neuron_monitor_config.json"
-NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", str(NEURON_MONITOR_CONFIG)]
+neuron_monitor_config = {
+    "period": "1s",
+    "neuron_runtimes": [
+        {
+            "tag_filter": ".*",
+            "metrics": [
+                {"type": "neuroncore_counters"},
+                {"type": "memory_used"},
+                {"type": "neuron_runtime_vcpu_usage"},
+                {"type": "execution_stats"},
+            ],
+        }
+    ],
+    "system_metrics": [
+        {"type": "vcpu_usage"},
+        {"type": "memory_info"},
+        {"type": "neuron_hw_counters"},
+    ],
+}
+
+
+# NEURON_LS_COMMAND = ["neuron-ls"]
+# NEURON_MONITOR_CONFIG = pathlib.Path(__file__).parent / "neuron_monitor_config.json"
+# NEURON_MONITOR_COMMAND = ["neuron-monitor", "-c", str(NEURON_MONITOR_CONFIG)]
 # fixme:
-# NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
-# NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
+NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
+NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
 
 
-class _NeuronCoreMemoryUsage(TypedDict):
+@dataclasses.dataclass
+class _NeuronCoreMemoryUsage:
     constants: int
     model_code: int
     model_shared_scratchpad: int
@@ -44,14 +62,16 @@ class _NeuronCoreMemoryUsage(TypedDict):
     tensors: int
 
 
-class _HostMemoryUsage(TypedDict):
+@dataclasses.dataclass
+class _HostMemoryUsage:
     application_memory: int
     constants: int
     dma_buffers: int
     tensors: int
 
 
-class _Stats(TypedDict):
+@dataclasses.dataclass
+class _Stats:
     neuroncore_utilization: List[float]  # per neuron core utilization
     host_total_memory_usage: int  # total memory usage in bytes
     neuron_device_total_memory_usage: int  # total memory usage
@@ -66,8 +86,7 @@ class NeuronCoreStats:
     AWS Trainium stats per Neuron Core.
     """
 
-    base_name: str = "trn.{key}"  # for global stats
-    name: str = "trn.{i}.{key}"  # for per-core stats
+    name: str = "trn.{key}"
     samples: "Deque[_Stats]"
 
     def neuron_monitor(self) -> None:
@@ -86,10 +105,10 @@ class NeuronCoreStats:
                 self.raw_samples.append(raw_data)
 
     def __init__(self, pid: int) -> None:
-        self.pid = pid
-        # self.pid = 16851  # fixme
+        # self.pid = pid
+        self.pid = 16851  # fixme
         self.raw_samples: "Deque[bytes]" = deque(maxlen=10)
-        self.samples = deque()
+        self.samples: "Deque[_Stats]" = deque()
         self.shutdown_event = threading.Event()
 
         self.neuron_monitor_thread = threading.Thread(
@@ -157,42 +176,93 @@ class NeuronCoreStats:
     def aggregate(self) -> dict:
         if not self.samples:
             return {}
+
         stats = {}
-        # aggregate totals
-        keys_totals = (
-            "host_total_memory_usage",
-            "neuron_device_total_memory_usage",
-        )
-        for key in keys_totals:
-            stats[self.base_name.format(key=key)] = aggregate_mean(
-                [s[key] for s in self.samples]  # type: ignore
-            )
-        # aggregate neuroncore utilization
-        for i in range(len(self.samples[0]["neuroncore_utilization"])):
-            stats[self.name.format(i=i, key="neuroncore_utilization")] = aggregate_mean(
-                [s["neuroncore_utilization"][i] for s in self.samples]
-            )
 
-        # aggregate host memory usage breakdown
-        keys_host_memory_usage = self.samples[0]["host_memory_usage"].keys()
-        for key in keys_host_memory_usage:
-            stats[
-                self.base_name.format(key=f"host_memory_usage.{key}")
-            ] = aggregate_mean(
-                [s["host_memory_usage"][key] for s in self.samples]  # type: ignore
-            )
+        n_neuroncores = len(self.samples[-1].neuroncore_utilization)
 
-        # aggregate per-core memory usage stats
-        keys_neuroncore_memory_usage = self.samples[0]["neuroncore_memory_usage"][
-            0
-        ].keys()
-        for i in range(len(self.samples[0]["neuroncore_memory_usage"])):  # per core
-            for key in keys_neuroncore_memory_usage:
-                stats[
-                    self.name.format(i=i, key=f"neuroncore_memory_usage.{key}")
-                ] = aggregate_mean(
-                    [s["neuroncore_memory_usage"][i][key] for s in self.samples]  # type: ignore
+        # Stats could be: numbers or dataclass objects or lists of such.
+        # In the latter case that means per-core stats.
+        # The dataclass objects are flat containers of numbers.
+
+        # aggregate totals. parse stats based on the structure described above
+
+        for field in dataclasses.fields(_Stats):
+            key = field.name
+            # last collected sample
+            _value = getattr(self.samples[-1], key)
+            print(f"key: {key}, value: {_value}")
+
+            if isinstance(_value, (int, float)):
+                # global number stats
+                stats[self.name.format(key=key)] = aggregate_mean(
+                    [getattr(s, key) for s in self.samples]
                 )
+            elif isinstance(_value, list):
+                # per-core stats
+                if isinstance(_value[0], (int, float)):
+                    # list of numbers
+                    for i in range(n_neuroncores):
+                        stats[self.name.format(key=f"{i}.{key}")] = aggregate_mean(
+                            [s.neuroncore_utilization[i] for s in self.samples]
+                        )
+                else:
+                    # list of dataclass objects
+                    for subfield in dataclasses.fields(type(_value[0])):
+                        subkey = subfield.name
+                        for i in range(n_neuroncores):
+                            stats[
+                                self.name.format(key=f"{i}.{key}.{subkey}")
+                            ] = aggregate_mean(
+                                [
+                                    getattr(getattr(s, key)[i], subkey)
+                                    for s in self.samples
+                                ]
+                            )
+            else:
+                # dataclass object
+                for subfield in dataclasses.fields(field.type):
+                    subkey = subfield.name
+                    stats[self.name.format(key=f"{key}.{subkey}")] = aggregate_mean(
+                        [getattr(getattr(s, key), subkey) for s in self.samples]
+                    )
+
+        # keys_totals = (
+        #     "host_total_memory_usage",
+        #     "neuron_device_total_memory_usage",
+        # )
+        # for key in keys_totals:
+        #     stats[self.base_name.format(key=key)] = aggregate_mean(
+        #         [getattr(s, key) for s in self.samples]
+        #     )
+        # # aggregate neuroncore utilization
+        # for i in range(n_neuroncores):
+        #     stats[self.name.format(i=i, key="neuroncore_utilization")] = aggregate_mean(
+        #         [s.neuroncore_utilization[i] for s in self.samples]
+        #     )
+        #
+        # # aggregate host memory usage breakdown
+        # keys_host_memory_usage = (
+        #     field.name for field in dataclasses.fields(_HostMemoryUsage)
+        # )
+        # for key in keys_host_memory_usage:
+        #     stats[
+        #         self.base_name.format(key=f"host_memory_usage.{key}")
+        #     ] = aggregate_mean(
+        #         [getattr(s.host_memory_usage, key) for s in self.samples]
+        #     )
+        #
+        # # aggregate per-core memory usage stats
+        # keys_neuroncore_memory_usage = (
+        #     field.name for field in dataclasses.fields(_NeuronCoreMemoryUsage)
+        # )
+        # for key in keys_neuroncore_memory_usage:
+        #     for i in range(n_neuroncores):
+        #         stats[
+        #             self.name.format(i=i, key=f"neuroncore_memory_usage.{key}")
+        #         ] = aggregate_mean(
+        #             [getattr(s.neuroncore_memory_usage[i], key) for s in self.samples]
+        #         )
 
         print(stats)
 
