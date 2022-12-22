@@ -1250,9 +1250,9 @@ class JoinedTable(Media):
         # Check if this is an ArtifactManifestEntry
         elif hasattr(table, "ref_url"):
             # Give the new object a unique, yet deterministic name
-            name = binascii.hexlify(
-                base64.standard_b64decode(table.entry.digest)
-            ).decode("ascii")[:20]
+            name = binascii.hexlify(base64.standard_b64decode(table.digest)).decode(
+                "ascii"
+            )[:20]
             entry = artifact.add_reference(
                 table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
