@@ -681,7 +681,7 @@ class Artifact:
 
         Arguments:
             root: (str, optional) The directory to verify. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
+                artifact will be downloaded to './artifacts/self.name/'
 
         Raises:
             (ValueError): If the verification fails.
