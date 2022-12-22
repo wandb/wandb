@@ -76,12 +76,10 @@ class VertexRunner(AbstractRunner):
         builder: AbstractBuilder,
         registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
-
         aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )
-
         resource_args = launch_project.resource_args.get("gcp_vertex")
         if not resource_args:
             raise LaunchError(
@@ -92,23 +90,7 @@ class VertexRunner(AbstractRunner):
             resource_args.get("gcp_project")
             or gcp_config["properties"]["core"]["project"]
         )
-        gcp_zone = resource_args.get("gcp_region") or gcp_config["properties"].get(
-            "compute", {}
-        ).get("zone")
-        if not gcp_zone:
-            raise LaunchError(
-                "Vertex requires a region for compute. Specify a region under key gcp_region."
-            )
-        gcp_region = "-".join(gcp_zone.split("-")[:2])
-        gcp_staging_bucket = resource_args.get("staging_bucket")
-        if not gcp_staging_bucket:
-            raise LaunchError(
-                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
-            )
-        gcp_artifact_repo = resolve_artifact_repo(resource_args, registry_config)
-        gcp_docker_host = (
-            resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
-        )
+        gcp_region = resolve_gcp_region(resource_args, gcp_config)
         gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
         gcp_accelerator_type = (
             resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
@@ -122,7 +104,13 @@ class VertexRunner(AbstractRunner):
         )
         service_account = resource_args.get("service_account")
         tensorboard = resource_args.get("tensorboard")
-
+        gcp_staging_bucket = resource_args.get("staging_bucket")
+        if not gcp_staging_bucket:
+            raise LaunchError(
+                "Vertex requires a staging bucket for training and dependency "
+                "packages in the same region as compute. Specify a bucket under "
+                "key staging_bucket."
+            )
         aiplatform.init(
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
         )
@@ -132,15 +120,15 @@ class VertexRunner(AbstractRunner):
             wandb.termwarn(
                 f"{LOG_PREFIX}Docker args are not supported for GCP. Not using docker args."
             )
-
         entry_point = launch_project.get_single_entry_point()
-
         if launch_project.docker_image:
             # Use premade docker image uri
             image_uri = launch_project.docker_image
         else:
             # If docker image is not specified, build it
-            repository = "/".join([gcp_docker_host, gcp_project, gcp_artifact_repo])
+            repository = resolve_artifact_repo(
+                resource_args, registry_config, gcp_project, gcp_region
+            )
             assert entry_point is not None
             image_uri = builder.build_image(
                 launch_project,
@@ -148,12 +136,10 @@ class VertexRunner(AbstractRunner):
                 entry_point,
                 docker_args,
             )
-
         if not self.ack_run_queue_item(launch_project):
             return None
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-
         worker_pool_specs = [
             {
                 "machine_spec": {
@@ -172,16 +158,13 @@ class VertexRunner(AbstractRunner):
                 },
             }
         ]
-
         job = aiplatform.CustomJob(
             display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
         )
         submitted_run = VertexSubmittedRun(job)
-
         wandb.termlog(
             f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
         )
-
         if synchronous:
             job.run(
                 service_account=service_account, tensorboard=tensorboard, sync=False
@@ -208,12 +191,28 @@ def get_gcp_config(config: str = "default") -> Any:
     )
 
 
-def resolve_artifact_repo(resource_args: dict, registry_config: dict) -> str:
+def resolve_gcp_region(resource_args, gcp_config):
+    gcp_zone = resource_args.get("gcp_region") or gcp_config["properties"].get(
+        "compute", {}
+    ).get("zone")
+    if not gcp_zone:
+        raise LaunchError(
+            "Vertex requires a region for compute. Specify a region under key gcp_region."
+        )
+    gcp_region = "-".join(gcp_zone.split("-")[:2])
+    return gcp_region
+
+
+def resolve_artifact_repo(
+    resource_args: dict, registry_config: dict, gcp_project: str, gcp_region: str
+) -> str:
     """Resolve the Artifact Registry repo from resource args and registry config.
 
     Args:
         resource_args: The resource args passed to the backend.
         registry_config: The registry config from gcloud.
+        gcp_project: The gcp project, in case the image uri needs to be inferred.
+        gcp_region: The default region in case the docker host needs to be inferred.
 
     Returns:
         The resolved repo as a str.
@@ -221,11 +220,31 @@ def resolve_artifact_repo(resource_args: dict, registry_config: dict) -> str:
     Raises:
         LaunchError: If repo is not set in either resource args or registry config.
     """
-    gcp_artifact_repo = resource_args.get("artifact_repo") or registry_config.get("uri")
-    if not gcp_artifact_repo:
+
+    # If a full repo uri is specified, use that
+    registry_repo = registry_config.get("uri")
+    if registry_repo:
+        # TODO: Do some kind of validation that this repo is valid
+        return registry_repo
+
+    # Otherwise, use the repo specified in resource args
+    docker_host = resolve_docker_host(resource_args, gcp_region)
+    repo_name = resource_args.get("artifact_repo")
+    if not repo_name:
         raise LaunchError(
             "Vertex requires that you specify an Artifact Registry repository. "
             "Please specify a repo in your resource args under key artifact_repo or "
             "in your launch agent registry config under key uri."
         )
-    return gcp_artifact_repo
+    repository = "/".join([docker_host, gcp_project, repo_name])
+    # TODO: verify that this repo is valid
+    return repository
+
+
+def resolve_docker_host(resource_args, gcp_region):
+    """Resolve the docker host from resource args and gcloud configuration."""
+    resource_host = resource_args.get("docker_host")
+    default_host = f"{gcp_region}-docker.pkg.dev"
+    host = resource_host or default_host
+    # TODO: Validate that the host is valid
+    return host
