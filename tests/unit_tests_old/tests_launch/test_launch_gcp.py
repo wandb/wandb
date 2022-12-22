@@ -9,6 +9,7 @@ from wandb.sdk.launch.runner.gcp_vertex import (
     get_gcp_config,
     run_shell,
     resolve_artifact_repo,
+    resolve_gcp_region,
 )
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -302,4 +303,27 @@ def test_resolve_artifact_repo():
     assert (
         resolve_artifact_repo(resource_args, registry_config, gcp_project, gcp_region)
         == registry_config["uri"]
+    )
+
+
+def test_resolve_gcp_region():
+    """
+    Test that we set the gcp region correctly given resource arguments
+    and an agent registry config.
+    """
+
+    resource_args = dict(gcp_region="resource-region")
+    gcp_config = dict(properties=dict(compute=dict(zone="us-east1-b")))
+    registry_config = dict(region="registry-region")
+
+    # No resource args, no registry config
+    with pytest.raises(LaunchError):
+        resolve_gcp_region({}, {"properties": {}}, {})
+
+    assert resolve_gcp_region({}, gcp_config, {}) == "us-east1"
+    assert resolve_gcp_region(resource_args, gcp_config, {}) == "resource-region"
+    assert resolve_gcp_region({}, gcp_config, registry_config) == "registry-region"
+    assert (
+        resolve_gcp_region(resource_args, gcp_config, registry_config)
+        == "registry-region"
     )
