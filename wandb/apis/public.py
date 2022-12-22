@@ -450,7 +450,7 @@ class Api:
     def create_project(self, name: str, entity: str):
         if name == "model-registry":
             raise wandb.Error(
-                "Cannot create project with protected name, model-registry"
+                f"{name} is reserved, please choose a different project name"
             )
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
 
