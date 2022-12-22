@@ -105,6 +105,7 @@ class DataStore:
         self._fp.seek(offset)
         # got = self._fp.tell()
         # print("seek", offset, got)
+        self._index = offset
 
     def get_offset(self) -> int:
         got = self._fp.tell()
