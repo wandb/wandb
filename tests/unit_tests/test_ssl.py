@@ -1,9 +1,11 @@
 import contextlib
+import dataclasses
 import http.server
+import os
 from pathlib import Path
 import ssl
 import threading
-from typing import Callable, Iterator, Mapping, Type
+from typing import Callable, Iterator, Mapping, Tuple, Type
 from unittest.mock import patch
 
 import httpx
@@ -14,8 +16,25 @@ import wandb.apis
 import wandb.env
 
 
-@pytest.fixture
-def ssl_server(assets_path: Callable[[str], Path]) -> Iterator[http.server.HTTPServer]:
+@dataclasses.dataclass
+class SSLCredPaths:
+    ca_path: Path
+    cert: Path
+    key: Path
+
+
+@pytest.fixture(scope="session")
+def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
+    ca_path = assets_path("ssl_certs")
+    return SSLCredPaths(
+        ca_path=ca_path,
+        cert=ca_path / "localhost.crt",
+        key=ca_path / "localhost.key",
+    )
+
+
+@pytest.fixture(scope="session")
+def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
 
     class MyServer(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -26,8 +45,8 @@ def ssl_server(assets_path: Callable[[str], Path]) -> Iterator[http.server.HTTPS
     httpd = http.server.HTTPServer(("localhost", 0), MyServer)
     httpd.socket = ssl.wrap_socket(
         httpd.socket,
-        keyfile=assets_path("wandb.test.key"),
-        certfile=assets_path("wandb.test.crt"),
+        keyfile=ssl_creds.key,
+        certfile=ssl_creds.cert,
         server_side=True,
     )
 
@@ -66,10 +85,47 @@ def test_disable_ssl(
     get_status: Callable[[str], int],
     ssl_errtype: Type[Exception],
 ):
-    url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
+    url = f"https://localhost:{ssl_server.server_address[1]}"
 
     with pytest.raises(ssl_errtype):
         get_status(url)
 
     with wandb.apis._disable_ssl():
         assert get_status(url) == 200
+        import urllib3; urllib3.connectionpool.HTTPSConnectionPool
+
+
+
+
+@pytest.mark.parametrize(
+    ["get_status", "ssl_errtype"],
+    [
+        (lambda url: requests.get(url).status_code, requests.exceptions.SSLError),
+        (lambda url: httpx.get(url).status_code, httpx.ConnectError),
+    ],
+)
+@pytest.mark.parametrize(
+    "make_env",
+    [
+        lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
+        lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
+        lambda certpath: {"SSL_CERT_FILE": str(certpath)},
+        lambda certpath: {"SSL_CERT_DIR": str(certpath.parent)},
+    ]
+)
+def test_mirror_http_lib_cert_env_vars(
+    ssl_creds: SSLCredPaths,
+    ssl_server: http.server.HTTPServer,
+    get_status: Callable[[str], int],
+    ssl_errtype: Type[Exception],
+    make_env: Callable[[Path], Mapping[str, str]],
+):
+    url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
+
+    with pytest.raises(ssl_errtype):
+        get_status(url)
+
+    with patch.dict("os.environ", make_env(ssl_creds.cert)):
+        with wandb.apis._mirror_http_lib_cert_env_vars():
+            print(os.environ)
+            assert get_status(url) == 200

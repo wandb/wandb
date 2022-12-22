@@ -95,7 +95,7 @@ class ConsoleFormatter:
 # --------------------------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def assets_path() -> Callable:
     def assets_path_fn(path: Path) -> Path:
         return Path(__file__).resolve().parent / "assets" / path

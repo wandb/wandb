@@ -3,6 +3,7 @@ api.
 """
 
 import contextlib
+import os
 
 import httpx
 import requests
@@ -42,6 +43,40 @@ def _disable_ssl():
 
 if env.ssl_disabled():
     _disable_ssl().__enter__()
+
+
+@contextlib.contextmanager
+def _mirror_http_lib_cert_env_vars():
+    orig_ssl_cert_file = os.environ.get("SSL_CERT_FILE")
+    orig_ssl_cert_dir = os.environ.get("SSL_CERT_DIR")
+    orig_requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE")
+
+    if orig_requests_ca_bundle and os.path.exists(os.path.realpath(orig_requests_ca_bundle)):
+        if os.path.isdir(os.path.realpath(orig_requests_ca_bundle)):
+            os.environ["SSL_CERT_DIR"] = orig_requests_ca_bundle
+        else:
+            os.environ["SSL_CERT_FILE"] = orig_requests_ca_bundle
+    else:
+        if orig_ssl_cert_file and os.path.exists(os.path.realpath(orig_ssl_cert_file)):
+            os.environ["REQUESTS_CA_BUNDLE"] = orig_ssl_cert_file
+        elif orig_ssl_cert_dir and os.path.exists(os.path.realpath(orig_ssl_cert_dir)):
+            os.environ["REQUESTS_CA_BUNDLE"] = orig_ssl_cert_dir
+
+    yield
+
+    for name, orig in [
+        ("SSL_CERT_FILE", orig_ssl_cert_file),
+        ("SSL_CERT_DIR", orig_ssl_cert_dir),
+        ("REQUESTS_CA_BUNDLE", orig_requests_ca_bundle),
+    ]:
+        if orig is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = orig
+
+
+_mirror_http_lib_cert_env_vars().__enter__()
+
 
 reset_path = util.vendor_setup()
 
