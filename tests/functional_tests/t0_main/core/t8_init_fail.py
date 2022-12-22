@@ -4,6 +4,9 @@
 ---
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 command:
   timeout: 30
 env:
@@ -13,9 +16,16 @@ env:
   - WANDB_API_KEY: thisisnotavalidkey
 assert:
   - :wandb:runs_len: 0
-  - :yea:exit: 1
+  - :yea:exit: 0
 """
 
 import wandb
 
-wandb.init()
+try:
+    wandb.init()
+except:  # noqa
+    # We want to test that the atexit handler doesn't crash,
+    # that's why we use a try/except here.
+    # Skipping this test on Windows because there we
+    # call os._exit(1) that can't be caught.
+    pass
