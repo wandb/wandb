@@ -70,7 +70,7 @@ def test_fetch_job_fail(api):
         "docker_config": {},
         "git_info": {},
         "overrides": {},
-        "resource": "local",
+        "resource": "local-container",
         "resource_args": {},
         "cuda": None,
         "run_id": None,

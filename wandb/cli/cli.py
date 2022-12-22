@@ -32,7 +32,11 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    check_logged_in,
+    construct_launch_spec,
+)
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
@@ -698,6 +702,11 @@ def sync(
     default=None,
     help="The name of a launch queue (configured with a resource), available in the current user or team.",
 )
+@click.option(
+    "--project-queue",
+    default=LAUNCH_DEFAULT_PROJECT,
+    help="Specify sweeps launch project",
+)
 @click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
@@ -717,6 +726,7 @@ def sweep(
     resume,
     config_yaml_or_sweep_id,
     queue,
+    project_queue,
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -899,6 +909,7 @@ def sweep(
         _launch_scheduler_spec = json.dumps(
             {
                 "queue": queue or launch_config.get("queue", "default"),
+                "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
                         "placeholder-uri-scheduler",  # uri
@@ -1061,9 +1072,9 @@ def sweep(
     "-r",
     metavar="BACKEND",
     default=None,
-    help="Execution resource to use for run. Supported values: 'local'."
-    " If passed in, will override the resource value passed in using a config file."
-    " Defaults to 'local'.",
+    help="Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'. "
+    " This is now a required parameter if pushing to a queue with no resource configuration. "
+    " If passed in, will override the resource value passed in using a config file.",
 )
 @click.option(
     "--docker-image",
@@ -1127,6 +1138,13 @@ def sweep(
     default=None,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
+# TODO: this is only included for back compat. But we should remove this in the future
+@click.option(
+    "--project-queue",
+    "-pq",
+    default=None,
+    help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
+)
 @display_error
 def launch(
     uri,
@@ -1146,6 +1164,7 @@ def launch(
     cuda,
     build,
     repository,
+    project_queue,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
@@ -1202,7 +1221,7 @@ def launch(
     else:
         config = {}
 
-    resource = resource or config.get("resource") or "local-container"
+    resource = resource or config.get("resource")
 
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
@@ -1257,6 +1276,7 @@ def launch(
             git_version,
             docker_image,
             args_dict,
+            project_queue,
             resource_args,
             cuda=cuda,
             build=build,
@@ -1372,7 +1392,9 @@ def scheduler(
     kwargs = {}
     for i, _arg in enumerate(ctx.args):
         if isinstance(_arg, str) and _arg.startswith("--"):
-            kwargs[_arg[2:]] = ctx.args[i + 1]
+            # convert input kwargs from hyphens to underscores
+            _key = _arg[2:].replace("-", "_")
+            kwargs[_key] = ctx.args[i + 1]
 
     _scheduler = load_scheduler("sweep")(
         api,
