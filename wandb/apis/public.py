@@ -449,9 +449,9 @@ class Api:
         ).save()
 
     def create_project(self, name: str, entity: str):
-        if name == "model-registry2":
+        if name == "model-registry":
             raise wandb.Error(
-                "Cannot create proejct with protected name, model-registry"
+                "Cannot create project with protected name, model-registry"
             )
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
 
