@@ -2,17 +2,23 @@
 api.
 """
 
+import contextlib
+
+import httpx
 import requests
 from urllib3.exceptions import InsecureRequestWarning
 
 from wandb import env, termwarn, util
 
-if env.ssl_disabled():
+
+@contextlib.contextmanager
+def _disable_ssl():
     # Because third party libraries may also use requests, we monkey patch it globally
     # and turn off urllib3 warnings instead printing a global warning to the user.
     termwarn(
         "Disabling SSL verification.  Connections to this server are not verified and may be insecure!"
     )
+
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
     old_merge_environment_settings = requests.Session.merge_environment_settings
 
@@ -24,6 +30,18 @@ if env.ssl_disabled():
         return settings
 
     requests.Session.merge_environment_settings = merge_environment_settings
+
+    old_load_ssl_context_verify = httpx._config.SSLConfig.load_ssl_context_verify
+    httpx._config.SSLConfig.load_ssl_context_verify = httpx._config.SSLConfig.load_ssl_context_no_verify
+
+    yield
+
+    requests.Session.merge_environment_settings = old_merge_environment_settings
+    httpx._config.SSLConfig.load_ssl_context_verify = old_load_ssl_context_verify
+
+
+if env.ssl_disabled():
+    _disable_ssl().__enter__()
 
 reset_path = util.vendor_setup()
 
