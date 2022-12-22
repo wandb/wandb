@@ -143,7 +143,7 @@ class NeuronCoreStats:
 
     def sample(self) -> None:
         try:
-            raw_stats = json.loads(self.raw_samples[-1])  # type: ignore
+            raw_stats = json.loads(self.raw_samples[-1])
             # if "neuron_runtime_data" not in raw_stats:
             #     return None
             neuron_runtime_data = [
@@ -172,9 +172,9 @@ class NeuronCoreStats:
             ]
             # memory usage breakdown
             usage_breakdown = neuron_runtime_used_bytes["usage_breakdown"]
-            host_memory_usage = _HostMemoryUsage(**usage_breakdown["host"])  # type: ignore
+            host_memory_usage = _HostMemoryUsage(**usage_breakdown["host"])
             neuroncore_memory_usage = [
-                _NeuronCoreMemoryUsage(**v)  # type: ignore
+                _NeuronCoreMemoryUsage(**v)
                 for v in usage_breakdown["neuroncore_memory_usage"].values()
             ]
 
@@ -203,7 +203,7 @@ class NeuronCoreStats:
         """
         flattened = {}
 
-        def helper(key: str, value: Any):
+        def helper(key: str, value: Any) -> None:
             if isinstance(value, (int, float)):
                 ret = {f"{key}": value}
                 flattened.update(ret)
