@@ -50,7 +50,7 @@ from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
 from wandb.sdk.lib import filesystem, ipython, retry
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
@@ -872,7 +872,13 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_name, run_queue_item_id, container_job=False
+        self,
+        entity,
+        project,
+        queue_name,
+        run_queue_item_id,
+        container_job=False,
+        project_queue=None,
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -884,6 +890,7 @@ class Api:
             queue_name,
             run_queue_item_id,
             container_job=container_job,
+            project_queue=project_queue,
         )
 
     @normalize_exceptions
@@ -2272,6 +2279,7 @@ class QueuedRun:
         queue_name,
         run_queue_item_id,
         container_job=False,
+        project_queue=LAUNCH_DEFAULT_PROJECT,
     ):
         self.client = client
         self._entity = entity
@@ -2281,6 +2289,7 @@ class QueuedRun:
         self.sweep = None
         self._run = None
         self.container_job = container_job
+        self.project_queue = project_queue
 
     @property
     def queue_name(self):
@@ -2330,7 +2339,7 @@ class QueuedRun:
             """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
         }
@@ -2358,7 +2367,7 @@ class QueuedRun:
         """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
             "itemId": self.id,
@@ -2404,7 +2413,7 @@ class QueuedRun:
             query,
             variable_values={
                 "entityName": self.entity,
-                "projectName": self.project,
+                "projectName": self.project_queue,
                 "runQueueName": self.queue_name,
             },
         )
@@ -5511,6 +5520,7 @@ class Job:
         resource="local-container",
         resource_args=None,
         cuda=False,
+        project_queue=None,
     ):
         from wandb.sdk.launch import launch_add
 
@@ -5534,6 +5544,7 @@ class Job:
             entity=entity or self._entity,
             queue_name=queue,
             resource=resource,
+            project_queue=project_queue,
             resource_args=resource_args,
             cuda=cuda,
         )

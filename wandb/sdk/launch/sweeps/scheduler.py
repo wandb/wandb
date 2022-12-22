@@ -60,6 +60,7 @@ class Scheduler(ABC):
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
+        project_queue: Optional[str] = None,
         **kwargs: Optional[Any],
     ):
         self._api = api
@@ -83,6 +84,7 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
+        self._project_queue = project_queue or self._project
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
@@ -230,6 +232,7 @@ class Scheduler(ABC):
             project=self._project,
             entity=self._entity,
             queue_name=_queue,
+            project_queue=self._project_queue,
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
         )

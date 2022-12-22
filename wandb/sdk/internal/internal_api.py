@@ -1126,21 +1126,23 @@ class Api:
 
     @normalize_exceptions
     def push_to_run_queue(
-        self, queue_name: str, launch_spec: Dict[str, str]
+        self,
+        queue_name: str,
+        launch_spec: Dict[str, str],
+        project_queue: str,
     ) -> Optional[Dict[str, Any]]:
         entity = launch_spec["entity"]
-        project = launch_spec["project"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
-            entity, project, queue_name, run_spec
+            entity, project_queue, queue_name, run_spec
         )
 
         if push_result:
             return push_result
 
         """ Legacy Method """
-        queues_found = self.get_project_run_queues(entity, project)
+        queues_found = self.get_project_run_queues(entity, project_queue)
         matching_queues = [
             q
             for q in queues_found
@@ -1156,25 +1158,25 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    f"No default queue existing for entity: {entity} in project: {project}, creating one."
+                    f"No default queue existing for entity: {entity} in project: {project_queue}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
-                    launch_spec["project"],
+                    project_queue,
                     queue_name,
                     access="PROJECT",
                 )
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        f"Unable to create default queue for entity: {entity} on project: {project}. Run could not be added to a queue"
+                        f"Unable to create default queue for entity: {entity} on project: {project_queue}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
 
             else:
                 wandb.termwarn(
-                    f"Unable to push to run queue {queue_name}. Queue not found."
+                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
