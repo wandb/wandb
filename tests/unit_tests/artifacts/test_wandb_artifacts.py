@@ -1,5 +1,3 @@
-import base64
-import hashlib
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +13,7 @@ import wandb.data_types as data_types
 import wandb.sdk.interface as wandb_interface
 from wandb import util
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.lib.hashutil import md5_string
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -140,12 +139,6 @@ def mock_http(artifact, path=False, headers=None):
     handler = artifact._storage_policy._handler._handlers["http"]
     handler._session = mock
     return mock
-
-
-def md5_string(string: str) -> util.B64MD5:
-    hash_md5 = hashlib.md5()
-    hash_md5.update(string.encode())
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
 
 
 def test_unsized_manifest_entry():
