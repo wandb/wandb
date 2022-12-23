@@ -59,6 +59,7 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
     ["env", "expect_disabled"],
     [
         ({}, False),
+        ({"WANDB_INSECURE_DISABLE_SSL": ""}, False),
         ({"WANDB_INSECURE_DISABLE_SSL": "false"}, False),
         ({"WANDB_INSECURE_DISABLE_SSL": "true"}, True),
     ],
@@ -83,7 +84,7 @@ def disable_ssl_context():
 def test_disable_ssl(
     ssl_server: http.server.HTTPServer,
 ):
-    url = f"https://localhost:{ssl_server.server_address[1]}"
+    url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
 
     with pytest.raises(requests.exceptions.SSLError):
         requests.get(url)
