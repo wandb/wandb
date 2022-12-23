@@ -294,23 +294,28 @@ class Trainium:
                 metric.shutdown_event.set()
 
     def probe(self) -> dict:
-        neuron_hardware_info: dict = {}
-        popen = subprocess.Popen(
-            NEURON_MONITOR_COMMAND,
-            stdout=subprocess.PIPE,
-            stderr=None,
-        )
-        while True:
-            if popen.stdout is None:
-                continue
+        try:
+            self.check_neuron_monitor_config()
+            neuron_hardware_info: dict = {}
+            popen = subprocess.Popen(
+                NEURON_MONITOR_COMMAND,
+                stdout=subprocess.PIPE,
+                stderr=None,
+            )
+            while True:
+                if popen.stdout is None:
+                    continue
 
-            raw_data = popen.stdout.readline()
-            if raw_data:
-                parsed_data = json.loads(raw_data)
-                neuron_hardware_info = parsed_data.get("neuron_hardware_info", {})
-                neuron_hardware_info.pop("error", None)
-                break
+                raw_data = popen.stdout.readline()
+                if raw_data:
+                    parsed_data = json.loads(raw_data)
+                    neuron_hardware_info = parsed_data.get("neuron_hardware_info", {})
+                    neuron_hardware_info.pop("error", None)
+                    break
 
-        popen.terminate()
+            popen.terminate()
 
-        return {self.name: neuron_hardware_info}
+            return {self.name: neuron_hardware_info}
+        except Exception as e:
+            logger.error("neuron-monitor failed: %s" % e)
+            return {}
