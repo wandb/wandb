@@ -1,6 +1,3 @@
-import base64
-import binascii
-import codecs
 import contextlib
 import hashlib
 import os
@@ -23,6 +20,7 @@ import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -41,53 +39,6 @@ if TYPE_CHECKING:
     class Opener(Protocol):
         def __call__(self, mode: str = ...) -> ContextManager[IO]:
             pass
-
-
-def md5_string(string: str) -> util.B64MD5:
-    hash_md5 = hashlib.md5()
-    hash_md5.update(string.encode())
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
-
-
-def b64_string_to_hex(string):
-    return binascii.hexlify(base64.standard_b64decode(string)).decode("ascii")
-
-
-def md5_hash_file(path) -> util.RawMD5:
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(64 * 1024), b""):
-            hash_md5.update(chunk)
-    return hash_md5
-
-
-def md5_hash_files(paths: List[str]) -> util.RawMD5:
-    hash_md5 = hashlib.md5()
-    # Create a mutable copy to sort
-    paths = [path for path in paths]
-    paths.sort()
-    for path in paths:
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(64 * 1024), b""):
-                hash_md5.update(chunk)
-    return hash_md5
-
-
-def md5_file_b64(path: str) -> util.B64MD5:
-    return base64.b64encode(md5_hash_file(path).digest()).decode("ascii")
-
-
-def md5_files_b64(paths: List[str]) -> util.B64MD5:
-    return base64.b64encode(md5_hash_files(paths).digest()).decode("ascii")
-
-
-def md5_file_hex(path: str) -> util.HexMD5:
-    return md5_hash_file(path).hexdigest()
-
-
-def bytes_to_hex(bytestr):
-    # Works in python2 / python3
-    return codecs.getencoder("hex")(bytestr)[0]
 
 
 class ArtifactManifest:
@@ -148,7 +99,7 @@ class ArtifactManifest:
 @dataclass
 class ArtifactManifestEntry:
     path: util.LogicalFilePathStr
-    digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag]
+    digest: Union[B64MD5, util.URIStr, util.FilePathStr, ETag]
     ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
     birth_artifact_id: Optional[str] = None
     size: Optional[int] = None
@@ -901,9 +852,9 @@ class ArtifactsCache:
         self._artifacts_by_client_id = {}
 
     def check_md5_obj_path(
-        self, b64_md5: util.B64MD5, size: int
+        self, b64_md5: B64MD5, size: int
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
-        hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
+        hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
@@ -916,7 +867,7 @@ class ArtifactsCache:
     def check_etag_obj_path(
         self,
         url: util.URIStr,
-        etag: util.ETag,
+        etag: ETag,
         size: int,
     ) -> Tuple[util.FilePathStr, bool, "Opener"]:
         hexhash = hashlib.sha256(
