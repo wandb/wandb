@@ -8,13 +8,16 @@ tag:
 plugin:
   - wandb
 depend:
-  pip_install_timeout: 1500  # 25m
+  pip_install_timeout: 600  # 10m
   pip_install_options:
     - -f
     - https://download.pytorch.org/whl/cpu/torch_stable.html
+    - -f
+    - -f https://data.pyg.org/whl/torch-1.13.1+cpu.html
     - -qq
   requirements:
     - torch
+    - torch-cluster
     - -r 03-batch3-requirements.txt
 assert:
   - :wandb:runs_len: 1
