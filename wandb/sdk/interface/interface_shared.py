@@ -140,7 +140,7 @@ class InterfaceShared(InterfaceBase):
         artifact_done: Optional[pb.ArtifactDoneRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
         keepalive: Optional[pb.KeepaliveRequest] = None,
-        sync_status: Optional[pb.SyncStatusRequest] = None,
+        run_status: Optional[pb.RunStatusRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
@@ -188,8 +188,8 @@ class InterfaceShared(InterfaceBase):
             request.run_done.CopyFrom(run_done)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
-        elif sync_status:
-            request.sync_status.CopyFrom(sync_status)
+        elif run_status:
+            request.run_status.CopyFrom(run_status)
         elif cancel:
             request.cancel.CopyFrom(cancel)
         else:
@@ -604,10 +604,10 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(get_run=get_run)
         return self._deliver_record(record)
 
-    def _deliver_request_sync_status(
-        self, sync_status: pb.SyncStatusRequest
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
-        record = self._make_request(sync_status=sync_status)
+        record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

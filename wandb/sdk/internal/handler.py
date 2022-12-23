@@ -836,7 +836,7 @@ class HandleManager:
         """keepalive is a noop, we just want to verify transport is alive."""
         pass
 
-    def handle_request_sync_status(self, record: Record) -> None:
+    def handle_request_run_status(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
 
     def handle_request_shutdown(self, record: Record) -> None:

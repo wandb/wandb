@@ -13,7 +13,7 @@ import time
 import traceback
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import IntEnum
 from types import TracebackType
 from typing import (
@@ -45,7 +45,6 @@ from wandb.proto.wandb_internal_pb2 import (
     Result,
     RunRecord,
     ServerInfoResponse,
-    SyncStatusResponse,
 )
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -430,28 +429,10 @@ class _run_decorator:  # noqa: N801
 
 
 @dataclass
-class SyncStatus:
-    _sync_status_response: Optional[SyncStatusResponse] = field(
-        repr=False, default=None
-    )
-    synced_percentage: float = field(init=False, default=0.0)
-    synced_log_index: int = field(init=False, default=0)
-    current_log_index: int = field(init=False, default=0)
-    last_synced_time: str = field(
-        init=False, default=""
-    )  # todo: should it be datetime?
-    failed_sync: bool = field(init=False, default=False)
-
-    def __post_init__(self) -> None:
-        if self._sync_status_response is None:
-            self.failed_sync = True
-            return
-        self.synced_percentage = self._sync_status_response.synced_percentage
-        self.synced_log_index = self._sync_status_response.synced_log_index
-        self.current_log_index = self._sync_status_response.current_log_index
-        self.last_synced_time = (
-            self._sync_status_response.last_synced_time.ToJsonString()
-        )
+class RunStatus:
+    sync_items_total: int = field(default=0)
+    sync_items_pending: int = field(default=0)
+    sync_time: Optional[datetime] = field(default=None)
 
 
 class Run:
@@ -1952,18 +1933,24 @@ class Run:
         self._finish(exit_code=exit_code)
 
     @_run_decorator._attach
-    def sync_status(
+    def status(
         self,
-    ) -> SyncStatus:
+    ) -> RunStatus:
         """Get sync info from the internal backend, about the current run's sync status."""
-        if self._backend and self._backend.interface:
-            handle_sync_status = self._backend.interface.deliver_request_sync_status()
-            result = handle_sync_status.wait(timeout=-1)
-            sync_status_response = (
-                result.response.sync_status_response if result else None
-            )
-            return SyncStatus(sync_status_response)
-        return SyncStatus()
+        if not self._backend or not self._backend.interface:
+            return RunStatus()
+
+        handle_run_status = self._backend.interface.deliver_request_run_status()
+        result = handle_run_status.wait(timeout=-1)
+        assert result
+        sync_data = result.response.run_status_response
+
+        sync_time = None
+        return RunStatus(
+            sync_items_total=sync_data.sync_items_total,
+            sync_items_pending=sync_data.sync_items_pending,
+            sync_time=sync_time,
+        )
 
     @staticmethod
     def plot_table(

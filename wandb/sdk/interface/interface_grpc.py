@@ -417,13 +417,13 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
-    def _deliver_request_sync_status(
-        self, sync_status: pb.SyncStatusRequest
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         assert self._stub
-        self._assign(sync_status)
-        sync_status_response = self._stub.SyncStatus(sync_status)
-        response = pb.Response(sync_status_response=sync_status_response)
+        self._assign(run_status)
+        run_status_response = self._stub.RunStatus(run_status)
+        response = pb.Response(run_status_response=run_status_response)
         result = pb.Result(response=response)
         handle = self._deliver(result)
         return handle

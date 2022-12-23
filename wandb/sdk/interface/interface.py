@@ -825,12 +825,12 @@ class InterfaceBase:
     def _deliver_request_get_run(self, get_run: pb.GetRunRequest) -> MailboxHandle:
         raise NotImplementedError
 
-    def deliver_request_sync_status(self) -> MailboxHandle:
-        sync_status = pb.SyncStatusRequest()
-        return self._deliver_request_sync_status(sync_status)
+    def deliver_request_run_status(self) -> MailboxHandle:
+        run_status = pb.RunStatusRequest()
+        return self._deliver_request_run_status(run_status)
 
     @abstractmethod
-    def _deliver_request_sync_status(
-        self, sync_status: pb.SyncStatusRequest
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         raise NotImplementedError

@@ -132,13 +132,13 @@ class WriteManager:
             return write_request_handler(record)
         self._write(record)
 
-    def write_request_sync_status(self, record: "pb.Record") -> None:
+    def write_request_run_status(self, record: "pb.Record") -> None:
         result = proto_util._result_from_record(record)
         if self._sender_status_report:
-            result.response.sync_status_response.last_synced_time.CopyFrom(
-                self._sender_status_report.last_synced_time
+            result.response.run_status_response.sync_time.CopyFrom(
+                self._sender_status_report.sync_time
             )
-        # TODO(mempressure): add logic to populate sync_status_response
+        # TODO(mempressure): add logic to populate run_status_response
         self._respond_result(result)
 
     def write_request_sender_status_report(self, record: "pb.Record") -> None:

@@ -378,11 +378,11 @@ class SendManager:
         if offset < self._sender_status_last + self._sender_status_threshold:
             return
         self._sender_status_last = offset
+        # TODO(mempressure): implement
         status_report = wandb_internal_pb2.SenderStatusReportRequest(
-            _synced_offset=offset
         )
         status_time = time.time()
-        status_report.last_synced_time.FromMicroseconds(int(status_time * 1e6))
+        status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
         request = wandb_internal_pb2.Request()
         request.sender_status_report.CopyFrom(status_report)
         record = wandb_internal_pb2.Record()

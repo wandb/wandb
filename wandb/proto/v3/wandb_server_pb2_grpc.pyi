@@ -50,9 +50,9 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.ShutdownRequest,
         wandb.proto.wandb_internal_pb2.ShutdownResponse,
     ]
-    SyncStatus: grpc.UnaryUnaryMultiCallable[
-        wandb.proto.wandb_internal_pb2.SyncStatusRequest,
-        wandb.proto.wandb_internal_pb2.SyncStatusResponse,
+    RunStatus: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.RunStatusRequest,
+        wandb.proto.wandb_internal_pb2.RunStatusResponse,
     ]
     RunExit: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.RunExitRecord,
@@ -238,11 +238,11 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ShutdownResponse: ...
     @abc.abstractmethod
-    def SyncStatus(
+    def RunStatus(
         self,
-        request: wandb.proto.wandb_internal_pb2.SyncStatusRequest,
+        request: wandb.proto.wandb_internal_pb2.RunStatusRequest,
         context: grpc.ServicerContext,
-    ) -> wandb.proto.wandb_internal_pb2.SyncStatusResponse: ...
+    ) -> wandb.proto.wandb_internal_pb2.RunStatusResponse: ...
     @abc.abstractmethod
     def RunExit(
         self,
