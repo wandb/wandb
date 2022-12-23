@@ -6,6 +6,7 @@ import hashlib
 import os
 import random
 import tempfile
+from dataclasses import dataclass, field
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -21,6 +22,7 @@ from typing import (
 import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
+from wandb.sdk.lib import filesystem
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -89,7 +91,7 @@ def bytes_to_hex(bytestr):
 
 
 class ArtifactManifest:
-    entries: Dict[str, "ArtifactEntry"]
+    entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
     # TODO: we don't need artifact here.
@@ -130,7 +132,7 @@ class ArtifactManifest:
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
-    def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
+    def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
         return self.entries.get(path)
 
     def get_entries_in_directory(self, directory):
@@ -143,14 +145,22 @@ class ArtifactManifest:
         ]
 
 
-class ArtifactEntry:
+@dataclass
+class ArtifactManifestEntry:
     path: util.LogicalFilePathStr
-    ref: Optional[Union[util.FilePathStr, util.URIStr]]
     digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag]
-    birth_artifact_id: Optional[str]
-    size: Optional[int]
-    extra: Dict
-    local_path: Optional[str]
+    ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
+    birth_artifact_id: Optional[str] = None
+    size: Optional[int] = None
+    extra: Dict = field(default_factory=dict)
+    local_path: Optional[str] = None
+
+    def __post_init__(self):
+        self.path = util.to_forward_slash_path(self.path)
+        if self.extra is None:
+            self.extra = {}
+        if self.local_path and self.size is None:
+            raise ValueError("size required when local_path specified")
 
     def parent_artifact(self) -> "Artifact":
         """
@@ -183,7 +193,9 @@ class ArtifactEntry:
         Raises:
             ValueError: If this artifact entry was not a reference.
         """
-        raise NotImplementedError
+        if self.ref is None:
+            raise ValueError("Only reference entries support ref_target().")
+        return self.ref
 
     def ref_url(self) -> str:
         """
@@ -460,7 +472,7 @@ class Artifact:
 
     def add_reference(
         self,
-        uri: Union[ArtifactEntry, str],
+        uri: Union[ArtifactManifestEntry, str],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -557,7 +569,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> ArtifactEntry:
+    def get_path(self, name: str) -> ArtifactManifestEntry:
         """
         Gets the path to the file located at the artifact relative `name`.
 
@@ -806,7 +818,7 @@ class StoragePolicy:
         pass
 
     def load_file(
-        self, artifact: Artifact, name: str, manifest_entry: ArtifactEntry
+        self, artifact: Artifact, name: str, manifest_entry: ArtifactManifestEntry
     ) -> str:
         raise NotImplementedError
 
@@ -814,7 +826,7 @@ class StoragePolicy:
         self,
         artifact_id: str,
         artifact_manifest_id: str,
-        entry: ArtifactEntry,
+        entry: ArtifactManifestEntry,
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
@@ -829,7 +841,7 @@ class StoragePolicy:
         self,
         artifact: Artifact,
         name: str,
-        manifest_entry: ArtifactEntry,
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> str:
         raise NotImplementedError
@@ -847,7 +859,7 @@ class StorageHandler:
     def load_path(
         self,
         artifact: Artifact,
-        manifest_entry: ArtifactEntry,
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
         """
@@ -863,7 +875,7 @@ class StorageHandler:
 
     def store_path(
         self, artifact, path, name=None, checksum=True, max_objects=None
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Sequence[ArtifactManifestEntry]:
         """
         Stores the file or directory at the given path within the specified artifact.
 
@@ -883,7 +895,7 @@ class ArtifactsCache:
 
     def __init__(self, cache_dir):
         self._cache_dir = cache_dir
-        util.mkdir_exists_ok(self._cache_dir)
+        filesystem.mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id = {}
@@ -899,7 +911,7 @@ class ArtifactsCache:
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
-        util.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(os.path.dirname(path))
         return path, False, opener
 
     # TODO(spencerpearson): this method at least needs its signature changed.
@@ -918,7 +930,7 @@ class ArtifactsCache:
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
-        util.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(os.path.dirname(path))
         return path, False, opener
 
     def get_artifact(self, artifact_id):
@@ -1023,7 +1035,7 @@ def get_artifacts_cache() -> ArtifactsCache:
 
 def get_staging_dir() -> util.FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    util.mkdir_exists_ok(path)
+    filesystem.mkdir_exists_ok(path)
     return os.path.abspath(os.path.expanduser(path))
 
 
