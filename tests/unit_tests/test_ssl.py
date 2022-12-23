@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import ssl
 import threading
-from typing import Callable, Iterator, Mapping, Tuple, Type
+from typing import Callable, Iterator, Mapping
 from unittest.mock import patch
 
 import requests
@@ -35,7 +35,7 @@ def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
 @pytest.fixture(scope="session")
 def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
     class MyServer(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
+        def do_GET(self):  # noqa: N802
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"Hello, world!")
@@ -90,7 +90,9 @@ def test_disable_ssl(
 
     with disable_ssl_context():
         assert requests.get(url).status_code == 200
-        import urllib3; urllib3.connectionpool.HTTPSConnectionPool
+        import urllib3
+
+        urllib3.connectionpool.HTTPSConnectionPool
 
 
 @pytest.mark.parametrize(
