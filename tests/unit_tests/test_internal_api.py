@@ -83,7 +83,7 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
 
 def test_internal_api_with_no_write_global_config_dir():
     tempdir = tempfile.mkdtemp()
-    with patch.dict("os.environ", "WANDB_CONFIG_DIR", tempdir):
+    with patch.dict("os.environ", WANDB_CONFIG_DIR=tempdir):
         os.chmod(tempdir, 0o444)
         internal.InternalApi()
 
