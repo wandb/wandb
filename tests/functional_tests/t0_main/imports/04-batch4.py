@@ -10,6 +10,7 @@ plugin:
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
+    - scikit-learn
     - "-r 04-batch4-requirements.txt"
 assert:
   - :wandb:runs_len: 1
