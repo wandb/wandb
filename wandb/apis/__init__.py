@@ -2,8 +2,7 @@
 api.
 """
 
-import contextlib
-import os
+from typing import Callable
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
@@ -11,8 +10,7 @@ from urllib3.exceptions import InsecureRequestWarning
 from wandb import env, termwarn, util
 
 
-@contextlib.contextmanager
-def _disable_ssl():
+def _disable_ssl() -> Callable[[], None]:
     # Because third party libraries may also use requests, we monkey patch it globally
     # and turn off urllib3 warnings instead printing a global warning to the user.
     termwarn(
@@ -31,13 +29,14 @@ def _disable_ssl():
 
     requests.Session.merge_environment_settings = merge_environment_settings
 
-    yield
+    def reset():
+        requests.Session.merge_environment_settings = old_merge_environment_settings
 
-    requests.Session.merge_environment_settings = old_merge_environment_settings
+    return reset
 
 
 if env.ssl_disabled():
-    _disable_ssl().__enter__()
+    _disable_ssl()
 
 
 reset_path = util.vendor_setup()

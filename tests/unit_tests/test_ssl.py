@@ -34,7 +34,6 @@ def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
 
 @pytest.fixture(scope="session")
 def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
-
     class MyServer(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -62,7 +61,7 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
         ({}, False),
         ({"WANDB_INSECURE_DISABLE_SSL": "false"}, False),
         ({"WANDB_INSECURE_DISABLE_SSL": "true"}, True),
-    ]
+    ],
 )
 def test_check_ssl_disabled(
     env: Mapping[str, str],
@@ -70,6 +69,15 @@ def test_check_ssl_disabled(
 ):
     with patch.dict("os.environ", env):
         assert expect_disabled == wandb.env.ssl_disabled()
+
+
+@contextlib.contextmanager
+def disable_ssl_context():
+    reset = wandb.apis._disable_ssl()
+    try:
+        yield
+    finally:
+        reset()
 
 
 def test_disable_ssl(
@@ -80,11 +88,9 @@ def test_disable_ssl(
     with pytest.raises(requests.exceptions.SSLError):
         requests.get(url)
 
-    with wandb.apis._disable_ssl():
+    with disable_ssl_context():
         assert requests.get(url).status_code == 200
         import urllib3; urllib3.connectionpool.HTTPSConnectionPool
-
-
 
 
 @pytest.mark.parametrize(
@@ -92,7 +98,7 @@ def test_disable_ssl(
     [
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
-    ]
+    ],
 )
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
