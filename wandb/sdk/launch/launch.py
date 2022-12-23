@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
+import pprint
 
 import wandb
 from wandb.apis.internal import Api
@@ -15,6 +16,7 @@ from .builder.build import construct_builder_args
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
+    LOG_PREFIX,
     DEFAULT_CONFIG_FILE,
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_DOCKER_ARGS,
@@ -72,6 +74,8 @@ def resolve_agent_config(
         with open(os.path.expanduser(config_path)) as f:
             try:
                 config = yaml.safe_load(f)
+                wandb.termlog(f"{LOG_PREFIX}Loading agent config from {config_path}:")
+                wandb.termlog(f"{pprint.pformat(config)}")
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
         if config.get("project") is not None:
