@@ -4773,10 +4773,10 @@ class Artifact(artifacts.Artifact):
             print("Warning: skipped verification of %s refs" % ref_count)
 
     def file(self, root=None):
-        """Download a single file artifact to dir specified by the <root>
+        """Download a single file artifact to dir specified by the root
 
         Arguments:
-            root: (str, optional) The root directory in which to place the file. Defaults to './artifacts/<self.name>/'.
+            root: (str, optional) The root directory in which to place the file. Defaults to './artifacts/self.name/'.
 
         Returns:
             (str): The full path of the downloaded file.
