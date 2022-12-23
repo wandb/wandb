@@ -13,6 +13,7 @@ from wandb.sdk.interface.artifacts import (
     ArtifactManifestEntry,
     get_staging_dir,
 )
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 
 if sys.version_info >= (3, 8):
     from typing import Protocol
@@ -203,7 +204,7 @@ class ArtifactSaver:
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
-            digest = wandb.util.md5_file(path)
+            digest = md5_file_b64(path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
@@ -271,7 +272,7 @@ class ArtifactSaver:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = util.URIStr(
                         "wandb-artifact://{}/{}".format(
-                            util.b64_to_hex_id(artifact_id), artifact_file_path
+                            b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )
                     )
 
