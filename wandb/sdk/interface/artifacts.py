@@ -186,6 +186,15 @@ class Artifact:
         raise NotImplementedError
 
     @property
+    def source_version(self) -> Optional[str]:
+        """
+        Returns:
+            (str) The artifact's version index under its parent artifact collection. This will return
+            a string with the format "v{number}".
+        """
+        raise NotImplementedError
+
+    @property
     def name(self) -> str:
         """
         Returns:
