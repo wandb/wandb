@@ -90,9 +90,6 @@ def test_disable_ssl(
 
     with disable_ssl_context():
         assert requests.get(url).status_code == 200
-        import urllib3
-
-        urllib3.connectionpool.HTTPSConnectionPool
 
 
 @pytest.mark.parametrize(
