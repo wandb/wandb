@@ -52,6 +52,7 @@ from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
 from wandb.sdk.lib import filesystem, ipython, retry
+from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -4147,7 +4148,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
     def ref_url(self):
         return (
             "wandb-artifact://"
-            + util.b64_to_hex_id(self._parent_artifact.id)
+            + b64_to_hex_id(self._parent_artifact.id)
             + "/"
             + self.name
         )
@@ -4785,10 +4786,7 @@ class Artifact(artifacts.Artifact):
 
         for entry in manifest.entries.values():
             if entry.ref is None:
-                if (
-                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
-                    != entry.digest
-                ):
+                if md5_file_b64(os.path.join(dirpath, entry.path)) != entry.digest:
                     raise ValueError("Digest mismatch for file: %s" % entry.path)
             else:
                 ref_count += 1
@@ -5146,7 +5144,7 @@ class Artifact(artifacts.Artifact):
     def _get_ref_artifact_from_entry(self, entry):
         """Helper function returns the referenced artifact from an entry"""
         artifact_id = util.host_from_path(entry.ref)
-        return Artifact.from_id(util.hex_to_b64_id(artifact_id), self.client)
+        return Artifact.from_id(hex_to_b64_id(artifact_id), self.client)
 
     def used_by(self):
         """Retrieves the runs which use this artifact directly
