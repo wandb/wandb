@@ -13,7 +13,7 @@ depend:
     - -f
     - https://download.pytorch.org/whl/cpu/torch_stable.html
     - -f
-    - https://data.pyg.org/whl/torch-1.13.1+cpu.html
+    - https://data.pyg.org/whl/torch-1.13.0+cpu.html
   requirements:
     - torch
     - torch-cluster
