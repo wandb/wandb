@@ -1,11 +1,7 @@
-import base64
-import binascii
-import codecs
 import colorsys
 import contextlib
 import functools
 import gzip
-import hashlib
 import importlib
 import importlib.util
 import json
@@ -70,11 +66,6 @@ if TYPE_CHECKING:
     import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
-
-ETag = NewType("ETag", str)
-RawMD5 = NewType("RawMD5", bytes)
-HexMD5 = NewType("HexMD5", str)
-B64MD5 = NewType("B64MD5", str)
 
 # `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
 # It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
@@ -1120,14 +1111,6 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def md5_file(path: str) -> B64MD5:
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
-
-
 def get_log_file_path() -> str:
     """Log file path used in error messages.
 
@@ -1495,10 +1478,6 @@ def to_native_slash_path(path: str) -> FilePathStr:
     return FilePathStr(path.replace("/", os.sep))
 
 
-def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
-    return codecs.getencoder("hex")(bytestr)[0].decode("ascii")  # type: ignore
-
-
 def check_and_warn_old(files: List[str]) -> bool:
     if "wandb-metadata.json" in files:
         wandb.termwarn("These runs were logged with a previous version of wandb.")
@@ -1557,14 +1536,6 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
         _import_hook = ImportMetaHook()
         _import_hook.install()
     _import_hook.add(fullname, on_import)
-
-
-def b64_to_hex_id(id_string: Any) -> str:
-    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
-
-
-def hex_to_b64_id(encoded_string: Union[str, bytes]) -> str:
-    return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
 
 
 def host_from_path(path: Optional[str]) -> str:

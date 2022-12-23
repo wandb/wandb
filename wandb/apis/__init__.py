@@ -2,8 +2,8 @@
 api.
 """
 
-import contextlib
 import os
+from typing import Callable
 
 import httpx
 import requests
@@ -12,8 +12,7 @@ from urllib3.exceptions import InsecureRequestWarning
 from wandb import env, termwarn, util
 
 
-@contextlib.contextmanager
-def _disable_ssl():
+def _disable_ssl() -> Callable[[], None]:
     # Because third party libraries may also use requests, we monkey patch it globally
     # and turn off urllib3 warnings instead printing a global warning to the user.
     termwarn(
@@ -35,18 +34,18 @@ def _disable_ssl():
     old_load_ssl_context_verify = httpx._config.SSLConfig.load_ssl_context_verify
     httpx._config.SSLConfig.load_ssl_context_verify = httpx._config.SSLConfig.load_ssl_context_no_verify
 
-    yield
+    def reset():
+        requests.Session.merge_environment_settings = old_merge_environment_settings
+        httpx._config.SSLConfig.load_ssl_context_verify = old_load_ssl_context_verify
 
-    requests.Session.merge_environment_settings = old_merge_environment_settings
-    httpx._config.SSLConfig.load_ssl_context_verify = old_load_ssl_context_verify
+    return reset
 
 
 if env.ssl_disabled():
-    _disable_ssl().__enter__()
+    _disable_ssl()
 
 
-@contextlib.contextmanager
-def _mirror_http_lib_cert_env_vars():
+def _mirror_http_lib_cert_env_vars() -> Callable[[], None]:
     orig_ssl_cert_file = os.environ.get("SSL_CERT_FILE")
     orig_ssl_cert_dir = os.environ.get("SSL_CERT_DIR")
     orig_requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE")
@@ -62,21 +61,21 @@ def _mirror_http_lib_cert_env_vars():
         elif orig_ssl_cert_dir and os.path.exists(os.path.realpath(orig_ssl_cert_dir)):
             os.environ["REQUESTS_CA_BUNDLE"] = orig_ssl_cert_dir
 
-    yield
+    def reset():
+        for name, orig in [
+            ("SSL_CERT_FILE", orig_ssl_cert_file),
+            ("SSL_CERT_DIR", orig_ssl_cert_dir),
+            ("REQUESTS_CA_BUNDLE", orig_requests_ca_bundle),
+        ]:
+            if orig is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = orig
 
-    for name, orig in [
-        ("SSL_CERT_FILE", orig_ssl_cert_file),
-        ("SSL_CERT_DIR", orig_ssl_cert_dir),
-        ("REQUESTS_CA_BUNDLE", orig_requests_ca_bundle),
-    ]:
-        if orig is None:
-            os.environ.pop(name, None)
-        else:
-            os.environ[name] = orig
+    return reset
 
 
-_mirror_http_lib_cert_env_vars().__enter__()
-
+_mirror_http_lib_cert_env_vars()
 
 reset_path = util.vendor_setup()
 

@@ -1,4 +1,5 @@
 pytest
+hypothesis
 coverage
 Pillow
 pandas
