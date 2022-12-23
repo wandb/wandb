@@ -1104,7 +1104,7 @@ def test_manifest_json_version():
 @pytest.mark.parametrize("version", ["1", 1.0])
 def test_manifest_version_is_integer(version):
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
-    with pytest.raises(TypeError) as e:
+    with pytest.raises(TypeError):
         pd_manifest.version = version
 
 
