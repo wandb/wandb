@@ -1,2 +1,2 @@
-__all__ = ["ArtifactSaver", "SaveFn"]
-from .artifact_saver import ArtifactSaver, SaveFn
+__all__ = ["ArtifactSaver"]
+from .artifact_saver import ArtifactSaver

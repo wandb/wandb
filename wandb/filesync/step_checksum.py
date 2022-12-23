@@ -3,20 +3,35 @@
 import os
 import queue
 import shutil
+import sys
 import threading
-from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Union, cast
 
 from wandb import util
 from wandb.filesync import dir_watcher, step_upload
 from wandb.sdk.lib import filesystem
+
+if sys.version_info >= (3, 8):
+    from typing import Protocol
+else:
+    from typing_extensions import Protocol
 
 if TYPE_CHECKING:
     import tempfile
 
     from wandb.filesync import stats
     from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifacts as internal_artifacts
-    from wandb.sdk.internal import internal_api
+    from wandb.sdk.internal import internal_api, progress
+
+    # Danger! This is *not* the same as step_upload.SaveFn.
+    # TODO: fix the naming of these two functions.
+    class SaveFn(Protocol):
+        def __call__(
+            self,
+            entry: artifacts.ArtifactManifestEntry,
+            progress_callback: progress.ProgressFn,
+        ) -> Any:
+            pass
 
 
 class RequestUpload(NamedTuple):
@@ -28,7 +43,7 @@ class RequestUpload(NamedTuple):
 class RequestStoreManifestFiles(NamedTuple):
     manifest: "artifacts.ArtifactManifest"
     artifact_id: str
-    save_fn: "internal_artifacts.SaveFn"
+    save_fn: "SaveFn"
 
 
 class RequestCommitArtifact(NamedTuple):
@@ -100,7 +115,7 @@ class StepChecksum:
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(
-                            save_fn: "internal_artifacts.SaveFn",
+                            save_fn: "SaveFn",
                             entry: "artifacts.ArtifactManifestEntry",
                         ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(

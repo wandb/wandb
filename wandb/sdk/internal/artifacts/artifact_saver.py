@@ -1,36 +1,18 @@
 import json
 import os
-import sys
 import tempfile
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
 from wandb import util
-from wandb.sdk.interface.artifacts import (
-    ArtifactManifest,
-    ArtifactManifestEntry,
-    get_staging_dir,
-)
+from wandb.sdk.interface.artifacts import ArtifactManifest, get_staging_dir
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol
-else:
-    from typing_extensions import Protocol
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.internal_api import Api as InternalApi
-    from wandb.sdk.internal.progress import ProgressFn
-
-
-class SaveFn(Protocol):
-    def __call__(
-        self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
-    ) -> Any:
-        pass
 
 
 class ArtifactSaver:
