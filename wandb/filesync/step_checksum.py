@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
 import wandb.util
 from wandb.filesync import dir_watcher, step_upload
+from wandb.sdk.lib import filesystem
 
 if TYPE_CHECKING:
     import tempfile
@@ -74,7 +75,7 @@ class StepChecksum:
                         self._tempdir.name,
                         f"{wandb.util.generate_id()}-{req.save_name}",
                     )
-                    wandb.util.mkdir_exists_ok(os.path.dirname(path))
+                    filesystem.mkdir_exists_ok(os.path.dirname(path))
                     try:
                         # certain linux distros throw an exception when copying
                         # large files: https://bugs.python.org/issue43743
@@ -100,7 +101,7 @@ class StepChecksum:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(
                             save_fn: "internal_artifacts.SaveFn",
-                            entry: "artifacts.ArtifactEntry",
+                            entry: "artifacts.ArtifactManifestEntry",
                         ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(
                                 entry, progress_callback
