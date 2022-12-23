@@ -53,9 +53,6 @@ NEURON_MONITOR_DEFAULT_CONFIG: Final[dict] = {
 
 NEURON_LS_COMMAND = ["neuron-ls"]
 NEURON_MONITOR_COMMAND = ["neuron-monitor"]
-# debug:
-# NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
-# NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
 
 
 @dataclasses.dataclass
@@ -130,7 +127,6 @@ class NeuronCoreStats:
 
     def __init__(self, pid: int, neuron_monitor_config: str) -> None:
         self.pid = pid
-        # self.pid = 16851  # debug
         # neuron-monitor requires a config file (json)
         self.neuron_monitor_config = neuron_monitor_config
         self.raw_samples: "Deque[bytes]" = deque(maxlen=10)
@@ -147,8 +143,6 @@ class NeuronCoreStats:
     def sample(self) -> None:
         try:
             raw_stats = json.loads(self.raw_samples[-1])
-            # if "neuron_runtime_data" not in raw_stats:
-            #     return None
             neuron_runtime_data = [
                 entry["report"]
                 for entry in raw_stats["neuron_runtime_data"]
@@ -191,9 +185,6 @@ class NeuronCoreStats:
             self.samples.append(stats)
 
         except Exception as e:  # noqa
-            # logger.exception(f"Neuron core stats error: {e}")
-            # import traceback
-            # print(traceback.format_exc())
             pass
 
     def clear(self) -> None:
