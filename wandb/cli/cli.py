@@ -1009,14 +1009,14 @@ def sweep(
 
 @cli.command(
     help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
+    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
 @click.argument("uri", nargs=1, required=False)
 @click.option(
     "--job",
     "-j",
-    metavar="<str>",
+    metavar="(str)",
     default=None,
     help="Name of the job to launch. If passed in, launch does not require a uri.",
 )
@@ -1054,7 +1054,7 @@ def sweep(
 @click.option(
     "--entity",
     "-e",
-    metavar="<str>",
+    metavar="(str)",
     default=None,
     help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
     "If passed in, will override the entity value passed in using a config file.",
@@ -1062,7 +1062,7 @@ def sweep(
 @click.option(
     "--project",
     "-p",
-    metavar="<str>",
+    metavar="(str)",
     default=None,
     help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
     "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",

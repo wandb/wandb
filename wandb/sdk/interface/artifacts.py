@@ -186,6 +186,15 @@ class Artifact:
         raise NotImplementedError
 
     @property
+    def source_version(self) -> Optional[str]:
+        """
+        Returns:
+            (str) The artifact's version index under its parent artifact collection. This will return
+            a string with the format "v{number}".
+        """
+        raise NotImplementedError
+
+    @property
     def name(self) -> str:
         """
         Returns:
@@ -632,7 +641,7 @@ class Artifact:
 
         Arguments:
             root: (str, optional) The directory to verify. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
+                artifact will be downloaded to './artifacts/self.name/'
 
         Raises:
             (ValueError): If the verification fails.
