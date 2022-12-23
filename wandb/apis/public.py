@@ -48,11 +48,10 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
-from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
-from wandb.sdk.lib import ipython, retry
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
+from wandb.sdk.lib import filesystem, ipython, retry
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -872,7 +871,13 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_name, run_queue_item_id, container_job=False
+        self,
+        entity,
+        project,
+        queue_name,
+        run_queue_item_id,
+        container_job=False,
+        project_queue=None,
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -884,6 +889,7 @@ class Api:
             queue_name,
             run_queue_item_id,
             container_job=container_job,
+            project_queue=project_queue,
         )
 
     @normalize_exceptions
@@ -2200,6 +2206,8 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
+            from wandb.old.summary import HTTPSummary
+
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
         return self._summary
@@ -2270,6 +2278,7 @@ class QueuedRun:
         queue_name,
         run_queue_item_id,
         container_job=False,
+        project_queue=LAUNCH_DEFAULT_PROJECT,
     ):
         self.client = client
         self._entity = entity
@@ -2279,6 +2288,7 @@ class QueuedRun:
         self.sweep = None
         self._run = None
         self.container_job = container_job
+        self.project_queue = project_queue
 
     @property
     def queue_name(self):
@@ -2328,7 +2338,7 @@ class QueuedRun:
             """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
         }
@@ -2356,7 +2366,7 @@ class QueuedRun:
         """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
             "itemId": self.id,
@@ -2402,7 +2412,7 @@ class QueuedRun:
             query,
             variable_values={
                 "entityName": self.entity,
-                "projectName": self.project,
+                "projectName": self.project_queue,
                 "runQueueName": self.queue_name,
             },
         )
@@ -4066,23 +4076,24 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
-class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
+class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
     def __init__(
-        self, name: str, entry: "artifacts.ArtifactEntry", parent_artifact: "Artifact"
+        self,
+        name: str,
+        entry: "artifacts.ArtifactManifestEntry",
+        parent_artifact: "Artifact",
     ):
+        super().__init__(
+            path=entry.path,
+            digest=entry.digest,
+            ref=entry.ref,
+            birth_artifact_id=entry.birth_artifact_id,
+            size=entry.size,
+            extra=entry.extra,
+            local_path=entry.local_path,
+        )
         self.name = name
-        self.entry = entry
         self._parent_artifact = parent_artifact
-
-        # Have to copy over a bunch of variables to get this ArtifactEntry interface
-        # to work properly
-        self.path = entry.path
-        self.ref = entry.ref
-        self.digest = entry.digest
-        self.birth_artifact_id = entry.birth_artifact_id
-        self.size = entry.size
-        self.extra = entry.extra
-        self.local_path = entry.local_path
 
     def parent_artifact(self):
         return self._parent_artifact
@@ -4098,7 +4109,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
             or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
         )
         if need_copy:
-            util.mkdir_exists_ok(os.path.dirname(target_path))
+            filesystem.mkdir_exists_ok(os.path.dirname(target_path))
             # We use copy2, which preserves file metadata including modified
             # time (which we use above to check whether we should do the copy).
             shutil.copy2(cache_path, target_path)
@@ -4108,7 +4119,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
         manifest = self._parent_artifact._load_manifest()
-        if self.entry.ref is not None:
+        if self.ref is not None:
             cache_path = manifest.storage_policy.load_reference(
                 self._parent_artifact,
                 self.name,
@@ -4124,7 +4135,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
 
     def ref_target(self):
         manifest = self._parent_artifact._load_manifest()
-        if self.entry.ref is not None:
+        if self.ref is not None:
             return manifest.storage_policy.load_reference(
                 self._parent_artifact,
                 self.name,
@@ -4656,7 +4667,7 @@ class Artifact(artifacts.Artifact):
             if wb_class == wandb.Table:
                 self.download(recursive=True)
 
-            # Get the ArtifactEntry
+            # Get the ArtifactManifestEntry
             item = self.get_path(entry.path)
             item_path = item.download()
 
@@ -5105,7 +5116,7 @@ class Artifact(artifacts.Artifact):
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
-        """Helper function determines if an ArtifactEntry in manifest is an artifact reference"""
+        """Helper function determines if an ArtifactManifestEntry in manifest is an artifact reference"""
         return (
             entry.ref is not None
             and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
@@ -5511,6 +5522,7 @@ class Job:
         resource="local-container",
         resource_args=None,
         cuda=False,
+        project_queue=None,
     ):
         from wandb.sdk.launch import launch_add
 
@@ -5534,6 +5546,7 @@ class Job:
             entity=entity or self._entity,
             queue_name=queue,
             resource=resource,
+            project_queue=project_queue,
             resource_args=resource_args,
             cuda=cuda,
         )
