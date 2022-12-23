@@ -8,7 +8,7 @@ tag:
 plugin:
   - wandb
 depend:
-  pip_install_timeout: 1500  # 25m
+  pip_install_timeout: 600  # 10m
   requirements:
     - scikit-learn
     - "-r 04-batch4-requirements.txt"
@@ -60,5 +60,5 @@ import spacy  # noqa: F401
 import wandb
 
 run = wandb.init()
-wandb.log(dict(loss=1))
+run.log(dict(loss=1))
 run.finish()
