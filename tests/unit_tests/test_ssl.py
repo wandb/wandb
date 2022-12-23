@@ -1,7 +1,6 @@
 import contextlib
 import dataclasses
 import http.server
-import os
 from pathlib import Path
 import ssl
 import threading
@@ -126,7 +125,7 @@ def mirror_http_lib_cert_env_vars_context():
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
         lambda certpath: {"SSL_CERT_FILE": str(certpath)},
         lambda certpath: {"SSL_CERT_DIR": str(certpath.parent)},
-    ]
+    ],
 )
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,

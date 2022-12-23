@@ -32,7 +32,9 @@ def _disable_ssl() -> Callable[[], None]:
     requests.Session.merge_environment_settings = merge_environment_settings
 
     old_load_ssl_context_verify = httpx._config.SSLConfig.load_ssl_context_verify
-    httpx._config.SSLConfig.load_ssl_context_verify = httpx._config.SSLConfig.load_ssl_context_no_verify
+    httpx._config.SSLConfig.load_ssl_context_verify = (
+        httpx._config.SSLConfig.load_ssl_context_no_verify
+    )
 
     def reset():
         requests.Session.merge_environment_settings = old_merge_environment_settings
@@ -50,7 +52,9 @@ def _mirror_http_lib_cert_env_vars() -> Callable[[], None]:
     orig_ssl_cert_dir = os.environ.get("SSL_CERT_DIR")
     orig_requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE")
 
-    if orig_requests_ca_bundle and os.path.exists(os.path.realpath(orig_requests_ca_bundle)):
+    if orig_requests_ca_bundle and os.path.exists(
+        os.path.realpath(orig_requests_ca_bundle)
+    ):
         if os.path.isdir(os.path.realpath(orig_requests_ca_bundle)):
             os.environ["SSL_CERT_DIR"] = orig_requests_ca_bundle
         else:
