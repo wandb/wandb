@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, Union
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
@@ -79,6 +79,13 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             assert response is not None
         else:
             assert response is None
+
+
+def test_internal_api_with_no_write_global_config_dir():
+    tempdir = tempfile.mkdtemp()
+    with patch.dict("os.environ", "WANDB_CONFIG_DIR", tempdir):
+        os.chmod(tempdir, 0o444)
+        internal.InternalApi()
 
 
 @pytest.fixture
