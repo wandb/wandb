@@ -51,11 +51,11 @@ NEURON_MONITOR_DEFAULT_CONFIG: Final[dict] = {
 }
 
 
-# NEURON_LS_COMMAND = ["neuron-ls"]
-# NEURON_MONITOR_COMMAND = ["neuron-monitor"]
-# fixme:
-NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
-NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
+NEURON_LS_COMMAND = ["neuron-ls"]
+NEURON_MONITOR_COMMAND = ["neuron-monitor"]
+# debug:
+# NEURON_LS_COMMAND = ["ls", "-lhtr", "/"]
+# NEURON_MONITOR_COMMAND = ["/Users/dimaduev/dev/client/time"]
 
 
 @dataclasses.dataclass
@@ -88,7 +88,7 @@ class _Stats:
 
 class NeuronCoreStats:
     """
-    AWS Trainium stats per Neuron Core.
+    AWS Trainium stats.
     """
 
     name: str = "trn.{key}"
@@ -111,23 +111,26 @@ class NeuronCoreStats:
     def neuron_monitor(self) -> None:
         self.check_neuron_monitor_config()
 
-        popen = subprocess.Popen(
-            NEURON_MONITOR_COMMAND + ["-c", self.neuron_monitor_config],
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=None,
-        )
-        while not self.shutdown_event.is_set():
-            if popen.stdout is None:
-                continue
+        try:
+            popen = subprocess.Popen(
+                NEURON_MONITOR_COMMAND + ["-c", self.neuron_monitor_config],
+                shell=False,
+                stdout=subprocess.PIPE,
+                stderr=None,
+            )
+            while not self.shutdown_event.is_set():
+                if popen.stdout is None:
+                    continue
 
-            raw_data = popen.stdout.readline()
-            if raw_data:
-                self.raw_samples.append(raw_data)
+                raw_data = popen.stdout.readline()
+                if raw_data:
+                    self.raw_samples.append(raw_data)
+        except Exception as e:
+            logger.error("neuron-monitor failed: %s" % e)
 
     def __init__(self, pid: int, neuron_monitor_config: str) -> None:
-        # self.pid = pid
-        self.pid = 16851  # fixme
+        self.pid = pid
+        # self.pid = 16851  # debug
         # neuron-monitor requires a config file (json)
         self.neuron_monitor_config = neuron_monitor_config
         self.raw_samples: "Deque[bytes]" = deque(maxlen=10)
