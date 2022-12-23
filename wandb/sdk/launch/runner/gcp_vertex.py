@@ -241,7 +241,7 @@ def resolve_artifact_repo(
     """
 
     # If a full repo uri is specified, use that
-    registry_repo = registry_config.get("uri")
+    registry_repo = registry_config.get("url")
     if registry_repo:
         # TODO: Do some kind of validation that this repo is valid
         return registry_repo
@@ -253,7 +253,7 @@ def resolve_artifact_repo(
         raise LaunchError(
             "Vertex requires that you specify an Artifact Registry repository. "
             "Please specify a repo in your resource args under key artifact_repo or "
-            "in your launch agent registry config under key uri."
+            "in your launch agent registry config under key url."
         )
     repository = "/".join([docker_host, gcp_project, repo_name])
     # TODO: verify that this repo is valid
