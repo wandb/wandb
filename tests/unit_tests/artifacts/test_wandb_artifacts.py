@@ -1,5 +1,3 @@
-import base64
-import hashlib
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +13,7 @@ import wandb.data_types as data_types
 import wandb.sdk.interface as wandb_interface
 from wandb import util
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.lib.hashutil import md5_string
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -142,12 +141,6 @@ def mock_http(artifact, path=False, headers=None):
     return mock
 
 
-def md5_string(string: str) -> util.B64MD5:
-    hash_md5 = hashlib.md5()
-    hash_md5.update(string.encode())
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
-
-
 def test_unsized_manifest_entry():
     with pytest.raises(ValueError) as e:
         wandb_artifacts.ArtifactManifestEntry(
@@ -195,6 +188,14 @@ def test_add_new_file():
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
         "size": 5,
     }
+
+
+def test_add_after_finalize():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.finalize()
+    with pytest.raises(ValueError) as e:
+        artifact.add_file("file1.txt")
+    assert "Can't add to finalized artifact" in str(e.value)
 
 
 def test_add_new_file_encode_error(capsys):
