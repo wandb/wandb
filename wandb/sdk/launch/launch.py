@@ -72,7 +72,6 @@ def resolve_agent_config(
         with open(os.path.expanduser(config_path)) as f:
             try:
                 config = yaml.safe_load(f)
-                print(config)
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
         if config.get("project") is not None:
