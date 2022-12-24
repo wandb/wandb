@@ -47,13 +47,19 @@ from .interface.artifacts import (  # noqa: F401
     StorageHandler,
     StorageLayout,
     StoragePolicy,
-    b64_string_to_hex,
     get_artifacts_cache,
     get_new_staging_file,
+)
+from .lib import filesystem
+from .lib.hashutil import (
+    B64MD5,
+    ETag,
+    HexMD5,
+    b64_to_hex_id,
+    hex_to_b64_id,
     md5_file_b64,
     md5_string,
 )
-from .lib import filesystem
 
 if TYPE_CHECKING:
 
@@ -209,6 +215,13 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.id
 
         # The artifact hasn't been saved so an ID doesn't exist yet.
+        return None
+
+    @property
+    def source_version(self) -> Optional[str]:
+        if self._logged_artifact:
+            return self._logged_artifact.source_version
+
         return None
 
     @property
@@ -414,7 +427,7 @@ class Artifact(ArtifactInterface):
         if is_tmp:
             file_path, file_name = os.path.split(name)
             file_name_parts = file_name.split(".")
-            file_name_parts[0] = b64_string_to_hex(digest)[:20]
+            file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
         return self._add_local_file(name, local_path, digest=digest)
@@ -727,7 +740,7 @@ class Artifact(ArtifactInterface):
             raise ValueError("Can't add to finalized artifact.")
 
     def _add_local_file(
-        self, name: str, path: str, digest: Optional[util.B64MD5] = None
+        self, name: str, path: str, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
@@ -830,12 +843,12 @@ class ArtifactManifestV1(ArtifactManifest):
             "contents": contents,
         }
 
-    def digest(self) -> str:
+    def digest(self) -> HexMD5:
         hasher = hashlib.md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
             hasher.update(f"{name}:{entry.digest}\n".encode())
-        return hasher.hexdigest()
+        return HexMD5(hasher.hexdigest())
 
 
 class WandbStoragePolicy(StoragePolicy):
@@ -891,7 +904,7 @@ class WandbStoragePolicy(StoragePolicy):
         manifest_entry: ArtifactManifestEntry,
     ) -> str:
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -935,7 +948,7 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
-        md5_hex = util.bytes_to_hex(base64.b64decode(manifest_entry.digest))
+        md5_hex = b64_to_hex_id(B64MD5(manifest_entry.digest))
 
         if storage_layout == StorageLayout.V1:
             return "{}/artifacts/{}/{}".format(
@@ -1001,7 +1014,7 @@ class WandbStoragePolicy(StoragePolicy):
 
         # Cache upon successful upload.
         _, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(entry.digest),
+            B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
         if not hit:
@@ -1216,7 +1229,7 @@ class LocalFileHandler(StorageHandler):
             )
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1249,7 +1262,7 @@ class LocalFileHandler(StorageHandler):
         # Note, we follow symlinks for files contained within the directory
         entries = []
 
-        def md5(path: str) -> util.B64MD5:
+        def md5(path: str) -> B64MD5:
             return (
                 md5_file_b64(path)
                 if checksum
@@ -1368,7 +1381,7 @@ class S3Handler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
             util.URIStr(manifest_entry.ref),
-            util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1547,14 +1560,14 @@ class S3Handler(StorageHandler):
         return ArtifactManifestEntry(
             path=LogicalFilePathStr(str(posix_name)),
             ref=util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
-            digest=util.ETag(self._etag_from_obj(obj)),
+            digest=ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
         )
 
     @staticmethod
-    def _etag_from_obj(obj: "boto3.s3.Object") -> util.ETag:
-        etag: util.ETag
+    def _etag_from_obj(obj: "boto3.s3.Object") -> ETag:
+        etag: ETag
         etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
@@ -1630,7 +1643,7 @@ class GCSHandler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1814,7 +1827,7 @@ class HTTPHandler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
             util.URIStr(manifest_entry.ref),
-            util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1823,7 +1836,7 @@ class HTTPHandler(StorageHandler):
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
-        digest: Optional[Union[util.ETag, util.FilePathStr, util.URIStr]]
+        digest: Optional[Union[ETag, util.FilePathStr, util.URIStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
@@ -1851,7 +1864,7 @@ class HTTPHandler(StorageHandler):
 
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
-            digest: Optional[Union[util.ETag, util.FilePathStr, util.URIStr]]
+            digest: Optional[Union[ETag, util.FilePathStr, util.URIStr]]
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
         return [
@@ -1862,7 +1875,7 @@ class HTTPHandler(StorageHandler):
 
     def _entry_from_headers(
         self, headers: requests.structures.CaseInsensitiveDict
-    ) -> Tuple[Optional[util.ETag], Optional[int], Dict[str, str]]:
+    ) -> Tuple[Optional[ETag], Optional[int], Dict[str, str]]:
         response_headers = {k.lower(): v for k, v in headers.items()}
         size = None
         if response_headers.get("content-length", None):
@@ -1929,9 +1942,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_id = util.host_from_path(manifest_entry.ref)
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
 
-        dep_artifact = PublicArtifact.from_id(
-            util.hex_to_b64_id(artifact_id), self.client
-        )
+        dep_artifact = PublicArtifact.from_id(hex_to_b64_id(artifact_id), self.client)
         link_target_path: util.FilePathStr
         if local:
             link_target_path = dep_artifact.get_path(artifact_file_path).download()
@@ -1968,7 +1979,7 @@ class WBArtifactHandler(StorageHandler):
             artifact_id = util.host_from_path(path)
             artifact_file_path = util.uri_from_path(path)
             target_artifact = PublicArtifact.from_id(
-                util.hex_to_b64_id(artifact_id), self.client
+                hex_to_b64_id(artifact_id), self.client
             )
 
             # this should only have an effect if the user added the reference by url
@@ -1981,7 +1992,9 @@ class WBArtifactHandler(StorageHandler):
         # Create the path reference
         path = util.URIStr(
             "{}://{}/{}".format(
-                self._scheme, util.b64_to_hex_id(target_artifact.id), artifact_file_path
+                self._scheme,
+                b64_to_hex_id(target_artifact.id),
+                artifact_file_path,
             )
         )
 
