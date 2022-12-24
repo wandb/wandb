@@ -1,10 +1,14 @@
 import itertools
 import json
 import time
-from typing import Type
+import threading
 from unittest import mock
 
 import wandb
+
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.internal.system.assets import Trainium
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 from wandb.sdk.internal.system.assets.trainium import NeuronCoreStats
 
 
@@ -892,39 +896,60 @@ MOCK_DATA = [
 
 
 def neuron_monitor_mock(self: NeuronCoreStats):
+    """
+    Generate a stream of mock raw data for NeuronCoreStats to sample
+    """
     self.check_neuron_monitor_config()
 
     for data in itertools.cycle(MOCK_DATA):
-        raw_data = json.dumps(itertools.cycle(MOCK_DATA)).encode()
+        raw_data = json.dumps(data).encode()
 
         self.raw_samples.append(raw_data)
 
+        # this mimics the real neuron-monitor that can't go below 1 second:
         self.shutdown_event.wait(1)
 
 
-def is_available_mock(cls: NeuronCoreStats) -> bool:  # noqa
-    return True
-
-
 def _is_matching_entry_mock(self: NeuronCoreStats, entry: dict) -> bool:  # noqa
+    # bypass pid check on the mock data
     return True
 
 
-def test_trainium(wandb_init, relay_server):
+def test_trainium(test_settings):
     with mock.patch.multiple(
         "wandb.sdk.internal.system.assets.trainium.NeuronCoreStats",
         neuron_monitor=neuron_monitor_mock,
-        is_available=is_available_mock,
         _is_matching_entry=_is_matching_entry_mock,
-    ), relay_server as relay:
-        run = wandb_init(
-            settings=wandb.Settings(
-                _stats_sample_rate_seconds=1,
-                _stats_samples_to_average=1,
-            ),
+    ):
+        interface = AssetInterface()
+        settings = SettingsStatic(
+            test_settings(
+                dict(
+                    _stats_sample_rate_seconds=1,
+                    _stats_samples_to_average=1,
+                )
+            ).make_static()
         )
-        for _ in range(5):
-            time.sleep(1)
-        run.finish()
+        shutdown_event = threading.Event()
 
-    print(relay.context.events)
+        trainium = Trainium(
+            interface=interface,
+            settings=settings,
+            shutdown_event=shutdown_event,
+        )
+
+        assert not trainium.is_available()
+        with mock.patch.object(
+            wandb.sdk.internal.system.assets.trainium,
+            "NEURON_LS_COMMAND",
+            ["ls", "-lhtr", "/"],
+        ):
+            assert trainium.is_available()
+
+        trainium.start()
+        time.sleep(3)
+        shutdown_event.set()
+        trainium.finish()
+
+        assert not interface.metrics_queue.empty()
+        assert not interface.telemetry_queue.empty()
