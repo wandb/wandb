@@ -1,5 +1,6 @@
 import datetime
 import shlex
+import subprocess
 from typing import Any, Dict, Optional
 
 if False:
@@ -186,11 +187,17 @@ class VertexRunner(AbstractRunner):
 
 
 def get_gcp_config(config: str = "default") -> Any:
-    return yaml.safe_load(
-        run_shell(
+    try:
+        config_yaml = run_shell(
             ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
         )[0]
-    )
+        return yaml.safe_load(config_yaml)
+    except Exception as e:
+        wandb.termwarn(f"{LOG_PREFIX}Unable to read gcloud config for {config}")
+        wandb.termwarn(f"{LOG_PREFIX}Error: {e}")
+
+    # If we can't read the config, return an empty dict
+    return {"properties": {}}
 
 
 def resolve_gcp_region(resource_args, gcp_config, registry_config):
