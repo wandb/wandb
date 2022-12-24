@@ -109,7 +109,8 @@ class Settings:
         config_dir = os.environ.get(
             env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb")
         )
-        filesystem.mkdir_exists_ok(config_dir)
+        # filesystem.mkdir_exists_ok(config_dir)
+        os.makedirs(config_dir, exist_ok=True)
         return os.path.join(config_dir, "settings")
 
     @staticmethod
