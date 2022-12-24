@@ -12,6 +12,7 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_init import init as real_wandb_init
 from wandb.viz import custom_chart
 
@@ -29,6 +30,17 @@ def test_sagemaker_key():
     with open("secrets.env", "w") as f:
         f.write("WANDB_API_KEY={}".format("S" * 40))
     assert wandb.api.api_key == "S" * 40
+
+
+def test_sagemaker(wandb_init, git_repo, mock_sagemaker):
+    run = wandb_init()
+    run.finish()
+    assert run.config.foo == "bar"
+    assert run.id.startswith("sage-")
+    assert run.id.endswith("-maker")
+    assert run.group == "sage"
+    # TODO: add test for secret, but for now there is no env or setting for it so its not added.
+    # assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
 
 
 @pytest.mark.wandb_args(
@@ -427,7 +439,7 @@ def test_save_invalid_path(wandb_init):
     run = wandb_init()
     root = tempfile.gettempdir()
     test_path = os.path.join(root, "tmp", "test.txt")
-    wandb.util.mkdir_exists_ok(os.path.dirname(test_path))
+    filesystem.mkdir_exists_ok(os.path.dirname(test_path))
     with open(test_path, "w") as f:
         f.write("something")
     with pytest.raises(ValueError):
@@ -494,7 +506,7 @@ def test_save_relative_path(mock_run, parse_records, record_q):
     root = tempfile.gettempdir()
     test_path = os.path.join(root, "tmp", "test.txt")
     print("DAMN", os.path.dirname(test_path))
-    wandb.util.mkdir_exists_ok(os.path.dirname(test_path))
+    filesystem.mkdir_exists_ok(os.path.dirname(test_path))
     with open(test_path, "w") as f:
         f.write("something")
     run.save(test_path, base_path=root, policy="now")

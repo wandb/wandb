@@ -4,6 +4,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import filesystem
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -116,7 +117,7 @@ class Video(BatchableMedia):
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"):  # TF data eager tensors
-                self.data = data_or_path.numpy()  # type: ignore
+                self.data = data_or_path.numpy()
             elif util.is_numpy_array(data_or_path):
                 self.data = data_or_path
             else:
@@ -224,7 +225,7 @@ class Video(BatchableMedia):
         step: Union[int, str],
     ) -> dict:
         base_path = os.path.join(run.dir, cls.get_media_subdir())
-        util.mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
 
         meta = {
             "_type": "videos",

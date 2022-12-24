@@ -22,7 +22,7 @@ import threading
 import time
 import traceback
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import psutil
 
@@ -36,7 +36,6 @@ from . import handler, internal_util, sender, settings_static, writer
 if TYPE_CHECKING:
     from queue import Queue
     from threading import Event
-    from typing import Any, List, Optional
 
     from wandb.proto.wandb_internal_pb2 import Record, Result
 
@@ -51,8 +50,8 @@ def wandb_internal(
     settings: "SettingsDict",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
-    port: int = None,
-    user_pid: int = None,
+    port: Optional[int] = None,
+    user_pid: Optional[int] = None,
 ) -> None:
     """Internal process function entrypoint.
 
@@ -157,6 +156,12 @@ def wandb_internal(
     for thread in threads:
         thread.join()
 
+    def close_internal_log() -> None:
+        root = logging.getLogger("wandb")
+        for _handler in root.handlers[:]:
+            _handler.close()
+            root.removeHandler(_handler)
+
     for thread in threads:
         exc_info = thread.get_exception()
         if exc_info:
@@ -171,6 +176,8 @@ def wandb_internal(
                 os._exit(-1)
             sys.exit(-1)
 
+    close_internal_log()
+
 
 def _setup_tracelog() -> None:
     # TODO: remove this temporary hack, need to find a better way to pass settings
@@ -180,7 +187,9 @@ def _setup_tracelog() -> None:
         tracelog.enable(tracelog_mode)
 
 
-def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:
+def configure_logging(
+    log_fname: str, log_level: int, run_id: Optional[str] = None
+) -> None:
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")
@@ -360,9 +369,9 @@ class WriterThread(internal_util.RecordLoopThread):
 class ProcessCheck:
     """Class to help watch a process id to detect when it is dead."""
 
-    check_process_last: "Optional[float]"
+    check_process_last: Optional[float]
 
-    def __init__(self, settings: "SettingsStatic", user_pid: "Optional[int]") -> None:
+    def __init__(self, settings: "SettingsStatic", user_pid: Optional[int]) -> None:
         self.settings = settings
         self.pid = user_pid
         self.check_process_last = None

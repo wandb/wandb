@@ -35,6 +35,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -380,6 +381,7 @@ class Settings:
     _kaggle: bool
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
+    _log_level: int
     _noop: bool
     _offline: bool
     _os: str
@@ -394,6 +396,7 @@ class Settings:
     _stats_pid: int  # (internal) base pid for system stats
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
+    _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -520,8 +523,9 @@ class Settings:
             },
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
-            _stats_sample_rate_seconds={"value": 2.0},
+            _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
+            _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -1005,7 +1009,7 @@ class Settings:
         self.__unexpected_args: Set[str] = set()
 
         # Set default settings values
-        # We start off with the class attributes and `default_props`' dicts
+        # We start off with the class attributes and `default_props` dicts
         # and then create Property objects.
         # Once initialized, attributes are to only be updated using the `update` method
         default_props = self._default_props()
@@ -1218,7 +1222,7 @@ class Settings:
     def items(self) -> ItemsView[str, Any]:
         return self.make_static().items()
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.make_static().get(key, default)
 
     def freeze(self) -> None:
@@ -1393,7 +1397,12 @@ class Settings:
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
 
-        settings["_executable"] = sys.executable
+        # one special case here is running inside a PEX environment,
+        # see https://pex.readthedocs.io/en/latest/index.html for more info about PEX
+        _executable = self._executable or os.environ.get("PEX") or sys.executable
+        if _executable is None or _executable == "":
+            _executable = "python3"
+        settings["_executable"] = _executable
 
         settings["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
 
@@ -1517,7 +1526,7 @@ class Settings:
         # persist our run id in case of failure
         # check None for mypy
         if self.resume == "auto" and self.resume_fname is not None:
-            wandb.util.mkdir_exists_ok(self.wandb_dir)
+            filesystem.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 

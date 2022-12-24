@@ -9,6 +9,14 @@ import wandb.apis.public
 import wandb.util
 from wandb import Api
 
+from .test_wandb_sweep import (
+    SWEEP_CONFIG_BAYES,
+    SWEEP_CONFIG_GRID,
+    SWEEP_CONFIG_GRID_NESTED,
+    SWEEP_CONFIG_RANDOM,
+    VALID_SWEEP_CONFIGS_MINIMAL,
+)
+
 
 def test_api_auto_login_no_tty():
     with pytest.raises(wandb.UsageError):
@@ -202,3 +210,113 @@ def test_artifact_download_logger():
             assert termlog.call_args == call
         else:
             termlog.assert_not_called()
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+def test_sweep_api(user, relay_server, sweep_config):
+    _project = "test"
+    with relay_server():
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    print(f"sweep_id{sweep_id}")
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+    assert sweep.entity == user
+    assert f"{user}/{_project}/sweeps/{sweep_id}" in sweep.url
+    assert sweep.state == "PENDING"
+    assert str(sweep) == f"<Sweep {user}/test/{sweep_id} (PENDING)>"
+
+
+@pytest.mark.parametrize(
+    "sweep_config,expected_run_count",
+    [
+        (SWEEP_CONFIG_GRID, 3),
+        (SWEEP_CONFIG_GRID_NESTED, 9),
+        (SWEEP_CONFIG_BAYES, None),
+        (SWEEP_CONFIG_RANDOM, None),
+    ],
+    ids=["test grid", "test grid nested", "test bayes", "test random"],
+)
+def test_sweep_api_expected_run_count(
+    user, relay_server, sweep_config, expected_run_count
+):
+    _project = "test"
+    with relay_server() as relay:
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    for comm in relay.context.raw_data:
+        q = comm["request"].get("query")
+        print(q)
+
+    print(f"sweep_id{sweep_id}")
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
+    assert sweep.expected_run_count == expected_run_count
+
+
+def test_update_aliases_on_artifact(user, relay_server, wandb_init):
+    project = "test"
+    run = wandb_init(entity=user, project=project)
+    artifact = wandb.Artifact("test-artifact", "test-type")
+    with open("boom.txt", "w") as f:
+        f.write("testing")
+    artifact.add_file("boom.txt", "test-name")
+    art = run.log_artifact(artifact, aliases=["sequence"])
+    run.link_artifact(art, f"{user}/{project}/my-sample-portfolio")
+    artifact.wait()
+    run.finish()
+
+    # fetch artifact under original parent sequence
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "sequence" in aliases
+
+    # fetch artifact under portfolio
+    # and change aliases under portfolio only
+    artifact = Api().artifact(
+        name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "sequence" not in aliases
+    artifact.aliases = ["portfolio"]
+    artifact.aliases.append("boom")
+    artifact.save()
+
+    artifact = Api().artifact(
+        name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "portfolio" in aliases
+    assert "boom" in aliases
+    assert "sequence" not in aliases
+
+
+def test_artifact_version(wandb_init):
+    def create_test_artifact(content: str):
+        art = wandb.Artifact("test-artifact", "test-type")
+        with open("boom.txt", "w") as f:
+            f.write(content)
+        art.add_file("boom.txt", "test-name")
+        return art
+
+    # Create an artifact sequence + portfolio (auto-created if it doesn't exist)
+    project = "test"
+    run = wandb_init(project=project)
+
+    art = create_test_artifact("aaaaa")
+    run.log_artifact(art, aliases=["a"])
+    art.wait()
+
+    art = create_test_artifact("bbbb")
+    run.log_artifact(art, aliases=["b"])
+    run.link_artifact(art, f"{project}/my-sample-portfolio")
+    art.wait()
+    run.finish()
+
+    # Pull down from portfolio, verify version is indexed from portfolio not sequence
+    artifact = Api().artifact(
+        name=f"{project}/my-sample-portfolio:latest", type="test-type"
+    )
+
+    assert artifact.version == "v0"
+    assert artifact.source_version == "v1"
