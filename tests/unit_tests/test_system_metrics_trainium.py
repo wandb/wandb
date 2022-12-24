@@ -1,16 +1,14 @@
 import itertools
 import json
-import time
 import threading
+import time
 from unittest import mock
 
 import wandb
-
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Trainium
-from wandb.sdk.internal.system.system_monitor import AssetInterface
 from wandb.sdk.internal.system.assets.trainium import NeuronCoreStats
-
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 MOCK_DATA = [
     {

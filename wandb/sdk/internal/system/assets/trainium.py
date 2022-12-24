@@ -146,7 +146,7 @@ class NeuronCoreStats:
 
         todo: add matching by neuron_runtime_tag
         """
-        return entry["pid"] == self.pid
+        return int(entry["pid"]) == int(self.pid)
 
     def sample(self) -> None:
         try:
@@ -303,7 +303,7 @@ class Trainium:
 
     def probe(self) -> dict:
         try:
-            self.check_neuron_monitor_config()
+            self.metrics[0].check_neuron_monitor_config()  # type: ignore
             neuron_hardware_info: dict = {}
             popen = subprocess.Popen(
                 NEURON_MONITOR_COMMAND,
