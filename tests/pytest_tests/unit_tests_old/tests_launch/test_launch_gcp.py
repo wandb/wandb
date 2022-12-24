@@ -287,14 +287,14 @@ def test_resolve_artifact_repo():
         resolve_artifact_repo({}, {}, "test-project", "us-east1")
 
     resource_args = dict(artifact_repo="resource-repo")
-    registry_config = dict(uri="mydockerhost.edu/myimage")
+    registry_config = dict(url="mydockerhost.edu/myimage")
     gcp_region = "us-east1"
     gcp_project = "test-project"
-    correct_resource_repo = f"us-east1-docker.pkg.dev/test-project/resource-repo"
+    correct_resource_repo = "us-east1-docker.pkg.dev/test-project/resource-repo"
 
     assert (
         resolve_artifact_repo({}, registry_config, gcp_project, gcp_region)
-        == registry_config["uri"]
+        == registry_config["url"]
     )
     assert (
         resolve_artifact_repo(resource_args, {}, gcp_project, gcp_region)
@@ -302,7 +302,7 @@ def test_resolve_artifact_repo():
     )
     assert (
         resolve_artifact_repo(resource_args, registry_config, gcp_project, gcp_region)
-        == registry_config["uri"]
+        == registry_config["url"]
     )
 
 
