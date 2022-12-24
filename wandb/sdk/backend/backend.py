@@ -254,9 +254,4 @@ class Backend:
             self.interface.join()
         if self.wandb_process:
             self.wandb_process.join()
-
-        if self.record_q:
-            self.record_q.close()
-        if self.result_q:
-            self.result_q.close()
         # No printing allowed from here until redirect restore!!!
