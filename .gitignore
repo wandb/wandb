@@ -5,6 +5,7 @@ coverage.xml
 .tox/
 .mypy_cache/
 .pytest_cache/
+.hypothesis/
 .circle_cache/
 .yea_cache/
 build/
