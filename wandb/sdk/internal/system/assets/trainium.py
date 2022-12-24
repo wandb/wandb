@@ -140,13 +140,21 @@ class NeuronCoreStats:
         )
         self.neuron_monitor_thread.start()
 
+    def _is_matching_entry(self, entry: dict) -> bool:
+        """
+        For now, only check if the pid in the entry matches the pid of the process.
+
+        todo: add matching by neuron_runtime_tag
+        """
+        return entry["pid"] == self.pid
+
     def sample(self) -> None:
         try:
             raw_stats = json.loads(self.raw_samples[-1])
             neuron_runtime_data = [
                 entry["report"]
                 for entry in raw_stats["neuron_runtime_data"]
-                if entry["pid"] == self.pid
+                if self._is_matching_entry(entry)
             ][
                 0
             ]  # there should be only one entry with the pid
