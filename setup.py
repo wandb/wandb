@@ -39,6 +39,7 @@ launch_requirements = [
     "boto3",
     "botocore",
     "google-cloud-storage",
+    "google-cloud-aiplatform",
     "kubernetes",
 ]
 
