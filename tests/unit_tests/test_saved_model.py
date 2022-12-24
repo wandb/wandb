@@ -6,7 +6,7 @@ import pytest
 import wandb
 from wandb.apis.public import Artifact, _DownloadedArtifactEntry
 from wandb.sdk.data_types import saved_model
-from wandb.sdk.wandb_artifacts import ArtifactEntry
+from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 
 from . import saved_model_constructors
 
@@ -78,7 +78,7 @@ class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
         return self.copy(self.local_path, os.path.join(root, self.name))
 
 
-class ArtifactEntryPatch(ArtifactEntry):
+class ArtifactManifestEntryPatch(ArtifactManifestEntry):
     def download(self, root=None):
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         shutil.copyfile(self.local_path, self.path)
@@ -89,7 +89,9 @@ def make_local_artifact_public(art, mocker):
     mocker.patch(
         "wandb.apis.public._DownloadedArtifactEntry", DownloadedArtifactEntryPatch
     )
-    mocker.patch("wandb.sdk.wandb_artifacts.ArtifactEntry", ArtifactEntryPatch)
+    mocker.patch(
+        "wandb.sdk.wandb_artifacts.ArtifactManifestEntry", ArtifactManifestEntryPatch
+    )
 
     pub = Artifact(
         None,
@@ -114,7 +116,7 @@ def make_local_artifact_public(art, mocker):
     )
     pub._manifest = art._manifest
     for val in pub._manifest.entries.values():
-        val.__class__ = ArtifactEntryPatch
+        val.__class__ = ArtifactManifestEntryPatch
     return pub
 
 
