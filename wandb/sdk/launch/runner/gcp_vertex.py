@@ -1,6 +1,5 @@
 import datetime
 import shlex
-import subprocess
 from typing import Any, Dict, Optional
 
 if False:
@@ -56,12 +55,14 @@ class VertexSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         job_state = str(self._job.state)  # extract from type PipelineState
-        if job_state == "PipelineState.PIPELINE_STATE_SUCCEEDED":
+        if job_state == "JobState.JOB_STATE_SUCEEDED":
             return Status("finished")
-        if job_state == "PipelineState.PIPELINE_STATE_FAILED":
+        if job_state == "JobState.JOB_STATE_FAILED":
             return Status("failed")
-        if job_state == "PipelineState.PIPELINE_STATE_RUNNING":
+        if job_state == "JobState.JOB_STATE_RUNNING":
             return Status("running")
+        # TODO: Handle more job states https://cloud.google.com/vertex-ai/docs/reference/rest/v1/JobState
+        # TODO: Job being in an unknown state needs to be dealt with loudly
         return Status("unknown")
 
     def cancel(self) -> None:
