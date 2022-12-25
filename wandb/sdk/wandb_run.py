@@ -1946,6 +1946,10 @@ class Run:
         sync_data = result.response.run_status_response
 
         sync_time = None
+        if sync_data.sync_time.seconds:
+            sync_time = datetime.fromtimestamp(
+                sync_data.sync_time.seconds + sync_data.sync_time.nanos / 1e9
+            )
         return RunStatus(
             sync_items_total=sync_data.sync_items_total,
             sync_items_pending=sync_data.sync_items_pending,

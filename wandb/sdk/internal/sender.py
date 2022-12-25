@@ -178,12 +178,16 @@ class SendManager:
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
     _ds: Optional[datastore.DataStore]
-
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
+    _record_num: int
+    _sender_status_time: int
+    _sender_status_record_num: int
 
-    _sender_status_last: int
-    _sender_status_threshold: int
+    UPDATE_CONFIG_TIME: int = 30
+    UPDATE_STATUS_TIME: int = 5
+    _debounce_config_time: int
+    _debounce_status_time: int
 
     def __init__(
         self,
@@ -200,6 +204,7 @@ class SendManager:
         self._context_keeper = context_keeper
 
         self._ds = None
+        self._record_num = 0
 
         self._fs = None
         self._pusher = None
@@ -254,11 +259,13 @@ class SendManager:
         self._output_raw_streams = dict()
         self._output_raw_file = None
 
-        # sending status
-        self._sender_status_last = 0
-        self._sender_status_threshold = (
-            4 * 1024
-        )  # TODO(mempressure): maybe a block?  maybe time based?
+        # sending status info
+        self._sender_status_time = 0
+        self._sender_status_record_num = 0
+
+        time_now = time.monotonic()
+        self._debounce_config_time = time_now
+        self._debounce_status_time = time_now
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
@@ -313,6 +320,9 @@ class SendManager:
 
     def send(self, record: "Record") -> None:
         # print("PROC REC", record.num)
+        if record.num:
+            assert record.num == self._record_num + 1
+            self._record_num = record.num
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -374,14 +384,21 @@ class SendManager:
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
 
-    def _report_sender_status(self, offset: int) -> None:
-        if offset < self._sender_status_last + self._sender_status_threshold:
+    def _maybe_report_sender_status(self) -> None:
+        record_num = self._record_num
+        if self._sender_status_record_num == record_num:
             return
-        self._sender_status_last = offset
+        time_now = time.time()
+        if self._sender_status_time and time_now < self._sender_status_time + 5:
+            return
+        self._sender_record_num = record_num
+        self._sender_status_time = time_now
+
         # TODO(mempressure): implement
         status_report = wandb_internal_pb2.SenderStatusReportRequest(
+            record_num=record_num,
         )
-        status_time = time.time()
+        status_time = time_now
         status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
         request = wandb_internal_pb2.Request()
         request.sender_status_report.CopyFrom(status_report)
@@ -405,8 +422,8 @@ class SendManager:
             # print("READ REC", pb.num, off, start, end)
             self.send(pb)
             # print("GOT REC h", pb.history.step.num)
-            off = self._ds.get_offset()
-            self._report_sender_status(off)
+            # off = self._ds.get_offset()
+            self._maybe_report_sender_status()
             # print("GOT OFF", off)
         # DEBUG print(" DONE", off, start, end)
         # print("SEND DONE ^^^^^^^^^")
@@ -463,9 +480,15 @@ class SendManager:
                 logger.warning("Failed to check stop requested status: %s", e)
         self._respond_result(result)
 
-    def debounce(self) -> None:
-        if self._config_needs_debounce:
-            self._debounce_config()
+    def debounce(self, final: bool = False) -> None:
+        time_now = time.monotonic()
+        if time_now >= self._debounce_config_time + self.UPDATE_CONFIG_TIME:
+            if self._config_needs_debounce:
+                self._debounce_config()
+            self._debounce_config_time = time_now
+        if time_now >= self._debounce_status_time + self.UPDATE_STATUS_TIME:
+            self._maybe_report_sender_status()
+            self._debounce_status_time = time_now
 
     def _debounce_config(self) -> None:
         config_value_dict = self._config_format(self._consolidated_config)
