@@ -2,15 +2,14 @@ import contextlib
 import dataclasses
 import http.server
 import os
-from pathlib import Path
 import ssl
 import threading
+from pathlib import Path
 from typing import Callable, Iterator, Mapping
 from unittest.mock import patch
 
-import requests
 import pytest
-
+import requests
 import wandb.apis
 import wandb.env
 
