@@ -47,11 +47,7 @@ def make_step_upload(
 ) -> "StepUpload":
     return StepUpload(
         **{
-            "api": Mock(
-                spec=internal_api.Api,
-                upload_urls=Mock(wraps=mock_upload_urls),
-                upload_file_retry=Mock(wraps=mock_upload_file_retry),
-            ),
+            "api": make_api(),
             "stats": Mock(spec=stats.Stats),
             "event_queue": queue.Queue(),
             "max_jobs": 10,
@@ -80,6 +76,17 @@ def make_request_commit(artifact_id: str, **kwargs: Any) -> RequestCommitArtifac
     return RequestCommitArtifact(
         artifact_id=artifact_id,
         **{"before_commit": None, "on_commit": None, "finalize": True, **kwargs},
+    )
+
+
+def make_api(**kwargs: Any) -> Mock:
+    return Mock(
+        spec=internal_api.Api,
+        **{
+            "upload_urls": Mock(wraps=mock_upload_urls),
+            "upload_file_retry": Mock(wraps=mock_upload_file_retry),
+            **kwargs,
+        },
     )
 
 
@@ -150,7 +157,7 @@ class TestFinish:
         q.put(make_request_upload(make_tmp_file(tmp_path)))
         step_upload = make_step_upload(
             event_queue=q,
-            api=Mock(
+            api=make_api(
                 upload_urls=Mock(side_effect=Exception("upload_urls failed")),
             ),
         )
@@ -166,8 +173,7 @@ class TestFinish:
         q.put(make_request_upload(make_tmp_file(tmp_path)))
         step_upload = make_step_upload(
             event_queue=q,
-            api=Mock(
-                upload_urls=mock_upload_urls,
+            api=make_api(
                 upload_file_retry=Mock(side_effect=Exception("upload failed")),
             ),
         )
@@ -192,8 +198,7 @@ class TestFinish:
         q.put(make_request_commit("my-artifact"))
         step_upload = make_step_upload(
             event_queue=q,
-            api=Mock(
-                upload_urls=mock_upload_urls,
+            api=make_api(
                 commit_artifact=Mock(side_effect=Exception("commit failed")),
             ),
         )
@@ -226,10 +231,7 @@ class TestUpload:
         self,
         tmp_path: Path,
     ):
-        api = Mock(
-            upload_urls=mock_upload_urls,
-            upload_file_retry=Mock(),
-        )
+        api = make_api()
 
         q = queue.Queue()
         cmd = make_request_upload(make_tmp_file(tmp_path))
@@ -309,9 +311,8 @@ class TestUpload:
     @pytest.mark.parametrize(
         "api",
         [
-            Mock(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
-            Mock(
-                upload_urls=mock_upload_urls,
+            make_api(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
+            make_api(
                 upload_file_retry=Mock(
                     side_effect=Exception("upload_file_retry failed")
                 ),
@@ -374,8 +375,7 @@ class TestUpload:
         ):
             f = make_tmp_file(tmp_path)
 
-            api = Mock(
-                upload_urls=mock_upload_urls,
+            api = make_api(
                 upload_file_retry=Mock(
                     side_effect=Exception("upload_file_retry failed")
                 ),
@@ -423,29 +423,39 @@ class TestUpload:
         [
             (
                 None,
-                Mock(upload_urls=mock_upload_urls, upload_file_retry=mock_upload_file_retry),
+                make_api(),
                 True,
             ),
             (
                 None,
-                Mock(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
+                make_api(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
                 False,
             ),
             (
                 None,
-                Mock(upload_urls=mock_upload_urls, upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
+                make_api(
+                    upload_file_retry=Mock(
+                        side_effect=Exception("upload_file_retry failed")
+                    ),
+                ),
                 False,
             ),
             (
-                Mock(return_value=False), Mock(), True,
+                Mock(return_value=False),
+                make_api(),
+                True,
             ),
             (
-                Mock(return_value=True), Mock(), True,
+                Mock(return_value=True),
+                make_api(),
+                True,
             ),
             (
-                Mock(side_effect=Exception("save_fn failed")), Mock(), False,
+                Mock(side_effect=Exception("save_fn failed")),
+                make_api(),
+                False,
             ),
-        ]
+        ],
     )
     def test_notifies_file_stream_on_success(
         self,
@@ -462,13 +472,17 @@ class TestUpload:
 
         mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-        step_upload = make_step_upload(event_queue=q, file_stream=mock_file_stream, api=api)
+        step_upload = make_step_upload(
+            event_queue=q, file_stream=mock_file_stream, api=api
+        )
         step_upload.start()
 
         finish_and_wait(q)
 
         if success:
-            mock_file_stream.push_success.assert_called_once_with(cmd.artifact_id, cmd.save_name)
+            mock_file_stream.push_success.assert_called_once_with(
+                cmd.artifact_id, cmd.save_name
+            )
         else:
             mock_file_stream.push_success.assert_not_called()
 
@@ -483,7 +497,7 @@ class TestArtifactCommit:
         finalize: bool,
     ):
 
-        api = Mock()
+        api = make_api()
 
         q = queue.Queue()
         q.put(make_request_commit("my-art", finalize=finalize))
@@ -527,13 +541,7 @@ class TestArtifactCommit:
         self,
         tmp_path: Path,
     ):
-        def mock_upload(*args, **kwargs):
-            raise Exception("upload failed")
-
-        api = Mock(
-            upload_urls=mock_upload_urls,
-            upload_file_retry=mock_upload,
-        )
+        api = make_api(upload_file_retry=Mock(side_effect=Exception("upload failed")))
 
         q = queue.Queue()
         q.put(make_request_upload(make_tmp_file(tmp_path), artifact_id="my-art"))
@@ -558,7 +566,7 @@ class TestArtifactCommit:
             if commit_exc:
                 raise commit_exc
 
-        api = Mock(commit_artifact=mock_commit_artifact)
+        api = make_api(commit_artifact=mock_commit_artifact)
 
         q = queue.Queue()
         q.put(
