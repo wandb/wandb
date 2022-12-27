@@ -418,6 +418,60 @@ class TestUpload:
             else:
                 mock_stats.set_file_deduped.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ["save_fn", "api", "success"],
+        [
+            (
+                None,
+                Mock(upload_urls=mock_upload_urls, upload_file_retry=mock_upload_file_retry),
+                True,
+            ),
+            (
+                None,
+                Mock(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
+                False,
+            ),
+            (
+                None,
+                Mock(upload_urls=mock_upload_urls, upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
+                False,
+            ),
+            (
+                Mock(return_value=False), Mock(), True,
+            ),
+            (
+                Mock(return_value=True), Mock(), True,
+            ),
+            (
+                Mock(side_effect=Exception("save_fn failed")), Mock(), False,
+            ),
+        ]
+    )
+    def test_notifies_file_stream_on_success(
+        self,
+        tmp_path: Path,
+        save_fn: Optional[Callable[[int, int], bool]],
+        api: Mock,
+        success: bool,
+    ):
+        f = make_tmp_file(tmp_path)
+
+        q = queue.Queue()
+        cmd = make_request_upload(f, save_fn=save_fn)
+        q.put(cmd)
+
+        mock_file_stream = Mock(spec=file_stream.FileStreamApi)
+
+        step_upload = make_step_upload(event_queue=q, file_stream=mock_file_stream, api=api)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+        if success:
+            mock_file_stream.push_success.assert_called_once_with(cmd.artifact_id, cmd.save_name)
+        else:
+            mock_file_stream.push_success.assert_not_called()
+
 
 class TestArtifactCommit:
     @pytest.mark.parametrize(
