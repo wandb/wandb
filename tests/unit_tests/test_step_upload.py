@@ -3,12 +3,13 @@ import random
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, MutableSequence, Optional
+from typing import Any, Callable, Iterable, MutableSequence, Optional
 from unittest.mock import Mock
 
 import pytest
 from wandb.filesync import stats
 from wandb.filesync.step_upload import (
+    Event,
     RequestCommitArtifact,
     RequestFinish,
     RequestUpload,
@@ -127,83 +128,68 @@ class UploadBlockingMockApi(Mock):
 
 
 class TestFinish:
-    def test_finishes_if_first_message(
-        self,
-    ):
-        q = queue.Queue()
-        step_upload = make_step_upload(event_queue=q)
-        step_upload.start()
-
-        finish_and_wait(q)
-
-    def test_finishes_after_uploads(
+    @pytest.mark.parametrize(
+        ["api", "commands"],
+        [
+            (
+                make_api(),
+                lambda tmp_path: [],
+            ),
+            (
+                make_api(),
+                lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+            ),
+            (
+                make_api(),
+                lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+            ),
+            (
+                make_api(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
+                lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+            ),
+            (
+                make_api(upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
+                lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+            ),
+            (
+                make_api(upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
+                lambda tmp_path: [
+                    make_request_upload(make_tmp_file(tmp_path), artifact_id="my-artifact"),
+                    make_request_commit("my-artifact"),
+                ],
+            ),
+            (
+                make_api(),
+                lambda tmp_path: [make_request_commit("my-artifact")],
+            ),
+            (
+                make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
+                lambda tmp_path: [make_request_commit("my-artifact")],
+            ),
+            (
+                make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
+                lambda tmp_path: [make_request_commit("my-artifact")],
+            ),
+            (
+                make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
+                lambda tmp_path: [
+                    make_request_upload(make_tmp_file(tmp_path), artifact_id="my-artifact"),
+                    make_request_commit("my-artifact"),
+                ],
+            ),
+        ]
+    )
+    def test_finishes(
         self,
         tmp_path: Path,
+        api: Mock,
+        commands: Callable[[Path], Iterable[Event]],
     ):
         q = queue.Queue()
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
-        step_upload = make_step_upload(event_queue=q)
+        for cmd in commands(tmp_path):
+            q.put(cmd)
+        step_upload = make_step_upload(api=api, event_queue=q)
         step_upload.start()
-
-        finish_and_wait(q)
-
-    def test_finishes_after_upload_urls(
-        self,
-        tmp_path: Path,
-    ):
-        q = queue.Queue()
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
-        step_upload = make_step_upload(
-            event_queue=q,
-            api=make_api(
-                upload_urls=Mock(side_effect=Exception("upload_urls failed")),
-            ),
-        )
-        step_upload.start()
-
-        finish_and_wait(q)
-
-    def test_finishes_after_failed_upload(
-        self,
-        tmp_path: Path,
-    ):
-        q = queue.Queue()
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
-        step_upload = make_step_upload(
-            event_queue=q,
-            api=make_api(
-                upload_file_retry=Mock(side_effect=Exception("upload failed")),
-            ),
-        )
-        step_upload.start()
-
-        finish_and_wait(q)
-
-    def test_finishes_after_artifact_commit(
-        self,
-    ):
-        q = queue.Queue()
-        q.put(make_request_commit("my-artifact"))
-        step_upload = make_step_upload(event_queue=q)
-        step_upload.start()
-
-        finish_and_wait(q)
-
-    def test_finishes_after_failed_artifact_commit(
-        self,
-    ):
-        q = queue.Queue()
-        q.put(make_request_commit("my-artifact"))
-        step_upload = make_step_upload(
-            event_queue=q,
-            api=make_api(
-                commit_artifact=Mock(side_effect=Exception("commit failed")),
-            ),
-        )
-        step_upload.start()
-
         finish_and_wait(q)
 
     def test_no_finish_until_jobs_done(
