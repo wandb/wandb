@@ -84,7 +84,7 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self, run: Union["LocalRun", "LocalArtifact"] = None) -> dict:
+    def to_json(self, run: Optional[Union["LocalRun", "LocalArtifact"]] = None) -> dict:
         return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
 
     def __sizeof__(self) -> int:

@@ -88,7 +88,7 @@ def save_config_file_from_dict(config_filename, config_dict):
             encoding="utf-8",
         )
     data = s.decode("utf-8")
-    filesystem._safe_makedirs(os.path.dirname(config_filename))
+    filesystem.mkdir_exists_ok(os.path.dirname(config_filename))
     with open(config_filename, "w") as conf_file:
         conf_file.write(data)
 

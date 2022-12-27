@@ -94,7 +94,7 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
         if module is not None:
 
             _post_import_hooks[name] = {}
-            if hook:
+            if hook:  # type: ignore
                 hook(module)
 
         else:
@@ -108,7 +108,7 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
         module = sys.modules.get(name)
 
         if module is not None:
-            if hook:
+            if hook:  # type: ignore
                 hook(module)
 
     else:
