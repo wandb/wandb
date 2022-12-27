@@ -3,16 +3,18 @@ import random
 import threading
 import time
 from pathlib import Path
-from typing import Any, MutableSequence, Optional
+from typing import Any, Callable, MutableSequence, Optional
 from unittest.mock import Mock
 
 import pytest
+from wandb.filesync import stats
 from wandb.filesync.step_upload import (
     RequestCommitArtifact,
     RequestFinish,
     RequestUpload,
     StepUpload,
 )
+from wandb.sdk.internal import file_stream, internal_api
 
 
 def mock_upload_urls(
@@ -29,6 +31,11 @@ def mock_upload_urls(
     )
 
 
+def mock_upload_file_retry(url, file, callback, extra_headers):
+    size = len(file.read())
+    callback(size, size)
+
+
 def make_tmp_file(tmp_path: Path) -> Path:
     f = tmp_path / str(random.random())
     f.write_text(str(random.random()))
@@ -40,11 +47,15 @@ def make_step_upload(
 ) -> "StepUpload":
     return StepUpload(
         **{
-            "api": Mock(upload_urls=Mock(wraps=mock_upload_urls)),
-            "stats": Mock(),
+            "api": Mock(
+                spec=internal_api.Api,
+                upload_urls=Mock(wraps=mock_upload_urls),
+                upload_file_retry=Mock(wraps=mock_upload_file_retry),
+            ),
+            "stats": Mock(spec=stats.Stats),
             "event_queue": queue.Queue(),
             "max_jobs": 10,
-            "file_stream": Mock(),
+            "file_stream": Mock(spec=file_stream.FileStreamApi),
             **kwargs,
         }
     )
@@ -52,7 +63,7 @@ def make_step_upload(
 
 def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
     return RequestUpload(
-        path=path,
+        path=str(path),
         **{
             "save_name": str(path),
             "artifact_id": None,
@@ -320,6 +331,92 @@ class TestUpload:
         step_upload.start()
 
         finish_and_wait(q)
+
+    class TestStats:
+        @pytest.mark.parametrize(
+            "make_save_fn",
+            [
+                lambda _: None,
+                lambda size: lambda progress: progress(size, size),
+            ],
+        )
+        def test_updates_on_read(
+            self,
+            tmp_path: Path,
+            make_save_fn: Callable[[int], Optional[Callable[[int, int], None]]],
+        ):
+            f = make_tmp_file(tmp_path)
+
+            q = queue.Queue()
+            cmd = make_request_upload(f, save_fn=make_save_fn(f.stat().st_size))
+            q.put(cmd)
+
+            mock_stats = Mock(spec=stats.Stats)
+
+            step_upload = make_step_upload(event_queue=q, stats=mock_stats)
+            step_upload.start()
+
+            finish_and_wait(q)
+
+            mock_stats.update_uploaded_file.assert_called_with(str(f), f.stat().st_size)
+
+        @pytest.mark.parametrize(
+            "save_fn",
+            [
+                None,
+                Mock(side_effect=Exception("save_fn failed")),
+            ],
+        )
+        def test_updates_on_failure(
+            self,
+            tmp_path: Path,
+            save_fn: Optional[Callable[[int, int], None]],
+        ):
+            f = make_tmp_file(tmp_path)
+
+            api = Mock(
+                upload_urls=mock_upload_urls,
+                upload_file_retry=Mock(
+                    side_effect=Exception("upload_file_retry failed")
+                ),
+            )
+
+            q = queue.Queue()
+            cmd = make_request_upload(f, save_fn=save_fn)
+            q.put(cmd)
+
+            mock_stats = Mock(spec=stats.Stats)
+
+            step_upload = make_step_upload(event_queue=q, stats=mock_stats, api=api)
+            step_upload.start()
+
+            finish_and_wait(q)
+
+            mock_stats.update_failed_file.assert_called_once_with(str(f))
+
+        @pytest.mark.parametrize("deduped", [True, False])
+        def test_update_on_deduped(
+            self,
+            tmp_path: Path,
+            deduped: bool,
+        ):
+            f = make_tmp_file(tmp_path)
+
+            q = queue.Queue()
+            cmd = make_request_upload(f, save_fn=Mock(return_value=deduped))
+            q.put(cmd)
+
+            mock_stats = Mock(spec=stats.Stats)
+
+            step_upload = make_step_upload(event_queue=q, stats=mock_stats)
+            step_upload.start()
+
+            finish_and_wait(q)
+
+            if deduped:
+                mock_stats.set_file_deduped.assert_called_once_with(str(f))
+            else:
+                mock_stats.set_file_deduped.assert_not_called()
 
 
 class TestArtifactCommit:
