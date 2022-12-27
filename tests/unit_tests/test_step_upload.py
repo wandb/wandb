@@ -148,13 +148,23 @@ class TestFinish:
                 lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
             ),
             (
-                make_api(upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
+                make_api(
+                    upload_file_retry=Mock(
+                        side_effect=Exception("upload_file_retry failed")
+                    )
+                ),
                 lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
             ),
             (
-                make_api(upload_file_retry=Mock(side_effect=Exception("upload_file_retry failed"))),
+                make_api(
+                    upload_file_retry=Mock(
+                        side_effect=Exception("upload_file_retry failed")
+                    )
+                ),
                 lambda tmp_path: [
-                    make_request_upload(make_tmp_file(tmp_path), artifact_id="my-artifact"),
+                    make_request_upload(
+                        make_tmp_file(tmp_path), artifact_id="my-artifact"
+                    ),
                     make_request_commit("my-artifact"),
                 ],
             ),
@@ -173,11 +183,13 @@ class TestFinish:
             (
                 make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
                 lambda tmp_path: [
-                    make_request_upload(make_tmp_file(tmp_path), artifact_id="my-artifact"),
+                    make_request_upload(
+                        make_tmp_file(tmp_path), artifact_id="my-artifact"
+                    ),
                     make_request_commit("my-artifact"),
                 ],
             ),
-        ]
+        ],
     )
     def test_finishes(
         self,
@@ -190,6 +202,7 @@ class TestFinish:
             q.put(cmd)
         step_upload = make_step_upload(api=api, event_queue=q)
         step_upload.start()
+
         finish_and_wait(q)
 
     def test_no_finish_until_jobs_done(
