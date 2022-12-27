@@ -58,7 +58,7 @@ data:
       cloud-provider: gcp
       build-context-store:  # set to build context bucket
       credentials:
-        secret-name: kaniko-secret
+        secret-name: gcp-credentials
         secret-mount-path: /secret
     runner:
       type: gcp_vertex
@@ -80,8 +80,7 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: kaniko-secret
+  name: gcp-credentials
   namespace: wandb
 stringData:
-  # TODO: add your gcp credentials json
-  kaniko-secret.json: |
+  credentials.json: |

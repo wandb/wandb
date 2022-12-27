@@ -57,7 +57,7 @@ data:
       cloud-provider: gcp
       build-context-store: # set to build context bucket
       credentials:
-        secret-name: kaniko-secret
+        secret-name: gcp-credentials
         secret-mount-path: /secret
     runner:
       type: kubernetes
@@ -79,8 +79,7 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: kaniko-secret
+  name: gcp-credentials
   namespace: wandb
 stringData:
-  kaniko-secret.json: |
-    # TODO: set to gcp credentials json contents
+  credentials.json: |

@@ -55,7 +55,7 @@ class VertexSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         job_state = str(self._job.state)  # extract from type PipelineState
-        if job_state == "JobState.JOB_STATE_SUCEEDED":
+        if job_state == "JobState.JOB_STATE_SUCCEEDED":
             return Status("finished")
         if job_state == "JobState.JOB_STATE_FAILED":
             return Status("failed")
