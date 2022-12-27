@@ -16,9 +16,9 @@ def test_add_table_from_dataframe(wandb_init):
 
     import pandas as pd
 
-    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
-    df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
+    df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool_)
 
     current_time = datetime.now()
     df_timestamp = pd.DataFrame(
@@ -27,7 +27,7 @@ def test_add_table_from_dataframe(wandb_init):
 
     wb_table_float = wandb.Table(dataframe=df_float)
     wb_table_float32 = wandb.Table(dataframe=df_float32)
-    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
+    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float_))
     wb_table_bool = wandb.Table(dataframe=df_bool)
     wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
@@ -266,28 +266,3 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
-
-
-@pytest.mark.skip(
-    reason="TODO(spencerpearson): this test passes locally, but flakes in CI. After much investigation, I still have no clue.",
-    # examples of flakes:
-    #   https://app.circleci.com/pipelines/github/wandb/wandb/16334/workflows/319d3e58-853e-46ec-8a3f-088cac41351c/jobs/325741/tests#failed-test-0
-    #   https://app.circleci.com/pipelines/github/wandb/wandb/16392/workflows/b26b3e63-c8d8-45f4-b7db-00f84b11f8b8/jobs/327312
-)
-def test_artifact_metadata_save(wandb_init, relay_server):
-    # Test artifact metadata sucessfully saved for len(numpy) > 32
-    dummy_metadata = np.array([0] * 33)
-    with relay_server():
-        run = wandb_init()
-        artifact = wandb.Artifact(
-            name="art", type="dataset", metadata={"initMetadata": dummy_metadata}
-        )
-        run.log_artifact(artifact)
-        artifact.wait().metadata.update({"updateMetadata": dummy_metadata})
-        artifact.save()
-        saved_artifact = run.use_artifact("art:latest")
-        art_metadata = saved_artifact.metadata
-        assert "initMetadata" in art_metadata
-        assert "updateMetadata" in art_metadata
-        assert art_metadata["initMetadata"] == art_metadata["updateMetadata"]
-        run.finish()

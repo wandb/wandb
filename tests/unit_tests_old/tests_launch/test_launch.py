@@ -16,7 +16,11 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    PROJECT_DOCKER_ARGS,
+    PROJECT_SYNCHRONOUS,
+)
 
 from tests.unit_tests_old.utils import fixture_open, notebook_path
 
@@ -236,7 +240,7 @@ def check_project_spec(
     project=None,
     entity=None,
     config=None,
-    resource="local",
+    resource="local-container",
     resource_args=None,
     docker_image=None,
 ):
@@ -343,7 +347,7 @@ def test_launch_resource_args(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
-        "resource": "local",
+        "resource": "local-container",
         "resource_args": {"a": "b", "c": "d"},
     }
     mock_with_run_info = launch.run(**kwargs)
@@ -741,39 +745,6 @@ def test_launch_agent_instance(test_settings, live_mock_server):
 
     get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
     assert get_agent_response["name"] == "test_agent"
-
-
-@pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
-@pytest.mark.timeout(240)
-def test_launch_agent_different_project_in_spec(
-    test_settings,
-    live_mock_server,
-    mocked_fetchable_git_repo,
-    monkeypatch,
-    # mock_load_backend_agent,
-    capsys,
-):
-    live_mock_server.set_ctx({"invalid_launch_spec_project": True})
-    monkeypatch.setattr(
-        wandb.sdk.launch.agent.LaunchAgent,
-        "pop_from_queue",
-        lambda c, queue: patched_pop_from_queue(c, queue),
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    config = {
-        "entity": "mock_server_entity",
-        "project": "test_project",
-    }
-    launch.create_and_run_agent(api, config)
-    _, err = capsys.readouterr()
-
-    assert (
-        "Launch agents only support sending runs to their own project and entity. This run will be sent to mock_server_entity/test_project"
-        in err
-    )
 
 
 def test_agent_queues_notfound(test_settings, live_mock_server):
@@ -1252,7 +1223,7 @@ def test_launch_entrypoint(test_settings):
         {},
         {},
         {},
-        "local",
+        "local-container",
         {},
         None,
         None,  # run_id
@@ -1363,7 +1334,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
-        assert config.get("project") is None
+        assert config.get("project") == LAUNCH_DEFAULT_PROJECT
 
 
 def test_launch_url_and_job(

@@ -12,6 +12,7 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 """
 import ast
 import datetime
+import io
 import json
 import logging
 import multiprocessing.dummy  # this uses threads
@@ -48,11 +49,11 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
-from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
-from wandb.sdk.lib import ipython, retry
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
+from wandb.sdk.lib import filesystem, ipython, retry
+from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -872,7 +873,13 @@ class Api:
         return self._runs[path]
 
     def queued_run(
-        self, entity, project, queue_name, run_queue_item_id, container_job=False
+        self,
+        entity,
+        project,
+        queue_name,
+        run_queue_item_id,
+        container_job=False,
+        project_queue=None,
     ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
@@ -884,6 +891,7 @@ class Api:
             queue_name,
             run_queue_item_id,
             container_job=container_job,
+            project_queue=project_queue,
         )
 
     @normalize_exceptions
@@ -2201,6 +2209,8 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
+            from wandb.old.summary import HTTPSummary
+
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
         return self._summary
@@ -2271,6 +2281,7 @@ class QueuedRun:
         queue_name,
         run_queue_item_id,
         container_job=False,
+        project_queue=LAUNCH_DEFAULT_PROJECT,
     ):
         self.client = client
         self._entity = entity
@@ -2280,6 +2291,7 @@ class QueuedRun:
         self.sweep = None
         self._run = None
         self.container_job = container_job
+        self.project_queue = project_queue
 
     @property
     def queue_name(self):
@@ -2329,7 +2341,7 @@ class QueuedRun:
             """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
         }
@@ -2357,7 +2369,7 @@ class QueuedRun:
         """
         )
         variable_values = {
-            "projectName": self.project,
+            "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
             "itemId": self.id,
@@ -2403,7 +2415,7 @@ class QueuedRun:
             query,
             variable_values={
                 "entityName": self.entity,
-                "projectName": self.project,
+                "projectName": self.project_queue,
                 "runQueueName": self.queue_name,
             },
         )
@@ -2779,20 +2791,26 @@ class File(Attrs):
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
-    def download(self, root=".", replace=False):
+    def download(self, root: str = ".", replace: bool = False, exist_ok: bool = False) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
         Arguments:
             replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
             root (str): Local directory to save the file.  Defaults to ".".
+            exist_ok (boolean): If `True`, will not raise ValueError if file already
+                exists and will not re-download unless replace=True. Defaults to `False`.
 
         Raises:
-            `ValueError` if file already exists and replace=False
+            `ValueError` if file already exists, replace=False and exist_ok=False.
         """
         path = os.path.join(root, self.name)
         if os.path.exists(path) and not replace:
-            raise ValueError("File already exists, pass replace=True to overwrite")
+            if exist_ok:
+                return open(path)
+            else:
+                raise ValueError("File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error.")
+
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path)
 
@@ -4067,23 +4085,24 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
-class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
+class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
     def __init__(
-        self, name: str, entry: "artifacts.ArtifactEntry", parent_artifact: "Artifact"
+        self,
+        name: str,
+        entry: "artifacts.ArtifactManifestEntry",
+        parent_artifact: "Artifact",
     ):
+        super().__init__(
+            path=entry.path,
+            digest=entry.digest,
+            ref=entry.ref,
+            birth_artifact_id=entry.birth_artifact_id,
+            size=entry.size,
+            extra=entry.extra,
+            local_path=entry.local_path,
+        )
         self.name = name
-        self.entry = entry
         self._parent_artifact = parent_artifact
-
-        # Have to copy over a bunch of variables to get this ArtifactEntry interface
-        # to work properly
-        self.path = entry.path
-        self.ref = entry.ref
-        self.digest = entry.digest
-        self.birth_artifact_id = entry.birth_artifact_id
-        self.size = entry.size
-        self.extra = entry.extra
-        self.local_path = entry.local_path
 
     def parent_artifact(self):
         return self._parent_artifact
@@ -4099,7 +4118,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
             or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
         )
         if need_copy:
-            util.mkdir_exists_ok(os.path.dirname(target_path))
+            filesystem.mkdir_exists_ok(os.path.dirname(target_path))
             # We use copy2, which preserves file metadata including modified
             # time (which we use above to check whether we should do the copy).
             shutil.copy2(cache_path, target_path)
@@ -4109,7 +4128,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
         manifest = self._parent_artifact._load_manifest()
-        if self.entry.ref is not None:
+        if self.ref is not None:
             cache_path = manifest.storage_policy.load_reference(
                 self._parent_artifact,
                 self.name,
@@ -4125,7 +4144,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
 
     def ref_target(self):
         manifest = self._parent_artifact._load_manifest()
-        if self.entry.ref is not None:
+        if self.ref is not None:
             return manifest.storage_policy.load_reference(
                 self._parent_artifact,
                 self.name,
@@ -4137,7 +4156,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
     def ref_url(self):
         return (
             "wandb-artifact://"
-            + util.b64_to_hex_id(self._parent_artifact.id)
+            + b64_to_hex_id(self._parent_artifact.id)
             + "/"
             + self.name
         )
@@ -4321,7 +4340,7 @@ class Artifact(artifacts.Artifact):
         self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
-        self._version_index = self._attrs.get("versionIndex", None)
+        self._sequence_version_index = self._attrs.get("versionIndex", None)
         # We will only show aliases under the Collection this artifact version is fetched from
         # _aliases will be a mutable copy on which the user can append or remove aliases
         self._aliases = [
@@ -4346,8 +4365,29 @@ class Artifact(artifacts.Artifact):
         return self._attrs["fileCount"]
 
     @property
+    def source_version(self):
+        """
+        Returns:
+            (str) The artifact's version index under its parent artifact collection. This will return
+            a string with the format "v{number}".
+        """
+        return f"v{self._sequence_version_index}"
+
+    @property
     def version(self):
-        return "v%d" % self._version_index
+        """
+        Returns:
+            (str): The artifact's version index under the given artifact collection. This will return
+            a string with the format "v{number}".
+        """
+        for a in self._attrs["aliases"]:
+            if a[
+                "artifactCollectionName"
+            ] == self._artifact_collection_name and util.alias_is_version_index(
+                a["alias"]
+            ):
+                return a["alias"]
+        return None
 
     @property
     def entity(self):
@@ -4415,9 +4455,9 @@ class Artifact(artifacts.Artifact):
 
     @property
     def name(self):
-        if self._version_index is None:
+        if self._sequence_version_index is None:
             return self.digest
-        return f"{self._sequence_name}:v{self._version_index}"
+        return f"{self._sequence_name}:v{self._sequence_version_index}"
 
     @property
     def aliases(self):
@@ -4657,7 +4697,7 @@ class Artifact(artifacts.Artifact):
             if wb_class == wandb.Table:
                 self.download(recursive=True)
 
-            # Get the ArtifactEntry
+            # Get the ArtifactManifestEntry
             item = self.get_path(entry.path)
             item_path = item.download()
 
@@ -4754,10 +4794,7 @@ class Artifact(artifacts.Artifact):
 
         for entry in manifest.entries.values():
             if entry.ref is None:
-                if (
-                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
-                    != entry.digest
-                ):
+                if md5_file_b64(os.path.join(dirpath, entry.path)) != entry.digest:
                     raise ValueError("Digest mismatch for file: %s" % entry.path)
             else:
                 ref_count += 1
@@ -4765,10 +4802,10 @@ class Artifact(artifacts.Artifact):
             print("Warning: skipped verification of %s refs" % ref_count)
 
     def file(self, root=None):
-        """Download a single file artifact to dir specified by the <root>
+        """Download a single file artifact to dir specified by the root
 
         Arguments:
-            root: (str, optional) The root directory in which to place the file. Defaults to './artifacts/<self.name>/'.
+            root: (str, optional) The root directory in which to place the file. Defaults to './artifacts/self.name/'.
 
         Returns:
             (str): The full path of the downloaded file.
@@ -4869,7 +4906,7 @@ class Artifact(artifacts.Artifact):
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": json.dumps(util.make_safe_for_json(self.metadata)),
+                "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": aliases,
             },
         )
@@ -5106,7 +5143,7 @@ class Artifact(artifacts.Artifact):
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
-        """Helper function determines if an ArtifactEntry in manifest is an artifact reference"""
+        """Helper function determines if an ArtifactManifestEntry in manifest is an artifact reference"""
         return (
             entry.ref is not None
             and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
@@ -5115,7 +5152,7 @@ class Artifact(artifacts.Artifact):
     def _get_ref_artifact_from_entry(self, entry):
         """Helper function returns the referenced artifact from an entry"""
         artifact_id = util.host_from_path(entry.ref)
-        return Artifact.from_id(util.hex_to_b64_id(artifact_id), self.client)
+        return Artifact.from_id(hex_to_b64_id(artifact_id), self.client)
 
     def used_by(self):
         """Retrieves the runs which use this artifact directly
@@ -5512,6 +5549,7 @@ class Job:
         resource="local-container",
         resource_args=None,
         cuda=False,
+        project_queue=None,
     ):
         from wandb.sdk.launch import launch_add
 
@@ -5533,8 +5571,9 @@ class Job:
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,
             entity=entity or self._entity,
-            queue=queue,
+            queue_name=queue,
             resource=resource,
+            project_queue=project_queue,
             resource_args=resource_args,
             cuda=cuda,
         )
