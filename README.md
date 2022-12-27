@@ -3,79 +3,109 @@
   <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
 </p>
 
-# Weights and Biases [![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb) [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb) [![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/main)](https://circleci.com/gh/wandb/wandb) [![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
-
-Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models. 
-
-[Add more info, less markety sentence or two here?]
-
+<p align="center">
+[![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb) [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb) [![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/main)](https://circleci.com/gh/wandb/wandb) [![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
+</p>
 <p align='center'>
-<img src=".github/wb_platform_tmp_img" width="800" alt="Weights & Biases"/>
+[![Open in Colabe](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb)
 </p>
 
-[It would be cool to have make the above icons click-able. Thoughts?]
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
 
-[Sign up for a free account →](https://wandb.com)  
+Get started today with W&B, [sign up for a free account!](https://wandb.com)  
+&nbsp;
+
+# Explore the Weights & Biases platform
+
+&nbsp;
+
+<p align='center'>
+<a href="https://docs.wandb.ai/guides/track"><img src="./README_images/experiments.png" width="12%" /></a>&nbsp;&nbsp;
+<a href="https://docs.wandb.ai/guides/reports"><img src="./README_images/reports.png" width="12%" /></a>&nbsp;&nbsp;
+<a href="https://docs.wandb.ai/guides/artifacts"><img src="./README_images/artifacts.png" width="12%" /></a>&nbsp;&nbsp;
+<a href="https://docs.wandb.ai/guides/data-vis"><img src="./README_images/tables.png" width="12%" /></a>&nbsp;&nbsp;
+<a href="https://docs.wandb.ai/guides/sweeps"><img src="./README_images/sweeps.png" width="12%" /></a>&nbsp;&nbsp;
+<a href="https://docs.wandb.ai/guides/models"><img src="./README_images/models.png" width="12%" /></a>&nbsp;&nbsp;
+<a href="https://docs.wandb.ai/guides/launch"><img src="./README_images/launch.png" width="12%" /></a>&nbsp;&nbsp;
+</p>
+
+<!-- | Experiments | Reports | Artifacts | Tables | Sweeps | Models | Launch |
+| ----------- | ------- | --------- | ------ | ------ | ------ | ------ |
+| Text        | Text    | Text      | Text   | Text   | Text   | Text   | -->
 
 &nbsp;
 
 # Documentation
-See the [W&B Developer Guide](https://docs.wandb.ai/) and [API Reference Guide](https://docs.wandb.ai/ref) for a full technical description of the W&B platform. 
+
+See the [W&B Developer Guide](https://docs.wandb.ai/) and [API Reference Guide](https://docs.wandb.ai/ref) for a full technical description of the W&B platform. Here are some highlights:
 
 &nbsp;
 
-# Install
+# Install W&B
+
 Install the W&B SDK with [pip](https://pip.pypa.io/en/stable/):
-``` bash
+
+```bash
 pip install wandb
 ```
+
 &nbsp;
 
 # Quickstart
-Sign up for a free W&B account and log into W&B:
 
-``` python
+Get started with W&B in three steps:
+
+1. First, sign up for a [free W&B account](https://wandb.ai/login).
+
+2. Next, log into W&B. Navigate to your terminal and type the following command:
+
+```python
 wandb.login()
 ```
 
-Next, use the example code snippet to integrate W&B to your Python script:
+3. Use the example code snippet below as a template to integrate W&B to your Python script:
 
-``` python
+```python
 import wandb
 
-# 1. Start a W&B run
-wandb.init(project="gpt3")
+# Start a W&B Run with wandb.init
+wandb.init(project="my_first_project")
 
-# 2. Save model inputs and hyperparameters
+# Save model inputs and hyperparameters in a wandb.config object
 config = wandb.config
 config.learning_rate = 0.01
 
 # Model training code here ...
 
-# 3. Log metrics over time to visualize performance
-for i in range(10):
+# Log metrics over time to visualize performance with wandb.log
+for i in range(12):
     wandb.log({"loss": loss})
 ```
 
+That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
 
-### [Try in a colab →](http://wandb.me/intro)
-
-&nbsp;
-
-# Tutorials
-[Noah to link to tutorials and/or reports?]
+<p align='center'>
+<img src="./README_images/quickstart_dashboard_example.png" width="100%">
+</p>
+<p align = "center">
+Example W&B Dashboard that shows Wuns from an Experiment.
+</p>
 
 &nbsp;
 
 # Integrations
+
 Use your favorite framework with W&B. W&B integrations make it fast and easy to set up experiment tracking and data versioning inside existing projects.
 
-[Add image]
-
+<p align='center'>
+<img src="./README_images/integrations.png" width="100%" />
+</p>
+&nbsp;
 <details>
 <summary>🥕 Keras</summary>
 
 In Keras, you can use our callback to automatically save all the metrics tracked in `model.fit`. To get you started here's a minimal example:
+
 ```python
 # Import W&B
 import wandb
@@ -101,12 +131,41 @@ model.fit(
 - [Docs](https://docs.wandb.com/library/integrations/keras)
 
 </details>
+<details>
+<summary>🤗 Hugging Face</summary>
+Just run a script using HuggingFace's Trainer passing `--report_to wandb` to it
+in an environment where `wandb` is installed, and we'll automatically log losses,
+evaluation metrics, model topology, and gradients:
 
+```shell
+# 1. Install the wandb library
+pip install wandb
+# 2. Run a script that has the Trainer to automatically logs metrics, model topology and gradients
+python run_glue.py \
+ --report_to wandb \
+ --model_name_or_path bert-base-uncased \
+ --task_name MRPC \
+ --data_dir $GLUE_DIR/$TASK_NAME \
+ --do_train \
+ --evaluate_during_training \
+ --max_seq_length 128 \
+ --per_gpu_train_batch_size 32 \
+ --learning_rate 2e-5 \
+ --num_train_epochs 3 \
+ --output_dir /tmp/$TASK_NAME/ \
+ --overwrite_output_dir \
+ --logging_steps 50
+```
+
+- **[Try in a colab →](http://wandb.me/hf)**
+- [Docs](https://docs.wandb.com/library/integrations/huggingface)
+</details>
 <details>
 <summary>🔥 PyTorch</summary>
 
 W&B provides first class support for PyTorch. To automatically log gradients and store the network topology, you can call `.watch` and pass in your PyTorch model.
 Then use `.log` for anything else you want to track, like so:
+
 ```python
 import wandb
 
@@ -136,6 +195,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 <summary>🌊 TensorFlow</summary>
 
 The simplest way to log metrics in TensorFlow is by logging `tf.summary` with our TensorFlow logger:
+
 ```python
 import wandb
 
@@ -163,6 +223,7 @@ with tf.Session() as sess:
 <summary>⚡️ PyTorch Lightning</summary>
 
 Build scalable, structured, high-performance PyTorch models with Lightning and log them with W&B.
+
 ```python
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import Trainer
@@ -178,14 +239,34 @@ trainer = Trainer(logger=wandb_logger)
 
 &nbsp;
 
-# Contribution guidelines
-We at Weights & Biases ❤️ open source and welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library.
+# Tutorials
+
+Explore example Colab Notebooks at [wandb/examples GitHub repository](https://github.com/wandb/examples/tree/master/colabs). Here are some of our favorites:
+
+[INSERT]
 
 &nbsp;
 
+# Try out our MLOps Course
 
+Get MLOps Certified With The Course From Weights & Biases.
+
+<p align='center'>
+[![MLOps Course](./README_images/mlops_image.png)](https://www.youtube.com/watch?v=ZJtkOX5WcBM&ab_channel=Weights%26Biases)
+</p>
+
+Bringing machine learning models to production is challenging, with a continuous iterative lifecycle that consists of many complex components. Having a disciplined, flexible and collaborative process - an effective MLOps system - is crucial to enabling velocity and rigor, and building an end-to-end machine learning pipeline that continually delivers production-ready ML models and services.
+
+&nbsp;
+
+# Contribution guidelines
+
+Weights & Biases ❤️ open source and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library.
+
+&nbsp;
 
 # Contact
+
 If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum). For wandb bugs and feature requests please visit [GitHub Issues](https://github.com/wandb/wandb/issues). For professional support please Contact Us. Be a part of the W&B Community, post your qeustions at [W&B Community](https://community.wandb.ai/). Stay connected with the latest updates with [W&B Fully Connected](https://wandb.ai/fully-connected).
 
 &nbsp;
