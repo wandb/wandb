@@ -309,37 +309,41 @@ class KanikoBuilder(AbstractBuilder):
             region = repository.split(".")[3]
             env = client.V1EnvVar(name="AWS_REGION", value=region)
 
-        if self.cloud_provider.lower() == "gcp":
+        if self.cloud_provider.lower() == "gcp" and self.credentials_secret_mount_path:
             env = client.V1EnvVar(
                 name="GOOGLE_APPLICATION_CREDENTIALS",
-                value="/secret/kaniko-secret.json",
+                value=os.path.join(
+                    self.credentials_secret_mount_path, "credentials.json"
+                ),
             )
-
-        volume_mounts = [
-            client.V1VolumeMount(
-                name="build-context-config-map", mount_path="/etc/config"
-            )
-        ]
+        volume_mounts = []
         if self.cloud_provider.lower() == "aws":
+            volume_mounts += [
+                client.V1VolumeMount(
+                    name="build-context-config-map", mount_path="/etc/config"
+                )
+            ]
             volume_mounts += [
                 client.V1VolumeMount(
                     name="docker-config", mount_path="/kaniko/.docker/"
                 )
             ]
-        volumes = [
-            client.V1Volume(
-                name="build-context-config-map",
-                config_map=client.V1ConfigMapVolumeSource(
-                    name=config_map_name,
+        volumes = []
+        if self.cloud_provider.lower() == "aws":
+            volumes += [
+                client.V1Volume(
+                    name="build-context-config-map",
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name=config_map_name,
+                    ),
                 ),
-            ),
-            client.V1Volume(
-                name="docker-config",
-                config_map=client.V1ConfigMapVolumeSource(
+                client.V1Volume(
                     name="docker-config",
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name="docker-config",
+                    ),
                 ),
-            ),
-        ]
+            ]
         if (
             self.credentials_secret_name is not None
             and self.credentials_secret_mount_path is not None

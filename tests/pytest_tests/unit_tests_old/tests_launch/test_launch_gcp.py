@@ -13,8 +13,8 @@ from wandb.sdk.launch.runner.gcp_vertex import (
 )
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
-SUCCEEDED = "PipelineState.PIPELINE_STATE_SUCCEEDED"
-FAILED = "PipelineState.PIPELINE_STATE_FAILED"
+SUCCEEDED = "JobState.JOB_STATE_SUCCEEDED"
+FAILED = "JobState.JOB_STATE_FAILED"
 
 
 class MockDict(dict):
