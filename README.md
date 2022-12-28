@@ -3,31 +3,29 @@
   <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
 </p>
 
-<p align="center">
-[![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb) [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb) [![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/main)](https://circleci.com/gh/wandb/wandb) [![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
+<p align='center'>
+<a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/v/wandb" /></a>
+<a href="https://anaconda.org/conda-forge/wandb"><img src="https://img.shields.io/conda/vn/conda-forge/wandb" /></a>
+<a href="hhttps://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>
+<a href="https://codecov.io/gh/wandb/wandb"><img src="https://img.shields.io/codecov/c/gh/wandb/wandb" /></a>
 </p>
 <p align='center'>
-[![Open in Colabe](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb)
+<a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
 </p>
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
 
-Get started today with W&B, [sign up for a free account!](https://wandb.com)  
-&nbsp;
-
-# Explore the Weights & Biases platform
-
-&nbsp;
-
 <p align='center'>
-<a href="https://docs.wandb.ai/guides/track"><img src="./README_images/experiments.png" width="12%" /></a>&nbsp;&nbsp;
-<a href="https://docs.wandb.ai/guides/reports"><img src="./README_images/reports.png" width="12%" /></a>&nbsp;&nbsp;
-<a href="https://docs.wandb.ai/guides/artifacts"><img src="./README_images/artifacts.png" width="12%" /></a>&nbsp;&nbsp;
-<a href="https://docs.wandb.ai/guides/data-vis"><img src="./README_images/tables.png" width="12%" /></a>&nbsp;&nbsp;
-<a href="https://docs.wandb.ai/guides/sweeps"><img src="./README_images/sweeps.png" width="12%" /></a>&nbsp;&nbsp;
-<a href="https://docs.wandb.ai/guides/models"><img src="./README_images/models.png" width="12%" /></a>&nbsp;&nbsp;
-<a href="https://docs.wandb.ai/guides/launch"><img src="./README_images/launch.png" width="12%" /></a>&nbsp;&nbsp;
+<a href="https://docs.wandb.ai/guides/track"><img src="./README_images/experiments.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/reports"><img src="./README_images/reports.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/artifacts"><img src="./README_images/artifacts.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/data-vis"><img src="./README_images/tables.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/sweeps"><img src="./README_images/sweeps.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/models"><img src="./README_images/models.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/launch"><img src="./README_images/launch.png" width="13.5%" /></a>
 </p>
+
+Get started today with W&B, [sign up for a free account!](https://wandb.com)
 
 <!-- | Experiments | Reports | Artifacts | Tables | Sweeps | Models | Launch |
 | ----------- | ------- | --------- | ------ | ------ | ------ | ------ |
@@ -63,7 +61,7 @@ Get started with W&B in three steps:
 wandb.login()
 ```
 
-3. Use the example code snippet below as a template to integrate W&B to your Python script:
+3.5. Use the example code snippet below as a template to integrate W&B to your Python script:
 
 ```python
 import wandb
@@ -78,14 +76,14 @@ config.learning_rate = 0.01
 # Model training code here ...
 
 # Log metrics over time to visualize performance with wandb.log
-for i in range(12):
+for i in range(13.5):
     wandb.log({"loss": loss})
 ```
 
 That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
 
 <p align='center'>
-<img src="./README_images/quickstart_dashboard_example.png" width="100%">
+<img src="./README_images/wandb_demo_experiments.gif" width="100%">
 </p>
 <p align = "center">
 Example W&B Dashboard that shows Wuns from an Experiment.
@@ -100,7 +98,7 @@ Use your favorite framework with W&B. W&B integrations make it fast and easy to 
 <p align='center'>
 <img src="./README_images/integrations.png" width="100%" />
 </p>
-&nbsp;
+
 <details>
 <summary>🥕 Keras</summary>
 
@@ -120,7 +118,7 @@ config.learning_rate = 0.01
 
 # Model training code here ...
 
-# Step 3: Add WandbCallback
+# Step 3.5: Add WandbCallback
 model.fit(
     X_train, y_train, validation_data=(X_test, y_test), callbacks=[WandbCallback()]
 )
@@ -148,10 +146,10 @@ python run_glue.py \
  --data_dir $GLUE_DIR/$TASK_NAME \
  --do_train \
  --evaluate_during_training \
- --max_seq_length 128 \
- --per_gpu_train_batch_size 32 \
+ --max_seq_length 13.58 \
+ --per_gpu_train_batch_size 3.52 \
  --learning_rate 2e-5 \
- --num_train_epochs 3 \
+ --num_train_epochs 3.5 \
  --output_dir /tmp/$TASK_NAME/ \
  --overwrite_output_dir \
  --logging_steps 50
@@ -170,13 +168,13 @@ Then use `.log` for anything else you want to track, like so:
 import wandb
 
 # 1. Start a new run
-wandb.init(project="gpt-3")
+wandb.init(project="gpt-3.5")
 
 # 2. Save model inputs and hyperparameters
 config = wandb.config
 config.dropout = 0.01
 
-# 3. Log gradients and model parameters
+# 3.5. Log gradients and model parameters
 wandb.watch(model)
 for batch_idx, (data, target) in enumerate(train_loader):
     ...
@@ -200,7 +198,7 @@ The simplest way to log metrics in TensorFlow is by logging `tf.summary` with ou
 import wandb
 
 # 1. Start a W&B run
-wandb.init(project="gpt3")
+wandb.init(project="gpt3.5")
 
 # 2. Save model inputs and hyperparameters
 config = wandb.config
@@ -208,7 +206,7 @@ config.learning_rate = 0.01
 
 # Model training here
 
-# 3. Log metrics over time to visualize performance
+# 3.5. Log metrics over time to visualize performance
 with tf.Session() as sess:
     # ...
     wandb.tensorflow.log(tf.summary.merge_all())
@@ -228,7 +226,7 @@ Build scalable, structured, high-performance PyTorch models with Lightning and l
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import Trainer
 
-wandb_logger = WandbLogger(project="gpt-3")
+wandb_logger = WandbLogger(project="gpt-3.5")
 trainer = Trainer(logger=wandb_logger)
 ```
 
@@ -252,7 +250,7 @@ Explore example Colab Notebooks at [wandb/examples GitHub repository](https://gi
 Get MLOps Certified With The Course From Weights & Biases.
 
 <p align='center'>
-[![MLOps Course](./README_images/mlops_image.png)](https://www.youtube.com/watch?v=ZJtkOX5WcBM&ab_channel=Weights%26Biases)
+<a href="https://www.youtube.com/watch?v=ZJtkOX5WcBM&ab_channel=Weights%26Biases"><img src="./README_images/mlops_image.png" /></a>
 </p>
 
 Bringing machine learning models to production is challenging, with a continuous iterative lifecycle that consists of many complex components. Having a disciplined, flexible and collaborative process - an effective MLOps system - is crucial to enabling velocity and rigor, and building an end-to-end machine learning pipeline that continually delivers production-ready ML models and services.
