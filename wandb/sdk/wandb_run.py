@@ -473,6 +473,7 @@ class Run:
         self._group = None
         self._job_type = None
         self._run_id = self._settings.run_id
+        self._run_queue_item_id = self._settings._run_queue_item_id
         self._starting_step = 0
         self._name = None
         self._notes = None
@@ -673,6 +674,8 @@ class Run:
             run.git.remote_url = self._remote_url
         if self._commit is not None:
             run.git.commit = self._commit
+        if self._run_queue_item_id is not None:
+            run.run_queue_item_id = self._run_queue_item_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:

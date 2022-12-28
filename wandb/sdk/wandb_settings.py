@@ -388,7 +388,7 @@ class Settings:
     _platform: str
     _python: str
     _require_service: str
-    _runqueue_item_id: str
+    _run_queue_item_id: str
     _save_requirements: bool
     _service_transport: str
     _start_datetime: datetime
