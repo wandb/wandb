@@ -90,7 +90,8 @@ class JobBuilder:
     def used_job(self) -> bool:
         return self._used_job
 
-    def set_used_job(self, val: bool) -> None:
+    @used_job.setter
+    def used_job(self, val: bool) -> None:
         self._used_job = val
 
     def _set_logged_code_artifact(
@@ -105,8 +106,14 @@ class JobBuilder:
             )
 
     def _build_repo_job(
-        self, remote: str, commit: str, program_relpath: str, args: List[str]
+        self, metadata: Dict[str, Any], program_relpath: str, args: List[str]
     ) -> Tuple[Artifact, GitSourceDict]:
+        git_info: Dict[str, str] = metadata.get("git", {})
+        remote = git_info.get("remote")
+        commit = git_info.get("commit")
+        assert remote is not None
+        assert commit is not None
+        # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
             "entrypoint": [
                 os.path.basename(sys.executable),
@@ -133,6 +140,7 @@ class JobBuilder:
         self, program_relpath: str, args: List[str]
     ) -> Tuple[Artifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
+        # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
             "entrypoint": [
                 os.path.basename(sys.executable),
@@ -148,8 +156,10 @@ class JobBuilder:
         return artifact, source
 
     def _build_image_job(
-        self, image_name: str, args: List[str]
+        self, metadata: Dict[str, Any], args: List[str]
     ) -> Tuple[Artifact, ImageSourceDict]:
+        image_name = metadata.get("docker")
+        assert isinstance(image_name, str)
         name = make_artifact_name_safe(f"job-{image_name}")
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         source: ImageSourceDict = {
@@ -166,36 +176,31 @@ class JobBuilder:
         metadata = self._handle_metadata_file()
         if metadata is None:
             return None
-        git_info: Dict[str, str] = metadata.get("git", {})
-        image_name: Optional[str] = metadata.get("docker", None)
-        program_relpath: Optional[str] = metadata.get("codePath", None)
-        args: List[str] = metadata.get("args", [])
-        runtime: Optional[str] = metadata.get("python", None)
+
+        runtime: Optional[str] = metadata.get("python")
         # can't build a job without a python version
         if runtime is None:
             return None
+
+        program_relpath: Optional[str] = metadata.get("codePath")
+        args: List[str] = metadata.get("args", [])
+
         artifact = None
         source_type = None
         source: Optional[
             Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         ] = None
-        if self._has_git_job_ingredients(git_info, program_relpath):
-            remote = git_info.get("remote")
-            commit = git_info.get("commit")
-            assert isinstance(remote, str)
-            assert isinstance(commit, str)
+
+        if self._has_git_job_ingredients(metadata, program_relpath):
             assert program_relpath is not None
-            artifact, source = self._build_repo_job(
-                remote, commit, program_relpath, args
-            )
+            artifact, source = self._build_repo_job(metadata, program_relpath, args)
             source_type = "repo"
         elif self._has_artifact_job_ingredients(program_relpath):
             assert program_relpath is not None
             artifact, source = self._build_artifact_job(program_relpath, args)
             source_type = "artifact"
-        elif self._has_image_job_ingredients(image_name):
-            assert image_name is not None
-            artifact, source = self._build_image_job(image_name, args)
+        elif self._has_image_job_ingredients(metadata):
+            artifact, source = self._build_image_job(metadata, args)
             source_type = "image"
 
         if artifact is None or source_type is None or source is None:
@@ -226,9 +231,6 @@ class JobBuilder:
     def _handle_metadata_file(
         self,
     ) -> Optional[Dict]:
-        # TODO: settings static is not populated with several
-        # fields that are in settings in offline mode. Instead
-        # use metadata file to pull these fields.
         if os.path.exists(os.path.join(self._settings.files_dir, METADATA_FNAME)):
             with open(os.path.join(self._settings.files_dir, METADATA_FNAME)) as f:
                 metadata: Dict = json.load(f)
@@ -237,8 +239,9 @@ class JobBuilder:
         return None
 
     def _has_git_job_ingredients(
-        self, git_info: Dict[str, str], program_relpath: Optional[str]
+        self, metadata: Dict[str, Any], program_relpath: Optional[str]
     ) -> bool:
+        git_info: Dict[str, str] = metadata.get("git", {})
         return (
             git_info.get("remote") is not None
             and git_info.get("commit") is not None
@@ -248,5 +251,5 @@ class JobBuilder:
     def _has_artifact_job_ingredients(self, program_relpath: Optional[str]) -> bool:
         return self._logged_code_artifact is not None and program_relpath is not None
 
-    def _has_image_job_ingredients(self, image_name: Optional[str]) -> bool:
-        return image_name is not None
+    def _has_image_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
+        return metadata.get("docker") is not None

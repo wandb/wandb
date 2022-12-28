@@ -72,3 +72,17 @@ def test_build_image_job(runner):
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
+
+
+def test_set_used_job():
+    settings = SettingsStatic({"files_dir": "./"})
+    job_builder = JobBuilder(settings)
+    job_builder.used_job = "testtest"
+    assert job_builder.used_job == "testtest"
+
+
+def test_no_metadata_file():
+    settings = SettingsStatic({"files_dir": "./"})
+    job_builder = JobBuilder(settings)
+    artifact = job_builder.build()
+    assert artifact is None

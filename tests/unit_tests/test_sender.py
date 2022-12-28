@@ -387,20 +387,3 @@ def test_upgrade_removed(
         # We need a run to cleanly shutdown backend
         run_result = interface.communicate_run(run)
         assert run_result.HasField("error") is False
-
-
-def test_use_job(backend_interface, mock_run, user, capsys):
-    run = mock_run(use_magic_mock=True)
-    with backend_interface(run) as interface, unittest.mock.patch.object(
-        wandb.sdk.internal.sender.SendManager,
-        "send_use_artifact",
-        lambda self, record: print(f"artifact type: {record.use_artifact.type}"),
-    ):
-        mock = unittest.mock.MagicMock()
-        mock.id = "test"
-        mock.name = "test-name"
-        mock.type = "job"
-        interface.publish_use_artifact(mock)
-        time.sleep(2)
-    out = capsys.readouterr()
-    assert "artifact type: job" in out.out

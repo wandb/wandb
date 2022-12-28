@@ -393,7 +393,7 @@ def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
     _ = git_repo_fn(commit_msg="initial commit")
     test_settings.update({"program_relpath": "./blah/test_program.py"})
     with wandb.init(settings=test_settings) as run:
-        wandb.log({"test": 1})
+        run.log({"test": 1})
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
     assert artifact_name == wandb.util.make_artifact_name_safe(

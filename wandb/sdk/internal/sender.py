@@ -1223,7 +1223,7 @@ class SendManager:
         """
         use = record.use_artifact
         if use.type == "job":
-            self._job_builder.set_used_job(True)
+            self._job_builder.used_job = True
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1419,10 +1419,7 @@ class SendManager:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        if (
-            not hasattr(self._settings, "_offline")
-            or (hasattr(self._settings, "_offline") and not self._settings._offline)
-        ) and not self._job_builder.used_job:
+        if not self._settings.get("_offline", False) and not self._job_builder.used_job:
             artifact = self._job_builder.build()
             if artifact is not None and self._run is not None:
                 proto_artifact = self._interface._make_artifact(artifact)
