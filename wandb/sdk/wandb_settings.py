@@ -36,6 +36,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -1528,7 +1529,7 @@ class Settings:
         # persist our run id in case of failure
         # check None for mypy
         if self.resume == "auto" and self.resume_fname is not None:
-            wandb.util.mkdir_exists_ok(self.wandb_dir)
+            filesystem.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 

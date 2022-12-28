@@ -16,7 +16,11 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    PROJECT_DOCKER_ARGS,
+    PROJECT_SYNCHRONOUS,
+)
 
 from tests.unit_tests_old.utils import fixture_open, notebook_path
 
@@ -236,7 +240,7 @@ def check_project_spec(
     project=None,
     entity=None,
     config=None,
-    resource="local",
+    resource="local-container",
     resource_args=None,
     docker_image=None,
 ):
@@ -343,7 +347,7 @@ def test_launch_resource_args(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
-        "resource": "local",
+        "resource": "local-container",
         "resource_args": {"a": "b", "c": "d"},
     }
     mock_with_run_info = launch.run(**kwargs)
@@ -1219,7 +1223,7 @@ def test_launch_entrypoint(test_settings):
         {},
         {},
         {},
-        "local",
+        "local-container",
         {},
         None,
         None,  # run_id
@@ -1330,7 +1334,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
-        assert config.get("project") is None
+        assert config.get("project") == LAUNCH_DEFAULT_PROJECT
 
 
 def test_launch_url_and_job(
