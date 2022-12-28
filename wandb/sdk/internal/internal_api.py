@@ -38,6 +38,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -1884,7 +1885,7 @@ class Api:
         """
         filename = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
-        if self.file_current(filename, util.B64MD5(metadata["md5"])):
+        if self.file_current(filename, B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -2301,9 +2302,9 @@ class Api:
         return key
 
     @staticmethod
-    def file_current(fname: str, md5: util.B64MD5) -> bool:
+    def file_current(fname: str, md5: B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5"""
-        return os.path.isfile(fname) and util.md5_file(fname) == md5
+        return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
     @normalize_exceptions
     def pull(

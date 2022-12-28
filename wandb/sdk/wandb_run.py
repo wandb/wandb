@@ -3587,6 +3587,10 @@ class _LazyArtifact(ArtifactInterface):
         return self._assert_instance().id
 
     @property
+    def source_version(self) -> Optional[str]:
+        return self._assert_instance().source_version
+
+    @property
     def version(self) -> str:
         return self._assert_instance().version
 
