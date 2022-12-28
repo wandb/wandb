@@ -181,13 +181,13 @@ class SendManager:
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
     _record_num: int
-    _sender_status_time: int
+    _sender_status_time: float
     _sender_status_record_num: int
 
     UPDATE_CONFIG_TIME: int = 30
     UPDATE_STATUS_TIME: int = 5
-    _debounce_config_time: int
-    _debounce_status_time: int
+    _debounce_config_time: float
+    _debounce_status_time: float
 
     def __init__(
         self,
@@ -389,7 +389,10 @@ class SendManager:
         if self._sender_status_record_num == record_num:
             return
         time_now = time.time()
-        if self._sender_status_time and time_now < self._sender_status_time + 5:
+        if (
+            self._sender_status_time
+            and time_now < self._sender_status_time + self.UPDATE_STATUS_TIME
+        ):
             return
         self._sender_record_num = record_num
         self._sender_status_time = time_now
