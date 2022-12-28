@@ -69,6 +69,10 @@ class InterfaceShared(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        rec = self._make_request(cancel=cancel)
+        self._publish(rec)
+
     def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
         rec = pb.Record()
         rec.output_raw.CopyFrom(outdata)
@@ -134,6 +138,8 @@ class InterfaceShared(InterfaceBase):
         artifact_done: Optional[pb.ArtifactDoneRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
         keepalive: Optional[pb.KeepaliveRequest] = None,
+        sync_status: Optional[pb.SyncStatusRequest] = None,
+        cancel: Optional[pb.CancelRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -176,6 +182,10 @@ class InterfaceShared(InterfaceBase):
             request.server_info.CopyFrom(server_info)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
+        elif sync_status:
+            request.sync_status.CopyFrom(sync_status)
+        elif cancel:
+            request.cancel.CopyFrom(cancel)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -531,6 +541,10 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(run=run)
         return self._deliver_record(record)
 
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        record = self._make_request(run_start=run_start)
+        return self._deliver_record(record)
+
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         record = self._make_request(get_summary=get_summary)
         return self._deliver_record(record)
@@ -543,6 +557,16 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(poll_exit=poll_exit)
         return self._deliver_record(record)
 
+    def _deliver_stop_status(self, stop_status: pb.StopStatusRequest) -> MailboxHandle:
+        record = self._make_request(stop_status=stop_status)
+        return self._deliver_record(record)
+
+    def _deliver_network_status(
+        self, network_status: pb.NetworkStatusRequest
+    ) -> MailboxHandle:
+        record = self._make_request(network_status=network_status)
+        return self._deliver_record(record)
+
     def _deliver_request_server_info(
         self, server_info: pb.ServerInfoRequest
     ) -> MailboxHandle:
@@ -553,6 +577,12 @@ class InterfaceShared(InterfaceBase):
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
         record = self._make_request(sampled_history=sampled_history)
+        return self._deliver_record(record)
+
+    def _deliver_request_sync_status(
+        self, sync_status: pb.SyncStatusRequest
+    ) -> MailboxHandle:
+        record = self._make_request(sync_status=sync_status)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

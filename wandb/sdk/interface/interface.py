@@ -188,6 +188,14 @@ class InterfaceBase:
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
+    def publish_cancel(self, cancel_slot: str) -> None:
+        cancel = pb.CancelRequest(cancel_slot=cancel_slot)
+        self._publish_cancel(cancel)
+
+    @abstractmethod
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        raise NotImplementedError
+
     def publish_config(
         self,
         data: Optional[dict] = None,
@@ -729,6 +737,31 @@ class InterfaceBase:
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
+        return self._deliver_run_start(run_start)
+
+    @abstractmethod
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_stop_status(self) -> MailboxHandle:
+        status = pb.StopStatusRequest()
+        return self._deliver_stop_status(status)
+
+    @abstractmethod
+    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_network_status(self) -> MailboxHandle:
+        status = pb.NetworkStatusRequest()
+        return self._deliver_network_status(status)
+
+    @abstractmethod
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_get_summary(self) -> MailboxHandle:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)
@@ -770,5 +803,15 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_sync_status(self) -> MailboxHandle:
+        sync_status = pb.SyncStatusRequest()
+        return self._deliver_request_sync_status(sync_status)
+
+    @abstractmethod
+    def _deliver_request_sync_status(
+        self, sync_status: pb.SyncStatusRequest
     ) -> MailboxHandle:
         raise NotImplementedError

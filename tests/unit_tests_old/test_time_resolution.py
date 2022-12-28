@@ -22,6 +22,9 @@ def test_resume(live_mock_server, test_settings, parse_ctx):
     history_updates = ctx_util.get_filestream_file_updates()["wandb-history.jsonl"]
 
     assert history_updates[0]["offset"] == 15
+    # for n, h in enumerate(history):
+    #     print("DEBUG1", n, h)
+
     assert len([h for h in history if h]) == 10
     assert [h for h in history if h][0]["_step"] == 16
     assert any([h["_timestamp"] % 1 > 0 for h in history if h])

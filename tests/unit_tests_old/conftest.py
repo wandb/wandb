@@ -13,6 +13,7 @@ import time
 import urllib
 import webbrowser
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
@@ -28,9 +29,11 @@ from click.testing import CliRunner
 from wandb import Api, wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.internal.writer import WriteManager
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
@@ -649,6 +652,12 @@ def _internal_sender(record_q, internal_result_q, internal_process, internal_mai
 
 
 @pytest.fixture()
+def _internal_context_keeper():
+    context_keeper = context.ContextKeeper()
+    yield context_keeper
+
+
+@pytest.fixture()
 def internal_sm(
     runner,
     internal_sender_q,
@@ -656,6 +665,7 @@ def internal_sm(
     test_settings,
     mock_server,
     _internal_sender,
+    _internal_context_keeper,
 ):
     with runner.isolated_filesystem():
         test_settings.update(
@@ -666,6 +676,7 @@ def internal_sm(
             record_q=internal_sender_q,
             result_q=internal_result_q,
             interface=_internal_sender,
+            context_keeper=_internal_context_keeper,
         )
         yield sm
 
@@ -683,10 +694,10 @@ def internal_hm(
     internal_result_q,
     test_settings,
     mock_server,
-    internal_sender_q,
     internal_writer_q,
     _internal_sender,
     stopped_event,
+    _internal_context_keeper,
 ):
     with runner.isolated_filesystem():
         test_settings.update(
@@ -697,11 +708,38 @@ def internal_hm(
             record_q=record_q,
             result_q=internal_result_q,
             stopped=stopped_event,
-            sender_q=internal_sender_q,
             writer_q=internal_writer_q,
             interface=_internal_sender,
+            context_keeper=_internal_context_keeper,
         )
         yield hm
+
+
+@pytest.fixture()
+def internal_wm(
+    runner,
+    internal_writer_q,
+    internal_result_q,
+    internal_sender_q,
+    stopped_event,
+    _internal_context_keeper,
+    test_settings,
+):
+    with runner.isolated_filesystem():
+        test_settings.update(
+            root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
+        )
+        wandb_file = test_settings.sync_file
+        run_dir = Path(wandb_file).parent
+        os.makedirs(run_dir)
+        wm = WriteManager(
+            settings=test_settings,
+            record_q=internal_writer_q,
+            result_q=internal_result_q,
+            sender_q=internal_sender_q,
+            context_keeper=_internal_context_keeper,
+        )
+        yield wm
 
 
 @pytest.fixture()
@@ -733,6 +771,7 @@ def start_send_thread(
                         break
             except Exception as e:
                 stopped_event.set()
+                print("RAISE_SEND", e)
                 internal_process._alive = False
 
         t = threading.Thread(target=target)
@@ -742,6 +781,36 @@ def start_send_thread(
         return t
 
     yield start_send
+    stopped_event.set()
+
+
+@pytest.fixture()
+def start_write_thread(
+    internal_writer_q, internal_get_record, stopped_event, internal_process
+):
+    def start_write(write_manager):
+        def target():
+            try:
+                while True:
+                    payload = internal_get_record(
+                        input_q=internal_writer_q, timeout=0.1
+                    )
+                    if payload:
+                        write_manager.write(payload)
+                    elif stopped_event.is_set():
+                        break
+            except Exception as e:
+                stopped_event.set()
+                print("RAISE_WRIT", e)
+                internal_process._alive = False
+
+        t = threading.Thread(target=target)
+        t.name = "testing-writer"
+        t.daemon = True
+        t.start()
+        return t
+
+    yield start_write
     stopped_event.set()
 
 
@@ -771,19 +840,22 @@ def _start_backend(
     mocked_run,
     internal_hm,
     internal_sm,
+    internal_wm,
     _internal_sender,
     start_handle_thread,
+    start_write_thread,
     start_send_thread,
     log_debug,
 ):
     def start_backend_func(initial_run=True, initial_start=False):
         ht = start_handle_thread(internal_hm)
+        wt = start_write_thread(internal_wm)
         st = start_send_thread(internal_sm)
         if initial_run:
             run = _internal_sender.communicate_run(mocked_run)
             if initial_start:
                 _internal_sender.communicate_run_start(run.run)
-        return (ht, st)
+        return (ht, wt, st)
 
     yield start_backend_func
 

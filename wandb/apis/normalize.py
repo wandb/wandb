@@ -11,7 +11,7 @@ import requests
 from wandb_gql.client import RetryError
 
 from wandb import env
-from wandb.errors import CommError
+from wandb.errors import CommError, ContextCancelledError
 
 _F = TypeVar("_F", bound=Callable)
 
@@ -26,6 +26,8 @@ def normalize_exceptions(func: _F) -> _F:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
             raise CommError(err.response, err)
+        except ContextCancelledError as err:
+            raise err
         except RetryError as err:
             if (
                 "response" in dir(err.last_exception)

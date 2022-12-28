@@ -695,7 +695,9 @@ class _WandbInit:
             )
             handle = backend.interface.deliver_run(run)
             result = handle.wait(
-                timeout=self.settings.init_timeout, on_progress=self._on_progress_init
+                timeout=self.settings.init_timeout,
+                on_progress=self._on_progress_init,
+                cancel=True,
             )
             if result:
                 run_result = result.run_result
@@ -736,7 +738,12 @@ class _WandbInit:
 
         assert backend.interface
         assert run_obj
-        _ = backend.interface.communicate_run_start(run_obj)
+
+        run_start_handle = backend.interface.deliver_run_start(run_obj)
+        # TODO: add progress to let user know we are doing something
+        run_start_result = run_start_handle.wait(timeout=30)
+        if run_start_result is None:
+            run_start_handle.release()
 
         self._wl._global_run_stack.append(run)
         self.run = run

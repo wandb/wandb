@@ -180,6 +180,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert resp
         return resp
 
+    def Cancel(  # noqa: N802
+        self, cancel: pb.CancelRequest, context: grpc.ServicerContext
+    ) -> pb.CancelResponse:
+        stream_id = cancel._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_cancel(cancel)
+        response = pb.CancelResponse()
+        return response
+
     def Keepalive(  # noqa: N802
         self, keepalive: pb.KeepaliveRequest, context: grpc.ServicerContext
     ) -> pb.KeepaliveResponse:
@@ -318,6 +327,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.AlertResult()
         return result
 
+    def SyncStatus(  # noqa: N802
+        self, sync_status: pb.SyncStatusRequest, context: grpc.ServicerContext
+    ) -> pb.SyncStatusResponse:
+        stream_id = sync_status._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        handle = iface._deliver_request_sync_status(sync_status)
+        result = handle.wait(timeout=-1)
+        assert result
+        return result.response.sync_status_response
+
     def Status(  # noqa: N802
         self, status: pb.StatusRequest, context: grpc.ServicerContext
     ) -> pb.StatusResponse:
@@ -363,6 +382,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
+        self._mux.start_stream(stream_id)
         result = spb.ServerInformStartResponse()
         return result
 

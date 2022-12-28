@@ -55,8 +55,10 @@ class StreamRecord:
     _iface: InterfaceRelay
     _thread: StreamThread
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
+    _started: bool
 
     def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
+        self._started = False
         self._mailbox = mailbox
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
@@ -96,6 +98,9 @@ class StreamRecord:
     @property
     def interface(self) -> InterfaceRelay:
         return self._iface
+
+    def mark_started(self) -> None:
+        self._started = True
 
     def update(self, settings: Dict[str, Any]) -> None:
         # Note: Currently just overriding the _settings attribute
@@ -165,6 +170,11 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
+    def start_stream(self, stream_id: str) -> None:
+        action = StreamAction(action="start", stream_id=stream_id)
+        self._action_q.put(action)
+        action.wait_handled()
+
     def update_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
         action = StreamAction(action="update", stream_id=stream_id, data=settings)
         self._action_q.put(action)
@@ -221,6 +231,10 @@ class StreamMux:
         stream.start_thread(thread)
         with self._streams_lock:
             self._streams[action._stream_id] = stream
+
+    def _process_start(self, action: StreamAction) -> None:
+        with self._streams_lock:
+            self._streams[action._stream_id].mark_started()
 
     def _process_update(self, action: StreamAction) -> None:
         with self._streams_lock:
@@ -284,7 +298,15 @@ class StreamMux:
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
         exit_handles = []
-        for stream in streams.values():
+
+        # only finish started streams, non started streams failed early
+        started_streams: Dict[str, StreamRecord] = {}
+        not_started_streams: Dict[str, StreamRecord] = {}
+        for stream_id, stream in streams.items():
+            d = started_streams if stream._started else not_started_streams
+            d[stream_id] = stream
+
+        for stream in started_streams.values():
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
             handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
@@ -300,8 +322,7 @@ class StreamMux:
         assert got_result
 
         # These could be done in parallel in the future
-        for _sid, stream in streams.items():
-
+        for _sid, stream in started_streams.items():
             # dispatch all our final requests
             poll_exit_handle = stream.interface.deliver_poll_exit()
             server_info_handle = stream.interface.deliver_request_server_info()
@@ -335,6 +356,10 @@ class StreamMux:
             )
             stream.join()
 
+        # not started streams need to be cleaned up
+        for stream in not_started_streams.values():
+            stream.join()
+
     def _process_teardown(self, action: StreamAction) -> None:
         exit_code: int = action._data
         with self._streams_lock:
@@ -351,6 +376,9 @@ class StreamMux:
             return
         if action._action == "update":
             self._process_update(action)
+            return
+        if action._action == "start":
+            self._process_start(action)
             return
         if action._action == "del":
             self._process_del(action)
