@@ -227,7 +227,35 @@ def run(
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
-    Arguments:
+        Arguments:
+    <<<<<<< HEAD
+            uri: URI of experiment to run. A wandb run uri or a Git repository URI.
+            job: string reference to a wandb.Job eg: wandb/test/my-job:latest
+            api: An instance of a wandb Api from wandb.apis.internal.
+            entry_point: Entry point to run within the project. Defaults to using the entry point used
+                in the original run for wandb URIs, or main.py for git repository URIs.
+            version: For Git-based projects, either a commit hash or a branch name.
+            parameters: Parameters (dictionary) for the entry point command. Defaults to using the
+                the parameters used to run the original run.
+            name: Name run under which to launch the run.
+            resource: Execution backend for the run: W&B provides built-in support for "local" backend
+            resource_args: Resource related arguments for launching runs onto a remote backend.
+                Will be stored on the constructed launch config under ``resource_args``.
+            project: Target project to send launched run to
+            entity: Target entity to send launched run to
+            config: A dictionary containing the configuration for the run. May also contain
+            resource specific arguments under the key "resource_args".
+            synchronous: Whether to block while waiting for a run to complete. Defaults to True.
+                Note that if ``synchronous`` is False and ``backend`` is "local", this
+                method will return, but the current process will block when exiting until
+                the local run completes. If the current process is interrupted, any
+                asynchronous runs launched via this method will be terminated. If
+                ``synchronous`` is True and the run fails, the current process will
+                error out as well.
+            cuda: Whether to build a CUDA-enabled docker image or not
+            run_id: ID for the run (To ultimately replace the :name: field)
+            repository: string name of repository path for remote registry
+    =======
         uri: URI of experiment to run. A wandb run uri or a Git repository URI.
         job: string reference to a wandb.Job eg: wandb/test/my-job:latest
         api: An instance of a wandb Api from wandb.apis.internal.
@@ -237,7 +265,7 @@ def run(
         parameters: Parameters (dictionary) for the entry point command. Defaults to using the
             the parameters used to run the original run.
         name: Name run under which to launch the run.
-        resource: Execution backend for the run: W&B provides built-in support for "local" backend
+        resource: Execution backend for the run.
         resource_args: Resource related arguments for launching runs onto a remote backend.
             Will be stored on the constructed launch config under ``resource_args``.
         project: Target project to send launched run to
@@ -245,7 +273,7 @@ def run(
         config: A dictionary containing the configuration for the run. May also contain
         resource specific arguments under the key "resource_args".
         synchronous: Whether to block while waiting for a run to complete. Defaults to True.
-            Note that if ``synchronous`` is False and ``backend`` is "local", this
+            Note that if ``synchronous`` is False and ``backend`` is "local-container", this
             method will return, but the current process will block when exiting until
             the local run completes. If the current process is interrupted, any
             asynchronous runs launched via this method will be terminated. If
@@ -254,24 +282,25 @@ def run(
         cuda: Whether to build a CUDA-enabled docker image or not
         run_id: ID for the run (To ultimately replace the :name: field)
         repository: string name of repository path for remote registry
+    >>>>>>> main
 
-    Example:
-        import wandb
-        project_uri = "https://github.com/wandb/examples"
-        params = {"alpha": 0.5, "l1_ratio": 0.01}
-        # Run W&B project and create a reproducible docker environment
-        # on a local host
-        api = wandb.apis.internal.Api()
-        wandb.launch(project_uri, api, parameters=params)
+        Example:
+            import wandb
+            project_uri = "https://github.com/wandb/examples"
+            params = {"alpha": 0.5, "l1_ratio": 0.01}
+            # Run W&B project and create a reproducible docker environment
+            # on a local host
+            api = wandb.apis.internal.Api()
+            wandb.launch(project_uri, api, parameters=params)
 
 
-    Returns:
-        an instance of`wandb.launch.SubmittedRun` exposing information (e.g. run ID)
-        about the launched run.
+        Returns:
+            an instance of`wandb.launch.SubmittedRun` exposing information (e.g. run ID)
+            about the launched run.
 
-    Raises:
-        `wandb.exceptions.ExecutionError` If a run launched in blocking mode
-        is unsuccessful.
+        Raises:
+            `wandb.exceptions.ExecutionError` If a run launched in blocking mode
+            is unsuccessful.
     """
     if config is None:
         config = {}
