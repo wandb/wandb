@@ -181,7 +181,6 @@ class SendManager:
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
     _record_num: int
-    _sender_status_time: float
     _sender_status_record_num: int
 
     UPDATE_CONFIG_TIME: int = 30
@@ -260,7 +259,6 @@ class SendManager:
         self._output_raw_file = None
 
         # sending status info
-        self._sender_status_time = 0
         self._sender_status_record_num = 0
 
         time_now = time.monotonic()
@@ -484,13 +482,12 @@ class SendManager:
         if self._sender_status_record_num == record_num:
             return
         self._sender_record_num = record_num
-        self._sender_status_time = time.time()
 
         # TODO(mempressure): implement
         status_report = wandb_internal_pb2.SenderStatusReportRequest(
             record_num=record_num,
         )
-        status_time = time_now
+        status_time = time.time()
         status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
         request = wandb_internal_pb2.Request()
         request.sender_status_report.CopyFrom(status_report)
@@ -499,8 +496,8 @@ class SendManager:
         self._interface._publish(record)
 
     def debounce(self, final: bool = False) -> None:
-        self._maybe_report_sender_status()
-        self._maybe_update_config()
+        self._maybe_report_sender_status(always=final)
+        self._maybe_update_config(always=final)
 
     def _debounce_config(self) -> None:
         config_value_dict = self._config_format(self._consolidated_config)
@@ -607,7 +604,7 @@ class SendManager:
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
         elif state == defer.FLUSH_DEBOUNCER:
-            self.debounce()
+            self.debounce(final=True)
             transition_state()
         elif state == defer.FLUSH_OUTPUT:
             self._output_raw_finish()
