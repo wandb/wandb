@@ -77,6 +77,7 @@ class WriteManager:
         assert self._ds
         self._record_num += 1
         record.num = self._record_num
+        # print("WRITE REC", record.num, record)
         ret = self._ds.write(record)
         assert ret is not None
 

@@ -321,7 +321,8 @@ class SendManager:
     def send(self, record: "Record") -> None:
         # print("PROC REC", record.num)
         if record.num:
-            assert record.num == self._record_num + 1
+            # TODO(mempressure): deal with offline so we can put this on
+            # assert record.num == self._record_num + 1
             self._record_num = record.num
         record_type = record.WhichOneof("record_type")
         assert record_type
@@ -383,31 +384,6 @@ class SendManager:
                     dictionary.pop(k)
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
-
-    def _maybe_report_sender_status(self) -> None:
-        record_num = self._record_num
-        if self._sender_status_record_num == record_num:
-            return
-        time_now = time.time()
-        if (
-            self._sender_status_time
-            and time_now < self._sender_status_time + self.UPDATE_STATUS_TIME
-        ):
-            return
-        self._sender_record_num = record_num
-        self._sender_status_time = time_now
-
-        # TODO(mempressure): implement
-        status_report = wandb_internal_pb2.SenderStatusReportRequest(
-            record_num=record_num,
-        )
-        status_time = time_now
-        status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
-        request = wandb_internal_pb2.Request()
-        request.sender_status_report.CopyFrom(status_report)
-        record = wandb_internal_pb2.Record()
-        record.request.CopyFrom(request)
-        self._interface._publish(record)
 
     def send_request_sender_read(self, record: "Record") -> None:
         # print("SEND READ vvvvvvvvvv")
@@ -483,15 +459,48 @@ class SendManager:
                 logger.warning("Failed to check stop requested status: %s", e)
         self._respond_result(result)
 
-    def debounce(self, final: bool = False) -> None:
+    def _maybe_update_config(self, always: bool = False) -> None:
         time_now = time.monotonic()
-        if time_now >= self._debounce_config_time + self.UPDATE_CONFIG_TIME:
-            if self._config_needs_debounce:
-                self._debounce_config()
-            self._debounce_config_time = time_now
-        if time_now >= self._debounce_status_time + self.UPDATE_STATUS_TIME:
-            self._maybe_report_sender_status()
-            self._debounce_status_time = time_now
+        if (
+            not always
+            and time_now < self._debounce_config_time + self.UPDATE_CONFIG_TIME
+        ):
+            return
+        if self._config_needs_debounce:
+            self._debounce_config()
+        self._debounce_config_time = time_now
+
+    def _maybe_report_sender_status(self, always: bool = False) -> None:
+        time_now = time.monotonic()
+        if (
+            not always
+            and time_now < self._debounce_status_time + self.UPDATE_STATUS_TIME
+        ):
+            return
+        self._debounce_status_time = time_now
+
+        record_num = self._record_num
+        # TODO(mempressure): remove or change if we start sending offset - we should
+        if self._sender_status_record_num == record_num:
+            return
+        self._sender_record_num = record_num
+        self._sender_status_time = time.time()
+
+        # TODO(mempressure): implement
+        status_report = wandb_internal_pb2.SenderStatusReportRequest(
+            record_num=record_num,
+        )
+        status_time = time_now
+        status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
+        request = wandb_internal_pb2.Request()
+        request.sender_status_report.CopyFrom(status_report)
+        record = wandb_internal_pb2.Record()
+        record.request.CopyFrom(request)
+        self._interface._publish(record)
+
+    def debounce(self, final: bool = False) -> None:
+        self._maybe_report_sender_status()
+        self._maybe_update_config()
 
     def _debounce_config(self) -> None:
         config_value_dict = self._config_format(self._consolidated_config)
