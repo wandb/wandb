@@ -394,12 +394,15 @@ class SendManager:
         off = 0
         while off < end:
             data = self._ds.scan_data()
+            # reached eof
+            if not data:
+                break
             pb = wandb_internal_pb2.Record()
             pb.ParseFromString(data)
             # print("READ REC", pb.num, off, start, end)
             self.send(pb)
             # print("GOT REC h", pb.history.step.num)
-            # off = self._ds.get_offset()
+            off = self._ds.get_offset()
             self._maybe_report_sender_status()
             # print("GOT OFF", off)
         # DEBUG print(" DONE", off, start, end)
