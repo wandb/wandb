@@ -1,3 +1,9 @@
+Don't use this certificate for anything except unit tests!
+The corresponding privkey is checked into a public repository!
+
+Its sole purpose is to help our unit tests set up an HTTP server
+with SSL, in order to probe wandb's SSL-related options.
+
 -----BEGIN CERTIFICATE-----
 MIIDdDCCAlygAwIBAgIJAJGMgMntHT4UMA0GCSqGSIb3DQEBCwUAMG4xCzAJBgNV
 BAYTAlVTMQswCQYDVQQIDAJDQTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzEZMBcG
