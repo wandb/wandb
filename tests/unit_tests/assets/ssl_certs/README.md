@@ -19,7 +19,11 @@ I don't really understand all that, but here are the most valuable things I lear
 
 - "Why do we need the `ln -s ...certificate hash???...`?
 
-    - Both `requests` and `httpx` allow you to use an env var to point to a directory full of certificates.
+    TLDR: `requests` and `httpx` both provide a way for the user to specify a directory full of trusted certificates for SSL to use. Each certificate file in that directory must be named based on its hash, or else OpenSSL (which both libs use under the hood) won't be able to find it. We _could_ just `mv localhost.cert $(...hash it...).0` instead; this just seems a little cleaner to me.
+
+    Details:
+
+    - Both `requests` and `httpx` allow you to use an env var to point to a directory full of certificates. (Or a single certificate file; but the symlink is only relevant for directories.)
         - Docs: [`REQUESTS_CA_BUNDLE`](https://requests.readthedocs.io/en/latest/user/advanced/#ssl-cert-verification), [`SSL_CERT_DIR`](https://www.python-httpx.org/environment_variables/#ssl_cert_dir).
     - The httpx docs indicate that the directory should be in [this OpenSSL-dictated layout](https://www.openssl.org/docs/manmaster/man3/SSL_CTX_load_verify_locations.html)...
     - ...and [this Stack Overflow question](https://stackoverflow.com/questions/30059107/get-x509-certificate-hash-with-openssl-library) contains the incantation for getting that certificate hash.
