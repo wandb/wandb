@@ -482,9 +482,12 @@ class SendManager:
             and time_now < self._debounce_status_time + self.UPDATE_STATUS_TIME
         ):
             return
-        self._debounce_status_time = time_now
 
         record_num = self._record_num
+        if self._sender_status_record_num == record_num:
+            return
+
+        self._debounce_status_time = time_now
         self._sender_status_record_num = record_num
 
         status_report = wandb_internal_pb2.SenderStatusReportRequest(
