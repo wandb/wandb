@@ -394,7 +394,7 @@ class SendManager:
         current_end_offset = 0
         while current_end_offset < final_offset:
             data = self._ds.scan_data()
-            assert not data
+            assert data
             current_end_offset = self._ds.get_offset()
 
             send_record = wandb_internal_pb2.Record()
