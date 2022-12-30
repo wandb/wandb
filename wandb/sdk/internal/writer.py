@@ -92,7 +92,7 @@ class WriteManager:
     def _recover_records(self, start: int, end: int) -> None:
         record = pb.Record()
         request = pb.Request()
-        sender_read = pb.SenderReadRequest(start_offset=start, end_offset=end)
+        sender_read = pb.SenderReadRequest(start_offset=start, final_offset=end)
         for cancel_id in self._sender_cancel_set:
             sender_read.cancel_list.append(cancel_id)
         request.sender_read.CopyFrom(sender_read)

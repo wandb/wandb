@@ -183,11 +183,8 @@ class SendManager:
     _ds: Optional[datastore.DataStore]
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
-    _record_num: int
-    _status_write_offset: int
-    _status_send_offset: int
-    _status_record_num: int
-
+    _send_record_num: int
+    _send_end_offset: int
     _debounce_config_time: float
     _debounce_status_time: float
 
@@ -206,7 +203,8 @@ class SendManager:
         self._context_keeper = context_keeper
 
         self._ds = None
-        self._record_num = 0
+        self._send_record_num = 0
+        self._send_end_offset = 0
 
         self._fs = None
         self._pusher = None
@@ -260,11 +258,6 @@ class SendManager:
         # internal vars for handing raw console output
         self._output_raw_streams = dict()
         self._output_raw_file = None
-
-        # sending status info
-        self._status_write_offset = 0
-        self._status_send_offset = 0
-        self._status_record_num = 0
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
@@ -322,11 +315,9 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
-        # print("PROC REC", record.num)
-        if record.num:
-            # TODO(mempressure): deal with offline so we can put this on
-            # assert record.num == self._record_num + 1
-            self._record_num = record.num
+        self._update_record_num(record.num)
+        self._update_end_offset(record.control.end_offset)
+
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -352,7 +343,6 @@ class SendManager:
             self._fs.enqueue_preempting()
 
     def send_request_sender_mark(self, record: "Record") -> None:
-        self._status_write_offset = record.request.sender_mark.write_offset
         self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
@@ -380,31 +370,38 @@ class SendManager:
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
 
+    def _update_record_num(self, record_num: int) -> None:
+        if not record_num:
+            return
+        if not self._settings._offline:
+            assert record_num == self._send_record_num + 1
+        self._send_record_num = record_num
+
+    def _update_end_offset(self, end_offset: int) -> None:
+        if not end_offset:
+            return
+        self._send_end_offset = end_offset
+
     def send_request_sender_read(self, record: "Record") -> None:
-        # print("SEND READ vvvvvvvvvv")
         if self._ds is None:
             self._ds = datastore.DataStore()
             self._ds.open_for_scan(self._settings.sync_file)
-        start = record.request.sender_read.start_offset
-        end = record.request.sender_read.end_offset
-        self._ds.seek(start)
-        off = 0
-        while off < end:
+
+        start_offset = record.request.sender_read.start_offset
+        final_offset = record.request.sender_read.final_offset
+        self._ds.seek(start_offset)
+
+        current_end_offset = 0
+        while current_end_offset < final_offset:
             data = self._ds.scan_data()
-            # reached eof
-            if not data:
-                break
-            pb = wandb_internal_pb2.Record()
-            pb.ParseFromString(data)
-            # print("READ REC", pb.num, off, start, end)
-            self.send(pb)
-            # print("GOT REC h", pb.history.step.num)
-            off = self._ds.get_offset()
-            self._status_send_offset = off
+            assert not data
+            current_end_offset = self._ds.get_offset()
+
+            send_record = wandb_internal_pb2.Record()
+            send_record.ParseFromString(data)
+            self._update_end_offset(current_end_offset)
+            self.send(send_record)
             self._maybe_report_status()
-            # print("GOT OFF", off)
-        # DEBUG print(" DONE", off, start, end)
-        # print("SEND DONE ^^^^^^^^^")
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -476,18 +473,11 @@ class SendManager:
             and time_now < self._debounce_status_time + self.UPDATE_STATUS_TIME
         ):
             return
-
-        record_num = self._record_num
-        # if self._status_record_num == record_num:
-        #     return
-
         self._debounce_status_time = time_now
-        self._status_record_num = record_num
 
-        send_offset = max(self._status_send_offset, self._status_write_offset)
         status_report = wandb_internal_pb2.StatusReportRequest(
-            record_num=self._status_record_num,
-            send_offset=send_offset,
+            record_num=self._send_record_num,
+            send_offset=self._send_end_offset,
         )
         status_time = time.time()
         status_report.sync_time.FromMicroseconds(int(status_time * 1e6))

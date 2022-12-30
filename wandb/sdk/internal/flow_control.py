@@ -234,8 +234,8 @@ class FlowControl:
     def _send_mark(self) -> None:
         record = pb.Record()
         request = pb.Request()
-        last_write_offset = self._track_last_written_offset
-        sender_mark = pb.SenderMarkRequest(write_offset=last_write_offset)
+        # last_write_offset = self._track_last_written_offset
+        sender_mark = pb.SenderMarkRequest()
         request.sender_mark.CopyFrom(sender_mark)
         record.request.CopyFrom(request)
         self._forward_record(record)

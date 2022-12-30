@@ -2089,14 +2089,9 @@ class SenderMarkRequest(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    WRITE_OFFSET_FIELD_NUMBER: builtins.int
-    write_offset: builtins.int
     def __init__(
         self,
-        *,
-        write_offset: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["write_offset", b"write_offset"]) -> None: ...
 
 global___SenderMarkRequest = SenderMarkRequest
 
@@ -2105,20 +2100,20 @@ class SenderReadRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     START_OFFSET_FIELD_NUMBER: builtins.int
-    END_OFFSET_FIELD_NUMBER: builtins.int
+    FINAL_OFFSET_FIELD_NUMBER: builtins.int
     CANCEL_LIST_FIELD_NUMBER: builtins.int
     start_offset: builtins.int
-    end_offset: builtins.int
+    final_offset: builtins.int
     @property
     def cancel_list(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
         start_offset: builtins.int = ...,
-        end_offset: builtins.int = ...,
+        final_offset: builtins.int = ...,
         cancel_list: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["cancel_list", b"cancel_list", "end_offset", b"end_offset", "start_offset", b"start_offset"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["cancel_list", b"cancel_list", "final_offset", b"final_offset", "start_offset", b"start_offset"]) -> None: ...
 
 global___SenderReadRequest = SenderReadRequest
 

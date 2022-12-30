@@ -654,12 +654,11 @@ message PollExitResponse {
  * Sender requests
  */
 message SenderMarkRequest {
-  int64 write_offset = 1;
 }
 
 message SenderReadRequest {
   int64 start_offset = 1;
-  int64 end_offset = 2;
+  int64 final_offset = 2;
   repeated string cancel_list = 3;
 }
 
