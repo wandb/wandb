@@ -156,6 +156,9 @@ class _OutputRawStream:
 
 
 class SendManager:
+    UPDATE_CONFIG_TIME: int = 30
+    UPDATE_STATUS_TIME: int = 5
+
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
@@ -181,10 +184,9 @@ class SendManager:
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
     _record_num: int
+    _sender_status_offset: int
     _sender_status_record_num: int
 
-    UPDATE_CONFIG_TIME: int = 30
-    UPDATE_STATUS_TIME: int = 5
     _debounce_config_time: float
     _debounce_status_time: float
 
@@ -259,6 +261,7 @@ class SendManager:
         self._output_raw_file = None
 
         # sending status info
+        self._sender_status_offset = 0
         self._sender_status_record_num = 0
 
         time_now = time.monotonic()
@@ -403,6 +406,7 @@ class SendManager:
             self.send(pb)
             # print("GOT REC h", pb.history.step.num)
             off = self._ds.get_offset()
+            self._sender_status_offset = off
             self._maybe_report_sender_status()
             # print("GOT OFF", off)
         # DEBUG print(" DONE", off, start, end)
@@ -481,14 +485,11 @@ class SendManager:
         self._debounce_status_time = time_now
 
         record_num = self._record_num
-        # TODO(mempressure): remove or change if we start sending offset - we should
-        if self._sender_status_record_num == record_num:
-            return
-        self._sender_record_num = record_num
+        self._sender_status_record_num = record_num
 
-        # TODO(mempressure): implement
         status_report = wandb_internal_pb2.SenderStatusReportRequest(
-            record_num=record_num,
+            record_num=self._sender_status_record_num,
+            offset=self._sender_status_offset,
         )
         status_time = time.time()
         status_report.sync_time.FromMicroseconds(int(status_time * 1e6))

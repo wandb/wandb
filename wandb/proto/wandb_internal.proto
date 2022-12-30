@@ -668,7 +668,8 @@ message SenderReadRequest {
 
 message SenderStatusReportRequest {
   int64 record_num = 1;
-  google.protobuf.Timestamp sync_time = 2;
+  int64 offset = 2;
+  google.protobuf.Timestamp sync_time = 3;
 }
 
 /*
