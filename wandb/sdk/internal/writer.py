@@ -45,6 +45,7 @@ class WriteManager:
         self._ds = None
         self._flow_control = None
         self._flow_debug = False
+        self._flow_debug = True
         self._status_report = None
         self._record_num = 0
 
