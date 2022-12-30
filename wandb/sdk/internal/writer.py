@@ -82,6 +82,7 @@ class WriteManager:
         assert ret is not None
 
         (_start_offset, end_offset, flush_offset) = ret
+        record.control.end_offset = end_offset
         return end_offset
 
     def _ensure_flushed(self, offset: int) -> None:

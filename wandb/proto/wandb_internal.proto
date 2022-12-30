@@ -60,6 +60,7 @@ message Control {
   string mailbox_slot = 4;  // mailbox slot
   bool always_send = 5;  // message to sender
   bool flow_control = 6;  // message should be passed to flow control
+  int64 end_offset = 7;  // end of message offset of this written message
 }
 
 /*

@@ -150,6 +150,7 @@ class Control(google.protobuf.message.Message):
     MAILBOX_SLOT_FIELD_NUMBER: builtins.int
     ALWAYS_SEND_FIELD_NUMBER: builtins.int
     FLOW_CONTROL_FIELD_NUMBER: builtins.int
+    END_OFFSET_FIELD_NUMBER: builtins.int
     req_resp: builtins.bool
     """record is expecting a result"""
     local: builtins.bool
@@ -162,6 +163,8 @@ class Control(google.protobuf.message.Message):
     """message to sender"""
     flow_control: builtins.bool
     """message should be passed to flow control"""
+    end_offset: builtins.int
+    """end of message offset of this written message"""
     def __init__(
         self,
         *,
@@ -171,8 +174,9 @@ class Control(google.protobuf.message.Message):
         mailbox_slot: builtins.str = ...,
         always_send: builtins.bool = ...,
         flow_control: builtins.bool = ...,
+        end_offset: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "flow_control", b"flow_control", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "end_offset", b"end_offset", "flow_control", b"flow_control", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
 
 global___Control = Control
 
