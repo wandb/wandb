@@ -23,7 +23,7 @@ class WriteManager:
     _sender_q: "Queue[pb.Record]"
     _ds: Optional[datastore.DataStore]
     _flow_control: Optional[flow_control.FlowControl]
-    _sender_status_report: Optional["pb.SenderStatusReportRequest"]
+    _status_report: Optional["pb.StatusReportRequest"]
     _context_keeper: context.ContextKeeper
     _sender_cancel_set: Set[str]
     _record_num: int
@@ -45,7 +45,7 @@ class WriteManager:
         self._ds = None
         self._flow_control = None
         self._flow_debug = False
-        self._sender_status_report = None
+        self._status_report = None
         self._record_num = 0
 
     def open(self) -> None:
@@ -135,11 +135,11 @@ class WriteManager:
 
     def write_request_run_status(self, record: "pb.Record") -> None:
         result = proto_util._result_from_record(record)
-        if self._sender_status_report:
+        if self._status_report:
             result.response.run_status_response.sync_time.CopyFrom(
-                self._sender_status_report.sync_time
+                self._status_report.sync_time
             )
-            send_record_num = self._sender_status_report.record_num
+            send_record_num = self._status_report.record_num
             result.response.run_status_response.sync_items_total = self._record_num
             result.response.run_status_response.sync_items_pending = (
                 self._record_num - send_record_num
@@ -147,8 +147,8 @@ class WriteManager:
         # TODO(mempressure): add logic to populate run_status_response
         self._respond_result(result)
 
-    def write_request_sender_status_report(self, record: "pb.Record") -> None:
-        self._sender_status_report = record.request.sender_status_report
+    def write_request_status_report(self, record: "pb.Record") -> None:
+        self._status_report = record.request.status_report
 
     def write_request_cancel(self, record: "pb.Record") -> None:
         cancel_id = record.request.cancel.cancel_slot

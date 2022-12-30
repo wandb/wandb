@@ -59,6 +59,7 @@ message Control {
   string relay_id = 3;  // used by service transport to identify correct stream
   string mailbox_slot = 4;  // mailbox slot
   bool always_send = 5;  // message to sender
+  bool flow_control = 6;  // message should be passed to flow control
 }
 
 /*
@@ -499,10 +500,9 @@ message Request {
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
     ServerInfoRequest     server_info = 67;
-    SenderMarkRequest       sender_mark = 68;
-    SenderMarkReportRequest sender_mark_report = 69;
-    SenderReadRequest       sender_read = 70;
-    SenderStatusReportRequest sender_status_report = 71;
+    SenderMarkRequest     sender_mark = 68;
+    SenderReadRequest     sender_read = 69;
+    StatusReportRequest   status_report = 70;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -653,11 +653,7 @@ message PollExitResponse {
  * Sender requests
  */
 message SenderMarkRequest {
-  int64 mark_id = 1;
-}
-
-message SenderMarkReportRequest {
-  int64 mark_id = 1;
+  int64 write_offset = 1;
 }
 
 message SenderReadRequest {
@@ -666,9 +662,9 @@ message SenderReadRequest {
   repeated string cancel_list = 3;
 }
 
-message SenderStatusReportRequest {
+message StatusReportRequest {
   int64 record_num = 1;
-  int64 offset = 2;
+  int64 send_offset = 2;
   google.protobuf.Timestamp sync_time = 3;
 }
 

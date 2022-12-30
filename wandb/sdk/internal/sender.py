@@ -184,8 +184,9 @@ class SendManager:
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
     _record_num: int
-    _sender_status_offset: int
-    _sender_status_record_num: int
+    _status_write_offset: int
+    _status_send_offset: int
+    _status_record_num: int
 
     _debounce_config_time: float
     _debounce_status_time: float
@@ -261,8 +262,9 @@ class SendManager:
         self._output_raw_file = None
 
         # sending status info
-        self._sender_status_offset = 0
-        self._sender_status_record_num = 0
+        self._status_write_offset = 0
+        self._status_send_offset = 0
+        self._status_record_num = 0
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
@@ -350,16 +352,8 @@ class SendManager:
             self._fs.enqueue_preempting()
 
     def send_request_sender_mark(self, record: "Record") -> None:
-        # we got the mark, send it back to the writer
-        mark_id = record.request.sender_mark.mark_id
-        mark_report = wandb_internal_pb2.SenderMarkReportRequest(mark_id=mark_id)
-        request = wandb_internal_pb2.Request()
-        request.sender_mark_report.CopyFrom(mark_report)
-        record = wandb_internal_pb2.Record()
-        record.request.CopyFrom(request)
-        # tracelog.log_message_queue(record, self._writer_q)
-        # self._writer_q.put(record)
-        self._interface._publish(record)
+        self._status_write_offset = record.request.sender_mark.write_offset
+        self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
         request_type = record.request.WhichOneof("request_type")
@@ -406,8 +400,8 @@ class SendManager:
             self.send(pb)
             # print("GOT REC h", pb.history.step.num)
             off = self._ds.get_offset()
-            self._sender_status_offset = off
-            self._maybe_report_sender_status()
+            self._status_send_offset = off
+            self._maybe_report_status()
             # print("GOT OFF", off)
         # DEBUG print(" DONE", off, start, end)
         # print("SEND DONE ^^^^^^^^^")
@@ -475,7 +469,7 @@ class SendManager:
             self._debounce_config()
         self._debounce_config_time = time_now
 
-    def _maybe_report_sender_status(self, always: bool = False) -> None:
+    def _maybe_report_status(self, always: bool = False) -> None:
         time_now = time.monotonic()
         if (
             not always
@@ -484,26 +478,29 @@ class SendManager:
             return
 
         record_num = self._record_num
-        if self._sender_status_record_num == record_num:
-            return
+        # if self._status_record_num == record_num:
+        #     return
 
         self._debounce_status_time = time_now
-        self._sender_status_record_num = record_num
+        self._status_record_num = record_num
 
-        status_report = wandb_internal_pb2.SenderStatusReportRequest(
-            record_num=self._sender_status_record_num,
-            offset=self._sender_status_offset,
+        send_offset = max(self._status_send_offset, self._status_write_offset)
+        status_report = wandb_internal_pb2.StatusReportRequest(
+            record_num=self._status_record_num,
+            send_offset=send_offset,
         )
         status_time = time.time()
         status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
         request = wandb_internal_pb2.Request()
-        request.sender_status_report.CopyFrom(status_report)
+        request.status_report.CopyFrom(status_report)
         record = wandb_internal_pb2.Record()
+        record.control.local = True
+        record.control.flow_control = True
         record.request.CopyFrom(request)
         self._interface._publish(record)
 
     def debounce(self, final: bool = False) -> None:
-        self._maybe_report_sender_status(always=final)
+        self._maybe_report_status(always=final)
         self._maybe_update_config(always=final)
 
     def _debounce_config(self) -> None:
@@ -579,6 +576,10 @@ class SendManager:
         self._interface._publish_run_done(run_done)
 
     def send_request_run_done(self, record: "Record") -> None:
+        # todo? this is just a noop to please wandb sync
+        pass
+
+    def send_request_status_report(self, record: "Record") -> None:
         # todo? this is just a noop to please wandb sync
         pass
 

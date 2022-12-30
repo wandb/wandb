@@ -147,6 +147,7 @@ class Control(google.protobuf.message.Message):
     RELAY_ID_FIELD_NUMBER: builtins.int
     MAILBOX_SLOT_FIELD_NUMBER: builtins.int
     ALWAYS_SEND_FIELD_NUMBER: builtins.int
+    FLOW_CONTROL_FIELD_NUMBER: builtins.int
     req_resp: builtins.bool
     """record is expecting a result"""
     local: builtins.bool
@@ -157,6 +158,8 @@ class Control(google.protobuf.message.Message):
     """mailbox slot"""
     always_send: builtins.bool
     """message to sender"""
+    flow_control: builtins.bool
+    """message should be passed to flow control"""
     def __init__(
         self,
         *,
@@ -165,8 +168,9 @@ class Control(google.protobuf.message.Message):
         relay_id: builtins.str = ...,
         mailbox_slot: builtins.str = ...,
         always_send: builtins.bool = ...,
+        flow_control: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "flow_control", b"flow_control", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
 
 global___Control = Control
 
@@ -1455,9 +1459,8 @@ class Request(google.protobuf.message.Message):
     STATUS_FIELD_NUMBER: builtins.int
     SERVER_INFO_FIELD_NUMBER: builtins.int
     SENDER_MARK_FIELD_NUMBER: builtins.int
-    SENDER_MARK_REPORT_FIELD_NUMBER: builtins.int
     SENDER_READ_FIELD_NUMBER: builtins.int
-    SENDER_STATUS_REPORT_FIELD_NUMBER: builtins.int
+    STATUS_REPORT_FIELD_NUMBER: builtins.int
     TEST_INJECT_FIELD_NUMBER: builtins.int
     @property
     def stop_status(self) -> global___StopStatusRequest: ...
@@ -1512,11 +1515,9 @@ class Request(google.protobuf.message.Message):
     @property
     def sender_mark(self) -> global___SenderMarkRequest: ...
     @property
-    def sender_mark_report(self) -> global___SenderMarkReportRequest: ...
-    @property
     def sender_read(self) -> global___SenderReadRequest: ...
     @property
-    def sender_status_report(self) -> global___SenderStatusReportRequest: ...
+    def status_report(self) -> global___StatusReportRequest: ...
     @property
     def test_inject(self) -> global___TestInjectRequest: ...
     def __init__(
@@ -1548,14 +1549,13 @@ class Request(google.protobuf.message.Message):
         status: global___StatusRequest | None = ...,
         server_info: global___ServerInfoRequest | None = ...,
         sender_mark: global___SenderMarkRequest | None = ...,
-        sender_mark_report: global___SenderMarkReportRequest | None = ...,
         sender_read: global___SenderReadRequest | None = ...,
-        sender_status_report: global___SenderStatusReportRequest | None = ...,
+        status_report: global___StatusReportRequest | None = ...,
         test_inject: global___TestInjectRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_run", b"get_run", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_done", b"run_done", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_mark_report", b"sender_mark_report", "sender_read", b"sender_read", "sender_status_report", b"sender_status_report", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_run", b"get_run", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_done", b"run_done", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_mark_report", b"sender_mark_report", "sender_read", b"sender_read", "sender_status_report", b"sender_status_report", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "artifact_send", "artifact_poll", "artifact_done", "keepalive", "run_done", "get_run", "run_status", "cancel", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_mark_report", "sender_read", "sender_status_report", "test_inject"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_run", b"get_run", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_done", b"run_done", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_done", b"artifact_done", "artifact_poll", b"artifact_poll", "artifact_send", b"artifact_send", "attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "get_run", b"get_run", "get_summary", b"get_summary", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "request_type", b"request_type", "resume", b"resume", "run_done", b"run_done", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "test_inject", b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "artifact_send", "artifact_poll", "artifact_done", "keepalive", "run_done", "get_run", "run_status", "cancel", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "test_inject"] | None: ...
 
 global___Request = Request
 
@@ -2012,30 +2012,16 @@ class SenderMarkRequest(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    MARK_ID_FIELD_NUMBER: builtins.int
-    mark_id: builtins.int
+    WRITE_OFFSET_FIELD_NUMBER: builtins.int
+    write_offset: builtins.int
     def __init__(
         self,
         *,
-        mark_id: builtins.int = ...,
+        write_offset: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["mark_id", b"mark_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["write_offset", b"write_offset"]) -> None: ...
 
 global___SenderMarkRequest = SenderMarkRequest
-
-class SenderMarkReportRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    MARK_ID_FIELD_NUMBER: builtins.int
-    mark_id: builtins.int
-    def __init__(
-        self,
-        *,
-        mark_id: builtins.int = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["mark_id", b"mark_id"]) -> None: ...
-
-global___SenderMarkReportRequest = SenderMarkReportRequest
 
 class SenderReadRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -2058,27 +2044,27 @@ class SenderReadRequest(google.protobuf.message.Message):
 
 global___SenderReadRequest = SenderReadRequest
 
-class SenderStatusReportRequest(google.protobuf.message.Message):
+class StatusReportRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     RECORD_NUM_FIELD_NUMBER: builtins.int
-    OFFSET_FIELD_NUMBER: builtins.int
+    SEND_OFFSET_FIELD_NUMBER: builtins.int
     SYNC_TIME_FIELD_NUMBER: builtins.int
     record_num: builtins.int
-    offset: builtins.int
+    send_offset: builtins.int
     @property
     def sync_time(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
         record_num: builtins.int = ...,
-        offset: builtins.int = ...,
+        send_offset: builtins.int = ...,
         sync_time: google.protobuf.timestamp_pb2.Timestamp | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["sync_time", b"sync_time"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["offset", b"offset", "record_num", b"record_num", "sync_time", b"sync_time"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["record_num", b"record_num", "send_offset", b"send_offset", "sync_time", b"sync_time"]) -> None: ...
 
-global___SenderStatusReportRequest = SenderStatusReportRequest
+global___StatusReportRequest = StatusReportRequest
 
 class ServerInfoRequest(google.protobuf.message.Message):
     """

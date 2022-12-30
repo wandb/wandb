@@ -87,10 +87,7 @@ def _is_local_record(record: "Record") -> bool:
 
 
 def _is_control_record(record: "Record") -> bool:
-    request_type = _get_request_type(record)
-    if request_type not in {"sender_mark_report"}:
-        return False
-    return True
+    return record.control.flow_control
 
 
 class FlowControl:
@@ -208,16 +205,19 @@ class FlowControl:
 
     def _process_record(self, record: "Record") -> None:
         request_type = _get_request_type(record)
-        if request_type == "sender_mark_report":
-            self._process_sender_mark_report(record)
+        if not request_type:
+            return
+        process_str = f"_process_{request_type}"
+        process_handler: Optional[Callable[["pb.Record"], None]] = getattr(
+            self, process_str, None
+        )
+        if not process_handler:
+            return
+        process_handler(record)
 
-    def _process_sender_mark_report(self, record: "Record") -> None:
-        mark_id = record.request.sender_mark_report.mark_id
-        self._mark_reported_offset = mark_id
-        # print("GOT REPORT", mark_id)
-
-    def _process_report_sender_position(self, record: "Record") -> None:
-        pass
+    def _process_status_report(self, record: "Record") -> None:
+        send_offset = record.request.status_report.send_offset
+        self._mark_reported_offset = send_offset
 
     def _forward_record(self, record: "Record") -> None:
         # DEBUG print("FORW REC", record.num)
@@ -235,7 +235,7 @@ class FlowControl:
         record = pb.Record()
         request = pb.Request()
         last_write_offset = self._track_last_written_offset
-        sender_mark = pb.SenderMarkRequest(mark_id=last_write_offset)
+        sender_mark = pb.SenderMarkRequest(write_offset=last_write_offset)
         request.sender_mark.CopyFrom(sender_mark)
         record.request.CopyFrom(request)
         self._forward_record(record)
@@ -383,7 +383,7 @@ class FlowControl:
             print("# FLOW-DEBUG", record)
         self._process_record(record)
 
-        if not _is_control_record(record) and not _is_local_record(record):
+        if not _is_local_record(record):
             self._write_record(record)
 
         self._fsm.input(record)
