@@ -151,6 +151,7 @@ class WriteManager:
 
     def write_request_status_report(self, record: "pb.Record") -> None:
         self._status_report = record.request.status_report
+        self._write(record)
 
     def write_request_cancel(self, record: "pb.Record") -> None:
         cancel_id = record.request.cancel.cancel_slot

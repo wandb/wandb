@@ -315,6 +315,9 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
+        # record_type = record.WhichOneof("record_type")
+        # request_type = record.request.WhichOneof("request_type")
+        # print("SEND_RECORD", self._send_record_num, self._send_end_offset, record_type, request_type)
         self._update_record_num(record.num)
         self._update_end_offset(record.control.end_offset)
 
@@ -392,6 +395,7 @@ class SendManager:
         self._ds.seek(start_offset)
 
         current_end_offset = 0
+        # print("SEND_READ", start_offset, final_offset)
         while current_end_offset < final_offset:
             data = self._ds.scan_data()
             assert data
@@ -402,6 +406,7 @@ class SendManager:
             self._update_end_offset(current_end_offset)
             self.send(send_record)
             self._maybe_report_status()
+        # print("SEND_READ_DONE", start_offset, final_offset, current_end_offset)
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -488,6 +493,7 @@ class SendManager:
         record.control.flow_control = True
         record.request.CopyFrom(request)
         self._interface._publish(record)
+        # print("SEND_STATUS_REPORT", self._send_end_offset)
 
     def debounce(self, final: bool = False) -> None:
         self._maybe_report_status(always=final)

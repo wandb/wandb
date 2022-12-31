@@ -175,17 +175,17 @@ class FlowControl:
         fsm_table: fsm.FsmTable[Record] = {
             StateForwarding: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding),
-                fsm.FsmEntry(self._should_pause, StatePausing, self._pause),
+                fsm.FsmEntry(self._should_pause, StatePausing, self._do_pause),
             ],
             StatePausing: [
-                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
-                fsm.FsmEntry(self._should_unpause, StateForwarding, self._unpause),
-                fsm.FsmEntry(self._should_recover, StateRecovering, self._recover),
+                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._do_quiesce),
+                fsm.FsmEntry(self._should_unpause, StateForwarding, self._do_unpause),
+                fsm.FsmEntry(self._should_recover, StateRecovering, self._do_recover),
             ],
             StateRecovering: [
-                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._quiesce),
-                fsm.FsmEntry(self._should_forward, StateForwarding, self._quiesce),
-                fsm.FsmEntry(self._should_recover, StateRecovering, self._recover),
+                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._do_quiesce),
+                fsm.FsmEntry(self._should_forward, StateForwarding, self._do_quiesce),
+                fsm.FsmEntry(self._should_recover, StateRecovering, self._do_recover),
             ],
         }
         self._fsm = fsm.Fsm(
@@ -307,7 +307,7 @@ class FlowControl:
 
     def _should_quiesce(self, inputs: "Record") -> bool:
         record = inputs
-        quiesce = _is_local_record(record)
+        quiesce = _is_local_record(record) and not _is_control_record(record)
         if quiesce and self._debug:
             print("# FSM :: should quiesce")
         return quiesce
@@ -333,7 +333,7 @@ class FlowControl:
             print("# FSM :: should recover")
         return True
 
-    def _doread(self, record: "Record", read_last: bool = False) -> None:
+    def _send_recover_read(self, record: "Record", read_last: bool = False) -> None:
         # issue read for anything written but not forwarded yet
         # print("Qr:", self._track_last_recovering_offset)
         # print("Qf:", self._track_last_forwarded_offset)
@@ -357,25 +357,25 @@ class FlowControl:
 
         self._track_last_recovering_offset = end
 
-    def _recover(self, inputs: "Record") -> None:
-        self._doread(inputs, read_last=True)
+    def _do_recover(self, inputs: "Record") -> None:
+        self._send_recover_read(inputs, read_last=True)
         self._send_mark()
         self._mark_recovering_offset = self._track_last_written_offset
         if self._debug:
             print("REQREAD", self._track_last_written_offset)
 
-    def _pause(self, inputs: "Record") -> None:
+    def _do_pause(self, inputs: "Record") -> None:
         pass
 
-    def _unpause(self, inputs: "Record") -> None:
-        self._doread(inputs, read_last=True)
+    def _do_unpause(self, inputs: "Record") -> None:
+        self._send_recover_read(inputs, read_last=True)
 
-    def _quiesce(self, inputs: "Record") -> None:
+    def _do_quiesce(self, inputs: "Record") -> None:
         # TODO(mempressure): can quiesce ever be a record?
-        self._doread(inputs, read_last=True)
+        self._send_recover_read(inputs, read_last=True)
 
     def _forward(self, inputs: "Record") -> None:
-        self._doread(inputs, read_last=False)
+        self._send_recover_read(inputs, read_last=False)
 
     def flow(self, record: "Record") -> None:
         if self._debug:
