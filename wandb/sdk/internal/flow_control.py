@@ -349,6 +349,7 @@ class FlowControl:
             if read_last
             else self._track_prev_written_offset
         )
+        # print("RECOVERREAD", start, end, read_last)
         if self._debug:
             print("DOREAD", start, end, record)
 
@@ -358,7 +359,7 @@ class FlowControl:
         self._track_last_recovering_offset = end
 
     def _do_recover(self, inputs: "Record") -> None:
-        self._send_recover_read(inputs, read_last=True)
+        self._send_recover_read(inputs, read_last=False)
         self._send_mark()
         self._mark_recovering_offset = self._track_last_written_offset
         if self._debug:
