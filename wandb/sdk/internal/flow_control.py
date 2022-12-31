@@ -225,10 +225,13 @@ class FlowControl:
         self._forward_record_cb(record)
         # print("FORWARD: LASTFORWARD", self._track_last_forwarded_offset)
 
+    def _update_prev_written_offset(self) -> None:
+        self._track_prev_written_offset = self._track_last_written_offset
+
     def _write_record(self, record: "Record") -> None:
         offset = self._write_record_cb(record)
         # print("WROTE", offset, record)
-        self._track_prev_written_offset = self._track_last_written_offset
+        self._update_prev_written_offset()
         self._track_last_written_offset = offset
 
     def _send_mark(self) -> None:
@@ -359,7 +362,7 @@ class FlowControl:
         self._track_last_recovering_offset = end
 
     def _do_recover(self, inputs: "Record") -> None:
-        self._send_recover_read(inputs, read_last=False)
+        self._send_recover_read(inputs, read_last=True)
         self._send_mark()
         self._mark_recovering_offset = self._track_last_written_offset
         if self._debug:
@@ -373,7 +376,7 @@ class FlowControl:
 
     def _do_quiesce(self, inputs: "Record") -> None:
         # TODO(mempressure): can quiesce ever be a record?
-        self._send_recover_read(inputs, read_last=True)
+        self._send_recover_read(inputs, read_last=False)
 
     def _forward(self, inputs: "Record") -> None:
         self._send_recover_read(inputs, read_last=False)
@@ -386,6 +389,8 @@ class FlowControl:
 
         if not _is_local_record(record):
             self._write_record(record)
+        else:
+            self._update_prev_written_offset()
 
         self._fsm.input(record)
 
