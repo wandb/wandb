@@ -48,15 +48,25 @@ class FlowTester:
 
     @property
     def written(self):
-        return self._written
+        data = self._written
+        self._written = []
+        return data
 
     @property
     def forwarded(self):
-        return self._forwarded
+        data = self._forwarded
+        self._forwarded = []
+        return data
+
+    @property
+    def forwarded_ops(self):
+        return list(filter(OpsFactory.is_op, self.forwarded))
 
     @property
     def recovered(self):
-        return self._recovered
+        data = self._recovered
+        self._recovered = []
+        return data
 
     @property
     def state(self):
@@ -103,7 +113,8 @@ class OpsFactory:
         new_op._id = self._op_unique
         return new_op
 
-    def is_op(self, record):
+    @staticmethod
+    def is_op(record):
         record_type = record.WhichOneof("record_type")
         if record_type != "history":
             return False
@@ -149,23 +160,24 @@ def test_pause(flow_tester, ops_factory, size_offset, paused):
         ft.add(op)
         assert ft.state == State.FORWARDING
     assert batch1 == ft.written
+    assert batch1 == ft.forwarded_ops
 
     for op in batch2:
         ft.add(op)
         assert ft.state == State.FORWARDING
-    assert batch1 + batch2 == ft.written
+    assert batch2 == ft.written
+    assert batch2 == ft.forwarded_ops
 
     for op in batch3:
         ft.add(op)
         assert ft.state == (State.PAUSING if paused else State.FORWARDING)
-    assert batch1 + batch2 + batch3 == ft.written
+    assert batch3 == ft.written
+    assert (batch3 if not paused else []) == ft.forwarded_ops
 
     for op in batch4:
         ft.add(op)
         assert ft.state == State.PAUSING
-    assert batch1 + batch2 + batch3 + batch4 == ft.written
+    assert batch4 == ft.written
+    assert [] == ft.forwarded_ops
 
-    assert batch1 + batch2 + (batch3 if not paused else []) == list(
-        filter(ops.is_op, ft.forwarded)
-    )
     assert [] == ft.recovered

@@ -171,11 +171,18 @@ class FlowControl:
         self._debug = False
         # self._debug = True
 
+        # Initialize states
+        state_forwarding = StateForwarding(self)
+        state_pausing = StatePausing(self)
+        state_recovering = StateRecovering(self)
+
         # State machine definition
         fsm_table: fsm.FsmTable[Record] = {
             StateForwarding: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding),
-                fsm.FsmEntry(self._should_pause, StatePausing, self._do_pause),
+                fsm.FsmEntry(
+                    state_forwarding._should_pause, StatePausing, self._do_pause
+                ),
             ],
             StatePausing: [
                 fsm.FsmEntry(self._should_quiesce, StateForwarding, self._do_quiesce),
@@ -189,7 +196,7 @@ class FlowControl:
             ],
         }
         self._fsm = fsm.Fsm(
-            states=[StateForwarding(self), StatePausing(self), StateRecovering(self)],
+            states=[state_forwarding, state_pausing, state_recovering],
             table=fsm_table,
         )
 
@@ -398,6 +405,12 @@ class FlowControl:
 class StateForwarding:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
+        self._end_offset = 0
+
+    def on_check(self, record: "Record") -> None:
+        end_offset = record.control.end_offset
+        if end_offset:
+            self._end_offset = end_offset
 
     def on_state(self, record: "Record") -> None:
         if _is_control_record(record):
@@ -406,12 +419,15 @@ class StateForwarding:
         self._flow._track_last_forwarded_offset = self._flow._track_last_written_offset
         self._flow._maybe_send_mark()
 
+    def _should_pause(self, inputs: "Record") -> bool:
+        return self._flow._should_pause(inputs)
+
 
 class StatePausing:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
-    def on_enter(self, record: "Record") -> None:
+    def on_enter(self, record: "Record", context: Optional[dict] = None) -> None:
         # print("IN(pausing)")
         # print("ENTER PAUSE")
         self._flow._telemetry_record_overflow()
@@ -435,7 +451,7 @@ class StateRecovering:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
-    def on_enter(self, record: "Record") -> None:
+    def on_enter(self, record: "Record", context: Optional[dict] = None) -> None:
         # print("ENTER RECOV", self._flow._track_last_forwarded_offset)
 
         # BUG - BUG - BUG

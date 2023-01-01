@@ -42,6 +42,14 @@ else:
     from typing_extensions import TypeAlias
 
 T_FsmInputs = TypeVar("T_FsmInputs", contravariant=True)
+FsmContext = Dict
+
+
+@runtime_checkable
+class FsmStateCheck(Protocol[T_FsmInputs]):
+    @abstractmethod
+    def on_check(self, inputs: T_FsmInputs) -> None:
+        ...  # pragma: no cover
 
 
 @runtime_checkable
@@ -54,19 +62,30 @@ class FsmStateOutput(Protocol[T_FsmInputs]):
 @runtime_checkable
 class FsmStateEnter(Protocol[T_FsmInputs]):
     @abstractmethod
-    def on_enter(self, inputs: T_FsmInputs) -> None:
+    def on_enter(self, inputs: T_FsmInputs, context: Optional[FsmContext]) -> None:
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class FsmStateStay(Protocol[T_FsmInputs]):
+    @abstractmethod
+    def on_stay(self, inputs: T_FsmInputs) -> None:
         ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateExit(Protocol[T_FsmInputs]):
     @abstractmethod
-    def on_exit(self, inputs: T_FsmInputs) -> None:
+    def on_exit(self, inputs: T_FsmInputs) -> Optional[FsmContext]:
         ...  # pragma: no cover
 
 
 FsmState: TypeAlias = Union[
-    FsmStateOutput[T_FsmInputs], FsmStateEnter[T_FsmInputs], FsmStateExit[T_FsmInputs]
+    FsmStateCheck[T_FsmInputs],
+    FsmStateOutput[T_FsmInputs],
+    FsmStateEnter[T_FsmInputs],
+    FsmStateStay[T_FsmInputs],
+    FsmStateExit[T_FsmInputs],
 ]
 
 
@@ -110,22 +129,21 @@ class Fsm(Generic[T_FsmInputs]):
         new_state: Type[FsmState[T_FsmInputs]],
         action: Optional[FsmAction[T_FsmInputs]],
     ) -> None:
-        if isinstance(self._state, FsmStateExit):
-            # print("ON_EXIT")
-            self._state.on_exit(inputs)
-
-        # print("NEWSTATE:", new_state)
-        prev_state = type(self._state)
-        self._state = self._state_dict[new_state]
-
         if action:
             action(inputs)
 
-        if prev_state != new_state:
-            # print("FSM", new_state)
+        context = None
+        if isinstance(self._state, FsmStateExit):
+            context = self._state.on_exit(inputs)
+
+        prev_state = type(self._state)
+        if prev_state == new_state:
+            if isinstance(self._state, FsmStateStay):
+                self._state.on_stay(inputs)
+        else:
+            self._state = self._state_dict[new_state]
             if isinstance(self._state, FsmStateEnter):
-                # print("ON_ENTER")
-                self._state.on_enter(inputs)
+                self._state.on_enter(inputs, context=context)
 
     def _check_transitions(self, inputs: T_FsmInputs) -> None:
         for entry in self._table[type(self._state)]:
@@ -134,6 +152,8 @@ class Fsm(Generic[T_FsmInputs]):
                 return
 
     def input(self, inputs: T_FsmInputs) -> None:
+        if isinstance(self._state, FsmStateCheck):
+            self._state.on_check(inputs)
         # print("R1", self._state, inputs)
         self._check_transitions(inputs)
         # print("R2", self._state, inputs)
