@@ -94,12 +94,14 @@ class Fsm(Generic[T_FsmInputs]):
     _state_dict: Dict[Type[FsmState], FsmState]
     _table: FsmTable[T_FsmInputs]
     _state: FsmState[T_FsmInputs]
+    _states: Sequence[FsmState]
 
     def __init__(
         self, states: Sequence[FsmState], table: FsmTable[T_FsmInputs]
     ) -> None:
-        self._state_dict = {type(s): s for s in states}
+        self._states = states
         self._table = table
+        self._state_dict = {type(s): s for s in states}
         self._state = self._state_dict[type(states[0])]
 
     def _transition(
