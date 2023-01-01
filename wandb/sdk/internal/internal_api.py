@@ -1965,7 +1965,9 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = self._upload_file_session.put(url, data=progress, headers=extra_headers)
+                response = self._upload_file_session.put(
+                    url, data=progress, headers=extra_headers
+                )
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
