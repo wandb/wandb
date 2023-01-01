@@ -42,7 +42,9 @@ else:
     from typing_extensions import TypeAlias
 
 T_FsmInputs = TypeVar("T_FsmInputs", contravariant=True)
-FsmContext = Dict
+T_FsmContext = TypeVar("T_FsmContext")
+T_FsmContext_cov = TypeVar("T_FsmContext_cov", covariant=True)
+T_FsmContext_contra = TypeVar("T_FsmContext_contra", contravariant=True)
 
 
 @runtime_checkable
@@ -62,7 +64,14 @@ class FsmStateOutput(Protocol[T_FsmInputs]):
 @runtime_checkable
 class FsmStateEnter(Protocol[T_FsmInputs]):
     @abstractmethod
-    def on_enter(self, inputs: T_FsmInputs, context: Optional[FsmContext]) -> None:
+    def on_enter(self, inputs: T_FsmInputs) -> None:
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class FsmStateEnterWithContext(Protocol[T_FsmInputs, T_FsmContext_contra]):
+    @abstractmethod
+    def on_enter(self, inputs: T_FsmInputs, context: T_FsmContext_contra) -> None:
         ...  # pragma: no cover
 
 
@@ -74,18 +83,23 @@ class FsmStateStay(Protocol[T_FsmInputs]):
 
 
 @runtime_checkable
-class FsmStateExit(Protocol[T_FsmInputs]):
+class FsmStateExit(Protocol[T_FsmInputs, T_FsmContext_cov]):
     @abstractmethod
-    def on_exit(self, inputs: T_FsmInputs) -> Optional[FsmContext]:
+    def on_exit(self, inputs: T_FsmInputs) -> T_FsmContext_cov:
         ...  # pragma: no cover
 
 
+# It would be nice if python provided optional protocol members, but it doesnt as described here:
+#   https://peps.python.org/pep-0544/#support-optional-protocol-members
+# Until then, we can only enforce that a state at least supports one protocol interface.  This
+# unfortunately will not check the signature of other potential protocols.
 FsmState: TypeAlias = Union[
     FsmStateCheck[T_FsmInputs],
     FsmStateOutput[T_FsmInputs],
     FsmStateEnter[T_FsmInputs],
+    FsmStateEnterWithContext[T_FsmInputs, T_FsmContext],
     FsmStateStay[T_FsmInputs],
-    FsmStateExit[T_FsmInputs],
+    FsmStateExit[T_FsmInputs, T_FsmContext],
 ]
 
 
@@ -100,23 +114,31 @@ class FsmAction(Protocol[T_FsmInputs]):
 
 
 @dataclass
-class FsmEntry(Generic[T_FsmInputs]):
+class FsmEntry(Generic[T_FsmInputs, T_FsmContext]):
     condition: FsmCondition[T_FsmInputs]
-    target_state: Type[FsmState[T_FsmInputs]]
+    target_state: Type[FsmState[T_FsmInputs, T_FsmContext]]
     action: Optional[FsmAction[T_FsmInputs]] = None
 
 
-FsmTable: TypeAlias = Dict[Type[FsmState[T_FsmInputs]], Sequence[FsmEntry[T_FsmInputs]]]
+FsmTableWithContext: TypeAlias = Dict[
+    Type[FsmState[T_FsmInputs, T_FsmContext]],
+    Sequence[FsmEntry[T_FsmInputs, T_FsmContext]],
+]
 
 
-class Fsm(Generic[T_FsmInputs]):
+FsmTable: TypeAlias = FsmTableWithContext[T_FsmInputs, None]
+
+
+class FsmWithContext(Generic[T_FsmInputs, T_FsmContext]):
     _state_dict: Dict[Type[FsmState], FsmState]
-    _table: FsmTable[T_FsmInputs]
-    _state: FsmState[T_FsmInputs]
+    _table: FsmTableWithContext[T_FsmInputs, T_FsmContext]
+    _state: FsmState[T_FsmInputs, T_FsmContext]
     _states: Sequence[FsmState]
 
     def __init__(
-        self, states: Sequence[FsmState], table: FsmTable[T_FsmInputs]
+        self,
+        states: Sequence[FsmState],
+        table: FsmTableWithContext[T_FsmInputs, T_FsmContext],
     ) -> None:
         self._states = states
         self._table = table
@@ -126,7 +148,7 @@ class Fsm(Generic[T_FsmInputs]):
     def _transition(
         self,
         inputs: T_FsmInputs,
-        new_state: Type[FsmState[T_FsmInputs]],
+        new_state: Type[FsmState[T_FsmInputs, T_FsmContext]],
         action: Optional[FsmAction[T_FsmInputs]],
     ) -> None:
         if action:
@@ -142,8 +164,10 @@ class Fsm(Generic[T_FsmInputs]):
                 self._state.on_stay(inputs)
         else:
             self._state = self._state_dict[new_state]
-            if isinstance(self._state, FsmStateEnter):
+            if context and isinstance(self._state, FsmStateEnterWithContext):
                 self._state.on_enter(inputs, context=context)
+            elif isinstance(self._state, FsmStateEnter):
+                self._state.on_enter(inputs)
 
     def _check_transitions(self, inputs: T_FsmInputs) -> None:
         for entry in self._table[type(self._state)]:
@@ -159,3 +183,6 @@ class Fsm(Generic[T_FsmInputs]):
         # print("R2", self._state, inputs)
         if isinstance(self._state, FsmStateOutput):
             self._state.on_state(inputs)
+
+
+Fsm: TypeAlias = FsmWithContext[T_FsmInputs, None]

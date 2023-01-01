@@ -427,7 +427,7 @@ class StatePausing:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
-    def on_enter(self, record: "Record", context: Optional[dict] = None) -> None:
+    def on_enter(self, record: "Record") -> None:
         # print("IN(pausing)")
         # print("ENTER PAUSE")
         self._flow._telemetry_record_overflow()
@@ -451,7 +451,7 @@ class StateRecovering:
     def __init__(self, flow: FlowControl) -> None:
         self._flow = flow
 
-    def on_enter(self, record: "Record", context: Optional[dict] = None) -> None:
+    def on_enter(self, record: "Record") -> None:
         # print("ENTER RECOV", self._flow._track_last_forwarded_offset)
 
         # BUG - BUG - BUG
