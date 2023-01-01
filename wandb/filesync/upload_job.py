@@ -58,7 +58,7 @@ class UploadJob:
         try:
             success = self.push()
             if success:
-                self._file_stream.push_success(self.artifact_id, self.save_name)
+                self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
