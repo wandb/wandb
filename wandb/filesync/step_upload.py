@@ -1,5 +1,6 @@
 """Batching file prepare requests to our API."""
 
+import logging
 import queue
 import sys
 import threading
@@ -39,6 +40,9 @@ PreCommitFn = Callable[[], None]
 PostCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], Any]
+
+
+logger = logging.getLogger(__name__)
 
 
 class RequestUpload(NamedTuple):
@@ -119,6 +123,10 @@ class StepUpload:
                 event = None
             if isinstance(event, upload_job.EventJobDone):
                 self._handle_event(event)
+            else:
+                logger.warning(
+                    "Received non-EventJobDone event after RequestFinish: %s", event
+                )
 
         if finish_callback:
             finish_callback()
