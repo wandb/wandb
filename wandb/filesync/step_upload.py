@@ -1,5 +1,6 @@
 """Batching file prepare requests to our API."""
 
+import concurrent.futures
 import queue
 import sys
 import threading
@@ -86,6 +87,11 @@ class StepUpload:
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
+        self._pool = concurrent.futures.ThreadPoolExecutor(
+            thread_name_prefix="wandb-upload",
+            max_workers=max_jobs,
+        )
+
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs: MutableMapping[
             dir_watcher.SaveName, upload_job.UploadJob
@@ -129,7 +135,6 @@ class StepUpload:
     def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
-            job.join()
             if job.artifact_id:
                 if event.success:
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
@@ -182,7 +187,6 @@ class StepUpload:
 
         # Start it.
         job = upload_job.UploadJob(
-            self._event_queue,
             self._stats,
             self._api,
             self._file_stream,
@@ -196,7 +200,15 @@ class StepUpload:
             event.digest,
         )
         self._running_jobs[event.save_name] = job
-        job.start()
+        self._pool.submit(self._run_job_and_notify, job)
+
+    def _run_job_and_notify(self, job: upload_job.UploadJob) -> None:
+        success = False
+        try:
+            job.run()
+            success = True
+        finally:
+            self._event_queue.put(upload_job.EventJobDone(job, success))
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
