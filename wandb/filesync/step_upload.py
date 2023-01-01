@@ -110,21 +110,18 @@ class StepUpload:
 
         # We've received a finish event. At this point, further Upload requests
         # are invalid.
-
-        # After a finish event is received, iterate through the event queue
-        # one by one and process all remaining events.
-        while True:
+        # There might still be unfinished jobs, though;
+        # wait for their EventJobDone events, until all jobs are done.
+        while self._running_jobs:
             try:
                 event = self._event_queue.get(True, 0.2)
             except queue.Empty:
                 event = None
-            if event:
+            if isinstance(event, upload_job.EventJobDone):
                 self._handle_event(event)
-            elif not self._running_jobs:
-                # Queue was empty and no jobs left.
-                if finish_callback:
-                    finish_callback()
-                break
+
+        if finish_callback:
+            finish_callback()
 
     def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
