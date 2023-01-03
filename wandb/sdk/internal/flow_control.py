@@ -57,6 +57,7 @@ State machine:
 import logging
 from typing import TYPE_CHECKING, Callable, Optional
 
+from dataclasses import dataclass
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.lib import fsm, telemetry
@@ -90,13 +91,19 @@ def _is_control_record(record: "Record") -> bool:
     return record.control.flow_control
 
 
+@dataclass
+class StateContext:
+    last_forwarded_offset: int = 0
+    last_sent_offset: int = 0
+    last_written_offset: int = 0
+
+
 class FlowControl:
     _settings: SettingsStatic
     _forward_record_cb: Callable[["Record"], None]
     _write_record_cb: Callable[["Record"], int]
     _recover_records_cb: Callable[[int, int], None]
 
-    _track_wake_offset: int
     _track_prev_written_offset: int
     _track_last_written_offset: int
     _track_last_forwarded_offset: int
@@ -111,7 +118,7 @@ class FlowControl:
 
     _telemetry_obj: tpb.TelemetryRecord
     _telemetry_overflow: bool
-    _fsm: fsm.Fsm["Record"]
+    _fsm: fsm.FsmWithContext["Record", StateContext]
 
     def __init__(
         self,
@@ -152,7 +159,6 @@ class FlowControl:
         # should we toggle between recovering and pausing?  maybe?
 
         # track last written request
-        self._track_wake_offset = 0
         self._track_prev_written_offset = 0
         self._track_last_written_offset = 0
         self._track_last_forwarded_offset = 0
@@ -171,33 +177,36 @@ class FlowControl:
         self._debug = False
         # self._debug = True
 
-        # Initialize states
-        state_forwarding = StateForwarding(self)
-        state_pausing = StatePausing(self)
-        state_recovering = StateRecovering(self)
-
-        # State machine definition
-        fsm_table: fsm.FsmTable[Record] = {
-            StateForwarding: [
-                fsm.FsmEntry(self._should_quiesce, StateForwarding),
-                fsm.FsmEntry(
-                    state_forwarding._should_pause, StatePausing, self._do_pause
-                ),
-            ],
-            StatePausing: [
-                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._do_quiesce),
-                fsm.FsmEntry(self._should_unpause, StateForwarding, self._do_unpause),
-                fsm.FsmEntry(self._should_recover, StateRecovering, self._do_recover),
-            ],
-            StateRecovering: [
-                fsm.FsmEntry(self._should_quiesce, StateForwarding, self._do_quiesce),
-                fsm.FsmEntry(self._should_forward, StateForwarding, self._do_quiesce),
-                fsm.FsmEntry(self._should_recover, StateRecovering, self._do_recover),
-            ],
-        }
-        self._fsm = fsm.Fsm(
-            states=[state_forwarding, state_pausing, state_recovering],
-            table=fsm_table,
+        # FSM definition
+        state_forwarding = StateForwarding(
+            forward_record=forward_record,
+            threshold_pause=self._threshold_bytes_high,
+        )
+        state_pausing = StatePausing(
+            forward_record=forward_record,
+            recover_records=recover_records,
+            threshold_recover=self._threshold_bytes_mid,
+            threshold_forward=self._threshold_bytes_low,
+        )
+        self._fsm = fsm.FsmWithContext(
+            states=[state_forwarding, state_pausing],
+            table={
+                StateForwarding: [
+                    fsm.FsmEntry(state_forwarding._should_pause, StatePausing),
+                ],
+                StatePausing: [
+                    fsm.FsmEntry(
+                        state_pausing._should_unpause,
+                        StateForwarding,
+                        state_pausing._unpause,
+                    ),
+                    fsm.FsmEntry(
+                        state_pausing._should_recover,
+                        StatePausing,
+                        state_pausing._recover,
+                    ),
+                ],
+            },
         )
 
     def _telemetry_record_overflow(self) -> None:
@@ -223,8 +232,8 @@ class FlowControl:
         process_handler(record)
 
     def _process_status_report(self, record: "Record") -> None:
-        send_offset = record.request.status_report.send_offset
-        self._mark_reported_offset = send_offset
+        sent_offset = record.request.status_report.sent_offset
+        self._mark_reported_offset = sent_offset
 
     def _forward_record(self, record: "Record") -> None:
         # DEBUG print("FORW REC", record.num)
@@ -294,10 +303,11 @@ class FlowControl:
         return False
 
     def _should_unpause(self, inputs: "Record") -> bool:
-        bytes_behind = self._forwarded_bytes_behind()
-        if bytes_behind <= self._threshold_bytes_low:
-            return True
         return False
+        # bytes_behind = self._forwarded_bytes_behind()
+        # if bytes_behind <= self._threshold_bytes_low:
+        #     return True
+        # return False
 
     def _should_forward(self, inputs: "Record") -> bool:
         # print(
@@ -402,60 +412,128 @@ class FlowControl:
         self._fsm.input(record)
 
 
-class StateForwarding:
-    def __init__(self, flow: FlowControl) -> None:
-        self._flow = flow
-        self._end_offset = 0
+class StateShared:
+    _context: StateContext
 
-    def on_check(self, record: "Record") -> None:
+    def __init__(self) -> None:
+        self._context = StateContext()
+
+    def _update_written_offset(self, record: "Record") -> None:
         end_offset = record.control.end_offset
         if end_offset:
-            self._end_offset = end_offset
+            self._context.last_written_offset = end_offset
 
-    def on_state(self, record: "Record") -> None:
-        if _is_control_record(record):
-            return
-        self._flow._forward_record(record)
-        self._flow._track_last_forwarded_offset = self._flow._track_last_written_offset
-        self._flow._maybe_send_mark()
+    def _update_forwarded_offset(self, record: "Record") -> None:
+        end_offset = record.control.end_offset
+        if end_offset:
+            self._context.last_forwarded_offset = end_offset
 
-    def _should_pause(self, inputs: "Record") -> bool:
-        return self._flow._should_pause(inputs)
-
-
-class StatePausing:
-    def __init__(self, flow: FlowControl) -> None:
-        self._flow = flow
-
-    def on_enter(self, record: "Record") -> None:
-        # print("IN(pausing)")
-        # print("ENTER PAUSE")
-        self._flow._telemetry_record_overflow()
-        self._flow._send_mark()
-
-        # we want to make sure we dont pause forever
-        self._flow._track_wake_offset = self._flow._track_last_written_offset
-        # print("WAKESET", self._flow._track_wake_offset)
-
-        self._flow._mark_forwarded_offset = self._flow._track_last_written_offset
-        self._flow._track_first_unforwarded_offset = (
-            self._flow._track_last_written_offset
+    def _process(self, record: "Record") -> bool:
+        request_type = _get_request_type(record)
+        if not request_type:
+            return False
+        process_str = f"_process_{request_type}"
+        process_handler: Optional[Callable[["pb.Record"], None]] = getattr(
+            self, process_str, None
         )
-        # print("ENTER PAUSE", self._flow._mark_forwarded_offset)
+        if not process_handler:
+            return False
+        process_handler(record)
+        return True
 
-    # def on_exit(self, record: "Record") -> None:
-    #     print("OUT(pausing)", record)
+    def _process_status_report(self, record: "Record") -> None:
+        sent_offset = record.request.status_report.sent_offset
+        self._context.last_sent_offset = sent_offset
+
+    def on_exit(self, record: "Record") -> StateContext:
+        return self._context
+
+    def on_enter(self, record: "Record", context: StateContext) -> None:
+        self._context = context
 
 
-class StateRecovering:
-    def __init__(self, flow: FlowControl) -> None:
-        self._flow = flow
+class StateForwarding(StateShared):
+    _forward_record: Callable[["Record"], None]
+    _threshold_pause: int
 
-    def on_enter(self, record: "Record") -> None:
-        # print("ENTER RECOV", self._flow._track_last_forwarded_offset)
+    def __init__(
+        self,
+        forward_record: Callable[["Record"], None],
+        threshold_pause: int,
+    ) -> None:
+        super().__init__()
+        self._forward_record = forward_record
+        self._threshold_pause = threshold_pause
 
-        # BUG - BUG - BUG
-        # self._flow._track_last_recovering_offset = (
-        #     self._flow._track_last_forwarded_offset
-        # )
-        self._flow._mark_recovering_offset = 0
+    def on_check(self, record: "Record") -> None:
+        self._update_written_offset(record)
+        self._maybe_forward_record(record)
+        # self._flow._maybe_send_mark()
+
+    def _maybe_forward_record(self, record: "Record") -> None:
+        processed = self._process(record)
+        if processed:
+            return
+        self._forward_record(record)
+        self._update_forwarded_offset(record)
+
+    def _should_pause(self, record: "Record") -> bool:
+        behind_bytes = (
+            self._context.last_forwarded_offset - self._context.last_sent_offset
+        )
+        if behind_bytes >= self._threshold_pause:
+            return True
+        return False
+
+
+class StatePausing(StateShared):
+    _forward_record: Callable[["Record"], None]
+    _recover_records: Callable[[int, int], None]
+    _threshold_recover: int
+    _threshold_forward: int
+
+    def __init__(
+        self,
+        forward_record: Callable[["Record"], None],
+        recover_records: Callable[[int, int], None],
+        threshold_recover: int,
+        threshold_forward: int,
+    ) -> None:
+        super().__init__()
+        self._forward_record = forward_record
+        self._recover_records = recover_records
+        self._threshold_recover = threshold_recover
+        self._threshold_forward = threshold_forward
+
+    def _should_unpause(self, record: "Record") -> bool:
+        behind_bytes = (
+            self._context.last_forwarded_offset - self._context.last_sent_offset
+        )
+        if behind_bytes < self._threshold_forward:
+            return True
+        return False
+
+    def _quiesce(self, record: "Record") -> None:
+        start = self._context.last_forwarded_offset
+        end = self._context.last_written_offset
+        if start != end:
+            self._recover_records(start, end)
+        self._update_forwarded_offset(record)
+
+    def _unpause(self, record: "Record") -> None:
+        self._quiesce(record)
+
+    def _should_recover(self, record: "Record") -> bool:
+        behind_bytes = (
+            self._context.last_forwarded_offset - self._context.last_sent_offset
+        )
+        if behind_bytes < self._threshold_recover:
+            return True
+        return False
+
+    def _recover(self, record: "Record") -> None:
+        self._quiesce(record)
+
+    def on_check(self, record: "Record") -> None:
+        self._update_written_offset(record)
+        self._process(record)

@@ -405,7 +405,9 @@ class SendManager:
             send_record.ParseFromString(data)
             self._update_end_offset(current_end_offset)
             self.send(send_record)
-            self._maybe_report_status()
+
+            # make sure we perform deferred operations
+            self.debounce()
         # print("SEND_READ_DONE", start_offset, final_offset, current_end_offset)
 
     def send_request_check_version(self, record: "Record") -> None:
@@ -482,7 +484,7 @@ class SendManager:
 
         status_report = wandb_internal_pb2.StatusReportRequest(
             record_num=self._send_record_num,
-            send_offset=self._send_end_offset,
+            sent_offset=self._send_end_offset,
         )
         status_time = time.time()
         status_report.sync_time.FromMicroseconds(int(status_time * 1e6))

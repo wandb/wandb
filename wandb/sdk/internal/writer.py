@@ -76,14 +76,15 @@ class WriteManager:
 
     def _write_record(self, record: "pb.Record") -> int:
         assert self._ds
+
         self._record_num += 1
-        record.num = self._record_num
+        proto_util._assign_record_num(record, self._record_num)
         # print("WRITE REC", record.num, record)
         ret = self._ds.write(record)
         assert ret is not None
 
         (_start_offset, end_offset, flush_offset) = ret
-        record.control.end_offset = end_offset
+        proto_util._assign_end_offset(record, end_offset)
         return end_offset
 
     def _ensure_flushed(self, offset: int) -> None:

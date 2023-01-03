@@ -29,7 +29,7 @@ Usage:
 import sys
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union
+from typing import Callable, Dict, Generic, Optional, Sequence, Type, TypeVar, Union
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, runtime_checkable
@@ -103,21 +103,11 @@ FsmState: TypeAlias = Union[
 ]
 
 
-class FsmCondition(Protocol[T_FsmInputs]):
-    def __call__(self, inputs: T_FsmInputs) -> bool:
-        ...  # pragma: no cover
-
-
-class FsmAction(Protocol[T_FsmInputs]):
-    def __call__(self, inputs: T_FsmInputs) -> None:
-        ...  # pragma: no cover
-
-
 @dataclass
 class FsmEntry(Generic[T_FsmInputs, T_FsmContext]):
-    condition: FsmCondition[T_FsmInputs]
+    condition: Callable[[T_FsmInputs], bool]
     target_state: Type[FsmState[T_FsmInputs, T_FsmContext]]
-    action: Optional[FsmAction[T_FsmInputs]] = None
+    action: Optional[Callable[[T_FsmInputs], None]] = None
 
 
 FsmTableWithContext: TypeAlias = Dict[
@@ -149,7 +139,7 @@ class FsmWithContext(Generic[T_FsmInputs, T_FsmContext]):
         self,
         inputs: T_FsmInputs,
         new_state: Type[FsmState[T_FsmInputs, T_FsmContext]],
-        action: Optional[FsmAction[T_FsmInputs]],
+        action: Optional[Callable[[T_FsmInputs], None]],
     ) -> None:
         if action:
             action(inputs)

@@ -2047,21 +2047,21 @@ class StatusReportRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     RECORD_NUM_FIELD_NUMBER: builtins.int
-    SEND_OFFSET_FIELD_NUMBER: builtins.int
+    SENT_OFFSET_FIELD_NUMBER: builtins.int
     SYNC_TIME_FIELD_NUMBER: builtins.int
     record_num: builtins.int
-    send_offset: builtins.int
+    sent_offset: builtins.int
     @property
     def sync_time(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
         record_num: builtins.int = ...,
-        send_offset: builtins.int = ...,
+        sent_offset: builtins.int = ...,
         sync_time: google.protobuf.timestamp_pb2.Timestamp | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["sync_time", b"sync_time"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["record_num", b"record_num", "send_offset", b"send_offset", "sync_time", b"sync_time"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["record_num", b"record_num", "sent_offset", b"sent_offset", "sync_time", b"sync_time"]) -> None: ...
 
 global___StatusReportRequest = StatusReportRequest
 

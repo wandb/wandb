@@ -1,15 +1,18 @@
 import json
 from dataclasses import dataclass
 from enum import Enum
+import time
 
 import pytest
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal import flow_control, settings_static
+from wandb.sdk.lib import proto_util
 from wandb.sdk.wandb_settings import Settings
 
 
 class FlowTester:
     def __init__(self, high=1000, mid=500, low=250):
+        self._record_num = 0
         self._offset = 0
 
         settings_obj = Settings()
@@ -31,17 +34,20 @@ class FlowTester:
         self._recovered = []
 
     def _write_func(self, record):
+        self._record_num += 1
+        proto_util._assign_record_num(record, self._record_num)
         self._written.append(record)
-        msg_size = json.loads(record.history.item[0].value_json)
+        msg_size = OpsFactory.get_op_size(record)
         new_offset = self._offset + msg_size
         self._offset = new_offset
+        proto_util._assign_end_offset(record, new_offset)
         return new_offset
 
     def _forward_func(self, record):
         self._forwarded.append(record)
 
-    def _recover_func(self, record):
-        self._recovered.append(record)
+    def _recover_func(self, start, end):
+        self._recovered.append((start, end))
 
     def add(self, op, assert_state=None):
         self._fc.flow(op.record)
@@ -91,21 +97,57 @@ class OpsFactory:
 
     @dataclass
     class Op:
+        op_type: str = "data"
         size: int = 0
+        offset: int = 0
         _id: int = 0
 
-        @property
-        def record(self):
+        @staticmethod
+        def _add_item(history, key, val):
+            item = history.item.add()
+            item.key = key
+            item.value_json = json.dumps(val)
+
+        def _get_data_record(self):
             r = pb.Record()
             history = pb.HistoryRecord()
             r.history.CopyFrom(history)
-            item = r.history.item.add()
-            item.key = "size"
-            item.value_json = json.dumps(self.size)
+            self._add_item(r.history, "op", "data")
+            self._add_item(r.history, "size", self.size)
+            self._add_item(r.history, "id", self._id)
             return r
 
+        def _get_inform_record(self):
+            status_report = pb.StatusReportRequest(
+                record_num=0,
+                send_offset=self.offset,
+            )
+            status_time = time.time()
+            status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
+            request = pb.Request()
+            request.status_report.CopyFrom(status_report)
+            record = pb.Record()
+            record.control.local = True
+            record.control.flow_control = True
+            record.request.CopyFrom(request)
+            return record
+
+        @property
+        def record(self):
+            if self.op_type == "data":
+                return self._get_data_record()
+            if self.op_type == "inform":
+                return self._get_inform_record()
+            raise AssertionError(f"unknown op_type: {self.op_type}")
+
+        @property
+        def _get_size(self):
+            msg_size = json.loads(record.history.item[0].value_json)
+            return msg_size
+
         def __eq__(self, other):
-            return True
+            other_id = OpsFactory.get_op_id(other)
+            return self._id == other_id
 
     def op(self, **kwargs):
         new_op = self.Op(**kwargs)
@@ -114,11 +156,27 @@ class OpsFactory:
         return new_op
 
     @staticmethod
+    def get_op_size(record):
+        assert OpsFactory.is_op(record)
+        msg_size = json.loads(record.history.item[1].value_json)
+        return msg_size
+
+    @staticmethod
+    def get_op_id(record):
+        if not OpsFactory.is_op(record):
+            return None
+        msg_id = json.loads(record.history.item[2].value_json)
+        return msg_id
+
+    @staticmethod
     def is_op(record):
         record_type = record.WhichOneof("record_type")
         if record_type != "history":
             return False
-        if record.history.item[0].key != "size":
+        if record.history.item[0].key != "op":
+            return False
+        op_type = json.loads(record.history.item[0].value_json)
+        if op_type != "data":
             return False
         return True
 
@@ -147,37 +205,94 @@ class State(Enum):
         (100000, True),
     ],
 )
-def test_pause(flow_tester, ops_factory, size_offset, paused):
+def test_forward_to_pause(flow_tester, ops_factory, size_offset, paused):
     ft = flow_tester(high=300, mid=200, low=100)
     ops = ops_factory()
 
-    batch1 = [ops.op(size=100) for _ in range(2)]
-    batch2 = [ops.op(size=(100 + size_offset))]
-    batch3 = [ops.op(size=(100))]
-    batch4 = [ops.op(size=100) for _ in range(2)]
+    batch_prep = [ops.op(size=100) for _ in range(2)]
+    batch_test1 = [ops.op(size=(100 + size_offset))]
+    batch_test2 = [ops.op(size=100)]
+    batch_post = [ops.op(size=100) for _ in range(2)]
 
-    for op in batch1:
+    for op in batch_prep:
         ft.add(op)
         assert ft.state == State.FORWARDING
-    assert batch1 == ft.written
-    assert batch1 == ft.forwarded_ops
+    assert batch_prep == ft.written
+    assert batch_prep == ft.forwarded_ops
 
-    for op in batch2:
-        ft.add(op)
-        assert ft.state == State.FORWARDING
-    assert batch2 == ft.written
-    assert batch2 == ft.forwarded_ops
-
-    for op in batch3:
+    for op in batch_test1:
         ft.add(op)
         assert ft.state == (State.PAUSING if paused else State.FORWARDING)
-    assert batch3 == ft.written
-    assert (batch3 if not paused else []) == ft.forwarded_ops
+    assert batch_test1 == ft.written
+    assert batch_test1 == ft.forwarded_ops
 
-    for op in batch4:
+    for op in batch_test2:
         ft.add(op)
         assert ft.state == State.PAUSING
-    assert batch4 == ft.written
+    assert batch_test2 == ft.written
+    assert (batch_test2 if not paused else []) == ft.forwarded_ops
+
+    for op in batch_post:
+        ft.add(op)
+        assert ft.state == State.PAUSING
+    assert batch_post == ft.written
     assert [] == ft.forwarded_ops
 
     assert [] == ft.recovered
+
+
+def prep_pause(ft, ops):
+    batch_prep1 = [ops.op(size=100) for _ in range(2)]
+    batch_prep2 = [ops.op(size=100)]
+
+    for op in batch_prep1:
+        ft.add(op)
+        assert ft.state == State.FORWARDING
+    assert batch_prep1 == ft.written
+    assert batch_prep1 == ft.forwarded_ops
+
+    for op in batch_prep2:
+        ft.add(op)
+        assert ft.state == State.PAUSING
+    assert batch_prep2 == ft.written
+    assert batch_prep2 == ft.forwarded_ops
+
+
+@pytest.mark.parametrize(
+    "size_offset, forwarding",
+    [
+        (-1, False),
+        (0, True),
+        (1, True),
+    ],
+)
+def test_pause_to_forward(flow_tester, ops_factory, size_offset, forwarding):
+    ft = flow_tester(high=300, mid=200, low=100)
+    ops = ops_factory()
+
+    batch_test1 = [ops.op(op_type="inform", offset=201 + size_offset)]
+    batch_test2 = [ops.op(size=50)]
+
+    prep_pause(ft, ops)
+
+    for op in batch_test1:
+        ft.add(op)
+        assert ft.state == State.FORWARDING if forwarding else State.PAUSING
+    assert [] == ft.forwarded_ops
+    assert [] == ft.written
+    assert [] == ft.recovered
+
+    for op in batch_test2:
+        ft.add(op)
+        assert ft.state == State.FORWARDING if forwarding else State.PAUSING
+    assert batch_test2 == ft.written
+    assert batch_test2 if forwarding else [] == ft.forwarded_ops
+    assert ([] if forwarding else [(300, 350)]) == ft.recovered
+
+
+def test_forwarding_mark():
+    pass
+
+
+def test_forwarding_pause_mark():
+    pass
