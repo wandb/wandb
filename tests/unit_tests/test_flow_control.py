@@ -1,7 +1,7 @@
 import json
+import time
 from dataclasses import dataclass
 from enum import Enum
-import time
 
 import pytest
 from wandb.proto import wandb_internal_pb2 as pb
@@ -139,11 +139,6 @@ class OpsFactory:
             if self.op_type == "inform":
                 return self._get_inform_record()
             raise AssertionError(f"unknown op_type: {self.op_type}")
-
-        @property
-        def _get_size(self):
-            msg_size = json.loads(record.history.item[0].value_json)
-            return msg_size
 
         def __eq__(self, other):
             other_id = OpsFactory.get_op_id(other)

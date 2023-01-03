@@ -55,9 +55,9 @@ State machine:
 """
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
-from dataclasses import dataclass
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.lib import fsm, telemetry
