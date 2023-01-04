@@ -4,6 +4,7 @@ import pathlib
 from typing import TYPE_CHECKING, Optional, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -76,7 +77,7 @@ class Molecule(BatchableMedia):
                 )
 
             tmp_path = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + extension
+                MEDIA_TMP.name, runid.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
                 f.write(molecule)
