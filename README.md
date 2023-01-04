@@ -206,7 +206,7 @@ config.learning_rate = 0.01
 
 # Model training here
 
-# 3.5. Log metrics over time to visualize performance
+# 3. Log metrics over time to visualize performance
 with tf.Session() as sess:
     # ...
     wandb.tensorflow.log(tf.summary.merge_all())
