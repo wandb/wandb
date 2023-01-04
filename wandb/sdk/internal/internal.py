@@ -119,6 +119,7 @@ def wandb_internal(
         record_q=write_record_q,
         result_q=result_q,
         stopped=stopped,
+        writer_q=write_record_q,
         context_keeper=context_keeper,
     )
     threads.append(record_writer_thread)
