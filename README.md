@@ -118,7 +118,7 @@ config.learning_rate = 0.01
 
 # Model training code here ...
 
-# Step 3.5: Add WandbCallback
+# Step 3: Add WandbCallback
 model.fit(
     X_train, y_train, validation_data=(X_test, y_test), callbacks=[WandbCallback()]
 )
