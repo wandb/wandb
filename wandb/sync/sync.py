@@ -16,7 +16,7 @@ import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import datastore, handler, sender, tb_watcher
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
@@ -139,7 +139,7 @@ class SyncThread(threading.Thread):
             viewer, server_info = send_manager._api.viewer_server_info()
             self._entity = viewer.get("entity")
         proto_run = wandb_internal_pb2.RunRecord()
-        proto_run.run_id = self._run_id or wandb.util.generate_id()
+        proto_run.run_id = self._run_id or runid.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
 
