@@ -60,6 +60,11 @@ class ServerMap:
 servers = ServerMap()
 
 
+def get_temp_dir_kwargs(tmp_path):
+    # Click>=8 implements temp_dir argument which depends on python>=3.7
+    return dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+
+
 def test_cleanup(*args, **kwargs):
     print("Shutting down mock servers")
     for wid, server in servers.items():
@@ -324,7 +329,7 @@ def local_netrc(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def local_settings(mocker):
+def local_settings(mocker, tmp_path):
     """Place global settings in an isolated dir"""
     with CliRunner().isolated_filesystem():
         cfg_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
@@ -666,8 +671,9 @@ def internal_sm(
     mock_server,
     _internal_sender,
     _internal_context_keeper,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with runner.isolated_filesystem(**get_temp_dir_kwargs(tmp_path)):
         test_settings.update(
             root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
         )
@@ -698,8 +704,9 @@ def internal_hm(
     _internal_sender,
     stopped_event,
     _internal_context_keeper,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with runner.isolated_filesystem(**get_temp_dir_kwargs(tmp_path)):
         test_settings.update(
             root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
         )
@@ -724,8 +731,9 @@ def internal_wm(
     stopped_event,
     _internal_context_keeper,
     test_settings,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with runner.isolated_filesystem(**get_temp_dir_kwargs(tmp_path)):
         test_settings.update(
             root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
         )
