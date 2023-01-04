@@ -102,22 +102,13 @@ class FlowControl:
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
         if settings._ram_buffer:
-            self._threshold_bytes_high = settings._ram_buffer
-            self._threshold_bytes_mid = settings._ram_buffer // 2
-            self._threshold_bytes_low = settings._ram_buffer // 4
-        else:
-            self._threshold_bytes_high = _threshold_bytes_high
-            self._threshold_bytes_mid = _threshold_bytes_mid
-            self._threshold_bytes_low = _threshold_bytes_low
+            _threshold_bytes_high = settings._ram_buffer
+            _threshold_bytes_mid = settings._ram_buffer // 2
+            _threshold_bytes_low = settings._ram_buffer // 4
 
         self._track_last_read_offset = 0
         self._track_last_unread_offset = 0
         # self._track_last_unread_offset_previous_block = 0
-
-        # how much to collect while pausing before going to reading
-        # self._threshold_pausing_chunk = 100
-
-        # should we toggle between recovering and pausing?  maybe?
 
         # track last written request
         self._track_prev_written_offset = 0
@@ -142,13 +133,13 @@ class FlowControl:
         state_forwarding = StateForwarding(
             forward_record=forward_record,
             send_mark=send_mark,
-            threshold_pause=self._threshold_bytes_high,
+            threshold_pause=_threshold_bytes_high,
         )
         state_pausing = StatePausing(
             forward_record=forward_record,
             recover_records=recover_records,
-            threshold_recover=self._threshold_bytes_mid,
-            threshold_forward=self._threshold_bytes_low,
+            threshold_recover=_threshold_bytes_mid,
+            threshold_forward=_threshold_bytes_low,
         )
         self._fsm = fsm.FsmWithContext(
             states=[state_forwarding, state_pausing],
@@ -190,118 +181,11 @@ class FlowControl:
         record.telemetry.CopyFrom(self._telemetry_obj)
         self._forward_record(record)
 
-    def _process_record(self, record: "Record") -> None:
-        request_type = _get_request_type(record)
-        if not request_type:
-            return
-        process_str = f"_process_{request_type}"
-        process_handler: Optional[Callable[["pb.Record"], None]] = getattr(
-            self, process_str, None
-        )
-        if not process_handler:
-            return
-        process_handler(record)
-
-    def _process_status_report(self, record: "Record") -> None:
-        sent_offset = record.request.status_report.sent_offset
-        self._mark_reported_offset = sent_offset
-
-    def _forward_record(self, record: "Record") -> None:
-        # DEBUG print("FORW REC", record.num)
-        # print("FORW REC", record.num)
-        self._forward_record_cb(record)
-        # print("FORWARD: LASTFORWARD", self._track_last_forwarded_offset)
-
-    def _update_prev_written_offset(self) -> None:
-        self._track_prev_written_offset = self._track_last_written_offset
-
-    def _write_record(self, record: "Record") -> None:
-        offset = self._write_record_cb(record)
-        # print("WROTE", offset, record)
-        self._update_prev_written_offset()
-        self._track_last_written_offset = offset
-
-    def _send_mark(self) -> None:
-        record = pb.Record()
-        request = pb.Request()
-        # last_write_offset = self._track_last_written_offset
-        sender_mark = pb.SenderMarkRequest()
-        request.sender_mark.CopyFrom(sender_mark)
-        record.request.CopyFrom(request)
-        self._forward_record(record)
-        # print("MARK", last_write_offset)
-
-    def _forwarded_bytes_behind(self) -> int:
-        behind_bytes = self._track_last_forwarded_offset - self._mark_reported_offset
-        return behind_bytes
-
-    def _recovering_bytes_behind(self) -> int:
-        if self._track_last_recovering_offset == 0:
-            return 0
-        behind_bytes = (
-            self._track_last_written_offset - self._track_last_recovering_offset
-        )
-        return behind_bytes
-
     def flush(self) -> None:
+        # TODO(mempressure): what do we do here
         pass
-
-    def _send_recover_read(self, record: "Record", read_last: bool = False) -> None:
-        # issue read for anything written but not forwarded yet
-        # print("Qr:", self._track_last_recovering_offset)
-        # print("Qf:", self._track_last_forwarded_offset)
-        # print("Qp:", self._track_prev_written_offset)
-        # print("Qw:", self._track_last_written_offset)
-        # TODO(mempressure): only read if there is stuff to read
-
-        start = max(
-            self._track_last_recovering_offset, self._track_last_forwarded_offset
-        )
-        end = (
-            self._track_last_written_offset
-            if read_last
-            else self._track_prev_written_offset
-        )
-        # print("RECOVERREAD", start, end, read_last)
-        if self._debug:
-            print("DOREAD", start, end, record)
-
-        if end > start:
-            self._recover_records_cb(start, end)
-
-        self._track_last_recovering_offset = end
-
-    def _do_recover(self, inputs: "Record") -> None:
-        self._send_recover_read(inputs, read_last=True)
-        self._send_mark()
-        self._mark_recovering_offset = self._track_last_written_offset
-        if self._debug:
-            print("REQREAD", self._track_last_written_offset)
-
-    def _do_pause(self, inputs: "Record") -> None:
-        pass
-
-    def _do_unpause(self, inputs: "Record") -> None:
-        self._send_recover_read(inputs, read_last=True)
-
-    def _do_quiesce(self, inputs: "Record") -> None:
-        # TODO(mempressure): can quiesce ever be a record?
-        self._send_recover_read(inputs, read_last=False)
-
-    def _forward(self, inputs: "Record") -> None:
-        self._send_recover_read(inputs, read_last=False)
 
     def flow(self, record: "Record") -> None:
-        if self._debug:
-            print("# FLOW", record.num)
-            print("# FLOW-DEBUG", record)
-        self._process_record(record)
-
-        if not _is_local_record(record):
-            self._write_record(record)
-        else:
-            self._update_prev_written_offset()
-
         self._fsm.input(record)
 
 

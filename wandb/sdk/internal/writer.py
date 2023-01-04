@@ -114,12 +114,13 @@ class WriteManager:
             self.open()
         assert self._flow_control
 
+        if not record.control.local:
+            self._write_record(record)
+
         use_flow_control = self._settings._flow_control and not self._settings._offline
         if use_flow_control:
             self._flow_control.flow(record)
         else:
-            if not record.control.local:
-                self._write_record(record)
             if not self._settings._offline or record.control.always_send:
                 self._forward_record(record)
 

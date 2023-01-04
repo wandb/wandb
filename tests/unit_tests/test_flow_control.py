@@ -53,7 +53,10 @@ class FlowTester:
         self._recovered.append((start, end))
 
     def add(self, op, assert_state=None):
-        self._fc.flow(op.record)
+        record = op.record
+        if OpsFactory.is_op(record):
+            self._write_func(record)
+        self._fc.flow(record)
 
     @property
     def written(self):
