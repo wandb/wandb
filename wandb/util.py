@@ -49,7 +49,6 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-import shortuuid  # type: ignore
 import yaml
 
 import wandb
@@ -307,7 +306,12 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
+    vendor_packages = (
+        "gql-0.2.0",
+        "graphql-core-1.1",
+        "watchdog_0_9_0",
+        "promise-2.3.0",
+    )
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -859,12 +863,6 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
             launch_browser = False
 
     return launch_browser
-
-
-def generate_id(length: int = 8) -> str:
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return str(run_gen.random(length))
 
 
 def parse_tfjob_config() -> Any:
