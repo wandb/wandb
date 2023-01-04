@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from asyncio import Future, get_event_loop, iscoroutine, wait
 
-from promise import Promise
+from wandb_promise import Promise
 
 try:
     from asyncio import ensure_future
