@@ -90,7 +90,11 @@ class LocalProcessRunner(AbstractRunner):
         command_str = " ".join(cmd).strip()
         _msg = f"{LOG_PREFIX}Launching run as a local-process with command {sanitize_wandb_api_key(command_str)}"
         wandb.termlog(_msg)
-        run = _run_entry_point(command_str, launch_project.project_dir)
+        run = _run_entry_point(
+            command_str,
+            self.backend_config.get("runQueueItemId"),
+            launch_project.project_dir,
+        )
         if synchronous:
             run.wait()
         return run

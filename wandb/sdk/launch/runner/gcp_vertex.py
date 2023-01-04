@@ -23,7 +23,8 @@ GCP_CONSOLE_URI = "https://console.cloud.google.com"
 
 
 class VertexSubmittedRun(AbstractRun):
-    def __init__(self, job: Any) -> None:
+    def __init__(self, job: Any, run_queue_item_id: Optional[str]) -> None:
+        super().__init__(run_queue_item_id)
         self._job = job
 
     @property
@@ -182,7 +183,9 @@ class VertexRunner(AbstractRunner):
             display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
         )
 
-        submitted_run = VertexSubmittedRun(job)
+        submitted_run = VertexSubmittedRun(
+            job, self.backend_config.get("runQueueItemId")
+        )
 
         # todo: support gcp dataset?
 

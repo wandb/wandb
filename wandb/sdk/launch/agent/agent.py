@@ -128,7 +128,12 @@ class LaunchAgent:
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
         try:
-            if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+            state = self._jobs[job_id].get_status().state
+            if state == "failed":
+                run_queue_item_id = self._jobs[job_id].run_queue_item_id
+                self._api.mark_run_queue_item_broken(run_queue_item_id)
+                self.finish_job_id(job_id)
+            elif state == "finished":
                 self.finish_job_id(job_id)
         except Exception:
             self.finish_job_id(job_id)
@@ -209,7 +214,9 @@ class LaunchAgent:
                                 self.run_job(job)
                             except Exception as e:
                                 wandb.termerror(f"Error running job: {e}")
-                                self._api.ack_run_queue_item(job["runQueueItemId"])
+                                self._api.mark_run_queue_item_broken(
+                                    job["runQueueItemId"]
+                                )
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:

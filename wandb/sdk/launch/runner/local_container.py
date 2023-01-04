@@ -27,8 +27,10 @@ _logger = logging.getLogger(__name__)
 class LocalSubmittedRun(AbstractRun):
     """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command locally."""
 
-    def __init__(self, command_proc: "subprocess.Popen[bytes]") -> None:
-        super().__init__()
+    def __init__(
+        self, command_proc: "subprocess.Popen[bytes]", run_queue_item_id: Optional[str]
+    ) -> None:
+        super().__init__(run_queue_item_id)
         self.command_proc = command_proc
 
     @property
@@ -130,13 +132,19 @@ class LocalContainerRunner(AbstractRunner):
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)
-        run = _run_entry_point(command_str, launch_project.project_dir)
+        run = _run_entry_point(
+            command_str,
+            self.backend_config.get("runQueueItemId"),
+            launch_project.project_dir,
+        )
         if synchronous:
             run.wait()
         return run
 
 
-def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
+def _run_entry_point(
+    command: str, run_queue_item_id: Optional[str], work_dir: Optional[str]
+) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -162,7 +170,7 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
             env=env,
         )
 
-    return LocalSubmittedRun(process)
+    return LocalSubmittedRun(process, run_queue_item_id)
 
 
 def get_docker_command(

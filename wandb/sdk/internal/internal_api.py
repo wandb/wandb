@@ -1265,6 +1265,25 @@ class Api:
         return result
 
     @normalize_exceptions
+    def mark_run_queue_item_broken(self, item_id: str) -> bool:
+        mutation = gql(
+            """
+        mutation markRunQueueItemBroken($itemId: ID!)  {
+            markRunQueueItemBroken(input: { runQueueItemId: $itemId }) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(mutation, variable_values={"itemId": item_id})
+        if not response["markRunQueueItemBroken"]["success"]:
+            raise CommError(
+                "Error marking run queue item broken. Item may have already been acknowledged by another process"
+            )
+        result: bool = response["markRunQueueItemBroken"]["success"]
+        return result
+
+    @normalize_exceptions
     def create_launch_agent(
         self,
         entity: str,

@@ -50,8 +50,9 @@ class AbstractRun(ABC):
     run.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, run_queue_item_id: Optional[str] = None) -> None:
         self._status = Status()
+        self._run_queue_item_id = run_queue_item_id
 
     @property
     def status(self) -> Status:
@@ -104,6 +105,10 @@ class AbstractRun(ABC):
     @abstractmethod
     def id(self) -> str:
         pass
+
+    @property
+    def run_queue_item_id(self) -> Optional[str]:
+        return self._run_queue_item_id
 
 
 class AbstractRunner(ABC):

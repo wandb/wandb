@@ -32,8 +32,13 @@ _logger = logging.getLogger(__name__)
 class SagemakerSubmittedRun(AbstractRun):
     """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command on aws sagemaker."""
 
-    def __init__(self, training_job_name: str, client: "boto3.Client") -> None:
-        super().__init__()
+    def __init__(
+        self,
+        training_job_name: str,
+        client: "boto3.Client",
+        run_queue_item_id: Optional[str],
+    ) -> None:
+        super().__init__(run_queue_item_id)
         self.client = client
         self.training_job_name = training_job_name
         self._status = Status("running")
@@ -153,7 +158,12 @@ class AWSSagemakerRunner(AbstractRunner):
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
-            run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
+            run = launch_sagemaker_job(
+                launch_project,
+                sagemaker_args,
+                sagemaker_client,
+                self.backend_config.get("runQueueItemId"),
+            )
             if self.backend_config[PROJECT_SYNCHRONOUS]:
                 run.wait()
             return run
@@ -361,6 +371,7 @@ def launch_sagemaker_job(
     launch_project: LaunchProject,
     sagemaker_args: Dict[str, Any],
     sagemaker_client: "boto3.Client",
+    run_queue_item_id: Optional[str] = None,
 ) -> SagemakerSubmittedRun:
     training_job_name = sagemaker_args.get("TrainingJobName") or launch_project.run_id
     resp = sagemaker_client.create_training_job(**sagemaker_args)
@@ -368,7 +379,7 @@ def launch_sagemaker_job(
     if resp.get("TrainingJobArn") is None:
         raise LaunchError("Unable to create training job")
 
-    run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
+    run = SagemakerSubmittedRun(training_job_name, sagemaker_client, run_queue_item_id)
     wandb.termlog(
         f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}"
     )

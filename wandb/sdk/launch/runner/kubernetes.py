@@ -39,7 +39,9 @@ class KubernetesSubmittedRun(AbstractRun):
         pod_names: List[str],
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
+        run_queue_item_id: Optional[str] = None,
     ) -> None:
+        super().__init__(run_queue_item_id)
         self.batch_api = batch_api
         self.core_api = core_api
         self.name = name
@@ -406,7 +408,13 @@ class KubernetesRunner(AbstractRunner):
         pod_names = self.wait_job_launch(job_name, namespace, core_api)
 
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, pod_names, namespace, secret
+            batch_api,
+            core_api,
+            job_name,
+            pod_names,
+            namespace,
+            secret,
+            self.backend_config.get("runQueueItemId"),
         )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:
