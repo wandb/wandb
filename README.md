@@ -198,7 +198,7 @@ The simplest way to log metrics in TensorFlow is by logging `tf.summary` with ou
 import wandb
 
 # 1. Start a W&B run
-wandb.init(project="gpt3.5")
+wandb.init(project="gpt4")
 
 # 2. Save model inputs and hyperparameters
 config = wandb.config
