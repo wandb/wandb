@@ -138,7 +138,6 @@ class InterfaceShared(InterfaceBase):
         artifact_done: Optional[pb.ArtifactDoneRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
         keepalive: Optional[pb.KeepaliveRequest] = None,
-        sync_status: Optional[pb.SyncStatusRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
@@ -182,8 +181,6 @@ class InterfaceShared(InterfaceBase):
             request.server_info.CopyFrom(server_info)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
-        elif sync_status:
-            request.sync_status.CopyFrom(sync_status)
         elif cancel:
             request.cancel.CopyFrom(cancel)
         else:

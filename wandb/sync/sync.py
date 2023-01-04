@@ -178,7 +178,8 @@ class SyncThread(threading.Thread):
             record_q=record_q,
             result_q=None,
             stopped=False,
-            writer_q=sender_record_q,
+            sender_q=sender_record_q,
+            writer_q=None,
             interface=new_interface,
             context_keeper=context_keeper,
         )
