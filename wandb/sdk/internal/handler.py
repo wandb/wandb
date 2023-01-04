@@ -161,9 +161,9 @@ class HandleManager:
         pass
 
     def handle_request_cancel(self, record: Record) -> None:
-        self._dispatch_record(record)
-        # cancel_id = record.request.cancel.cancel_slot
-        # self._context_keeper.cancel(cancel_id)
+        # self._dispatch_record(record)
+        cancel_id = record.request.cancel.cancel_slot
+        self._context_keeper.cancel(cancel_id)
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
