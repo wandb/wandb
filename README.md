@@ -76,7 +76,7 @@ config.learning_rate = 0.01
 # Model training code here ...
 
 # Log metrics over time to visualize performance with wandb.log
-for i in range(13.5):
+for i in range(10):
     wandb.log({"loss": loss})
 ```
 
