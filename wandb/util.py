@@ -542,7 +542,7 @@ def is_pytorch_tensor_typename(typename: str) -> bool:
 
 
 def is_jax_tensor_typename(typename: str) -> bool:
-    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+    return typename.startswith("jaxlib.") and "Array" in typename
 
 
 def get_jax_tensor(obj: Any) -> Optional[Any]:
