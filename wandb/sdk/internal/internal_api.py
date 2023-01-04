@@ -1412,6 +1412,7 @@ class Api:
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
+        run_queue_item_id: Optional[str] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run
 
@@ -1435,8 +1436,9 @@ class Api:
             sweep_name (str, optional): The name of the sweep this run is a part of
             summary_metrics (str, optional): The JSON summary metrics
             num_retries (int, optional): Number of retries
+            run_queue_item_id (str, optional): The id of the run queue item
         """
-
+        print("upserting run", run_queue_item_id)
         query_string = """
         mutation UpsertBucket(
             $id: String,
@@ -1458,6 +1460,7 @@ class Api:
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
+            $runQueueItemId: ID,
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -1479,6 +1482,7 @@ class Api:
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
+                runQueueItemId: $runQueueItemId,
             }) {
                 bucket {
                     id
@@ -1549,6 +1553,7 @@ class Api:
             "state": state,
             "sweep": sweep_name,
             "summaryMetrics": summary_metrics,
+            "runQueueItemId": run_queue_item_id,
         }
 
         # retry conflict errors for 2 minutes, default to no_auth_retry

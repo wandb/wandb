@@ -172,7 +172,7 @@ class VertexRunner(AbstractRunner):
                     "command": entry_cmd,
                     "env": [
                         {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                        for k, v in get_env_vars_dict(launch_project, self._api, self.backend_config.get("runQueueItemId").items()
                     ],
                 },
             }
