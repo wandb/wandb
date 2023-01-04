@@ -65,6 +65,7 @@ class WriteManager:
             settings=self._settings,
             write_record=self._write_record,
             forward_record=self._forward_record,
+            send_mark=self._send_mark,
             recover_records=self._recover_records,
             **kwargs,
         )
@@ -73,6 +74,14 @@ class WriteManager:
         self._context_keeper.add_from_record(record)
         tracelog.log_message_queue(record, self._sender_q)
         self._sender_q.put(record)
+
+    def _send_mark(self) -> None:
+        record = pb.Record()
+        request = pb.Request()
+        sender_mark = pb.SenderMarkRequest()
+        request.sender_mark.CopyFrom(sender_mark)
+        record.request.CopyFrom(request)
+        self._forward_record(record)
 
     def _write_record(self, record: "pb.Record") -> int:
         assert self._ds

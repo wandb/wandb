@@ -125,6 +125,7 @@ class FlowControl:
         settings: SettingsStatic,
         forward_record: Callable[["Record"], None],
         write_record: Callable[["Record"], int],
+        send_mark: Callable[[], None],
         recover_records: Callable[[int, int], None],
         _threshold_bytes_high: int = 4 * 1024 * 1024,  # 4MiB
         _threshold_bytes_mid: int = 2 * 1024 * 1024,  # 2MiB
@@ -180,6 +181,7 @@ class FlowControl:
         # FSM definition
         state_forwarding = StateForwarding(
             forward_record=forward_record,
+            send_mark=send_mark,
             threshold_pause=self._threshold_bytes_high,
         )
         state_pausing = StatePausing(
@@ -192,7 +194,11 @@ class FlowControl:
             states=[state_forwarding, state_pausing],
             table={
                 StateForwarding: [
-                    fsm.FsmEntry(state_forwarding._should_pause, StatePausing),
+                    fsm.FsmEntry(
+                        state_forwarding._should_pause,
+                        StatePausing,
+                        state_forwarding._pause,
+                    ),
                 ],
                 StatePausing: [
                     fsm.FsmEntry(
@@ -431,18 +437,17 @@ class StateShared:
     def _update_forwarded_offset(self) -> None:
         self._context.last_forwarded_offset = self._context.last_written_offset
 
-    def _process(self, record: "Record") -> bool:
+    def _process(self, record: "Record") -> None:
         request_type = _get_request_type(record)
         if not request_type:
-            return False
+            return
         process_str = f"_process_{request_type}"
         process_handler: Optional[Callable[["pb.Record"], None]] = getattr(
             self, process_str, None
         )
         if not process_handler:
-            return False
+            return
         process_handler(record)
-        return True
 
     def _process_status_report(self, record: "Record") -> None:
         sent_offset = record.request.status_report.sent_offset
@@ -461,30 +466,31 @@ class StateShared:
 
 class StateForwarding(StateShared):
     _forward_record: Callable[["Record"], None]
+    _send_mark: Callable[[], None]
     _threshold_pause: int
 
     def __init__(
         self,
         forward_record: Callable[["Record"], None],
+        send_mark: Callable[[], None],
         threshold_pause: int,
     ) -> None:
         super().__init__()
         self._forward_record = forward_record
+        self._send_mark = send_mark
         self._threshold_pause = threshold_pause
 
     def _should_pause(self, record: "Record") -> bool:
         return self._behind_bytes >= self._threshold_pause
 
+    def _pause(self, record: "Record") -> None:
+        self._send_mark()
+
     def on_check(self, record: "Record") -> None:
         self._update_written_offset(record)
-        self._maybe_forward_record(record)
-        # self._flow._maybe_send_mark()
-
-    def _maybe_forward_record(self, record: "Record") -> None:
-        processed = self._process(record)
-        if processed:
-            return
-        self._forward_record(record)
+        self._process(record)
+        if not _is_control_record(record):
+            self._forward_record(record)
         self._update_forwarded_offset()
 
 
