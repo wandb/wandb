@@ -835,6 +835,7 @@ class SendManager:
             program_path=self._settings.program or None,
             repo=run.git.remote_url or None,
             commit=run.git.commit or None,
+            run_queue_item_id=run.run_queue_item_id or None,
         )
         self._server_messages = server_messages or []
         self._run = run

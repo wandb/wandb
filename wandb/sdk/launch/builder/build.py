@@ -213,7 +213,9 @@ def get_base_setup(
     return base_setup
 
 
-def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
+def get_env_vars_dict(
+    launch_project: LaunchProject, api: Api, run_queue_item_id: Optional[str]
+) -> Dict[str, str]:
     """Generates environment variables for the project.
 
     Arguments:
@@ -244,6 +246,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars["WANDB_ARTIFACTS"] = json.dumps(
         {**artifacts, **launch_project.override_artifacts}
     )
+    if run_queue_item_id:
+        env_vars["WANDB_RUN_QUEUE_ITEM_ID"] = run_queue_item_id
     #  check if the user provided an override entrypoint, otherwise use the default
 
     if launch_project.override_entrypoint is not None:

@@ -319,7 +319,9 @@ class KubernetesRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         # env vars
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, self.backend_config.get("runQueueItemId")
+        )
 
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         secret = None

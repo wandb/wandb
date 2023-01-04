@@ -149,6 +149,7 @@ class AbstractRunner(ABC):
         return True
 
     def ack_run_queue_item(self, launch_project: LaunchProject) -> bool:
+        return True
         if self.backend_config.get("runQueueItemId"):
             try:
                 self._api.ack_run_queue_item(
