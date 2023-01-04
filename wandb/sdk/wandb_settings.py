@@ -405,6 +405,7 @@ class Settings:
     anonymous: str
     api_key: str
     base_url: str  # The base url for the wandb api
+    cache_dir: str  # The directory to use for artifacts cache: <cache_dir>/artifacts
     code_dir: str
     config_paths: Sequence[str]
     console: str
