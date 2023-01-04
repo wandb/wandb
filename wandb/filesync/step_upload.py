@@ -63,8 +63,13 @@ class RequestFinish(NamedTuple):
     callback: Optional[OnRequestFinishFn]
 
 
+class EventJobDone(NamedTuple):
+    job: upload_job.UploadJob
+    success: bool
+
+
 Event = Union[
-    RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone
+    RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone
 ]
 
 
@@ -133,7 +138,7 @@ class StepUpload:
                 break
 
     def _handle_event(self, event: Event) -> None:
-        if isinstance(event, upload_job.EventJobDone):
+        if isinstance(event, EventJobDone):
             job = event.job
             if job.artifact_id:
                 if event.success:
@@ -208,7 +213,7 @@ class StepUpload:
             job.run()
             success = True
         finally:
-            self._event_queue.put(upload_job.EventJobDone(job, success))
+            self._event_queue.put(EventJobDone(job, success))
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {

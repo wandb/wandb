@@ -9,11 +9,6 @@ if TYPE_CHECKING:
     from wandb.sdk.internal import file_stream, internal_api
 
 
-class EventJobDone(NamedTuple):
-    job: "UploadJob"
-    success: bool
-
-
 logger = logging.getLogger(__name__)
 
 
