@@ -168,7 +168,7 @@ Then use `.log` for anything else you want to track, like so:
 import wandb
 
 # 1. Start a new run
-wandb.init(project="gpt-3.5")
+wandb.init(project="gpt4")
 
 # 2. Save model inputs and hyperparameters
 config = wandb.config
