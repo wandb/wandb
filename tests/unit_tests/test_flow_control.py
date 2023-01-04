@@ -21,6 +21,7 @@ class FlowTester:
             settings=settings,
             write_record=self._write_func,
             forward_record=self._forward_func,
+            send_mark=self._send_mark_func,
             recover_records=self._recover_func,
             _threshold_bytes_high=high,
             _threshold_bytes_mid=mid,
@@ -31,6 +32,7 @@ class FlowTester:
         self._fc = fc
         self._written = []
         self._forwarded = []
+        self._sendmarks = []
         self._recovered = []
 
     def _write_func(self, record):
@@ -45,6 +47,9 @@ class FlowTester:
 
     def _forward_func(self, record):
         self._forwarded.append(record)
+
+    def _send_mark_func(self):
+        self._sendmarks.append(True)
 
     def _recover_func(self, start, end):
         self._recovered.append((start, end))
