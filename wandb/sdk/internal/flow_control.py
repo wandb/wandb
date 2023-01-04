@@ -1,11 +1,13 @@
 """Flow Control.
 
 States:
+    FORWARDING
+    PAUSING
 
 New messages:
-    mark_position    writer -> sender (has an ID)
-    report position  sender -> writer
-    read data        writer -> sender (go read this data for me)
+    pb.SenderMarkRequest    writer -> sender (empty message)
+    pb.StatusReportRequest  sender -> writer (reports current sender progress)
+    pb.SenderReadRequest    writer -> sender (requests read of transaction log)
 
 Thresholds:
     Threshold_High_MaxOutstandingData       - When above this, stop sending requests to sender
@@ -13,44 +15,12 @@ Thresholds:
     Threshold_Low_RestartSendingData       - When below this, start sending normal records
 
 State machine:
-    FORWARDING  - Streaming every record to the sender in memory
-      -> PAUSED when oustanding_data > Threshold_High_MaxOutstandingData
-    PAUSING  - Writing records to disk and waiting for sender to drain
-      -> RECOVERING when outstanding_data < Threshold_Mid_StartSendingReadRequests
-    RECOVERING - Recovering from disk and waiting for sender to drain
-      -> FORWARDING when outstanding_data < Threshold_Low_RestartSendingData
-
-
-    should_pause:
-        1) There is too much data written but waiting to be sent
-            <--1--><--2--><--3--><--4--><--5--><--6-->
-                  |                                  | track_last_written_offset
-                  | mark_reported_offset
-
-            track_last_written_offset - mark_reported_offset > pause_threshold_bytes
-
-
-    should_recover:
-        1) All forwarded data has been sent
-            <--1--><--2--><--3--><--4--><--5--><--6-->
-                  |                                  | track_last_written_offset
-                  | track_last_forwarded_offset
-                  | mark_forwarded_offset
-                  | mark_reported_offset
-
-            track_last_forwarded_offset == mark_forwarded_offset == mark_reported_offset
-        2) Unsent data drops below a threshold (Optimization)
-            <--1--><--2--><--3--><--4--><--5--><--6-->
-                  |                                  | track_last_written_offset
-                  | mark_reported_offset
-
-            track_last_written_offset - mark_reported_offset < recover_threshold_bytes
-
-    should_forward:
-        1) Unread + Unsent data drops below a threshold
-            <--1--><--2--><--3--><--4--><--5--><--6-->
-                  |                                  | track_last_written_offset
-                  | mark_reported_offset
+    FORWARDING
+      -> PAUSED if should_pause
+    PAUSING
+      -> FORWARDING if should_unpause
+      -> PAUSING if should_recover
+      -> PAUSING if should_quiesce
 
 """
 
@@ -68,11 +38,6 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record
 
 logger = logging.getLogger(__name__)
-
-
-def _get_record_type(record: "Record") -> Optional[str]:
-    record_type = record.WhichOneof("record_type")
-    return record_type
 
 
 def _get_request_type(record: "Record") -> Optional[str]:
@@ -111,7 +76,6 @@ class FlowControl:
     # _track_last_flushed_offset: int
     # _track_recovering_requests: int
 
-    _mark_granularity_bytes: int
     _mark_forwarded_offset: int
     _mark_recovering_offset: int
     _mark_reported_offset: int
@@ -130,8 +94,6 @@ class FlowControl:
         _threshold_bytes_high: int = 4 * 1024 * 1024,  # 4MiB
         _threshold_bytes_mid: int = 2 * 1024 * 1024,  # 2MiB
         _threshold_bytes_low: int = 1 * 1024 * 1024,  # 1MiB
-        _mark_granularity_bytes: int = 64 * 1024,  # 64KiB
-        _recovering_bytes_min: int = 32 * 1024,  # 32KiB
     ) -> None:
         self._settings = settings
         self._forward_record_cb = forward_record
@@ -147,8 +109,6 @@ class FlowControl:
             self._threshold_bytes_high = _threshold_bytes_high
             self._threshold_bytes_mid = _threshold_bytes_mid
             self._threshold_bytes_low = _threshold_bytes_low
-        self._mark_granularity_bytes = _mark_granularity_bytes
-        self._recovering_bytes_min = _recovering_bytes_min
 
         self._track_last_read_offset = 0
         self._track_last_unread_offset = 0
@@ -271,21 +231,6 @@ class FlowControl:
         self._forward_record(record)
         # print("MARK", last_write_offset)
 
-    def _maybe_send_mark(self) -> None:
-        """Send mark if we are writting the first record in a block."""
-        if (
-            self._track_last_forwarded_offset
-            >= self._mark_forwarded_offset + self._mark_granularity_bytes
-        ):
-            self._send_mark()
-
-    def _maybe_request_read(self) -> None:
-        pass
-        # if we are paused
-        # and more than one chunk has been written
-        # and N time has elapsed
-        # send message asking sender to read from last_read_offset to current_offset
-
     def _forwarded_bytes_behind(self) -> int:
         behind_bytes = self._track_last_forwarded_offset - self._mark_reported_offset
         return behind_bytes
@@ -300,69 +245,6 @@ class FlowControl:
 
     def flush(self) -> None:
         pass
-
-    def _should_pause(self, inputs: "Record") -> bool:
-        # print(
-        #     f"SHOULD_PAUSE: {self._forwarded_bytes_behind()} {self._threshold_bytes_high}"
-        # )
-        if self._forwarded_bytes_behind() >= self._threshold_bytes_high:
-            # print("PAUSE", self._track_last_forwarded_offset, inputs.num)
-            if self._debug:
-                print("# FSM :: should_pause")
-            return True
-        # print(f"NOT_PAUSE: {self._behind_bytes()} {self._threshold_bytes_high}")
-        return False
-
-    def _should_unpause(self, inputs: "Record") -> bool:
-        return False
-        # bytes_behind = self._forwarded_bytes_behind()
-        # if bytes_behind <= self._threshold_bytes_low:
-        #     return True
-        # return False
-
-    def _should_forward(self, inputs: "Record") -> bool:
-        # print(
-        #     f"SHOULD_FORWARD: {self._recovering_bytes_behind()} {self._threshold_bytes_low}"
-        # )
-        bytes_behind = max(
-            self._forwarded_bytes_behind(), self._recovering_bytes_behind()
-        )
-        bytes_behind = self._recovering_bytes_behind()
-        # print("SHOULD FORWARD", bytes_behind, self._forwarded_bytes_behind(), self._recovering_bytes_behind(), inputs)
-        if bytes_behind <= self._threshold_bytes_low:
-            # print("FORWARD")
-            if self._debug:
-                print("# FSM :: should forward")
-            return True
-        return False
-
-    def _should_quiesce(self, inputs: "Record") -> bool:
-        record = inputs
-        quiesce = _is_local_record(record) and not _is_control_record(record)
-        if quiesce and self._debug:
-            print("# FSM :: should quiesce")
-        return quiesce
-
-    def _should_recover(self, inputs: "Record") -> bool:
-        # do we have a large enough read to do
-        behind = self._recovering_bytes_behind()
-        # print("BEHIND", behind)
-        if behind < self._recovering_bytes_min:
-            # print("NOTENOUGH")
-            return False
-
-        # make sure we dont already have a read in progress
-        if (
-            self._mark_recovering_offset
-            and self._mark_reported_offset < self._mark_recovering_offset
-        ):
-            # print("ALREADY SENT")
-            return False
-        # print("# FSM recover")
-
-        if self._debug:
-            print("# FSM :: should recover")
-        return True
 
     def _send_recover_read(self, record: "Record", read_last: bool = False) -> None:
         # issue read for anything written but not forwarded yet

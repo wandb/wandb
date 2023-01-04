@@ -26,8 +26,6 @@ class FlowTester:
             _threshold_bytes_high=high,
             _threshold_bytes_mid=mid,
             _threshold_bytes_low=low,
-            _mark_granularity_bytes=50,
-            _recovering_bytes_min=50,
         )
         self._fc = fc
         self._written = []
