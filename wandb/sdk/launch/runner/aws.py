@@ -29,6 +29,143 @@ from .abstract import AbstractRun, AbstractRunner, Status
 _logger = logging.getLogger(__name__)
 
 
+class BatchSubmittedRun(AbstractRun):
+    """ """
+
+
+class AWSBatchRunner(AbstractRunner):
+    """ """
+
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
+        _logger.info("using BatchRunner")
+
+        boto3 = get_module(
+            "boto3",
+            "AWSBatchRunner requires boto3 to be installed,  install with pip install wandb[launch]",
+        )
+        botocore = get_module(
+            "botocore",
+            "AWSBatchRunner requires botocore to be installed,  install with pip install wandb[launch]",
+        )
+
+        # Get batch specific arguments and verify them
+        given_batch_args = launch_project.resource_args.get("batch")
+        # if given_sagemaker_args is None:
+        #     raise LaunchError(
+        #         "No sagemaker args specified. Specify sagemaker args in resource_args"
+        #     )
+        # validate_sagemaker_requirements(given_sagemaker_args, registry_config)
+
+        default_output_path = self.backend_config.get("runner", {}).get(
+            "s3_output_path"
+        )
+        if default_output_path is not None and not default_output_path.startswith(
+            "s3://"
+        ):
+            default_output_path = f"s3://{default_output_path}"
+
+        region = get_region(given_batch_args, registry_config.get("region"))
+        instance_role: bool = False
+        try:
+            client = boto3.client("sts")
+            instance_role = True
+            caller_id = client.get_caller_identity()
+
+        except botocore.exceptions.NoCredentialsError:
+            access_key, secret_key = get_aws_credentials(given_batch_args)
+            client = boto3.client(
+                "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+            )
+            caller_id = client.get_caller_identity()
+
+        account_id = caller_id["Account"]
+        role_arn = get_role_arn(given_batch_args, self.backend_config, account_id)
+        entry_point = launch_project.get_single_entry_point()
+
+        _logger.info("Connecting to AWS ECR Client")
+        if instance_role:
+            ecr_client = boto3.client("ecr", region_name=region)
+        else:
+            ecr_client = boto3.client(
+                "ecr",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+        repository = get_ecr_repository_url(
+            ecr_client, given_batch_args, registry_config
+        )
+        # TODO: handle login credentials gracefully
+        login_credentials = registry_config.get("credentials")
+        if login_credentials is not None:
+            wandb.termwarn(
+                "Ignoring registry credentials for ECR, using those found on the system"
+            )
+
+        # check build here
+        if builder.type != "kaniko":
+            _logger.info("Logging in to AWS ECR")
+            login_resp = aws_ecr_login(region, repository)
+            if login_resp is None or "Login Succeeded" not in login_resp:
+                raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
+
+        docker_args = self.backend_config.get(PROJECT_DOCKER_ARGS)
+        if docker_args and list(docker_args) != ["docker_image"]:
+            wandb.termwarn(
+                "Docker args are not supported for Sagemaker Resource. Not using docker args"
+            )
+
+        if launch_project.docker_image:
+            image = launch_project.docker_image
+        else:
+            assert entry_point is not None
+            # build our own image
+            image = builder.build_image(
+                launch_project,
+                repository,
+                entry_point,
+                {},
+            )
+
+        if not self.ack_run_queue_item(launch_project):
+            return None
+
+        _logger.info("Connecting to batch client")
+        if instance_role:
+            batch_client = boto3.client("batch", region_name=region)
+        else:
+            batch_client = boto3.client(
+                "batch",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+
+        command_args = get_entry_point_command(
+            entry_point, launch_project.override_args
+        )
+        if command_args:
+            command_str = " ".join(command_args)
+            wandb.termlog(
+                f"{LOG_PREFIX}Launching run on batch with entrypoint: {command_str}"
+            )
+        else:
+            wandb.termlog(
+                f"{LOG_PREFIX}Launching run on batch with user-provided entrypoint in image"
+            )
+        # sagemaker_args = build_sagemaker_args(
+        #     launch_project, self._api, role_arn, image, default_output_path
+        # )
+        batch_args = {"environment": get_env_vars_dict(launch_project, self._api)}
+        run = launch_batch_job(launch_project, batch_args, batch_client)
+        return run
+
+
 class SagemakerSubmittedRun(AbstractRun):
     """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command on aws sagemaker."""
 
@@ -239,6 +376,8 @@ class AWSSagemakerRunner(AbstractRunner):
 
 
 def aws_ecr_login(region: str, registry: str) -> Optional[str]:
+    # TODO: requires awscli to be installed but we don't check that it is
+    # installed or gracefully handle the error if it isn't installed
     pw_command = ["aws", "ecr", "get-login-password", "--region", region]
     try:
         pw = run_shell(pw_command)[0]
@@ -355,6 +494,43 @@ def build_sagemaker_args(
     filtered_args = {k: v for k, v in sagemaker_args.items() if v is not None}
 
     return filtered_args
+
+
+def launch_batch_job(
+    launch_project: LaunchProject,
+    batch_args: Dict[str, Any],
+    batch_client: "boto3.Client",
+):
+    """ """
+
+    # Step 1: Create job definition
+    response = batch_client.register_job_definition(
+        jobDefinitionName="job-definition",
+        type="container",
+        containerProperties={
+            "executionRoleArn": "arn:aws:iam::305054156030:role/sagemaker-execution-role",
+            "image": launch_project.image_uri,
+            "resourceRequirements": [
+                {"type": "VCPU", "value": "1"},
+                {"type": "MEMORY", "value": "2048"},
+            ],
+        },
+        platformCapabilities=["FARGATE"],
+    )
+    print("response:", response)
+
+    # Step 2: Create job
+    response = batch_client.submit_job(
+        jobDefinition="job-definition",
+        jobName="test-job",
+        jobQueue="launch-queue",
+        containerOverrides={
+            "environment": [
+                {"name": key, "value": value}
+                for key, value in batch_args["environment"].items()
+            ]
+        },
+    )
 
 
 def launch_sagemaker_job(
