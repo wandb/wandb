@@ -1,10 +1,12 @@
+import abc
+import asyncio
 import datetime
 import functools
 import logging
 import os
 import random
 import time
-from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
+from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
 
@@ -192,3 +194,64 @@ def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
         return wrapped_fn  # type: ignore
 
     return decorator
+
+
+class AsyncBackoff(abc.ABC):
+    @abc.abstractmethod
+    async def wait_or_reraise(self, exc: Exception) -> None:
+        pass
+
+
+class ExponentialAsyncBackoff(AsyncBackoff):
+    def __init__(
+        self,
+        initial_sleep: datetime.timedelta,
+        max_sleep: datetime.timedelta,
+        max_retries: Optional[int] = None,
+        timeout_at: Optional[datetime.datetime] = None,
+    ) -> None:
+        self._next_sleep = initial_sleep
+        self._max_sleep = max_sleep
+        self._remaining_retries = max_retries
+        self._timeout_at = timeout_at
+
+    async def wait_or_reraise(self, exc: Exception) -> None:
+        if self._remaining_retries is not None:
+            if self._remaining_retries <= 0:
+                raise exc
+            self._remaining_retries -= 1
+
+        if self._timeout_at is not None and datetime.datetime.now() > self._timeout_at:
+            raise exc
+
+        await asyncio.sleep(self._next_sleep.total_seconds())
+
+        self._next_sleep = min(
+            self._max_sleep, self._next_sleep * (1 + random.random())
+        )
+
+
+class FilteredAsyncBackoff(AsyncBackoff):
+    def __init__(
+        self, filter: Callable[[Exception], bool], wrapped: AsyncBackoff
+    ) -> None:
+        self._filter = filter
+        self._wrapped = wrapped
+
+    async def wait_or_reraise(self, exc: Exception) -> None:
+        if not self._filter(exc):
+            raise exc
+        return await self._wrapped.wait_or_reraise(exc)
+
+
+async def retry_async(
+    backoff: AsyncBackoff,
+    fn: Callable[..., Awaitable[_R]],
+    *args: Any,
+    **kwargs: Any,
+) -> _R:
+    while True:
+        try:
+            return await fn(*args, **kwargs)
+        except Exception as e:
+            await backoff.wait_or_reraise(e)

@@ -969,7 +969,7 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception(f"unrecognized storage layout: {storage_layout}")
 
-    def store_file(
+    async def store_file_async(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -992,7 +992,7 @@ class WandbStoragePolicy(StoragePolicy):
                 "md5": entry.digest,
             }
 
-        resp = preparer.prepare(_prepare_fn)
+        resp = await preparer.prepare(_prepare_fn)
 
         entry.birth_artifact_id = resp.birth_artifact_id
         if resp.upload_url is None:
@@ -1002,10 +1002,10 @@ class WandbStoragePolicy(StoragePolicy):
 
         with open(entry.local_path, "rb") as file:
             # This fails if we don't send the first byte before the signed URL expires.
-            self._api.upload_file_retry(
-                resp.upload_url,
-                file,
-                progress_callback,
+            await self._api.upload_file_retry_async(
+                url=resp.upload_url,
+                file=file,
+                callback=progress_callback,
                 extra_headers={
                     header.split(":", 1)[0]: header.split(":", 1)[1]
                     for header in (resp.upload_headers or {})

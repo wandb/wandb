@@ -1,5 +1,6 @@
 """Batching file prepare requests to our API."""
 
+import asyncio
 import queue
 import sys
 import threading
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
 class RequestPrepare(NamedTuple):
     prepare_fn: "DoPrepareFn"
     on_prepare: Optional["OnPrepareFn"]
-    response_queue: "queue.Queue[ResponsePrepare]"
+    response: asyncio.Future["ResponsePrepare"]
 
 
 class RequestFinish(NamedTuple):
@@ -99,8 +100,9 @@ class StepPrepare:
                     prepare_request.on_prepare(
                         upload_url, upload_headers, birth_artifact_id
                     )
-                prepare_request.response_queue.put(
-                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
+                prepare_request.response.get_loop().call_soon_threadsafe(
+                    prepare_request.response.set_result,
+                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id),
                 )
             if finish:
                 break
@@ -143,21 +145,16 @@ class StepPrepare:
             file_specs.append(file_spec)
         return self._api.create_artifact_files(file_specs)
 
-    def prepare_async(
-        self, prepare_fn: "DoPrepareFn", on_prepare: Optional["OnPrepareFn"] = None
-    ) -> "queue.Queue[ResponsePrepare]":
+    async def prepare(self, prepare_fn: "DoPrepareFn") -> ResponsePrepare:
         """Request the backend to prepare a file for upload.
 
         Returns:
             response_queue: a queue containing the prepare result. The prepare result is
                 either a file upload url, or None if the file doesn't need to be uploaded.
         """
-        response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
-        self._request_queue.put(RequestPrepare(prepare_fn, on_prepare, response_queue))
-        return response_queue
-
-    def prepare(self, prepare_fn: "DoPrepareFn") -> ResponsePrepare:
-        return self.prepare_async(prepare_fn).get()
+        response: asyncio.Future[ResponsePrepare] = asyncio.Future()
+        self._request_queue.put(RequestPrepare(prepare_fn, None, response))
+        return await response
 
     def start(self) -> None:
         self._thread.start()

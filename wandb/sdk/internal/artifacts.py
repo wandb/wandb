@@ -3,7 +3,7 @@ import os
 import sys
 import tempfile
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     class SaveFn(Protocol):
         def __call__(
             self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
-        ) -> Any:
+        ) -> Awaitable[bool]:
             pass
 
 
@@ -221,7 +221,7 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file(
+            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
                 artifact_manifest_id,
                 entry,

@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import base64
 import datetime
 import json
@@ -26,6 +27,7 @@ from typing import (
 )
 
 import click
+import httpx
 import requests
 import yaml
 from wandb_gql import Client, gql  # type: ignore
@@ -43,7 +45,7 @@ from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
-from .progress import Progress
+from .progress import AsyncProgress, Progress
 
 logger = logging.getLogger(__name__)
 
@@ -1996,6 +1998,73 @@ class Api:
                 util.sentry_reraise(e)
 
         return response
+
+    async def upload_file_retry_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        if "x-ms-blob-type" in extra_headers:
+            return asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: self.upload_file_retry(
+                    url=url,
+                    file=file,
+                    callback=callback,
+                    extra_headers=extra_headers,
+                ),
+            )
+
+        progress = AsyncProgress(Progress(file, callback=callback))
+
+        def check_exc_retriable(exc: Exception) -> bool:
+            progress.rewind()
+
+            logger.error(f"upload_file_retry_async exception {url}: {exc}")
+            if isinstance(exc, httpx.RequestError) and exc.request is not None:
+                logger.error(
+                    f"upload_file_retry_async request headers: {exc.request.headers}"
+                )
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
+                logger.error(
+                    f"upload_file_retry_async response body: {exc.response.content}"
+                )
+
+            retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
+            return (
+                isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
+                or (
+                    isinstance(exc, httpx.HTTPStatusError)
+                    and exc.response.status_code in retriable_codes
+                )
+                or (
+                    isinstance(exc, httpx.HTTPStatusError)
+                    and exc.response.status_code == 400
+                    and "x-amz-meta-md5" in extra_headers
+                    and "RequestTimeout" in str(exc.response.content)
+                )
+            )
+
+        backoff = retry.FilteredAsyncBackoff(
+            filter=check_exc_retriable,
+            wrapped=retry.ExponentialAsyncBackoff(
+                initial_sleep=datetime.timedelta(seconds=1),
+                max_sleep=datetime.timedelta(seconds=60),
+                max_retries=100,
+                timeout_at=datetime.datetime.now() + datetime.timedelta(days=7),
+            ),
+        )
+
+        async with httpx.AsyncClient() as client:
+            await retry.retry_async(
+                backoff=backoff,
+                fn=client.put,
+                url=url,
+                content=progress,
+                headers=extra_headers,
+            )
 
     @normalize_exceptions
     def register_agent(

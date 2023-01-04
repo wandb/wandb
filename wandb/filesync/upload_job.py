@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, NamedTuple, Optional
 import wandb
 
 if TYPE_CHECKING:
-    from wandb.filesync import dir_watcher, stats, step_upload
+    from wandb.filesync import dir_watcher, stats
     from wandb.sdk.internal import file_stream, internal_api
 
 
@@ -29,7 +29,6 @@ class UploadJob:
         artifact_id: Optional[str],
         md5: Optional[str],
         copied: bool,
-        save_fn: Optional["step_upload.SaveFn"],
         digest: Optional[str],
     ) -> None:
         """A file uploader.
@@ -50,7 +49,6 @@ class UploadJob:
         self.artifact_id = artifact_id
         self.md5 = md5
         self.copied = copied
-        self.save_fn = save_fn
         self.digest = digest
         super().__init__()
 
@@ -64,34 +62,6 @@ class UploadJob:
                 os.remove(self.save_path)
 
     def push(self) -> bool:
-        if self.save_fn:
-            # Retry logic must happen in save_fn currently
-            try:
-                deduped = self.save_fn(
-                    lambda _, t: self._stats.update_uploaded_file(self.save_path, t)
-                )
-            except Exception as e:
-                self._stats.update_failed_file(self.save_path)
-                logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.util.sentry_exc(e)
-                message = str(e)
-                # TODO: this is usually XML, but could be JSON
-                if hasattr(e, "response"):
-                    message = e.response.content
-                wandb.termerror(
-                    'Error uploading "{}": {}, {}'.format(
-                        self.save_path, type(e).__name__, message
-                    )
-                )
-                return False
-
-            if deduped:
-                logger.info("Skipped uploading %s", self.save_path)
-                self._stats.set_file_deduped(self.save_path)
-            else:
-                logger.info("Uploaded file %s", self.save_path)
-            return True
-
         if self.md5:
             # This is the new artifact manifest upload flow, in which we create the
             # database entry for the manifest file before creating it. This is used for
