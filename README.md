@@ -174,7 +174,7 @@ wandb.init(project="gpt-3.5")
 config = wandb.config
 config.dropout = 0.01
 
-# 3.5. Log gradients and model parameters
+# 3. Log gradients and model parameters
 wandb.watch(model)
 for batch_idx, (data, target) in enumerate(train_loader):
     ...
