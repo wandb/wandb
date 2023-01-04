@@ -120,7 +120,7 @@ class OpsFactory:
         def _get_inform_record(self):
             status_report = pb.StatusReportRequest(
                 record_num=0,
-                send_offset=self.offset,
+                sent_offset=self.offset,
             )
             status_time = time.time()
             status_report.sync_time.FromMicroseconds(int(status_time * 1e6))

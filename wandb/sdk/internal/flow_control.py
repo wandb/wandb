@@ -205,6 +205,11 @@ class FlowControl:
                         StatePausing,
                         state_pausing._recover,
                     ),
+                    fsm.FsmEntry(
+                        state_pausing._should_quiesce,
+                        StatePausing,
+                        state_pausing._quiesce,
+                    ),
                 ],
             },
         )
@@ -423,10 +428,8 @@ class StateShared:
         if end_offset:
             self._context.last_written_offset = end_offset
 
-    def _update_forwarded_offset(self, record: "Record") -> None:
-        end_offset = record.control.end_offset
-        if end_offset:
-            self._context.last_forwarded_offset = end_offset
+    def _update_forwarded_offset(self) -> None:
+        self._context.last_forwarded_offset = self._context.last_written_offset
 
     def _process(self, record: "Record") -> bool:
         request_type = _get_request_type(record)
@@ -451,6 +454,10 @@ class StateShared:
     def on_enter(self, record: "Record", context: StateContext) -> None:
         self._context = context
 
+    @property
+    def _behind_bytes(self) -> int:
+        return self._context.last_forwarded_offset - self._context.last_sent_offset
+
 
 class StateForwarding(StateShared):
     _forward_record: Callable[["Record"], None]
@@ -465,6 +472,9 @@ class StateForwarding(StateShared):
         self._forward_record = forward_record
         self._threshold_pause = threshold_pause
 
+    def _should_pause(self, record: "Record") -> bool:
+        return self._behind_bytes >= self._threshold_pause
+
     def on_check(self, record: "Record") -> None:
         self._update_written_offset(record)
         self._maybe_forward_record(record)
@@ -475,15 +485,7 @@ class StateForwarding(StateShared):
         if processed:
             return
         self._forward_record(record)
-        self._update_forwarded_offset(record)
-
-    def _should_pause(self, record: "Record") -> bool:
-        behind_bytes = (
-            self._context.last_forwarded_offset - self._context.last_sent_offset
-        )
-        if behind_bytes >= self._threshold_pause:
-            return True
-        return False
+        self._update_forwarded_offset()
 
 
 class StatePausing(StateShared):
@@ -506,33 +508,28 @@ class StatePausing(StateShared):
         self._threshold_forward = threshold_forward
 
     def _should_unpause(self, record: "Record") -> bool:
-        behind_bytes = (
-            self._context.last_forwarded_offset - self._context.last_sent_offset
-        )
-        if behind_bytes < self._threshold_forward:
-            return True
-        return False
+        return self._behind_bytes < self._threshold_forward
+
+    def _unpause(self, record: "Record") -> None:
+        self._quiesce(record)
+
+    def _should_recover(self, record: "Record") -> bool:
+        return self._behind_bytes < self._threshold_recover
+
+    def _recover(self, record: "Record") -> None:
+        self._quiesce(record)
+
+    def _should_quiesce(self, record: "Record") -> bool:
+        return _is_local_record(record) and not _is_control_record(record)
 
     def _quiesce(self, record: "Record") -> None:
         start = self._context.last_forwarded_offset
         end = self._context.last_written_offset
         if start != end:
             self._recover_records(start, end)
-        self._update_forwarded_offset(record)
-
-    def _unpause(self, record: "Record") -> None:
-        self._quiesce(record)
-
-    def _should_recover(self, record: "Record") -> bool:
-        behind_bytes = (
-            self._context.last_forwarded_offset - self._context.last_sent_offset
-        )
-        if behind_bytes < self._threshold_recover:
-            return True
-        return False
-
-    def _recover(self, record: "Record") -> None:
-        self._quiesce(record)
+        if _is_local_record(record) and not _is_control_record(record):
+            self._forward_record(record)
+        self._update_forwarded_offset()
 
     def on_check(self, record: "Record") -> None:
         self._update_written_offset(record)
