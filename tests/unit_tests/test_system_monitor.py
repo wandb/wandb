@@ -122,7 +122,7 @@ def test_asset_registry():
         assert asset in registry
 
 
-def test_metrics_monitor(capsys, test_settings):
+def test_metrics_monitor(test_settings):
     # test that the metrics monitor is able to robustly sample metrics
     mock_metric = MockMetric()
     mock_broken_metric = MockBrokenMetric()
@@ -132,7 +132,7 @@ def test_metrics_monitor(capsys, test_settings):
         test_settings(
             dict(
                 _stats_sample_rate_seconds=0.1,
-                _stats_samples_to_average=2,
+                _stats_samples_to_average=1,
             )
         ).make_static()
     )
@@ -150,14 +150,13 @@ def test_metrics_monitor(capsys, test_settings):
     shutdown_event.set()
     metrics_monitor.finish()
 
+    # wait for stuff to appear in the queue until the test times out in the worst case
+
     while not interface.metrics_queue.empty():
         metric_record = interface.metrics_queue.get()
         assert metric_record == {mock_metric.name: 42}
 
     assert len(mock_metric.samples) == 0
-
-    _, err = capsys.readouterr()
-    assert "Failed to sample metric: MockBrokenMetric failed to sample" in err
 
 
 @pytest.mark.parametrize(

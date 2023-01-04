@@ -724,6 +724,12 @@ def pytest_addoption(parser):
         default=False,
         help="Force pull the latest wandb server image",
     )
+    parser.addoption(
+        "--wandb-server-rebuild",
+        action="store_true",
+        default=False,
+        help="Force clean up and rebuild the wandb server container",
+    )
     # debug option: creates an admin account that can be used to log in to the
     # app and inspect the test runs.
     parser.addoption(
@@ -762,6 +768,13 @@ def wandb_server_tag(request):
 @pytest.fixture(scope="session")
 def wandb_server_pull(request):
     if request.config.getoption("--wandb-server-pull"):
+        return "always"
+    return "missing"
+
+
+@pytest.fixture(scope="session")
+def wandb_server_rebuild(request):
+    if request.config.getoption("--wandb-server-rebuild"):
         return "always"
     return "missing"
 
