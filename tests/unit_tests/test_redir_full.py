@@ -11,6 +11,7 @@ import wandb.sdk.lib.redirect
 import wandb.util
 from click.testing import CliRunner
 from wandb.cli import cli
+from wandb.sdk.lib import runid
 
 console_modes = ["wrap"]
 if os.name != "nt":
@@ -96,7 +97,7 @@ def test_very_long_output(wandb_init, capfd, console, numpy):
                 settings={
                     "console": console,
                     "mode": "offline",
-                    "run_id": wandb.util.generate_id(),
+                    "run_id": runid.generate_id(),
                 }
             )
             run_dir, run_id = run.dir, run.id

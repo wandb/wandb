@@ -50,7 +50,7 @@ from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.writer import WriteManager
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 
@@ -416,7 +416,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             **{
-                "run_id": wandb.util.generate_id(),
+                "run_id": runid.generate_id(),
             },
             **kwargs_settings,
         }
