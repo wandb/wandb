@@ -4,7 +4,7 @@ import functools
 import logging
 import sys
 
-from promise import Promise, promise_for_dict, is_thenable
+from wandb_promise import Promise, promise_for_dict, is_thenable
 
 from ..error import GraphQLError, GraphQLLocatedError
 from ..pyutils.default_ordered_dict import DefaultOrderedDict
