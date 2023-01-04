@@ -29,8 +29,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.sdk.lib import fsm, telemetry
+
+# from wandb.proto import wandb_telemetry_pb2 as tpb
+# from wandb.sdk.lib import fsm, telemetry
+from wandb.sdk.lib import fsm
 
 from .settings_static import SettingsStatic
 
@@ -64,24 +66,8 @@ class StateContext:
 
 
 class FlowControl:
-    _settings: SettingsStatic
-    _forward_record_cb: Callable[["Record"], None]
-    _write_record_cb: Callable[["Record"], int]
-    _recover_records_cb: Callable[[int, int], None]
-
-    _track_prev_written_offset: int
-    _track_last_written_offset: int
-    _track_last_forwarded_offset: int
-    _track_first_unforwarded_offset: int
-    # _track_last_flushed_offset: int
-    # _track_recovering_requests: int
-
-    _mark_forwarded_offset: int
-    _mark_recovering_offset: int
-    _mark_reported_offset: int
-
-    _telemetry_obj: tpb.TelemetryRecord
-    _telemetry_overflow: bool
+    # _telemetry_obj: tpb.TelemetryRecord
+    # _telemetry_overflow: bool
     _fsm: fsm.FsmWithContext["Record", StateContext]
 
     def __init__(
@@ -95,10 +81,6 @@ class FlowControl:
         _threshold_bytes_mid: int = 2 * 1024 * 1024,  # 2MiB
         _threshold_bytes_low: int = 1 * 1024 * 1024,  # 1MiB
     ) -> None:
-        self._settings = settings
-        self._forward_record_cb = forward_record
-        self._write_record_cb = write_record
-        self._recover_records_cb = recover_records
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
         if settings._ram_buffer:
@@ -106,28 +88,8 @@ class FlowControl:
             _threshold_bytes_mid = settings._ram_buffer // 2
             _threshold_bytes_low = settings._ram_buffer // 4
 
-        self._track_last_read_offset = 0
-        self._track_last_unread_offset = 0
-        # self._track_last_unread_offset_previous_block = 0
-
-        # track last written request
-        self._track_prev_written_offset = 0
-        self._track_last_written_offset = 0
-        self._track_last_forwarded_offset = 0
-        self._track_last_recovering_offset = 0
-
-        self._track_first_unforwarded_offset = 0
-
-        # periodic probes sent to the sender to find out how backed up we are
-        self._mark_forwarded_offset = 0
-        self._mark_recovering_offset = 0
-        self._mark_reported_offset = 0
-
-        self._telemetry_obj = tpb.TelemetryRecord()
-        self._telemetry_overflow = False
-
-        self._debug = False
-        # self._debug = True
+        # self._telemetry_obj = tpb.TelemetryRecord()
+        # self._telemetry_overflow = False
 
         # FSM definition
         state_forwarding = StateForwarding(
@@ -171,18 +133,18 @@ class FlowControl:
             },
         )
 
-    def _telemetry_record_overflow(self) -> None:
-        if self._telemetry_overflow:
-            return
-        self._telemetry_overflow = True
-        with telemetry.context(obj=self._telemetry_obj) as tel:
-            tel.feature.flow_control_overflow = True
-        record = pb.Record()
-        record.telemetry.CopyFrom(self._telemetry_obj)
-        self._forward_record(record)
+    # def _telemetry_record_overflow(self) -> None:
+    #     if self._telemetry_overflow:
+    #         return
+    #     self._telemetry_overflow = True
+    #     with telemetry.context(obj=self._telemetry_obj) as tel:
+    #         tel.feature.flow_control_overflow = True
+    #     record = pb.Record()
+    #     record.telemetry.CopyFrom(self._telemetry_obj)
+    #     self._forward_record(record)
 
     def flush(self) -> None:
-        # TODO(mempressure): what do we do here
+        # TODO(mempressure): what do we do here, how do we make sure we dont have work in pause state
         pass
 
     def flow(self, record: "Record") -> None:
