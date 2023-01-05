@@ -102,6 +102,10 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.LinkArtifactRecord,
         wandb.proto.wandb_internal_pb2.LinkArtifactResult,
     ]
+    UseArtifact: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.UseArtifactRecord,
+        wandb.proto.wandb_internal_pb2.UseArtifactResult,
+    ]
     ArtifactSend: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
         wandb.proto.wandb_internal_pb2.ArtifactSendResponse,
@@ -308,6 +312,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.LinkArtifactResult: ...
     @abc.abstractmethod
+    def UseArtifact(
+        self,
+        request: wandb.proto.wandb_internal_pb2.UseArtifactRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.UseArtifactResult: ...
+    @abc.abstractmethod
     def ArtifactSend(
         self,
         request: wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
@@ -405,4 +415,6 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_server_pb2.ServerInformTeardownResponse: ...
 
-def add_InternalServiceServicer_to_server(servicer: InternalServiceServicer, server: grpc.Server) -> None: ...
+def add_InternalServiceServicer_to_server(
+    servicer: InternalServiceServicer, server: grpc.Server
+) -> None: ...
