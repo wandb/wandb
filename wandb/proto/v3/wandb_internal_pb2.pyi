@@ -150,6 +150,7 @@ class Control(google.protobuf.message.Message):
     LOCAL_FIELD_NUMBER: builtins.int
     RELAY_ID_FIELD_NUMBER: builtins.int
     MAILBOX_SLOT_FIELD_NUMBER: builtins.int
+    ALWAYS_SEND_FIELD_NUMBER: builtins.int
     req_resp: builtins.bool
     """record is expecting a result"""
     local: builtins.bool
@@ -158,6 +159,8 @@ class Control(google.protobuf.message.Message):
     """used by service transport to identify correct stream"""
     mailbox_slot: builtins.str
     """mailbox slot"""
+    always_send: builtins.bool
+    """message to sender"""
     def __init__(
         self,
         *,
@@ -165,8 +168,9 @@ class Control(google.protobuf.message.Message):
         local: builtins.bool = ...,
         relay_id: builtins.str = ...,
         mailbox_slot: builtins.str = ...,
+        always_send: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["always_send", b"always_send", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
 
 global___Control = Control
 
