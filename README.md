@@ -13,21 +13,21 @@
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
 </p>
 
-Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com)
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
 <p align='center'>
-<a href="https://docs.wandb.ai/guides/track"><img src="./docs/README_images/experiments.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/reports"><img src="./docs/README_images/reports.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/artifacts"><img src="./docs/README_images/artifacts.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/data-vis"><img src="./docs/README_images/tables.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/sweeps"><img src="./docs/README_images/sweeps.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/models"><img src="./docs/README_images/models.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/launch"><img src="./docs/README_images/launch.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/experiments.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/reports.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/artifacts.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/tables.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/sweeps.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/models.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/launch.png" width="13.5%" /></a>
 </p>
 
 &nbsp;
 
-🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research).
+🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme).
 
 <!-- | Experiments | Reports | Artifacts | Tables | Sweeps | Models | Launch |
 | ----------- | ------- | --------- | ------ | ------ | ------ | ------ |
@@ -37,7 +37,7 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
 
 # Documentation
 
-See the [W&B Developer Guide](https://docs.wandb.ai/) and [API Reference Guide](https://docs.wandb.ai/ref) for a full technical description of the W&B platform.
+See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/ref?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
 
 &nbsp;
 
@@ -45,7 +45,7 @@ See the [W&B Developer Guide](https://docs.wandb.ai/) and [API Reference Guide](
 
 Get started with W&B in four steps:
 
-1. First, sign up for a [free W&B account](https://wandb.ai/login).
+1. First, sign up for a [free W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart).
 
 2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
 
@@ -93,9 +93,9 @@ Example W&B Dashboard that shows Wuns from an Experiment.
 
 Use your favorite framework with W&B. W&B integrations make it fast and easy to set up experiment tracking and data versioning inside existing projects.
 
-<p align='center'>
+<!-- <p align='center'>
 <img src="./docs/README_images/integrations.png" width="100%" />
-</p>
+</p> -->
 
 <details>
 <summary>🥕 Keras</summary>
@@ -175,9 +175,11 @@ history = model.fit(x=x_train, y=y_train,
 wandb.finish()
 ```
 
-- **[Try in a Google Colab Notebook →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases_keras.ipynb?utm_source=fully_connected&utm_medium=blog&utm_campaign=intro+keras)**
-- [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Keras--VmlldzoyMTEwNjQ)
-- [Docs](https://docs.wandb.com/library/integrations/keras)
+Get started integrating your Keras model with W&B today:
+
+- Run an example [Google Colab Notebook](https://wandb.me/intro-keras?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations)
+- Read the [Developer Guide](https://docs.wandb.com/library/integrations/keras?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Keras with W&B.
+- Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Keras--VmlldzoyMTEwNjQ?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
 
 </details>
 
@@ -187,29 +189,9 @@ wandb.finish()
 Pass `wandb` to the `report_to` argument when you run a script using a HuggingFace Trainer. W&B will automatically log losses,
 evaluation metrics, model topology, and gradients.
 
-Note: The environment you run your script in must have `wandb` installed.
+**Note**: The environment you run your script in must have `wandb` installed.
 
 The following example demonstrates how to integrate W&B with Hugging Face:
-
-```shell
-# 1. Install the wandb library
-pip install wandb
-# 2. Run a script that has the Trainer to automatically logs metrics, model topology and gradients
-python run_glue.py \
- --report_to wandb \
- --model_name_or_path bert-base-uncased \
- --task_name MRPC \
- --data_dir $GLUE_DIR/$TASK_NAME \
- --do_train \
- --evaluate_during_training \
- --max_seq_length 13.58 \
- --per_gpu_train_batch_size 3.52 \
- --learning_rate 2e-5 \
- --num_train_epochs 3.5 \
- --output_dir /tmp/$TASK_NAME/ \
- --overwrite_output_dir \
- --logging_steps 50
-```
 
 ```python
 # This script needs these libraries to be installed:
@@ -282,8 +264,8 @@ trainer.train()
 wandb.finish()
 ```
 
-- **[Try in a Google Colab Notebook →](http://wandb.me/hf)**
-- [Docs](https://docs.wandb.com/library/integrations/huggingface)
+- Run an example [Google Colab Notebook](http://wandb.me/hf?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
+- Read the [Developer Guide](https://docs.wandb.com/library/integrations/huggingface?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Hugging Face with W&B.
 </details>
 <details>
 <summary>🔥 PyTorch</summary>
@@ -309,9 +291,9 @@ for batch_idx, (data, target) in enumerate(train_loader):
         wandb.log({"loss": loss})
 ```
 
-- **[Try in a Google Colab Notebook →](http://wandb.me/pytorch-colab)**
-- [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM)
-- [Docs](https://docs.wandb.com/library/integrations/pytorch)
+- Run an example [Google Colab Notebook](http://wandb.me/pytorch-colab).
+- Read the [Developer Guide](https://docs.wandb.com/library/integrations/pytorch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch with W&B.
+- Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
 
 </details>
 
@@ -338,8 +320,8 @@ with tf.Session() as sess:
     wandb.tensorflow.log(tf.summary.merge_all())
 ```
 
-- **[Try in a Google Colab Notebook →](http://wandb.me/tf-colab)**
-- [Docs](https://docs.wandb.com/library/integrations/tensorflow)
+- Run an example [Google Colab Notebook](http://wandb.me/tf-colab?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
+- Read the [Developer Guide](https://docs.wandb.com/library/integrations/tensorflow?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate TensorFlow with W&B.
 
 </details>
 
@@ -414,8 +396,8 @@ trainer.fit(model=autoencoder, train_dataloaders=train_loader)
 wandb.finish()
 ```
 
-- **[Try in a Google Colab Notebook →](http://wandb.me/lightning)**
-- [Docs](https://docs.wandb.ai/guides/integrations/lightning)
+- Run an example [Google Colab Notebook](http://wandb.me/lightning?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
+- Read the [Developer Guide](https://docs.wandb.ai/guides/integrations/lightning?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch Lightning with W&B.
 
 </details>
 
@@ -429,18 +411,6 @@ Explore example Colab Notebooks at [wandb/examples GitHub repository](https://gi
 
 &nbsp;
 
-# Try out our MLOps Course
-
-Get MLOps Certified With The Course From Weights & Biases.
-
-<p align='center'>
-<a href="https://www.youtube.com/watch?v=ZJtkOX5WcBM&ab_channel=Weights%26Biases"><img src="./docs/README_images/mlops_image.png" /></a>
-</p>
-
-Bringing machine learning models to production is challenging, with a continuous iterative lifecycle that consists of many complex components. Having a disciplined, flexible and collaborative process - an effective MLOps system - is crucial to enabling velocity and rigor, and building an end-to-end machine learning pipeline that continually delivers production-ready ML models and services.
-
-&nbsp;
-
 # Contribution guidelines
 
 Weights & Biases ❤️ open source and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library.
@@ -449,7 +419,7 @@ Weights & Biases ❤️ open source and we welcome contributions from the commun
 
 # Contact
 
-If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum). For wandb bugs and feature requests please visit [GitHub Issues](https://github.com/wandb/wandb/issues). For professional support please Contact Us. Be a part of the W&B Community, post your questions at [W&B Community](https://community.wandb.ai/). Stay connected with the latest updates with [W&B Fully Connected](https://wandb.ai/fully-connected).
+If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact). For wandb bugs and feature requests please visit [GitHub Issues](https://github.com/wandb/wandb/issues?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact). For professional support please Contact Us. Be a part of the W&B Community, post your questions at [W&B Community](https://community.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact). Stay connected with the latest updates with [W&B Fully Connected](https://wandb.ai/fully-connected?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact).
 
 &nbsp;
 
