@@ -62,6 +62,7 @@ if TYPE_CHECKING:
         Result,
         RunExitResult,
         RunRecord,
+        SummaryRecord,
     )
 
     if sys.version_info >= (3, 8):
@@ -1074,10 +1075,16 @@ class SendManager:
 
         # time.sleep(0.2)
 
-    def send_summary(self, record: "Record") -> None:
-        summary_dict = proto_util.dict_from_proto_list(record.summary.update)
+    def _update_summary_record(self, summary: "SummaryRecord") -> None:
+        summary_dict = proto_util.dict_from_proto_list(summary.update)
         self._cached_summary = summary_dict
         self._update_summary()
+
+    def send_summary(self, record: "Record") -> None:
+        self._update_summary_record(record.summary)
+
+    def send_request_summary_record(self, record: "Record") -> None:
+        self._update_summary_record(record.request.summary_record.summary)
 
     def _update_summary(self) -> None:
         summary_dict = self._cached_summary.copy()
@@ -1294,10 +1301,15 @@ class SendManager:
             self._config_metric_index_dict[metric.name] = next_idx
         self._update_config()
 
-    def send_telemetry(self, record: "Record") -> None:
-        telem = record.telemetry
-        self._telemetry_obj.MergeFrom(telem)
+    def _update_telemetry_record(self, telemetry: telemetry.TelemetryRecord) -> None:
+        self._telemetry_obj.MergeFrom(telemetry)
         self._update_config()
+
+    def send_telemetry(self, record: "Record") -> None:
+        self._update_telemetry_record(record.telemetry)
+
+    def send_request_telemetry_record(self, record: "Record") -> None:
+        self._update_telemetry_record(record.request.telemetry_record.telemetry)
 
     def _save_file(
         self, fname: interface.GlobStr, policy: "interface.PolicyName" = "end"

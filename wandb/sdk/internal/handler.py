@@ -30,6 +30,7 @@ from wandb.proto.wandb_internal_pb2 import (
     SampledHistoryItem,
     SummaryItem,
     SummaryRecord,
+    SummaryRecordRequest,
 )
 
 from ..interface.interface_queue import InterfaceQueue
@@ -225,15 +226,15 @@ class HandleManager:
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
-        record = Record(summary=summary)
         if flush:
+            record = Record(summary=summary)
             self._dispatch_record(record)
         elif not self._settings._offline:
-            # TODO(mempressure): audit this
-            # tracelog.log_message_queue(record, self._sender_q)
-            # self._sender_q.put(record)
-            tracelog.log_message_queue(record, self._writer_q)
-            self._writer_q.put(record)
+            # Send this summary update as a request since we arent persisting every update
+            summary_record = SummaryRecordRequest(summary=summary)
+            request_record = self._interface._make_request(summary_record=summary_record)
+            tracelog.log_message_queue(request_record, self._writer_q)
+            self._writer_q.put(request_record)
 
     def _save_history(
         self,

@@ -142,6 +142,8 @@ class InterfaceShared(InterfaceBase):
         sender_mark: Optional[pb.SenderMarkRequest] = None,
         status_report: Optional[pb.StatusReportRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
+        summary_record: Optional[pb.SummaryRecordRequest] = None,
+        telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -192,13 +194,17 @@ class InterfaceShared(InterfaceBase):
             request.cancel.CopyFrom(cancel)
         elif status_report:
             request.status_report.CopyFrom(status_report)
+        elif summary_record:
+            request.summary_record.CopyFrom(summary_record)
+        elif telemetry_record:
+            request.telemetry_record.CopyFrom(telemetry_record)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
         # All requests do not get persisted
         record.control.local = True
         if status_report:
-            record.control.flowcontrol = True
+            record.control.flow_control = True
         return record
 
     def _make_record(  # noqa: C901

@@ -503,6 +503,8 @@ message Request {
     SenderMarkRequest     sender_mark = 68;
     SenderReadRequest     sender_read = 69;
     StatusReportRequest   status_report = 70;
+    SummaryRecordRequest  summary_record = 71;
+    TelemetryRecordRequest telemetry_record = 72;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -664,6 +666,17 @@ message StatusReportRequest {
   int64 record_num = 1;
   int64 sent_offset = 2;
   google.protobuf.Timestamp sync_time = 3;
+}
+
+/*
+ * Requests wrapping Records
+ */
+message SummaryRecordRequest {
+  SummaryRecord   summary = 1;
+}
+
+message TelemetryRecordRequest {
+  TelemetryRecord telemetry = 1;
 }
 
 /*
