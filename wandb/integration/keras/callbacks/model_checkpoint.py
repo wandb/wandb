@@ -59,8 +59,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             is considered the "best" and the latest best model according to the
             quantity monitored will not be overwritten. If `filepath` doesn't contain
             formatting options like `{epoch}` then `filepath` will be overwritten by
-            each new better model locally. The model logged as artifact will still be
-            associated with the correct `monitor`. This will be reflected in the UI.
+            each new better model locally. The model logged as an artifact will still be
+            associated with the correct `monitor`.  Artifacts will be uploaded
+            continuously and versioned separately as a new best model is found.
         save_weights_only (bool): if True, then only the model's weights will be saved.
         mode (Mode): one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
             for `val_loss` this should be `min`, etc.
