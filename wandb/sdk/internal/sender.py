@@ -451,8 +451,6 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
-        # assert record.control.req_resp
-
         result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
         status_resp.run_should_stop = False
