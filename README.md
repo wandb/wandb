@@ -13,19 +13,21 @@
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
 </p>
 
-Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com)
 
 <p align='center'>
-<a href="https://docs.wandb.ai/guides/track"><img src="./README_images/experiments.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/reports"><img src="./README_images/reports.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/artifacts"><img src="./README_images/artifacts.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/data-vis"><img src="./README_images/tables.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/sweeps"><img src="./README_images/sweeps.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/models"><img src="./README_images/models.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/launch"><img src="./README_images/launch.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/track"><img src="./docs/README_images/experiments.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/reports"><img src="./docs/README_images/reports.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/artifacts"><img src="./docs/README_images/artifacts.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/data-vis"><img src="./docs/README_images/tables.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/sweeps"><img src="./docs/README_images/sweeps.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/models"><img src="./docs/README_images/models.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/launch"><img src="./docs/README_images/launch.png" width="13.5%" /></a>
 </p>
 
-Get started today with W&B, [sign up for a free account!](https://wandb.com)
+&nbsp;
+
+🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research).
 
 <!-- | Experiments | Reports | Artifacts | Tables | Sweeps | Models | Launch |
 | ----------- | ------- | --------- | ------ | ------ | ------ | ------ |
@@ -35,33 +37,29 @@ Get started today with W&B, [sign up for a free account!](https://wandb.com)
 
 # Documentation
 
-See the [W&B Developer Guide](https://docs.wandb.ai/) and [API Reference Guide](https://docs.wandb.ai/ref) for a full technical description of the W&B platform. Here are some highlights:
-
-&nbsp;
-
-# Install W&B
-
-Install the W&B SDK with [pip](https://pip.pypa.io/en/stable/):
-
-```bash
-pip install wandb
-```
+See the [W&B Developer Guide](https://docs.wandb.ai/) and [API Reference Guide](https://docs.wandb.ai/ref) for a full technical description of the W&B platform.
 
 &nbsp;
 
 # Quickstart
 
-Get started with W&B in three steps:
+Get started with W&B in four steps:
 
 1. First, sign up for a [free W&B account](https://wandb.ai/login).
 
-2. Next, log into W&B. Navigate to your terminal and type the following command:
+2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
+
+```bash
+pip install wandb
+```
+
+3. Third, log into W&B:
 
 ```python
 wandb.login()
 ```
 
-3.5. Use the example code snippet below as a template to integrate W&B to your Python script:
+4. Use the example code snippet below as a template to integrate W&B to your Python script:
 
 ```python
 import wandb
@@ -83,7 +81,7 @@ for i in range(10):
 That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
 
 <p align='center'>
-<img src="./README_images/wandb_demo_experiments.gif" width="100%">
+<img src="./docs/README_images/wandb_demo_experiments.gif" width="100%">
 </p>
 <p align = "center">
 Example W&B Dashboard that shows Wuns from an Experiment.
@@ -96,44 +94,102 @@ Example W&B Dashboard that shows Wuns from an Experiment.
 Use your favorite framework with W&B. W&B integrations make it fast and easy to set up experiment tracking and data versioning inside existing projects.
 
 <p align='center'>
-<img src="./README_images/integrations.png" width="100%" />
+<img src="./docs/README_images/integrations.png" width="100%" />
 </p>
 
 <details>
 <summary>🥕 Keras</summary>
+Use W&B Callbacks to automatically save metrics to W&B when you call `model.fit` during training.
 
-In Keras, you can use our callback to automatically save all the metrics tracked in `model.fit`. To get you started here's a minimal example:
+The following code example demonstrates how your script might look like when you integrate W&B with Keras:
 
 ```python
-# Import W&B
+# This script needs these libraries to be installed:
+#   tensorflow, numpy
+
 import wandb
-from wandb.keras import WandbCallback
+from wandb.keras import WandbMetricsLogger, WandbModelCheckpoint
 
-# Step1: Initialize W&B run
-wandb.init(project="project_name")
+import random
+import numpy as np
+import tensorflow as tf
 
-# 2. Save model inputs and hyperparameters
-config = wandb.config
-config.learning_rate = 0.01
 
-# Model training code here ...
+# Start a run, tracking hyperparameters
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="my-awesome-project",
 
-# Step 3: Add WandbCallback
-model.fit(
-    X_train, y_train, validation_data=(X_test, y_test), callbacks=[WandbCallback()]
+    # track hyperparameters and run metadata with wandb.config
+    config={
+        "layer_1": 512,
+        "activation_1": "relu",
+        "dropout": random.uniform(0.01, 0.80),
+        "layer_2": 10,
+        "activation_2": "softmax",
+        "optimizer": "sgd",
+        "loss": "sparse_categorical_crossentropy",
+        "metric": "accuracy",
+        "epoch": 8,
+        "batch_size": 256
+    }
 )
+
+# [optional] use wandb.config as your config
+config = wandb.config
+
+# get the data
+mnist = tf.keras.datasets.mnist
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+x_train, x_test = x_train / 255.0, x_test / 255.0
+x_train, y_train = x_train[::5], y_train[::5]
+x_test, y_test = x_test[::20], y_test[::20]
+labels = [str(digit) for digit in range(np.max(y_train) + 1)]
+
+# build a model
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Flatten(input_shape=(28, 28)),
+    tf.keras.layers.Dense(config.layer_1, activation=config.activation_1),
+    tf.keras.layers.Dropout(config.dropout),
+    tf.keras.layers.Dense(config.layer_2, activation=config.activation_2)
+    ])
+
+# compile the model
+model.compile(optimizer=config.optimizer,
+              loss=config.loss,
+              metrics=[config.metric]
+              )
+
+# WandbMetricsLogger will log train and validation metrics to wandb
+# WandbModelCheckpoint will upload model checkpoints to wandb
+history = model.fit(x=x_train, y=y_train,
+                    epochs=config.epoch,
+                    batch_size=config.batch_size,
+                    validation_data=(x_test, y_test),
+                    callbacks=[
+											WandbMetricsLogger(log_freq=5),
+											WandbModelCheckpoint("models")
+										])
+
+# [optional] finish the wandb run, necessary in notebooks
+wandb.finish()
 ```
 
-- **[Try in a colab →](http://wandb.me/keras-colab)**
+- **[Try in a Google Colab Notebook →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases_keras.ipynb?utm_source=fully_connected&utm_medium=blog&utm_campaign=intro+keras)**
 - [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Keras--VmlldzoyMTEwNjQ)
 - [Docs](https://docs.wandb.com/library/integrations/keras)
 
 </details>
+
 <details>
 <summary>🤗 Hugging Face</summary>
-Just run a script using HuggingFace's Trainer passing `--report_to wandb` to it
-in an environment where `wandb` is installed, and we'll automatically log losses,
-evaluation metrics, model topology, and gradients:
+
+Pass `wandb` to the `report_to` argument when you run a script using a HuggingFace Trainer. W&B will automatically log losses,
+evaluation metrics, model topology, and gradients.
+
+Note: The environment you run your script in must have `wandb` installed.
+
+The following example demonstrates how to integrate W&B with Hugging Face:
 
 ```shell
 # 1. Install the wandb library
@@ -155,14 +211,84 @@ python run_glue.py \
  --logging_steps 50
 ```
 
-- **[Try in a colab →](http://wandb.me/hf)**
+```python
+# This script needs these libraries to be installed:
+#   numpy, transformers, datasets
+
+import wandb
+
+import os
+import numpy as np
+from datasets import load_dataset
+from transformers import TrainingArguments, Trainer
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+
+def tokenize_function(examples):
+    return tokenizer(examples["text"], padding="max_length", truncation=True)
+
+def compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    return {"accuracy": np.mean(predictions == labels)}
+
+
+# download prepare the data
+dataset = load_dataset("yelp_review_full")
+tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+
+small_train_dataset = dataset["train"].shuffle(seed=42).select(range(1000))
+small_eval_dataset = dataset["test"].shuffle(seed=42).select(range(300))
+
+small_train_dataset = small_train_dataset.map(tokenize_function, batched=True)
+small_eval_dataset = small_train_dataset.map(tokenize_function, batched=True)
+
+# download the model
+model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased", num_labels=5)
+
+# set the wandb project where this run will be logged
+os.environ["WANDB_PROJECT"]="my-awesome-project"
+
+# save your trained model checkpoint to wandb
+os.environ["WANDB_LOG_MODEL"]="true"
+
+# turn off watch to log faster
+os.environ["WANDB_WATCH"]="false"
+
+# pass "wandb" to the `report_to` parameter to turn on wandb logging
+training_args = TrainingArguments(
+    output_dir='models',
+    report_to="wandb",
+    logging_steps=5,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
+    evaluation_strategy="steps",
+    eval_steps=20,
+    max_steps = 100,
+    save_steps = 100
+)
+
+# define the trainer and start training
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=small_train_dataset,
+    eval_dataset=small_eval_dataset,
+    compute_metrics=compute_metrics,
+)
+trainer.train()
+
+# [optional] finish the wandb run, necessary in notebooks
+wandb.finish()
+```
+
+- **[Try in a Google Colab Notebook →](http://wandb.me/hf)**
 - [Docs](https://docs.wandb.com/library/integrations/huggingface)
 </details>
 <details>
 <summary>🔥 PyTorch</summary>
 
-W&B provides first class support for PyTorch. To automatically log gradients and store the network topology, you can call `.watch` and pass in your PyTorch model.
-Then use `.log` for anything else you want to track, like so:
+Call `.watch` and pass in your PyTorch model to automatically log gradients and store the network topology. Next, use `.log` to track other metrics. The following example demonstrates an example of how to do this:
 
 ```python
 import wandb
@@ -183,7 +309,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
         wandb.log({"loss": loss})
 ```
 
-- **[Try in a colab →](http://wandb.me/pytorch-colab)**
+- **[Try in a Google Colab Notebook →](http://wandb.me/pytorch-colab)**
 - [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM)
 - [Docs](https://docs.wandb.com/library/integrations/pytorch)
 
@@ -192,7 +318,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 <details>
 <summary>🌊 TensorFlow</summary>
 
-The simplest way to log metrics in TensorFlow is by logging `tf.summary` with our TensorFlow logger:
+The simplest way to log metrics in TensorFlow is by logging `tf.summary` with the W&B TensorFlow logger:
 
 ```python
 import wandb
@@ -212,7 +338,7 @@ with tf.Session() as sess:
     wandb.tensorflow.log(tf.summary.merge_all())
 ```
 
-- **[Try in a colab →](http://wandb.me/tf-colab)**
+- **[Try in a Google Colab Notebook →](http://wandb.me/tf-colab)**
 - [Docs](https://docs.wandb.com/library/integrations/tensorflow)
 
 </details>
@@ -223,14 +349,72 @@ with tf.Session() as sess:
 Build scalable, structured, high-performance PyTorch models with Lightning and log them with W&B.
 
 ```python
-from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning import Trainer
+# This script needs these libraries to be installed:
+#   torch, torchvision, pytorch_lightning
 
-wandb_logger = WandbLogger(project="gpt4")
-trainer = Trainer(logger=wandb_logger)
+import wandb
+
+import os
+from torch import optim, nn, utils, Tensor
+from torchvision.datasets import MNIST
+from torchvision.transforms import ToTensor
+
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
+
+
+class LitAutoEncoder(pl.LightningModule):
+    def __init__(self, lr=1e-3, inp_size=28, optimizer = 'Adam'):
+        super().__init__()
+
+        self.encoder = nn.Sequential(nn.Linear(inp_size * inp_size, 64), nn.ReLU(), nn.Linear(64, 3))
+        self.decoder = nn.Sequential(nn.Linear(3, 64), nn.ReLU(), nn.Linear(64, inp_size * inp_size))
+        self.lr = lr
+
+        # save hyper-parameters to self.hparamsm auto-logged by wandb
+        self.save_hyperparameters()
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        x = x.view(x.size(0), -1)
+        z = self.encoder(x)
+        x_hat = self.decoder(z)
+        loss = nn.functional.mse_loss(x_hat, x)
+
+        # log metrics to wandb
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        return optimizer
+
+
+# init the autoencoder
+autoencoder = LitAutoEncoder(lr=1e-3, inp_size=28)
+
+# setup data
+batch_size = 32
+dataset = MNIST(os.getcwd(), download=True, transform=ToTensor())
+train_loader = utils.data.DataLoader(dataset, shuffle=True)
+
+# initialise the wandb logger and name your wandb project
+wandb_logger = WandbLogger(project='my-awesome-project')
+
+# add your batch size to the wandb config
+wandb_logger.experiment.config["batch_size"] = batch_size
+
+# pass wandb_logger to the Trainer
+trainer = pl.Trainer(limit_train_batches=750, max_epochs=5, logger=wandb_logger)
+
+# train the model
+trainer.fit(model=autoencoder, train_dataloaders=train_loader)
+
+# [optional] finish the wandb run, necessary in notebooks
+wandb.finish()
 ```
 
-- **[Try in a colab →](http://wandb.me/lightning)**
+- **[Try in a Google Colab Notebook →](http://wandb.me/lightning)**
 - [Docs](https://docs.wandb.ai/guides/integrations/lightning)
 
 </details>
@@ -250,7 +434,7 @@ Explore example Colab Notebooks at [wandb/examples GitHub repository](https://gi
 Get MLOps Certified With The Course From Weights & Biases.
 
 <p align='center'>
-<a href="https://www.youtube.com/watch?v=ZJtkOX5WcBM&ab_channel=Weights%26Biases"><img src="./README_images/mlops_image.png" /></a>
+<a href="https://www.youtube.com/watch?v=ZJtkOX5WcBM&ab_channel=Weights%26Biases"><img src="./docs/README_images/mlops_image.png" /></a>
 </p>
 
 Bringing machine learning models to production is challenging, with a continuous iterative lifecycle that consists of many complex components. Having a disciplined, flexible and collaborative process - an effective MLOps system - is crucial to enabling velocity and rigor, and building an end-to-end machine learning pipeline that continually delivers production-ready ML models and services.
