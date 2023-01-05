@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 
 
 PreCommitFn = Callable[[], None]
-PostCommitFn = Callable[[Optional[Exception]], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], Any]
 
