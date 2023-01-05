@@ -18,13 +18,12 @@ import tempfile
 import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
-import shortuuid  # type: ignore
-
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
+from wandb.sdk.lib import runid
 from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
@@ -487,7 +486,7 @@ class _WandbInit:
         drun.step = 0
         drun.resumed = False
         drun.disabled = True
-        drun.id = shortuuid.uuid()
+        drun.id = runid.generate_id()
         drun.name = "dummy-" + drun.id
         drun.dir = tempfile.gettempdir()
         module.set_global(
@@ -695,7 +694,9 @@ class _WandbInit:
             )
             handle = backend.interface.deliver_run(run)
             result = handle.wait(
-                timeout=self.settings.init_timeout, on_progress=self._on_progress_init
+                timeout=self.settings.init_timeout,
+                on_progress=self._on_progress_init,
+                cancel=True,
             )
             if result:
                 run_result = result.run_result

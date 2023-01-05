@@ -12,6 +12,7 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 """
 import ast
 import datetime
+import io
 import json
 import logging
 import multiprocessing.dummy  # this uses threads
@@ -51,7 +52,7 @@ from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
-from wandb.sdk.lib import filesystem, ipython, retry
+from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
 if TYPE_CHECKING:
@@ -484,7 +485,7 @@ class Api:
         """Sync a local directory containing tfevent files to wandb"""
         from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
 
-        run_id = run_id or util.generate_id()
+        run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
         entity = entity or self.default_entity
         # TODO: pipe through log_path to inform the user how to debug
@@ -1751,7 +1752,7 @@ class Run(Attrs):
     @classmethod
     def create(cls, api, run_id=None, project=None, entity=None):
         """Create a run for the given project"""
-        run_id = run_id or util.generate_id()
+        run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
             """
@@ -2789,20 +2790,30 @@ class File(Attrs):
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
-    def download(self, root=".", replace=False):
+    def download(
+        self, root: str = ".", replace: bool = False, exist_ok: bool = False
+    ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
         Arguments:
             replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
             root (str): Local directory to save the file.  Defaults to ".".
+            exist_ok (boolean): If `True`, will not raise ValueError if file already
+                exists and will not re-download unless replace=True. Defaults to `False`.
 
         Raises:
-            `ValueError` if file already exists and replace=False
+            `ValueError` if file already exists, replace=False and exist_ok=False.
         """
         path = os.path.join(root, self.name)
         if os.path.exists(path) and not replace:
-            raise ValueError("File already exists, pass replace=True to overwrite")
+            if exist_ok:
+                return open(path)
+            else:
+                raise ValueError(
+                    "File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error."
+                )
+
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path)
 
