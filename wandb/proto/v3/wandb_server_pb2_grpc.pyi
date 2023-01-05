@@ -42,10 +42,6 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.ServerInfoRequest,
         wandb.proto.wandb_internal_pb2.ServerInfoResponse,
     ]
-    GetRun: grpc.UnaryUnaryMultiCallable[
-        wandb.proto.wandb_internal_pb2.GetRunRequest,
-        wandb.proto.wandb_internal_pb2.GetRunResponse,
-    ]
     Shutdown: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ShutdownRequest,
         wandb.proto.wandb_internal_pb2.ShutdownResponse,
@@ -229,12 +225,6 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ServerInfoRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ServerInfoResponse: ...
-    @abc.abstractmethod
-    def GetRun(
-        self,
-        request: wandb.proto.wandb_internal_pb2.GetRunRequest,
-        context: grpc.ServicerContext,
-    ) -> wandb.proto.wandb_internal_pb2.GetRunResponse: ...
     @abc.abstractmethod
     def Shutdown(
         self,

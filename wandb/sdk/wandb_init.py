@@ -702,7 +702,7 @@ class _WandbInit:
             result = run_init_handle.wait(
                 timeout=timeout,
                 on_progress=self._on_progress_init,
-                release=False,
+                cancel=True,
             )
             if result:
                 run_result = result.run_result

@@ -56,11 +56,6 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.FromString,
                 )
-        self.GetRun = channel.unary_unary(
-                '/wandb_internal.InternalService/GetRun',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.GetRunRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.GetRunResponse.FromString,
-                )
         self.Shutdown = channel.unary_unary(
                 '/wandb_internal.InternalService/Shutdown',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
@@ -274,12 +269,6 @@ class InternalServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ServerInfo(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetRun(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -526,11 +515,6 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.ServerInfo,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.SerializeToString,
-            ),
-            'GetRun': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetRun,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.GetRunRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.GetRunResponse.SerializeToString,
             ),
             'Shutdown': grpc.unary_unary_rpc_method_handler(
                     servicer.Shutdown,
@@ -840,23 +824,6 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInfo',
             wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def GetRun(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/GetRun',
-            wandb_dot_proto_dot_wandb__internal__pb2.GetRunRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.GetRunResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
