@@ -6,9 +6,10 @@ import multiprocessing as mp
 import pathlib
 import subprocess
 import sys
+import tempfile
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, List, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 if sys.version_info >= (3, 8):
     from typing import Final
@@ -92,25 +93,20 @@ class NeuronCoreStats:
     samples: "Deque[_Stats]"
 
     def check_neuron_monitor_config(self) -> None:
-        if not pathlib.Path(self.neuron_monitor_config).exists():
-            logger.warning(
-                "neuron-monitor config file %s does not exist, using default config"
-                % self.neuron_monitor_config,
-            )
-            # mkdir if not exists
-            pathlib.Path(self.neuron_monitor_config).parent.mkdir(
-                parents=True, exist_ok=True
-            )
-            # write default config
-            with open(self.neuron_monitor_config, "w") as f:
-                json.dump(NEURON_MONITOR_DEFAULT_CONFIG, f, indent=4)
+        # mkdir if not exists
+        pathlib.Path(self.neuron_monitor_config_path).parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        # write default config
+        with open(self.neuron_monitor_config_path, "w") as f:
+            json.dump(NEURON_MONITOR_DEFAULT_CONFIG, f, indent=4)
 
     def neuron_monitor(self) -> None:
         self.check_neuron_monitor_config()
 
         try:
             popen = subprocess.Popen(
-                NEURON_MONITOR_COMMAND + ["-c", self.neuron_monitor_config],
+                NEURON_MONITOR_COMMAND + ["-c", self.neuron_monitor_config_path],
                 shell=False,
                 stdout=subprocess.PIPE,
                 stderr=None,
@@ -125,10 +121,14 @@ class NeuronCoreStats:
         except Exception as e:
             logger.error("neuron-monitor failed: %s" % e)
 
-    def __init__(self, pid: int, neuron_monitor_config: str) -> None:
+    def __init__(self, pid: int, neuron_monitor_config_path: Optional[str]) -> None:
         self.pid = pid
         # neuron-monitor requires a config file (json)
-        self.neuron_monitor_config = neuron_monitor_config
+        # we provide an option to supply a custom config file path
+        # in case the default temp file path is not writable
+        self.neuron_monitor_config_path = (
+            neuron_monitor_config_path or tempfile.NamedTemporaryFile(delete=False).name
+        )
         self.raw_samples: "Deque[bytes]" = deque(maxlen=10)
         self.samples: "Deque[_Stats]" = deque()
         self.shutdown_event = threading.Event()
@@ -260,7 +260,7 @@ class Trainium:
         self.metrics: List[Metric] = [
             NeuronCoreStats(
                 settings._stats_pid,
-                settings._stats_neuron_monitor_config,
+                settings._stats_neuron_monitor_config_path,
             ),
         ]
         self.metrics_monitor = MetricsMonitor(
