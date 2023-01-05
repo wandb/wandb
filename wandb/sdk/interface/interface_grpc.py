@@ -247,7 +247,6 @@ class InterfaceGrpc(InterfaceBase):
     def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
         assert self._stub
         self._assign(status)
-        # TODO: implement
         network_status_response = pb.NetworkStatusResponse()
         response = pb.Response(network_status_response=network_status_response)
         result = pb.Result(response=response)
