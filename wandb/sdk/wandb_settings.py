@@ -35,6 +35,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -414,7 +415,6 @@ class Settings:
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
-    enable_job_creation: bool
     entity: str
     files_dir: str
     finish_policy: str
@@ -554,7 +554,6 @@ class Settings:
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
-            enable_job_creation={"preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
@@ -1576,7 +1575,7 @@ class Settings:
         # persist our run id in case of failure
         # check None for mypy
         if self.resume == "auto" and self.resume_fname is not None:
-            wandb.util.mkdir_exists_ok(self.wandb_dir)
+            filesystem.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 

@@ -45,6 +45,7 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
+    UseArtifactRecord use_artifact = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -533,13 +534,13 @@ message Response {
 message DeferRequest {
   enum DeferState {
     BEGIN = 0;
-    FLUSH_RUN = 1;
-    FLUSH_STATS = 2;
-    FLUSH_PARTIAL_HISTORY = 3;
-    FLUSH_TB = 4;
-    FLUSH_SUM = 5;
-    FLUSH_DEBOUNCER = 6;
-    FLUSH_OUTPUT = 7;
+    FLUSH_STATS = 1;
+    FLUSH_PARTIAL_HISTORY = 2;
+    FLUSH_TB = 3;
+    FLUSH_SUM = 4;
+    FLUSH_DEBOUNCER = 5;
+    FLUSH_OUTPUT = 6;
+    FLUSH_JOB = 7;
     FLUSH_DIR = 8;
     FLUSH_FP = 9;
     JOIN_FP = 10;
@@ -870,4 +871,18 @@ message KeepaliveRequest {
 }
 
 message KeepaliveResponse {
+}
+
+/*
+* UseArtifact:
+*/
+message UseArtifactRecord {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  
+  _RecordInfo     _info = 200;
+}
+
+message UseArtifactResult {
 }

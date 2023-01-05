@@ -18,13 +18,12 @@ import tempfile
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
-import shortuuid  # type: ignore
-
 import wandb
 from wandb import trigger
 from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
+from wandb.sdk.lib import runid
 from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
@@ -445,11 +444,11 @@ class _WandbInit:
 
     def _log_setup(self, settings):
         """Sets up logging from settings."""
-        filesystem._safe_makedirs(os.path.dirname(settings.log_user))
-        filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
-        filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
-        filesystem._safe_makedirs(settings.files_dir)
-        filesystem._safe_makedirs(settings._tmp_code_dir)
+        filesystem.mkdir_exists_ok(os.path.dirname(settings.log_user))
+        filesystem.mkdir_exists_ok(os.path.dirname(settings.log_internal))
+        filesystem.mkdir_exists_ok(os.path.dirname(settings.sync_file))
+        filesystem.mkdir_exists_ok(settings.files_dir)
+        filesystem.mkdir_exists_ok(settings._tmp_code_dir)
 
         if settings.symlink:
             self._safe_symlink(
@@ -489,7 +488,7 @@ class _WandbInit:
         drun.step = 0
         drun.resumed = False
         drun.disabled = True
-        drun.id = shortuuid.uuid()
+        drun.id = runid.generate_id()
         drun.name = "dummy-" + drun.id
         drun.dir = tempfile.gettempdir()
         module.set_global(

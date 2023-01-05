@@ -9,6 +9,7 @@ import shutil
 import socket
 import string
 import subprocess
+import sys
 import threading
 import time
 import unittest.mock
@@ -47,6 +48,7 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 
@@ -75,6 +77,12 @@ if TYPE_CHECKING:
     class Resolver(TypedDict):
         name: ResolverName
         resolver: Callable[[Any], Optional[Dict[str, Any]]]
+
+
+# `local-testcontainer` ports
+LOCAL_BASE_PORT = "8080"
+SERVICES_API_PORT = "8083"
+FIXTURE_SERVICE_PORT = "9010"
 
 
 class ConsoleFormatter:
@@ -152,8 +160,10 @@ def clean_up():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate():
-    with CliRunner().isolated_filesystem():
+def filesystem_isolate(tmp_path):
+    # Click>=8 implements temp_dir argument which depends on python>=3.7
+    kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    with CliRunner().isolated_filesystem(**kwargs):
         yield
 
 
@@ -162,7 +172,7 @@ def filesystem_isolate():
 def local_settings(filesystem_isolate):
     """Place global settings in an isolated dir"""
     config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
-    wandb.util.mkdir_exists_ok(os.path.join(".config", "wandb"))
+    filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
 
     # todo: this breaks things in unexpected places
     # todo: get rid of wandb.old
@@ -224,7 +234,7 @@ def mocked_ipython(mocker):
 @pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem(), git.Repo.init(".") as repo:
-        wandb.util.mkdir_exists_ok("wandb")
+        filesystem.mkdir_exists_ok("wandb")
         # Because the forked process doesn't use my monkey patch above
         with open(os.path.join("wandb", "settings"), "w") as f:
             f.write("[default]\nproject: test")
@@ -404,7 +414,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             **{
-                "run_id": wandb.util.generate_id(),
+                "run_id": runid.generate_id(),
             },
             **kwargs_settings,
         }
@@ -701,7 +711,7 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--base-url",
-        default="http://localhost:8080",
+        default=f"http://localhost:{LOCAL_BASE_PORT}",
         help='cli to set "base-url"',
     )
     parser.addoption(
@@ -819,14 +829,14 @@ def check_server_up(
     :return:
     """
     app_health_endpoint = "healthz"
-    fixture_url = base_url.replace("8080", "9003")
+    fixture_url = base_url.replace(LOCAL_BASE_PORT, FIXTURE_SERVICE_PORT)
     fixture_health_endpoint = "health"
 
     if os.environ.get("CI") == "true":
         return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
 
     if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose ports 8080, 8083, and 9003
+        # start wandb server locally and expose ports 8080, 8083, and 9010
         command = [
             "docker",
             "run",
@@ -836,11 +846,11 @@ def check_server_up(
             "-v",
             "wandb:/vol",
             "-p",
-            "8080:8080",
+            f"{LOCAL_BASE_PORT}:{LOCAL_BASE_PORT}",
             "-p",
-            "8083:8083",
+            f"{SERVICES_API_PORT}:{SERVICES_API_PORT}",
             "-p",
-            "9003:9003",
+            f"{FIXTURE_SERVICE_PORT}:{FIXTURE_SERVICE_PORT}",
             "-e",
             "WANDB_ENABLE_TEST_CONTAINER=true",
             "--name",
@@ -870,7 +880,7 @@ class UserFixtureCommand:
     username: Optional[str] = None
     admin: bool = False
     endpoint: str = "db/user"
-    port: int = 9003
+    port: str = FIXTURE_SERVICE_PORT
     method: Literal["post"] = "post"
 
 
@@ -879,7 +889,7 @@ class AddAdminAndEnsureNoDefaultUser:
     email: str
     password: str
     endpoint: str = "api/users-admin"
-    port: int = 8083
+    port: str = SERVICES_API_PORT
     method: Literal["put"] = "put"
 
 
@@ -889,7 +899,7 @@ def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
         cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
     ) -> bool:
         endpoint = urllib.parse.urljoin(
-            base_url.replace("8080", str(cmd.port)),
+            base_url.replace(LOCAL_BASE_PORT, cmd.port),
             cmd.endpoint,
         )
 

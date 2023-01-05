@@ -52,6 +52,7 @@ class Record(google.protobuf.message.Message):
     FOOTER_FIELD_NUMBER: builtins.int
     PREEMPTING_FIELD_NUMBER: builtins.int
     LINK_ARTIFACT_FIELD_NUMBER: builtins.int
+    USE_ARTIFACT_FIELD_NUMBER: builtins.int
     REQUEST_FIELD_NUMBER: builtins.int
     CONTROL_FIELD_NUMBER: builtins.int
     UUID_FIELD_NUMBER: builtins.int
@@ -98,6 +99,8 @@ class Record(google.protobuf.message.Message):
     @property
     def link_artifact(self) -> global___LinkArtifactRecord: ...
     @property
+    def use_artifact(self) -> global___UseArtifactRecord: ...
+    @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
     @property
@@ -128,14 +131,15 @@ class Record(google.protobuf.message.Message):
         footer: global___FooterRecord | None = ...,
         preempting: global___RunPreemptingRecord | None = ...,
         link_artifact: global___LinkArtifactRecord | None = ...,
+        use_artifact: global___UseArtifactRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "uuid", b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["record_type", b"record_type"]) -> typing_extensions.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "link_artifact", "request"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "uuid", b"uuid"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["record_type", b"record_type"]) -> typing_extensions.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "link_artifact", "use_artifact", "request"] | None: ...
 
 global___Record = Record
 
@@ -1638,13 +1642,13 @@ class DeferRequest(google.protobuf.message.Message):
     class _DeferStateEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[DeferRequest._DeferState.ValueType], builtins.type):  # noqa: F821
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         BEGIN: DeferRequest._DeferState.ValueType  # 0
-        FLUSH_RUN: DeferRequest._DeferState.ValueType  # 1
-        FLUSH_STATS: DeferRequest._DeferState.ValueType  # 2
-        FLUSH_PARTIAL_HISTORY: DeferRequest._DeferState.ValueType  # 3
-        FLUSH_TB: DeferRequest._DeferState.ValueType  # 4
-        FLUSH_SUM: DeferRequest._DeferState.ValueType  # 5
-        FLUSH_DEBOUNCER: DeferRequest._DeferState.ValueType  # 6
-        FLUSH_OUTPUT: DeferRequest._DeferState.ValueType  # 7
+        FLUSH_STATS: DeferRequest._DeferState.ValueType  # 1
+        FLUSH_PARTIAL_HISTORY: DeferRequest._DeferState.ValueType  # 2
+        FLUSH_TB: DeferRequest._DeferState.ValueType  # 3
+        FLUSH_SUM: DeferRequest._DeferState.ValueType  # 4
+        FLUSH_DEBOUNCER: DeferRequest._DeferState.ValueType  # 5
+        FLUSH_OUTPUT: DeferRequest._DeferState.ValueType  # 6
+        FLUSH_JOB: DeferRequest._DeferState.ValueType  # 7
         FLUSH_DIR: DeferRequest._DeferState.ValueType  # 8
         FLUSH_FP: DeferRequest._DeferState.ValueType  # 9
         JOIN_FP: DeferRequest._DeferState.ValueType  # 10
@@ -1654,13 +1658,13 @@ class DeferRequest(google.protobuf.message.Message):
 
     class DeferState(_DeferState, metaclass=_DeferStateEnumTypeWrapper): ...
     BEGIN: DeferRequest.DeferState.ValueType  # 0
-    FLUSH_RUN: DeferRequest.DeferState.ValueType  # 1
-    FLUSH_STATS: DeferRequest.DeferState.ValueType  # 2
-    FLUSH_PARTIAL_HISTORY: DeferRequest.DeferState.ValueType  # 3
-    FLUSH_TB: DeferRequest.DeferState.ValueType  # 4
-    FLUSH_SUM: DeferRequest.DeferState.ValueType  # 5
-    FLUSH_DEBOUNCER: DeferRequest.DeferState.ValueType  # 6
-    FLUSH_OUTPUT: DeferRequest.DeferState.ValueType  # 7
+    FLUSH_STATS: DeferRequest.DeferState.ValueType  # 1
+    FLUSH_PARTIAL_HISTORY: DeferRequest.DeferState.ValueType  # 2
+    FLUSH_TB: DeferRequest.DeferState.ValueType  # 3
+    FLUSH_SUM: DeferRequest.DeferState.ValueType  # 4
+    FLUSH_DEBOUNCER: DeferRequest.DeferState.ValueType  # 5
+    FLUSH_OUTPUT: DeferRequest.DeferState.ValueType  # 6
+    FLUSH_JOB: DeferRequest.DeferState.ValueType  # 7
     FLUSH_DIR: DeferRequest.DeferState.ValueType  # 8
     FLUSH_FP: DeferRequest.DeferState.ValueType  # 9
     JOIN_FP: DeferRequest.DeferState.ValueType  # 10
@@ -2691,3 +2695,41 @@ class KeepaliveResponse(google.protobuf.message.Message):
     ) -> None: ...
 
 global___KeepaliveResponse = KeepaliveResponse
+
+class UseArtifactRecord(google.protobuf.message.Message):
+    """
+    UseArtifact:
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ID_FIELD_NUMBER: builtins.int
+    TYPE_FIELD_NUMBER: builtins.int
+    NAME_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    id: builtins.str
+    type: builtins.str
+    name: builtins.str
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        id: builtins.str = ...,
+        type: builtins.str = ...,
+        name: builtins.str = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "id", b"id", "name", b"name", "type", b"type"]) -> None: ...
+
+global___UseArtifactRecord = UseArtifactRecord
+
+class UseArtifactResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+global___UseArtifactResult = UseArtifactResult

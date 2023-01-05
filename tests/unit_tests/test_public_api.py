@@ -8,6 +8,7 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
+from wandb.sdk.lib import runid
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -161,7 +162,7 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem():
         tb_file_name = "events.out.tfevents.1585769947.cvp"
         copy_asset(tb_file_name)
-        run_id = wandb.util.generate_id()
+        run_id = runid.generate_id()
         api.sync_tensorboard(".", project="test", run_id=run_id)
         uploaded_files = relay.context.get_run_uploaded_files(run_id)
         assert uploaded_files[0].endswith(tb_file_name)
@@ -289,3 +290,34 @@ def test_update_aliases_on_artifact(user, relay_server, wandb_init):
     assert "portfolio" in aliases
     assert "boom" in aliases
     assert "sequence" not in aliases
+
+
+def test_artifact_version(wandb_init):
+    def create_test_artifact(content: str):
+        art = wandb.Artifact("test-artifact", "test-type")
+        with open("boom.txt", "w") as f:
+            f.write(content)
+        art.add_file("boom.txt", "test-name")
+        return art
+
+    # Create an artifact sequence + portfolio (auto-created if it doesn't exist)
+    project = "test"
+    run = wandb_init(project=project)
+
+    art = create_test_artifact("aaaaa")
+    run.log_artifact(art, aliases=["a"])
+    art.wait()
+
+    art = create_test_artifact("bbbb")
+    run.log_artifact(art, aliases=["b"])
+    run.link_artifact(art, f"{project}/my-sample-portfolio")
+    art.wait()
+    run.finish()
+
+    # Pull down from portfolio, verify version is indexed from portfolio not sequence
+    artifact = Api().artifact(
+        name=f"{project}/my-sample-portfolio:latest", type="test-type"
+    )
+
+    assert artifact.version == "v0"
+    assert artifact.source_version == "v1"
