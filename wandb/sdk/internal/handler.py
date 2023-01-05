@@ -203,6 +203,9 @@ class HandleManager:
     def handle_link_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_use_artifact(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 

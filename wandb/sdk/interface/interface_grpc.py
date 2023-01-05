@@ -170,6 +170,11 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(link_artifact)
         _ = self._stub.LinkArtifact(link_artifact)
 
+    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> None:
+        assert self._stub
+        self._assign(use_artifact)
+        _ = self._stub.UseArtifact(use_artifact)
+
     def _communicate_artifact(
         self, log_artifact: pb.LogArtifactRequest
     ) -> MessageFuture:
