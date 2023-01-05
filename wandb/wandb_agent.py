@@ -388,6 +388,7 @@ class Agent:
         command = command or Agent.DEFAULT_SWEEP_COMMAND
         for i, chunk in enumerate(command):
             # Replace environment variable macros
+            # Search a str(chunk), but allow matches to be of any (ex: int) type
             if Agent.SWEEP_COMMAND_ENV_VAR_REGEX.search(str(chunk)):
                 # Replace from backwards forwards
                 matches = list(Agent.SWEEP_COMMAND_ENV_VAR_REGEX.finditer(chunk))
