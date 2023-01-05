@@ -15,8 +15,8 @@ from urllib.parse import quote as url_quote
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import datastore, handler, sender, tb_watcher
-from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.internal import context, datastore, handler, sender, tb_watcher
+from wandb.sdk.lib import filesystem
 from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
@@ -139,7 +139,7 @@ class SyncThread(threading.Thread):
             viewer, server_info = send_manager._api.viewer_server_info()
             self._entity = viewer.get("entity")
         proto_run = wandb_internal_pb2.RunRecord()
-        proto_run.run_id = self._run_id or runid.generate_id()
+        proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
 
@@ -157,8 +157,13 @@ class SyncThread(threading.Thread):
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
         new_interface = InterfaceQueue(record_q)
+        context_keeper = context.ContextKeeper()
         send_manager = sender.SendManager(
-            send_manager._settings, sender_record_q, queue.Queue(), new_interface
+            settings=send_manager._settings,
+            record_q=sender_record_q,
+            result_q=queue.Queue(),
+            interface=new_interface,
+            context_keeper=context_keeper,
         )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
@@ -169,7 +174,14 @@ class SyncThread(threading.Thread):
         )
 
         handle_manager = handler.HandleManager(
-            settings, record_q, None, False, sender_record_q, None, new_interface
+            settings=settings,
+            record_q=record_q,
+            result_q=None,
+            stopped=False,
+            sender_q=sender_record_q,
+            writer_q=None,
+            interface=new_interface,
+            context_keeper=context_keeper,
         )
 
         filesystem.mkdir_exists_ok(settings.files_dir)

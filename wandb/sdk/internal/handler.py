@@ -33,7 +33,7 @@ from wandb.proto.wandb_internal_pb2 import (
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
-from . import sample, tb_watcher
+from . import context, sample, tb_watcher
 from .settings_static import SettingsStatic
 from .system.system_monitor import SystemMonitor
 
@@ -80,6 +80,7 @@ class HandleManager:
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -90,6 +91,7 @@ class HandleManager:
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: InterfaceQueue,
+        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -98,6 +100,7 @@ class HandleManager:
         self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
+        self._context_keeper = context_keeper
 
         self._tb_watcher = None
         self._system_monitor = None
@@ -123,6 +126,7 @@ class HandleManager:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
+        self._context_keeper.add_from_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
@@ -141,6 +145,8 @@ class HandleManager:
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
+        if always_send:
+            record.control.always_send = True
         if not self._settings._offline or always_send:
             tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
@@ -150,10 +156,20 @@ class HandleManager:
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
+        context_id = context.context_id_from_result(result)
+        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def debounce(self) -> None:
         pass
+
+    def handle_request_cancel(self, record: Record) -> None:
+        cancel_id = record.request.cancel.cancel_slot
+        self._context_keeper.cancel(cancel_id)
+
+    def handle_request_respond(self, record: Record) -> None:
+        result = record.request.respond.result
+        self._respond_result(result)
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -712,7 +728,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
+        # TODO(mempressure): do something better
         self._dispatch_record(record, always_send=True)
+        # assert record.control.req_resp
+        # result = proto_util._result_from_record(record)
+        # self._respond_result(result)
 
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
@@ -817,6 +837,7 @@ class HandleManager:
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+        # self._context_keeper._debug_print_orphans()
 
     def __next__(self) -> Record:
         return self._record_q.get(block=True)
