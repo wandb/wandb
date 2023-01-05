@@ -14,7 +14,7 @@ import threading
 import time
 import unittest.mock
 import urllib.parse
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Sequence
 from contextlib import contextmanager
 from copy import deepcopy
@@ -59,6 +59,7 @@ except ImportError:
     from typing_extensions import Literal, TypedDict
 
 if TYPE_CHECKING:
+    from typing import Deque
 
     class RawRequestResponse(TypedDict):
         url: str
