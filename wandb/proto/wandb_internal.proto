@@ -59,6 +59,7 @@ message Control {
   bool local = 2;     // should not be persisted or synchronized
   string relay_id = 3;  // used by service transport to identify correct stream
   string mailbox_slot = 4;  // mailbox slot
+  bool always_send = 5; // message to sender
 }
 
 /*
@@ -493,6 +494,7 @@ message Request {
     KeepaliveRequest      keepalive = 17;
     RunDoneRequest        run_done = 18;
     GetRunRequest         get_run = 19;
+    CancelRequest         cancel = 21;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -506,6 +508,7 @@ message Request {
  */
 message Response {
   oneof response_type {
+    KeepaliveResponse      keepalive_response = 18;
     StopStatusResponse     stop_status_response = 19;
     NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
@@ -519,7 +522,7 @@ message Response {
     ArtifactPollResponse   artifact_poll_response = 32;
     RunDoneResponse        run_done_response = 33;
     GetRunResponse         get_run_response = 34;
-    KeepaliveResponse      keepalive_response = 18;
+    CancelResponse         cancel_response = 36;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
@@ -881,9 +884,20 @@ message UseArtifactRecord {
   string id = 1;
   string type = 2;
   string name = 3;
-  
+
   _RecordInfo     _info = 200;
 }
 
 message UseArtifactResult {
+}
+
+/*
+ * Cancel:
+ */
+message CancelRequest {
+  string cancel_slot = 1;  // mailbox slot
+  _RequestInfo _info = 200;
+}
+
+message CancelResponse {
 }

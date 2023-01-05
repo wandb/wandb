@@ -723,7 +723,7 @@ class _WandbInit:
                     f"encountered error: {error_message}"
                 )
                 error = CommError(error_message)
-                # run_init_handle._cancel() #TODO uncomment after merging cancel PR
+                run_init_handle._cancel()
             elif not run_result and policy == "async":
                 logger.warning(
                     "backend process timed out, continuing as per 'async' policy"

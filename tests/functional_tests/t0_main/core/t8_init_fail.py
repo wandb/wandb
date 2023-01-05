@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """Check init failing with atexit finishall.
-
 ---
 plugin:
   - wandb

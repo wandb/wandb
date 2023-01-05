@@ -45,6 +45,7 @@ import wandb.util
 from click.testing import CliRunner
 from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -487,11 +488,18 @@ def _internal_sender(
 
 
 @pytest.fixture()
+def _internal_context_keeper():
+    context_keeper = context.ContextKeeper()
+    yield context_keeper
+
+
+@pytest.fixture()
 def internal_sm(
     runner,
     internal_sender_q,
     internal_result_q,
     _internal_sender,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -500,6 +508,7 @@ def internal_sm(
                 record_q=internal_sender_q,
                 result_q=internal_result_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
             )
             return sm
 
@@ -521,6 +530,7 @@ def internal_hm(
     internal_writer_q,
     _internal_sender,
     stopped_event,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -532,6 +542,7 @@ def internal_hm(
                 sender_q=internal_sender_q,
                 writer_q=internal_writer_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
             )
             return hm
 
