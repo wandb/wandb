@@ -26,7 +26,6 @@ from wandb.sdk.lib.mailbox import (
     MailboxProgressAll,
 )
 from wandb.sdk.lib.printer import get_printer
-from wandb.sdk.lib.proto_util import message_to_dict
 from wandb.sdk.wandb_run import Run
 
 from ..interface.interface_relay import InterfaceRelay
