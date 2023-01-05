@@ -129,8 +129,6 @@ class InterfaceShared(InterfaceBase):
         partial_history: Optional[pb.PartialHistoryRequest] = None,
         sampled_history: Optional[pb.SampledHistoryRequest] = None,
         run_start: Optional[pb.RunStartRequest] = None,
-        get_run: Optional[pb.GetRunRequest] = None,
-        run_done: Optional[pb.RunDoneRequest] = None,
         check_version: Optional[pb.CheckVersionRequest] = None,
         log_artifact: Optional[pb.LogArtifactRequest] = None,
         defer: Optional[pb.DeferRequest] = None,
@@ -182,10 +180,6 @@ class InterfaceShared(InterfaceBase):
             request.artifact_done.CopyFrom(artifact_done)
         elif server_info:
             request.server_info.CopyFrom(server_info)
-        elif get_run:
-            request.get_run.CopyFrom(get_run)
-        elif run_done:
-            request.run_done.CopyFrom(run_done)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
         elif run_status:
@@ -334,10 +328,6 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_run(self, run: pb.RunRecord) -> None:
         rec = self._make_record(run=run)
-        self._publish(rec)
-
-    def _publish_run_done(self, run_done: pb.RunDoneRequest) -> None:
-        rec = self._make_request(run_done=run_done)
         self._publish(rec)
 
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
@@ -538,17 +528,6 @@ class InterfaceShared(InterfaceBase):
         assert sampled_history_response
         return sampled_history_response
 
-    def _communicate_get_run(
-        self, get_run: pb.GetRunRequest
-    ) -> Optional[pb.GetRunResponse]:
-        record = self._make_request(get_run=get_run)
-        result = self._communicate(record)
-        if result is None:
-            return None
-        get_run_response = result.response.get_run_response
-        assert get_run_response
-        return get_run_response
-
     def _communicate_shutdown(self) -> None:
         # shutdown
         request = pb.Request(shutdown=pb.ShutdownRequest())
@@ -605,10 +584,6 @@ class InterfaceShared(InterfaceBase):
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
         record = self._make_request(sampled_history=sampled_history)
-        return self._deliver_record(record)
-
-    def _deliver_request_get_run(self, get_run: pb.GetRunRequest) -> MailboxHandle:
-        record = self._make_request(get_run=get_run)
         return self._deliver_record(record)
 
     def _deliver_request_run_status(

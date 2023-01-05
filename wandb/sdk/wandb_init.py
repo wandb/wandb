@@ -694,12 +694,7 @@ class _WandbInit:
         else:
             error: Optional["wandb.errors.Error"] = None
 
-            if self.settings.resume:
-                timeout = self.settings.resume_timeout
-                policy = self.settings.resume_policy
-            else:
-                timeout = self.settings.init_timeout
-                policy = self.settings.init_policy
+            timeout = self.settings.init_timeout
 
             logger.info(f"communicating run to backend with {timeout} second timeout")
 
@@ -712,7 +707,7 @@ class _WandbInit:
             if result:
                 run_result = result.run_result
 
-            if not run_result and policy == "fail":
+            if not run_result:
                 error_message = (
                     "Error communicating with wandb process, "
                     "exiting as per 'fail' init policy."
@@ -724,15 +719,6 @@ class _WandbInit:
                 )
                 error = CommError(error_message)
                 run_init_handle._cancel()
-            elif not run_result and policy == "async":
-                logger.warning(
-                    "backend process timed out, continuing as per 'async' policy"
-                )
-                # todo: clearly communicate the error to the user, and what happens next
-                self.printer.display(
-                    # todo: ask Carey for help with the wording
-                    "Communicating with wandb, run links not yet available."
-                )
             elif run_result and run_result.error:
                 error_message = run_result.error.message
                 if error_message:
@@ -800,7 +786,7 @@ class _WandbInit:
 
         self.backend = backend
         self._reporter.set_context(run=run)
-        run._on_start(run_init_handle)
+        run._on_start()
         logger.info("run started, returning control to user process")
         return run
 

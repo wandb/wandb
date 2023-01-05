@@ -106,15 +106,6 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert result  # TODO: handle errors
         return result
 
-    def GetRun(  # noqa: N802
-        self, get_run: pb.GetRunRequest, context: grpc.ServicerContext
-    ) -> pb.GetRunResponse:
-        stream_id = get_run._info.stream_id
-        iface = self._mux.get_stream(stream_id).interface
-        result = iface.communicate_get_run()
-        assert result  # TODO: handle errors
-        return result
-
     def SampledHistory(  # noqa: N802
         self, sampled_history: pb.SampledHistoryRequest, context: grpc.ServicerContext
     ) -> pb.SampledHistoryResponse:

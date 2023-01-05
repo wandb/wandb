@@ -571,11 +571,7 @@ class SendManager:
         pass
 
     def _flush_run(self) -> None:
-        if self._run is None:
-            return
-        run_done = wandb_internal_pb2.RunDoneRequest()
-        run_done.run.CopyFrom(self._run)
-        self._interface._publish_run_done(run_done)
+        pass
 
     def send_request_run_done(self, record: "Record") -> None:
         # todo? this is just a noop to please wandb sync

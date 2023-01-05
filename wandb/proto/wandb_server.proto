@@ -16,7 +16,6 @@ service InternalService {
   rpc SampledHistory(SampledHistoryRequest) returns (SampledHistoryResponse) {}
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
   rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
-  rpc GetRun(GetRunRequest) returns (GetRunResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
   rpc RunStatus(RunStatusRequest) returns (RunStatusResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}

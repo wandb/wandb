@@ -166,8 +166,6 @@ class RunStatusChecker:
     def __init__(
         self,
         interface: InterfaceBase,
-        run: "Run",
-        init_handle: Optional[MailboxHandle] = None,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
@@ -192,69 +190,10 @@ class RunStatusChecker:
             name="NetStatThr",
             daemon=True,
         )
-        self._run_init_handle = init_handle
-        self._run_is_synced: bool = self._run_init_handle is None
-        self._run_sync_status_checker: Optional[threading.Thread] = (
-            threading.Thread(
-                target=self._run_info_thread,
-                args=(run,),
-                name="SyncStatCh",
-                daemon=True,
-            )
-            if not self._run_is_synced
-            else None
-        )
-
-    @property
-    def run_is_synced(self) -> bool:
-        return self._run_is_synced
 
     def start(self) -> None:
         self._stop_thread.start()
         self._network_status_thread.start()
-
-        if self._run_sync_status_checker:
-            # If at this point init_handle received the response from the backend,
-            # we will update the run object and settings with the received information
-            # and communicate it to the user. Otherwise, that will be done once
-            # the backend responds back.
-            self._run_sync_status_checker.start()
-
-    def _run_info_thread(self, run: "Run") -> None:
-        """Get the run info from the backend and set the run state.
-
-        This thread is started if we could not immediately connect to the backend
-        and provide the project/run information to the user. It will wait on the
-        provided Mailbox handle until the backend responds back and then update
-        the run state with the received information and communicate it to the user.
-        """
-        logger.info("checking run info status")
-        assert self._run_init_handle
-        result = self._run_init_handle.wait(
-            timeout=-1,  # Wait forever
-            release=False,
-        )
-
-        if result is None:
-            logger.warning("run info thread timed out")
-            return
-
-        run_result = result.run_result
-        run._set_run_obj(run_result.run)
-
-        if run_result and run_result.error and run_result.error.message:
-            error_message = run_result.error.message
-            logger.error(f"encountered error: {error_message}")
-            # TODO: for now, we simply fail the run in case we get an error.
-            #  In the future, we will transition to offline mode and allow the user
-            #  to provide an option to gracefully complete the run
-            #  (e.g. with a call-back to move the run_dir to a persistent store).
-            raise wandb.UsageError(error_message)
-
-        self._run_is_synced = True
-
-        if not self._join_event.is_set():
-            Run._header_run_info(settings=run.settings, printer=run._printer)
 
     def _loop_check_status(
         self,
@@ -331,8 +270,6 @@ class RunStatusChecker:
 
     def stop(self) -> None:
         self._join_event.set()
-        if self._run_init_handle is not None:
-            self._run_init_handle.abandon()
         with self._stop_status_lock:
             if self._stop_status_handle:
                 self._stop_status_handle.abandon()
@@ -344,8 +281,6 @@ class RunStatusChecker:
         self.stop()
         self._stop_thread.join()
         self._network_status_thread.join()
-        if self._run_sync_status_checker:
-            self._run_sync_status_checker.join()
 
 
 class _run_decorator:  # noqa: N801
@@ -2179,7 +2114,7 @@ class Run:
             )
             logger.info(f"got version response {self._check_version}")
 
-    def _on_start(self, init_handle: Optional[MailboxHandle] = None) -> None:
+    def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
@@ -2197,7 +2132,6 @@ class Run:
             self._run_status_checker = RunStatusChecker(
                 interface=self._backend.interface,
                 run=self,
-                init_handle=init_handle,
             )
             self._run_status_checker.start()
 
@@ -2362,27 +2296,7 @@ class Run:
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        exit_handle.wait(
-            # timeout=self.settings.finish_timeout,  # todo
-            timeout=-1,  # todo: for now, wait indefinitely
-            on_progress=self._on_progress_exit,
-        )
-        # if exit_result is None and self.settings.finish_policy == "fail":
-        #     # todo: would need to cancel all pending requests
-        #     raise wandb.errors.CommError(
-        #         "Timed out waiting for exit response from backend, "
-        #         "exiting as per 'fail' policy."
-        #     )
-
-        if (
-            self._run_status_checker is not None
-            and self._run_status_checker.run_is_synced
-        ):
-            get_run_handle = self._backend.interface.deliver_request_get_run()
-            get_run_result = get_run_handle.wait(timeout=-1)
-            if get_run_result:
-                run_obj = get_run_result.response.get_run_response.run
-                self._set_run_obj(run_obj)
+        _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()

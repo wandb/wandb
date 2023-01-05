@@ -76,7 +76,7 @@ def test_footer_normal(wandb_init, check_output_fn):
     run.log(dict(a=1, b="b"))
     run.log(dict(a=3))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=["a", "d"])
+    check_output_fn(exp_summary=["a", "b", "d"], exp_history=["a", "d"])
 
 
 def test_footer_summary(wandb_init, check_output_fn):
@@ -86,7 +86,7 @@ def test_footer_summary(wandb_init, check_output_fn):
     run.log(dict(a="a", b="b"))
     run.log(dict(a="a"))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=[])
+    check_output_fn(exp_summary=["a", "b", "d"], exp_history=[])
 
 
 def test_footer_summary_array(wandb_init, check_output_fn):
@@ -96,7 +96,7 @@ def test_footer_summary_array(wandb_init, check_output_fn):
     run.log(dict(a="a", b="b", skipthisbecausearray=[1, 2, 3]))
     run.log(dict(a="a"))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=[])
+    check_output_fn(exp_summary=["a", "b", "d"], exp_history=[])
 
 
 def test_footer_summary_image(wandb_init, check_output_fn):
@@ -107,7 +107,7 @@ def test_footer_summary_image(wandb_init, check_output_fn):
     run.log(dict(a="a"))
     run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=[])
+    check_output_fn(exp_summary=["a", "b", "d"], exp_history=[])
 
 
 def test_footer_history(wandb_init, check_output_fn):
@@ -118,4 +118,4 @@ def test_footer_history(wandb_init, check_output_fn):
     run.log(dict(a=1, b="b"))
     run.log(dict(a=3))
     run.finish()
-    check_output_fn(exp_summary=[], exp_history=["a", "d", "🚀"])
+    check_output_fn(exp_summary=[], exp_history=["a", "d"])

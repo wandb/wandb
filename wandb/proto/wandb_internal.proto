@@ -494,8 +494,6 @@ message Request {
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
     KeepaliveRequest      keepalive = 17;
-    RunDoneRequest        run_done = 18;
-    GetRunRequest         get_run = 19;
     RunStatusRequest      run_status = 20;
     CancelRequest         cancel = 21;
     ShutdownRequest       shutdown = 64;
@@ -526,8 +524,6 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
-    RunDoneResponse        run_done_response = 33;
-    GetRunResponse         get_run_response = 34;
     RunStatusResponse      run_status_response = 35;
     CancelResponse         cancel_response = 36;
     ShutdownResponse       shutdown_response = 64;
@@ -817,29 +813,6 @@ message RunStartRequest {
 }
 
 message RunStartResponse {
-}
-
-/*
- * RunDoneRequest: get the run
- */
-message RunDoneRequest {
-  RunRecord run = 1;
-  _RequestInfo _info = 200;
-}
-
-message RunDoneResponse {
-}
-
-
-/*
- * GetRunRequest: get the run
- */
-message GetRunRequest {
-  _RequestInfo _info = 200;
-}
-
-message GetRunResponse {
-  RunRecord run = 1;
 }
 
 /*

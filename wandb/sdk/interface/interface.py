@@ -187,9 +187,6 @@ class InterfaceBase:
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
-    def _publish_run_done(self, run_done: pb.RunDoneRequest) -> None:
-        raise NotImplementedError
-
     def publish_cancel(self, cancel_slot: str) -> None:
         cancel = pb.CancelRequest(cancel_slot=cancel_slot)
         self._publish_cancel(cancel)
@@ -347,16 +344,6 @@ class InterfaceBase:
     def _communicate_get_summary(
         self, get_summary: pb.GetSummaryRequest
     ) -> Optional[pb.GetSummaryResponse]:
-        raise NotImplementedError
-
-    def communicate_get_run(self) -> Optional[pb.GetRunResponse]:
-        get_run = pb.GetRunRequest()
-        return self._communicate_get_run(get_run)
-
-    @abstractmethod
-    def _communicate_get_run(
-        self, get_run: pb.GetRunRequest
-    ) -> Optional[pb.GetRunResponse]:
         raise NotImplementedError
 
     def communicate_sampled_history(self) -> Optional[pb.SampledHistoryResponse]:
@@ -828,18 +815,10 @@ class InterfaceBase:
         sampled_history = pb.SampledHistoryRequest()
         return self._deliver_request_sampled_history(sampled_history)
 
-    def deliver_request_get_run(self) -> MailboxHandle:
-        get_run = pb.GetRunRequest()
-        return self._deliver_request_get_run(get_run)
-
     @abstractmethod
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _deliver_request_get_run(self, get_run: pb.GetRunRequest) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_request_run_status(self) -> MailboxHandle:

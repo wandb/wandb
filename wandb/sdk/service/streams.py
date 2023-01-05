@@ -345,21 +345,6 @@ class StreamMux:
             assert result
             sampled_history = result.response.sampled_history_response
 
-            if (
-                not (stream._settings.run_url and stream._settings.run_name)
-                and not stream._settings._offline
-            ):
-                # todo: unify path with Run._on_finish in wandb_run.py
-                get_run_handle = stream.interface.deliver_request_get_run()
-                get_run_response = get_run_handle.wait(timeout=-1)
-                if get_run_response:
-                    run_obj = get_run_response.response.get_run_response.run
-
-                    # todo(settings): rework once SettingsStatic are sunset
-                    settings = wandb.Settings(**dict(stream._settings))
-                    settings._apply_run_start(message_to_dict(run_obj))
-                    stream.update(dict(settings))
-
             result = final_summary_handle.wait(timeout=-1)
             assert result
             final_summary = result.response.get_summary_response
