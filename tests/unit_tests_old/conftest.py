@@ -31,7 +31,7 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.module import unset_globals
@@ -249,7 +249,7 @@ def test_settings(test_dir, mocker, live_mock_server):
         host="test",
         project="test",
         root_dir=test_dir,
-        run_id=wandb.util.generate_id(),
+        run_id=runid.generate_id(),
         save_code=False,
     )
     settings._set_run_start_time()
