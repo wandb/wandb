@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from wandb.sdk.lib.fsm import Fsm, FsmEntry
 
 

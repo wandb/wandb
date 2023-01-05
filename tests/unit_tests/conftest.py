@@ -554,6 +554,7 @@ def internal_wm(
     internal_writer_q,
     internal_result_q,
     internal_sender_q,
+    _internal_sender,
     stopped_event,
     _internal_context_keeper,
 ):
@@ -571,6 +572,7 @@ def internal_wm(
                 record_q=internal_writer_q,
                 result_q=internal_result_q,
                 sender_q=internal_sender_q,
+                interface=_internal_sender,
                 context_keeper=_internal_context_keeper,
             )
             return wm
