@@ -80,7 +80,7 @@ class HandleManager:
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
-    _context_manaager: context.ContextKeeper
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -144,12 +144,16 @@ class HandleManager:
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
-        if not self._settings._offline or always_send:
-            tracelog.log_message_queue(record, self._sender_q)
-            self._sender_q.put(record)
-        if not record.control.local and self._writer_q:
-            tracelog.log_message_queue(record, self._writer_q)
-            self._writer_q.put(record)
+        if always_send:
+            record.control.always_send = True
+        tracelog.log_message_queue(record, self._writer_q)
+        self._writer_q.put(record)
+        # if not self._settings._offline or always_send:
+        #     tracelog.log_message_queue(record, self._sender_q)
+        #     self._sender_q.put(record)
+        # if not record.control.local and self._writer_q:
+        #     tracelog.log_message_queue(record, self._writer_q)
+        #     self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
@@ -211,6 +215,9 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_link_artifact(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_use_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_artifact(self, record: Record) -> None:
@@ -719,7 +726,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
+        # TODO(mempressure): do something better
+        # self._dispatch_record(record, always_send=True)
+        assert record.control.req_resp
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
 
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
@@ -824,6 +835,7 @@ class HandleManager:
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+        # self._context_keeper._debug_print_orphans()
 
     def __next__(self) -> Record:
         return self._record_q.get(block=True)

@@ -48,7 +48,7 @@ class ContextKeeper:
         context_obj = self.add(context_id)
 
         # TODO: add debug setting to enable this
-        # context_obj._debug_record = record
+        context_obj._debug_record = record
 
         return context_obj
 
