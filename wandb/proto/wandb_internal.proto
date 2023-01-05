@@ -855,7 +855,7 @@ message UseArtifactRecord {
   string id = 1;
   string type = 2;
   string name = 3;
-
+  
   _RecordInfo     _info = 200;
 }
 
