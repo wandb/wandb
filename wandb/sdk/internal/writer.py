@@ -2,21 +2,25 @@
 
 import logging
 
-from . import datastore
+from . import context, datastore
 
 logger = logging.getLogger(__name__)
 
 
 class WriteManager:
+    _context_keeper: context.ContextKeeper
+
     def __init__(
         self,
         settings,
         record_q,
         result_q,
+        context_keeper: context.ContextKeeper,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
+        self._context_keeper = context_keeper
         self._ds = None
 
     def open(self):

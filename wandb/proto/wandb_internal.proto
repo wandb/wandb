@@ -45,6 +45,7 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
+    UseArtifactRecord use_artifact = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -58,6 +59,7 @@ message Control {
   bool local = 2;     // should not be persisted or synchronized
   string relay_id = 3;  // used by service transport to identify correct stream
   string mailbox_slot = 4;  // mailbox slot
+  bool always_send = 5; // message to sender
 }
 
 /*
@@ -490,6 +492,7 @@ message Request {
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
     KeepaliveRequest      keepalive = 17;
+    CancelRequest         cancel = 21;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -503,6 +506,7 @@ message Request {
  */
 message Response {
   oneof response_type {
+    KeepaliveResponse      keepalive_response = 18;
     StopStatusResponse     stop_status_response = 19;
     NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
@@ -514,7 +518,7 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
-    KeepaliveResponse      keepalive_response = 18;
+    CancelResponse         cancel_response = 36;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
@@ -535,12 +539,13 @@ message DeferRequest {
     FLUSH_SUM = 4;
     FLUSH_DEBOUNCER = 5;
     FLUSH_OUTPUT = 6;
-    FLUSH_DIR = 7;
-    FLUSH_FP = 8;
-    JOIN_FP = 9;
-    FLUSH_FS = 10;
-    FLUSH_FINAL = 11;
-    END = 12;
+    FLUSH_JOB = 7;
+    FLUSH_DIR = 8;
+    FLUSH_FP = 9;
+    JOIN_FP = 10;
+    FLUSH_FS = 11;
+    FLUSH_FINAL = 12;
+    END = 13;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -842,4 +847,29 @@ message KeepaliveRequest {
 }
 
 message KeepaliveResponse {
+}
+
+/*
+* UseArtifact:
+*/
+message UseArtifactRecord {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+
+  _RecordInfo     _info = 200;
+}
+
+message UseArtifactResult {
+}
+
+/*
+ * Cancel:
+ */
+message CancelRequest {
+  string cancel_slot = 1;  // mailbox slot
+  _RequestInfo _info = 200;
+}
+
+message CancelResponse {
 }
