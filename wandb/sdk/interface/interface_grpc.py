@@ -247,7 +247,6 @@ class InterfaceGrpc(InterfaceBase):
     def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
         assert self._stub
         self._assign(status)
-        # TODO: implement
         network_status_response = pb.NetworkStatusResponse()
         response = pb.Response(network_status_response=network_status_response)
         result = pb.Result(response=response)
@@ -257,7 +256,6 @@ class InterfaceGrpc(InterfaceBase):
     def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
         assert self._stub
         self._assign(status)
-        # TODO: implement
         stop_status_response = pb.StopStatusResponse()
         response = pb.Response(stop_status_response=stop_status_response)
         result = pb.Result(response=response)
@@ -421,7 +419,6 @@ class InterfaceGrpc(InterfaceBase):
         result = pb.Result(response=response)
         handle = self._deliver(result)
         return handle
-
 
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
         assert self._stub

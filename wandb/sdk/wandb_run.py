@@ -41,6 +41,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
+    Result,
     RunRecord,
     ServerInfoResponse,
 )
