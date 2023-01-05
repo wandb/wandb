@@ -1265,22 +1265,22 @@ class Api:
         return result
 
     @normalize_exceptions
-    def mark_run_queue_item_broken(self, item_id: str) -> bool:
+    def mark_unclaimed_run_queue_item_broken(self, item_id: str) -> bool:
         mutation = gql(
             """
-        mutation markRunQueueItemBroken($itemId: ID!)  {
-            markRunQueueItemBroken(input: { runQueueItemId: $itemId }) {
+        mutation markUnclaimedRunQueueItemBroken($itemId: ID!)  {
+            markUnclaimedRunQueueItemBroken(input: { runQueueItemId: $itemId }) {
                 success
             }
         }
         """
         )
         response = self.gql(mutation, variable_values={"itemId": item_id})
-        if not response["markRunQueueItemBroken"]["success"]:
+        if not response["markUnclaimedRunQueueItemBroken"]["success"]:
             raise CommError(
                 "Error marking run queue item broken. Item may have already been acknowledged by another process"
             )
-        result: bool = response["markRunQueueItemBroken"]["success"]
+        result: bool = response["markUnclaimedRunQueueItemBroken"]["success"]
         return result
 
     @normalize_exceptions

@@ -155,8 +155,8 @@ class Api:
     def ack_run_queue_item(self, *args, **kwargs):
         return self.api.ack_run_queue_item(*args, **kwargs)
 
-    def mark_run_queue_item_broken(self, *args, **kwargs):
-        return self.api.mark_run_queue_item_broken(*args, **kwargs)
+    def mark_unclaimed_run_queue_item_broken(self, *args, **kwargs):
+        return self.api.mark_unclaimed_run_queue_item_broken(*args, **kwargs)
 
     def create_launch_agent(self, *args, **kwargs):
         return self.api.create_launch_agent(*args, **kwargs)
