@@ -11,7 +11,7 @@ import os
 import queue
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union, cast
 
 import wandb
 
@@ -28,6 +28,9 @@ if TYPE_CHECKING:
     from ..service.service_grpc import ServiceGrpcInterface
     from ..service.service_sock import ServiceSockInterface
     from ..wandb_run import Run
+
+    RecordQueue = Union[queue.Queue[Record], multiprocessing.Queue[Record]]
+    ResultQueue = Union[queue.Queue[Result], multiprocessing.Queue[Result]]
 
 logger = logging.getLogger("wandb")
 
@@ -54,8 +57,8 @@ class Backend:
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
     _settings: Optional[Settings]
-    record_q: Optional["queue.Queue[Record]"]
-    result_q: Optional["queue.Queue[Result]"]
+    record_q: Optional["RecordQueue"]
+    result_q: Optional["ResultQueue"]
     _mailbox: Mailbox
 
     def __init__(
