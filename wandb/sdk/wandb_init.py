@@ -708,7 +708,7 @@ class _WandbInit:
                 run_result = result.run_result
 
             if not run_result:
-                error_message = "Error communicating with wandb process, " "exiting..."
+                error_message = "Error communicating with wandb process, exiting..."
                 error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
                 logger.error(
                     "backend process timed out, exiting...\n"
