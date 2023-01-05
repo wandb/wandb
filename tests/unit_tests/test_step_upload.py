@@ -4,7 +4,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, MutableSequence, Optional
-from unittest.mock import Mock
+from unittest.mock import Mock, DEFAULT
 
 import pytest
 from wandb.filesync import stats
@@ -129,23 +129,36 @@ class UploadBlockingMockApi(Mock):
 
 class TestFinish:
     @pytest.mark.parametrize(
-        ["api", "commands"],
+        ["api", "commands", "api_assert"],
         [
             (
                 make_api(),
                 lambda tmp_path: [],
+                lambda api: None,
+            ),
+            (
+                make_api(),
+                lambda tmp_path: [make_request_upload(tmp_path / "nonexistent-file.txt")],
+                lambda api: api.upload_file_retry.assert_not_called(),
             ),
             (
                 make_api(),
                 lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+                lambda api: api.upload_file_retry.assert_called(),
             ),
             (
                 make_api(),
-                lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+                lambda tmp_path: [
+                    make_request_upload(make_tmp_file(tmp_path)),
+                    make_request_upload(make_tmp_file(tmp_path)),
+                    make_request_upload(make_tmp_file(tmp_path)),
+                ],
+                lambda api: api.upload_file_retry.assert_called(),
             ),
             (
                 make_api(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
                 lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+                lambda api: api.upload_urls.assert_called(),
             ),
             (
                 make_api(
@@ -154,6 +167,7 @@ class TestFinish:
                     )
                 ),
                 lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
+                lambda api: api.upload_file_retry.assert_called(),
             ),
             (
                 make_api(
@@ -167,18 +181,22 @@ class TestFinish:
                     ),
                     make_request_commit("my-artifact"),
                 ],
+                lambda api: api.upload_file_retry.assert_called(),
             ),
             (
                 make_api(),
                 lambda tmp_path: [make_request_commit("my-artifact")],
+                lambda api: api.commit_artifact.assert_called(),
             ),
             (
                 make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
                 lambda tmp_path: [make_request_commit("my-artifact")],
+                lambda api: api.commit_artifact.assert_called(),
             ),
             (
                 make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
                 lambda tmp_path: [make_request_commit("my-artifact")],
+                lambda api: api.commit_artifact.assert_called(),
             ),
             (
                 make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
@@ -188,6 +206,7 @@ class TestFinish:
                     ),
                     make_request_commit("my-artifact"),
                 ],
+                lambda api: api.commit_artifact.assert_called(),
             ),
         ],
     )
@@ -196,6 +215,7 @@ class TestFinish:
         tmp_path: Path,
         api: Mock,
         commands: Callable[[Path], Iterable[Event]],
+        api_assert: Callable[[Mock], None],
     ):
         q = queue.Queue()
         for cmd in commands(tmp_path):
@@ -204,6 +224,8 @@ class TestFinish:
         step_upload.start()
 
         finish_and_wait(q)
+
+        api_assert(api)
 
     def test_no_finish_until_jobs_done(
         self,
@@ -308,13 +330,27 @@ class TestUpload:
             assert f.exists()
 
     @pytest.mark.parametrize(
-        "api",
+        ["api", "bad_command"],
         [
-            make_api(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
-            make_api(
-                upload_file_retry=Mock(
-                    side_effect=Exception("upload_file_retry failed")
+            (
+                make_api(),
+                lambda tmp_path: make_request_upload(tmp_path / "nonexistent-file.txt"),
+            ),
+            (
+                make_api(upload_urls=Mock(
+                    wraps=mock_upload_urls,
+                    side_effect=[Exception("upload_urls failed"), DEFAULT],
+                )),
+                lambda tmp_path: make_request_upload(make_tmp_file(tmp_path)),
+            ),
+            (
+                make_api(
+                    upload_file_retry=Mock(
+                        wraps=mock_upload_file_retry,
+                        side_effect=[Exception("upload_file_retry failed"), DEFAULT],
+                    ),
                 ),
+                lambda tmp_path: make_request_upload(make_tmp_file(tmp_path)),
             ),
         ],
     )
@@ -322,15 +358,24 @@ class TestUpload:
         self,
         tmp_path: Path,
         api: Mock,
+        bad_command: Callable[[Path], Event],
     ):
         q = queue.Queue()
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
+        q.put(bad_command(tmp_path))
+
+        good_command = make_request_upload(make_tmp_file(tmp_path))
+        q.put(good_command)
 
         step_upload = make_step_upload(api=api, event_queue=q, max_jobs=1)
         step_upload.start()
 
         finish_and_wait(q)
+
+        good_url = mock_upload_urls("my-proj", [good_command.save_name])[2][good_command.save_name]["url"]
+        assert any(
+            call[0][0] == good_url
+            for call in api.upload_file_retry.call_args_list
+        ), api.upload_file_retry.call_args_list
 
     class TestStats:
         @pytest.mark.parametrize(
