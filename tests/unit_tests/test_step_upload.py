@@ -4,7 +4,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, MutableSequence, Optional
-from unittest.mock import Mock, DEFAULT
+from unittest.mock import DEFAULT, Mock
 
 import pytest
 from wandb.filesync import stats
@@ -138,7 +138,9 @@ class TestFinish:
             ),
             (
                 make_api(),
-                lambda tmp_path: [make_request_upload(tmp_path / "nonexistent-file.txt")],
+                lambda tmp_path: [
+                    make_request_upload(tmp_path / "nonexistent-file.txt")
+                ],
                 lambda api: api.upload_file_retry.assert_not_called(),
             ),
             (
@@ -337,10 +339,12 @@ class TestUpload:
                 lambda tmp_path: make_request_upload(tmp_path / "nonexistent-file.txt"),
             ),
             (
-                make_api(upload_urls=Mock(
-                    wraps=mock_upload_urls,
-                    side_effect=[Exception("upload_urls failed"), DEFAULT],
-                )),
+                make_api(
+                    upload_urls=Mock(
+                        wraps=mock_upload_urls,
+                        side_effect=[Exception("upload_urls failed"), DEFAULT],
+                    )
+                ),
                 lambda tmp_path: make_request_upload(make_tmp_file(tmp_path)),
             ),
             (
@@ -371,10 +375,11 @@ class TestUpload:
 
         finish_and_wait(q)
 
-        good_url = mock_upload_urls("my-proj", [good_command.save_name])[2][good_command.save_name]["url"]
+        good_url = mock_upload_urls("my-proj", [good_command.save_name])[2][
+            good_command.save_name
+        ]["url"]
         assert any(
-            call[0][0] == good_url
-            for call in api.upload_file_retry.call_args_list
+            call[0][0] == good_url for call in api.upload_file_retry.call_args_list
         ), api.upload_file_retry.call_args_list
 
     class TestStats:
