@@ -424,6 +424,10 @@ class SendManager:
         result = proto_util._result_from_record(record)
         self._respond_result(result)
 
+    # def send_request_cancel(self, record: "Record") -> None:
+    #     cancel_id = record.request.cancel.cancel_slot
+    #     self._context_keeper.cancel(cancel_id)
+
     def send_request_network_status(self, record: "Record") -> None:
         assert record.control.req_resp
 

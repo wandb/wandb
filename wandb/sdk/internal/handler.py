@@ -126,6 +126,7 @@ class HandleManager:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
+        self._context_keeper.add_from_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
@@ -146,14 +147,12 @@ class HandleManager:
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if always_send:
             record.control.always_send = True
-        tracelog.log_message_queue(record, self._writer_q)
-        self._writer_q.put(record)
-        # if not self._settings._offline or always_send:
-        #     tracelog.log_message_queue(record, self._sender_q)
-        #     self._sender_q.put(record)
-        # if not record.control.local and self._writer_q:
-        #     tracelog.log_message_queue(record, self._writer_q)
-        #     self._writer_q.put(record)
+        if not self._settings._offline or always_send:
+            tracelog.log_message_queue(record, self._sender_q)
+            self._sender_q.put(record)
+        if not record.control.local and self._writer_q:
+            tracelog.log_message_queue(record, self._writer_q)
+            self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
@@ -165,9 +164,12 @@ class HandleManager:
         pass
 
     def handle_request_cancel(self, record: Record) -> None:
-        # self._dispatch_record(record)
         cancel_id = record.request.cancel.cancel_slot
         self._context_keeper.cancel(cancel_id)
+
+    def handle_request_respond(self, record: Record) -> None:
+        result = record.request.respond.result
+        self._respond_result(result)
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -727,10 +729,10 @@ class HandleManager:
 
     def handle_request_status(self, record: Record) -> None:
         # TODO(mempressure): do something better
-        # self._dispatch_record(record, always_send=True)
-        assert record.control.req_resp
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
+        self._dispatch_record(record, always_send=True)
+        # assert record.control.req_resp
+        # result = proto_util._result_from_record(record)
+        # self._respond_result(result)
 
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
