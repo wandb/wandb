@@ -94,8 +94,7 @@ class WriteManager:
         self._telemetry_overflow = True
         with telemetry.context(obj=self._telemetry_obj) as tel:
             tel.feature.flow_control_overflow = True
-        record = pb.Record()
-        record.telemetry.CopyFrom(self._telemetry_obj)
+        record = self._interface._make_record(telemetry=self._telemetry_obj)
         self._forward_record(record)
 
     def _pause_marker(self) -> None:

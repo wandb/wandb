@@ -140,6 +140,7 @@ class InterfaceShared(InterfaceBase):
         keepalive: Optional[pb.KeepaliveRequest] = None,
         run_status: Optional[pb.RunStatusRequest] = None,
         sender_mark: Optional[pb.SenderMarkRequest] = None,
+        status_report: Optional[pb.StatusReportRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
@@ -189,11 +190,15 @@ class InterfaceShared(InterfaceBase):
             request.sender_mark.CopyFrom(sender_mark)
         elif cancel:
             request.cancel.CopyFrom(cancel)
+        elif status_report:
+            request.status_report.CopyFrom(status_report)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
         # All requests do not get persisted
         record.control.local = True
+        if status_report:
+            record.control.flowcontrol = True
         return record
 
     def _make_record(  # noqa: C901

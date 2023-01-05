@@ -492,14 +492,8 @@ class SendManager:
         )
         status_time = time.time()
         status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
-        request = wandb_internal_pb2.Request()
-        request.status_report.CopyFrom(status_report)
-        record = wandb_internal_pb2.Record()
-        record.control.local = True
-        record.control.flow_control = True
-        record.request.CopyFrom(request)
+        record = self._interface._make_request(status_report=status_report)
         self._interface._publish(record)
-        # print("SEND_STATUS_REPORT", self._send_end_offset)
 
     def debounce(self, final: bool = False) -> None:
         self._maybe_report_status(always=final)
