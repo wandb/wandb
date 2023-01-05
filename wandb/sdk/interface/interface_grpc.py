@@ -239,6 +239,26 @@ class InterfaceGrpc(InterfaceBase):
         # TODO: implement
         return None
 
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(status)
+        # TODO: implement
+        network_status_response = pb.NetworkStatusResponse()
+        response = pb.Response(network_status_response=network_status_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(status)
+        # TODO: implement
+        stop_status_response = pb.StopStatusResponse()
+        response = pb.Response(stop_status_response=stop_status_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def _communicate_stop_status(
         self, status: pb.StopStatusRequest
     ) -> Optional[pb.StopStatusResponse]:
@@ -393,6 +413,20 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(get_run)
         get_run_response = self._stub.GetRun(get_run)
         response = pb.Response(get_run_response=get_run_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(run_start)
+        try:
+            run_start_response = self._stub.RunStart(run_start)
+        except grpc.RpcError as e:
+            logger.info(f"RUNSTART TIMEOUT: {e}")
+            run_start_response = pb.RunStartResponse()
+        response = pb.Response(run_start_response=run_start_response)
         result = pb.Result(response=response)
         handle = self._deliver(result)
         return handle

@@ -1697,35 +1697,37 @@ class DeferRequest(google.protobuf.message.Message):
     class _DeferStateEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[DeferRequest._DeferState.ValueType], builtins.type):  # noqa: F821
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         BEGIN: DeferRequest._DeferState.ValueType  # 0
-        FLUSH_STATS: DeferRequest._DeferState.ValueType  # 1
-        FLUSH_PARTIAL_HISTORY: DeferRequest._DeferState.ValueType  # 2
-        FLUSH_TB: DeferRequest._DeferState.ValueType  # 3
-        FLUSH_SUM: DeferRequest._DeferState.ValueType  # 4
-        FLUSH_DEBOUNCER: DeferRequest._DeferState.ValueType  # 5
-        FLUSH_OUTPUT: DeferRequest._DeferState.ValueType  # 6
-        FLUSH_JOB: DeferRequest._DeferState.ValueType  # 7
-        FLUSH_DIR: DeferRequest._DeferState.ValueType  # 8
-        FLUSH_FP: DeferRequest._DeferState.ValueType  # 9
-        JOIN_FP: DeferRequest._DeferState.ValueType  # 10
-        FLUSH_FS: DeferRequest._DeferState.ValueType  # 11
-        FLUSH_FINAL: DeferRequest._DeferState.ValueType  # 12
-        END: DeferRequest._DeferState.ValueType  # 13
+        FLUSH_RUN: DeferRequest._DeferState.ValueType  # 1
+        FLUSH_STATS: DeferRequest._DeferState.ValueType  # 2
+        FLUSH_PARTIAL_HISTORY: DeferRequest._DeferState.ValueType  # 3
+        FLUSH_TB: DeferRequest._DeferState.ValueType  # 4
+        FLUSH_SUM: DeferRequest._DeferState.ValueType  # 5
+        FLUSH_DEBOUNCER: DeferRequest._DeferState.ValueType  # 6
+        FLUSH_OUTPUT: DeferRequest._DeferState.ValueType  # 7
+        FLUSH_JOB: DeferRequest._DeferState.ValueType  # 8
+        FLUSH_DIR: DeferRequest._DeferState.ValueType  # 9
+        FLUSH_FP: DeferRequest._DeferState.ValueType  # 10
+        JOIN_FP: DeferRequest._DeferState.ValueType  # 11
+        FLUSH_FS: DeferRequest._DeferState.ValueType  # 12
+        FLUSH_FINAL: DeferRequest._DeferState.ValueType  # 13
+        END: DeferRequest._DeferState.ValueType  # 14
 
     class DeferState(_DeferState, metaclass=_DeferStateEnumTypeWrapper): ...
     BEGIN: DeferRequest.DeferState.ValueType  # 0
-    FLUSH_STATS: DeferRequest.DeferState.ValueType  # 1
-    FLUSH_PARTIAL_HISTORY: DeferRequest.DeferState.ValueType  # 2
-    FLUSH_TB: DeferRequest.DeferState.ValueType  # 3
-    FLUSH_SUM: DeferRequest.DeferState.ValueType  # 4
-    FLUSH_DEBOUNCER: DeferRequest.DeferState.ValueType  # 5
-    FLUSH_OUTPUT: DeferRequest.DeferState.ValueType  # 6
-    FLUSH_JOB: DeferRequest.DeferState.ValueType  # 7
-    FLUSH_DIR: DeferRequest.DeferState.ValueType  # 8
-    FLUSH_FP: DeferRequest.DeferState.ValueType  # 9
-    JOIN_FP: DeferRequest.DeferState.ValueType  # 10
-    FLUSH_FS: DeferRequest.DeferState.ValueType  # 11
-    FLUSH_FINAL: DeferRequest.DeferState.ValueType  # 12
-    END: DeferRequest.DeferState.ValueType  # 13
+    FLUSH_RUN: DeferRequest.DeferState.ValueType  # 1
+    FLUSH_STATS: DeferRequest.DeferState.ValueType  # 2
+    FLUSH_PARTIAL_HISTORY: DeferRequest.DeferState.ValueType  # 3
+    FLUSH_TB: DeferRequest.DeferState.ValueType  # 4
+    FLUSH_SUM: DeferRequest.DeferState.ValueType  # 5
+    FLUSH_DEBOUNCER: DeferRequest.DeferState.ValueType  # 6
+    FLUSH_OUTPUT: DeferRequest.DeferState.ValueType  # 7
+    FLUSH_JOB: DeferRequest.DeferState.ValueType  # 8
+    FLUSH_DIR: DeferRequest.DeferState.ValueType  # 9
+    FLUSH_FP: DeferRequest.DeferState.ValueType  # 10
+    JOIN_FP: DeferRequest.DeferState.ValueType  # 11
+    FLUSH_FS: DeferRequest.DeferState.ValueType  # 12
+    FLUSH_FINAL: DeferRequest.DeferState.ValueType  # 13
+    END: DeferRequest.DeferState.ValueType  # 14
 
     STATE_FIELD_NUMBER: builtins.int
     state: global___DeferRequest.DeferState.ValueType

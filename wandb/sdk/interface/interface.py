@@ -757,6 +757,31 @@ class InterfaceBase:
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
+        return self._deliver_run_start(run_start)
+
+    @abstractmethod
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_stop_status(self) -> MailboxHandle:
+        status = pb.StopStatusRequest()
+        return self._deliver_stop_status(status)
+
+    @abstractmethod
+    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_network_status(self) -> MailboxHandle:
+        status = pb.NetworkStatusRequest()
+        return self._deliver_network_status(status)
+
+    @abstractmethod
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_get_summary(self) -> MailboxHandle:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)

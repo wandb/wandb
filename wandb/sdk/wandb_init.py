@@ -709,8 +709,7 @@ class _WandbInit:
                 on_progress=self._on_progress_init,
                 release=False,
             )
-
-            if result is not None:
+            if result:
                 run_result = result.run_result
 
             if not run_result and policy == "fail":
@@ -724,7 +723,7 @@ class _WandbInit:
                     f"encountered error: {error_message}"
                 )
                 error = CommError(error_message)
-                # todo: need to cancel the UpsertBucket request via `run_init_handle`
+                # run_init_handle._cancel() #TODO uncomment after merging cancel PR
             elif not run_result and policy == "async":
                 logger.warning(
                     "backend process timed out, continuing as per 'async' policy"
@@ -732,8 +731,7 @@ class _WandbInit:
                 # todo: clearly communicate the error to the user, and what happens next
                 self.printer.display(
                     # todo: ask Carey for help with the wording
-                    f'{self.printer.emoji("turtle")} Communicating with wandb, '
-                    "run links not yet available."
+                    "Communicating with wandb, run links not yet available."
                 )
             elif run_result and run_result.error:
                 error_message = run_result.error.message
@@ -772,7 +770,12 @@ class _WandbInit:
 
         assert backend.interface
         assert run_obj
-        _ = backend.interface.communicate_run_start(run_obj)
+
+        run_start_handle = backend.interface.deliver_run_start(run_obj)
+        # TODO: add progress to let user know we are doing something
+        run_start_result = run_start_handle.wait(timeout=30)
+        if run_start_result is None:
+            run_start_handle.release()
 
         self._wl._global_run_stack.append(run)
         self.run = run
@@ -1144,6 +1147,6 @@ def init(
         if error_seen:
             wandb.termerror("Abnormal program exit")
             if except_exit:
-                os._exit(-1)
+                os._exit(1)
             raise Exception("problem") from error_seen
     return run

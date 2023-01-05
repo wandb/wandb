@@ -1520,7 +1520,7 @@ class RelayServer:
         # replace the relay url with the real backend url (self.base_url)
         url = (
             urllib.parse.urlparse(request.url)
-            ._replace(netloc=self.base_url.netloc)
+            ._replace(netloc=self.base_url.netloc, scheme=self.base_url.scheme)
             .geturl()
         )
         headers = {key: value for (key, value) in request.headers if key != "Host"}

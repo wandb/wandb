@@ -534,19 +534,20 @@ message Response {
 message DeferRequest {
   enum DeferState {
     BEGIN = 0;
-    FLUSH_STATS = 1;
-    FLUSH_PARTIAL_HISTORY = 2;
-    FLUSH_TB = 3;
-    FLUSH_SUM = 4;
-    FLUSH_DEBOUNCER = 5;
-    FLUSH_OUTPUT = 6;
-    FLUSH_JOB = 7;
-    FLUSH_DIR = 8;
-    FLUSH_FP = 9;
-    JOIN_FP = 10;
-    FLUSH_FS = 11;
-    FLUSH_FINAL = 12;
-    END = 13;
+    FLUSH_RUN = 1;
+    FLUSH_STATS = 2;
+    FLUSH_PARTIAL_HISTORY = 3;
+    FLUSH_TB = 4;
+    FLUSH_SUM = 5;
+    FLUSH_DEBOUNCER = 6;
+    FLUSH_OUTPUT = 7;
+    FLUSH_JOB = 8;
+    FLUSH_DIR = 9;
+    FLUSH_FP = 10;
+    JOIN_FP = 11;
+    FLUSH_FS = 12;
+    FLUSH_FINAL = 13;
+    END = 14;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -874,8 +875,8 @@ message KeepaliveResponse {
 }
 
 /*
-* UseArtifact:
-*/
+ * UseArtifact:
+ */
 message UseArtifactRecord {
   string id = 1;
   string type = 2;

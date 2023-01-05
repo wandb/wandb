@@ -417,8 +417,8 @@ class Settings:
     email: str
     entity: str
     files_dir: str
-    finish_policy: str
-    finish_timeout: float
+    # finish_policy: str  # todo: think through and implement
+    # finish_timeout: float
     force: bool
     git_commit: str
     git_remote: str
@@ -560,11 +560,11 @@ class Settings:
                     self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
                 ),
             },
-            finish_timeout={"value": 86400, "preprocessor": lambda x: float(x)},
-            finish_policy={
-                "value": "fail",
-                "validator": self._validate_finish_policy,
-            },
+            # finish_timeout={"value": 86400, "preprocessor": lambda x: float(x)},
+            # finish_policy={
+            #     "value": "fail",
+            #     "validator": self._validate_finish_policy,
+            # },
             force={"preprocessor": _str_as_bool},
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
@@ -618,7 +618,7 @@ class Settings:
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
-            resume_timeout={"value": 60, "preprocessor": lambda x: float(x)},
+            resume_timeout={"value": 300, "preprocessor": lambda x: float(x)},
             resume_policy={"value": "fail", "validator": self._validate_resume_policy},
             resumed={"value": "False", "preprocessor": _str_as_bool},
             root_dir={
@@ -782,18 +782,18 @@ class Settings:
             )
         return True
 
-    @staticmethod
-    def _validate_finish_policy(value: Any) -> bool:
-        """
-        Validate the finish policy setting
-        """
-        choices = {"fail"}
-        # choices = {"fail", "callscript"}  # todo: add the callscript option
-        if value not in choices:
-            raise ValueError(
-                f"Invalid finish policy: {value}. Must be one of: {choices}"
-            )
-        return True
+    # @staticmethod
+    # def _validate_finish_policy(value: Any) -> bool:
+    #     """
+    #     Validate the finish policy setting
+    #     """
+    #     choices = {"fail"}
+    #     # choices = {"fail", "callscript"}  # todo: add the callscript option
+    #     if value not in choices:
+    #         raise ValueError(
+    #             f"Invalid finish policy: {value}. Must be one of: {choices}"
+    #         )
+    #     return True
 
     @staticmethod
     def _validate_start_method(value: str) -> bool:

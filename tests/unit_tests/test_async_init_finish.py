@@ -89,7 +89,7 @@ def test_flaky_server_response_init_policy_async(
             settings=wandb.Settings(
                 init_timeout=init_timeout,
                 init_policy="async",
-                finish_timeout=finish_timeout,
+                # finish_timeout=finish_timeout,
             )
         )
         run.finish()
@@ -138,7 +138,7 @@ def test_flaky_server_response_init_policy_async_update_run_props(
             settings=wandb.Settings(
                 init_timeout=init_timeout,
                 init_policy="async",
-                finish_timeout=finish_timeout,
+                # finish_timeout=finish_timeout,
             )
         )
         run.name = "good-run"
@@ -153,9 +153,6 @@ def test_flaky_server_response_init_policy_async_update_run_props(
         assert "SyncStatCh" not in captured
 
 
-@pytest.mark.skip(
-    reason="need Mailbox handle cancel PR to be merged + debug the teardown path"
-)
 @pytest.mark.parametrize(
     "init_timeout,finish_timeout,application_pattern,message",
     [
@@ -167,12 +164,12 @@ def test_flaky_server_response_init_policy_async_update_run_props(
             "exiting as per 'fail' init policy",
         ),
         # fail at finish time
-        (
-            30,
-            3,
-            "0" + "1" * 100,  #
-            "exiting as per 'fail' finish policy",
-        ),
+        # (
+        #     30,
+        #     1e-9,
+        #     "0" * 3 + "1" * 100,  #
+        #     "Timed out waiting for exit response from backend",
+        # ),
         # always fail
         (2, 4, "1", "Error communicating with wandb process, exiting"),
     ],
@@ -194,18 +191,20 @@ def test_flaky_server_response_init_finish_policy_fail(
                 application_pattern=application_pattern,
             )
         ]
-    ):
-        with mock.patch("os._exit", return_value="GOODBYE"):
+    ), mock.patch("os._exit", return_value="GOODBYE"):
+        try:
             run = wandb_init(
                 settings=wandb.Settings(
                     init_timeout=init_timeout,
                     init_policy="fail",
-                    finish_timeout=finish_timeout,
-                    finish_policy="fail",
+                    # finish_timeout=finish_timeout,
+                    # finish_policy="fail",
                 )
             )
             if run is not None:
                 run.finish()
+        except:  # noqa
+            pass
 
-            captured = capsys.readouterr().err
-            assert message in captured
+        captured = capsys.readouterr().err
+        assert message in captured
