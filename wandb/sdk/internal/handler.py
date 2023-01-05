@@ -232,7 +232,9 @@ class HandleManager:
         elif not self._settings._offline:
             # Send this summary update as a request since we arent persisting every update
             summary_record = SummaryRecordRequest(summary=summary)
-            request_record = self._interface._make_request(summary_record=summary_record)
+            request_record = self._interface._make_request(
+                summary_record=summary_record
+            )
             tracelog.log_message_queue(request_record, self._writer_q)
             self._writer_q.put(request_record)
 
