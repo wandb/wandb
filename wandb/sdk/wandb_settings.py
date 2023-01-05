@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import platform
 import re
+import shutil
 import socket
 import sys
 import tempfile
@@ -1396,9 +1397,11 @@ class Settings:
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
 
-        # one special case here is running inside a PEX environment,
-        # see https://pex.readthedocs.io/en/latest/index.html for more info about PEX
-        _executable = self._executable or os.environ.get("PEX") or sys.executable
+        _executable = (
+            os.environ.get(wandb.env._EXECUTABLE, self._executable)
+            or sys.executable
+            or shutil.which("python")
+        )
         if _executable is None or _executable == "":
             _executable = "python3"
         settings["_executable"] = _executable
