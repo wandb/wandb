@@ -405,7 +405,6 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
-
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
         assert self._stub
         self._assign(run_start)
