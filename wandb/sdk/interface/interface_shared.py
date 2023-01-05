@@ -139,6 +139,7 @@ class InterfaceShared(InterfaceBase):
         server_info: Optional[pb.ServerInfoRequest] = None,
         keepalive: Optional[pb.KeepaliveRequest] = None,
         run_status: Optional[pb.RunStatusRequest] = None,
+        sender_mark: Optional[pb.SenderMarkRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
@@ -184,6 +185,8 @@ class InterfaceShared(InterfaceBase):
             request.keepalive.CopyFrom(keepalive)
         elif run_status:
             request.run_status.CopyFrom(run_status)
+        elif sender_mark:
+            request.sender_mark.CopyFrom(sender_mark)
         elif cancel:
             request.cancel.CopyFrom(cancel)
         else:

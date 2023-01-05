@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Set
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from ..interface.interface_queue import InterfaceQueue
 from ..lib import proto_util, telemetry, tracelog
 from . import context, datastore, flow_control
 from .settings_static import SettingsStatic
@@ -22,10 +23,12 @@ class WriteManager:
     _record_q: "Queue[pb.Record]"
     _result_q: "Queue[pb.Result]"
     _sender_q: "Queue[pb.Record]"
+    _interface: InterfaceQueue
+    _context_keeper: context.ContextKeeper
+
     _ds: Optional[datastore.DataStore]
     _flow_control: Optional[flow_control.FlowControl]
     _status_report: Optional["pb.StatusReportRequest"]
-    _context_keeper: context.ContextKeeper
     _sender_cancel_set: Set[str]
     _record_num: int
     _telemetry_obj: tpb.TelemetryRecord
@@ -37,13 +40,16 @@ class WriteManager:
         record_q: "Queue[pb.Record]",
         result_q: "Queue[pb.Result]",
         sender_q: "Queue[pb.Record]",
+        interface: InterfaceQueue,
         context_keeper: context.ContextKeeper,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._sender_q = sender_q
+        self._interface = interface
         self._context_keeper = context_keeper
+
         self._sender_cancel_set = set()
         self._ds = None
         self._flow_control = None
@@ -78,11 +84,8 @@ class WriteManager:
         self._sender_q.put(record)
 
     def _send_mark(self) -> None:
-        record = pb.Record()
-        request = pb.Request()
         sender_mark = pb.SenderMarkRequest()
-        request.sender_mark.CopyFrom(sender_mark)
-        record.request.CopyFrom(request)
+        record = self._interface._make_request(sender_mark=sender_mark)
         self._forward_record(record)
 
     def _maybe_update_telemetry(self) -> None:
