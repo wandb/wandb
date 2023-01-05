@@ -545,6 +545,10 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(run=run)
         return self._deliver_record(record)
 
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        record = self._make_request(run_start=run_start)
+        return self._deliver_record(record)
+
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         record = self._make_request(get_summary=get_summary)
         return self._deliver_record(record)
@@ -555,6 +559,16 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
         record = self._make_request(poll_exit=poll_exit)
+        return self._deliver_record(record)
+
+    def _deliver_stop_status(self, stop_status: pb.StopStatusRequest) -> MailboxHandle:
+        record = self._make_request(stop_status=stop_status)
+        return self._deliver_record(record)
+
+    def _deliver_network_status(
+        self, network_status: pb.NetworkStatusRequest
+    ) -> MailboxHandle:
+        record = self._make_request(network_status=network_status)
         return self._deliver_record(record)
 
     def _deliver_request_server_info(
