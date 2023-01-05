@@ -256,7 +256,6 @@ class InterfaceGrpc(InterfaceBase):
     def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
         assert self._stub
         self._assign(status)
-        # TODO: implement
         stop_status_response = pb.StopStatusResponse()
         response = pb.Response(stop_status_response=stop_status_response)
         result = pb.Result(response=response)
