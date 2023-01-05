@@ -214,7 +214,7 @@ class LaunchAgent:
                                 self.run_job(job)
                             except Exception as e:
                                 wandb.termerror(f"Error running job: {e}")
-                                self._api.mark_run_queue_item_broken(
+                                self._api.mark_unclaimed_run_queue_item_broken(
                                     job["runQueueItemId"]
                                 )
                 for job_id in self.job_ids:
