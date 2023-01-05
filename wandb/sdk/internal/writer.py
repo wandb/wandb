@@ -1,7 +1,7 @@
 """Writer thread."""
 
 import logging
-from typing import TYPE_CHECKING, Callable, Optional, Set
+from typing import TYPE_CHECKING, Callable, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -29,10 +29,12 @@ class WriteManager:
     _ds: Optional[datastore.DataStore]
     _flow_control: Optional[flow_control.FlowControl]
     _status_report: Optional["pb.StatusReportRequest"]
-    _sender_cancel_set: Set[str]
     _record_num: int
     _telemetry_obj: tpb.TelemetryRecord
     _telemetry_overflow: bool
+
+    # TODO(cancel_paused): implement me
+    # _sender_cancel_set: Set[str]
 
     def __init__(
         self,
@@ -50,7 +52,9 @@ class WriteManager:
         self._interface = interface
         self._context_keeper = context_keeper
 
-        self._sender_cancel_set = set()
+        # TODO(cancel_paused): implement me
+        # self._sender_cancel_set = set()
+
         self._ds = None
         self._flow_control = None
         self._flow_debug = True
@@ -122,8 +126,11 @@ class WriteManager:
         record = pb.Record()
         request = pb.Request()
         sender_read = pb.SenderReadRequest(start_offset=start, final_offset=end)
-        for cancel_id in self._sender_cancel_set:
-            sender_read.cancel_list.append(cancel_id)
+
+        # TODO(cancel_paused): implement me
+        # for cancel_id in self._sender_cancel_set:
+        #     sender_read.cancel_list.append(cancel_id)
+
         request.sender_read.CopyFrom(sender_read)
         record.request.CopyFrom(request)
         self._ensure_flushed(end)
@@ -183,9 +190,12 @@ class WriteManager:
 
     def write_request_cancel(self, record: "pb.Record") -> None:
         cancel_id = record.request.cancel.cancel_slot
-        cancelled = self._context_keeper.cancel(cancel_id)
-        if not cancelled:
-            self._sender_cancel_set.add(cancel_id)
+        self._context_keeper.cancel(cancel_id)
+
+        # TODO(cancel_paused): implement me
+        # cancelled = self._context_keeper.cancel(cancel_id)
+        # if not cancelled:
+        #     self._sender_cancel_set.add(cancel_id)
 
     def _respond_result(self, result: "pb.Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
@@ -196,7 +206,7 @@ class WriteManager:
             self._ds.close()
         if self._flow_control:
             self._flow_control.flush()
-        self._context_keeper._debug_print_orphans(print_to_stdout=self._settings._debug)
+        # self._context_keeper._debug_print_orphans(print_to_stdout=self._settings._debug)
 
     def debounce(self) -> None:
         pass

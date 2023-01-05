@@ -395,6 +395,10 @@ class SendManager:
             self._ds = datastore.DataStore()
             self._ds.open_for_scan(self._settings.sync_file)
 
+        # TODO(cancel_paused): implement cancel_set logic
+        # The idea is that there is an active request to cancel a
+        # message that is being read from the transaction log below
+
         start_offset = record.request.sender_read.start_offset
         final_offset = record.request.sender_read.final_offset
         self._ds.seek(start_offset)

@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 
 class Context:
     _cancel_event: threading.Event
-    _debug_record: Optional[Record]
+    # _debug_record: Optional[Record]
 
     def __init__(self) -> None:
         self._cancel_event = threading.Event()
-        self._debug_record = None
+        # self._debug_record = None
 
     def cancel(self) -> None:
         self._cancel_event.set()
@@ -48,7 +48,7 @@ class ContextKeeper:
         context_obj = self.add(context_id)
 
         # TODO: add debug setting to enable this
-        context_obj._debug_record = record
+        # context_obj._debug_record = record
 
         return context_obj
 
@@ -74,13 +74,13 @@ class ContextKeeper:
             return True
         return False
 
-    def _debug_print_orphans(self, print_to_stdout: bool) -> None:
-        for context_id, context in self._active_items.items():
-            record = context._debug_record
-            record_type = record.WhichOneof("record_type") if record else "unknown"
-            message = (
-                f"Context: {context_id} {context.cancel_event.is_set()} {record_type}"
-            )
-            logger.warning(message)
-            if print_to_stdout:
-                print(message)
+    # def _debug_print_orphans(self, print_to_stdout: bool) -> None:
+    #     for context_id, context in self._active_items.items():
+    #         record = context._debug_record
+    #         record_type = record.WhichOneof("record_type") if record else "unknown"
+    #         message = (
+    #             f"Context: {context_id} {context.cancel_event.is_set()} {record_type}"
+    #         )
+    #         logger.warning(message)
+    #         if print_to_stdout:
+    #             print(message)
