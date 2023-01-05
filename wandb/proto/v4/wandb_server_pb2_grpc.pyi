@@ -102,6 +102,10 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.LinkArtifactRecord,
         wandb.proto.wandb_internal_pb2.LinkArtifactResult,
     ]
+    UseArtifact: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.UseArtifactRecord,
+        wandb.proto.wandb_internal_pb2.UseArtifactResult,
+    ]
     ArtifactSend: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
         wandb.proto.wandb_internal_pb2.ArtifactSendResponse,
@@ -110,6 +114,10 @@ class InternalServiceStub:
     ArtifactPoll: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         wandb.proto.wandb_internal_pb2.ArtifactPollResponse,
+    ]
+    Cancel: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.CancelRequest,
+        wandb.proto.wandb_internal_pb2.CancelResponse,
     ]
     Keepalive: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.KeepaliveRequest,
@@ -304,6 +312,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.LinkArtifactResult: ...
     @abc.abstractmethod
+    def UseArtifact(
+        self,
+        request: wandb.proto.wandb_internal_pb2.UseArtifactRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.UseArtifactResult: ...
+    @abc.abstractmethod
     def ArtifactSend(
         self,
         request: wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
@@ -316,6 +330,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
+    @abc.abstractmethod
+    def Cancel(
+        self,
+        request: wandb.proto.wandb_internal_pb2.CancelRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.CancelResponse: ...
     @abc.abstractmethod
     def Keepalive(
         self,

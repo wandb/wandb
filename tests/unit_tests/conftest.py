@@ -14,7 +14,7 @@ import threading
 import time
 import unittest.mock
 import urllib.parse
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Sequence
 from contextlib import contextmanager
 from copy import deepcopy
@@ -45,10 +45,11 @@ import wandb.util
 from click.testing import CliRunner
 from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 
@@ -58,6 +59,7 @@ except ImportError:
     from typing_extensions import Literal, TypedDict
 
 if TYPE_CHECKING:
+    from typing import Deque
 
     class RawRequestResponse(TypedDict):
         url: str
@@ -413,7 +415,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             **{
-                "run_id": wandb.util.generate_id(),
+                "run_id": runid.generate_id(),
             },
             **kwargs_settings,
         }
@@ -486,11 +488,18 @@ def _internal_sender(
 
 
 @pytest.fixture()
+def _internal_context_keeper():
+    context_keeper = context.ContextKeeper()
+    yield context_keeper
+
+
+@pytest.fixture()
 def internal_sm(
     runner,
     internal_sender_q,
     internal_result_q,
     _internal_sender,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -499,6 +508,7 @@ def internal_sm(
                 record_q=internal_sender_q,
                 result_q=internal_result_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
             )
             return sm
 
@@ -520,6 +530,7 @@ def internal_hm(
     internal_writer_q,
     _internal_sender,
     stopped_event,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -531,6 +542,7 @@ def internal_hm(
                 sender_q=internal_sender_q,
                 writer_q=internal_writer_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
             )
             return hm
 
@@ -1338,16 +1350,63 @@ class QueryResolver:
         return None
 
 
+class TokenizedCircularPattern:
+    APPLY_TOKEN = "1"
+    PASS_TOKEN = "0"
+    STOP_TOKEN = "2"
+
+    def __init__(self, pattern: str):
+        known_tokens = {self.APPLY_TOKEN, self.PASS_TOKEN, self.STOP_TOKEN}
+        if not pattern:
+            raise ValueError("Pattern cannot be empty")
+
+        if set(pattern) - known_tokens:
+            raise ValueError(f"Pattern can only contain {known_tokens}")
+        self.pattern: "Deque[str]" = deque(pattern)
+
+    def next(self):
+        if self.pattern[0] == self.STOP_TOKEN:
+            return
+        self.pattern.rotate(-1)
+
+    def should_apply(self) -> bool:
+        return self.pattern[0] == self.APPLY_TOKEN
+
+
 @dataclasses.dataclass
 class InjectedResponse:
     method: str
     url: str
     body: Union[str, Exception]
-    # json: Optional[Dict[str, Any]] = None
     status: int = 200
     content_type: str = "text/plain"
     # todo: add more fields for other types of responses?
-    counter: int = -1
+    custom_match_fn: Optional[Callable[..., bool]] = None
+    application_pattern: TokenizedCircularPattern = TokenizedCircularPattern("1")
+
+    # application_pattern defines the pattern of the response injection
+    # as the requests come in.
+    # 0 == do not inject the response
+    # 1 == inject the response
+    # 2 == stop using the response (END token)
+    #
+    # - when no END token is present, the pattern is repeated indefinitely
+    # - when END token is present, the pattern is applied until the END token is reached
+    # - to replicate the current behavior:
+    #  - use application_pattern = "1" if wanting to apply the pattern to all requests
+    #  - use application_pattern = "1" * COUNTER + "2" to apply the pattern to the first COUNTER requests
+    #
+    # Examples of application_pattern:
+    # 1. application_pattern = "1012"
+    #    - inject the response for the first request
+    #    - do not inject the response for the second request
+    #    - inject the response for the third request
+    #    - stop using the response starting from the fourth request onwards
+    # 2. application_pattern = "110"
+    #    repeat the following pattern indefinitely:
+    #    - inject the response for the first request
+    #    - inject the response for the second request
+    #    - stop using the response for the third request
 
     def __eq__(
         self,
@@ -1364,16 +1423,20 @@ class InjectedResponse:
             other, (InjectedResponse, requests.Request, requests.PreparedRequest)
         ):
             return False
-        if self.counter == 0:
-            return False
-        # todo: add more fields for other types of responses?
-        return self.method == other.method and self.url == other.url
+
+        # always check the method and url
+        ret = self.method == other.method and self.url == other.url
+        # use custom_match_fn to check, e.g. the request body content
+        if self.custom_match_fn is not None:
+            ret = ret and self.custom_match_fn(self, other)
+        return ret
 
     def to_dict(self):
+        excluded_fields = {"application_pattern", "custom_match_fn"}
         return {
             k: self.__getattribute__(k)
             for k in self.__dict__
-            if (not k.startswith("_") and k != "counter")
+            if (not k.startswith("_") and k not in excluded_fields)
         }
 
 
@@ -1421,6 +1484,7 @@ class RelayServer:
 
         # recursively merge-able object to store state
         self.resolver = QueryResolver()
+        # todo: add an option to add custom resolvers
         self.context = Context()
 
         # injected responses
@@ -1467,7 +1531,7 @@ class RelayServer:
         # replace the relay url with the real backend url (self.base_url)
         url = (
             urllib.parse.urlparse(request.url)
-            ._replace(netloc=self.base_url.netloc)
+            ._replace(netloc=self.base_url.netloc, scheme=self.base_url.scheme)
             .geturl()
         )
         headers = {key: value for (key, value) in request.headers if key != "Host"}
@@ -1480,16 +1544,19 @@ class RelayServer:
         ).prepare()
 
         for injected_response in self.inject:
+            # where are we in the application pattern?
+            should_apply = injected_response.application_pattern.should_apply()
             # check if an injected response matches the request
             if injected_response == prepared_relayed_request:
-                with responses.RequestsMock() as mocked_responses:
-                    # do the actual injection
-                    mocked_responses.add(**injected_response.to_dict())
-                    # ensure we don't apply this more times than requested
-                    injected_response.counter -= 1
-                    relayed_response = self.session.send(prepared_relayed_request)
+                # rotate the injection pattern
+                injected_response.application_pattern.next()
+                if should_apply:
+                    with responses.RequestsMock() as mocked_responses:
+                        # do the actual injection
+                        mocked_responses.add(**injected_response.to_dict())
+                        relayed_response = self.session.send(prepared_relayed_request)
 
-                    return relayed_response
+                        return relayed_response
 
         # normal case: no injected response matches the request
         relayed_response = self.session.send(prepared_relayed_request)
@@ -1716,7 +1783,7 @@ def inject_file_stream_response(base_url, user):
         run,
         body: Union[str, Exception] = "{}",
         status: int = 200,
-        counter: int = -1,
+        application_pattern: str = "1",
     ) -> InjectedResponse:
 
         if status > 299:
@@ -1732,7 +1799,7 @@ def inject_file_stream_response(base_url, user):
             ),
             body=body,
             status=status,
-            counter=counter,
+            application_pattern=TokenizedCircularPattern(application_pattern),
         )
 
     yield helper

@@ -391,11 +391,9 @@ def test_wandb_artifact_config_update(
 
 def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
     _ = git_repo_fn(commit_msg="initial commit")
-    test_settings.update(
-        {"enable_job_creation": True, "program_relpath": "./blah/test_program.py"}
-    )
-    run = wandb.init(settings=test_settings)
-    run.finish()
+    test_settings.update({"program_relpath": "./blah/test_program.py"})
+    with wandb.init(settings=test_settings) as run:
+        run.log({"test": 1})
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
     assert artifact_name == wandb.util.make_artifact_name_safe(
@@ -409,7 +407,6 @@ def test_artifact_job_creation(live_mock_server, test_settings, runner):
             f.write('print("test")')
         test_settings.update(
             {
-                "enable_job_creation": True,
                 "disable_git": True,
                 "program_relpath": "./blah/test_program.py",
             }
@@ -424,7 +421,7 @@ def test_artifact_job_creation(live_mock_server, test_settings, runner):
 
 
 def test_container_job_creation(live_mock_server, test_settings):
-    test_settings.update({"enable_job_creation": True, "disable_git": True})
+    test_settings.update({"disable_git": True})
     with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:v0"):
         run = wandb.init(settings=test_settings)
         run.finish()
