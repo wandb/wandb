@@ -192,11 +192,11 @@ class Backend:
             self._ensure_launched_manager()
             return
 
-        self.record_q = queue.Queue()
-        self.result_q = queue.Queue()
         user_pid = os.getpid()
 
         if start_method == "thread":
+            self.record_q = queue.Queue()
+            self.result_q = queue.Queue()
             wandb._set_internal_process(disable=True)  # type: ignore
             wandb_thread = BackendThread(
                 target=wandb_internal,
@@ -210,6 +210,8 @@ class Backend:
             # TODO: risky cast, assumes BackendThread Process duck typing
             self.wandb_process = wandb_thread  # type: ignore
         else:
+            self.record_q = self._multiprocessing.Queue()
+            self.result_q = self._multiprocessing.Queue()
             self.wandb_process = self._multiprocessing.Process(  # type: ignore
                 target=wandb_internal,
                 kwargs=dict(
@@ -257,4 +259,9 @@ class Backend:
             self.interface.join()
         if self.wandb_process:
             self.wandb_process.join()
+
+        if self.record_q and hasattr(self.record_q, "close"):
+            self.record_q.close()
+        if self.result_q and hasattr(self.result_q, "close"):
+            self.result_q.close()
         # No printing allowed from here until redirect restore!!!
