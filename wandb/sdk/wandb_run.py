@@ -2131,7 +2131,6 @@ class Run:
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(
                 interface=self._backend.interface,
-                run=self,
             )
             self._run_status_checker.start()
 
