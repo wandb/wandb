@@ -1,4 +1,4 @@
-from unittest.mock import DEFAULT, Mock
+from unittest.mock import Mock
 
 import pytest
 from wandb.sdk.internal import file_pusher, file_stream, internal_api
@@ -93,12 +93,8 @@ class SomeCustomError(Exception):
             )
         ),
         make_api(
-            create_artifact_manifest=Mock(
-                wraps=make_api().create_artifact_manifest,
-                side_effect=[
-                    DEFAULT,
-                    SomeCustomError("create_artifact_manifest failed"),
-                ],
+            upload_file_retry=Mock(
+                side_effect=SomeCustomError("upload_file_retry failed")
             )
         ),
         make_api(
