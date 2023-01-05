@@ -694,12 +694,13 @@ class _WandbInit:
         else:
             error: Optional["wandb.errors.Error"] = None
 
-            logger.info(
-                f"communicating run to backend with {self.settings.init_timeout} second timeout"
-            )
-            handle = backend.interface.deliver_run(run_proto)
-            result = handle.wait(
-                timeout=self.settings.init_timeout,
+            timeout = self.settings.init_timeout
+
+            logger.info(f"communicating run to backend with {timeout} second timeout")
+
+            run_init_handle = backend.interface.deliver_run(run_proto)
+            result = run_init_handle.wait(
+                timeout=timeout,
                 on_progress=self._on_progress_init,
                 cancel=True,
             )
@@ -707,13 +708,10 @@ class _WandbInit:
                 run_result = result.run_result
 
             if not run_result:
-                error_message = (
-                    "Error communicating with wandb process, "
-                    "exiting as per 'fail' init policy."
-                )
+                error_message = "Error communicating with wandb process, exiting..."
                 error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
                 logger.error(
-                    "backend process timed out, exiting as per 'fail' policy\n"
+                    "backend process timed out, exiting...\n"
                     f"encountered error: {error_message}"
                 )
                 error = CommError(error_message)
