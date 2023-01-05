@@ -81,7 +81,7 @@ class HandleManager:
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
-    _context_manaager: context.ContextKeeper
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
