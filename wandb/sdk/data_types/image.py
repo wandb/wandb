@@ -7,6 +7,7 @@ from urllib import parse
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -296,7 +297,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, str(util.generate_id()) + ".png")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".png")
         self.format = "png"
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)

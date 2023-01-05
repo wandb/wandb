@@ -1,11 +1,7 @@
-import base64
-import binascii
-import codecs
 import colorsys
 import contextlib
 import functools
 import gzip
-import hashlib
 import importlib
 import importlib.util
 import json
@@ -53,7 +49,6 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-import shortuuid  # type: ignore
 import yaml
 
 import wandb
@@ -68,11 +63,6 @@ if TYPE_CHECKING:
     import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
-
-ETag = NewType("ETag", str)
-RawMD5 = NewType("RawMD5", bytes)
-HexMD5 = NewType("HexMD5", str)
-B64MD5 = NewType("B64MD5", str)
 
 # `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
 # It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
@@ -316,7 +306,12 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
+    vendor_packages = (
+        "gql-0.2.0",
+        "graphql-core-1.1",
+        "watchdog_0_9_0",
+        "promise-2.3.0",
+    )
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -547,7 +542,7 @@ def is_pytorch_tensor_typename(typename: str) -> bool:
 
 
 def is_jax_tensor_typename(typename: str) -> bool:
-    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+    return typename.startswith("jaxlib.") and "Array" in typename
 
 
 def get_jax_tensor(obj: Any) -> Optional[Any]:
@@ -798,6 +793,10 @@ def json_friendly_val(val: Any) -> Any:
         return val
 
 
+def alias_is_version_index(alias: str) -> bool:
+    return len(alias) >= 2 and alias[0] == "v" and alias[1:].isnumeric()
+
+
 def convert_plots(obj: Any) -> Any:
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
@@ -864,12 +863,6 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
             launch_browser = False
 
     return launch_browser
-
-
-def generate_id(length: int = 8) -> str:
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return str(run_gen.random(length))
 
 
 def parse_tfjob_config() -> Any:
@@ -1030,7 +1023,7 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
 
 
 def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
-    """Check if the exception is a conflict or gone type so it can be retried or not.
+    """Check if the exception is a conflict or gone type, so it can be retried or not.
 
     Returns:
         True - Should retry this operation
@@ -1116,14 +1109,6 @@ def downsample(values: Sequence, target_length: int) -> list:
 
 def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
-
-
-def md5_file(path: str) -> B64MD5:
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
 
 
 def get_log_file_path() -> str:
@@ -1493,10 +1478,6 @@ def to_native_slash_path(path: str) -> FilePathStr:
     return FilePathStr(path.replace("/", os.sep))
 
 
-def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
-    return codecs.getencoder("hex")(bytestr)[0].decode("ascii")  # type: ignore
-
-
 def check_and_warn_old(files: List[str]) -> bool:
     if "wandb-metadata.json" in files:
         wandb.termwarn("These runs were logged with a previous version of wandb.")
@@ -1555,14 +1536,6 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
         _import_hook = ImportMetaHook()
         _import_hook.install()
     _import_hook.add(fullname, on_import)
-
-
-def b64_to_hex_id(id_string: Any) -> str:
-    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
-
-
-def hex_to_b64_id(encoded_string: Union[str, bytes]) -> str:
-    return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
 
 
 def host_from_path(path: Optional[str]) -> str:
@@ -1728,7 +1701,7 @@ def artifact_to_json(
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
-        "version": artifact.version,
+        "version": artifact.source_version,
         "sequenceName": sequence_name,
         "usedAs": artifact._use_as,
     }

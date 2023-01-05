@@ -78,6 +78,11 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(run)
         _ = self._stub.RunUpdate(run)
 
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        assert self._stub
+        self._assign(cancel)
+        _ = self._stub.Cancel(cancel)
+
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         assert self._stub
         self._assign(cfg)
@@ -169,6 +174,11 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(link_artifact)
         _ = self._stub.LinkArtifact(link_artifact)
+
+    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> None:
+        assert self._stub
+        self._assign(use_artifact)
+        _ = self._stub.UseArtifact(use_artifact)
 
     def _communicate_artifact(
         self, log_artifact: pb.LogArtifactRequest

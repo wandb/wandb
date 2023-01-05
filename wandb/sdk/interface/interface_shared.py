@@ -69,6 +69,10 @@ class InterfaceShared(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        rec = self._make_request(cancel=cancel)
+        self._publish(rec)
+
     def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
         rec = pb.Record()
         rec.output_raw.CopyFrom(outdata)
@@ -134,6 +138,7 @@ class InterfaceShared(InterfaceBase):
         artifact_done: Optional[pb.ArtifactDoneRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
         keepalive: Optional[pb.KeepaliveRequest] = None,
+        cancel: Optional[pb.CancelRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -176,6 +181,8 @@ class InterfaceShared(InterfaceBase):
             request.server_info.CopyFrom(server_info)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
+        elif cancel:
+            request.cancel.CopyFrom(cancel)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -203,6 +210,7 @@ class InterfaceShared(InterfaceBase):
         telemetry: Optional[tpb.TelemetryRecord] = None,
         preempting: Optional[pb.RunPreemptingRecord] = None,
         link_artifact: Optional[pb.LinkArtifactRecord] = None,
+        use_artifact: Optional[pb.UseArtifactRecord] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -241,6 +249,8 @@ class InterfaceShared(InterfaceBase):
             record.preempting.CopyFrom(preempting)
         elif link_artifact:
             record.link_artifact.CopyFrom(link_artifact)
+        elif use_artifact:
+            record.use_artifact.CopyFrom(use_artifact)
         else:
             raise Exception("Invalid record")
         return record
@@ -371,6 +381,10 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> Any:
         rec = self._make_record(link_artifact=link_artifact)
+        self._publish(rec)
+
+    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> Any:
+        rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
     def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:

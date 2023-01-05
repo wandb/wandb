@@ -89,9 +89,9 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
     def ServerInfo(  # noqa: N802
-        self, poll_exit: pb.ServerInfoRequest, context: grpc.ServicerContext
+        self, server_info: pb.ServerInfoRequest, context: grpc.ServicerContext
     ) -> pb.ServerInfoResponse:
-        stream_id = poll_exit._info.stream_id
+        stream_id = server_info._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
         result = iface.communicate_server_info()
         assert result  # TODO: handle errors
@@ -162,6 +162,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.LinkArtifactResult()
         return result
 
+    def UseArtifact(  # noqa: N802
+        self, use_artifact: pb.UseArtifactRecord, context: grpc.ServicerContext
+    ) -> pb.UseArtifactResult:
+        stream_id = use_artifact._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_use_artifact(use_artifact)
+        result = pb.UseArtifactResult()
+        return result
+
     def ArtifactSend(  # noqa: N802
         self, art_send: pb.ArtifactSendRequest, context: grpc.ServicerContext
     ) -> pb.ArtifactSendResponse:
@@ -179,6 +188,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         resp = iface._communicate_artifact_poll(art_poll)
         assert resp
         return resp
+
+    def Cancel(  # noqa: N802
+        self, cancel: pb.CancelRequest, context: grpc.ServicerContext
+    ) -> pb.CancelResponse:
+        stream_id = cancel._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_cancel(cancel)
+        response = pb.CancelResponse()
+        return response
 
     def Keepalive(  # noqa: N802
         self, keepalive: pb.KeepaliveRequest, context: grpc.ServicerContext
@@ -363,6 +381,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
+        self._mux.start_stream(stream_id)
         result = spb.ServerInformStartResponse()
         return result
 

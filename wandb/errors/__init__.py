@@ -1,3 +1,19 @@
+__all__ = [
+    "Error",
+    "UsageError",
+    "CommError",
+    "LogError",
+    "DockerError",
+    "LogMultiprocessError",
+    "MultiprocessError",
+    "RequireError",
+    "ExecutionError",
+    "LaunchError",
+    "SweepError",
+    "WaitTimeoutError",
+    "ContextCancelledError",
+]
+
 from typing import List, Optional
 
 
@@ -114,17 +130,7 @@ class MailboxError(Error):
     pass
 
 
-__all__ = [
-    "Error",
-    "UsageError",
-    "CommError",
-    "LogError",
-    "DockerError",
-    "LogMultiprocessError",
-    "MultiprocessError",
-    "RequireError",
-    "ExecutionError",
-    "LaunchError",
-    "SweepError",
-    "WaitTimeoutError",
-]
+class ContextCancelledError(Error):
+    """Context cancelled Exception"""
+
+    pass
