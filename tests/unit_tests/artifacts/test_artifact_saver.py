@@ -80,6 +80,7 @@ class SomeCustomError(Exception):
     pass
 
 
+@pytest.mark.timeout(1)
 @pytest.mark.parametrize(
     "api",
     [
