@@ -68,8 +68,6 @@ class StateContext:
 
 
 class FlowControl:
-    # _telemetry_obj: tpb.TelemetryRecord
-    # _telemetry_overflow: bool
     _fsm: fsm.FsmWithContext["Record", StateContext]
 
     def __init__(
@@ -77,7 +75,7 @@ class FlowControl:
         settings: SettingsStatic,
         forward_record: Callable[["Record"], None],
         write_record: Callable[["Record"], int],
-        send_mark: Callable[[], None],
+        pause_marker: Callable[[], None],
         recover_records: Callable[[int, int], None],
         _threshold_bytes_high: int = 4 * 1024 * 1024,  # 4MiB
         _threshold_bytes_mid: int = 2 * 1024 * 1024,  # 2MiB
@@ -90,13 +88,10 @@ class FlowControl:
             _threshold_bytes_mid = settings._ram_buffer // 2
             _threshold_bytes_low = settings._ram_buffer // 4
 
-        # self._telemetry_obj = tpb.TelemetryRecord()
-        # self._telemetry_overflow = False
-
         # FSM definition
         state_forwarding = StateForwarding(
             forward_record=forward_record,
-            send_mark=send_mark,
+            pause_marker=pause_marker,
             threshold_pause=_threshold_bytes_high,
         )
         state_pausing = StatePausing(
@@ -134,16 +129,6 @@ class FlowControl:
                 ],
             },
         )
-
-    # def _telemetry_record_overflow(self) -> None:
-    #     if self._telemetry_overflow:
-    #         return
-    #     self._telemetry_overflow = True
-    #     with telemetry.context(obj=self._telemetry_obj) as tel:
-    #         tel.feature.flow_control_overflow = True
-    #     record = pb.Record()
-    #     record.telemetry.CopyFrom(self._telemetry_obj)
-    #     self._forward_record(record)
 
     def flush(self) -> None:
         # TODO(mempressure): what do we do here, how do we make sure we dont have work in pause state
@@ -196,25 +181,25 @@ class StateShared:
 
 class StateForwarding(StateShared):
     _forward_record: Callable[["Record"], None]
-    _send_mark: Callable[[], None]
+    _pause_marker: Callable[[], None]
     _threshold_pause: int
 
     def __init__(
         self,
         forward_record: Callable[["Record"], None],
-        send_mark: Callable[[], None],
+        pause_marker: Callable[[], None],
         threshold_pause: int,
     ) -> None:
         super().__init__()
         self._forward_record = forward_record
-        self._send_mark = send_mark
+        self._pause_marker = pause_marker
         self._threshold_pause = threshold_pause
 
     def _should_pause(self, record: "Record") -> bool:
         return self._behind_bytes >= self._threshold_pause
 
     def _pause(self, record: "Record") -> None:
-        self._send_mark()
+        self._pause_marker()
 
     def on_check(self, record: "Record") -> None:
         self._update_written_offset(record)

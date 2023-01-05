@@ -4,8 +4,9 @@ import logging
 from typing import TYPE_CHECKING, Callable, Optional, Set
 
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from ..lib import proto_util, tracelog
+from ..lib import proto_util, telemetry, tracelog
 from . import context, datastore, flow_control
 from .settings_static import SettingsStatic
 
@@ -27,6 +28,8 @@ class WriteManager:
     _context_keeper: context.ContextKeeper
     _sender_cancel_set: Set[str]
     _record_num: int
+    _telemetry_obj: tpb.TelemetryRecord
+    _telemetry_overflow: bool
 
     def __init__(
         self,
@@ -44,10 +47,11 @@ class WriteManager:
         self._sender_cancel_set = set()
         self._ds = None
         self._flow_control = None
-        self._flow_debug = False
         self._flow_debug = True
         self._status_report = None
         self._record_num = 0
+        self._telemetry_obj = tpb.TelemetryRecord()
+        self._telemetry_overflow = False
 
     def open(self) -> None:
         self._ds = datastore.DataStore()
@@ -63,7 +67,7 @@ class WriteManager:
             settings=self._settings,
             write_record=self._write_record,
             forward_record=self._forward_record,
-            send_mark=self._send_mark,
+            pause_marker=self._pause_marker,
             recover_records=self._recover_records,
             **kwargs,
         )
@@ -81,12 +85,25 @@ class WriteManager:
         record.request.CopyFrom(request)
         self._forward_record(record)
 
+    def _maybe_update_telemetry(self) -> None:
+        if self._telemetry_overflow:
+            return
+        self._telemetry_overflow = True
+        with telemetry.context(obj=self._telemetry_obj) as tel:
+            tel.feature.flow_control_overflow = True
+        record = pb.Record()
+        record.telemetry.CopyFrom(self._telemetry_obj)
+        self._forward_record(record)
+
+    def _pause_marker(self) -> None:
+        self._maybe_update_telemetry()
+        self._send_mark()
+
     def _write_record(self, record: "pb.Record") -> int:
         assert self._ds
 
         self._record_num += 1
         proto_util._assign_record_num(record, self._record_num)
-        # print("WRITE REC", record.num, record)
         ret = self._ds.write(record)
         assert ret is not None
 
@@ -155,7 +172,6 @@ class WriteManager:
             result.response.run_status_response.sync_items_pending = (
                 self._record_num - send_record_num
             )
-        # TODO(mempressure): add logic to populate run_status_response
         self._respond_result(result)
 
     def write_request_status_report(self, record: "pb.Record") -> None:
