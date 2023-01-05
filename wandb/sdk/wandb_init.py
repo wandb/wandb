@@ -694,15 +694,14 @@ class _WandbInit:
         else:
             error: Optional["wandb.errors.Error"] = None
 
-            timeout = self.settings.init_timeout
-
-            logger.info(f"communicating run to backend with {timeout} second timeout")
-
-            run_init_handle = backend.interface.deliver_run(run_proto)
-            result = run_init_handle.wait(
-                timeout=timeout,
+            logger.info(
+                f"communicating run to backend with {self.settings.init_timeout} second timeout"
+            )
+            handle = backend.interface.deliver_run(run_proto)
+            result = handle.wait(
+                timeout=self.settings.init_timeout,
                 on_progress=self._on_progress_init,
-                release=False,
+                cancel=True,
             )
             if result:
                 run_result = result.run_result

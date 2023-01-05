@@ -566,14 +566,14 @@ def internal_wm(
             run_dir = Path(wandb_file).parent
             os.makedirs(run_dir)
 
-            hm = WriteManager(
+            wm = WriteManager(
                 settings=SettingsStatic(settings.make_static()),
                 record_q=internal_writer_q,
                 result_q=internal_result_q,
                 sender_q=internal_sender_q,
                 context_keeper=_internal_context_keeper,
             )
-            return hm
+            return wm
 
     yield helper
 

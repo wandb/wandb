@@ -210,10 +210,6 @@ class Api:
         self._server_settings_type: Optional[List[str]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
-        # print("GQL1", args, kwargs, self.context.cancel_event)
-        # import traceback
-        # traceback.print_stack()
-        # print("GQL2")
         ret = self._retry_gql(
             *args,
             retry_cancel_event=self.context.cancel_event,
