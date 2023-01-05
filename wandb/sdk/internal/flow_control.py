@@ -50,12 +50,12 @@ def _get_request_type(record: "Record") -> Optional[str]:
     return request_type
 
 
-def _is_local_record(record: "Record") -> bool:
-    return record.control.local
-
-
 def _is_control_record(record: "Record") -> bool:
     return record.control.flow_control
+
+
+def _is_local_non_control_record(record: "Record") -> bool:
+    return record.control.local and not record.control.flow_control
 
 
 @dataclass
@@ -239,14 +239,14 @@ class StatePausing(StateShared):
         self._quiesce(record)
 
     def _should_quiesce(self, record: "Record") -> bool:
-        return _is_local_record(record) and not _is_control_record(record)
+        return _is_local_non_control_record(record)
 
     def _quiesce(self, record: "Record") -> None:
         start = self._context.last_forwarded_offset
         end = self._context.last_written_offset
         if start != end:
             self._recover_records(start, end)
-        if _is_local_record(record) and not _is_control_record(record):
+        if _is_local_non_control_record(record):
             self._forward_record(record)
         self._update_forwarded_offset()
 

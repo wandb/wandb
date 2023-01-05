@@ -400,7 +400,6 @@ class SendManager:
         self._ds.seek(start_offset)
 
         current_end_offset = 0
-        # print("SEND_READ", start_offset, final_offset)
         while current_end_offset < final_offset:
             data = self._ds.scan_data()
             assert data
@@ -413,7 +412,6 @@ class SendManager:
 
             # make sure we perform deferred operations
             self.debounce()
-        # print("SEND_READ_DONE", start_offset, final_offset, current_end_offset)
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -509,12 +507,6 @@ class SendManager:
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
-
-    # TODO(mempressure): figure out what to do here, for now this is moved to the handler
-    # def send_request_status(self, record: "Record") -> None:
-    #     assert record.control.req_resp
-    #     result = proto_util._result_from_record(record)
-    #     self._respond_result(result)
 
     def send_request_network_status(self, record: "Record") -> None:
         result = proto_util._result_from_record(record)
@@ -1070,10 +1062,6 @@ class SendManager:
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
-        # print("H:")
-        # import time
-
-        # time.sleep(0.2)
 
     def _update_summary_record(self, summary: "SummaryRecord") -> None:
         summary_dict = proto_util.dict_from_proto_list(summary.update)
