@@ -48,6 +48,7 @@ from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 from . import artifacts, context, datastore, file_stream, internal_api, update
 from .file_pusher import FilePusher
+from .job_builder import JobBuilder
 from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
@@ -258,6 +259,9 @@ class SendManager:
         # internal vars for handing raw console output
         self._output_raw_streams = dict()
         self._output_raw_file = None
+
+        # job builder
+        self._job_builder = JobBuilder(settings)
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
@@ -614,6 +618,9 @@ class SendManager:
             transition_state()
         elif state == defer.FLUSH_OUTPUT:
             self._output_raw_finish()
+            transition_state()
+        elif state == defer.FLUSH_JOB:
+            self._flush_job()
             transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
@@ -1346,6 +1353,15 @@ class SendManager:
             except Exception as e:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
 
+    def send_use_artifact(self, record: "Record") -> None:
+        """
+        This function doesn't actually send anything, it is just used
+        internally
+        """
+        use = record.use_artifact
+        if use.type == "job":
+            self._job_builder.used_job = True
+
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
         result = proto_util._result_from_record(record)
@@ -1426,7 +1442,7 @@ class SendManager:
                 return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        return saver.save(
+        res = saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1440,6 +1456,9 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
+
+        self._job_builder._set_logged_code_artifact(res, artifact)
+        return res
 
     def send_alert(self, record: "Record") -> None:
         from pkg_resources import parse_version
@@ -1511,7 +1530,6 @@ class SendManager:
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
-
         if self._settings._offline:
             local_info.out_of_date = False
             return local_info
@@ -1530,6 +1548,26 @@ class SendManager:
                 "latestVersionString", latest_local_version
             )
         return local_info
+
+    def _flush_job(self) -> None:
+        self._job_builder.set_config(
+            {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
+        )
+        summary_dict = self._cached_summary.copy()
+        summary_dict.pop("_wandb", None)
+        self._job_builder.set_summary(summary_dict)
+        if not self._settings.get("_offline", False) and not self._job_builder.used_job:
+            artifact = self._job_builder.build()
+            if artifact is not None and self._run is not None:
+                proto_artifact = self._interface._make_artifact(artifact)
+                proto_artifact.run_id = self._run.run_id
+                proto_artifact.project = self._run.project
+                proto_artifact.entity = self._run.entity
+                proto_artifact.user_created = True
+                proto_artifact.use_after_commit = True
+                proto_artifact.finalize = True
+
+                self._interface._publish_artifact(proto_artifact)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)

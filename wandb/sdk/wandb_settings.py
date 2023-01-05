@@ -422,7 +422,6 @@ class Settings:
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
-    enable_job_creation: bool
     entity: str
     files_dir: str
     # finish_policy: str  # todo: think through and implement
@@ -568,7 +567,6 @@ class Settings:
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
-            enable_job_creation={"preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(

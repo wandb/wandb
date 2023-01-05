@@ -45,6 +45,7 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
+    UseArtifactRecord use_artifact = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -550,12 +551,13 @@ message DeferRequest {
     FLUSH_SUM = 5;
     FLUSH_DEBOUNCER = 6;
     FLUSH_OUTPUT = 7;
-    FLUSH_DIR = 8;
-    FLUSH_FP = 9;
-    JOIN_FP = 10;
-    FLUSH_FS = 11;
-    FLUSH_FINAL = 12;
-    END = 13;
+    FLUSH_JOB = 8;
+    FLUSH_DIR = 9;
+    FLUSH_FP = 10;
+    JOIN_FP = 11;
+    FLUSH_FS = 12;
+    FLUSH_FINAL = 13;
+    END = 14;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -913,6 +915,20 @@ message KeepaliveRequest {
 }
 
 message KeepaliveResponse {
+}
+
+/*
+ * UseArtifact:
+ */
+message UseArtifactRecord {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  
+  _RecordInfo     _info = 200;
+}
+
+message UseArtifactResult {
 }
 
 /*

@@ -79,7 +79,6 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
@@ -630,7 +629,6 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
-        self._code_artifact_info: Optional[Dict[str, str]] = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -1138,7 +1136,6 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        self._code_artifact_info = {"name": name, "client_id": art._client_id}
 
         return self._log_artifact(art)
 
@@ -2262,39 +2259,6 @@ class Run:
 
         return installed_packages_list, input_types, output_types
 
-    def _log_job(self) -> None:
-        # don't produce a job if the run is sourced from a job
-        if (
-            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
-            is not None
-        ):
-            return
-
-        artifact = None
-        (
-            installed_packages_list,
-            input_types,
-            output_types,
-        ) = self._make_job_source_reqs()
-
-        for job_creation_function in [
-            self._create_repo_job,
-            self._create_artifact_job,
-            self._create_image_job,
-        ]:
-            artifact = job_creation_function(  # type: ignore
-                input_types, output_types, installed_packages_list
-            )
-
-            if artifact:
-                self.use_artifact(artifact)
-                logger.info(f"Created job using {job_creation_function.__name__}")
-                break
-            else:
-                logger.info(
-                    f"Failed to create job using {job_creation_function.__name__}"
-                )
-
     def _construct_job_artifact(
         self,
         name: str,
@@ -2310,83 +2274,6 @@ class Run:
         with job_artifact.new_file("wandb-job.json") as f:
             f.write(json.dumps(source_dict))
 
-        return job_artifact
-
-    def _create_repo_job(
-        self,
-        input_types: Dict[str, Any],
-        output_types: Dict[str, Any],
-        installed_packages_list: List[str],
-    ) -> Optional["Artifact"]:
-        """Create a job version artifact from a repo."""
-        has_repo = self._remote_url is not None and self._commit is not None
-        program_relpath = self._settings.program_relpath
-        if not has_repo or program_relpath is None:
-            return None
-        assert self._remote_url is not None
-        assert self._commit is not None
-        name = wandb.util.make_artifact_name_safe(
-            f"job-{self._remote_url}_{program_relpath}"
-        )
-        patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
-
-        source_info: JobSourceDict = {
-            "_version": "v0",
-            "source_type": "repo",
-            "source": {
-                "git": {
-                    "remote": self._remote_url,
-                    "commit": self._commit,
-                },
-                "entrypoint": [
-                    sys.executable.split("/")[-1],
-                    program_relpath,
-                ],
-                "args": self._settings._args,
-            },
-            "input_types": input_types,
-            "output_types": output_types,
-            "runtime": self._settings._python,
-        }
-
-        job_artifact = self._construct_job_artifact(
-            name, source_info, installed_packages_list, patch_path
-        )
-        return job_artifact
-
-    def _create_artifact_job(
-        self,
-        input_types: Dict[str, Any],
-        output_types: Dict[str, Any],
-        installed_packages_list: List[str],
-    ) -> Optional["Artifact"]:
-        if (
-            self._code_artifact_info is None
-            or self._run_obj is None
-            or self._settings.program_relpath is None
-        ):
-            return None
-        artifact_client_id = self._code_artifact_info.get("client_id")
-        name = f"job-{self._code_artifact_info['name']}"
-
-        source_info: JobSourceDict = {
-            "_version": "v0",
-            "source_type": "artifact",
-            "source": {
-                "artifact": f"wandb-artifact://_id/{artifact_client_id}",
-                "entrypoint": [
-                    sys.executable.split("/")[-1],
-                    self._settings.program_relpath,
-                ],
-                "args": self._settings._args,
-            },
-            "input_types": input_types,
-            "output_types": output_types,
-            "runtime": self._settings._python,
-        }
-        job_artifact = self._construct_job_artifact(
-            name, source_info, installed_packages_list
-        )
         return job_artifact
 
     def _create_image_job(
@@ -2464,9 +2351,6 @@ class Run:
 
         if self._run_status_checker is not None:
             self._run_status_checker.stop()
-
-        if not self._settings._offline and self._settings.enable_job_creation:
-            self._log_job()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
@@ -2832,7 +2716,6 @@ class Run:
                 artifact.id,
                 use_as=use_as or artifact_or_name,
             )
-            return artifact
         else:
             artifact = artifact_or_name
             if aliases is None:
@@ -2852,7 +2735,6 @@ class Run:
                 )
                 artifact.wait()
                 artifact._use_as = use_as or artifact.name
-                return artifact
             elif isinstance(artifact, public.Artifact):
                 if (
                     self._launch_artifact_mapping
@@ -2866,12 +2748,14 @@ class Run:
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
                 )
-                return artifact
             else:
                 raise ValueError(
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_use_artifact(artifact)
+        return artifact
 
     @_run_decorator._attach
     def log_artifact(
