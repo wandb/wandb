@@ -562,10 +562,6 @@ class SendManager:
     def _flush_run(self) -> None:
         pass
 
-    def send_request_run_done(self, record: "Record") -> None:
-        # todo? this is just a noop to please wandb sync
-        pass
-
     def send_request_status_report(self, record: "Record") -> None:
         # todo? this is just a noop to please wandb sync
         pass
