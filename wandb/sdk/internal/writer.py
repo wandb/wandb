@@ -136,6 +136,11 @@ class WriteManager:
         if use_flow_control:
             self._flow_control.flow(record)
         elif not self._settings._offline or record.control.always_send:
+            # when flow_control is disabled we pass through all records to
+            # the sender as long as we are online.   The exception is there
+            # are special records that we always pass to the sender
+            # (namely the exit record so we can trigger the defer shutdown
+            # state machine)
             self._forward_record(record)
 
     def write(self, record: "pb.Record") -> None:
