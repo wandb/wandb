@@ -812,9 +812,10 @@ message RunStatusRequest {
 message RunStatusResponse {
   int64 sync_items_total = 1;
   int64 sync_items_pending = 2;
-  int64 sync_history_step = 3;
-  google.protobuf.Timestamp sync_history_time = 4;
-  google.protobuf.Timestamp sync_time = 5;
+  google.protobuf.Timestamp sync_time = 3;
+  // TODO(flowcontrol): can we give the user an indication of step position
+  // int64 sync_history_step = 3;
+  // google.protobuf.Timestamp sync_history_time = 4;
 }
 
 /*

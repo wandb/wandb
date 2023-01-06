@@ -195,10 +195,10 @@ class WriteManager:
         self._result_q.put(result)
 
     def finish(self) -> None:
-        if self._ds:
-            self._ds.close()
         if self._flow_control:
             self._flow_control.flush()
+        if self._ds:
+            self._ds.close()
         # self._context_keeper._debug_print_orphans(print_to_stdout=self._settings._debug)
 
     def debounce(self) -> None:

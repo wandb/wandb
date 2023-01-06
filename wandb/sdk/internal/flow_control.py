@@ -40,6 +40,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# By default we will allow 400 MiB of requests in the sender queue
+# before falling back to the transaction log.
+DEFAULT_THRESHOLD = 400 * 1024 * 1024  # 400 MiB
+
 
 def _get_request_type(record: "Record") -> Optional[str]:
     record_type = record.WhichOneof("record_type")
@@ -74,16 +78,21 @@ class FlowControl:
         write_record: Callable[["Record"], int],
         pause_marker: Callable[[], None],
         recover_records: Callable[[int, int], None],
-        _threshold_bytes_high: int = 400 * 1024 * 1024,  # 400 MiB
-        _threshold_bytes_mid: int = 200 * 1024 * 1024,  # 200 MiB
-        _threshold_bytes_low: int = 100 * 1024 * 1024,  # 100 MiB
+        _threshold_bytes_high: int = 0,
+        _threshold_bytes_mid: int = 0,
+        _threshold_bytes_low: int = 0,
     ) -> None:
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
-        if settings._network_buffer:
-            _threshold_bytes_high = settings._network_buffer
-            _threshold_bytes_mid = settings._network_buffer // 2
-            _threshold_bytes_low = settings._network_buffer // 4
+        if (
+            _threshold_bytes_high == 0
+            or _threshold_bytes_mid == 0
+            or _threshold_bytes_low == 0
+        ):
+            threshold = settings._network_buffer or DEFAULT_THRESHOLD
+            _threshold_bytes_high = threshold
+            _threshold_bytes_mid = threshold // 2
+            _threshold_bytes_low = threshold // 4
 
         # FSM definition
         state_forwarding = StateForwarding(

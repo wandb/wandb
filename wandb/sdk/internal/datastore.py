@@ -16,6 +16,8 @@ header :=
   version: uint8
 """
 
+# TODO: possibly restructure code by porting the C++ or go implementation
+
 import logging
 import os
 import struct
@@ -103,13 +105,11 @@ class DataStore:
 
     def seek(self, offset: int) -> None:
         self._fp.seek(offset)
-        # got = self._fp.tell()
-        # print("seek", offset, got)
         self._index = offset
 
     def get_offset(self) -> int:
-        got = self._fp.tell()
-        return got
+        offset = self._fp.tell()
+        return offset
 
     def in_last_block(self):
         """When reading, we want to know if we're in the last block to

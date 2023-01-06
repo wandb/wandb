@@ -2524,27 +2524,24 @@ class RunStatusResponse(google.protobuf.message.Message):
 
     SYNC_ITEMS_TOTAL_FIELD_NUMBER: builtins.int
     SYNC_ITEMS_PENDING_FIELD_NUMBER: builtins.int
-    SYNC_HISTORY_STEP_FIELD_NUMBER: builtins.int
-    SYNC_HISTORY_TIME_FIELD_NUMBER: builtins.int
     SYNC_TIME_FIELD_NUMBER: builtins.int
     sync_items_total: builtins.int
     sync_items_pending: builtins.int
-    sync_history_step: builtins.int
     @property
-    def sync_history_time(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-    @property
-    def sync_time(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    def sync_time(self) -> google.protobuf.timestamp_pb2.Timestamp:
+        """TODO(flowcontrol): can we give the user an indication of step position
+        int64 sync_history_step = 3;
+        google.protobuf.Timestamp sync_history_time = 4;
+        """
     def __init__(
         self,
         *,
         sync_items_total: builtins.int = ...,
         sync_items_pending: builtins.int = ...,
-        sync_history_step: builtins.int = ...,
-        sync_history_time: google.protobuf.timestamp_pb2.Timestamp | None = ...,
         sync_time: google.protobuf.timestamp_pb2.Timestamp | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["sync_history_time", b"sync_history_time", "sync_time", b"sync_time"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["sync_history_step", b"sync_history_step", "sync_history_time", b"sync_history_time", "sync_items_pending", b"sync_items_pending", "sync_items_total", b"sync_items_total", "sync_time", b"sync_time"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["sync_time", b"sync_time"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["sync_items_pending", b"sync_items_pending", "sync_items_total", b"sync_items_total", "sync_time", b"sync_time"]) -> None: ...
 
 global___RunStatusResponse = RunStatusResponse
 

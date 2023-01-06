@@ -3,6 +3,8 @@ import time
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib.mailbox import Mailbox
 
+# TODO(mailbox): create a test fixture for this test pattern
+
 
 def test_status_deliver(mock_run, parse_records, mocked_interface):
     mailbox = Mailbox()
