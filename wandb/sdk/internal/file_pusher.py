@@ -151,7 +151,7 @@ class FilePusher:
         *,
         finalize: bool = True,
         before_commit: step_upload.PreCommitFn,
-        result_fut: concurrent.futures.Future[None],
+        result_fut: "concurrent.futures.Future[None]",
     ):
         event = step_checksum.RequestCommitArtifact(
             artifact_id, finalize, before_commit, result_fut

@@ -33,7 +33,7 @@ if TYPE_CHECKING:
         pending_count: int
         commit_requested: bool
         pre_commit_callbacks: MutableSet["PreCommitFn"]
-        result_futures: MutableSet[concurrent.futures.Future[None]]
+        result_futures: MutableSet["concurrent.futures.Future[None]"]
 
 
 PreCommitFn = Callable[[], None]
@@ -55,7 +55,7 @@ class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
     before_commit: PreCommitFn
-    result_fut: concurrent.futures.Future[None]
+    result_fut: "concurrent.futures.Future[None]"
 
 
 class RequestFinish(NamedTuple):

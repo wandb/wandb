@@ -35,7 +35,7 @@ class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
     before_commit: step_upload.PreCommitFn
-    result_fut: concurrent.futures.Future[None]
+    result_fut: "concurrent.futures.Future[None]"
 
 
 class RequestFinish(NamedTuple):
