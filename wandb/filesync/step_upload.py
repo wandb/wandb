@@ -1,6 +1,7 @@
 """Batching file prepare requests to our API."""
 
 import concurrent.futures
+import logging
 import queue
 import sys
 import threading
@@ -18,6 +19,7 @@ from typing import (
 
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
+import wandb.util
 
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats
@@ -39,6 +41,8 @@ if TYPE_CHECKING:
 PreCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], Any]
+
+logger = logging.getLogger(__name__)
 
 
 class RequestUpload(NamedTuple):
@@ -62,8 +66,13 @@ class RequestFinish(NamedTuple):
     callback: Optional[OnRequestFinishFn]
 
 
+class EventJobDone(NamedTuple):
+    job: upload_job.UploadJob
+    exception: Optional[Exception]
+
+
 Event = Union[
-    RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone
+    RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone
 ]
 
 
@@ -85,6 +94,11 @@ class StepUpload:
 
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
+
+        self._pool = concurrent.futures.ThreadPoolExecutor(
+            thread_name_prefix="wandb-upload",
+            max_workers=max_jobs,
+        )
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs: MutableMapping[
@@ -127,17 +141,33 @@ class StepUpload:
                 break
 
     def _handle_event(self, event: Event) -> None:
-        if isinstance(event, upload_job.EventJobDone):
+        if isinstance(event, EventJobDone):
             job = event.job
-            job.join()
+
+            if event.exception is not None:
+                exc = event.exception
+                self._stats.update_failed_file(job.save_name)
+                logger.exception("Failed to upload file: %s", job.save_path)
+                wandb.util.sentry_exc(exc)
+                if not self.silent:
+                    details = f"{type(exc).__name__}: {exc}"
+                    if (
+                        hasattr(exc, "response")
+                        and hasattr(exc.response, "content")
+                        and isinstance(exc.response.content, (str, bytes))
+                    ):
+                        details += f": {exc.response.content!r}"
+                    termerror(f"Error uploading {job.save_name!r}: {details}")
+
             if job.artifact_id:
                 if event.exception is None:
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
                     self._maybe_commit_artifact(job.artifact_id)
                 else:
-                    termerror(
-                        "Uploading artifact file failed. Artifact won't be committed."
-                    )
+                    if not self.silent:
+                        termerror(
+                            "Uploading artifact file failed. Artifact won't be committed."
+                        )
                     for fut in self._artifacts[job.artifact_id]["result_futures"]:
                         # Skip any futures we've already resolved
                         # (perhaps because previous uploads failed)
@@ -183,7 +213,6 @@ class StepUpload:
 
         # Start it.
         job = upload_job.UploadJob(
-            self._event_queue,
             self._stats,
             self._api,
             self._file_stream,
@@ -197,7 +226,16 @@ class StepUpload:
             event.digest,
         )
         self._running_jobs[event.save_name] = job
-        job.start()
+        self._pool.submit(self._run_job_and_notify, job)
+
+    def _run_job_and_notify(self, job: upload_job.UploadJob) -> None:
+        exception = None
+        try:
+            job.run()
+        except Exception as e:
+            exception = e
+        finally:
+            self._event_queue.put(EventJobDone(job, exception=exception))
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
