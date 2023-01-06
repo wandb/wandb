@@ -294,7 +294,7 @@ class SendManager:
             save_code=None,
             email=None,
             silent=None,
-            offline=None,
+            _offline=None,
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
         )
