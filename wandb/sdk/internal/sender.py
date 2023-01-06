@@ -28,6 +28,7 @@ import requests
 
 import wandb
 from wandb import util
+from wandb.errors import ContextCancelledError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
@@ -45,8 +46,9 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-from . import artifacts, file_stream, internal_api, update
+from . import artifacts, context, file_stream, internal_api, update
 from .file_pusher import FilePusher
+from .job_builder import JobBuilder
 from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
@@ -192,6 +194,7 @@ class SendManager:
     _interface: InterfaceQueue
     _api_settings: Dict[str, str]
     _partial_output: Dict[str, str]
+    _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
     _fs: Optional["file_stream.FileStreamApi"]
@@ -216,11 +219,13 @@ class SendManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         interface: InterfaceQueue,
+        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
+        self._context_keeper = context_keeper
 
         self._fs = None
         self._pusher = None
@@ -275,6 +280,9 @@ class SendManager:
         self._output_raw_streams = dict()
         self._output_raw_file = None
 
+        # job builder
+        self._job_builder = JobBuilder(settings)
+
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
@@ -308,11 +316,13 @@ class SendManager:
         record_q: "Queue[Record]" = queue.Queue()
         result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
+        context_keeper = context.ContextKeeper()
         return SendManager(
             settings=settings,
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
+            context_keeper=context_keeper,
         )
 
     def __len__(self) -> int:
@@ -333,7 +343,17 @@ class SendManager:
         if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
-        send_handler(record)
+
+        context_id = context.context_id_from_record(record)
+        api_context = self._context_keeper.get(context_id)
+        try:
+            self._api.set_local_context(api_context)
+            send_handler(record)
+        except ContextCancelledError:
+            logger.debug(f"Record cancelled: {record_type}")
+            self._context_keeper.release(context_id)
+        finally:
+            self._api.clear_local_context()
 
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
@@ -351,6 +371,8 @@ class SendManager:
 
     def _respond_result(self, result: "Result") -> None:
         tracelog.log_message_queue(result, self._result_q)
+        context_id = context.context_id_from_result(result)
+        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
@@ -400,8 +422,6 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
-        assert record.control.req_resp
-
         result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
         status_resp.run_should_stop = False
@@ -434,8 +454,6 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_network_status(self, record: "Record") -> None:
-        assert record.control.req_resp
-
         result = proto_util._result_from_record(record)
         status_resp = result.response.network_status_response
         while True:
@@ -514,6 +532,9 @@ class SendManager:
             transition_state()
         elif state == defer.FLUSH_OUTPUT:
             self._output_raw_finish()
+            transition_state()
+        elif state == defer.FLUSH_JOB:
+            self._flush_job()
             transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
@@ -843,7 +864,9 @@ class SendManager:
             logger.info("updated run: %s", self._run.run_id)
 
     def _init_run(
-        self, run: "RunRecord", config_dict: Optional[DictWithValues]
+        self,
+        run: "RunRecord",
+        config_dict: Optional[DictWithValues],
     ) -> None:
         # We subtract the previous runs runtime when resuming
         start_time = (
@@ -874,7 +897,7 @@ class SendManager:
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
         else:
-            # If the user is not resuming and we didnt insert on upsert_run then
+            # If the user is not resuming, and we didn't insert on upsert_run then
             # it is likely that we are overwriting the run which we might want to
             # prevent in the future.  This could be a false signal since an upsert_run
             # message which gets retried in the network could also show up as not
@@ -1240,6 +1263,15 @@ class SendManager:
             except Exception as e:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
 
+    def send_use_artifact(self, record: "Record") -> None:
+        """
+        This function doesn't actually send anything, it is just used
+        internally
+        """
+        use = record.use_artifact
+        if use.type == "job":
+            self._job_builder.used_job = True
+
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
         result = proto_util._result_from_record(record)
@@ -1320,7 +1352,7 @@ class SendManager:
                 return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        return saver.save(
+        res = saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1334,6 +1366,9 @@ class SendManager:
             incremental=artifact.incremental_beta1,
             history_step=history_step,
         )
+
+        self._job_builder._set_logged_code_artifact(res, artifact)
+        return res
 
     def send_alert(self, record: "Record") -> None:
         from pkg_resources import parse_version
@@ -1405,7 +1440,6 @@ class SendManager:
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
-
         if self._settings._offline:
             local_info.out_of_date = False
             return local_info
@@ -1424,6 +1458,26 @@ class SendManager:
                 "latestVersionString", latest_local_version
             )
         return local_info
+
+    def _flush_job(self) -> None:
+        self._job_builder.set_config(
+            {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
+        )
+        summary_dict = self._cached_summary.copy()
+        summary_dict.pop("_wandb", None)
+        self._job_builder.set_summary(summary_dict)
+        if not self._settings.get("_offline", False) and not self._job_builder.used_job:
+            artifact = self._job_builder.build()
+            if artifact is not None and self._run is not None:
+                proto_artifact = self._interface._make_artifact(artifact)
+                proto_artifact.run_id = self._run.run_id
+                proto_artifact.project = self._run.project
+                proto_artifact.entity = self._run.entity
+                proto_artifact.user_created = True
+                proto_artifact.use_after_commit = True
+                proto_artifact.finalize = True
+
+                self._interface._publish_artifact(proto_artifact)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)
