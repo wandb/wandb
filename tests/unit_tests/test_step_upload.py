@@ -1,3 +1,4 @@
+import concurrent.futures
 import queue
 import random
 import threading
@@ -76,7 +77,12 @@ def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
 def make_request_commit(artifact_id: str, **kwargs: Any) -> RequestCommitArtifact:
     return RequestCommitArtifact(
         artifact_id=artifact_id,
-        **{"before_commit": None, "on_commit": None, "finalize": True, **kwargs},
+        **{
+            "before_commit": lambda: None,
+            "result_fut": concurrent.futures.Future(),
+            "finalize": True,
+            **kwargs,
+        },
     )
 
 
@@ -602,27 +608,15 @@ class TestArtifactCommit:
         finish_and_wait(q)
         api.commit_artifact.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "commit_exc",
-        [None, Exception("commit failed")],
-    )
-    def test_calls_callbacks(self, commit_exc: Optional[Exception]):
-
+    def test_calls_before_commit_hook(self):
         events = []
-
-        def mock_commit_artifact(*args, **kwargs):
-            events.append("commit")
-            if commit_exc:
-                raise commit_exc
-
-        api = make_api(commit_artifact=mock_commit_artifact)
+        api = make_api(commit_artifact=lambda *args, **kwargs: events.append("commit"))
 
         q = queue.Queue()
         q.put(
             make_request_commit(
                 "my-art",
                 before_commit=lambda: events.append("before"),
-                on_commit=lambda exc: events.append(("on", exc)),
                 finalize=True,
             )
         )
@@ -632,7 +626,73 @@ class TestArtifactCommit:
 
         finish_and_wait(q)
 
-        assert events == ["before", "commit", ("on", commit_exc)]
+        assert events == ["before", "commit"]
+
+    class TestAlwaysResolvesFut:
+        def test_success(self):
+            api = make_api()
+
+            fut = concurrent.futures.Future()
+
+            q = queue.Queue()
+            q.put(make_request_commit("my-art", result_fut=fut))
+
+            step_upload = make_step_upload(api=api, event_queue=q)
+            step_upload.start()
+
+            finish_and_wait(q)
+
+            assert fut.done() and fut.exception() is None
+
+        def test_upload_fails(self, tmp_path: Path):
+            exc = Exception("upload_file_retry failed")
+            api = make_api(upload_file_retry=Mock(side_effect=exc))
+
+            fut = concurrent.futures.Future()
+
+            q = queue.Queue()
+            q.put(make_request_upload(make_tmp_file(tmp_path), artifact_id="my-art"))
+            q.put(make_request_commit("my-art", result_fut=fut))
+
+            step_upload = make_step_upload(api=api, event_queue=q)
+            step_upload.start()
+
+            finish_and_wait(q)
+
+            assert fut.done() and fut.exception() == exc
+
+        def test_before_commit_hook_fails(self):
+            api = make_api()
+
+            fut = concurrent.futures.Future()
+
+            exc = Exception("upload_file_retry failed")
+
+            q = queue.Queue()
+            q.put(make_request_commit("my-art", before_commit=Mock(side_effect=exc), result_fut=fut))
+
+            step_upload = make_step_upload(api=api, event_queue=q)
+            step_upload.start()
+
+            finish_and_wait(q)
+
+            assert fut.done() and fut.exception() == exc
+
+        def test_commit_fails(self):
+            exc = Exception("commit failed")
+            api = make_api(commit_artifact=Mock(side_effect=exc))
+
+            fut = concurrent.futures.Future()
+
+            q = queue.Queue()
+            q.put(make_request_commit("my-art", result_fut=fut))
+
+            step_upload = make_step_upload(api=api, event_queue=q)
+            step_upload.start()
+
+            finish_and_wait(q)
+
+            assert fut.done() and fut.exception() == exc
 
 
 def test_enforces_max_jobs(
