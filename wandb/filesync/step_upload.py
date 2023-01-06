@@ -131,13 +131,18 @@ class StepUpload:
             job = event.job
             job.join()
             if job.artifact_id:
-                if event.success:
+                if event.exception is None:
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
                     self._maybe_commit_artifact(job.artifact_id)
                 else:
                     termerror(
                         "Uploading artifact file failed. Artifact won't be committed."
                     )
+                    for fut in self._artifacts[job.artifact_id]["result_futures"]:
+                        # Skip any futures we've already resolved
+                        # (perhaps because previous uploads failed)
+                        if not fut.done():
+                            fut.set_exception(event.exception)
             self._running_jobs.pop(job.save_name)
             # If we have any pending jobs, start one now
             if self._pending_jobs:
@@ -223,10 +228,12 @@ class StepUpload:
                 termerror(str(e))
             finally:
                 for result_fut in artifact_status["result_futures"]:
-                    if exc is None:
-                        result_fut.set_result(None)
-                    else:
-                        result_fut.set_exception(exc)
+                    # Skip any futures we've already resolved (perhaps because uploads failed)
+                    if not result_fut.done():
+                        if exc is None:
+                            result_fut.set_result(None)
+                        else:
+                            result_fut.set_exception(exc)
 
     def start(self) -> None:
         self._thread.start()

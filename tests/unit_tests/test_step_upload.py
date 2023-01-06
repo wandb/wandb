@@ -669,7 +669,11 @@ class TestArtifactCommit:
             exc = Exception("upload_file_retry failed")
 
             q = queue.Queue()
-            q.put(make_request_commit("my-art", before_commit=Mock(side_effect=exc), result_fut=fut))
+            q.put(
+                make_request_commit(
+                    "my-art", before_commit=Mock(side_effect=exc), result_fut=fut
+                )
+            )
 
             step_upload = make_step_upload(api=api, event_queue=q)
             step_upload.start()

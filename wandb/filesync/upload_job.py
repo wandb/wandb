@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 class EventJobDone(NamedTuple):
     job: "UploadJob"
-    success: bool
+    exception: Optional[Exception]
 
 
 logger = logging.getLogger(__name__)
@@ -63,11 +63,11 @@ class UploadJob(threading.Thread):
         super().__init__()
 
     def run(self) -> None:
-        success = False
+        exception = None
         try:
             self.push()
-            success = True
         except Exception as e:
+            exception = e
             self._stats.update_failed_file(self.save_name)
             logger.exception("Failed to upload file: %s", self.save_path)
             wandb.util.sentry_exc(e)
@@ -80,8 +80,8 @@ class UploadJob(threading.Thread):
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            self._done_queue.put(EventJobDone(self, success))
-            if success:
+            self._done_queue.put(EventJobDone(self, exception))
+            if exception is None:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> None:
