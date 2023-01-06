@@ -1,17 +1,12 @@
 import logging
 import os
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats
     from wandb.sdk.internal import file_stream, internal_api
-
-
-class EventJobDone(NamedTuple):
-    job: "UploadJob"
-    success: bool
 
 
 logger = logging.getLogger(__name__)
