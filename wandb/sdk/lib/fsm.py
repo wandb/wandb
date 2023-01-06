@@ -168,9 +168,7 @@ class FsmWithContext(Generic[T_FsmInputs, T_FsmContext]):
     def input(self, inputs: T_FsmInputs) -> None:
         if isinstance(self._state, FsmStateCheck):
             self._state.on_check(inputs)
-        # print("R1", self._state, inputs)
         self._check_transitions(inputs)
-        # print("R2", self._state, inputs)
         if isinstance(self._state, FsmStateOutput):
             self._state.on_state(inputs)
 
