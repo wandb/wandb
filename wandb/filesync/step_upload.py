@@ -17,9 +17,9 @@ from typing import (
     Union,
 )
 
+import wandb.util
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
-import wandb.util
 
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats
@@ -71,9 +71,7 @@ class EventJobDone(NamedTuple):
     exception: Optional[Exception]
 
 
-Event = Union[
-    RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone
-]
+Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone]
 
 
 class StepUpload:

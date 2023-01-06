@@ -3,7 +3,6 @@ import os
 from typing import TYPE_CHECKING, Optional
 
 import wandb
-import wandb.util
 
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats, step_upload
