@@ -105,7 +105,7 @@ class WriteManager:
         ret = self._ds.write(record)
         assert ret is not None
 
-        (_start_offset, end_offset, flush_offset) = ret
+        _start_offset, end_offset, _flush_offset = ret
         proto_util._assign_end_offset(record, end_offset)
         return end_offset
 
