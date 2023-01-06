@@ -383,8 +383,10 @@ class Settings:
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
     _log_level: int
+    _network_buffer: int
     _noop: bool
     _offline: bool
+    _sync: bool
     _os: str
     _platform: str
     _python: str
@@ -501,6 +503,7 @@ class Settings:
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
@@ -522,6 +525,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},

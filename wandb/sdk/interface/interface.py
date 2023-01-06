@@ -820,3 +820,13 @@ class InterfaceBase:
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
         raise NotImplementedError
+
+    def deliver_request_run_status(self) -> MailboxHandle:
+        run_status = pb.RunStatusRequest()
+        return self._deliver_request_run_status(run_status)
+
+    @abstractmethod
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
