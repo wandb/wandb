@@ -57,7 +57,6 @@ class WriteManager:
 
         self._ds = None
         self._flow_control = None
-        self._flow_debug = True
         self._status_report = None
         self._record_num = 0
         self._telemetry_obj = tpb.TelemetryRecord()
@@ -66,20 +65,12 @@ class WriteManager:
     def open(self) -> None:
         self._ds = datastore.DataStore()
         self._ds.open_for_write(self._settings.sync_file)
-        # TODO(mempressure): for debug use only, remove this eventually
-        debug_kwargs = dict(
-            _threshold_bytes_high=1000,
-            _threshold_bytes_mid=500,
-            _threshold_bytes_low=200,
-        )
-        kwargs = debug_kwargs if self._flow_debug else {}
         self._flow_control = flow_control.FlowControl(
             settings=self._settings,
             write_record=self._write_record,
             forward_record=self._forward_record,
             pause_marker=self._pause_marker,
             recover_records=self._recover_records,
-            **kwargs,
         )
 
     def _forward_record(self, record: "pb.Record") -> None:
@@ -144,7 +135,7 @@ class WriteManager:
         if not record.control.local:
             self._write_record(record)
 
-        use_flow_control = self._settings._flow_control and not self._settings._offline
+        use_flow_control = self._settings._network_buffer != 0 and not self._settings._offline
         if use_flow_control:
             self._flow_control.flow(record)
         else:

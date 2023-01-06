@@ -29,7 +29,7 @@ class SettingsStatic:
     _jupyter_path: Optional[str]
     _jupyter_name: Optional[str]
     _jupyter_root: Optional[str]
-    _ram_buffer: Optional[int]
+    _network_buffer: Optional[int]
     _require_service: Optional[str]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
@@ -56,7 +56,6 @@ class SettingsStatic:
     run_url: Optional[str]
     run_name: Optional[str]
     sync_file: str
-    _debug: bool
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

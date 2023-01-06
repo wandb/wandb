@@ -45,9 +45,6 @@ from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
-# Module level defaults
-_FLOW_CONTROL_DEFAULT: bool = True
-
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
@@ -372,13 +369,11 @@ class Settings:
     _config_dict: Config
     _console: SettingsConsole
     _cuda: str
-    _debug: bool
     _disable_meta: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
-    _flow_control: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
     _jupyter: bool
@@ -389,12 +384,12 @@ class Settings:
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
     _log_level: int
+    _network_buffer: int
     _noop: bool
     _offline: bool
     _os: str
     _platform: str
     _python: str
-    _ram_buffer: int
     _require_service: str
     _runqueue_item_id: str
     _save_requirements: bool
@@ -508,17 +503,12 @@ class Settings:
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
-            _ram_buffer={"preprocessor": int},
-            _flow_control={
-                "value": _FLOW_CONTROL_DEFAULT,
-                "preprocessor": _str_as_bool,
-            },
+            _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
             },
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
-            _debug={"value": False, "preprocessor": _str_as_bool},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
             _jupyter={

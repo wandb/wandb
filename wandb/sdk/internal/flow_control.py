@@ -74,16 +74,16 @@ class FlowControl:
         write_record: Callable[["Record"], int],
         pause_marker: Callable[[], None],
         recover_records: Callable[[int, int], None],
-        _threshold_bytes_high: int = 4 * 1024 * 1024,  # 4MiB
-        _threshold_bytes_mid: int = 2 * 1024 * 1024,  # 2MiB
-        _threshold_bytes_low: int = 1 * 1024 * 1024,  # 1MiB
+        _threshold_bytes_high: int = 400 * 1024 * 1024,  # 400 MiB
+        _threshold_bytes_mid: int = 200 * 1024 * 1024,  # 200 MiB
+        _threshold_bytes_low: int = 100 * 1024 * 1024,  # 100 MiB
     ) -> None:
 
         # thresholds to define when to PAUSE, RESTART, FORWARDING
-        if settings._ram_buffer:
-            _threshold_bytes_high = settings._ram_buffer
-            _threshold_bytes_mid = settings._ram_buffer // 2
-            _threshold_bytes_low = settings._ram_buffer // 4
+        if settings._network_buffer:
+            _threshold_bytes_high = settings._network_buffer
+            _threshold_bytes_mid = settings._network_buffer // 2
+            _threshold_bytes_low = settings._network_buffer // 4
 
         # FSM definition
         state_forwarding = StateForwarding(
