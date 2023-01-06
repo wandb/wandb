@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-2"
-}
-
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "19.0.4"
@@ -20,14 +16,14 @@ module "eks" {
   eks_managed_node_groups = {
     one = {
       name           = "node-group-1"
-      instance_types = ["t3.small"]
+      instance_types = ["t3.large"]
       min_size       = 1
       max_size       = 2
       desired_size   = 1
     }
     two = {
       name           = "node-group-2"
-      instance_types = ["t3.small"]
+      instance_types = ["t3.large"]
       min_size       = 1
       max_size       = 2
       desired_size   = 1
