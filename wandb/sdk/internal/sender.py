@@ -295,6 +295,7 @@ class SendManager:
             email=None,
             silent=None,
             _offline=None,
+            _sync=True,
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
         )
@@ -321,9 +322,6 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
-        # record_type = record.WhichOneof("record_type")
-        # request_type = record.request.WhichOneof("request_type")
-        # print("SEND_RECORD", self._send_record_num, self._send_end_offset, record_type, request_type)
         self._update_record_num(record.num)
         self._update_end_offset(record.control.end_offset)
 
@@ -382,7 +380,14 @@ class SendManager:
     def _update_record_num(self, record_num: int) -> None:
         if not record_num:
             return
-        if not self._settings._offline:
+        # Currently how we handle offline mode and syncing is not
+        # compatible with this assertion due to how the exit record
+        # is (mis)handled:
+        #   - using "always_send" in offline mode to trigger defer
+        #     state machine
+        #   - skipping the exit record in `wandb sync` mode so that
+        #     it is always executed as the last record
+        if not self._settings._offline and not self._settings._sync:
             assert record_num == self._send_record_num + 1
         self._send_record_num = record_num
 

@@ -386,6 +386,7 @@ class Settings:
     _network_buffer: int
     _noop: bool
     _offline: bool
+    _sync: bool
     _os: str
     _platform: str
     _python: str
@@ -524,6 +525,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
