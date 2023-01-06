@@ -144,8 +144,13 @@ class StepUpload:
 
             if event.exception is not None:
                 exc = event.exception
-                logger.exception("Failed to upload file: %s", job.save_path)
+
+                # uploading the error to Sentry might require a network request;
+                # do it in the threadpool to avoid blocking the main loop
                 self._pool.submit(wandb.util.sentry_exc, exc)
+
+                logger.exception("Failed to upload file: %s", job.save_path)
+
                 if not self.silent:
                     details = f"{type(exc).__name__}: {exc}"
                     if (
