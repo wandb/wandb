@@ -1,0 +1,1 @@
+{"buildTargets":["bumpversion-from-dev","bumpversion-to-dev","clean","clean-build","clean-pyc","clean-test","coverage","dist","format","isort","proto","release","release-test","setup-clean","test","test-clean","test-full","test-short"],"launchTargets":[],"customConfigurationProvider":{"workspaceBrowse":{"browsePath":[],"compilerArgs":[]},"fileIndex":[]}}
