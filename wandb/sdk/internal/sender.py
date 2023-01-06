@@ -423,6 +423,9 @@ class SendManager:
             # make sure we perform deferred operations
             self.debounce()
 
+        # make sure that we always update writer for every sended read request
+        self._maybe_report_status(always=True)
+
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
         result = proto_util._result_from_record(record)

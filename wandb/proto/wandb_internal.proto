@@ -659,7 +659,8 @@ message SenderMarkRequest {
 message SenderReadRequest {
   int64 start_offset = 1;
   int64 final_offset = 2;
-  repeated string cancel_list = 3;
+  // TODO: implement cancel for paused ops
+  // repeated string cancel_list = 3;
 }
 
 message StatusReportRequest {

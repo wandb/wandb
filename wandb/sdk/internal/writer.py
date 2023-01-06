@@ -114,16 +114,11 @@ class WriteManager:
             self._ds.ensure_flushed(offset)
 
     def _recover_records(self, start: int, end: int) -> None:
-        record = pb.Record()
-        request = pb.Request()
         sender_read = pb.SenderReadRequest(start_offset=start, final_offset=end)
-
         # TODO(cancel_paused): implement me
         # for cancel_id in self._sender_cancel_set:
         #     sender_read.cancel_list.append(cancel_id)
-
-        request.sender_read.CopyFrom(sender_read)
-        record.request.CopyFrom(request)
+        record = self._interface._make_request(sender_read=sender_read)
         self._ensure_flushed(end)
         self._forward_record(record)
 
@@ -140,9 +135,8 @@ class WriteManager:
         )
         if use_flow_control:
             self._flow_control.flow(record)
-        else:
-            if not self._settings._offline or record.control.always_send:
-                self._forward_record(record)
+        elif not self._settings._offline or record.control.always_send:
+            self._forward_record(record)
 
     def write(self, record: "pb.Record") -> None:
         record_type = record.WhichOneof("record_type")

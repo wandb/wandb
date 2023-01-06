@@ -235,8 +235,7 @@ class HandleManager:
             request_record = self._interface._make_request(
                 summary_record=summary_record
             )
-            tracelog.log_message_queue(request_record, self._writer_q)
-            self._writer_q.put(request_record)
+            self._dispatch_record(request_record)
 
     def _save_history(
         self,

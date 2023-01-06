@@ -93,6 +93,7 @@ class FlowControl:
             _threshold_bytes_high = threshold
             _threshold_bytes_mid = threshold // 2
             _threshold_bytes_low = threshold // 4
+        assert _threshold_bytes_high > _threshold_bytes_mid > _threshold_bytes_low
 
         # FSM definition
         state_forwarding = StateForwarding(
