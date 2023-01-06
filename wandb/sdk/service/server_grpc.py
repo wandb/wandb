@@ -336,6 +336,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.AlertResult()
         return result
 
+    def RunStatus(  # noqa: N802
+        self, run_status: pb.RunStatusRequest, context: grpc.ServicerContext
+    ) -> pb.RunStatusResponse:
+        stream_id = run_status._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        handle = iface._deliver_request_run_status(run_status)
+        result = handle.wait(timeout=-1)
+        assert result
+        return result.response.run_status_response
+
     def Status(  # noqa: N802
         self, status: pb.StatusRequest, context: grpc.ServicerContext
     ) -> pb.StatusResponse:

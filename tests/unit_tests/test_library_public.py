@@ -196,6 +196,7 @@ SYMBOLS_RUN = {
     "to_html",
     "display",
     "settings",
+    "status",
 }
 
 # symbols having to do with resuming, we should clean this up

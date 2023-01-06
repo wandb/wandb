@@ -9,8 +9,10 @@ SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 class SettingsStatic:
     # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
     _offline: Optional[bool]
+    _sync: bool
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
+    _flow_control: bool
     _start_time: float
     _start_datetime: str
     _stats_pid: int
@@ -28,6 +30,7 @@ class SettingsStatic:
     _jupyter_path: Optional[str]
     _jupyter_name: Optional[str]
     _jupyter_root: Optional[str]
+    _network_buffer: Optional[int]
     _require_service: Optional[str]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
@@ -51,6 +54,9 @@ class SettingsStatic:
     host: Optional[str]
     username: Optional[str]
     _executable: str
+    run_url: Optional[str]
+    run_name: Optional[str]
+    sync_file: str
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int
