@@ -135,7 +135,9 @@ class WriteManager:
         if not record.control.local:
             self._write_record(record)
 
-        use_flow_control = self._settings._network_buffer != 0 and not self._settings._offline
+        use_flow_control = (
+            self._settings._network_buffer != 0 and not self._settings._offline
+        )
         if use_flow_control:
             self._flow_control.flow(record)
         else:
