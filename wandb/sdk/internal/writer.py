@@ -130,6 +130,7 @@ class WriteManager:
         if not record.control.local:
             self._write_record(record)
 
+        # flow control can be disabled by setting the network_buffer setting to 0
         use_flow_control = (
             self._settings._network_buffer != 0 and not self._settings._offline
         )
