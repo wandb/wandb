@@ -45,7 +45,6 @@ from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
-
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
 elif sys.version_info >= (3, 7):
