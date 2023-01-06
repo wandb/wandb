@@ -72,11 +72,14 @@ class UploadJob(threading.Thread):
             logger.exception("Failed to upload file: %s", self.save_path)
             wandb.util.sentry_exc(e)
             if not self.silent:
-                wandb.termerror(
-                    'Error uploading "{}": {}, {}'.format(
-                        self.save_name, type(e).__name__, e
-                    )
-                )
+                details = f"{type(e).__name__}: {e}"
+                if (
+                    hasattr(e, "response")
+                    and hasattr(e.response, "content")
+                    and isinstance(e.response.content, (str, bytes))
+                ):
+                    details += f": {e.response.content!r}"
+                wandb.termerror(f"Error uploading {self.save_name!r}: {details}")
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
