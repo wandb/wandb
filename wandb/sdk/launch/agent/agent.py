@@ -32,6 +32,8 @@ AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
 
+HIDDEN_AGENT_RUN_TYPE = "sweep-controller"
+
 _logger = logging.getLogger(__name__)
 
 
@@ -70,14 +72,26 @@ class LaunchAgent:
             self._api.launch_agent_introspection() is not None
         )
         self._queues = config.get("queues", ["default"])
-        create_response = self._api.create_launch_agent(
+        id, name = self._api.create_launch_agent(
             self._entity,
             self._project,
             self._queues,
             self.gorilla_supports_agents,
         )
-        self._id = create_response["launchAgentId"]
-        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
+        self._id = id
+        if name is not None:
+            self._name = name
+        else:
+            res = self._api.get_launch_agent(self._id)
+            self._name = res["name"]
+        settings = wandb.Settings(silent=True)
+        wandb.init(
+            project=self._project,
+            entity=self._entity,
+            settings=settings,
+            id=self._name,
+            job_type=HIDDEN_AGENT_RUN_TYPE,
+        )
 
     @property
     def job_ids(self) -> List[Union[int, str]]:

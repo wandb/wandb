@@ -505,6 +505,23 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
+    def create_launch_agent_payload_introspection(self) -> Optional[str]:
+        query = gql(
+            """
+            query CreateLaunchAgentPayloadIntrospection {
+                CreateLaunchAgentPayloadType: __type(name: "CreateLaunchAgentPayload") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+        )
+
+        res = self.gql(query)
+        return res.get("CreateLaunchAgentPayloadType") or None
+
+    @normalize_exceptions
     def viewer(self) -> Dict[str, Any]:
         query = gql(
             """
@@ -1332,9 +1349,23 @@ class Api:
                 "launchAgentId": None,
             }
 
+        res = self.create_launch_agent_payload_introspection()
+        if not res:
+            raise CommError("Unable to create launch agent. Introspection query failed")
+        fields = [f.get("name") for f in res.get("fields", [])]
+        respond_agent_info = False
+        if "launchAgent" in fields:
+            respond_agent_info = True
+            payload_fragment = """
+            launchAgent {
+                id
+                name
+            }"""
+        else:
+            payload_fragment = "launchAgentId"
+
         hostname = socket.gethostname()
-        mutation = gql(
-            """
+        mutation_string = """
             mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
                 createLaunchAgent(
                     input: {
@@ -1344,11 +1375,14 @@ class Api:
                         hostname: $hostname
                     }
                 ) {
-                    launchAgentId
+                    _PAYLOAD_FRAGMENT_
                 }
             }
             """
+        mutation_string = mutation_string.replace(
+            "_PAYLOAD_FRAGMENT_", payload_fragment
         )
+        mutation = gql(mutation_string)
         variable_values = {
             "entity": entity,
             "project": project,
@@ -1356,7 +1390,9 @@ class Api:
             "hostname": hostname,
         }
         result: dict = self.gql(mutation, variable_values)["createLaunchAgent"]
-        return result
+        if respond_agent_info:
+            return result["launchAgent"].get("id"), result["launchAgent"].get("name")
+        return result["launchAgentId"], None
 
     @normalize_exceptions
     def update_launch_agent_status(
