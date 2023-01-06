@@ -988,7 +988,15 @@ _artifacts_cache = None
 def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
     if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
+        singleton = wandb.sdk.wandb_setup._WandbSetup._instance
+        cache_dir_base = (
+            wandb.run.settings.cache_dir
+            if wandb.run and wandb.run.settings.cache_dir
+            else singleton._settings.cache_dir
+            if singleton and singleton._settings.cache_dir
+            else env.get_cache_dir()
+        )
+        cache_dir = os.path.join(cache_dir_base, "artifacts")
         _artifacts_cache = ArtifactsCache(cache_dir)
     return _artifacts_cache
 
