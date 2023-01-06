@@ -193,6 +193,7 @@ class WriteManager:
             self._flow_control.flush()
         if self._ds:
             self._ds.close()
+        # TODO: reenable if we need debug, use setting probably, see context.py
         # self._context_keeper._debug_print_orphans(print_to_stdout=self._settings._debug)
 
     def debounce(self) -> None:
