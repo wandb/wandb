@@ -100,7 +100,9 @@ def test_fstream_status_500(
 ):
     run = mock_run(use_magic_mock=True)
 
-    injected_response = inject_file_stream_response(run=run, status=500, counter=2)
+    injected_response = inject_file_stream_response(
+        run=run, status=500, application_pattern="112"
+    )
     assert_history(relay_server, run, publish_util, inject=[injected_response])
 
 
@@ -114,5 +116,7 @@ def test_fstream_status_429(
 
     run = mock_run(use_magic_mock=True)
 
-    injected_response = inject_file_stream_response(run=run, status=429, counter=2)
+    injected_response = inject_file_stream_response(
+        run=run, status=429, application_pattern="112"
+    )
     assert_history(relay_server, run, publish_util, inject=[injected_response])
