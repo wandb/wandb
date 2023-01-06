@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 
