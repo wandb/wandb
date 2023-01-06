@@ -144,7 +144,6 @@ class StepUpload:
 
             if event.exception is not None:
                 exc = event.exception
-                self._stats.update_failed_file(job.save_name)
                 logger.exception("Failed to upload file: %s", job.save_path)
                 wandb.util.sentry_exc(exc)
                 if not self.silent:

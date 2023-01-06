@@ -50,6 +50,9 @@ class UploadJob:
     def run(self) -> None:
         try:
             self.push()
+        except Exception:
+            self._stats.update_failed_file(self.save_name)
+            raise
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
