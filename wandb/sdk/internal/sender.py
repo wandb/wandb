@@ -879,6 +879,8 @@ class SendManager:
         # update telemetry
         if run.telemetry:
             self._telemetry_obj.MergeFrom(run.telemetry)
+        if self._settings._sync:
+            self._telemetry_obj.feature.sync = True
 
         # build config dict
         config_value_dict: Optional[DictWithValues] = None

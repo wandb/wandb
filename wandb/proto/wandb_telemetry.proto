@@ -152,6 +152,7 @@ message Feature {
   bool keras_model_checkpoint = 39; // Keras WandbModelCheckpoint used
   bool keras_wandb_eval_callback = 40; // Keras WandbEvalCallback used
   bool flow_control_overflow = 41; // Hit flow control threshold
+  bool sync = 42; // Run was synced with wandb sync
 }
 
 message Env {
