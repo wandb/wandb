@@ -83,7 +83,7 @@ class WriteManager:
         record = self._interface._make_request(sender_mark=sender_mark)
         self._forward_record(record)
 
-    def _maybe_update_telemetry(self) -> None:
+    def _maybe_send_telemetry(self) -> None:
         if self._telemetry_overflow:
             return
         self._telemetry_overflow = True
@@ -94,7 +94,7 @@ class WriteManager:
         self._forward_record(record)
 
     def _pause_marker(self) -> None:
-        self._maybe_update_telemetry()
+        self._maybe_send_telemetry()
         self._send_mark()
 
     def _write_record(self, record: "pb.Record") -> int:
