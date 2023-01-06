@@ -6,7 +6,7 @@ import secrets
 import string
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
 from wandb.errors import MailboxError
 from wandb.proto import wandb_internal_pb2 as pb
@@ -95,6 +95,7 @@ class _MailboxSlot:
     _lock: threading.Lock
     _wait_all: Optional[_MailboxWaitAll]
     _address: str
+    _abandoned: bool
 
     def __init__(self, address: str) -> None:
         self._result = None
@@ -102,6 +103,7 @@ class _MailboxSlot:
         self._lock = threading.Lock()
         self._address = address
         self._wait_all = None
+        self._abandoned = False
 
     def _set_wait_all(self, wait_all: _MailboxWaitAll) -> None:
         assert not self._wait_all, "Only one caller can wait_all for a slot at a time"
@@ -113,17 +115,26 @@ class _MailboxSlot:
     def _wait(self, timeout: float) -> bool:
         return self._event.wait(timeout=timeout)
 
-    def _get_and_clear(self, timeout: float) -> Optional[pb.Result]:
+    def _get_and_clear(self, timeout: float) -> Tuple[Optional[pb.Result], bool]:
         found = None
         if self._wait(timeout=timeout):
             with self._lock:
                 found = self._result
                 self._event.clear()
-        return found
+        abandoned = self._abandoned
+        return found, abandoned
 
     def _deliver(self, result: pb.Result) -> None:
         with self._lock:
             self._result = result
+            self._event.set()
+
+        if self._wait_all:
+            self._wait_all.notify()
+
+    def _notify_abandon(self) -> None:
+        self._abandoned = True
+        with self._lock:
             self._event.set()
 
         if self._wait_all:
@@ -225,13 +236,14 @@ class MailboxHandle:
     def _time(self) -> float:
         return time.monotonic()
 
-    def wait(
+    def wait(  # noqa: C901
         self,
         *,
         timeout: float,
         on_probe: Optional[Callable[[MailboxProbe], None]] = None,
         on_progress: Optional[Callable[[MailboxProgress], None]] = None,
         release: bool = True,
+        cancel: bool = False,
     ) -> Optional[pb.Result]:
         probe_handle: Optional[MailboxProbe] = None
         progress_handle: Optional[MailboxProgress] = None
@@ -258,16 +270,19 @@ class MailboxHandle:
                 if self._interface._transport_keepalive_failed():
                     raise MailboxError("transport failed")
 
-            found = self._slot._get_and_clear(timeout=wait_timeout)
+            found, abandoned = self._slot._get_and_clear(timeout=wait_timeout)
             if found:
                 # Always update progress to 100% when done
                 if on_progress and progress_handle and progress_sent:
                     progress_handle.set_percent_done(100)
                     on_progress(progress_handle)
                 break
+            if abandoned:
+                break
             now = self._time()
             if timeout >= 0:
                 if now >= start_time + timeout:
+                    # todo: communicate that we timed out
                     break
             if on_probe and probe_handle:
                 on_probe(probe_handle)
@@ -279,12 +294,23 @@ class MailboxHandle:
                 if progress_handle._is_stopped:
                     break
                 progress_sent = True
+        if not found and cancel:
+            self._cancel()
         if release:
             self._release()
         return found
 
+    def _cancel(self) -> None:
+        mailbox_slot = self.address
+        if self._interface:
+            self._interface.publish_cancel(mailbox_slot)
+
     def _release(self) -> None:
         self._mailbox._release_slot(self.address)
+
+    def abandon(self) -> None:
+        self._slot._notify_abandon()
+        self._release()
 
     @property
     def _is_failed(self) -> bool:
@@ -315,8 +341,9 @@ class Mailbox:
         *,
         timeout: float,
         on_progress: Optional[Callable[[MailboxProgress], None]] = None,
+        cancel: bool = False,
     ) -> Optional[pb.Result]:
-        return handle.wait(timeout=timeout, on_progress=on_progress)
+        return handle.wait(timeout=timeout, on_progress=on_progress, cancel=cancel)
 
     def _time(self) -> float:
         return time.monotonic()

@@ -16,15 +16,14 @@ import platform
 import sys
 import tempfile
 import traceback
-from typing import Any, Dict, Optional, Sequence, Union
-
-import shortuuid  # type: ignore
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
 import wandb
 from wandb import trigger
-from wandb.errors import UsageError
+from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
+from wandb.sdk.lib import runid
 from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
@@ -41,11 +40,13 @@ from .lib import (
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxHandle
 from .lib.printer import get_printer
-from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
+
+if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2 as pb
 
 logger = None  # logger configured during wandb.init()
 
@@ -487,7 +488,7 @@ class _WandbInit:
         drun.step = 0
         drun.resumed = False
         drun.disabled = True
-        drun.id = shortuuid.uuid()
+        drun.id = runid.generate_id()
         drun.name = "dummy-" + drun.id
         drun.dir = tempfile.gettempdir()
         module.set_global(
@@ -582,7 +583,7 @@ class _WandbInit:
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
-
+        assert self.settings is not None
         run = Run(
             config=self.config,
             settings=self.settings,
@@ -675,11 +676,15 @@ class _WandbInit:
         if not self.settings.disable_git:
             run._populate_git_info()
 
+        run_proto = backend.interface._make_run(run)
+        run_init_handle: Optional[MailboxHandle] = None
+        run_result: Optional["pb.Result"] = None
+
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
-            run_proto = backend.interface._make_run(run)
-            backend.interface._publish_run(run_proto)
+
+            backend.interface.publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
             if self.settings.resume:
                 wandb.termwarn(
@@ -687,56 +692,73 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
-            run_result = None
-            error_message: Optional[str] = None
+            error: Optional["wandb.errors.Error"] = None
 
-            logger.info(
-                f"communicating run to backend with {self.settings.init_timeout} second timeout"
-            )
-            handle = backend.interface.deliver_run(run)
-            result = handle.wait(
-                timeout=self.settings.init_timeout, on_progress=self._on_progress_init
+            timeout = self.settings.init_timeout
+
+            logger.info(f"communicating run to backend with {timeout} second timeout")
+
+            run_init_handle = backend.interface.deliver_run(run_proto)
+            result = run_init_handle.wait(
+                timeout=timeout,
+                on_progress=self._on_progress_init,
+                cancel=True,
             )
             if result:
                 run_result = result.run_result
 
             if not run_result:
-                logger.error("backend process timed out")
-                error_message = "Error communicating with wandb process"
-                if active_start_method != "fork":
-                    error_message += (
-                        f"\nFor more info see: {wburls.get('doc_start_err')}"
-                    )
-            elif run_result.error:
+                error_message = "Error communicating with wandb process, exiting..."
+                error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
+                logger.error(
+                    "backend process timed out, exiting...\n"
+                    f"encountered error: {error_message}"
+                )
+                error = CommError(error_message)
+                run_init_handle._cancel()
+            elif run_result and run_result.error:
                 error_message = run_result.error.message
-            if error_message:
-                logger.error(f"encountered error: {error_message}")
+                if error_message:
+                    logger.error(f"encountered error: {error_message}")
+                    error = UsageError(error_message)
+
+            if error is not None:
                 if not manager:
                     # Shutdown the backend and get rid of the logger
                     # we don't need to do console cleanup at this point
                     backend.cleanup()
                     self.teardown()
-                raise UsageError(error_message)
-            assert run_result and run_result.run
-            if run_result.run.resumed:
-                logger.info("run resumed")
-                with telemetry.context(run=run) as tel:
-                    tel.feature.resumed = True
-            run._set_run_obj(run_result.run)
+                raise error
+
+            if run_result is not None:
+                assert run_result.run
+
+                if run_result.run.resumed:
+                    logger.info("run resumed")
+                    with telemetry.context(run=run) as tel:
+                        tel.feature.resumed = run_result.run.resumed
+
+                run_proto = run_result.run
+                run_init_handle = None
+
+            run._set_run_obj(run_proto)
             run._on_init()
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
 
-        self.settings._apply_run_start(message_to_dict(run_obj))
-        run._update_settings(self.settings)
         if manager:
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         assert backend.interface
         assert run_obj
-        _ = backend.interface.communicate_run_start(run_obj)
+
+        run_start_handle = backend.interface.deliver_run_start(run_obj)
+        # TODO: add progress to let user know we are doing something
+        run_start_result = run_start_handle.wait(timeout=30)
+        if run_start_result is None:
+            run_start_handle.release()
 
         self._wl._global_run_stack.append(run)
         self.run = run
@@ -1064,9 +1086,6 @@ def init(
     """
     wandb._assert_is_user_process()
 
-    if resume is True:
-        resume = "auto"  # account for changing resume interface, True and auto should behave the same
-
     kwargs = dict(locals())
     error_seen = None
     except_exit = None
@@ -1111,6 +1130,6 @@ def init(
         if error_seen:
             wandb.termerror("Abnormal program exit")
             if except_exit:
-                os._exit(-1)
+                os._exit(1)
             raise Exception("problem") from error_seen
     return run
