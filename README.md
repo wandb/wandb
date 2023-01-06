@@ -16,13 +16,13 @@
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
 <p align='center'>
-<a href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/experiments.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/reports.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/artifacts.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/tables.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/sweeps.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/models.png" width="13.5%" /></a>
-<a href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/launch.png" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/Product_Icons_light/experiments_icon.svg" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/Product_Icons_light/reports_icon.svg" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/Product_Icons_light/artifacts_icon.svg" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/Product_Icons_light/tables_icon.svg" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/Product_Icons_light/sweeps_icon.svg" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/Product_Icons_light/models_icon.svg" width="13.5%" /></a>
+<a href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme"><img src="./docs/README_images/Product_Icons_light/launch_icon.svg" width="13.5%" /></a>
 </p>
 
 &nbsp;
