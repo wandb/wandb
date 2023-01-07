@@ -42,7 +42,10 @@ logger = logging.getLogger(__name__)
 
 # By default we will allow 400 MiB of requests in the sender queue
 # before falling back to the transaction log.
-DEFAULT_THRESHOLD = 400 * 1024 * 1024  # 400 MiB
+# DEFAULT_THRESHOLD = 400 * 1024 * 1024  # 400 MiB
+
+# TODO(remove_before_release): Set low threshold to create more issues
+DEFAULT_THRESHOLD = 800
 
 
 def _get_request_type(record: "Record") -> Optional[str]:
