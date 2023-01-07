@@ -218,23 +218,18 @@ def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
 
 
 class Backoff(abc.ABC):
+    """A backoff strategy: decides whether to sleep or give up when an exception is raised.
+    """
+
     @abc.abstractmethod
     def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
         pass
 
-    def __enter__(self) -> "Backoff":
-        return self
-
-    def __exit__(  # noqa: B027
-        self,
-        exc_type: Optional[Type[Exception]],
-        exc_val: Optional[Exception],
-        exc_tb: TracebackType,
-    ) -> None:
-        pass
-
 
 class ExponentialBackoff(Backoff):
+    """Jittered exponential backoff: sleep times increase ~exponentially up to some limit.
+    """
+
     def __init__(
         self,
         initial_sleep: datetime.timedelta,
@@ -264,6 +259,9 @@ class ExponentialBackoff(Backoff):
 
 
 class FilteredBackoff(Backoff):
+    """Re-raise any exceptions that fail a predicate; delegate others to another Backoff.
+    """
+
     def __init__(self, filter: Callable[[Exception], bool], wrapped: Backoff) -> None:
         self._filter = filter
         self._wrapped = wrapped
@@ -273,62 +271,23 @@ class FilteredBackoff(Backoff):
             raise exc
         return self._wrapped.next_sleep_or_reraise(exc)
 
-    def __enter__(self) -> "FilteredBackoff":
-        self._wrapped.__enter__()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[Exception]],
-        exc_val: Optional[Exception],
-        exc_tb: TracebackType,
-    ) -> None:
-        self._wrapped.__exit__(exc_type, exc_val, exc_tb)
-
-
-class RetryLoopLoggingBackoff(Backoff):
-    def __init__(
-        self,
-        wrapped: Backoff,
-        on_loop_start: Callable[[Exception], None],
-        on_loop_end: Callable[[datetime.timedelta], None],
-    ) -> None:
-        self._wrapped = wrapped
-        self._on_loop_start = on_loop_start
-        self._on_loop_end = on_loop_end
-        self._first_failure_time: Optional[datetime.datetime] = None
-
-    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
-        if self._first_failure_time is None:
-            self._first_failure_time = NOW_FN()
-            self._on_loop_start(exc)
-
-        return self._wrapped.next_sleep_or_reraise(exc)
-
-    def __enter__(self) -> "RetryLoopLoggingBackoff":
-        self._wrapped.__enter__()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[Exception]],
-        exc_val: Optional[Exception],
-        exc_tb: TracebackType,
-    ) -> None:
-        if self._first_failure_time is not None:
-            self._on_loop_end(NOW_FN() - self._first_failure_time)
-        self._wrapped.__exit__(exc_type, exc_val, exc_tb)
-
 
 async def retry_async(
     backoff: Backoff,
     fn: Callable[..., Awaitable[_R]],
     *args: Any,
+    on_retry_exc: Optional[Callable[[Exception], None]] = None,
     **kwargs: Any,
 ) -> _R:
-    with backoff:
-        while True:
-            try:
-                return await fn(*args, **kwargs)
-            except Exception as e:
-                await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())
+    """Call `fn` repeatedly until either it succeeds, or `backoff` decides we should give up.
+
+    Each time `fn` fails, `on_retry_exc` is called with the exception.
+    """
+
+    while True:
+        try:
+            return await fn(*args, **kwargs)
+        except Exception as e:
+            if on_retry_exc is not None:
+                on_retry_exc(e)
+            await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())

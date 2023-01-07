@@ -3,7 +3,7 @@
 import asyncio
 import dataclasses
 import datetime
-from typing import Iterator
+from typing import Iterator, Optional
 from unittest import mock
 
 import pytest
@@ -177,27 +177,6 @@ class TestFilteredBackoff:
         wrapped.next_sleep_or_reraise.assert_called_once_with(retriable_exc)
 
 
-class TestRetryLoopLoggingBackoff:
-    def test_respects_max_retries(self, mock_time: MockTime):
-        events = []
-        backoff = retry.RetryLoopLoggingBackoff(
-            wrapped=mock.MagicMock(spec=retry.Backoff),
-            on_loop_start=lambda e: events.append(("start", e)),
-            on_loop_end=lambda dt: events.append(("end", dt)),
-        )
-
-        excs = [MyError(str(i)) for i in range(3)]
-
-        with backoff:
-            backoff.next_sleep_or_reraise(excs[0])
-            mock_time.sleep(1.0)
-            backoff.next_sleep_or_reraise(excs[1])
-            mock_time.sleep(1.0)
-            backoff.next_sleep_or_reraise(excs[2])
-            mock_time.sleep(1.0)
-            assert events == [("start", excs[0])]
-
-        assert events == [("start", excs[0]), ("end", 3 * SECOND)]
 
 
 class TestExponentialBackoff:
@@ -264,27 +243,27 @@ class TestRetryAsync:
             ]
         )
 
-    def test_uses_backoff_context_manager(self, mock_time: MockTime):
+    def test_calls_on_retry_exc(self, mock_time: MockTime):
         backoff = mock.MagicMock(
             spec=retry.Backoff,
             next_sleep_or_reraise=mock.Mock(return_value=1 * SECOND),
         )
 
-        async def _fn():
-            assert backoff.__enter__.call_count == 1
-            assert backoff.__exit__.call_count == 0
+        excs = [MyError("one"), MyError("two")]
 
         fn = mock.AsyncMock(
-            wraps=_fn,
             side_effect=[
-                Exception("transient error"),
-                Exception("transient error"),
-                mock.DEFAULT,
+                *excs,
+                lambda: None,
             ],
         )
 
-        asyncio.run(retry.retry_async(backoff, fn))
+        on_retry_exc = mock.Mock()
+        asyncio.run(retry.retry_async(backoff, fn, on_retry_exc=on_retry_exc))
 
-        assert fn.call_count == 3
-        assert backoff.__enter__.call_count == 1
-        assert backoff.__exit__.call_count == 1
+        on_retry_exc.assert_has_calls(
+            [
+                mock.call(excs[0]),
+                mock.call(excs[1]),
+            ]
+        )
