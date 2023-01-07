@@ -7,6 +7,7 @@ import os
 import random
 import threading
 import time
+from types import TracebackType
 from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
@@ -221,6 +222,17 @@ class Backoff(abc.ABC):
     def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
         pass
 
+    def __enter__(self) -> "Backoff":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[Exception]],
+        exc_val: Optional[Exception],
+        exc_tb: TracebackType,
+    ) -> None:
+        pass
+
 
 class ExponentialBackoff(Backoff):
     def __init__(
@@ -252,9 +264,7 @@ class ExponentialBackoff(Backoff):
 
 
 class FilteredBackoff(Backoff):
-    def __init__(
-        self, filter: Callable[[Exception], bool], wrapped: Backoff
-    ) -> None:
+    def __init__(self, filter: Callable[[Exception], bool], wrapped: Backoff) -> None:
         self._filter = filter
         self._wrapped = wrapped
 
@@ -263,6 +273,54 @@ class FilteredBackoff(Backoff):
             raise exc
         return self._wrapped.next_sleep_or_reraise(exc)
 
+    def __enter__(self) -> "FilteredBackoff":
+        self._wrapped.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[Exception]],
+        exc_val: Optional[Exception],
+        exc_tb: TracebackType,
+    ) -> None:
+        self._wrapped.__exit__(exc_type, exc_val, exc_tb)
+
+
+class RetryLoopLoggingBackoff(Backoff):
+    def __init__(
+        self,
+        wrapped: Backoff,
+        on_loop_start: Callable[[Exception], None],
+        on_loop_end: Callable[[datetime.timedelta], None],
+    ) -> None:
+        self._wrapped = wrapped
+        self._on_loop_start = on_loop_start
+        self._on_loop_end = on_loop_end
+        self._first_failure_time: Optional[datetime.datetime] = None
+        self._in_retry_loop = False
+
+    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
+        if not self._in_retry_loop:
+            self._in_retry_loop = True
+            self._first_failure_time = NOW_FN()
+            self._on_loop_start(exc)
+
+        return self._wrapped.next_sleep_or_reraise(exc)
+
+    def __enter__(self) -> "RetryLoopLoggingBackoff":
+        self._wrapped.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[Exception]],
+        exc_val: Optional[Exception],
+        exc_tb: TracebackType,
+    ) -> None:
+        if self._in_retry_loop:
+            self._on_loop_end(NOW_FN() - self._first_failure_time)
+        self._wrapped.__exit__(exc_type, exc_val, exc_tb)
+
 
 async def retry_async(
     backoff: Backoff,
@@ -270,8 +328,9 @@ async def retry_async(
     *args: Any,
     **kwargs: Any,
 ) -> _R:
-    while True:
-        try:
-            return await fn(*args, **kwargs)
-        except Exception as e:
-            await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())
+    with backoff:
+        while True:
+            try:
+                return await fn(*args, **kwargs)
+            except Exception as e:
+                await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())

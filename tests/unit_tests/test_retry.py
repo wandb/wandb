@@ -150,7 +150,6 @@ SECOND = datetime.timedelta(seconds=1)
 
 
 class TestAsync:
-
     class TestFilteredBackoff:
         def test_reraises_exc_failing_predicate(self):
             wrapped = mock.Mock(spec=retry.Backoff)
@@ -166,7 +165,10 @@ class TestAsync:
 
         def test_delegates_exc_passing_predicate(self):
             retriable_exc = MyException("retry me")
-            wrapped = mock.Mock(spec=retry.Backoff, next_sleep_or_reraise=mock.Mock(return_value=123 * SECOND))
+            wrapped = mock.Mock(
+                spec=retry.Backoff,
+                next_sleep_or_reraise=mock.Mock(return_value=123 * SECOND),
+            )
             filtered = retry.FilteredBackoff(
                 filter=lambda e: e == retriable_exc,
                 wrapped=wrapped,
@@ -175,10 +177,32 @@ class TestAsync:
             assert filtered.next_sleep_or_reraise(retriable_exc) == 123 * SECOND
             wrapped.next_sleep_or_reraise.assert_called_once_with(retriable_exc)
 
-    class TestExponentialBackoff:
+    class TestRetryLoopLoggingBackoff:
+        def test_respects_max_retries(self, mock_time: MockTime):
+            events = []
+            backoff = retry.RetryLoopLoggingBackoff(
+                wrapped=mock.MagicMock(spec=retry.Backoff),
+                on_loop_start=lambda e: events.append(("start", e)),
+                on_loop_end=lambda dt: events.append(("end", dt)),
+            )
 
+            excs = [MyException(str(i)) for i in range(3)]
+
+            with backoff:
+                backoff.next_sleep_or_reraise(excs[0])
+                mock_time.sleep(1.0)
+                backoff.next_sleep_or_reraise(excs[1])
+                mock_time.sleep(1.0)
+                backoff.next_sleep_or_reraise(excs[2])
+                mock_time.sleep(1.0)
+
+            assert events == [("start", excs[0]), ("end", 3 * SECOND)]
+
+    class TestExponentialBackoff:
         def test_respects_max_retries(self):
-            backoff = retry.ExponentialBackoff(initial_sleep=SECOND, max_sleep=SECOND, max_retries=3)
+            backoff = retry.ExponentialBackoff(
+                initial_sleep=SECOND, max_sleep=SECOND, max_retries=3
+            )
             for _ in range(3):
                 backoff.next_sleep_or_reraise(MyException())
             with pytest.raises(MyException):
@@ -187,40 +211,77 @@ class TestAsync:
         def test_respects_timeout(self, mock_time: MockTime):
             t0 = mock_time.now()
             dt = 300 * SECOND
-            backoff = retry.ExponentialBackoff(initial_sleep=SECOND, max_sleep=10 * dt, timeout_at=t0 + dt)
+            backoff = retry.ExponentialBackoff(
+                initial_sleep=SECOND, max_sleep=10 * dt, timeout_at=t0 + dt
+            )
             with pytest.raises(MyException):
                 for _ in range(9999):
-                    mock_time.sleep(backoff.next_sleep_or_reraise(MyException()).total_seconds())
+                    mock_time.sleep(
+                        backoff.next_sleep_or_reraise(MyException()).total_seconds()
+                    )
 
             assert t0 + dt <= mock_time.now() <= t0 + 2 * dt
 
     class TestRetryAsync:
         def test_follows_backoff_schedule(self, mock_time: MockTime):
-            fn = mock.Mock()
+            fn = mock.Mock(side_effect=MyException("oh no"))
             with pytest.raises(MyException):
-                asyncio.run(retry.retry_async(
-                    mock.Mock(
-                        spec=retry.Backoff,
-                        next_sleep_or_reraise=mock.Mock(side_effect=[
-                            1 * SECOND,
-                            2 * SECOND,
-                            MyException("oh no"),
-                        ]),
-                    ),
-                    fn,
-                    'pos1',
-                    'pos2',
-                    kw1='kw1',
-                    kw2='kw2',
-                ))
+                asyncio.run(
+                    retry.retry_async(
+                        mock.MagicMock(
+                            spec=retry.Backoff,
+                            next_sleep_or_reraise=mock.Mock(
+                                side_effect=[
+                                    1 * SECOND,
+                                    2 * SECOND,
+                                    MyException(),
+                                ]
+                            ),
+                        ),
+                        fn,
+                        "pos1",
+                        "pos2",
+                        kw1="kw1",
+                        kw2="kw2",
+                    )
+                )
 
-            mock_time.sleep_async.assert_has_calls([
-                mock.call(1.0),
-                mock.call(2.0),
-            ])
+            mock_time.sleep_async.assert_has_calls(
+                [
+                    mock.call(1.0),
+                    mock.call(2.0),
+                ]
+            )
 
-            fn.assert_has_calls([
-                mock.call('pos1', 'pos2', kw1='kw1', kw2='kw2'),
-                mock.call('pos1', 'pos2', kw1='kw1', kw2='kw2'),
-                mock.call('pos1', 'pos2', kw1='kw1', kw2='kw2'),
-            ])
+            fn.assert_has_calls(
+                [
+                    mock.call("pos1", "pos2", kw1="kw1", kw2="kw2"),
+                    mock.call("pos1", "pos2", kw1="kw1", kw2="kw2"),
+                    mock.call("pos1", "pos2", kw1="kw1", kw2="kw2"),
+                ]
+            )
+
+        def test_uses_backoff_context_manager(self, mock_time: MockTime):
+            backoff = mock.MagicMock(
+                spec=retry.Backoff,
+                next_sleep_or_reraise=mock.Mock(return_value=1 * SECOND),
+            )
+
+            async def _fn():
+                assert backoff.__enter__.call_count == 1
+                assert backoff.__exit__.call_count == 0
+
+            fn = mock.AsyncMock(
+                wraps=_fn,
+                side_effect=[
+                    Exception("transient error"),
+                    Exception("transient error"),
+                    mock.DEFAULT,
+                ],
+            )
+
+            asyncio.run(retry.retry_async(backoff, fn))
+
+            assert fn.call_count == 3
+            assert backoff.__enter__.call_count == 1
+            assert backoff.__exit__.call_count == 1
