@@ -4,6 +4,7 @@ import json
 import logging
 import multiprocessing as mp
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -51,9 +52,13 @@ NEURON_MONITOR_DEFAULT_CONFIG: Final[dict] = {
     ],
 }
 
-
-NEURON_LS_COMMAND = ["neuron-ls"]
-NEURON_MONITOR_COMMAND = ["neuron-monitor"]
+# todo: once a python sdk is released with the Neuron utils, rewrite this
+NEURON_LS_PATH: Final[str] = (
+    shutil.which("neuron-ls") or "/opt/aws/neuron/bin/neuron-ls"
+)
+NEURON_MONITOR_PATH: Final[str] = (
+    shutil.which("neuron-monitor") or "/opt/aws/neuron/bin/neuron-monitor"
+)
 
 
 @dataclasses.dataclass
@@ -105,8 +110,13 @@ class NeuronCoreStats:
         self.check_neuron_monitor_config()
 
         try:
+            command = [
+                NEURON_MONITOR_PATH,
+                "-c",
+                self.neuron_monitor_config_path,
+            ]
             popen = subprocess.Popen(
-                NEURON_MONITOR_COMMAND + ["-c", self.neuron_monitor_config_path],
+                command,
                 shell=False,
                 stdout=subprocess.PIPE,
                 stderr=None,
@@ -121,7 +131,11 @@ class NeuronCoreStats:
         except Exception as e:
             logger.error("neuron-monitor failed: %s" % e)
 
-    def __init__(self, pid: int, neuron_monitor_config_path: Optional[str]) -> None:
+    def __init__(
+        self,
+        pid: int,
+        neuron_monitor_config_path: Optional[str],
+    ) -> None:
         self.pid = pid
         # neuron-monitor requires a config file (json)
         # we provide an option to supply a custom config file path
@@ -279,12 +293,9 @@ class Trainium:
         # check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
         try:
-            output = (
-                subprocess.check_output(NEURON_LS_COMMAND, universal_newlines=True)
-                .strip()
-                .split("\n")
-            )
-            if len(output) > 4:  # header is 4 lines
+            command = [NEURON_LS_PATH, "-j"]  # ask for json output
+            output = subprocess.check_output(command, universal_newlines=True).strip()
+            if len(json.loads(output)) > 0:
                 return True
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
             pass
@@ -305,8 +316,13 @@ class Trainium:
         try:
             self.metrics[0].check_neuron_monitor_config()  # type: ignore
             neuron_hardware_info: dict = {}
+            command = [
+                NEURON_MONITOR_PATH,
+                "-c",
+                self.metrics[0].neuron_monitor_config_path,  # type: ignore
+            ]
             popen = subprocess.Popen(
-                NEURON_MONITOR_COMMAND,
+                command,
                 stdout=subprocess.PIPE,
                 stderr=None,
             )
