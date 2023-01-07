@@ -297,11 +297,9 @@ class RetryLoopLoggingBackoff(Backoff):
         self._on_loop_start = on_loop_start
         self._on_loop_end = on_loop_end
         self._first_failure_time: Optional[datetime.datetime] = None
-        self._in_retry_loop = False
 
     def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
-        if not self._in_retry_loop:
-            self._in_retry_loop = True
+        if self._first_failure_time is None:
             self._first_failure_time = NOW_FN()
             self._on_loop_start(exc)
 
@@ -317,7 +315,7 @@ class RetryLoopLoggingBackoff(Backoff):
         exc_val: Optional[Exception],
         exc_tb: TracebackType,
     ) -> None:
-        if self._in_retry_loop:
+        if self._first_failure_time is not None:
             self._on_loop_end(NOW_FN() - self._first_failure_time)
         self._wrapped.__exit__(exc_type, exc_val, exc_tb)
 
