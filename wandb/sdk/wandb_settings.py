@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import platform
 import re
+import shutil
 import socket
 import sys
 import tempfile
@@ -382,8 +383,10 @@ class Settings:
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
     _log_level: int
+    _network_buffer: int
     _noop: bool
     _offline: bool
+    _sync: bool
     _os: str
     _platform: str
     _python: str
@@ -406,6 +409,7 @@ class Settings:
     anonymous: str
     api_key: str
     base_url: str  # The base url for the wandb api
+    cache_dir: str  # The directory to use for artifacts cache: <cache_dir>/artifacts
     code_dir: str
     config_paths: Sequence[str]
     console: str
@@ -500,6 +504,7 @@ class Settings:
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
@@ -521,6 +526,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
@@ -1399,9 +1405,11 @@ class Settings:
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
 
-        # one special case here is running inside a PEX environment,
-        # see https://pex.readthedocs.io/en/latest/index.html for more info about PEX
-        _executable = self._executable or os.environ.get("PEX") or sys.executable
+        _executable = (
+            os.environ.get(wandb.env._EXECUTABLE, self._executable)
+            or sys.executable
+            or shutil.which("python")
+        )
         if _executable is None or _executable == "":
             _executable = "python3"
         settings["_executable"] = _executable
