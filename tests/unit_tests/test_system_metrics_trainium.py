@@ -4,6 +4,7 @@ import threading
 import time
 from unittest import mock
 
+import pytest
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Trainium
@@ -913,6 +914,7 @@ def _is_matching_entry_mock(self: NeuronCoreStats, entry: dict) -> bool:  # noqa
     return True
 
 
+@pytest.mark.timeout(30)
 def test_trainium(test_settings):
     with mock.patch.multiple(
         "wandb.sdk.internal.system.assets.trainium.NeuronCoreStats",
@@ -940,12 +942,17 @@ def test_trainium(test_settings):
         with mock.patch.object(
             wandb.sdk.internal.system.assets.trainium,
             "NEURON_LS_COMMAND",
-            ["ls", "-lhtr", "/"],
+            ["echo", '[{"x":1}]'],
         ):
             assert trainium.is_available()
 
         trainium.start()
-        time.sleep(3)
+
+        # wait for the mock data to be processed indefinitely,
+        # until the test times out in the worst case
+        while interface.metrics_queue.empty():
+            time.sleep(0.1)
+
         shutdown_event.set()
         trainium.finish()
 

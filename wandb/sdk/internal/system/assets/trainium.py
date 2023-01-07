@@ -10,7 +10,7 @@ import sys
 import tempfile
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 if sys.version_info >= (3, 8):
     from typing import Final
@@ -53,8 +53,9 @@ NEURON_MONITOR_DEFAULT_CONFIG: Final[dict] = {
 }
 
 # todo: once a python sdk is released with the Neuron utils, rewrite this
-NEURON_LS_PATH: Final[str] = (
-    shutil.which("neuron-ls") or "/opt/aws/neuron/bin/neuron-ls"
+NEURON_LS_COMMAND: Final[Tuple[str, str]] = (
+    shutil.which("neuron-ls") or "/opt/aws/neuron/bin/neuron-ls",
+    "-j",
 )
 NEURON_MONITOR_PATH: Final[str] = (
     shutil.which("neuron-monitor") or "/opt/aws/neuron/bin/neuron-monitor"
@@ -293,8 +294,9 @@ class Trainium:
         # check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
         try:
-            command = [NEURON_LS_PATH, "-j"]  # ask for json output
-            output = subprocess.check_output(command, universal_newlines=True).strip()
+            output = subprocess.check_output(
+                NEURON_LS_COMMAND, universal_newlines=True
+            ).strip()
             if len(json.loads(output)) > 0:
                 return True
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
