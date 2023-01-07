@@ -2,8 +2,6 @@ import logging
 import os
 from typing import TYPE_CHECKING, Optional
 
-import wandb
-
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats
     from wandb.sdk.internal import file_stream, internal_api
@@ -49,14 +47,17 @@ class UploadJob:
 
     def run(self) -> None:
         try:
-            success = self.push()
-            if success:
-                self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
+            self.push()
+        except Exception:
+            self._stats.update_failed_file(self.save_name)
+            raise
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
 
-    def push(self) -> bool:
+        self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
+
+    def push(self) -> None:
         if self.md5:
             # This is the new artifact manifest upload flow, in which we create the
             # database entry for the manifest file before creating it. This is used for
@@ -88,27 +89,14 @@ class UploadJob:
             # since its a proxied file store like the on-prem VM.
             if upload_url.startswith("/"):
                 upload_url = f"{self._api.api_url}{upload_url}"
-            try:
-                with open(self.save_path, "rb") as f:
-                    self._api.upload_file_retry(
-                        upload_url,
-                        f,
-                        lambda _, t: self.progress(t),
-                        extra_headers=extra_headers,
-                    )
-                logger.info("Uploaded file %s", self.save_path)
-            except Exception as e:
-                self._stats.update_failed_file(self.save_name)
-                logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.util.sentry_exc(e)
-                if not self.silent:
-                    wandb.termerror(
-                        'Error uploading "{}": {}, {}'.format(
-                            self.save_name, type(e).__name__, e
-                        )
-                    )
-                return False
-        return True
+            with open(self.save_path, "rb") as f:
+                self._api.upload_file_retry(
+                    upload_url,
+                    f,
+                    lambda _, t: self.progress(t),
+                    extra_headers=extra_headers,
+                )
+            logger.info("Uploaded file %s", self.save_path)
 
     def progress(self, total_bytes: int) -> None:
         self._stats.update_uploaded_file(self.save_name, total_bytes)
