@@ -19,6 +19,7 @@ class SettingsStatic:
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: bool
+    _stats_neuron_monitor_config_path: Optional[str]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str
