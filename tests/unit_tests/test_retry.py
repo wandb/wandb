@@ -142,7 +142,7 @@ def test_retry_respects_secondary_timeout(mock_time: MockTime):
     assert 10 <= (mock_time.now() - t0).total_seconds() / 60 < 20
 
 
-class MyException(Exception):
+class MyError(Exception):
     pass
 
 
@@ -158,13 +158,13 @@ class TestAsync:
                 wrapped=wrapped,
             )
 
-            with pytest.raises(MyException):
-                filtered.next_sleep_or_reraise(MyException("don't retry me"))
+            with pytest.raises(MyError):
+                filtered.next_sleep_or_reraise(MyError("don't retry me"))
 
             wrapped.next_sleep_or_reraise.assert_not_called()
 
         def test_delegates_exc_passing_predicate(self):
-            retriable_exc = MyException("retry me")
+            retriable_exc = MyError("retry me")
             wrapped = mock.Mock(
                 spec=retry.Backoff,
                 next_sleep_or_reraise=mock.Mock(return_value=123 * SECOND),
@@ -186,7 +186,7 @@ class TestAsync:
                 on_loop_end=lambda dt: events.append(("end", dt)),
             )
 
-            excs = [MyException(str(i)) for i in range(3)]
+            excs = [MyError(str(i)) for i in range(3)]
 
             with backoff:
                 backoff.next_sleep_or_reraise(excs[0])
@@ -204,9 +204,9 @@ class TestAsync:
                 initial_sleep=SECOND, max_sleep=SECOND, max_retries=3
             )
             for _ in range(3):
-                backoff.next_sleep_or_reraise(MyException())
-            with pytest.raises(MyException):
-                backoff.next_sleep_or_reraise(MyException())
+                backoff.next_sleep_or_reraise(MyError())
+            with pytest.raises(MyError):
+                backoff.next_sleep_or_reraise(MyError())
 
         def test_respects_timeout(self, mock_time: MockTime):
             t0 = mock_time.now()
@@ -214,18 +214,18 @@ class TestAsync:
             backoff = retry.ExponentialBackoff(
                 initial_sleep=SECOND, max_sleep=10 * dt, timeout_at=t0 + dt
             )
-            with pytest.raises(MyException):
+            with pytest.raises(MyError):
                 for _ in range(9999):
                     mock_time.sleep(
-                        backoff.next_sleep_or_reraise(MyException()).total_seconds()
+                        backoff.next_sleep_or_reraise(MyError()).total_seconds()
                     )
 
             assert t0 + dt <= mock_time.now() <= t0 + 2 * dt
 
     class TestRetryAsync:
         def test_follows_backoff_schedule(self, mock_time: MockTime):
-            fn = mock.Mock(side_effect=MyException("oh no"))
-            with pytest.raises(MyException):
+            fn = mock.Mock(side_effect=MyError("oh no"))
+            with pytest.raises(MyError):
                 asyncio.run(
                     retry.retry_async(
                         mock.MagicMock(
@@ -234,7 +234,7 @@ class TestAsync:
                                 side_effect=[
                                     1 * SECOND,
                                     2 * SECOND,
-                                    MyException(),
+                                    MyError(),
                                 ]
                             ),
                         ),
