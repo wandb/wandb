@@ -225,7 +225,7 @@ class Backoff(abc.ABC):
     def __enter__(self) -> "Backoff":
         return self
 
-    def __exit__(
+    def __exit__(  # noqa: B027
         self,
         exc_type: Optional[Type[Exception]],
         exc_val: Optional[Exception],
