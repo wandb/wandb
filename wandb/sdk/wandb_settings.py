@@ -526,6 +526,14 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _flow_control_disabled={
+                "hook": lambda _: self._network_buffer == 0,
+                "auto_hook": True,
+            },
+            _flow_control_custom={
+                "hook": lambda _: bool(self._network_buffer),
+                "auto_hook": True,
+            },
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},

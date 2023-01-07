@@ -153,6 +153,8 @@ message Feature {
   bool keras_wandb_eval_callback = 40; // Keras WandbEvalCallback used
   bool flow_control_overflow = 41; // Hit flow control threshold
   bool sync = 42; // Run was synced with wandb sync
+  bool flow_control_disabled = 43; // Flow control disabled by user
+  bool flow_control_custom = 44; // Flow control customized by user
 }
 
 message Env {
