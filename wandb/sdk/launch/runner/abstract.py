@@ -11,6 +11,7 @@ from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.vendor.dockerpycreds.dockerpycreds.utils import find_executable
+from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
 
@@ -117,7 +118,7 @@ class AbstractRunner(ABC):
         self._api = api
         self.backend_config = backend_config
         self._cwd = os.getcwd()
-        self._namespace = wandb.util.generate_id()
+        self._namespace = runid.generate_id()
 
     def find_executable(
         self, cmd: str
