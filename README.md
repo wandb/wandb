@@ -106,17 +106,17 @@ wandb.login()
 import wandb
 
 # Start a W&B Run with wandb.init
-wandb.init(project="my_first_project")
+run = wandb.init(project="my_first_project")
 
 # Save model inputs and hyperparameters in a wandb.config object
-config = wandb.config
+config = run.config
 config.learning_rate = 0.01
 
 # Model training code here ...
 
 # Log metrics over time to visualize performance with wandb.log
 for i in range(10):
-    wandb.log({"loss": loss})
+    run.log({"loss": loss})
 ```
 
 That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
@@ -147,19 +147,19 @@ Call `.watch` and pass in your PyTorch model to automatically log gradients and 
 import wandb
 
 # 1. Start a new run
-wandb.init(project="gpt4")
+run = wandb.init(project="gpt4")
 
 # 2. Save model inputs and hyperparameters
-config = wandb.config
+config = run.config
 config.dropout = 0.01
 
 # 3. Log gradients and model parameters
-wandb.watch(model)
+run.watch(model)
 for batch_idx, (data, target) in enumerate(train_loader):
     ...
     if batch_idx % args.log_interval == 0:
         # 4. Log metrics to visualize performance
-        wandb.log({"loss": loss})
+        run.log({"loss": loss})
 ```
 
 - Run an example [Google Colab Notebook](http://wandb.me/pytorch-colab).
@@ -186,7 +186,7 @@ import tensorflow as tf
 
 
 # Start a run, tracking hyperparameters
-wandb.init(
+run = wandb.init(
     # set the wandb project where this run will be logged
     project="my-awesome-project",
     # track hyperparameters and run metadata with wandb.config
@@ -205,7 +205,7 @@ wandb.init(
 )
 
 # [optional] use wandb.config as your config
-config = wandb.config
+config = run.config
 
 # get the data
 mnist = tf.keras.datasets.mnist
@@ -243,7 +243,7 @@ history = model.fit(
 )
 
 # [optional] finish the wandb run, necessary in notebooks
-wandb.finish()
+run.finish()
 ```
 
 Get started integrating your Keras model with W&B today:
@@ -446,7 +446,7 @@ param = {
 }
 
 # start a new wandb run to track this script
-wandb.init(
+run = wandb.init(
     # set the wandb project where this run will be logged
     project="my-awesome-project",
     # track hyperparameters and run metadata
@@ -454,7 +454,7 @@ wandb.init(
 )
 
 # download data from wandb Artifacts and prep data
-wandb.use_artifact("wandb/intro/dermatology_data:v0", type="dataset").download(".")
+run.use_artifact("wandb/intro/dermatology_data:v0", type="dataset").download(".")
 data = np.loadtxt(
     "./dermatology.data",
     delimiter=",",
@@ -477,8 +477,8 @@ watchlist = [(xg_train, "train"), (xg_test, "test")]
 
 # add another config to the wandb run
 num_round = 5
-wandb.config["num_round"] = 5
-wandb.config["data_shape"] = sz
+run.config["num_round"] = 5
+run.config["data_shape"] = sz
 
 # pass WandbCallback to the booster to log its configs and metrics
 bst = xgb.train(
@@ -490,10 +490,10 @@ pred = bst.predict(xg_test)
 error_rate = np.sum(pred != test_Y) / test_Y.shape[0]
 
 # log your test metric to wandb
-wandb.summary["Error Rate"] = error_rate
+run.summary["Error Rate"] = error_rate
 
 # [optional] finish the wandb run, necessary in notebooks
-wandb.finish()
+run.finish()
 ```
 
 - Run an example [Google Colab Notebook](https://wandb.me/xgboost?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
@@ -539,10 +539,10 @@ importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 
 # start a new wandb run and add your model hyperparameters
-wandb.init(project="my-awesome-project", config=model_params)
+run = wandb.init(project="my-awesome-project", config=model_params)
 
 # Add additional configs to wandb
-wandb.config.update(
+run.config.update(
     {
         "test_size": test_size,
         "train_len": len(X_train),
@@ -558,7 +558,7 @@ plot_precision_recall(y_test, y_probas, labels)
 plot_feature_importances(model)
 
 # [optional] finish the wandb run, necessary in notebooks
-wandb.finish()
+run.finish()
 ```
 
 - Run an example [Google Colab Notebook](https://wandb.me/scikit-colab?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
