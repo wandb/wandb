@@ -71,6 +71,9 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
 
 🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme).
 
+Want to use Weights & Biases for seamless collaboration between your ML or Data Science team? Looking for Production-grade MLOps at scale? Sign up to one of [our plans](https://wandb.ai/site/pricing) or [contact the Sales Team](https://wandb.ai/site/contact).
+
+
 &nbsp;
 
 # Documentation
@@ -573,23 +576,14 @@ Explore example Colab Notebooks at [wandb/examples GitHub repository](https://gi
 
 # Contribution guidelines
 
-Weights & Biases ❤️ open source and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library.
+Weights & Biases ❤️ open source and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com .
 
 &nbsp;
 
-# Contact
+# W&B Community
 
-We'd love to talk about how we can work together.
+Be a part of the growing W&B Community and interact with the W&B team in our [Discord](https://wandb.me/discord). Stay connected with the latest ML updates and tutorials with [W&B Fully Connected](https://wandb.ai/fully-connected).
 
-- For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com
-- Be a part of the growing W&B Community and interact with the W&B team in our [Discord](https://wandb.me/discord).
-- Stay connected with the latest ML updates and tutorials with [W&B Fully Connected](https://wandb.ai/fully-connected).
-
-&nbsp;
-
-# Weights & Biases for Startups and Enterprise
-
-Use Weights & Biases for seamless collaboration between your ML or Data Science team. Sign up to one of [our plans](https://wandb.ai/site/pricing) or [contact Sales Team](https://wandb.ai/site/contact).
 
 &nbsp;
 
