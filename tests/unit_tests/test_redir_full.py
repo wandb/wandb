@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from unittest import mock
 
@@ -67,7 +68,8 @@ def test_offline_compression(wandb_init, capfd, console):
         )
 
         # Only a single output record per stream is written when the run finishes
-        assert binary_log.count("Record: output") == 2
+        re_output = re.compile(r"^Record: num: \d+\noutput {", flags=re.MULTILINE)
+        assert len(re_output.findall(binary_log)) == 2
 
         # Only final state of progress bar is logged
         assert binary_log.count("#") == 100, binary_log.count
