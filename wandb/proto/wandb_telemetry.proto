@@ -168,6 +168,7 @@ message Env {
   bool start_thread = 8;      // thread start method
   bool maybe_mp = 9; // maybe user running multiprocessing
   bool trainium = 10; // AWS Trainium env detected
+  bool pex = 11; // pex env detected
 }
 
 message Labels {
