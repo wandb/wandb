@@ -29,10 +29,6 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
 
 🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme).
 
-<!-- | Experiments | Reports | Artifacts | Tables | Sweeps | Models | Launch |
-| ----------- | ------- | --------- | ------ | ------ | ------ | ------ |
-| Text        | Text    | Text      | Text   | Text   | Text   | Text   | -->
-
 &nbsp;
 
 # Documentation
@@ -91,14 +87,43 @@ Example W&B Dashboard that shows Wuns from an Experiment.
 
 # Integrations
 
-Use your favorite framework with W&B. W&B integrations make it fast and easy to set up experiment tracking and data versioning inside existing projects.
+Use your favorite framework with W&B. W&B integrations make it fast and easy to set up experiment tracking and data versioning inside existing projects. For more information on how to integrate W&B with the framework of your choice, see the [Integrations chapter](https://docs.wandb.ai/guides/integrations) in the W&B Developer Guide.
 
 <!-- <p align='center'>
 <img src="./docs/README_images/integrations.png" width="100%" />
 </p> -->
 
 <details>
-<summary>🥕 Keras</summary>
+<summary>🔥 PyTorch</summary>
+
+Call `.watch` and pass in your PyTorch model to automatically log gradients and store the network topology. Next, use `.log` to track other metrics. The following example demonstrates an example of how to do this:
+
+```python
+import wandb
+
+# 1. Start a new run
+wandb.init(project="gpt4")
+
+# 2. Save model inputs and hyperparameters
+config = wandb.config
+config.dropout = 0.01
+
+# 3. Log gradients and model parameters
+wandb.watch(model)
+for batch_idx, (data, target) in enumerate(train_loader):
+    ...
+    if batch_idx % args.log_interval == 0:
+        # 4. Log metrics to visualize performance
+        wandb.log({"loss": loss})
+```
+
+- Run an example [Google Colab Notebook](http://wandb.me/pytorch-colab).
+- Read the [Developer Guide](https://docs.wandb.com/library/integrations/pytorch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch with W&B.
+- Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
+
+</details>
+<details>
+<summary>🌊 TensorFlow/Keras</summary>
 Use W&B Callbacks to automatically save metrics to W&B when you call `model.fit` during training.
 
 The following code example demonstrates how your script might look like when you integrate W&B with Keras:
@@ -182,9 +207,8 @@ Get started integrating your Keras model with W&B today:
 - Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Keras--VmlldzoyMTEwNjQ?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
 
 </details>
-
 <details>
-<summary>🤗 Hugging Face</summary>
+<summary>🤗 Huggingface Transformers</summary>
 
 Pass `wandb` to the `report_to` argument when you run a script using a HuggingFace Trainer. W&B will automatically log losses,
 evaluation metrics, model topology, and gradients.
@@ -267,63 +291,6 @@ wandb.finish()
 - Run an example [Google Colab Notebook](http://wandb.me/hf?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
 - Read the [Developer Guide](https://docs.wandb.com/library/integrations/huggingface?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Hugging Face with W&B.
 </details>
-<details>
-<summary>🔥 PyTorch</summary>
-
-Call `.watch` and pass in your PyTorch model to automatically log gradients and store the network topology. Next, use `.log` to track other metrics. The following example demonstrates an example of how to do this:
-
-```python
-import wandb
-
-# 1. Start a new run
-wandb.init(project="gpt4")
-
-# 2. Save model inputs and hyperparameters
-config = wandb.config
-config.dropout = 0.01
-
-# 3. Log gradients and model parameters
-wandb.watch(model)
-for batch_idx, (data, target) in enumerate(train_loader):
-    ...
-    if batch_idx % args.log_interval == 0:
-        # 4. Log metrics to visualize performance
-        wandb.log({"loss": loss})
-```
-
-- Run an example [Google Colab Notebook](http://wandb.me/pytorch-colab).
-- Read the [Developer Guide](https://docs.wandb.com/library/integrations/pytorch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch with W&B.
-- Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
-
-</details>
-
-<details>
-<summary>🌊 TensorFlow</summary>
-
-The simplest way to log metrics in TensorFlow is by logging `tf.summary` with the W&B TensorFlow logger:
-
-```python
-import wandb
-
-# 1. Start a W&B run
-wandb.init(project="gpt4")
-
-# 2. Save model inputs and hyperparameters
-config = wandb.config
-config.learning_rate = 0.01
-
-# Model training here
-
-# 3. Log metrics over time to visualize performance
-with tf.Session() as sess:
-    # ...
-    wandb.tensorflow.log(tf.summary.merge_all())
-```
-
-- Run an example [Google Colab Notebook](http://wandb.me/tf-colab?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
-- Read the [Developer Guide](https://docs.wandb.com/library/integrations/tensorflow?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate TensorFlow with W&B.
-
-</details>
 
 <details>
 <summary>⚡️ PyTorch Lightning</summary>
@@ -398,14 +365,153 @@ wandb.finish()
 
 - Run an example [Google Colab Notebook](http://wandb.me/lightning?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
 - Read the [Developer Guide](https://docs.wandb.ai/guides/integrations/lightning?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch Lightning with W&B.
+</details>
+<details>
+<summary>💨 XGBoost</summary>
+Use W&B Callbacks to automatically save metrics to W&B when you call `model.fit` during training.
 
+The following code example demonstrates how your script might look like when you integrate W&B with XGBoost:
+
+```python
+# This script needs these libraries to be installed:
+#   numpy, xgboost
+
+import wandb
+from wandb.xgboost import WandbCallback
+
+import numpy as np
+import xgboost as xgb
+
+
+# setup parameters for xgboost
+param = {
+    "objective" : "multi:softmax",
+    "eta" : 0.1,
+    "max_depth": 6,
+    "nthread" : 4,
+    "num_class" : 6
+}
+
+# start a new wandb run to track this script
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="my-awesome-project",
+
+    # track hyperparameters and run metadata
+    config=param
+)
+
+# download data from wandb Artifacts and prep data
+wandb.use_artifact('wandb/intro/dermatology_data:v0', type='dataset').download('.')
+data = np.loadtxt(
+    "./dermatology.data", delimiter=",",
+    converters={33: lambda x: int(x == "?"), 34: lambda x: int(x) - 1},
+)
+sz = data.shape
+
+train = data[: int(sz[0] * 0.7), :]
+test = data[int(sz[0] * 0.7) :, :]
+
+train_X = train[:, :33]
+train_Y = train[:, 34]
+
+test_X = test[:, :33]
+test_Y = test[:, 34]
+
+xg_train = xgb.DMatrix(train_X, label=train_Y)
+xg_test = xgb.DMatrix(test_X, label=test_Y)
+watchlist = [(xg_train, "train"), (xg_test, "test")]
+
+# add another config to the wandb run
+num_round = 5
+wandb.config["num_round"] = 5
+wandb.config["data_shape"] = sz
+
+# pass WandbCallback to the booster to log its configs and metrics
+bst = xgb.train(
+    param, xg_train, num_round, evals=watchlist,
+    callbacks=[WandbCallback()]
+)
+
+# get prediction
+pred = bst.predict(xg_test)
+error_rate = np.sum(pred != test_Y) / test_Y.shape[0]
+
+# log your test metric to wandb
+wandb.summary["Error Rate"] = error_rate
+
+# [optional] finish the wandb run, necessary in notebooks
+wandb.finish()
+```
+
+- Run an example [Google Colab Notebook](https://wandb.me/xgboost?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
+- Read the [Developer Guide](https://docs.wandb.ai/guides/integrations/xgboost?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate XGBoost with W&B.
+</details>
+<details>
+<summary>🧮 Sci-Kit Learn</summary>
+Use wandb to visualize and compare your scikit-learn models' performance:
+
+```python
+# This script needs these libraries to be installed:
+#   numpy, sklearn
+
+import wandb
+from wandb.sklearn import plot_precision_recall, plot_feature_importances
+from wandb.sklearn import plot_class_proportions, plot_learning_curve, plot_roc
+
+import numpy as np
+from sklearn import datasets
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+
+
+# load and process data
+wbcd = datasets.load_breast_cancer()
+feature_names = wbcd.feature_names
+labels = wbcd.target_names
+
+test_size = 0.2
+X_train, X_test, y_train, y_test = train_test_split(wbcd.data, wbcd.target, test_size=test_size)
+
+# train model
+model = RandomForestClassifier()
+model.fit(X_train, y_train)
+model_params = model.get_params()
+
+# get predictions
+y_pred = model.predict(X_test)
+y_probas = model.predict_proba(X_test)
+importances = model.feature_importances_
+indices = np.argsort(importances)[::-1]
+
+# start a new wandb run and add your model hyperparameters
+wandb.init(project='my-awesome-project', config=model_params)
+
+# Add additional configs to wandb
+wandb.config.update({"test_size" : test_size,
+                     "train_len" : len(X_train),
+                     "test_len" : len(X_test)})
+
+# log additional visualisations to wandb
+plot_class_proportions(y_train, y_test, labels)
+plot_learning_curve(model, X_train, y_train)
+plot_roc(y_test, y_probas, labels)
+plot_precision_recall(y_test, y_probas, labels)
+plot_feature_importances(model)
+
+# [optional] finish the wandb run, necessary in notebooks
+wandb.finish()
+```
+
+- Run an example [Google Colab Notebook](https://wandb.me/scikit-colab?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
+- Read the [Developer Guide](https://docs.wandb.ai/guides/integrations/scikit?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Scikit-Learn with W&B.
 </details>
 
 &nbsp;
 
 # W&B Hosting Options
 
-Set up a W&B Server in a production environment in one of three ways:
+Weights & Biases is available in the cloud or installed on your private infrastructure. Set up a W&B Server in a production environment in one of three ways:
 
 1. [Production Cloud](https://docs.wandb.ai/guides/self-hosted/setup/private-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Set up a production deployment on a private cloud in just a few steps using terraform scripts provided by W&B.
 2. [Dedicated Cloud](https://docs.wandb.ai/guides/self-hosted/setup/dedicated-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): A managed, dedicated deployment on W&B's single-tenant infrastructure in your choice of cloud region.
@@ -431,7 +537,17 @@ Weights & Biases ❤️ open source and we welcome contributions from the commun
 
 # Contact
 
-If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact). For wandb bugs and feature requests please visit [GitHub Issues](https://github.com/wandb/wandb/issues?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact). For professional support please Contact Us. Be a part of the W&B Community, post your questions at [W&B Community](https://community.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact). Stay connected with the latest updates with [W&B Fully Connected](https://wandb.ai/fully-connected?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=contact).
+We'd love to talk about how we can work together.
+
+- For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com
+- Be a part of the growing W&B Community and interact with the W&B team in our [Discord](https://wandb.me/discord).
+- Stay connected with the latest ML updates and tutorials with [W&B Fully Connected](https://wandb.ai/fully-connected).
+
+&nbsp;
+
+# Weights & Biases for Startups and Enterprise
+
+Use Weights & Biases for seamless collaboration between your ML or Data Science team. Sign up to one of [our plans](https://wandb.ai/site/pricing) or [contact Sales Team](https://wandb.ai/site/contact).
 
 &nbsp;
 
