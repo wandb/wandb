@@ -236,7 +236,10 @@ history = model.fit(
     epochs=config.epoch,
     batch_size=config.batch_size,
     validation_data=(x_test, y_test),
-    callbacks=[WandbMetricsLogger(log_freq=5), WandbModelCheckpoint("models")],
+    callbacks=[
+        WandbMetricsLogger(log_freq=5),
+        WandbModelCheckpoint("models"),
+    ],
 )
 
 # [optional] finish the wandb run, necessary in notebooks
