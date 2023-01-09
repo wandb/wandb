@@ -12,8 +12,7 @@ from typing import Optional
 import wandb
 
 from ..lib import tracelog
-from . import _startup_debug
-from . import port_file
+from . import _startup_debug, port_file
 from .server_sock import SocketServer
 from .streams import StreamMux
 

@@ -10,8 +10,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from . import _startup_debug
-from . import port_file
+from . import _startup_debug, port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
