@@ -66,7 +66,7 @@ class JobBuilder:
     _config: Optional[Dict[str, Any]]
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
-    _used_job: bool
+    _disable: bool
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -75,7 +75,7 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
-        self._used_job = False
+        self._disable = False
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -84,12 +84,12 @@ class JobBuilder:
         self._summary = summary
 
     @property
-    def used_job(self) -> bool:
-        return self._used_job
+    def disable(self) -> bool:
+        return self._disable
 
-    @used_job.setter
-    def used_job(self, val: bool) -> None:
-        self._used_job = val
+    @disable.setter
+    def disable(self, val: bool) -> None:
+        self._disable = val
 
     def _set_logged_code_artifact(
         self, res: Optional[Dict], artifact: "ArtifactRecord"

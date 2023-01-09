@@ -863,6 +863,8 @@ class SendManager:
             repo=run.git.remote_url or None,
             commit=run.git.commit or None,
         )
+        if run.sweep_id:
+            self._job_builder.disable = True
         self._server_messages = server_messages or []
         self._run = run
         if self._resume_state.resumed:
@@ -1243,7 +1245,7 @@ class SendManager:
         """
         use = record.use_artifact
         if use.type == "job":
-            self._job_builder.used_job = True
+            self._job_builder.disable = True
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1439,7 +1441,7 @@ class SendManager:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        if not self._settings.get("_offline", False) and not self._job_builder.used_job:
+        if not self._settings.get("_offline", False) and not self._job_builder.disable:
             artifact = self._job_builder.build()
             if artifact is not None and self._run is not None:
                 proto_artifact = self._interface._make_artifact(artifact)
