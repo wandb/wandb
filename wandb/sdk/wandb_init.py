@@ -627,6 +627,9 @@ class _WandbInit:
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
+            if os.environ.get("PEX"):
+                tel.env.pex = True
+
             if manager:
                 tel.feature.service = True
 
