@@ -6,7 +6,7 @@
 <p align='center'>
 <a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/v/wandb" /></a>
 <a href="https://anaconda.org/conda-forge/wandb"><img src="https://img.shields.io/conda/vn/conda-forge/wandb" /></a>
-<a href="hhttps://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>
+<a href="https://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>
 <a href="https://codecov.io/gh/wandb/wandb"><img src="https://img.shields.io/codecov/c/gh/wandb/wandb" /></a>
 </p>
 <p align='center'>
@@ -125,7 +125,7 @@ That's it! Navigate to the W&B App to view a dashboard of your first W&B Experim
 <img src="./docs/README_images/wandb_demo_experiments.gif" width="100%">
 </p>
 <p align = "center">
-Example W&B Dashboard that shows Wuns from an Experiment.
+Example W&B Dashboard that shows Runs from an Experiment.
 </p>
 
 &nbsp;
@@ -189,7 +189,6 @@ import tensorflow as tf
 wandb.init(
     # set the wandb project where this run will be logged
     project="my-awesome-project",
-
     # track hyperparameters and run metadata with wandb.config
     config={
         "layer_1": 512,
@@ -201,8 +200,8 @@ wandb.init(
         "loss": "sparse_categorical_crossentropy",
         "metric": "accuracy",
         "epoch": 8,
-        "batch_size": 256
-    }
+        "batch_size": 256,
+    },
 )
 
 # [optional] use wandb.config as your config
@@ -217,29 +216,28 @@ x_test, y_test = x_test[::20], y_test[::20]
 labels = [str(digit) for digit in range(np.max(y_train) + 1)]
 
 # build a model
-model = tf.keras.models.Sequential([
-    tf.keras.layers.Flatten(input_shape=(28, 28)),
-    tf.keras.layers.Dense(config.layer_1, activation=config.activation_1),
-    tf.keras.layers.Dropout(config.dropout),
-    tf.keras.layers.Dense(config.layer_2, activation=config.activation_2)
-    ])
+model = tf.keras.models.Sequential(
+    [
+        tf.keras.layers.Flatten(input_shape=(28, 28)),
+        tf.keras.layers.Dense(config.layer_1, activation=config.activation_1),
+        tf.keras.layers.Dropout(config.dropout),
+        tf.keras.layers.Dense(config.layer_2, activation=config.activation_2),
+    ]
+)
 
 # compile the model
-model.compile(optimizer=config.optimizer,
-              loss=config.loss,
-              metrics=[config.metric]
-              )
+model.compile(optimizer=config.optimizer, loss=config.loss, metrics=[config.metric])
 
 # WandbMetricsLogger will log train and validation metrics to wandb
 # WandbModelCheckpoint will upload model checkpoints to wandb
-history = model.fit(x=x_train, y=y_train,
-                    epochs=config.epoch,
-                    batch_size=config.batch_size,
-                    validation_data=(x_test, y_test),
-                    callbacks=[
-											WandbMetricsLogger(log_freq=5),
-											WandbModelCheckpoint("models")
-										])
+history = model.fit(
+    x=x_train,
+    y=y_train,
+    epochs=config.epoch,
+    batch_size=config.batch_size,
+    validation_data=(x_test, y_test),
+    callbacks=[WandbMetricsLogger(log_freq=5), WandbModelCheckpoint("models")],
+)
 
 # [optional] finish the wandb run, necessary in notebooks
 wandb.finish()
@@ -278,6 +276,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 def tokenize_function(examples):
     return tokenizer(examples["text"], padding="max_length", truncation=True)
 
+
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     predictions = np.argmax(logits, axis=-1)
@@ -295,28 +294,30 @@ small_train_dataset = small_train_dataset.map(tokenize_function, batched=True)
 small_eval_dataset = small_train_dataset.map(tokenize_function, batched=True)
 
 # download the model
-model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased", num_labels=5)
+model = AutoModelForSequenceClassification.from_pretrained(
+    "distilbert-base-uncased", num_labels=5
+)
 
 # set the wandb project where this run will be logged
-os.environ["WANDB_PROJECT"]="my-awesome-project"
+os.environ["WANDB_PROJECT"] = "my-awesome-project"
 
 # save your trained model checkpoint to wandb
-os.environ["WANDB_LOG_MODEL"]="true"
+os.environ["WANDB_LOG_MODEL"] = "true"
 
 # turn off watch to log faster
-os.environ["WANDB_WATCH"]="false"
+os.environ["WANDB_WATCH"] = "false"
 
 # pass "wandb" to the `report_to` parameter to turn on wandb logging
 training_args = TrainingArguments(
-    output_dir='models',
+    output_dir="models",
     report_to="wandb",
     logging_steps=5,
     per_device_train_batch_size=32,
     per_device_eval_batch_size=32,
     evaluation_strategy="steps",
     eval_steps=20,
-    max_steps = 100,
-    save_steps = 100
+    max_steps=100,
+    save_steps=100,
 )
 
 # define the trainer and start training
@@ -349,7 +350,7 @@ Build scalable, structured, high-performance PyTorch models with Lightning and l
 import wandb
 
 import os
-from torch import optim, nn, utils, Tensor
+from torch import optim, nn, utils
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 
@@ -358,14 +359,18 @@ from pytorch_lightning.loggers import WandbLogger
 
 
 class LitAutoEncoder(pl.LightningModule):
-    def __init__(self, lr=1e-3, inp_size=28, optimizer = 'Adam'):
+    def __init__(self, lr=1e-3, inp_size=28, optimizer="Adam"):
         super().__init__()
 
-        self.encoder = nn.Sequential(nn.Linear(inp_size * inp_size, 64), nn.ReLU(), nn.Linear(64, 3))
-        self.decoder = nn.Sequential(nn.Linear(3, 64), nn.ReLU(), nn.Linear(64, inp_size * inp_size))
+        self.encoder = nn.Sequential(
+            nn.Linear(inp_size * inp_size, 64), nn.ReLU(), nn.Linear(64, 3)
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(3, 64), nn.ReLU(), nn.Linear(64, inp_size * inp_size)
+        )
         self.lr = lr
 
-        # save hyper-parameters to self.hparamsm auto-logged by wandb
+        # save hyperparameters to self.hparamsm auto-logged by wandb
         self.save_hyperparameters()
 
     def training_step(self, batch, batch_idx):
@@ -393,7 +398,7 @@ dataset = MNIST(os.getcwd(), download=True, transform=ToTensor())
 train_loader = utils.data.DataLoader(dataset, shuffle=True)
 
 # initialise the wandb logger and name your wandb project
-wandb_logger = WandbLogger(project='my-awesome-project')
+wandb_logger = WandbLogger(project="my-awesome-project")
 
 # add your batch size to the wandb config
 wandb_logger.experiment.config["batch_size"] = batch_size
@@ -430,26 +435,26 @@ import xgboost as xgb
 
 # setup parameters for xgboost
 param = {
-    "objective" : "multi:softmax",
-    "eta" : 0.1,
+    "objective": "multi:softmax",
+    "eta": 0.1,
     "max_depth": 6,
-    "nthread" : 4,
-    "num_class" : 6
+    "nthread": 4,
+    "num_class": 6,
 }
 
 # start a new wandb run to track this script
 wandb.init(
     # set the wandb project where this run will be logged
     project="my-awesome-project",
-
     # track hyperparameters and run metadata
-    config=param
+    config=param,
 )
 
 # download data from wandb Artifacts and prep data
-wandb.use_artifact('wandb/intro/dermatology_data:v0', type='dataset').download('.')
+wandb.use_artifact("wandb/intro/dermatology_data:v0", type="dataset").download(".")
 data = np.loadtxt(
-    "./dermatology.data", delimiter=",",
+    "./dermatology.data",
+    delimiter=",",
     converters={33: lambda x: int(x == "?"), 34: lambda x: int(x) - 1},
 )
 sz = data.shape
@@ -474,8 +479,7 @@ wandb.config["data_shape"] = sz
 
 # pass WandbCallback to the booster to log its configs and metrics
 bst = xgb.train(
-    param, xg_train, num_round, evals=watchlist,
-    callbacks=[WandbCallback()]
+    param, xg_train, num_round, evals=watchlist, callbacks=[WandbCallback()]
 )
 
 # get prediction
@@ -516,7 +520,9 @@ feature_names = wbcd.feature_names
 labels = wbcd.target_names
 
 test_size = 0.2
-X_train, X_test, y_train, y_test = train_test_split(wbcd.data, wbcd.target, test_size=test_size)
+X_train, X_test, y_train, y_test = train_test_split(
+    wbcd.data, wbcd.target, test_size=test_size
+)
 
 # train model
 model = RandomForestClassifier()
@@ -530,12 +536,12 @@ importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 
 # start a new wandb run and add your model hyperparameters
-wandb.init(project='my-awesome-project', config=model_params)
+wandb.init(project="my-awesome-project", config=model_params)
 
 # Add additional configs to wandb
-wandb.config.update({"test_size" : test_size,
-                     "train_len" : len(X_train),
-                     "test_len" : len(X_test)})
+wandb.config.update(
+    {"test_size": test_size, "train_len": len(X_train), "test_len": len(X_test)}
+)
 
 # log additional visualisations to wandb
 plot_class_proportions(y_train, y_test, labels)
@@ -576,7 +582,7 @@ Explore example Colab Notebooks at [wandb/examples GitHub repository](https://gi
 
 # Contribution guidelines
 
-Weights & Biases ❤️ open source and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com .
+Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com .
 
 &nbsp;
 
