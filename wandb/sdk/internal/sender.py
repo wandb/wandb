@@ -863,8 +863,11 @@ class SendManager:
             repo=run.git.remote_url or None,
             commit=run.git.commit or None,
         )
-        if run.sweep_id:
+        # TODO: we don't want to create jobs in sweeps, since the
+        # executable doesn't appear to be consistent
+        if self._settings.sweep_id:
             self._job_builder.disable = True
+
         self._server_messages = server_messages or []
         self._run = run
         if self._resume_state.resumed:
