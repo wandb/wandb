@@ -520,7 +520,7 @@ jobs:
           name: pull base docker images
           command: |
             docker pull nvidia/cuda:10.0-runtime
-            docker pull python:3.6-buster
+            docker pull python:3.7-buster
       - run:
           name: Run tests
           command: |
@@ -1118,7 +1118,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: true
           requires:
@@ -1206,7 +1206,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
+              python_version_minor: [7, 8, 9, 10]
           name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1216,7 +1216,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
+              python_version_minor: [7, 8, 9, 10]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1311,7 +1311,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6]
+              python_version_minor: [7]
           name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
@@ -1444,7 +1444,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:
