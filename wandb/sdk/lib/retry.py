@@ -7,7 +7,6 @@ import os
 import random
 import threading
 import time
-from types import TracebackType
 from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
@@ -218,8 +217,7 @@ def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
 
 
 class Backoff(abc.ABC):
-    """A backoff strategy: decides whether to sleep or give up when an exception is raised.
-    """
+    """A backoff strategy: decides whether to sleep or give up when an exception is raised."""
 
     @abc.abstractmethod
     def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
@@ -227,8 +225,7 @@ class Backoff(abc.ABC):
 
 
 class ExponentialBackoff(Backoff):
-    """Jittered exponential backoff: sleep times increase ~exponentially up to some limit.
-    """
+    """Jittered exponential backoff: sleep times increase ~exponentially up to some limit."""
 
     def __init__(
         self,
@@ -259,8 +256,7 @@ class ExponentialBackoff(Backoff):
 
 
 class FilteredBackoff(Backoff):
-    """Re-raise any exceptions that fail a predicate; delegate others to another Backoff.
-    """
+    """Re-raise any exceptions that fail a predicate; delegate others to another Backoff."""
 
     def __init__(self, filter: Callable[[Exception], bool], wrapped: Backoff) -> None:
         self._filter = filter

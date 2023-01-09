@@ -3,11 +3,28 @@
 import asyncio
 import dataclasses
 import datetime
-from typing import Iterator, Optional
+import sys
+from typing import Iterator
 from unittest import mock
 
 import pytest
 from wandb.sdk.lib import retry
+
+if sys.version_info >= (3, 10):
+    asyncio_run = asyncio.run
+else:
+
+    def asyncio_run(coro):
+        return asyncio.new_event_loop().run_until_complete(coro)
+
+
+if sys.version_info >= (3, 8):
+    AsyncMock = mock.AsyncMock
+else:
+
+    class AsyncMock(mock.Mock):
+        async def __call__(self, *args, **kwargs):
+            return super().__call__(*args, **kwargs)
 
 
 @dataclasses.dataclass
@@ -177,8 +194,6 @@ class TestFilteredBackoff:
         wrapped.next_sleep_or_reraise.assert_called_once_with(retriable_exc)
 
 
-
-
 class TestExponentialBackoff:
     def test_respects_max_retries(self):
         backoff = retry.ExponentialBackoff(
@@ -208,9 +223,9 @@ class TestRetryAsync:
     def test_follows_backoff_schedule(self, mock_time: MockTime):
         fn = mock.Mock(side_effect=MyError("oh no"))
         with pytest.raises(MyError):
-            asyncio.run(
+            asyncio_run(
                 retry.retry_async(
-                    mock.MagicMock(
+                    mock.Mock(
                         spec=retry.Backoff,
                         next_sleep_or_reraise=mock.Mock(
                             side_effect=[
@@ -244,14 +259,14 @@ class TestRetryAsync:
         )
 
     def test_calls_on_retry_exc(self, mock_time: MockTime):
-        backoff = mock.MagicMock(
+        backoff = mock.Mock(
             spec=retry.Backoff,
             next_sleep_or_reraise=mock.Mock(return_value=1 * SECOND),
         )
 
         excs = [MyError("one"), MyError("two")]
 
-        fn = mock.AsyncMock(
+        fn = AsyncMock(
             side_effect=[
                 *excs,
                 lambda: None,
@@ -259,7 +274,7 @@ class TestRetryAsync:
         )
 
         on_retry_exc = mock.Mock()
-        asyncio.run(retry.retry_async(backoff, fn, on_retry_exc=on_retry_exc))
+        asyncio_run(retry.retry_async(backoff, fn, on_retry_exc=on_retry_exc))
 
         on_retry_exc.assert_has_calls(
             [
