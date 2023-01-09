@@ -127,9 +127,12 @@ class _Service:
                 env=os.environ,
                 **kwargs,
             )
+            self._startup_debug_print("wait_ports")
             ports_found = self._wait_for_ports(fname, proc=internal_proc)
+            self._startup_debug_print("wait_ports_done")
             assert ports_found
             self._internal_proc = internal_proc
+        self._startup_debug_print("launch_done")
 
     def start(self) -> None:
         self._launch_server()
