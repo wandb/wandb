@@ -865,7 +865,7 @@ class SendManager:
         )
         # TODO: we don't want to create jobs in sweeps, since the
         # executable doesn't appear to be consistent
-        if self._settings.sweep_id:
+        if hasattr(self._settings, "sweep_id") and self._settings.sweep_id:
             self._job_builder.disable = True
 
         self._server_messages = server_messages or []
