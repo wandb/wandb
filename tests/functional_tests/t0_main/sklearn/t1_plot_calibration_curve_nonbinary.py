@@ -61,7 +61,7 @@ y_probas = model.predict_proba(X_test)
 importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 
-print(model.n_features_)
+print(model.n_features_in_)
 
 run = wandb.init(project="my-scikit-integration")
 
