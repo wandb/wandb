@@ -543,7 +543,11 @@ wandb.init(project="my-awesome-project", config=model_params)
 
 # Add additional configs to wandb
 wandb.config.update(
-    {"test_size": test_size, "train_len": len(X_train), "test_len": len(X_test)}
+    {
+        "test_size": test_size,
+        "train_len": len(X_train),
+        "test_len": len(X_test),
+    }
 )
 
 # log additional visualisations to wandb
