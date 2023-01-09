@@ -21,12 +21,8 @@ from wandb.sdk import wandb_login, wandb_settings
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
-elif sys.version_info >= (3, 7):
-    from typing_extensions import get_type_hints
 else:
-
-    def get_type_hints(obj):
-        return obj.__annotations__
+    from typing_extensions import get_type_hints
 
 
 Property = wandb_settings.Property

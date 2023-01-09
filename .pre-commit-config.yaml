@@ -17,10 +17,10 @@ repos:
     hooks:
       - id: black
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.31.1
+    rev: v3.3.1
     hooks:
       - id: pyupgrade
-        args: [--py36-plus, --keep-mock]
+        args: [--py37-plus, --keep-mock]
   - repo: https://github.com/asottile/blacken-docs
     rev: v1.12.1
     hooks:

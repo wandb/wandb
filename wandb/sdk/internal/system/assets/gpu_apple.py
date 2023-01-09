@@ -58,11 +58,9 @@ class GPUAppleStats:
     def sample(self) -> None:
         try:
             command = [str(self.binary_path), "--json"]
-            output = (
-                subprocess.check_output(command, universal_newlines=True)
-                .strip()
-                .split("\n")
-            )[0]
+            output = (subprocess.check_output(command, text=True).strip().split("\n"))[
+                0
+            ]
             raw_stats = json.loads(output)
 
             stats: _Stats = {

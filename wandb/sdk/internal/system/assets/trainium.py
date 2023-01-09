@@ -294,9 +294,7 @@ class Trainium:
         # check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
         try:
-            output = subprocess.check_output(
-                NEURON_LS_COMMAND, universal_newlines=True
-            ).strip()
+            output = subprocess.check_output(NEURON_LS_COMMAND, text=True).strip()
             if len(json.loads(output)) > 0:
                 return True
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
