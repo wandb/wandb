@@ -220,7 +220,7 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       toxenv:
         type: string
       shard:
@@ -282,7 +282,7 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       toxenv:
         type: string
       notify_on_failure:
