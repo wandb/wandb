@@ -394,6 +394,7 @@ class Settings:
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
+    _service_wait: int
     _start_datetime: datetime
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
@@ -529,6 +530,7 @@ class Settings:
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
+            _service_wait={"value": 30, "preprocessor": int},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},

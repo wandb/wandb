@@ -8,34 +8,41 @@ import platform
 import subprocess
 import tempfile
 import time
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from . import port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_settings import Settings
+
 
 class _Service:
+    _settings: "Settings"
     _grpc_port: Optional[int]
     _sock_port: Optional[int]
     _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
+    _use_grpc: bool
 
     def __init__(
         self,
-        _python_executable: str,
-        _use_grpc: bool = False,
+        settings: "Settings",
     ) -> None:
-        self._use_grpc = _use_grpc
-        self._python_executable = _python_executable
+        self._settings = settings
         self._stub = None
         self._grpc_port = None
         self._sock_port = None
         self._internal_proc = None
 
+        # Temporary setting to allow use of grpc so that we can keep
+        # that code from rotting during the transition
+        self._use_grpc = self._settings._service_transport == "grpc"
+
         # current code only supports grpc or socket server implementation, in the
         # future we might be able to support both
-        if _use_grpc:
+        if self._use_grpc:
             from .service_grpc import ServiceGrpcInterface
 
             self._service_interface = ServiceGrpcInterface()
@@ -45,8 +52,8 @@ class _Service:
     def _wait_for_ports(
         self, fname: str, proc: Optional[subprocess.Popen] = None
     ) -> bool:
-        time_max = time.time() + 30
-        while time.time() < time_max:
+        time_max = time.monotonic() + self._settings._service_wait
+        while time.monotonic() < time_max:
             if proc and proc.poll():
                 # process finished
                 print("proc exited with", proc.returncode)
@@ -88,7 +95,7 @@ class _Service:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
             pid_str = str(os.getpid())
-            executable = self._python_executable
+            executable = self._settings._executable
             exec_cmd_list = [executable, "-m"]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
