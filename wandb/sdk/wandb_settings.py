@@ -373,6 +373,8 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _flow_control_custom: bool
+    _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
     _jupyter: bool
@@ -383,8 +385,10 @@ class Settings:
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
     _log_level: int
+    _network_buffer: int
     _noop: bool
     _offline: bool
+    _sync: bool
     _os: str
     _platform: str
     _python: str
@@ -398,6 +402,7 @@ class Settings:
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
+    _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -501,6 +506,7 @@ class Settings:
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
@@ -522,11 +528,23 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _flow_control_disabled={
+                "hook": lambda _: self._network_buffer == 0,
+                "auto_hook": True,
+            },
+            _flow_control_custom={
+                "hook": lambda _: bool(self._network_buffer),
+                "auto_hook": True,
+            },
+            _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
+            _stats_neuron_monitor_config_path={
+                "hook": lambda x: self._path_convert(x),
+            },
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
