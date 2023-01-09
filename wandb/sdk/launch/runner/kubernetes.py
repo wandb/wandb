@@ -303,7 +303,7 @@ class KubernetesRunner(AbstractRunner):
         if not job_metadata.get("name"):
             job_metadata[
                 "generateName"
-            ] = f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
+            ] = f"launch-{launch_project.target_entity.replace('_', '')}-{launch_project.target_project.replace('_', '')}-"
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
