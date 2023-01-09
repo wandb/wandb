@@ -366,7 +366,7 @@ jobs:
           no_output_timeout: 5m
           command: |
             pex . -o wandb.pex
-            ./wandb.pex -c "import wandb; wandb.init(mode='offline'); wandb.finish()"
+            WANDB_EXECUTABLE=./wandb.pex ./wandb.pex -c "import wandb; import os; wandb.init(mode='offline'); wandb.finish()"
       - save-test-results
 
   protobuf-compatability:
