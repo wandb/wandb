@@ -10,6 +10,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from . import _startup_debug
 from . import port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
@@ -25,6 +26,7 @@ class _Service:
     _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
     _use_grpc: bool
+    _startup_debug_enabled: bool
 
     def __init__(
         self,
@@ -35,6 +37,7 @@ class _Service:
         self._grpc_port = None
         self._sock_port = None
         self._internal_proc = None
+        self._startup_debug_enabled = _startup_debug.is_enabled()
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
@@ -48,6 +51,11 @@ class _Service:
             self._service_interface = ServiceGrpcInterface()
         else:
             self._service_interface = ServiceSockInterface()
+
+    def _startup_debug_print(self, message: str) -> None:
+        if not self._startup_debug_enabled:
+            return
+        _startup_debug.print_message(message)
 
     def _wait_for_ports(
         self, fname: str, proc: Optional[subprocess.Popen] = None
@@ -81,6 +89,7 @@ class _Service:
         # References for starting processes
         # - https://github.com/wandb/wandb/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
+        self._startup_debug_print("launch")
 
         kwargs: Dict[str, Any] = dict(close_fds=True)
         # flags to handle keyboard interrupt signal that is causing a hang
