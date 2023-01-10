@@ -291,6 +291,7 @@ class Trainium:
 
     @classmethod
     def is_available(cls) -> bool:
+        return False
         # check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
         try:
