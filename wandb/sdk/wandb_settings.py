@@ -373,6 +373,8 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _flow_control_custom: bool
+    _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
     _jupyter: bool
@@ -523,6 +525,14 @@ class Settings:
                     if self.disabled or (self.mode in ("dryrun", "offline"))
                     else False
                 ),
+                "auto_hook": True,
+            },
+            _flow_control_disabled={
+                "hook": lambda _: self._network_buffer == 0,
+                "auto_hook": True,
+            },
+            _flow_control_custom={
+                "hook": lambda _: bool(self._network_buffer),
                 "auto_hook": True,
             },
             _sync={"value": False},
