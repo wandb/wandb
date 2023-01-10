@@ -1,5 +1,6 @@
 ## 0.13.8 (January 10, 2023)
 
+## What's Changed
 ### :magic_wand: Enhancements
 * feat(artifacts): keep uncommitted uploads in separate staging area by @moredatarequired in https://github.com/wandb/wandb/pull/4505
 * perf(sdk): improve file descriptor management by @dmitryduev in https://github.com/wandb/wandb/pull/4617
@@ -25,6 +26,7 @@
 * fix(sdk): fix hang after failed wandb.init (add cancel)  by @raubitsj in https://github.com/wandb/wandb/pull/4405
 * fix(sdk): allow users to provide path to custom executables by @kptkin in https://github.com/wandb/wandb/pull/4604
 * fix(sdk): fix TypeError when trying to slice a Paginator object by @janosh in https://github.com/wandb/wandb/pull/4575
+* fix(launch): remove args from jobs by @KyleGoyette in https://github.com/wandb/wandb/pull/4750
 ### :books: Docs
 * docs(sweeps): fix typo in docs by @gtarpenning in https://github.com/wandb/wandb/pull/4627
 * docs(sdk): fix typo in docstring for data_types.Objects3D by @ngrayluna in https://github.com/wandb/wandb/pull/4543
@@ -65,6 +67,9 @@
 * test(sdk): temporary lower network buffer for testing by @raubitsj in https://github.com/wandb/wandb/pull/4737
 * chore(sdk): add telemetry if the user running in pex environment  by @kptkin in https://github.com/wandb/wandb/pull/4747
 * chore(sdk): add more flow control telemetry by @raubitsj in https://github.com/wandb/wandb/pull/4739
+* chore(sdk): add settings and debug for service startup issues (wait_for_ports) by @raubitsj in https://github.com/wandb/wandb/pull/4749
+* test(sdk): fix AWS Trainium test by @dmitryduev in https://github.com/wandb/wandb/pull/4753
+* chore(sdk): fix status checker thread issue when user process exits without finish() by @raubitsj in https://github.com/wandb/wandb/pull/4761
 ### :nail_care: Cleanup
 * style(sdk): use the same syntax whenever raising exceptions by @moredatarequired in https://github.com/wandb/wandb/pull/4559
 * refactor(sdk): combine _safe_mkdirs with mkdir_exist_ok by @moredatarequired in https://github.com/wandb/wandb/pull/4650
@@ -74,10 +79,12 @@
 * style(public-api): format public file with proper formating by @kptkin in https://github.com/wandb/wandb/pull/4697
 * chore(sdk): install tox into proper env in dev env setup tool by @dmitryduev in https://github.com/wandb/wandb/pull/4318
 * refactor(sdk): clean up the init and run logic by @kptkin in https://github.com/wandb/wandb/pull/4730
+* fix(integrations): add `AttributeError` to the list of handled exceptions when saving a keras model by @froody in https://github.com/wandb/wandb/pull/4732
 
 ## New Contributors
 * @edwag made their first contribution in https://github.com/wandb/wandb/pull/4585
 * @TimH98 made their first contribution in https://github.com/wandb/wandb/pull/4625
+* @froody made their first contribution in https://github.com/wandb/wandb/pull/4732
 
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.7...v0.13.8
 
