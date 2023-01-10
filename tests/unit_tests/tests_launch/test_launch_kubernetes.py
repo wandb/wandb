@@ -1,6 +1,6 @@
-import kubernetes
-
 from unittest.mock import MagicMock
+
+import kubernetes
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.loader import load_builder
 from wandb.sdk.launch.runner.loader import load_backend
