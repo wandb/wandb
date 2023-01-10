@@ -939,12 +939,6 @@ def test_trainium(test_settings):
         )
 
         assert not trainium.is_available()
-        with mock.patch.object(
-            wandb.sdk.internal.system.assets.trainium,
-            "NEURON_LS_COMMAND",
-            ["echo", '[{"x":1}]'],
-        ):
-            assert trainium.is_available()
 
         trainium.start()
 

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -124,11 +125,14 @@ class NeuronCoreStats:
             )
             while not self.shutdown_event.is_set():
                 if popen.stdout is None:
+                    time.sleep(0.1)
                     continue
 
                 raw_data = popen.stdout.readline()
                 if raw_data:
                     self.raw_samples.append(raw_data)
+            popen.terminate()
+            popen.wait()
         except Exception as e:
             logger.error("neuron-monitor failed: %s" % e)
 
@@ -291,17 +295,9 @@ class Trainium:
 
     @classmethod
     def is_available(cls) -> bool:
-        # check if neuron-ls is available and if yes, what it reports. see:
+        # todo: check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
-        try:
-            output = subprocess.check_output(
-                NEURON_LS_COMMAND, universal_newlines=True
-            ).strip()
-            if len(json.loads(output)) > 0:
-                return True
-        except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
-            pass
-        return False
+        return pathlib.Path(NEURON_LS_COMMAND[0]).exists()
 
     def start(self) -> None:
         self.metrics_monitor.start()
