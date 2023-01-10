@@ -50,7 +50,7 @@ from .interface.artifacts import (  # noqa: F401
     get_artifacts_cache,
     get_new_staging_file,
 )
-from .lib import filesystem
+from .lib import filesystem, runid
 from .lib.hashutil import (
     B64MD5,
     ETag,
@@ -200,8 +200,8 @@ class Artifact(ArtifactInterface):
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
-        self._client_id = util.generate_id(128)
-        self._sequence_client_id = util.generate_id(128)
+        self._client_id = runid.generate_id(128)
+        self._sequence_client_id = runid.generate_id(128)
         self._cache.store_client_artifact(self)
         self._use_as = use_as
 
