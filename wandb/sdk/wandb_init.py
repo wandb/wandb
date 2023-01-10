@@ -19,6 +19,7 @@ import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
 import wandb
+import wandb.env
 from wandb import trigger
 from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
@@ -631,6 +632,9 @@ class _WandbInit:
 
             if os.environ.get("PEX"):
                 tel.env.pex = True
+
+            if os.environ.get(wandb.env._DISABLE_SERVICE):
+                tel.feature.service_disabled = True
 
             if manager:
                 tel.feature.service = True
