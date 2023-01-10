@@ -117,22 +117,21 @@ class NeuronCoreStats:
                 "-c",
                 self.neuron_monitor_config_path,
             ]
-            popen = subprocess.Popen(
+            with subprocess.Popen(
                 command,
-                shell=False,
                 stdout=subprocess.PIPE,
                 stderr=None,
-            )
-            while not self.shutdown_event.is_set():
-                if popen.stdout is None:
-                    time.sleep(0.1)
-                    continue
+            ) as process:
+                while not self.shutdown_event.is_set():
+                    if process.stdout is None:
+                        time.sleep(0.1)
+                        continue
 
-                raw_data = popen.stdout.readline()
-                if raw_data:
-                    self.raw_samples.append(raw_data)
-            popen.terminate()
-            popen.wait()
+                    raw_data = process.stdout.readline()
+                    if raw_data:
+                        self.raw_samples.append(raw_data)
+                process.kill()
+                process.wait()
         except Exception as e:
             logger.error("neuron-monitor failed: %s" % e)
 
@@ -319,23 +318,30 @@ class Trainium:
                 "-c",
                 self.metrics[0].neuron_monitor_config_path,  # type: ignore
             ]
-            popen = subprocess.Popen(
+            with subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=None,
-            )
-            while True:
-                if popen.stdout is None:
-                    continue
+            ) as process:
+                while True:
+                    if process.stdout is None:
+                        time.sleep(0.1)
+                        continue
 
-                raw_data = popen.stdout.readline()
-                if raw_data:
-                    parsed_data = json.loads(raw_data)
-                    neuron_hardware_info = parsed_data.get("neuron_hardware_info", {})
-                    neuron_hardware_info.pop("error", None)
-                    break
+                    raw_data = process.stdout.readline()
+                    if raw_data:
+                        parsed_data = json.loads(raw_data)
+                        neuron_hardware_info = parsed_data.get(
+                            "neuron_hardware_info", {}
+                        )
+                        neuron_hardware_info.pop("error", None)
+                        break
 
-            popen.terminate()
+            try:
+                process.kill()
+                process.wait()
+            except:  # noqa
+                pass
 
             return {self.name: neuron_hardware_info}
         except Exception as e:
