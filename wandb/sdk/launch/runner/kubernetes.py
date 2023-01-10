@@ -165,10 +165,17 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
         if resource_args.get("node_name"):
             pod_spec["nodeName"] = resource_args.get("node_name")
-        if resource_args.get("node_selectors"):
-            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        if resource_args.get("node_selector"):
+            pod_spec["nodeSelector"] = resource_args.get("node_selector")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
+        if resource_args.get("security_context"):
+            pod_spec["securityContext"] = resource_args.get("security_context")
+        if resource_args.get("volumes") is not None:
+            vols = resource_args.get("volumes")
+            if not isinstance(vols, list):
+                raise LaunchError("volumes must be a list of volume specifications")
+            pod_spec["volumes"] = vols
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -196,6 +203,13 @@ class KubernetesRunner(AbstractRunner):
                     cont.get("resources") != container_resources
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
+            if resource_args.get("volume_mounts") is not None:
+                vol_mounts = resource_args.get("volume_mounts")
+                if not isinstance(vol_mounts, list):
+                    raise LaunchError(
+                        "volume mounts must be a list of volume mount specifications"
+                    )
+                cont["volumeMounts"] = vol_mounts
             cont["security_context"] = {
                 "allowPrivilegeEscalation": False,
                 "capabilities": {"drop": ["ALL"]},
@@ -229,7 +243,7 @@ class KubernetesRunner(AbstractRunner):
 
         pod_names = [pi.metadata.name for pi in pods.items]
         wandb.termlog(
-            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]}`."
+            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]} -n {namespace}`."
         )
         return pod_names
 
@@ -287,7 +301,9 @@ class KubernetesRunner(AbstractRunner):
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
         if not job_metadata.get("name"):
-            job_metadata["generateName"] = "launch-"
+            job_metadata[
+                "generateName"
+            ] = f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
@@ -358,11 +374,14 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["image"] = image_uri
 
         # reassemble spec
-        given_env_vars = resource_args.get("env", {})
-        merged_env_vars = {**env_vars, **given_env_vars}
+        given_env_vars = resource_args.get("env", [])
+        kubernetes_style_env_vars = [
+            {"name": k, "value": v} for k, v in env_vars.items()
+        ]
         for cont in containers:
-            cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
+            cont["env"] = given_env_vars + kubernetes_style_env_vars
         pod_spec["containers"] = containers
+
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:

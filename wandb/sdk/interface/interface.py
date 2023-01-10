@@ -98,7 +98,7 @@ class InterfaceBase:
         raise NotImplementedError
 
     def communicate_check_version(
-        self, current_version: str = None
+        self, current_version: Optional[str] = None
     ) -> Optional[pb.CheckVersionResponse]:
         check_version = pb.CheckVersionRequest()
         if current_version:
@@ -147,10 +147,10 @@ class InterfaceBase:
 
     def _make_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
-        obj: pb.ConfigRecord = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
+        obj: Optional[pb.ConfigRecord] = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
@@ -180,19 +180,26 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run_obj: "Run") -> None:
-        run = self._make_run(run_obj)
+    def publish_run(self, run: "pb.RunRecord") -> None:
         self._publish_run(run)
 
     @abstractmethod
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
+    def publish_cancel(self, cancel_slot: str) -> None:
+        cancel = pb.CancelRequest(cancel_slot=cancel_slot)
+        self._publish_cancel(cancel)
+
+    @abstractmethod
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        raise NotImplementedError
+
     def publish_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
     ) -> None:
         cfg = self._make_config(data=data, key=key, val=val)
 
@@ -218,14 +225,14 @@ class InterfaceBase:
         raise NotImplementedError
 
     def communicate_run(
-        self, run_obj: "Run", timeout: int = None
+        self, run_obj: "Run", timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         run = self._make_run(run_obj)
         return self._communicate_run(run, timeout=timeout)
 
     @abstractmethod
     def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
+        self, run: pb.RunRecord, timeout: Optional[int] = None
     ) -> Optional[pb.RunUpdateResult]:
         raise NotImplementedError
 
@@ -384,7 +391,9 @@ class InterfaceBase:
         return proto_artifact
 
     def _make_artifact_manifest(
-        self, artifact_manifest: ArtifactManifest, obj: pb.ArtifactManifest = None
+        self,
+        artifact_manifest: ArtifactManifest,
+        obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
         proto_manifest.version = artifact_manifest.version()  # type: ignore
@@ -436,6 +445,23 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        raise NotImplementedError
+
+    def publish_use_artifact(
+        self,
+        artifact: Artifact,
+    ) -> None:
+        # use_artifact is either a public.Artifact or a wandb.Artifact that has been
+        # waited on and has an id
+        assert artifact.id is not None, "Artifact must have an id"
+        use_artifact = pb.UseArtifactRecord(
+            id=artifact.id, type=artifact.type, name=artifact.name
+        )
+
+        self._publish_use_artifact(use_artifact)
+
+    @abstractmethod
+    def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
     def communicate_artifact(
@@ -564,7 +590,11 @@ class InterfaceBase:
         raise NotImplementedError
 
     def publish_history(
-        self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
+        self,
+        data: dict,
+        step: Optional[int] = None,
+        run: Optional["Run"] = None,
+        publish_step: bool = True,
     ) -> None:
         run = run or self._run
         data = history_dict_to_json(run, data, step=step)
@@ -686,6 +716,25 @@ class InterfaceBase:
     ) -> Optional[pb.PollExitResponse]:
         raise NotImplementedError
 
+    def publish_keepalive(self) -> None:
+        keepalive = pb.KeepaliveRequest()
+        self._publish_keepalive(keepalive)
+
+    @abstractmethod
+    def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
+        raise NotImplementedError
+
+    def communicate_server_info(self) -> Optional[pb.ServerInfoResponse]:
+        server_info = pb.ServerInfoRequest()
+        resp = self._communicate_server_info(server_info)
+        return resp
+
+    @abstractmethod
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -696,10 +745,88 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
-        run = self._make_run(run_obj)
+    def deliver_run(self, run: "pb.RunRecord") -> MailboxHandle:
         return self._deliver_run(run)
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
+        return self._deliver_run_start(run_start)
+
+    @abstractmethod
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_stop_status(self) -> MailboxHandle:
+        status = pb.StopStatusRequest()
+        return self._deliver_stop_status(status)
+
+    @abstractmethod
+    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_network_status(self) -> MailboxHandle:
+        status = pb.NetworkStatusRequest()
+        return self._deliver_network_status(status)
+
+    @abstractmethod
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_summary(self) -> MailboxHandle:
+        get_summary = pb.GetSummaryRequest()
+        return self._deliver_get_summary(get_summary)
+
+    @abstractmethod
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:
+        exit_data = self._make_exit(exit_code)
+        return self._deliver_exit(exit_data)
+
+    @abstractmethod
+    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_poll_exit(self) -> MailboxHandle:
+        poll_exit = pb.PollExitRequest()
+        return self._deliver_poll_exit(poll_exit)
+
+    @abstractmethod
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_server_info(self) -> MailboxHandle:
+        server_info = pb.ServerInfoRequest()
+        return self._deliver_request_server_info(server_info)
+
+    @abstractmethod
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_sampled_history(self) -> MailboxHandle:
+        sampled_history = pb.SampledHistoryRequest()
+        return self._deliver_request_sampled_history(sampled_history)
+
+    @abstractmethod
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_run_status(self) -> MailboxHandle:
+        run_status = pb.RunStatusRequest()
+        return self._deliver_request_run_status(run_status)
+
+    @abstractmethod
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
+    ) -> MailboxHandle:
         raise NotImplementedError

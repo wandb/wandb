@@ -13,6 +13,7 @@ import time
 import urllib
 import webbrowser
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
@@ -28,12 +29,15 @@ from click.testing import CliRunner
 from wandb import Api, wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.internal.writer import WriteManager
+from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.module import unset_globals
-from wandb.util import mkdir_exists_ok
 
 from . import utils
 
@@ -54,6 +58,11 @@ class ServerMap:
 
 
 servers = ServerMap()
+
+
+def get_temp_dir_kwargs(tmp_path):
+    # Click>=8 implements temp_dir argument which depends on python>=3.7
+    return dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
 
 
 def test_cleanup(*args, **kwargs):
@@ -175,7 +184,7 @@ def test_dir(test_name):
     test_dir = os.path.join(root, "logs", test_name)
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
-    mkdir_exists_ok(test_dir)
+    filesystem.mkdir_exists_ok(test_dir)
     os.chdir(test_dir)
     yield test_dir
     os.chdir(orig_dir)
@@ -191,7 +200,7 @@ def disable_git_save():
 def git_repo(runner):
     with runner.isolated_filesystem():
         with git.Repo.init(".") as repo:
-            mkdir_exists_ok("wandb")
+            filesystem.mkdir_exists_ok("wandb")
             # Because the forked process doesn't use my monkey patch above
             with open(os.path.join("wandb", "settings"), "w") as f:
                 f.write("[default]\nproject: test")
@@ -210,7 +219,7 @@ def git_repo_fn(runner):
         commit_msg: Optional[str] = None,
     ):
         with git.Repo.init(path) as repo:
-            mkdir_exists_ok("wandb")
+            filesystem.mkdir_exists_ok("wandb")
             if remote_url is not None:
                 repo.create_remote(remote_name, remote_url)
             if commit_msg is not None:
@@ -240,7 +249,7 @@ def test_settings(test_dir, mocker, live_mock_server):
     wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
     wandb_dir = os.path.join(test_dir, "wandb")
-    mkdir_exists_ok(wandb_dir)
+    filesystem.mkdir_exists_ok(wandb_dir)
     settings = wandb.Settings(
         api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
@@ -248,7 +257,7 @@ def test_settings(test_dir, mocker, live_mock_server):
         host="test",
         project="test",
         root_dir=test_dir,
-        run_id=wandb.util.generate_id(),
+        run_id=runid.generate_id(),
         save_code=False,
     )
     settings._set_run_start_time()
@@ -320,11 +329,11 @@ def local_netrc(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def local_settings(mocker):
+def local_settings(mocker, tmp_path):
     """Place global settings in an isolated dir"""
     with CliRunner().isolated_filesystem():
         cfg_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
-        mkdir_exists_ok(os.path.join(".config", "wandb"))
+        filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
         mocker.patch("wandb.old.settings.Settings._global_path", return_value=cfg_path)
         yield
 
@@ -633,12 +642,24 @@ class MockProcess:
 
 
 @pytest.fixture()
-def _internal_sender(record_q, internal_result_q, internal_process):
+def internal_mailbox():
+    return Mailbox()
+
+
+@pytest.fixture()
+def _internal_sender(record_q, internal_result_q, internal_process, internal_mailbox):
     return InterfaceQueue(
         record_q=record_q,
         result_q=internal_result_q,
         process=internal_process,
+        mailbox=internal_mailbox,
     )
+
+
+@pytest.fixture()
+def _internal_context_keeper():
+    context_keeper = context.ContextKeeper()
+    yield context_keeper
 
 
 @pytest.fixture()
@@ -649,8 +670,10 @@ def internal_sm(
     test_settings,
     mock_server,
     _internal_sender,
+    _internal_context_keeper,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with runner.isolated_filesystem(**get_temp_dir_kwargs(tmp_path)):
         test_settings.update(
             root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
         )
@@ -659,6 +682,7 @@ def internal_sm(
             record_q=internal_sender_q,
             result_q=internal_result_q,
             interface=_internal_sender,
+            context_keeper=_internal_context_keeper,
         )
         yield sm
 
@@ -676,12 +700,13 @@ def internal_hm(
     internal_result_q,
     test_settings,
     mock_server,
-    internal_sender_q,
     internal_writer_q,
     _internal_sender,
     stopped_event,
+    _internal_context_keeper,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with runner.isolated_filesystem(**get_temp_dir_kwargs(tmp_path)):
         test_settings.update(
             root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
         )
@@ -690,11 +715,41 @@ def internal_hm(
             record_q=record_q,
             result_q=internal_result_q,
             stopped=stopped_event,
-            sender_q=internal_sender_q,
             writer_q=internal_writer_q,
             interface=_internal_sender,
+            context_keeper=_internal_context_keeper,
         )
         yield hm
+
+
+@pytest.fixture()
+def internal_wm(
+    runner,
+    internal_writer_q,
+    internal_result_q,
+    internal_sender_q,
+    stopped_event,
+    _internal_sender,
+    _internal_context_keeper,
+    test_settings,
+    tmp_path,
+):
+    with runner.isolated_filesystem(**get_temp_dir_kwargs(tmp_path)):
+        test_settings.update(
+            root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
+        )
+        wandb_file = test_settings.sync_file
+        run_dir = Path(wandb_file).parent
+        os.makedirs(run_dir)
+        wm = WriteManager(
+            settings=test_settings,
+            record_q=internal_writer_q,
+            result_q=internal_result_q,
+            sender_q=internal_sender_q,
+            interface=_internal_sender,
+            context_keeper=_internal_context_keeper,
+        )
+        yield wm
 
 
 @pytest.fixture()
@@ -726,6 +781,7 @@ def start_send_thread(
                         break
             except Exception as e:
                 stopped_event.set()
+                print("RAISE_SEND", e)
                 internal_process._alive = False
 
         t = threading.Thread(target=target)
@@ -735,6 +791,36 @@ def start_send_thread(
         return t
 
     yield start_send
+    stopped_event.set()
+
+
+@pytest.fixture()
+def start_write_thread(
+    internal_writer_q, internal_get_record, stopped_event, internal_process
+):
+    def start_write(write_manager):
+        def target():
+            try:
+                while True:
+                    payload = internal_get_record(
+                        input_q=internal_writer_q, timeout=0.1
+                    )
+                    if payload:
+                        write_manager.write(payload)
+                    elif stopped_event.is_set():
+                        break
+            except Exception as e:
+                stopped_event.set()
+                print("RAISE_WRIT", e)
+                internal_process._alive = False
+
+        t = threading.Thread(target=target)
+        t.name = "testing-writer"
+        t.daemon = True
+        t.start()
+        return t
+
+    yield start_write
     stopped_event.set()
 
 
@@ -764,19 +850,22 @@ def _start_backend(
     mocked_run,
     internal_hm,
     internal_sm,
+    internal_wm,
     _internal_sender,
     start_handle_thread,
+    start_write_thread,
     start_send_thread,
     log_debug,
 ):
     def start_backend_func(initial_run=True, initial_start=False):
         ht = start_handle_thread(internal_hm)
+        wt = start_write_thread(internal_wm)
         st = start_send_thread(internal_sm)
         if initial_run:
             run = _internal_sender.communicate_run(mocked_run)
             if initial_start:
                 _internal_sender.communicate_run_start(run.run)
-        return (ht, st)
+        return (ht, wt, st)
 
     yield start_backend_func
 
@@ -793,20 +882,19 @@ def _stop_backend(
 ):
     def stop_backend_func(threads=None):
         threads = threads or ()
-        done = False
-        _internal_sender.publish_exit(0)
-        for _ in range(30):
-            poll_exit_resp = _internal_sender.communicate_poll_exit()
-            if poll_exit_resp:
-                done = poll_exit_resp.done
-                if done:
-                    collect_responses.poll_exit_resp = poll_exit_resp
-                    break
-            time.sleep(1)
+
+        handle = _internal_sender.deliver_exit(0)
+        record = handle.wait(timeout=30)
+        assert record
+
+        server_info_handle = _internal_sender.deliver_request_server_info()
+        result = server_info_handle.wait(timeout=30)
+        assert result
+        collect_responses.server_info_resp = result.response.server_info_response
+
         _internal_sender.join()
         for t in threads:
             t.join()
-        assert done, "backend didnt shutdown"
 
     yield stop_backend_func
 

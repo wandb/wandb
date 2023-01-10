@@ -22,12 +22,12 @@ import json
 import logging
 import os
 import pprint
-import re
 import tempfile
 from typing import Optional
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import filesystem
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
@@ -47,6 +47,7 @@ from .sdk.data_types.object_3d import Object3D
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
 from .sdk.data_types.video import Video
+from .sdk.lib import runid
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
 # Once we fully type this file and move it all into sdk, then we will need to clean up the
@@ -521,7 +522,7 @@ class Table(Media):
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publicly say 200k is the limit.
         data = self._to_table_json(warn=False)
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
@@ -597,7 +598,7 @@ class Table(Media):
         dtypes = None
         if column_types is not None:
             dtypes = [
-                column_types.params["type_map"][col] for col in json_obj["columns"]
+                column_types.params["type_map"][str(col)] for col in json_obj["columns"]
             ]
 
         new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
@@ -655,9 +656,7 @@ class Table(Media):
                         "numpy",
                         required="Serializing numpy requires numpy to be installed",
                     )
-                    file_name = "{}_{}.npz".format(
-                        str(col_name), str(util.generate_id())
-                    )
+                    file_name = f"{str(col_name)}_{runid.generate_id()}.npz"
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
@@ -1046,7 +1045,7 @@ class Audio(BatchableMedia):
         self._caption = caption
 
         if isinstance(data_or_path, str):
-            if Audio.path_is_reference(data_or_path):
+            if self.path_is_reference(data_or_path):
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
                 self._is_tmp = False
@@ -1063,15 +1062,11 @@ class Audio(BatchableMedia):
                 required='Raw audio requires the soundfile package. To get it, run "pip install soundfile"',
             )
 
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".wav")
+            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".wav")
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
             self._set_file(tmp_path, is_tmp=True)
-
-    @classmethod
-    def path_is_reference(cls, path):
-        return bool(re.match(r"^(gs|s3|https?)://", path))
 
     @classmethod
     def get_media_subdir(cls):
@@ -1087,7 +1082,7 @@ class Audio(BatchableMedia):
     def bind_to_run(
         self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
     ):
-        if Audio.path_is_reference(self._path):
+        if self.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
@@ -1113,7 +1108,7 @@ class Audio(BatchableMedia):
             required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile",
         )
         base_path = os.path.join(run.dir, "media", "audio")
-        util.mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
         meta = {
             "_type": "audio",
             "count": len(audio_list),
@@ -1148,7 +1143,7 @@ class Audio(BatchableMedia):
             return ["" if c is None else c for c in captions]
 
     def resolve_ref(self):
-        if Audio.path_is_reference(self._path):
+        if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
         source_artifact = self._artifact_source.artifact
@@ -1162,7 +1157,7 @@ class Audio(BatchableMedia):
         return None
 
     def __eq__(self, other):
-        if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
+        if self.path_is_reference(self._path) or self.path_is_reference(other._path):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
             return (
@@ -1180,10 +1175,10 @@ class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
     Arguments:
-        table1 (str, wandb.Table, ArtifactEntry):
-            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
+        table1 (str, wandb.Table, ArtifactManifestEntry):
+            the path to a wandb.Table in an artifact, the table object, or ArtifactManifestEntry
         table2 (str, wandb.Table):
-            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
+            the path to a wandb.Table in an artifact, the table object, or ArtifactManifestEntry
         join_key (str, [str, str]):
             key or keys to perform the join
     """
@@ -1251,12 +1246,12 @@ class JoinedTable(Media):
                 table_name = os.path.basename(table._artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
-        # Check if this is an ArtifactEntry
+        # Check if this is an ArtifactManifestEntry
         elif hasattr(table, "ref_url"):
             # Give the new object a unique, yet deterministic name
-            name = binascii.hexlify(
-                base64.standard_b64decode(table.entry.digest)
-            ).decode("ascii")[:20]
+            name = binascii.hexlify(base64.standard_b64decode(table.digest)).decode(
+                "ascii"
+            )[:20]
             entry = artifact.add_reference(
                 table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
@@ -1342,7 +1337,7 @@ class Bokeh(Media):
             if "references" in b_json["roots"]:
                 b_json["roots"]["references"].sort(key=lambda x: x["id"])
 
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
+            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".bokeh.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
@@ -1423,7 +1418,7 @@ class Graph(Media):
 
     def bind_to_run(self, *args, **kwargs):
         data = self._to_graph_json()
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
@@ -1561,7 +1556,7 @@ class Node(WBValue):
         self._attributes = {"name": None}
         self.in_edges = {}  # indexed by source node id
         self.out_edges = {}  # indexed by dest node id
-        # optional object (eg. PyTorch Parameter or Module) that this Node represents
+        # optional object (e.g. PyTorch Parameter or Module) that this Node represents
         self.obj = None
 
         if node is not None:
@@ -1989,7 +1984,7 @@ class _ForeignKeyType(_dtypes.Type):
     def to_json(self, artifact=None):
         res = super().to_json(artifact)
         if artifact is not None:
-            table_name = f"media/tables/t_{util.generate_id()}"
+            table_name = f"media/tables/t_{runid.generate_id()}"
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:
@@ -2049,7 +2044,7 @@ class _ForeignIndexType(_dtypes.Type):
     def to_json(self, artifact=None):
         res = super().to_json(artifact)
         if artifact is not None:
-            table_name = f"media/tables/t_{util.generate_id()}"
+            table_name = f"media/tables/t_{runid.generate_id()}"
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:

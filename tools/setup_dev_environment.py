@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import pathlib
 import platform
 import re
 import subprocess
@@ -130,11 +131,15 @@ def main():
     )
 
     print("Installing dependencies: tox...")
+    # path to this file's parent:
+    cwd = pathlib.Path(__file__).parent.parent.absolute()
+
     subprocess.run(
         ["python", "-m", "pip", "install", "-qq", f"tox=={TOX_VERSION}"],
         stdout=sys.stdout,
         stderr=subprocess.STDOUT,
         check=True,
+        cwd=cwd,
     )
 
     print(f"{Console.GREEN}Development environment setup!{Console.END}")

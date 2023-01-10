@@ -29,32 +29,6 @@ def kill_agent_on_update_job(monkeypatch):
     )
 
 
-def test_launch_add_default(runner, test_settings, live_mock_server):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--project=test_project",
-        "--entity=mock_server_entity",
-        "--queue=default",
-    ]
-    result = runner.invoke(cli.launch, args)
-    assert result.exit_code == 0
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-
-
-def test_launch_add_config_file(runner, test_settings, live_mock_server):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--project=test_project",
-        "--entity=mock_server_entity",
-        "--queue=default",
-    ]
-    result = runner.invoke(cli.launch, args)
-    assert result.exit_code == 0
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-
-
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.flaky
@@ -186,7 +160,7 @@ def test_launch_cli_with_config_file_and_params(
         "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
         "project": "test_project",
         "entity": "mock_server_entity",
-        "resource": "local",
+        "resource": "local-container",
         "overrides": {"args": ["--epochs", "5"]},
     }
     with runner.isolated_filesystem():
@@ -218,7 +192,7 @@ def test_launch_cli_with_config_and_params(
         "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
         "project": "test_project",
         "entity": "mock_server_entity",
-        "resource": "local",
+        "resource": "local-container",
         "overrides": {"args": ["--epochs", "5"]},
     }
     with runner.isolated_filesystem():
@@ -390,6 +364,7 @@ def test_launch_cuda_flag(
             cli.launch,
             args + ["--cuda"],
         )
+    print(result.output)
     assert result.exit_code == 0
 
     with runner.isolated_filesystem():
@@ -397,6 +372,7 @@ def test_launch_cuda_flag(
             cli.launch,
             args + ["--cuda", "False"],
         )
+    print(result.output)
     assert result.exit_code == 0
 
     with runner.isolated_filesystem():
@@ -404,6 +380,7 @@ def test_launch_cuda_flag(
             cli.launch,
             args + ["--cuda", "asdf"],
         )
+    print(result.output)
     assert result.exit_code != 0
     assert "Invalid value for --cuda:" in result.output
 
@@ -423,18 +400,6 @@ def test_launch_agent_project_environment_variable(
     assert (
         "You must specify a project name or set WANDB_PROJECT environment variable."
         not in str(result.output)
-    )
-
-
-def test_launch_agent_no_project(runner, test_settings, live_mock_server, monkeypatch):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
-    )
-    result = runner.invoke(cli.launch_agent)
-    assert result.exit_code == 1
-    assert (
-        "You must specify a project name or set WANDB_PROJECT environment variable."
-        in str(result.output)
     )
 
 
@@ -465,21 +430,6 @@ def test_launch_agent_launch_error_continue(
         )
         assert "blah blah" in result.output
         assert "except caught, acked item" in result.output
-
-
-def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--entity",
-        "mock_server_entity",
-        "--queue",
-    ]
-    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
-    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli.launch, args)
-
-        assert "Could not connect with current API-key." in result.output
 
 
 def test_launch_name_run_id_environment_variable(

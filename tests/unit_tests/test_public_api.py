@@ -5,8 +5,18 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.apis.public
 import wandb.util
 from wandb import Api
+from wandb.sdk.lib import runid
+
+from .test_wandb_sweep import (
+    SWEEP_CONFIG_BAYES,
+    SWEEP_CONFIG_GRID,
+    SWEEP_CONFIG_GRID_NESTED,
+    SWEEP_CONFIG_RANDOM,
+    VALID_SWEEP_CONFIGS_MINIMAL,
+)
 
 
 def test_api_auto_login_no_tty():
@@ -152,7 +162,7 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem():
         tb_file_name = "events.out.tfevents.1585769947.cvp"
         copy_asset(tb_file_name)
-        run_id = wandb.util.generate_id()
+        run_id = runid.generate_id()
         api.sync_tensorboard(".", project="test", run_id=run_id)
         uploaded_files = relay.context.get_run_uploaded_files(run_id)
         assert uploaded_files[0].endswith(tb_file_name)
@@ -165,3 +175,149 @@ def test_override_base_url_passed_to_login():
         api = wandb.Api(api_key=None, overrides={"base_url": base_url})
         assert mock_login.call_args[1]["host"] == base_url
         assert api.settings["base_url"] == base_url
+
+
+def test_artifact_download_logger():
+    now = 0
+    termlog = mock.Mock()
+
+    nfiles = 10
+    logger = wandb.apis.public._ArtifactDownloadLogger(
+        nfiles=nfiles,
+        clock_for_testing=lambda: now,
+        termlog_for_testing=termlog,
+    )
+
+    times_calls = [
+        (0, None),
+        (0.001, None),
+        (1, mock.call("\\ 3 of 10 files downloaded...\r", newline=False)),
+        (1.001, None),
+        (2, mock.call("| 5 of 10 files downloaded...\r", newline=False)),
+        (2.001, None),
+        (3, mock.call("/ 7 of 10 files downloaded...\r", newline=False)),
+        (4, mock.call("- 8 of 10 files downloaded...\r", newline=False)),
+        (5, mock.call("\\ 9 of 10 files downloaded...\r", newline=False)),
+        (6, mock.call("  10 of 10 files downloaded.  ", newline=True)),
+    ]
+    assert len(times_calls) == nfiles
+
+    for t, call in times_calls:
+        now = t
+        termlog.reset_mock()
+        logger.notify_downloaded()
+        if call:
+            termlog.assert_called_once()
+            assert termlog.call_args == call
+        else:
+            termlog.assert_not_called()
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+def test_sweep_api(user, relay_server, sweep_config):
+    _project = "test"
+    with relay_server():
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    print(f"sweep_id{sweep_id}")
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+    assert sweep.entity == user
+    assert f"{user}/{_project}/sweeps/{sweep_id}" in sweep.url
+    assert sweep.state == "PENDING"
+    assert str(sweep) == f"<Sweep {user}/test/{sweep_id} (PENDING)>"
+
+
+@pytest.mark.parametrize(
+    "sweep_config,expected_run_count",
+    [
+        (SWEEP_CONFIG_GRID, 3),
+        (SWEEP_CONFIG_GRID_NESTED, 9),
+        (SWEEP_CONFIG_BAYES, None),
+        (SWEEP_CONFIG_RANDOM, None),
+    ],
+    ids=["test grid", "test grid nested", "test bayes", "test random"],
+)
+def test_sweep_api_expected_run_count(
+    user, relay_server, sweep_config, expected_run_count
+):
+    _project = "test"
+    with relay_server() as relay:
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    for comm in relay.context.raw_data:
+        q = comm["request"].get("query")
+        print(q)
+
+    print(f"sweep_id{sweep_id}")
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
+    assert sweep.expected_run_count == expected_run_count
+
+
+def test_update_aliases_on_artifact(user, relay_server, wandb_init):
+    project = "test"
+    run = wandb_init(entity=user, project=project)
+    artifact = wandb.Artifact("test-artifact", "test-type")
+    with open("boom.txt", "w") as f:
+        f.write("testing")
+    artifact.add_file("boom.txt", "test-name")
+    art = run.log_artifact(artifact, aliases=["sequence"])
+    run.link_artifact(art, f"{user}/{project}/my-sample-portfolio")
+    artifact.wait()
+    run.finish()
+
+    # fetch artifact under original parent sequence
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "sequence" in aliases
+
+    # fetch artifact under portfolio
+    # and change aliases under portfolio only
+    artifact = Api().artifact(
+        name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "sequence" not in aliases
+    artifact.aliases = ["portfolio"]
+    artifact.aliases.append("boom")
+    artifact.save()
+
+    artifact = Api().artifact(
+        name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "portfolio" in aliases
+    assert "boom" in aliases
+    assert "sequence" not in aliases
+
+
+def test_artifact_version(wandb_init):
+    def create_test_artifact(content: str):
+        art = wandb.Artifact("test-artifact", "test-type")
+        with open("boom.txt", "w") as f:
+            f.write(content)
+        art.add_file("boom.txt", "test-name")
+        return art
+
+    # Create an artifact sequence + portfolio (auto-created if it doesn't exist)
+    project = "test"
+    run = wandb_init(project=project)
+
+    art = create_test_artifact("aaaaa")
+    run.log_artifact(art, aliases=["a"])
+    art.wait()
+
+    art = create_test_artifact("bbbb")
+    run.log_artifact(art, aliases=["b"])
+    run.link_artifact(art, f"{project}/my-sample-portfolio")
+    art.wait()
+    run.finish()
+
+    # Pull down from portfolio, verify version is indexed from portfolio not sequence
+    artifact = Api().artifact(
+        name=f"{project}/my-sample-portfolio:latest", type="test-type"
+    )
+
+    assert artifact.version == "v0"
+    assert artifact.source_version == "v1"

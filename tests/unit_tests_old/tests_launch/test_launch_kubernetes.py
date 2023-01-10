@@ -108,7 +108,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
             "preemptionPolicy", "PreemptLowerPriority"
         )
         pod_spec.node_name = pod_spec.get("nodeName", None)
-        pod_spec.node_selector = pod_spec.get("nodeSelectors", {})
+        pod_spec.node_selector = pod_spec.get("nodeSelector", {})
         pod_spec.containers = pod_spec.get("containers")
         for i, cont in enumerate(pod_spec.containers):
             pod_spec.containers[i] = MockDict(cont)
@@ -224,7 +224,9 @@ def test_launch_kube(
             }
         }
     }
-
+    mountedVolName = "test-volume"
+    vol = {"persistentVolumeClaim": {"claimName": "test-claim"}}
+    mount = {"mountPath": "/test/path"}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
@@ -245,8 +247,26 @@ def test_launch_kube(
                 "restart_policy": "OnFailure",
                 "preemption_policy": "Never",
                 "node_name": "test-node-name",
-                "node_selectors": {"test-selector": "test-value"},
+                "node_selector": {"test-selector": "test-value"},
                 "tolerations": [{"key": "test-key", "value": "test-value"}],
+                "volumes": [
+                    {
+                        "name": mountedVolName,
+                        "volume": vol,
+                    }
+                ],
+                "volume_mounts": [
+                    {
+                        "name": mountedVolName,
+                        "mount": mount,
+                    }
+                ],
+                "env": [
+                    {
+                        "name": "test-env",
+                        "value": "test-value",
+                    }
+                ],
             },
         },
     }
@@ -272,12 +292,12 @@ def test_launch_kube(
     assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
     assert job.spec.template.spec.node_name == args["node_name"]
     assert job.spec.template.spec.tolerations == args["tolerations"]
-    assert (
-        job.spec.template.spec.node_selector["test-selector"]
-        == args["node_selectors"]["test-selector"]
-    )
+    assert job.spec.template.spec.volumes == args["volumes"]
+    assert args["env"][0] in job.spec.template.spec.containers[0].env
+    assert job.spec.template.spec.node_selector == args["node_selector"]
     container = job.spec.template.spec.containers[0]
     assert "test.registry/repo_name" in container.image
+    assert container["volumeMounts"] == args["volume_mounts"]
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 
@@ -296,7 +316,11 @@ def test_launch_kube_suspend_cancel(
         }
     )
 
-    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+    project = "test"
+    entity = "mock_server_entity"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -307,8 +331,8 @@ def test_launch_kube_suspend_cancel(
         "uri": uri,
         "api": api,
         "resource": "kubernetes",
-        "entity": "mock_server_entity",
-        "project": "test",
+        "entity": entity,
+        "project": project,
         "resource_args": {
             "kubernetes": {
                 "config_file": "dummy.yaml",
@@ -321,7 +345,7 @@ def test_launch_kube_suspend_cancel(
     assert run.get_status().state == "running"
     run.suspend()
 
-    assert run.id == "launch-asdfasdf"
+    assert run.id == pod_name
     assert run.namespace == "active-namespace"
     assert run.pod_names == ["pod1"]
     assert run.get_status().state == "stopped"
@@ -345,8 +369,11 @@ def test_launch_kube_failed(
             "conditions": None,
         }
     )
+    project = "test"
+    entity = "mock_server_entity"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
 
-    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -357,13 +384,13 @@ def test_launch_kube_failed(
         "uri": uri,
         "api": api,
         "resource": "kubernetes",
-        "entity": "mock_server_entity",
-        "project": "test",
+        "entity": entity,
+        "project": project,
         "resource_args": {},
     }
     run = launch.run(**kwargs)
 
-    assert run.id == "launch-asdfasdf"
+    assert run.id == pod_name
     assert run.pod_names == ["pod1"]
     assert run.get_status().state == "failed"
     out, err = capsys.readouterr()
@@ -384,7 +411,11 @@ def test_kube_user_container(
         }
     )
 
-    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+    project = "test"
+    entity = "mock_server_entity"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -410,8 +441,8 @@ def test_kube_user_container(
     kwargs = {
         "api": api,
         "resource": "kubernetes",
-        "entity": "mock_server_entity",
-        "project": "test",
+        "entity": entity,
+        "project": project,
         "docker_image": "test:tag",
         "config": {"docker": {"args": {"test-arg": "unused"}}},
         "resource_args": {"kubernetes": {"job_spec": json.dumps(multi_spec)}},
@@ -444,7 +475,11 @@ def test_kube_multi_container(
         }
     )
 
-    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+    project = "test"
+    entity = "mock_server_entity"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -471,8 +506,8 @@ def test_kube_multi_container(
         "uri": uri,
         "api": api,
         "resource": "kubernetes",
-        "entity": "mock_server_entity",
-        "project": "test",
+        "entity": entity,
+        "project": project,
         "resource_args": {
             "kubernetes": {
                 "job_spec": json.dumps(spec),
@@ -529,7 +564,11 @@ def test_get_status_failed(
         }
     )
 
-    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+    project = "test"
+    entity = "mock_server_entity"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
     monkeypatch.setattr(
         MockCoreV1Api, "read_namespaced_pod_log", read_namespaced_pod_log_error
@@ -544,8 +583,8 @@ def test_get_status_failed(
         "uri": uri,
         "api": api,
         "resource": "kubernetes",
-        "entity": "mock_server_entity",
-        "project": "test",
+        "entity": entity,
+        "project": project,
         "resource_args": {"kubernetes": {}},
         "synchronous": False,
     }

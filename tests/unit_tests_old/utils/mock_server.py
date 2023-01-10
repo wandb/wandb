@@ -97,6 +97,7 @@ def default_ctx():
         "n_sweep_runs": 0,
         "code_saving_enabled": True,
         "sentry_events": [],
+        "sentry_sessions": [],
         "run_cuda_version": None,
         # relay mode, keep track of upsert runs for validation
         "relay_run_info": {},
@@ -1360,7 +1361,7 @@ def create_app(user_ctx=None):
                 "data": {
                     "project": {
                         "artifactType": {
-                            "artifactSequences": paginated(
+                            "artifactCollections": paginated(
                                 {
                                     "id": "1",
                                     "name": "mnist",
@@ -1378,7 +1379,7 @@ def create_app(user_ctx=None):
                 "data": {
                     "project": {
                         "artifactType": {
-                            "artifactSequence": {
+                            "artifactCollection": {
                                 "id": "1",
                                 "name": "mnist",
                                 "description": "",
@@ -1413,7 +1414,7 @@ def create_app(user_ctx=None):
                 "data": {
                     "project": {
                         "artifactType": {
-                            "artifactSequence": {
+                            "artifactCollection": {
                                 "name": "mnist",
                                 "artifacts": artifacts,
                             }
@@ -2227,6 +2228,21 @@ index 30d74d2..9a2c773 100644
         ctx["sentry_events"].append(data)
         return ""
 
+    @app.route("/api/5288891/envelope/", methods=["POST"])
+    def sentry_session_put():
+        ctx = get_ctx()
+        data = request.get_data()
+        data = gzip.decompress(data)
+        data = str(data, "utf-8")
+        envelope = []
+        for line in data.splitlines():
+            if not line:
+                continue
+            line = json.loads(line)
+            envelope.append(line)
+        ctx["sentry_sessions"].append(envelope)
+        return ""
+
     @app.errorhandler(404)
     def page_not_found(e):
         print(f"Got request to: {request.url} ({request.method})")
@@ -2455,6 +2471,10 @@ class ParseCTX:
     @property
     def sentry_events(self):
         return self._ctx.get("sentry_events") or []
+
+    @property
+    def sentry_sessions(self):
+        return self._ctx.get("sentry_sessions") or []
 
     def _debug(self):
         if not self._run_id:

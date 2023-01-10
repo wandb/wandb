@@ -1,13 +1,9 @@
-import base64
-import binascii
-import codecs
 import colorsys
 import contextlib
-import errno
 import functools
 import gzip
-import hashlib
 import importlib
+import importlib.util
 import json
 import logging
 import math
@@ -33,14 +29,17 @@ from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     Generator,
     List,
     Mapping,
+    NewType,
     Optional,
     Sequence,
+    Set,
     TextIO,
     Tuple,
     Type,
@@ -50,14 +49,35 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-import shortuuid  # type: ignore
 import yaml
 
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
+from wandb.sdk.lib import filesystem
+
+if TYPE_CHECKING:
+    import wandb.apis.public
+    import wandb.sdk.internal.settings_static
+    import wandb.sdk.wandb_artifacts
+    import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+
+# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
+# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
+# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
+LogicalFilePathStr = NewType("LogicalFilePathStr", str)
+
+# `FilePathStr` represents a path to a file on the local filesystem.
+#
+# TODO(spencerpearson): this should probably be replaced with pathlib.Path
+FilePathStr = NewType("FilePathStr", str)
+
+# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
+URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -65,6 +85,16 @@ _not_importable = set()
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
+
+# From https://docs.docker.com/engine/reference/commandline/tag/
+# "Name components may contain lowercase letters, digits and separators.
+# A separator is defined as a period, one or two underscores, or one or more dashes.
+# A name component may not start or end with a separator."
+DOCKER_IMAGE_NAME_SEPARATOR = "(?:__|[._]|[-]+)"
+RE_DOCKER_IMAGE_NAME_SEPARATOR_START = re.compile("^" + DOCKER_IMAGE_NAME_SEPARATOR)
+RE_DOCKER_IMAGE_NAME_SEPARATOR_END = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "$")
+RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "{2,}")
+RE_DOCKER_IMAGE_NAME_CHARS = re.compile(r"[^a-z0-9._\-]")
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -78,6 +108,8 @@ PLATFORM_LINUX = "linux"
 PLATFORM_BSD = "bsd"
 PLATFORM_DARWIN = "darwin"
 PLATFORM_UNKNOWN = "unknown"
+
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
 
 def get_platform_name() -> str:
@@ -254,6 +286,10 @@ def sentry_set_scope(
             if value is not None and value != "":
                 scope.set_tag(tag, value)
 
+    # Track session so we can get metrics about error free rate
+    if sentry_hub:
+        sentry_hub.start_session()
+
 
 def vendor_setup() -> Callable:
     """This enables us to use the vendor directory for packages we don't depend on
@@ -270,18 +306,18 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
+    vendor_packages = (
+        "gql-0.2.0",
+        "graphql-core-1.1",
+        "watchdog_0_9_0",
+        "promise-2.3.0",
+    )
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
             sys.path.insert(1, p)
 
     return reset_import_path
-
-
-def apple_gpu_stats_binary() -> str:
-    parent_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
 
 
 def vendor_import(name: str) -> Any:
@@ -291,16 +327,48 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def get_module(name: str, required: Optional[Union[str, bool]] = None) -> Any:
+def import_module_lazy(name: str) -> Any:
+    """
+    Import a module lazily, only when it is used.
+
+    :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
+    """
+    try:
+        return sys.modules[name]
+    except KeyError:
+        module_spec = importlib.util.find_spec(name)
+        if not module_spec:
+            raise ModuleNotFoundError
+
+        module = importlib.util.module_from_spec(module_spec)
+        sys.modules[name] = module
+
+        assert module_spec.loader is not None
+        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
+        lazy_loader.exec_module(module)
+
+        return module
+
+
+def get_module(
+    name: str,
+    required: Optional[Union[str, bool]] = None,
+    lazy: bool = True,
+) -> Any:
     """
     Return module or None. Absolute import is required.
+
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     :param (str) required: A string to raise a ValueError if missing
+    :param (bool) lazy: If True, return a lazy loader for the module.
     :return: (module|None) If import succeeds, the module will be returned.
     """
     if name not in _not_importable:
         try:
-            return import_module(name)
+            if not lazy:
+                return import_module(name)
+            else:
+                return import_module_lazy(name)
         except Exception:
             _not_importable.add(name)
             msg = f"Error importing optional module {name}"
@@ -474,7 +542,7 @@ def is_pytorch_tensor_typename(typename: str) -> bool:
 
 
 def is_jax_tensor_typename(typename: str) -> bool:
-    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+    return typename.startswith("jaxlib.") and "Array" in typename
 
 
 def get_jax_tensor(obj: Any) -> Optional[Any]:
@@ -573,6 +641,68 @@ def matplotlib_contains_images(obj: Any) -> bool:
     return any(len(ax.images) > 0 for ax in obj.axes)
 
 
+def _numpy_generic_convert(obj: Any) -> Any:
+    obj = obj.item()
+    if isinstance(obj, float) and math.isnan(obj):
+        obj = None
+    elif isinstance(obj, np.generic) and (
+        obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+    ):
+        # obj is a numpy float with precision greater than that of native python float
+        # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+        # in these cases, obj.item() does not return a native
+        # python float (in the first case - to avoid loss of precision,
+        # so we need to explicitly cast this down to a 64bit float)
+        obj = float(obj)
+    return obj
+
+
+def _find_all_matching_keys(
+    d: Dict,
+    match_fn: Callable[[Any], bool],
+    visited: Optional[Set[int]] = None,
+    key_path: Tuple[Any, ...] = (),
+) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
+    """Recursively find all keys that satisfies a match function.
+
+    Args:
+       d: The dict to search.
+       match_fn: The function to determine if the key is a match.
+       visited: Keep track of visited nodes so we dont recurse forever.
+       key_path: Keep track of all the keys to get to the current node.
+    Yields:
+       (key_path, key): The location where the key was found, and the key
+    """
+
+    if visited is None:
+        visited = set()
+    me = id(d)
+    if me not in visited:
+        visited.add(me)
+        for key, value in d.items():
+            if match_fn(key):
+                yield key_path, key
+            if isinstance(value, dict):
+                yield from _find_all_matching_keys(
+                    value,
+                    match_fn,
+                    visited=visited,
+                    key_path=tuple(list(key_path) + [key]),
+                )
+
+
+def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
+    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
+    if not np_keys:
+        return d, False
+    for key_path, key in np_keys:
+        ptr = d
+        for k in key_path:
+            ptr = ptr[k]
+        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
+    return d, True
+
+
 def json_friendly(  # noqa: C901
     obj: Any,
 ) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
@@ -612,19 +742,7 @@ def json_friendly(  # noqa: C901
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = obj.item()
-        if isinstance(obj, float) and math.isnan(obj):
-            obj = None
-        elif isinstance(obj, np.generic) and (
-            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
-        ):
-            # obj is a numpy float with precision greater than that of native python float
-            # (i.e., float96 or float128) or it is of custom type such as bfloat16.
-            # in these cases, obj.item() does not return a native
-            # python float (in the first case - to avoid loss of precision,
-            # so we need to explicitly cast this down to a 64bit float)
-            obj = float(obj)
-
+        obj = _numpy_generic_convert(obj)
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -637,6 +755,8 @@ def json_friendly(  # noqa: C901
         )
     elif isinstance(obj, float) and math.isnan(obj):
         obj = None
+    elif isinstance(obj, dict) and np:
+        obj, converted = _sanitize_numpy_keys(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -671,6 +791,10 @@ def json_friendly_val(val: Any) -> Any:
         if val.__class__.__module__ not in ("builtins", "__builtin__"):
             val = str(val)
         return val
+
+
+def alias_is_version_index(alias: str) -> bool:
+    return len(alias) >= 2 and alias[0] == "v" and alias[1:].isnumeric()
 
 
 def convert_plots(obj: Any) -> Any:
@@ -739,12 +863,6 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
             launch_browser = False
 
     return launch_browser
-
-
-def generate_id(length: int = 8) -> str:
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return str(run_gen.random(length))
 
 
 def parse_tfjob_config() -> Any:
@@ -857,15 +975,13 @@ def make_safe_for_json(obj: Any) -> Any:
     return obj
 
 
-def mkdir_exists_ok(path: str) -> bool:
-    try:
-        os.makedirs(path)
+def no_retry_4xx(e: Exception) -> bool:
+    if not isinstance(e, requests.HTTPError):
         return True
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            return False
-        else:
-            raise
+    if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
+        return True
+    body = json.loads(e.response.content)
+    raise UsageError(body["errors"][0]["message"])
 
 
 def no_retry_auth(e: Any) -> bool:
@@ -907,7 +1023,7 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
 
 
 def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
-    """Check if the exception is a conflict or gone type so it can be retried or not.
+    """Check if the exception is a conflict or gone type, so it can be retried or not.
 
     Returns:
         True - Should retry this operation
@@ -993,14 +1109,6 @@ def downsample(values: Sequence, target_length: int) -> list:
 
 def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
-
-
-def md5_file(path: str) -> str:
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
 
 
 def get_log_file_path() -> str:
@@ -1187,7 +1295,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1211,7 +1319,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
@@ -1266,7 +1374,7 @@ def download_file_from_url(
     response.raise_for_status()
 
     if os.sep in dest_path:
-        mkdir_exists_ok(os.path.dirname(dest_path))
+        filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
     with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)
@@ -1360,18 +1468,14 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     return None
 
 
-def to_forward_slash_path(path: str) -> str:
+def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return path
+    return LogicalFilePathStr(path)
 
 
-def to_native_slash_path(path: str) -> str:
-    return path.replace("/", os.sep)
-
-
-def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
-    return codecs.getencoder("hex")(bytestr)[0].decode("ascii")  # type: ignore
+def to_native_slash_path(path: str) -> FilePathStr:
+    return FilePathStr(path.replace("/", os.sep))
 
 
 def check_and_warn_old(files: List[str]) -> bool:
@@ -1432,14 +1536,6 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
         _import_hook = ImportMetaHook()
         _import_hook.install()
     _import_hook.add(fullname, on_import)
-
-
-def b64_to_hex_id(id_string: Any) -> str:
-    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
-
-
-def hex_to_b64_id(encoded_string: Union[str, bytes]) -> str:
-    return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
 
 
 def host_from_path(path: Optional[str]) -> str:
@@ -1597,7 +1693,7 @@ def artifact_to_json(
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
     if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name  # type: ignore
+        sequence_name = artifact._sequence_name
     else:
         sequence_name = artifact.name.split(":")[0]
 
@@ -1605,7 +1701,7 @@ def artifact_to_json(
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
-        "version": artifact.version,
+        "version": artifact.source_version,
         "sequenceName": sequence_name,
         "usedAs": artifact._use_as,
     }
@@ -1778,9 +1874,28 @@ def make_artifact_name_safe(name: str) -> str:
 
 def make_docker_image_name_safe(name: str) -> str:
     """Make a docker image name safe for use in artifacts"""
-    return re.sub(r"[^a-z0-9_\-.]", "", name)
+    safe_chars = RE_DOCKER_IMAGE_NAME_CHARS.sub("__", name.lower())
+    deduped = RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT.sub("__", safe_chars)
+    trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
+    trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
+    return trimmed if trimmed else "image"
 
 
-def has_main_file(path: str) -> bool:
-    """Check if a directory has a main.py file"""
-    return path != "<python with no main file>"
+def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively merge two dictionaries.
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            if isinstance(value, list):
+                if key in destination:
+                    destination[key].extend(value)
+                else:
+                    destination[key] = value
+            else:
+                destination[key] = value
+    return destination

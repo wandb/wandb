@@ -1,12 +1,14 @@
 import hashlib
 import os
 import platform
+import re
 import shutil
 from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast
 
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
+from wandb.sdk.lib import filesystem
 
 from .wb_value import WBValue
 
@@ -127,7 +129,7 @@ class Media(WBValue):
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(self._run.dir, media_path)
-        util.mkdir_exists_ok(os.path.dirname(new_path))
+        filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
         if self._is_tmp:
             shutil.move(self._path, new_path)
@@ -156,6 +158,7 @@ class Media(WBValue):
         """
         # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
         # into Media itself we should get rid of them
+        from wandb import Image
         from wandb.data_types import Audio
 
         json_obj = {}
@@ -232,9 +235,9 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self._artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
-                    elif isinstance(self, Audio) and Audio.path_is_reference(
-                        self._path
-                    ):
+                    elif (
+                        isinstance(self, Audio) or isinstance(self, Image)
+                    ) and self.path_is_reference(self._path):
                         artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
@@ -262,6 +265,10 @@ class Media(WBValue):
             and hasattr(other, "_sha256")
             and self._sha256 == other._sha256
         )
+
+    @staticmethod
+    def path_is_reference(path: Optional[str]) -> bool:
+        return bool(path and re.match(r"^(gs|s3|https?)://", path))
 
 
 class BatchableMedia(Media):

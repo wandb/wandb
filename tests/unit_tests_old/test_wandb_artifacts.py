@@ -131,12 +131,6 @@ def mock_http(artifact, path=False, headers={}):
     return mock
 
 
-def md5_string(string):
-    hash_md5 = hashlib.md5()
-    hash_md5.update(string.encode())
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
-
-
 @pytest.mark.timeout(120)
 def test_artifact_log_with_network_error(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():

@@ -3,6 +3,7 @@ import multiprocessing
 import os
 import subprocess
 import sys
+from typing import List, Optional, Set
 
 CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
@@ -19,23 +20,31 @@ else:
     OPTS.append("--force")
 
 
-def install_deps(deps, failed=None):
+def install_deps(
+    deps: List[str], failed: Optional[Set[str]] = None
+) -> Optional[Set[str]]:
     """Install pip dependencies
 
     Arguments:
+        deps {List[str]} -- List of dependencies to install
         failed (set, None): The libraries that failed to install
 
     Returns:
         deps (str[], None): The dependencies that failed to install
     """
     try:
-        print("installing {}...".format(", ".join(deps)))
+        # Include only uri if @ is present
+        clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
+
+        print("installing {}...".format(", ".join(clean_deps)))
         sys.stdout.flush()
         subprocess.check_output(
-            ["pip", "install"] + OPTS + deps, stderr=subprocess.STDOUT
+            ["pip", "install"] + OPTS + clean_deps, stderr=subprocess.STDOUT
         )
         if failed is not None and len(failed) > 0:
-            sys.stderr.write("ERROR: Unable to install: {}".format(", ".join(deps)))
+            sys.stderr.write(
+                "ERROR: Unable to install: {}".format(", ".join(clean_deps))
+            )
             sys.stderr.flush()
         return failed
     except subprocess.CalledProcessError as e:
@@ -46,24 +55,24 @@ def install_deps(deps, failed=None):
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
         if len(failed) > num_failed:
-            return install_deps(list(set(deps) - failed), failed)
+            return install_deps(list(set(clean_deps) - failed), failed)
         else:
             return failed
 
 
-def main():
+def main() -> None:
     """Install deps in requirements.frozen.txt"""
     if os.path.exists("requirements.frozen.txt"):
         with open("requirements.frozen.txt") as f:
             print("Installing frozen dependencies...")
             reqs = []
-            failed = set()
+            failed: Set[str] = set()
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
-                    reqs.append(req.strip())
+                    reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:

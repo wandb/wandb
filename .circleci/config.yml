@@ -4,6 +4,7 @@ orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.10.1
   go: circleci/go@1.7.1
+  gcloud: circleci/gcp-cli@3.0.0
   gke: circleci/gcp-gke@1.4.0
 
 parameters:
@@ -54,13 +55,13 @@ parameters:
     default: "gcr.io"
   gcp_cluster_name:
     type: string
-    default: "gke-yea"
+    default: "sdk-nightly"
   manual_nightly:
     type: boolean
     default: false
   manual_nightly_git_branch:
     type: string
-    default: master
+    default: main
   manual_nightly_slack_notify:
     type: boolean
     default: false
@@ -80,6 +81,9 @@ parameters:
     type: boolean
     default: false
   manual_nightly_execute_shard_standalone_gpu_win:
+    type: boolean
+    default: false
+  manual_nightly_execute_shard_imports:
     type: boolean
     default: false
   wandb_server_tag:
@@ -122,9 +126,12 @@ commands:
         default: << pipeline.parameters.gcp_cluster_name >>
     steps:
       - run:
-          name: "Setup gcloud"
+          name: "Setup gcloud and kubectl"
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+            gcloud --quiet components update
+            gcloud --quiet components install gke-gcloud-auth-plugin
+            gcloud --quiet components install kubectl
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
@@ -201,7 +208,6 @@ commands:
       - run:
           name: "Get gke cluster credentials"
           command: |
-            gcloud components install gke-gcloud-auth-plugin
             gcloud container clusters get-credentials << parameters.cluster >>
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
@@ -223,9 +229,15 @@ jobs:
       notify_on_failure:
         type: boolean
         default: false
+      notify_on_failure_channel:
+        type: string
+        default: "$SLACK_SDK_NIGHTLY_CI_CHANNEL"
       parallelism:
         type: integer
         default: 1
+      execute:
+        type: boolean
+        default: true
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -233,32 +245,35 @@ jobs:
     working_directory: /mnt/ramdisk
     steps:
       - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - run:
-          name: Install python dependencies
-          command: |
-            pip install tox==<< pipeline.parameters.tox_version >>
-            pip install -U pip
-          no_output_timeout: 5m
-      - run:
-          name: Run tests
-          no_output_timeout: 10m
-          command: |
-            CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
-      - save-test-results
-      # conditionally post a notification to slack if the job failed
       - when:
-          condition: << parameters.notify_on_failure >>
+          condition: << parameters.execute >>
           steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update && apt-get install -y libsndfile1 ffmpeg
+            - run:
+                name: Install python dependencies
+                command: |
+                  pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install -U pip
+                no_output_timeout: 5m
+            - run:
+                name: Run tests
+                no_output_timeout: 10m
+                command: |
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+            - save-test-results
+            # conditionally post a notification to slack if the job failed
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      mentions: "@channel"
+                      # taken from slack-secrets context
+                      channel: << parameters.notify_on_failure_channel >>
 
   pytest:
     parameters:
@@ -276,6 +291,9 @@ jobs:
       xdist:
         type: integer
         default: 6
+      test_path:
+        type: string
+        default: tests/unit_tests
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -306,7 +324,7 @@ jobs:
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.test_path >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -318,6 +336,65 @@ jobs:
                 mentions: "@channel"
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
+  pex:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install pex
+          command: |
+            pip install -U pip
+            pip install pex
+          no_output_timeout: 5m
+      - run:
+          name: Run pex test
+          no_output_timeout: 5m
+          command: |
+            pex . -o wandb.pex
+            WANDB_EXECUTABLE=./wandb.pex ./wandb.pex -c "import wandb; import os; wandb.init(mode='offline'); wandb.finish()"
+      - save-test-results
+
+  protobuf-compatability:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Check protobuf version compatibility
+          command: |
+            pip install -U pip
+            pip install .
+            python tools/check-protobuf-version-compatibility.py
+          no_output_timeout: 5m
+      - save-test-results
 
   win:
     parameters:
@@ -585,10 +662,10 @@ jobs:
         type: string
       python_version:
         type: string
-        default: "3.8"
+        default: "3.9"
       git_branch:
         type: string
-        default: "master"
+        default: "main"
       execute:
         type: boolean
         default: true
@@ -602,10 +679,8 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
+            - setup_gcloud
             - setup_docker_buildx:
                 docker_layer_caching: false
             - run:
@@ -618,7 +693,6 @@ jobs:
                     --build-arg GIT_BRANCH=<< parameters.git_branch >> \
                     --build-arg UTC_DATE=$(date -u +%Y%m%d) \
                     .
-            - setup_gcloud
             - run:
                 name: "Push << parameters.description >> to container registry"
                 command: |
@@ -660,15 +734,16 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
+      - setup_gcloud
       - create_gke_cluster:
+          cluster: << parameters.cluster >>
+      - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
       - run:
           name: "Install GPU drivers"
-          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+          command: |
+            kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
@@ -696,10 +771,7 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
       - setup_gcloud
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
@@ -709,13 +781,16 @@ jobs:
           command: |
             echo "Waiting for pods to finish"
             sleep 300
+            count_all_pods_terminated=0
             while true; do
               kubectl get pods
               terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>&1`
               all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
               if [ "$all_pods_terminated" -eq "1" ]; then
-                echo "All pods have terminated"
-                break
+                count_all_pods_terminated=$((count_all_pods_terminated + 1))
+                echo "All pods have terminated ($count_all_pods_terminated)"
+                # make sure we have seen all pods terminated twice to give pod attach a chance to run
+                if [ $count_all_pods_terminated -ge 2 ]; then break; fi
               fi
               sleep << parameters.sleep_time >>
             done
@@ -770,10 +845,7 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - go/install
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
             - setup_gcloud
             - get_gke_cluster_credentials:
                 cluster: << parameters.cluster >>
@@ -986,6 +1058,41 @@ workflows:
           context: slack-secrets
           notify_on_failure: true
       #
+      # import tests
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8 ]
+              shard:
+                - "imports1"
+                - "imports2"
+                - "imports3"
+                - "imports4"
+                - "imports5"
+                - "imports6"
+                - "imports7"
+                - "imports8"
+                - "imports9"
+                - "imports10"
+                - "imports11"
+                - "imports12"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          context: slack-secrets
+          notify_on_failure: true
+          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
+      #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10 ]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1011,7 +1118,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: true
           requires:
@@ -1091,7 +1198,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 8
-          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
+          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
       #
       # Unit tests with pytest on Linux, using real wandb server
       #
@@ -1112,6 +1219,18 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+      #
+      # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          test_path: "tests/unit_tests/tests_launch"
+
       #
       # Functional tests with yea on Linux (base only)
       #
@@ -1138,6 +1257,7 @@ workflows:
                 - "metaflow"
                 - "tf115"
                 - "tf21"
+                - "tf24"
                 - "tf25"
                 - "tf26"
                 - "ray112"
@@ -1148,28 +1268,6 @@ workflows:
                 - "docs"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
-      #
-      # import tests
-      #
-      - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              shard:
-                - "imports1"
-                - "imports2"
-                - "imports3"
-                - "imports4"
-                - "imports5"
-                - "imports6"
-                - "imports7"
-                - "imports8"
-                - "imports9"
-                - "imports10"
-                - "imports11"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
       # Functional tests with yea on Windows
       #
@@ -1234,6 +1332,12 @@ workflows:
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
+      #
+      # pex test
+      #
+      - pex:
+          name: "pex"
+
 
   # todo: needs love
   #  manual_test:
@@ -1277,6 +1381,42 @@ workflows:
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
+      # import tests
+      #
+      - tox-base:
+          execute: << pipeline.parameters.manual_nightly_execute_shard_imports >>
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8 ]
+              shard:
+                - "imports1"
+                - "imports2"
+                - "imports3"
+                - "imports4"
+                - "imports5"
+                - "imports6"
+                - "imports7"
+                - "imports8"
+                - "imports9"
+                - "imports10"
+                - "imports11"
+                - "imports12"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          context: slack-secrets
+          notify_on_failure: true
+          notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
+      #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10 ]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1304,7 +1444,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:

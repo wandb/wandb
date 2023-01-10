@@ -364,12 +364,6 @@ def test_matplotlib_to_plotly():
     plt.close()
 
 
-def test_apple_gpu_stats_binary():
-    assert util.apple_gpu_stats_binary().endswith(
-        os.path.join("bin", "apple_gpu_stats")
-    )
-
-
 def test_convert_plots():
     fig = matplotlib_without_image()
     obj = util.convert_plots(fig)
@@ -688,3 +682,52 @@ def test_resolve_aliases():
 
     aliases = util._resolve_aliases("boom")
     assert aliases == ["boom", "latest"]
+
+
+# Compute recursive dicts for tests
+d_recursive1i = {1: 2, 3: {4: 5}}
+d_recursive1i["_"] = d_recursive1i
+d_recursive2i = {1: 2, 3: {np.int64(44): 5}}
+d_recursive2i["_"] = d_recursive2i
+d_recursive2o = {1: 2, 3: {44: 5}}
+d_recursive2o["_"] = d_recursive2o
+
+
+@pytest.mark.parametrize(
+    "dict_input, dict_output",
+    [
+        ({}, None),
+        ({1: 2}, None),
+        ({1: np.int64(3)}, None),  # dont care about values
+        ({np.int64(3): 4}, {3: 4}),  # top-level
+        ({1: {np.int64(3): 4}}, {1: {3: 4}}),  # nested key
+        ({1: {np.int32(2): 4}}, {1: {2: 4}}),  # nested key
+        (d_recursive1i, None),  # recursive, no numpy
+        (d_recursive2i, d_recursive2o),  # recursive, numpy
+    ],
+)
+def test_sanitize_numpy_keys(dict_input, dict_output):
+    dict_output = dict_output.copy() if dict_output is not None else None
+    output, converted = util._sanitize_numpy_keys(dict_input)
+    assert converted == (dict_output is not None)
+
+    # pytest assert cant handle recursive dicts
+    if dict_output and "_" in dict_output:
+        output.pop("_")
+        dict_output.pop("_")
+
+    assert output == (dict_output or dict_input)
+
+
+def test_make_docker_image_name_safe():
+    assert util.make_docker_image_name_safe("this-name-is-fine") == "this-name-is-fine"
+    assert util.make_docker_image_name_safe("also__ok") == "also__ok"
+    assert (
+        util.make_docker_image_name_safe("github.com/MyUsername/my_repo")
+        == "github.com__myusername__my_repo"
+    )
+    assert (
+        util.make_docker_image_name_safe("./abc.123___def-456---_.")
+        == "abc.123__def-456"
+    )
+    assert util.make_docker_image_name_safe("......") == "image"

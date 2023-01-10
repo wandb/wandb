@@ -7,6 +7,7 @@ import atexit
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import wandb
 from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
@@ -90,8 +91,9 @@ class _Manager:
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
     _settings: "Settings"
+    _service: "service._Service"
 
-    def __init__(self, settings: "Settings", _use_grpc: bool = False) -> None:
+    def __init__(self, settings: "Settings") -> None:
         # TODO: warn if user doesnt have grpc installed
         from wandb.sdk.service import service
 
@@ -99,13 +101,17 @@ class _Manager:
         self._atexit_lambda = None
         self._hooks = None
 
-        self._service = service._Service(_use_grpc=_use_grpc)
+        self._service = service._Service(settings=self._settings)
+
+        # Temporary setting to allow use of grpc so that we can keep
+        # that code from rotting during the transition
+        use_grpc = self._settings._service_transport == "grpc"
 
         token = _ManagerToken.from_environment()
         if not token:
             self._service.start()
             host = "localhost"
-            if _use_grpc:
+            if use_grpc:
                 transport = "grpc"
                 port = self._service.grpc_port
             else:
@@ -141,11 +147,18 @@ class _Manager:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
 
-        self._inform_teardown(exit_code)
-        result = self._service.join()
-        if result and not self._settings._jupyter:
-            os._exit(result)
-        self._token.reset_environment()
+        try:
+            self._inform_teardown(exit_code)
+            result = self._service.join()
+            if result and not self._settings._jupyter:
+                os._exit(result)
+        except Exception as e:
+            wandb.termlog(
+                f"While tearing down the service manager. The following error has occurred: {e}",
+                repeat=False,
+            )
+        finally:
+            self._token.reset_environment()
 
     def _get_service(self) -> "service._Service":
         return self._service
@@ -169,7 +182,7 @@ class _Manager:
         response = svc_iface._svc_inform_attach(attach_id=attach_id)
         return settings_dict_from_pbmap(response._settings_map)
 
-    def _inform_finish(self, run_id: str = None) -> None:
+    def _inform_finish(self, run_id: Optional[str] = None) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_finish(run_id=run_id)
 
