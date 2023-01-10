@@ -521,6 +521,7 @@ class Env(google.protobuf.message.Message):
     START_FORKSERVER_FIELD_NUMBER: builtins.int
     START_THREAD_FIELD_NUMBER: builtins.int
     MAYBE_MP_FIELD_NUMBER: builtins.int
+    PEX_FIELD_NUMBER: builtins.int
     jupyter: builtins.bool
     """jupyter env detected"""
     kaggle: builtins.bool
@@ -539,6 +540,8 @@ class Env(google.protobuf.message.Message):
     """thread start method"""
     maybe_mp: builtins.bool
     """maybe user running multiprocessing"""
+    pex: builtins.bool
+    """pex env detected"""
     def __init__(
         self,
         *,
@@ -551,8 +554,9 @@ class Env(google.protobuf.message.Message):
         start_forkserver: builtins.bool = ...,
         start_thread: builtins.bool = ...,
         maybe_mp: builtins.bool = ...,
+        pex: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "windows", b"windows"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "windows", b"windows"]) -> None: ...
 
 global___Env = Env
 
