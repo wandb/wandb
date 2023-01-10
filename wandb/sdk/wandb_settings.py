@@ -1,7 +1,6 @@
 import configparser
 import enum
 import getpass
-import inspect
 import json
 import multiprocessing
 import os
@@ -22,7 +21,6 @@ from typing import (
     FrozenSet,
     ItemsView,
     Iterable,
-    List,
     Mapping,
     Optional,
     Sequence,

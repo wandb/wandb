@@ -2,9 +2,8 @@ import inspect
 import sys
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from wandb.sdk.wandb_settings import Settings
 from wandb.errors import UsageError
-
+from wandb.sdk.wandb_settings import Settings
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints

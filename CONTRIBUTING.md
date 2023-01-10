@@ -741,7 +741,8 @@ The `Settings` object:
     and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
-  but the resulting directed dependency graph must be acyclic. The `wandb.Settings` object will automatically
+  but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
+  modification order list with `tox -e generate` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated
