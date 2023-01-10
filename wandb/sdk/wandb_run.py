@@ -219,7 +219,7 @@ class RunStatusChecker:
                 set_handle(local_handle)
             try:
                 result = local_handle.wait(timeout=timeout)
-            except MailboxError
+            except MailboxError:
                 # background threads are oportunistically getting results
                 # from the internal process but the internal process could
                 # be shutdown at any time.  In this case assume that the
