@@ -18,6 +18,7 @@ import wandb
 from click.testing import CliRunner
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_settings
+from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
@@ -140,7 +141,7 @@ def test_property_strict_validation(capsys):
 
 
 def test_settings_validator_method_names():
-    # settings validator methods should be named `_validate_<setting_name>`
+    # Settings validator methods should be named `_validate_<setting_name>`
     s = wandb.Settings()
     prefix = "_validate_"
     symbols = set(dir(s))
@@ -150,21 +151,32 @@ def test_settings_validator_method_names():
 
 
 def test_settings_modification_order():
-    # settings should be modified in the order that respects the dependencies
+    # Settings should be modified in the order that respects the dependencies
     # between settings manifested in validator methods and runtime hooks.
-    # run it a few times as DFS-based topological sort may produce different valid orderings
-    for _ in range(100):
-        s = wandb.Settings()
-        modification_order = s._Settings__modification_order
-        assert (
-            modification_order.index("base_url")
-            < modification_order.index("is_local")
-            < modification_order.index("api_key")
-        )
+    s = wandb.Settings()
+    modification_order = s._Settings__modification_order
+    assert (
+        modification_order.index("base_url")
+        < modification_order.index("is_local")
+        < modification_order.index("api_key")
+    )
+
+
+def test_settings_modification_order_up_to_date():
+    # Assert that the modification order is up-to-date with the generated code
+    s = wandb.Settings()
+    props = tuple(get_type_hints(Settings).keys())
+    modification_order = s._Settings__modification_order
+
+    _settings_literal_list, _settings_topologically_sorted = _get_modification_order(s)
+
+    assert props == _settings_literal_list
+    assert modification_order == _settings_topologically_sorted
 
 
 def test_settings_detect_cycle_in_dependencies():
-    # settings should detect cycles in dependencies between settings
+    # Settings modification order generator
+    # should detect cycles in dependencies between settings
 
     def _mock_default_props(self):
         props = dict(
@@ -184,7 +196,7 @@ def test_settings_detect_cycle_in_dependencies():
 
     with mock.patch.object(Settings, "_default_props", _mock_default_props):
         with pytest.raises(wandb.UsageError):
-            wandb.Settings()
+            _get_modification_order(wandb.Settings())
 
 
 def test_property_update():
