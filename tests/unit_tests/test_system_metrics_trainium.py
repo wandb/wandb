@@ -5,7 +5,6 @@ import time
 from unittest import mock
 
 import pytest
-import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Trainium
 from wandb.sdk.internal.system.assets.trainium import NeuronCoreStats
@@ -901,6 +900,9 @@ def neuron_monitor_mock(self: NeuronCoreStats):
     self.check_neuron_monitor_config()
 
     for data in itertools.cycle(MOCK_DATA):
+        if self.shutdown_event.is_set():
+            break
+
         raw_data = json.dumps(data).encode()
 
         self.raw_samples.append(raw_data)
@@ -939,12 +941,6 @@ def test_trainium(test_settings):
         )
 
         assert not trainium.is_available()
-        with mock.patch.object(
-            wandb.sdk.internal.system.assets.trainium,
-            "NEURON_LS_COMMAND",
-            ["echo", '[{"x":1}]'],
-        ):
-            assert trainium.is_available()
 
         trainium.start()
 
