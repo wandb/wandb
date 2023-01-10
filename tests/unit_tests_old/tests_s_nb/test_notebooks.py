@@ -183,7 +183,7 @@ def test_mocked_notebook_html_default(live_mock_server, test_settings, mocked_ip
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 8
+    assert len(displayed_html) == 9
     assert "lovely-dawn-32" in displayed_html[1]
     assert "(success)" in displayed_html[4]
     assert "Run history:" in displayed_html[5]
@@ -196,7 +196,7 @@ def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipyt
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 6
+    assert len(displayed_html) == 7
     assert "lovely-dawn-32" in displayed_html[1]
     assert "(success)" in displayed_html[4]
     assert "Run history:" not in displayed_html[5]
@@ -209,7 +209,7 @@ def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipy
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 8
+    assert len(displayed_html) == 9
     assert "<iframe" in displayed_html[4]
 
 
@@ -231,7 +231,7 @@ def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
         print(f"[{i}]: {html}")
     assert wandb.jupyter.__IFrame is None
     # if versions are different this will fail (make sure you are up to date with master)
-    assert len(displayed_html) == 8
+    assert len(displayed_html) == 9
     assert "<iframe" in displayed_html[1]
     magic.wandb("test/test/runs/test")
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
