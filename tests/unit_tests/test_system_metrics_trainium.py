@@ -900,6 +900,9 @@ def neuron_monitor_mock(self: NeuronCoreStats):
     self.check_neuron_monitor_config()
 
     for data in itertools.cycle(MOCK_DATA):
+        if self.shutdown_event.is_set():
+            break
+
         raw_data = json.dumps(data).encode()
 
         self.raw_samples.append(raw_data)
