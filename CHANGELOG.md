@@ -1,6 +1,5 @@
 ## 0.13.8 (January 10, 2023)
 
-## What's Changed
 ### :magic_wand: Enhancements
 * feat(artifacts): keep uncommitted uploads in separate staging area by @moredatarequired in https://github.com/wandb/wandb/pull/4505
 * perf(sdk): improve file descriptor management by @dmitryduev in https://github.com/wandb/wandb/pull/4617
@@ -26,6 +25,7 @@
 * fix(sdk): fix hang after failed wandb.init (add cancel)  by @raubitsj in https://github.com/wandb/wandb/pull/4405
 * fix(sdk): allow users to provide path to custom executables by @kptkin in https://github.com/wandb/wandb/pull/4604
 * fix(sdk): fix TypeError when trying to slice a Paginator object by @janosh in https://github.com/wandb/wandb/pull/4575
+* fix(integrations): add `AttributeError` to the list of handled exceptions when saving a keras model by @froody in https://github.com/wandb/wandb/pull/4732
 * fix(launch): remove args from jobs by @KyleGoyette in https://github.com/wandb/wandb/pull/4750
 ### :books: Docs
 * docs(sweeps): fix typo in docs by @gtarpenning in https://github.com/wandb/wandb/pull/4627
@@ -37,12 +37,11 @@
 * test(sdk): update t2_fix_error_cond_feature_importances to install scikit-learn by @dmitryduev in https://github.com/wandb/wandb/pull/4573
 * chore(sdk): update base Docker images for nightly testing by @dmitryduev in https://github.com/wandb/wandb/pull/4566
 * chore(sdk): change sklearn to scikit-learn in functional sacred test by @dmitryduev in https://github.com/wandb/wandb/pull/4577
-* chore(launch): added error check for `--build` when resource=local-process by @gtarpenning in https://github.com/wandb/wandb/pull/4513
+* chore(launch): add error check for `--build` when resource=local-process by @gtarpenning in https://github.com/wandb/wandb/pull/4513
 * chore(sweeps): update scheduler and agent resource handling to allow DRC override by @gtarpenning in https://github.com/wandb/wandb/pull/4480
 * chore(sdk): require sdk-team review for adding or removing high-level… by @dmitryduev in https://github.com/wandb/wandb/pull/4594
 * chore(launch): remove requirement to make target project match queue by @KyleGoyette in https://github.com/wandb/wandb/pull/4612
 * chore(sdk): enhance nightly cloud testing process by @dmitryduev in https://github.com/wandb/wandb/pull/4602
-* build(sdk): temporarily pin jax in tests because of breaking changes by @raubitsj in https://github.com/wandb/wandb/pull/4632
 * chore(sdk): update pull request template by @raubitsj in https://github.com/wandb/wandb/pull/4633
 * chore(launch): return updated runSpec after pushToRunQueue query by @gtarpenning in https://github.com/wandb/wandb/pull/4516
 * chore(launch): fix for run spec handling in sdk by @gtarpenning in https://github.com/wandb/wandb/pull/4636
@@ -70,6 +69,7 @@
 * chore(sdk): add settings and debug for service startup issues (wait_for_ports) by @raubitsj in https://github.com/wandb/wandb/pull/4749
 * test(sdk): fix AWS Trainium test by @dmitryduev in https://github.com/wandb/wandb/pull/4753
 * chore(sdk): fix status checker thread issue when user process exits without finish() by @raubitsj in https://github.com/wandb/wandb/pull/4761
+* chore(sdk): add telemetry for service disabled usage by @kptkin in https://github.com/wandb/wandb/pull/4762
 ### :nail_care: Cleanup
 * style(sdk): use the same syntax whenever raising exceptions by @moredatarequired in https://github.com/wandb/wandb/pull/4559
 * refactor(sdk): combine _safe_mkdirs with mkdir_exist_ok by @moredatarequired in https://github.com/wandb/wandb/pull/4650
@@ -79,7 +79,6 @@
 * style(public-api): format public file with proper formating by @kptkin in https://github.com/wandb/wandb/pull/4697
 * chore(sdk): install tox into proper env in dev env setup tool by @dmitryduev in https://github.com/wandb/wandb/pull/4318
 * refactor(sdk): clean up the init and run logic by @kptkin in https://github.com/wandb/wandb/pull/4730
-* fix(integrations): add `AttributeError` to the list of handled exceptions when saving a keras model by @froody in https://github.com/wandb/wandb/pull/4732
 
 ## New Contributors
 * @edwag made their first contribution in https://github.com/wandb/wandb/pull/4585
