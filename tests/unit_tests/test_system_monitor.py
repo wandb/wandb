@@ -16,6 +16,7 @@ from wandb.sdk.internal.system.assets import (
     GPUApple,
     Memory,
     Network,
+    Trainium,
 )
 from wandb.sdk.internal.system.assets.asset_registry import asset_registry
 from wandb.sdk.internal.system.assets.interfaces import MetricsMonitor
@@ -117,8 +118,8 @@ def test_asset_registry():
     # test that the asset registry is populated with the correct assets
     # should be updated if new assets are added
     registry = asset_registry._registry
-    assert len(registry) == 8
-    for asset in (CPU, Disk, Memory, GPU, GPUApple, IPU, Network, TPU):
+    assert len(registry) == 9
+    for asset in (CPU, Disk, Memory, GPU, GPUApple, IPU, Network, TPU, Trainium):
         assert asset in registry
 
 
