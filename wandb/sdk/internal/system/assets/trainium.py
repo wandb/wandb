@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -116,19 +117,21 @@ class NeuronCoreStats:
                 "-c",
                 self.neuron_monitor_config_path,
             ]
-            popen = subprocess.Popen(
+            with subprocess.Popen(
                 command,
-                shell=False,
                 stdout=subprocess.PIPE,
                 stderr=None,
-            )
-            while not self.shutdown_event.is_set():
-                if popen.stdout is None:
-                    continue
+            ) as process:
+                while not self.shutdown_event.is_set():
+                    if process.stdout is None:
+                        time.sleep(0.1)
+                        continue
 
-                raw_data = popen.stdout.readline()
-                if raw_data:
-                    self.raw_samples.append(raw_data)
+                    raw_data = process.stdout.readline()
+                    if raw_data:
+                        self.raw_samples.append(raw_data)
+                process.kill()
+                process.wait()
         except Exception as e:
             logger.error("neuron-monitor failed: %s" % e)
 
@@ -291,17 +294,9 @@ class Trainium:
 
     @classmethod
     def is_available(cls) -> bool:
-        # check if neuron-ls is available and if yes, what it reports. see:
+        # todo: check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
-        try:
-            output = subprocess.check_output(
-                NEURON_LS_COMMAND, universal_newlines=True
-            ).strip()
-            if len(json.loads(output)) > 0:
-                return True
-        except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
-            pass
-        return False
+        return pathlib.Path(NEURON_LS_COMMAND[0]).exists()
 
     def start(self) -> None:
         self.metrics_monitor.start()
@@ -323,23 +318,30 @@ class Trainium:
                 "-c",
                 self.metrics[0].neuron_monitor_config_path,  # type: ignore
             ]
-            popen = subprocess.Popen(
+            with subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=None,
-            )
-            while True:
-                if popen.stdout is None:
-                    continue
+            ) as process:
+                while True:
+                    if process.stdout is None:
+                        time.sleep(0.1)
+                        continue
 
-                raw_data = popen.stdout.readline()
-                if raw_data:
-                    parsed_data = json.loads(raw_data)
-                    neuron_hardware_info = parsed_data.get("neuron_hardware_info", {})
-                    neuron_hardware_info.pop("error", None)
-                    break
+                    raw_data = process.stdout.readline()
+                    if raw_data:
+                        parsed_data = json.loads(raw_data)
+                        neuron_hardware_info = parsed_data.get(
+                            "neuron_hardware_info", {}
+                        )
+                        neuron_hardware_info.pop("error", None)
+                        break
 
-            popen.terminate()
+            try:
+                process.kill()
+                process.wait()
+            except:  # noqa
+                pass
 
             return {self.name: neuron_hardware_info}
         except Exception as e:
