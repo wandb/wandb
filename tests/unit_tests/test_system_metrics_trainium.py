@@ -5,7 +5,6 @@ import time
 from unittest import mock
 
 import pytest
-import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Trainium
 from wandb.sdk.internal.system.assets.trainium import NeuronCoreStats
