@@ -45,8 +45,9 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
-    // Temporarily moved to be UseArtifactRequest
+    // Temporarily moved to UseArtifactRequest
     // UseArtifactRecord use_artifact = 25;
+
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -506,6 +507,7 @@ message Request {
     StatusReportRequest   status_report = 70;
     SummaryRecordRequest  summary_record = 71;
     TelemetryRecordRequest telemetry_record = 72;
+    UseArtifactRecord     use_artifact = 73;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -909,15 +911,15 @@ message KeepaliveResponse {
 /*
  * UseArtifact:
  */
-message UseArtifactRecord {
+message UseArtifactRequest {
   string id = 1;
   string type = 2;
   string name = 3;
 
-  _RecordInfo     _info = 200;
+  _RequestInfo _info = 200;
 }
 
-message UseArtifactResult {
+message UseArtifactResponse {
 }
 
 /*
