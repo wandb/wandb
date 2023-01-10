@@ -632,7 +632,7 @@ class _WandbInit:
 
             if os.environ.get("PEX"):
                 tel.env.pex = True
-            
+
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
 
