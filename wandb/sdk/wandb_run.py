@@ -39,6 +39,7 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
+from wandb.errors import MailboxError
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -216,7 +217,16 @@ class RunStatusChecker:
                 if self._join_event.is_set():
                     return
                 set_handle(local_handle)
-            result = local_handle.wait(timeout=timeout)
+            try:
+                result = local_handle.wait(timeout=timeout)
+            except MailboxError
+                # background threads are oportunistically getting results
+                # from the internal process but the internal process could
+                # be shutdown at any time.  In this case assume that the
+                # thread should exit silently.   This is possible
+                # because we do not have an atexit handler for the user
+                # process which quiesces active threads.
+                break
             with lock:
                 set_handle(None)
 
