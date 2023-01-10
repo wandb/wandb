@@ -93,7 +93,7 @@ class _Manager:
     _settings: "Settings"
     _service: "service._Service"
 
-    def __init__(self, settings: "Settings", _use_grpc: bool = False) -> None:
+    def __init__(self, settings: "Settings") -> None:
         # TODO: warn if user doesnt have grpc installed
         from wandb.sdk.service import service
 
@@ -101,16 +101,17 @@ class _Manager:
         self._atexit_lambda = None
         self._hooks = None
 
-        self._service = service._Service(
-            _python_executable=settings._executable,
-            _use_grpc=_use_grpc,
-        )
+        self._service = service._Service(settings=self._settings)
+
+        # Temporary setting to allow use of grpc so that we can keep
+        # that code from rotting during the transition
+        use_grpc = self._settings._service_transport == "grpc"
 
         token = _ManagerToken.from_environment()
         if not token:
             self._service.start()
             host = "localhost"
-            if _use_grpc:
+            if use_grpc:
                 transport = "grpc"
                 port = self._service.grpc_port
             else:
