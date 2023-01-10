@@ -74,11 +74,11 @@ def test_build_image_job(runner):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
-def test_set_used_job():
+def test_set_disabled():
     settings = SettingsStatic({"files_dir": "./"})
     job_builder = JobBuilder(settings)
-    job_builder.used_job = "testtest"
-    assert job_builder.used_job == "testtest"
+    job_builder.disable = "testtest"
+    assert job_builder.disable == "testtest"
 
 
 def test_no_metadata_file():
