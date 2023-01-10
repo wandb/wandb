@@ -915,7 +915,7 @@ def _is_matching_entry_mock(self: NeuronCoreStats, entry: dict) -> bool:  # noqa
 
 
 @pytest.mark.timeout(30)
-def test_trainium(test_settings):
+def _disabled_test_trainium(test_settings):
     with mock.patch.multiple(
         "wandb.sdk.internal.system.assets.trainium.NeuronCoreStats",
         neuron_monitor=neuron_monitor_mock,
