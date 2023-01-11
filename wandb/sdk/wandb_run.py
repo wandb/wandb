@@ -2966,7 +2966,10 @@ class Run:
             return
 
         # printer = printer or get_printer(settings._jupyter)
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        # TODO: add this to a higher verbosity level
+        printer.display(
+            f"Tracking run with wandb version {wandb.__version__}", off=False
+        )
 
     @staticmethod
     def _header_sync_info(
