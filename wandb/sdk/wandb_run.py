@@ -43,7 +43,6 @@ from wandb.errors import MailboxError
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
-    Result,
     RunRecord,
     ServerInfoResponse,
 )
@@ -83,7 +82,6 @@ from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
 from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
-from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
@@ -154,15 +152,8 @@ class TeardownHook(NamedTuple):
 class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
-    - check if the user has requested a stop.
-    - check the network status.
-    - check the run sync status.
+    For now, we just use this to figure out if the user has requested a stop.
     """
-
-    _stop_status_lock: threading.Lock
-    _stop_status_handle: Optional[MailboxHandle]
-    _network_status_lock: threading.Lock
-    _network_status_handle: Optional[MailboxHandle]
 
     def __init__(
         self,
@@ -176,121 +167,53 @@ class RunStatusChecker:
 
         self._join_event = threading.Event()
 
-        self._stop_status_lock = threading.Lock()
-        self._stop_status_handle = None
-        self._stop_thread = threading.Thread(
-            target=self.check_stop_status,
-            name="ChkStopThr",
-            daemon=True,
-        )
-
-        self._network_status_lock = threading.Lock()
-        self._network_status_handle = None
-        self._network_status_thread = threading.Thread(
-            target=self.check_network_status,
-            name="NetStatThr",
-            daemon=True,
-        )
-
-    def start(self) -> None:
+        self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.name = "ChkStopThr"
+        self._stop_thread.daemon = True
         self._stop_thread.start()
-        self._network_status_thread.start()
 
-    def _loop_check_status(
-        self,
-        *,
-        lock: threading.Lock,
-        set_handle: Any,
-        timeout: int,
-        request: Any,
-        process: Any,
-    ) -> None:
-        local_handle: Optional[MailboxHandle] = None
-        join_requested = False
-        while not join_requested:
-            time_probe = time.monotonic()
-            if not local_handle:
-                local_handle = request()
-            assert local_handle
-
-            with lock:
-                if self._join_event.is_set():
-                    return
-                set_handle(local_handle)
-            try:
-                result = local_handle.wait(timeout=timeout)
-            except MailboxError:
-                # background threads are oportunistically getting results
-                # from the internal process but the internal process could
-                # be shutdown at any time.  In this case assume that the
-                # thread should exit silently.   This is possible
-                # because we do not have an atexit handler for the user
-                # process which quiesces active threads.
-                break
-            with lock:
-                set_handle(None)
-
-            if result:
-                process(result)
-
-            time_elapsed = time.monotonic() - time_probe
-            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
-            join_requested = self._join_event.wait(timeout=wait_time)
+        self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.name = "NetStatThr"
+        self._retry_thread.daemon = True
+        self._retry_thread.start()
 
     def check_network_status(self) -> None:
-        def _process_network_status(result: Result) -> None:
-            network_status = result.response.network_status_response
-            for hr in network_status.network_responses:
-                if (
-                    hr.http_status_code == 200 or hr.http_status_code == 0
-                ):  # we use 0 for non-http errors (eg wandb errors)
-                    wandb.termlog(f"{hr.http_response_text}")
-                else:
-                    wandb.termlog(
-                        "{} encountered ({}), retrying request".format(
-                            hr.http_status_code, hr.http_response_text.rstrip()
+        join_requested = False
+        while not join_requested:
+            status_response = self._interface.communicate_network_status()
+            if status_response and status_response.network_responses:
+                for hr in status_response.network_responses:
+                    if (
+                        hr.http_status_code == 200 or hr.http_status_code == 0
+                    ):  # we use 0 for non-http errors (eg wandb errors)
+                        wandb.termlog(f"{hr.http_response_text}")
+                    else:
+                        wandb.termlog(
+                            "{} encountered ({}), retrying request".format(
+                                hr.http_status_code, hr.http_response_text.rstrip()
+                            )
                         )
-                    )
+            join_requested = self._join_event.wait(self._retry_polling_interval)
 
-        self._loop_check_status(
-            lock=self._network_status_lock,
-            set_handle=lambda x: setattr(self, "_network_status_handle", x),
-            timeout=self._retry_polling_interval,
-            request=self._interface.deliver_network_status,
-            process=_process_network_status,
-        )
-
-    def check_stop_status(self) -> None:
-        def _process_stop_status(result: Result) -> None:
-            stop_status = result.response.stop_status_response
-            if stop_status.run_should_stop:
+    def check_status(self) -> None:
+        join_requested = False
+        while not join_requested:
+            status_response = self._interface.communicate_stop_status()
+            if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-
-        self._loop_check_status(
-            lock=self._stop_status_lock,
-            set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-            timeout=self._stop_polling_interval,
-            request=self._interface.deliver_stop_status,
-            process=_process_stop_status,
-        )
+            join_requested = self._join_event.wait(self._stop_polling_interval)
 
     def stop(self) -> None:
         self._join_event.set()
-        with self._stop_status_lock:
-            if self._stop_status_handle:
-                self._stop_status_handle.abandon()
-        with self._network_status_lock:
-            if self._network_status_handle:
-                self._network_status_handle.abandon()
 
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
-        self._network_status_thread.join()
+        self._retry_thread.join()
 
 
 class _run_decorator:  # noqa: N801
@@ -850,8 +773,7 @@ class Run:
             tel.feature.set_run_name = True
         self._name = name
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -871,8 +793,7 @@ class Run:
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -891,8 +812,7 @@ class Run:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -1427,11 +1347,6 @@ class Run:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
         self._step = self._get_starting_step()
-
-        # update settings from run_obj
-        self._settings._apply_run_start(message_to_dict(self._run_obj))
-        self._update_settings(self._settings)
-
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             process_context="user",
@@ -1966,7 +1881,7 @@ class Run:
             output_log_path = os.path.join(
                 self._settings.files_dir, filenames.OUTPUT_FNAME
             )
-            # output writer might have been set up, see wrap_fallback case
+            # output writer might have been setup, see wrap_fallback case
             if not self._output_writer:
                 self._output_writer = filesystem.CRDedupedFile(
                     open(output_log_path, "wb")
@@ -2122,7 +2037,7 @@ class Run:
             self._check_version = self._backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
-            logger.info(f"got version response {self._check_version}")
+        logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -2138,11 +2053,9 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
+        # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
-            self._run_status_checker = RunStatusChecker(
-                interface=self._backend.interface,
-            )
-            self._run_status_checker.start()
+            self._run_status_checker = RunStatusChecker(self._backend.interface)
 
         self._console_start()
         self._on_ready()
@@ -2292,7 +2205,7 @@ class Run:
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
-        if self._run_status_checker is not None:
+        if self._run_status_checker:
             self._run_status_checker.stop()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
@@ -2315,7 +2228,7 @@ class Run:
             self._backend.interface.deliver_request_sampled_history()
         )
 
-        # wait for them, it's ok to do this serially but this can be improved
+        # wait for them, its ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
         self._poll_exit_response = result.response.poll_exit_response
@@ -2908,8 +2821,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    f"Artifact {artifact.name} already exists with type {expected_type}; "
-                    f"cannot create another with type {artifact.type}"
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3054,10 +2966,7 @@ class Run:
             return
 
         # printer = printer or get_printer(settings._jupyter)
-        # TODO: add this to a higher verbosity level
-        printer.display(
-            f"Tracking run with wandb version {wandb.__version__}", off=False
-        )
+        printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
     @staticmethod
     def _header_sync_info(
@@ -3099,8 +3008,6 @@ class Run:
 
         run_state_str = "Resuming run" if settings.resumed else "Syncing run"
         run_name = settings.run_name
-        if not run_name:
-            return
 
         # printer = printer or get_printer(settings._jupyter)
         if printer._html:
@@ -3118,37 +3025,34 @@ class Run:
                     project_line = f"to {project_html} ({doc_html})"
 
                     if sweep_url:
-                        sweep_line = f"Sweep page: {printer.link(sweep_url, sweep_url)}"
+                        sweep_line = (
+                            f"Sweep page:  {printer.link(sweep_url, sweep_url)}"
+                        )
 
                 printer.display(
-                    [f"{run_state_str} {run_line} {project_line}", sweep_line],
+                    [f"{run_state_str} {run_line} {project_line}", sweep_line]
                 )
 
         else:
-            printer.display(
-                f"{run_state_str} {printer.name(run_name)}", off=not run_name
-            )
-
-        if not settings.quiet:
-            # TODO: add verbosity levels and add this to higher levels
-            printer.display(
-                f'{printer.emoji("star")} View project at {printer.link(project_url)}'
-            )
-            if sweep_url:
+            printer.display(f"{run_state_str} {printer.name(run_name)}")
+            if not settings.quiet:
                 printer.display(
-                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
+                    f'{printer.emoji("star")} View project at {printer.link(project_url)}'
                 )
-        printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
-        )
-
-        # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-        if Api().api.settings().get("anonymous") == "true":
+                if sweep_url:
+                    printer.display(
+                        f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
+                    )
             printer.display(
-                "Do NOT share these links with anyone. They can be used to claim your runs.",
-                level="warn",
-                off=not run_name,
+                f'{printer.emoji("rocket")} View run at {printer.link(run_url)}'
             )
+
+            # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
+            if Api().api.settings().get("anonymous") == "true":
+                printer.display(
+                    "Do NOT share these links with anyone. They can be used to claim your runs.",
+                    level="warn",
+                )
 
     # ------------------------------------------------------------------------------
     # FOOTER
@@ -3377,9 +3281,10 @@ class Run:
             info = []
             if settings.run_name and settings.run_url:
                 info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                    f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
                 ]
             if poll_exit_response and poll_exit_response.file_counts:
+
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
                 info.append(
