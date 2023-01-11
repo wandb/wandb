@@ -42,7 +42,7 @@ NEURON_MONITOR_DEFAULT_CONFIG: Final[dict] = {
                 {"type": "neuroncore_counters"},
                 {"type": "memory_used"},
                 {"type": "neuron_runtime_vcpu_usage"},
-                {"type": "execution_stats"},
+                # {"type": "execution_stats"},
             ],
         }
     ],
@@ -296,7 +296,21 @@ class Trainium:
     def is_available(cls) -> bool:
         # todo: check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
-        return pathlib.Path(NEURON_LS_COMMAND[0]).exists()
+        if not pathlib.Path(NEURON_LS_COMMAND[0]).exists():
+            return False
+        # need to be extra careful as neuron tools could be pre-installed
+        # on some systems that do not have the hardware
+        try:
+            output = subprocess.check_output(
+                NEURON_LS_COMMAND,
+                universal_newlines=True,
+            ).strip()
+            if len(json.loads(output)) > 0:
+                return True
+        except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
+            pass
+
+        return False
 
     def start(self) -> None:
         self.metrics_monitor.start()
