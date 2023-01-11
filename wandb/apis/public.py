@@ -4269,9 +4269,10 @@ class Artifact(artifacts.Artifact):
 
     @classmethod
     def from_id(cls, artifact_id: str, client: Client):
-        artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
-        if artifact is not None:
-            return artifact
+        # Commented out the following three lines to fix memory issue
+        # artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
+        # if artifact is not None:
+        #     return artifact
         response: Mapping[str, Any] = client.execute(
             Artifact.QUERY,
             variable_values={"id": artifact_id},
@@ -4338,7 +4339,8 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = False
         self._dependent_artifacts = []
         self._download_roots = set()
-        artifacts.get_artifacts_cache().store_artifact(self)
+        # Commented out the following line to fix memory issue
+        # artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
     def id(self):
