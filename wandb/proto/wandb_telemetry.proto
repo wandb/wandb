@@ -155,6 +155,7 @@ message Feature {
   bool sync = 42; // Run was synced with wandb sync
   bool flow_control_disabled = 43; // Flow control disabled by user
   bool flow_control_custom = 44; // Flow control customized by user
+  bool service_disabled = 45; // Service disabled by user
 }
 
 message Env {
