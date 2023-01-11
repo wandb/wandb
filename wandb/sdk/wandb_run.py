@@ -12,7 +12,8 @@ import threading
 import time
 import traceback
 from collections.abc import Mapping
-from datetime import timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import IntEnum
 from types import TracebackType
 from typing import (
@@ -38,6 +39,7 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
+from wandb.errors import MailboxError
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -215,7 +217,16 @@ class RunStatusChecker:
                 if self._join_event.is_set():
                     return
                 set_handle(local_handle)
-            result = local_handle.wait(timeout=timeout)
+            try:
+                result = local_handle.wait(timeout=timeout)
+            except MailboxError:
+                # background threads are oportunistically getting results
+                # from the internal process but the internal process could
+                # be shutdown at any time.  In this case assume that the
+                # thread should exit silently.   This is possible
+                # because we do not have an atexit handler for the user
+                # process which quiesces active threads.
+                break
             with lock:
                 set_handle(None)
 
@@ -359,6 +370,13 @@ class _run_decorator:  # noqa: N801
             return func(self, *args, **kwargs)
 
         return wrapper
+
+
+@dataclass
+class RunStatus:
+    sync_items_total: int = field(default=0)
+    sync_items_pending: int = field(default=0)
+    sync_time: Optional[datetime] = field(default=None)
 
 
 class Run:
@@ -1856,6 +1874,30 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
+    @_run_decorator._attach
+    def status(
+        self,
+    ) -> RunStatus:
+        """Get sync info from the internal backend, about the current run's sync status."""
+        if not self._backend or not self._backend.interface:
+            return RunStatus()
+
+        handle_run_status = self._backend.interface.deliver_request_run_status()
+        result = handle_run_status.wait(timeout=-1)
+        assert result
+        sync_data = result.response.run_status_response
+
+        sync_time = None
+        if sync_data.sync_time.seconds:
+            sync_time = datetime.fromtimestamp(
+                sync_data.sync_time.seconds + sync_data.sync_time.nanos / 1e9
+            )
+        return RunStatus(
+            sync_items_total=sync_data.sync_items_total,
+            sync_items_pending=sync_data.sync_items_pending,
+            sync_time=sync_time,
+        )
+
     @staticmethod
     def plot_table(
         vega_spec_name: str,
@@ -3014,7 +3056,7 @@ class Run:
         # printer = printer or get_printer(settings._jupyter)
         # TODO: add this to a higher verbosity level
         printer.display(
-            f"Tracking run with wandb version {wandb.__version__}", off=True
+            f"Tracking run with wandb version {wandb.__version__}", off=False
         )
 
     @staticmethod

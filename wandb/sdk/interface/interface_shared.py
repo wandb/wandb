@@ -138,7 +138,13 @@ class InterfaceShared(InterfaceBase):
         artifact_done: Optional[pb.ArtifactDoneRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
         keepalive: Optional[pb.KeepaliveRequest] = None,
+        run_status: Optional[pb.RunStatusRequest] = None,
+        sender_mark: Optional[pb.SenderMarkRequest] = None,
+        sender_read: Optional[pb.SenderReadRequest] = None,
+        status_report: Optional[pb.StatusReportRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
+        summary_record: Optional[pb.SummaryRecordRequest] = None,
+        telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -181,13 +187,27 @@ class InterfaceShared(InterfaceBase):
             request.server_info.CopyFrom(server_info)
         elif keepalive:
             request.keepalive.CopyFrom(keepalive)
+        elif run_status:
+            request.run_status.CopyFrom(run_status)
+        elif sender_mark:
+            request.sender_mark.CopyFrom(sender_mark)
+        elif sender_read:
+            request.sender_read.CopyFrom(sender_read)
         elif cancel:
             request.cancel.CopyFrom(cancel)
+        elif status_report:
+            request.status_report.CopyFrom(status_report)
+        elif summary_record:
+            request.summary_record.CopyFrom(summary_record)
+        elif telemetry_record:
+            request.telemetry_record.CopyFrom(telemetry_record)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
         # All requests do not get persisted
         record.control.local = True
+        if status_report:
+            record.control.flow_control = True
         return record
 
     def _make_record(  # noqa: C901
@@ -581,6 +601,12 @@ class InterfaceShared(InterfaceBase):
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
         record = self._make_request(sampled_history=sampled_history)
+        return self._deliver_record(record)
+
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
+    ) -> MailboxHandle:
+        record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

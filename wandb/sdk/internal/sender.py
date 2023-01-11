@@ -46,7 +46,7 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-from . import artifacts, context, file_stream, internal_api, update
+from . import artifacts, context, datastore, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .job_builder import JobBuilder
 from .settings_static import SettingsDict, SettingsStatic
@@ -62,6 +62,7 @@ if TYPE_CHECKING:
         Result,
         RunExitResult,
         RunRecord,
+        SummaryRecord,
     )
 
     if sys.version_info >= (3, 8):
@@ -157,6 +158,9 @@ class _OutputRawStream:
 
 
 class SendManager:
+    UPDATE_CONFIG_TIME: int = 30
+    UPDATE_STATUS_TIME: int = 5
+
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
@@ -178,9 +182,13 @@ class SendManager:
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
-
+    _ds: Optional[datastore.DataStore]
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
+    _send_record_num: int
+    _send_end_offset: int
+    _debounce_config_time: float
+    _debounce_status_time: float
 
     def __init__(
         self,
@@ -195,6 +203,10 @@ class SendManager:
         self._result_q = result_q
         self._interface = interface
         self._context_keeper = context_keeper
+
+        self._ds = None
+        self._send_record_num = 0
+        self._send_end_offset = 0
 
         self._fs = None
         self._pusher = None
@@ -252,6 +264,10 @@ class SendManager:
         # job builder
         self._job_builder = JobBuilder(settings)
 
+        time_now = time.monotonic()
+        self._debounce_config_time = time_now
+        self._debounce_status_time = time_now
+
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
@@ -278,6 +294,8 @@ class SendManager:
             save_code=None,
             email=None,
             silent=None,
+            _offline=None,
+            _sync=True,
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
         )
@@ -304,6 +322,9 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
+        self._update_record_num(record.num)
+        self._update_end_offset(record.control.end_offset)
+
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -327,6 +348,9 @@ class SendManager:
     def send_preempting(self, record: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
+
+    def send_request_sender_mark(self, record: "Record") -> None:
+        self._maybe_report_status(always=True)
 
     def send_request(self, record: "Record") -> None:
         request_type = record.request.WhichOneof("request_type")
@@ -352,6 +376,55 @@ class SendManager:
                     dictionary.pop(k)
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
+
+    def _update_record_num(self, record_num: int) -> None:
+        if not record_num:
+            return
+        # Currently how we handle offline mode and syncing is not
+        # compatible with this assertion due to how the exit record
+        # is (mis)handled:
+        #   - using "always_send" in offline mode to trigger defer
+        #     state machine
+        #   - skipping the exit record in `wandb sync` mode so that
+        #     it is always executed as the last record
+        if not self._settings._offline and not self._settings._sync:
+            assert record_num == self._send_record_num + 1
+        self._send_record_num = record_num
+
+    def _update_end_offset(self, end_offset: int) -> None:
+        if not end_offset:
+            return
+        self._send_end_offset = end_offset
+
+    def send_request_sender_read(self, record: "Record") -> None:
+        if self._ds is None:
+            self._ds = datastore.DataStore()
+            self._ds.open_for_scan(self._settings.sync_file)
+
+        # TODO(cancel_paused): implement cancel_set logic
+        # The idea is that there is an active request to cancel a
+        # message that is being read from the transaction log below
+
+        start_offset = record.request.sender_read.start_offset
+        final_offset = record.request.sender_read.final_offset
+        self._ds.seek(start_offset)
+
+        current_end_offset = 0
+        while current_end_offset < final_offset:
+            data = self._ds.scan_data()
+            assert data
+            current_end_offset = self._ds.get_offset()
+
+            send_record = wandb_internal_pb2.Record()
+            send_record.ParseFromString(data)
+            self._update_end_offset(current_end_offset)
+            self.send(send_record)
+
+            # make sure we perform deferred operations
+            self.debounce()
+
+        # make sure that we always update writer for every sended read request
+        self._maybe_report_status(always=True)
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -403,9 +476,38 @@ class SendManager:
                 logger.warning("Failed to check stop requested status: %s", e)
         self._respond_result(result)
 
-    def debounce(self) -> None:
+    def _maybe_update_config(self, always: bool = False) -> None:
+        time_now = time.monotonic()
+        if (
+            not always
+            and time_now < self._debounce_config_time + self.UPDATE_CONFIG_TIME
+        ):
+            return
         if self._config_needs_debounce:
             self._debounce_config()
+        self._debounce_config_time = time_now
+
+    def _maybe_report_status(self, always: bool = False) -> None:
+        time_now = time.monotonic()
+        if (
+            not always
+            and time_now < self._debounce_status_time + self.UPDATE_STATUS_TIME
+        ):
+            return
+        self._debounce_status_time = time_now
+
+        status_report = wandb_internal_pb2.StatusReportRequest(
+            record_num=self._send_record_num,
+            sent_offset=self._send_end_offset,
+        )
+        status_time = time.time()
+        status_report.sync_time.FromMicroseconds(int(status_time * 1e6))
+        record = self._interface._make_request(status_report=status_report)
+        self._interface._publish(record)
+
+    def debounce(self, final: bool = False) -> None:
+        self._maybe_report_status(always=final)
+        self._maybe_update_config(always=final)
 
     def _debounce_config(self) -> None:
         config_value_dict = self._config_format(self._consolidated_config)
@@ -416,11 +518,6 @@ class SendManager:
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
-
-    def send_request_status(self, record: "Record") -> None:
-        assert record.control.req_resp
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
 
     def send_request_network_status(self, record: "Record") -> None:
         result = proto_util._result_from_record(record)
@@ -471,6 +568,13 @@ class SendManager:
     def send_final(self, record: "Record") -> None:
         pass
 
+    def _flush_run(self) -> None:
+        pass
+
+    def send_request_status_report(self, record: "Record") -> None:
+        # todo? this is just a noop to please wandb sync
+        pass
+
     def send_request_defer(self, record: "Record") -> None:  # noqa: C901
         defer = record.request.defer
         state = defer.state
@@ -483,6 +587,9 @@ class SendManager:
 
         done = False
         if state == defer.BEGIN:
+            transition_state()
+        elif state == defer.FLUSH_RUN:
+            self._flush_run()
             transition_state()
         elif state == defer.FLUSH_STATS:
             # NOTE: this is handled in handler.py:handle_request_defer()
@@ -497,7 +604,7 @@ class SendManager:
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
         elif state == defer.FLUSH_DEBOUNCER:
-            self.debounce()
+            self.debounce(final=True)
             transition_state()
         elif state == defer.FLUSH_OUTPUT:
             self._output_raw_finish()
@@ -772,6 +879,8 @@ class SendManager:
         # update telemetry
         if run.telemetry:
             self._telemetry_obj.MergeFrom(run.telemetry)
+        if self._settings._sync:
+            self._telemetry_obj.feature.sync = True
 
         # build config dict
         config_value_dict: Optional[DictWithValues] = None
@@ -859,6 +968,11 @@ class SendManager:
             repo=run.git.remote_url or None,
             commit=run.git.commit or None,
         )
+        # TODO: we don't want to create jobs in sweeps, since the
+        # executable doesn't appear to be consistent
+        if hasattr(self._settings, "sweep_id") and self._settings.sweep_id:
+            self._job_builder.disable = True
+
         self._server_messages = server_messages or []
         self._run = run
         if self._resume_state.resumed:
@@ -963,10 +1077,16 @@ class SendManager:
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
 
-    def send_summary(self, record: "Record") -> None:
-        summary_dict = proto_util.dict_from_proto_list(record.summary.update)
+    def _update_summary_record(self, summary: "SummaryRecord") -> None:
+        summary_dict = proto_util.dict_from_proto_list(summary.update)
         self._cached_summary = summary_dict
         self._update_summary()
+
+    def send_summary(self, record: "Record") -> None:
+        self._update_summary_record(record.summary)
+
+    def send_request_summary_record(self, record: "Record") -> None:
+        self._update_summary_record(record.request.summary_record.summary)
 
     def _update_summary(self) -> None:
         summary_dict = self._cached_summary.copy()
@@ -1183,10 +1303,15 @@ class SendManager:
             self._config_metric_index_dict[metric.name] = next_idx
         self._update_config()
 
-    def send_telemetry(self, record: "Record") -> None:
-        telem = record.telemetry
-        self._telemetry_obj.MergeFrom(telem)
+    def _update_telemetry_record(self, telemetry: telemetry.TelemetryRecord) -> None:
+        self._telemetry_obj.MergeFrom(telemetry)
         self._update_config()
+
+    def send_telemetry(self, record: "Record") -> None:
+        self._update_telemetry_record(record.telemetry)
+
+    def send_request_telemetry_record(self, record: "Record") -> None:
+        self._update_telemetry_record(record.request.telemetry_record.telemetry)
 
     def _save_file(
         self, fname: interface.GlobStr, policy: "interface.PolicyName" = "end"
@@ -1239,7 +1364,7 @@ class SendManager:
         """
         use = record.use_artifact
         if use.type == "job":
-            self._job_builder.used_job = True
+            self._job_builder.disable = True
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1435,7 +1560,7 @@ class SendManager:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        if not self._settings.get("_offline", False) and not self._job_builder.used_job:
+        if not self._settings.get("_offline", False) and not self._job_builder.disable:
             artifact = self._job_builder.build()
             if artifact is not None and self._run is not None:
                 proto_artifact = self._interface._make_artifact(artifact)
