@@ -244,24 +244,6 @@ class InterfaceGrpc(InterfaceBase):
         # TODO: implement
         return None
 
-    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
-        assert self._stub
-        self._assign(status)
-        network_status_response = pb.NetworkStatusResponse()
-        response = pb.Response(network_status_response=network_status_response)
-        result = pb.Result(response=response)
-        handle = self._deliver(result)
-        return handle
-
-    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
-        assert self._stub
-        self._assign(status)
-        stop_status_response = pb.StopStatusResponse()
-        response = pb.Response(stop_status_response=stop_status_response)
-        result = pb.Result(response=response)
-        handle = self._deliver(result)
-        return handle
-
     def _communicate_stop_status(
         self, status: pb.StopStatusRequest
     ) -> Optional[pb.StopStatusResponse]:
@@ -403,6 +385,7 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+<<<<<<< HEAD
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
@@ -427,5 +410,7 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+=======
+>>>>>>> parent of 2156c6478 (refactor(sdk): clean up the init and run logic (#4730))
     def join(self) -> None:
         super().join()

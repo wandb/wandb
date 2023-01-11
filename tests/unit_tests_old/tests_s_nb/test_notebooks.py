@@ -37,10 +37,8 @@ def test_one_cell(notebook):
         nb.execute_all()
         output = nb.cell_output(0)
         print(output)
-        assert any(
-            "lovely-dawn-32" in (x.get("data", {}) or {}).get("text/html", "")
-            for x in output
-        )
+        assert "lovely-dawn-32" in output[-1]["data"]["text/html"]
+        # assert "Failed to query for notebook name" not in text
 
 
 def test_magic(notebook):
