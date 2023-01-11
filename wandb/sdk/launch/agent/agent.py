@@ -12,7 +12,6 @@ import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
@@ -56,7 +55,7 @@ class LaunchAgent:
         self._ticks = 0
         self._running = 0
         self._cwd = os.getcwd()
-        self._namespace = runid.generate_id()
+        self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
         max_jobs_from_config = int(config.get("max_jobs", 1))
         if max_jobs_from_config == -1:

@@ -7,8 +7,9 @@ import shutil
 import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
+from wandb import util
 from wandb.filesync import dir_watcher, step_upload
-from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib import filesystem
 
 if TYPE_CHECKING:
     import tempfile
@@ -73,7 +74,7 @@ class StepChecksum:
                 if req.copy:
                     path = os.path.join(
                         self._tempdir.name,
-                        f"{runid.generate_id()}-{req.save_name}",
+                        f"{util.generate_id()}-{req.save_name}",
                     )
                     filesystem.mkdir_exists_ok(os.path.dirname(path))
                     try:

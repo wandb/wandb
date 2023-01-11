@@ -49,6 +49,7 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
+import shortuuid  # type: ignore
 import yaml
 
 import wandb
@@ -863,6 +864,12 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
             launch_browser = False
 
     return launch_browser
+
+
+def generate_id(length: int = 8) -> str:
+    # ~3t run ids (36**8)
+    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
+    return str(run_gen.random(length))
 
 
 def parse_tfjob_config() -> Any:

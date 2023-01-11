@@ -8,7 +8,6 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
-from wandb.sdk.lib import runid
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -162,7 +161,7 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem():
         tb_file_name = "events.out.tfevents.1585769947.cvp"
         copy_asset(tb_file_name)
-        run_id = runid.generate_id()
+        run_id = wandb.util.generate_id()
         api.sync_tensorboard(".", project="test", run_id=run_id)
         uploaded_files = relay.context.get_run_uploaded_files(run_id)
         assert uploaded_files[0].endswith(tb_file_name)

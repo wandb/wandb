@@ -22,7 +22,6 @@ else:
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -133,7 +132,7 @@ class Object3D(BatchableMedia):
 
             extension = "." + extension
 
-            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + extension)
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + extension)
             with open(tmp_path, "w") as f:
                 f.write(object_3d)
 
@@ -175,7 +174,7 @@ class Object3D(BatchableMedia):
                     "Type not supported, only 'lidar/beta' is currently supported"
                 )
 
-            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".pts.json")
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
                     data,
@@ -206,7 +205,7 @@ class Object3D(BatchableMedia):
                 )
 
             list_data = np_data.tolist()
-            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".pts.json")
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
                     list_data,

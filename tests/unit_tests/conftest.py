@@ -416,7 +416,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             **{
-                "run_id": runid.generate_id(),
+                "run_id": wandb.util.generate_id(),
             },
             **kwargs_settings,
         }
