@@ -18,15 +18,6 @@ else:
         return asyncio.new_event_loop().run_until_complete(coro)
 
 
-if sys.version_info >= (3, 8):
-    AsyncMock = mock.AsyncMock
-else:
-
-    class AsyncMock(mock.Mock):
-        async def __call__(self, *args, **kwargs):
-            return super().__call__(*args, **kwargs)
-
-
 @dataclasses.dataclass
 class MockTime:
     now: datetime.datetime
@@ -266,12 +257,15 @@ class TestRetryAsync:
 
         excs = [MyError("one"), MyError("two")]
 
-        fn = AsyncMock(
+        fn_sync = mock.Mock(
             side_effect=[
                 *excs,
                 lambda: None,
             ],
         )
+
+        async def fn():
+            return fn_sync()
 
         on_retry_exc = mock.Mock()
         asyncio_run(retry.retry_async(backoff, fn, on_retry_exc=on_retry_exc))
