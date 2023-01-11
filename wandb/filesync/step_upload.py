@@ -125,7 +125,8 @@ class StepUpload:
                 self._handle_event(event)
             else:
                 logger.warning(
-                    "Received non-EventJobDone event after RequestFinish: %s", event
+                    "Ignoring non-EventJobDone event received after RequestFinish: %s",
+                    event,
                 )
 
         if finish_callback:
