@@ -197,7 +197,13 @@ def get_docker_command(
             else:
                 # Passed name=value
                 if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name), shlex.quote(str(value))]
+                    # docker_args = {"e": ["AWS_API_KEY=asdasdasdas", "AWS_SECRET_KEY=asdasdasdas"]}
+                    # -e AWS_API_KEY='asdasdasdas' -e  <image-name>
+                    if isinstance(value, list):
+                        for v in value:
+                            cmd += ["-" + shlex.quote(name), shlex.quote(str(v))]
+                    else:
+                        cmd += ["-" + shlex.quote(name), shlex.quote(str(value))]
                 else:
                     cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
 
