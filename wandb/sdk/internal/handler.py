@@ -26,9 +26,11 @@ from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     Record,
     Result,
+    RunRecord,
     SampledHistoryItem,
     SummaryItem,
     SummaryRecord,
+    SummaryRecordRequest,
 )
 
 from ..interface.interface_queue import InterfaceQueue
@@ -63,11 +65,11 @@ class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _partial_history: Dict[str, Any]
+    _run_proto: Optional[RunRecord]
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _stopped: Event
-    _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
     _system_monitor: Optional[SystemMonitor]
@@ -88,7 +90,6 @@ class HandleManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: Event,
-        sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: InterfaceQueue,
         context_keeper: context.ContextKeeper,
@@ -97,7 +98,6 @@ class HandleManager:
         self._record_q = record_q
         self._result_q = result_q
         self._stopped = stopped
-        self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
         self._context_keeper = context_keeper
@@ -113,6 +113,7 @@ class HandleManager:
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
         self._sampled_history = defaultdict(sample.UniformSampleAccumulator)
+        self._run_proto = None
         self._partial_history = dict()
         self._metric_defines = defaultdict(MetricRecord)
         self._metric_globs = defaultdict(MetricRecord)
@@ -147,12 +148,8 @@ class HandleManager:
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if always_send:
             record.control.always_send = True
-        if not self._settings._offline or always_send:
-            tracelog.log_message_queue(record, self._sender_q)
-            self._sender_q.put(record)
-        if not record.control.local and self._writer_q:
-            tracelog.log_message_queue(record, self._writer_q)
-            self._writer_q.put(record)
+        tracelog.log_message_queue(record, self._writer_q)
+        self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
@@ -164,12 +161,7 @@ class HandleManager:
         pass
 
     def handle_request_cancel(self, record: Record) -> None:
-        cancel_id = record.request.cancel.cancel_slot
-        self._context_keeper.cancel(cancel_id)
-
-    def handle_request_respond(self, record: Record) -> None:
-        result = record.request.respond.result
-        self._respond_result(result)
+        self._dispatch_record(record)
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -234,12 +226,16 @@ class HandleManager:
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
-        record = Record(summary=summary)
         if flush:
+            record = Record(summary=summary)
             self._dispatch_record(record)
         elif not self._settings._offline:
-            tracelog.log_message_queue(record, self._sender_q)
-            self._sender_q.put(record)
+            # Send this summary update as a request since we arent persisting every update
+            summary_record = SummaryRecordRequest(summary=summary)
+            request_record = self._interface._make_request(
+                summary_record=summary_record
+            )
+            self._dispatch_record(request_record)
 
     def _save_history(
         self,
@@ -530,6 +526,12 @@ class HandleManager:
             self.handle_history(Record(history=history))
             self._partial_history = {}
 
+    def handle_request_sender_mark_report(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
+    def handle_request_status_report(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
     def handle_request_partial_history(self, record: Record) -> None:
         partial_history = record.request.partial_history
 
@@ -728,11 +730,10 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
-        # TODO(mempressure): do something better
-        self._dispatch_record(record, always_send=True)
-        # assert record.control.req_resp
-        # result = proto_util._result_from_record(record)
-        # self._respond_result(result)
+        # TODO(mempressure): do something better?
+        assert record.control.req_resp
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
 
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
@@ -826,6 +827,9 @@ class HandleManager:
     def handle_request_keepalive(self, record: Record) -> None:
         """keepalive is a noop, we just want to verify transport is alive."""
         pass
+
+    def handle_request_run_status(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?

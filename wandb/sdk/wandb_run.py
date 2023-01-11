@@ -12,7 +12,8 @@ import threading
 import time
 import traceback
 from collections.abc import Mapping
-from datetime import timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import IntEnum
 from types import TracebackType
 from typing import (
@@ -291,6 +292,13 @@ class _run_decorator:  # noqa: N801
             return func(self, *args, **kwargs)
 
         return wrapper
+
+
+@dataclass
+class RunStatus:
+    sync_items_total: int = field(default=0)
+    sync_items_pending: int = field(default=0)
+    sync_time: Optional[datetime] = field(default=None)
 
 
 class Run:
@@ -1779,6 +1787,30 @@ class Run:
             ),
         )
         self._finish(exit_code=exit_code)
+
+    @_run_decorator._attach
+    def status(
+        self,
+    ) -> RunStatus:
+        """Get sync info from the internal backend, about the current run's sync status."""
+        if not self._backend or not self._backend.interface:
+            return RunStatus()
+
+        handle_run_status = self._backend.interface.deliver_request_run_status()
+        result = handle_run_status.wait(timeout=-1)
+        assert result
+        sync_data = result.response.run_status_response
+
+        sync_time = None
+        if sync_data.sync_time.seconds:
+            sync_time = datetime.fromtimestamp(
+                sync_data.sync_time.seconds + sync_data.sync_time.nanos / 1e9
+            )
+        return RunStatus(
+            sync_items_total=sync_data.sync_items_total,
+            sync_items_pending=sync_data.sync_items_pending,
+            sync_time=sync_time,
+        )
 
     @staticmethod
     def plot_table(
