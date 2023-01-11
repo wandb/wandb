@@ -544,7 +544,7 @@ class TestUpload:
 
     @pytest.mark.parametrize("exc", [None, Exception("upload_file_retry failed")])
     @patch.object(StepUpload, "_spawn_sentry_report")
-    def tests_reports_to_sentry(
+    def test_reports_to_sentry(
         self, report: Mock, tmp_path: Path, exc: Optional[Exception]
     ):
         f = make_tmp_file(tmp_path)
@@ -588,7 +588,7 @@ class TestUpload:
     )
     @pytest.mark.parametrize("silent", [True, False])
     @patch("wandb.filesync.step_upload.termerror")
-    def tests_termerrors_if_not_silent(
+    def test_termerrors_if_not_silent(
         self,
         termerror: Mock,
         tmp_path: Path,
@@ -623,7 +623,7 @@ class TestUpload:
             termerror.assert_not_called()
 
     @patch("wandb.filesync.step_upload.termerror")
-    def tests_termerror_truncates_response_content(
+    def test_termerror_truncates_response_content(
         self, termerror: Mock, tmp_path: Path
     ):
         f = make_tmp_file(tmp_path)
