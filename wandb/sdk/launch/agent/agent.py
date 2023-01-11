@@ -157,8 +157,7 @@ class LaunchAgent:
         _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
-            PROJECT_DOCKER_ARGS: (launch_spec.get("docker", {}) or {}).get("args", {})
-            or {},
+            PROJECT_DOCKER_ARGS: launch_spec.get("docker_args", {}) or {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
         print("Bakcend config", backend_config)
