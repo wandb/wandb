@@ -181,7 +181,7 @@ def get_docker_command(
     """
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
-
+    print("got docker args", docker_args)
     # hacky handling of env vars, needs to be improved
     for env_key, env_value in env_vars.items():
         cmd += ["-e", f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]

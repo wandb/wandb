@@ -161,7 +161,7 @@ class LaunchAgent:
             or {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-
+        print("Bakcend config", backend_config)
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
         override_build_config = launch_spec.get("build")
@@ -190,7 +190,7 @@ class LaunchAgent:
             while True:
                 self._ticks += 1
                 job = None
-
+                print("Get launch agent")
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
@@ -203,7 +203,9 @@ class LaunchAgent:
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
                     for queue in self._queues:
+                        print("Pop from queue")
                         job = self.pop_from_queue(queue)
+                        print("Done pop", job)
                         if job:
                             try:
                                 self.run_job(job)
