@@ -1,3 +1,10 @@
+## 0.13.9 (January 11, 2023)
+
+### :magic_wand: Enhancements
+* fix(sdk): exercise extra caution when checking if AWS Trainium is available in the system by @dmitryduev in https://github.com/wandb/wandb/pull/4769
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.8...v0.13.9
+
 ## 0.13.8 (January 10, 2023)
 
 ### :magic_wand: Enhancements
