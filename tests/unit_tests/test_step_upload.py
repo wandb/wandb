@@ -5,7 +5,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, MutableSequence, Optional
-from unittest.mock import ANY, DEFAULT, Mock, patch
+from unittest.mock import DEFAULT, Mock, patch
 
 import pytest
 import requests
@@ -561,7 +561,7 @@ class TestUpload:
         finish_and_wait(q)
 
         if exc:
-            report.assert_called_once_with(ANY, exc)
+            report.assert_called_once_with(exc)
         else:
             report.assert_not_called()
 
