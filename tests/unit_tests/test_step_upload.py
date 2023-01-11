@@ -705,11 +705,13 @@ class TestArtifactCommit:
         finish_and_wait(q)
         api.commit_artifact.assert_called_once()
 
+    @pytest.mark.parametrize("exc", [Exception("upload failed"), None])
     def test_no_commit_if_upload_fails(
         self,
         tmp_path: Path,
+        exc: Optional[Exception],
     ):
-        api = make_api(upload_file_retry=Mock(side_effect=Exception("upload failed")))
+        api = make_api(upload_file_retry=Mock(side_effect=exc))
 
         q = queue.Queue()
         q.put(make_request_upload(make_tmp_file(tmp_path), artifact_id="my-art"))
@@ -719,7 +721,11 @@ class TestArtifactCommit:
         step_upload.start()
 
         finish_and_wait(q)
-        api.commit_artifact.assert_not_called()
+
+        if exc is None:
+            api.commit_artifact.assert_called_once()
+        else:
+            api.commit_artifact.assert_not_called()
 
     def test_calls_before_commit_hook(self):
         events = []
