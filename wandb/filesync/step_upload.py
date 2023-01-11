@@ -147,7 +147,7 @@ class StepUpload:
 
                 # uploading the error to Sentry might require a network request;
                 # do it in the threadpool to avoid blocking the main loop
-                self._pool.submit(wandb.util.sentry_exc, exc)
+                self._spawn_sentry_report(exc)
 
                 logger.exception("Failed to upload file: %s", job.save_path)
 
@@ -158,7 +158,13 @@ class StepUpload:
                         and hasattr(exc.response, "content")
                         and isinstance(exc.response.content, (str, bytes))
                     ):
-                        details += f": {exc.response.content!r}"
+                        content: bytes = (
+                            exc.response.content
+                            if isinstance(exc.response.content, bytes)
+                            else exc.response.content.encode("utf-8")
+                        )
+                        trunc_content = content[:200]
+                        details += f": {trunc_content!r}{'...' if len(trunc_content) < len(content) else ''}"
                     termerror(f"Error uploading {job.save_name!r}: {details}")
 
             if job.artifact_id:
@@ -274,6 +280,9 @@ class StepUpload:
                             result_fut.set_result(None)
                         else:
                             result_fut.set_exception(exc)
+
+    def _spawn_sentry_report(self, exc: BaseException) -> None:
+        self._pool.submit(wandb.util.sentry_exc, exc)
 
     def start(self) -> None:
         self._thread.start()

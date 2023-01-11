@@ -4,10 +4,11 @@ import random
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Iterable, MutableSequence, Optional
-from unittest.mock import DEFAULT, Mock
+from typing import Any, Callable, Iterable, Mapping, MutableSequence, Optional
+from unittest.mock import ANY, DEFAULT, Mock, patch
 
 import pytest
+import requests
 from wandb.filesync import stats
 from wandb.filesync.step_upload import (
     Event,
@@ -540,6 +541,118 @@ class TestUpload:
             )
         else:
             mock_file_stream.push_success.assert_not_called()
+
+    @pytest.mark.parametrize("exc", [None, Exception("upload_file_retry failed")])
+    @patch.object(StepUpload, "_spawn_sentry_report")
+    def tests_reports_to_sentry(
+        self, report: Mock, tmp_path: Path, exc: Optional[Exception]
+    ):
+        f = make_tmp_file(tmp_path)
+
+        q = queue.Queue()
+        cmd = make_request_upload(f)
+        q.put(cmd)
+
+        api = make_api(upload_file_retry=Mock(side_effect=exc))
+
+        step_upload = make_step_upload(event_queue=q, api=api)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+        if exc:
+            report.assert_called_once_with(ANY, exc)
+        else:
+            report.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ["upload_kwargs", "exc", "expect_msgs"],
+        [
+            ({}, None, []),
+            (
+                {},
+                ValueError("upload_file_retry failed"),
+                ["ValueError", "upload_file_retry failed"],
+            ),
+            (
+                {"artifact_id": "my-art"},
+                ValueError("upload_file_retry failed"),
+                ["Artifact won't be committed"],
+            ),
+            (
+                {},
+                requests.RequestException(response=Mock(content=b"error details")),
+                ["RequestException", "error details"],
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("silent", [True, False])
+    @patch("wandb.filesync.step_upload.termerror")
+    def tests_termerrors_if_not_silent(
+        self,
+        termerror: Mock,
+        tmp_path: Path,
+        exc: Optional[Exception],
+        silent: bool,
+        expect_msgs: Iterable[str],
+        upload_kwargs: Mapping[str, Any],
+    ):
+        f = make_tmp_file(tmp_path)
+
+        q = queue.Queue()
+        cmd = make_request_upload(f, **upload_kwargs)
+        q.put(cmd)
+
+        api = make_api(upload_file_retry=Mock(side_effect=exc))
+
+        step_upload = make_step_upload(event_queue=q, api=api, silent=silent)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+        if exc and not silent:
+            missing_msgs = {
+                e
+                for e in expect_msgs
+                if not any(e in str(call) for call in termerror.call_args_list)
+            }
+            assert (
+                not missing_msgs
+            ), f"missing msgs {missing_msgs} in {termerror.call_args_list}"
+        else:
+            termerror.assert_not_called()
+
+    @patch("wandb.filesync.step_upload.termerror")
+    def tests_termerror_truncates_response_content(
+        self, termerror: Mock, tmp_path: Path
+    ):
+        f = make_tmp_file(tmp_path)
+
+        q = queue.Queue()
+        cmd = make_request_upload(f)
+        q.put(cmd)
+
+        api = make_api(
+            upload_file_retry=Mock(
+                side_effect=requests.RequestException(
+                    response=Mock(content=1000 * b"unreasonably long")
+                )
+            )
+        )
+
+        step_upload = make_step_upload(event_queue=q, api=api, silent=False)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+        [call] = [
+            call
+            for call in termerror.call_args_list
+            if "unreasonably long" in str(call)
+        ]
+        [[msg], _] = call
+        assert len(msg) < 1000, msg
+        assert msg.endswith("...")
 
 
 class TestArtifactCommit:
