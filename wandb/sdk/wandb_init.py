@@ -19,6 +19,7 @@ import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
 import wandb
+import wandb.env
 from wandb import trigger
 from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
@@ -629,8 +630,18 @@ class _WandbInit:
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
+            if os.environ.get("PEX"):
+                tel.env.pex = True
+
+            if os.environ.get(wandb.env._DISABLE_SERVICE):
+                tel.feature.service_disabled = True
+
             if manager:
                 tel.feature.service = True
+            if self.settings._flow_control_disabled:
+                tel.feature.flow_control_disabled = True
+            if self.settings._flow_control_custom:
+                tel.feature.flow_control_custom = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
