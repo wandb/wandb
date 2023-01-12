@@ -1967,7 +1967,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
 
         dep_artifact = PublicArtifact.from_id(
-            util.hex_to_b64_id(artifact_id), self.client
+            util.hex_to_b64_id(artifact_id), self.client._client
         )
         link_target_path: util.FilePathStr
         if local:
@@ -2005,7 +2005,7 @@ class WBArtifactHandler(StorageHandler):
             artifact_id = util.host_from_path(path)
             artifact_file_path = util.uri_from_path(path)
             target_artifact = PublicArtifact.from_id(
-                util.hex_to_b64_id(artifact_id), self.client
+                util.hex_to_b64_id(artifact_id), self.client._client
             )
 
             # this should only have an effect if the user added the reference by url
