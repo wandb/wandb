@@ -1942,7 +1942,9 @@ class WBArtifactHandler(StorageHandler):
         artifact_id = util.host_from_path(manifest_entry.ref)
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
 
-        dep_artifact = PublicArtifact.from_id(hex_to_b64_id(artifact_id), self.client)
+        dep_artifact = PublicArtifact.from_id(
+            hex_to_b64_id(artifact_id), self.client._client
+        )
         link_target_path: util.FilePathStr
         if local:
             link_target_path = dep_artifact.get_path(artifact_file_path).download()
