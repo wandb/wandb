@@ -6,7 +6,7 @@ from wandb.sdk.launch.builder.loader import load_builder
 from wandb.sdk.launch.runner.loader import load_backend
 
 
-def test_kubernetes_run_with_underscores(relay_server, monkeypatch, assets_path):
+def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_path):
     jobs = {}
     status = MockDict(
         {
@@ -26,7 +26,7 @@ def test_kubernetes_run_with_underscores(relay_server, monkeypatch, assets_path)
         )
 
         setup_mock_kubernetes_client(
-            monkeypatch, jobs, pods("launch-testentity-testproject-testname"), status
+            monkeypatch, jobs, pods("launch-test.entity-testproject-testname"), status
         )
 
         project = MagicMock()
@@ -35,16 +35,16 @@ def test_kubernetes_run_with_underscores(relay_server, monkeypatch, assets_path)
                 "config_file": str(assets_path("dummy.yaml")),
             }
         }
-        project.target_entity = "test_entity"
-        project.target_project = "test_project"
+        project.target_entity = "test.@#$()entity"
+        project.target_project = "test_\\[]project"
         project.override_config = {}
         project.job = "testjob"
 
         builder = load_builder({"type": "noop"})
 
         run = runner.run(launch_project=project, builder=builder, registry_config={})
-    assert run.name == "launch-testentity-testproject-testname"
-    assert run.job["metadata"]["generateName"] == "launch-testentity-testproject-"
+    assert run.name == "launch-test.entity-testproject-testname"
+    assert run.job["metadata"]["generateName"] == "launch-test.entity-testproject-"
 
 
 class MockDict(dict):

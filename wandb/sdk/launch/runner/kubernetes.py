@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -301,9 +302,9 @@ class KubernetesRunner(AbstractRunner):
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
         if not job_metadata.get("name"):
-            job_metadata[
-                "generateName"
-            ] = f"launch-{launch_project.target_entity.replace('_', '')}-{launch_project.target_project.replace('_', '')}-"
+            clean_entity = re.sub(r"[^a-zA-Z\.\-]", "", launch_project.target_entity)
+            clean_project = re.sub(r"[^a-zA-Z\.\-]", "", launch_project.target_project)
+            job_metadata["generateName"] = f"launch-{clean_entity}-{clean_project}-"
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
