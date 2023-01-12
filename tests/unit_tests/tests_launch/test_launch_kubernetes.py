@@ -4,6 +4,7 @@ import kubernetes
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.loader import load_builder
 from wandb.sdk.launch.runner.loader import load_backend
+from wandb.sdk.launch.utils import make_name_dns_safe
 
 
 def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_path):
@@ -25,26 +26,31 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
             backend_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
         )
 
-        setup_mock_kubernetes_client(
-            monkeypatch, jobs, pods("launch-test.entity-testproject-testname"), status
+        entity_name = "test.@#$()entity"
+        project_name = "test_\\[]project"
+        expected_generate_name = make_name_dns_safe(
+            f"launch-{entity_name}-{project_name}-"
         )
+        expected_run_name = expected_generate_name + "testname"
+
+        setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
 
         project = MagicMock()
         project.resource_args = {
             "kubernetes": {
-                "config_file": str(assets_path("dummy.yaml")),
+                "config_file": str(assets_path("launch_k8s_config.yaml")),
             }
         }
-        project.target_entity = "test.@#$()entity"
-        project.target_project = "test_\\[]project"
+        project.target_entity = entity_name
+        project.target_project = project_name
         project.override_config = {}
         project.job = "testjob"
 
         builder = load_builder({"type": "noop"})
 
         run = runner.run(launch_project=project, builder=builder, registry_config={})
-    assert run.name == "launch-test.entity-testproject-testname"
-    assert run.job["metadata"]["generateName"] == "launch-test.entity-testproject-"
+    assert run.name == expected_run_name
+    assert run.job["metadata"]["generateName"] == expected_generate_name
 
 
 class MockDict(dict):
@@ -105,6 +111,25 @@ def pods(job_name):
 
 
 def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
+
+    monkeypatch.setattr(
+        kubernetes.client,
+        "BatchV1Api",
+        lambda api_client: MockBatchV1Api(api_client, jobs),
+    )
+    monkeypatch.setattr(
+        kubernetes.client,
+        "CoreV1Api",
+        lambda api_client: MockCoreV1Api(api_client, pods),
+    )
+    monkeypatch.setattr(
+        kubernetes.utils,
+        "create_from_yaml",
+        lambda _, yaml_objects, namespace: mock_create_from_yaml(
+            yaml_objects, jobs, mock_job_base
+        ),
+    )
+
     def mock_create_from_yaml(yaml_objects, jobs_dict, mock_status):
         jobd = yaml_objects[0]
         name = jobd["metadata"]["name"]
@@ -144,21 +169,3 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         )
         jobs_dict[name] = mock_job
         return [[mock_job]]
-
-    monkeypatch.setattr(
-        kubernetes.client,
-        "BatchV1Api",
-        lambda api_client: MockBatchV1Api(api_client, jobs),
-    )
-    monkeypatch.setattr(
-        kubernetes.client,
-        "CoreV1Api",
-        lambda api_client: MockCoreV1Api(api_client, pods),
-    )
-    monkeypatch.setattr(
-        kubernetes.utils,
-        "create_from_yaml",
-        lambda _, yaml_objects, namespace: mock_create_from_yaml(
-            yaml_objects, jobs, mock_job_base
-        ),
-    )
