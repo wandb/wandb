@@ -1981,7 +1981,7 @@ class WBArtifactHandler(StorageHandler):
             artifact_id = util.host_from_path(path)
             artifact_file_path = util.uri_from_path(path)
             target_artifact = PublicArtifact.from_id(
-                hex_to_b64_id(artifact_id), self.client
+                hex_to_b64_id(artifact_id), self.client._client
             )
 
             # this should only have an effect if the user added the reference by url
