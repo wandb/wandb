@@ -2,6 +2,7 @@
 
 ### :magic_wand: Enhancements
 * fix(sdk): exercise extra caution when checking if AWS Trainium is available in the system by @dmitryduev in https://github.com/wandb/wandb/pull/4769
+* fix(sdk): restore 'util.generate_id' for legacy / user code by @moredatarequired in https://github.com/wandb/wandb/pull/4776
 
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.8...v0.13.9
 
