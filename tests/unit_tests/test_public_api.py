@@ -253,6 +253,27 @@ def test_sweep_api_expected_run_count(
     assert sweep.expected_run_count == expected_run_count
 
 
+def test_save_aliases_after_logging_artifact(user, wandb_init):
+    project = "test"
+    run = wandb_init(entity=user, project=project)
+    artifact = wandb.Artifact("test-artifact", "test-type")
+    with open("boom.txt", "w") as f:
+        f.write("testing")
+    artifact.add_file("boom.txt", "test-name")
+    run.log_artifact(artifact, aliases=["sequence"])
+    artifact.wait()
+    artifact.aliases.append("hello")
+    artifact.save()
+    run.finish()
+
+    # fetch artifact and verify alias exists
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    aliases = artifact.aliases
+    assert "hello" in aliases
+
+
 def test_update_aliases_on_artifact(user, relay_server, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
