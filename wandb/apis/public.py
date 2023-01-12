@@ -222,9 +222,10 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client: Client):
+    def __init__(self, client: Client, api: Any):
         self._server_info = None
         self._client = client
+        self._api = api
 
     @property
     def app_url(self):
@@ -424,7 +425,7 @@ class Api:
                 url="%s/graphql" % self.settings["base_url"],
             )
         )
-        self._client = RetryingClient(self._base_client)
+        self._client = RetryingClient(self._base_client, self)
 
     def create_run(self, **kwargs):
         """Create a new run"""
@@ -946,7 +947,7 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = Artifact(self, entity, project, artifact_name)
+        artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -4314,7 +4315,7 @@ class Artifact(artifacts.Artifact):
                             break
 
             artifact = cls(
-                api=api,
+                client=client,
                 entity=api.settings["entity"],
                 project=api.settings["project"],
                 name=name,
@@ -4333,9 +4334,8 @@ class Artifact(artifacts.Artifact):
 
             return artifact
 
-    def __init__(self, api, entity, project, name, attrs=None):
-        self.client = api.client
-        self._api = api
+    def __init__(self, client, entity, project, name, attrs=None):
+        self.client = client
         self._entity = entity
         self._project = project
         self._artifact_name = name
@@ -5158,7 +5158,7 @@ class Artifact(artifacts.Artifact):
     def _get_ref_artifact_from_entry(self, entry):
         """Helper function returns the referenced artifact from an entry"""
         artifact_id = util.host_from_path(entry.ref)
-        return Artifact.from_id(hex_to_b64_id(artifact_id), self._api)
+        return Artifact.from_id(hex_to_b64_id(artifact_id), self.client._api)
 
     def used_by(self):
         """Retrieves the runs which use this artifact directly
