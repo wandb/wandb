@@ -146,7 +146,8 @@ class SystemMonitor:
             logger.error(f"Error publishing last batch of metrics: {e}")
 
     def start(self) -> None:
-        if self._process is None and not self._shutdown_event.is_set():
+        self._shutdown_event.clear()
+        if self._process is None:
             logger.info("Starting system monitor")
             # self._process = mp.Process(target=self._start, name="SystemMonitor")
             self._process = threading.Thread(
@@ -161,7 +162,10 @@ class SystemMonitor:
         self._shutdown_event.set()
         for asset in self.assets:
             asset.finish()
-        self._process.join()
+        try:
+            self._process.join()
+        except Exception as e:
+            logger.error(f"Error joining system monitor process: {e}")
         self._process = None
 
     def probe(self, publish: bool = True) -> None:

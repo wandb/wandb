@@ -6,6 +6,7 @@ import unittest.mock
 
 import pytest
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.system.system_info import SystemInfo
 
@@ -41,20 +42,21 @@ def send_manager(
     result_q,
     interface,
 ):
-    def sand_manager_helper(run, meta):
+    def send_manager_helper(run, meta):
         # test_settings.update(save_code=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        context_keeper = context.ContextKeeper()
         sm = SendManager(
             settings=run.settings,
             record_q=record_q,
             result_q=result_q,
             interface=interface,
+            context_keeper=context_keeper,
         )
-
-        meta.backend_interface.publish_run(run)
+        meta.backend_interface.publish_run(meta.backend_interface._make_run(run))
         sm.send(record_q.get())
         return sm
 
-    yield sand_manager_helper
+    yield send_manager_helper
 
 
 def test_meta_probe(

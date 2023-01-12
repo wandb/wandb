@@ -12,12 +12,14 @@ import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
+    LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -54,7 +56,7 @@ class LaunchAgent:
         self._ticks = 0
         self._running = 0
         self._cwd = os.getcwd()
-        self._namespace = wandb.util.generate_id()
+        self._namespace = runid.generate_id()
         self._access = _convert_access("project")
         max_jobs_from_config = int(config.get("max_jobs", 1))
         if max_jobs_from_config == -1:
@@ -98,9 +100,14 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        wandb.termlog(
-            f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
-        )
+        if self._project == LAUNCH_DEFAULT_PROJECT:
+            wandb.termlog(
+                f"{LOG_PREFIX}agent {self._name} polling on queues {','.join(self._queues)} for jobs"
+            )
+        else:
+            wandb.termlog(
+                f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
+            )
 
     def update_status(self, status: str) -> None:
         update_ret = self._api.update_launch_agent_status(
@@ -126,23 +133,6 @@ class LaunchAgent:
         except Exception:
             self.finish_job_id(job_id)
 
-    def _validate_and_fix_spec_project_entity(
-        self, launch_spec: Dict[str, Any]
-    ) -> None:
-        """Checks if launch spec target project/entity differs from agent. Forces these values to agent's if they are set."""
-        if (
-            launch_spec.get("project") is not None
-            and launch_spec.get("project") != self._project
-        ) or (
-            launch_spec.get("entity") is not None
-            and launch_spec.get("entity") != self._entity
-        ):
-            wandb.termwarn(
-                f"Launch agents only support sending runs to their own project and entity. This run will be sent to {self._entity}/{self._project}"
-            )
-            launch_spec["entity"] = self._entity
-            launch_spec["project"] = self._project
-
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
@@ -160,7 +150,6 @@ class LaunchAgent:
             launch_spec["overrides"]["args"] = util._user_args_to_dict(
                 launch_spec["overrides"].get("args", [])
             )
-        self._validate_and_fix_spec_project_entity(launch_spec)
 
         project = create_project_from_spec(launch_spec, self._api)
         _logger.info("Fetching and validating project...")

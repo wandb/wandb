@@ -58,5 +58,3 @@ assert (
     == "tests/functional_tests/t0_main/jobs/job_repo_creation.py"
 )
 assert "requirements.frozen.txt" in os.listdir(lp.project_dir)
-print(command)
-assert lp.override_args == ["--log-test"]
