@@ -339,7 +339,7 @@ class _WandbInit:
         handler.setLevel(logging.INFO)
 
         class WBFilter(logging.Filter):
-            def filter(self, record: pb.Record) -> bool:  # type: ignore
+            def filter(self, record) -> bool:  # type: ignore
                 record.run_id = run_id
                 return True
 
