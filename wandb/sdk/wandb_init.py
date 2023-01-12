@@ -102,7 +102,7 @@ class _WandbInit:
 
     def __init__(self) -> None:
         self.kwargs = None
-        self.settings: Optional[wandb.sdk.wandb_settings.Settings] = None
+        self.settings: Optional[Settings] = None
         self.sweep_config: Dict[str, Any] = {}
         self.launch_config: Dict[str, Any] = {}
         self.config: Dict[str, Any] = {}
@@ -429,7 +429,7 @@ class _WandbInit:
         ipython.display_pub.publish = ipython.display_pub._orig_publish
         del ipython.display_pub._orig_publish
 
-    def _jupyter_setup(self, settings: wandb.sdk.wandb_settings.Settings) -> None:
+    def _jupyter_setup(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
         self.notebook = Notebook(settings)
         ipython = self.notebook.shell
@@ -455,7 +455,7 @@ class _WandbInit:
 
         ipython.display_pub.publish = publish
 
-    def _log_setup(self, settings: wandb.sdk.wandb_settings.Settings) -> None:
+    def _log_setup(self, settings: Settings) -> None:
         """Sets up logging from settings."""
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_user))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_internal))
