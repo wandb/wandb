@@ -301,6 +301,10 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     assert local_path == path
 
 
+class MockApi:
+    client = None
+
+
 def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
@@ -313,7 +317,7 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     )
 
     handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: None
+    handler._client = lambda: MockApi()
     monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.ref_target = lambda: uri
@@ -337,7 +341,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     )
 
     handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: None
+    handler._client = lambda: MockApi()
     monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.download = lambda: path
