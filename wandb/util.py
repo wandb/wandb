@@ -54,7 +54,7 @@ import yaml
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -863,6 +863,12 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
             launch_browser = False
 
     return launch_browser
+
+
+def generate_id(length: int = 8) -> str:
+    # Do not use this; use wandb.sdk.lib.runid.generate_id instead.
+    # This is kept only for legacy code.
+    return runid.generate_id(length)
 
 
 def parse_tfjob_config() -> Any:
