@@ -185,8 +185,8 @@ def test_mocked_notebook_html_default(live_mock_server, test_settings, mocked_ip
         print(f"[{i}]: {html}")
     assert len(displayed_html) == 7
     assert "lovely-dawn-32" in displayed_html[2]
-    assert "(success)" in displayed_html[3]
-    assert "Run history:" in displayed_html[4]
+    assert "(success)" in displayed_html[4]
+    assert "Run history:" in displayed_html[5]
 
 
 def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipython):
@@ -210,7 +210,7 @@ def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipy
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
     assert len(displayed_html) == 7
-    assert "<iframe" in displayed_html[3]
+    assert "<iframe" in displayed_html[5]
 
 
 def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
