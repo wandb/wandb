@@ -433,7 +433,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
-    init_timeout: int
+    init_timeout: float
     is_local: bool
     label_disable: bool
     launch: bool
@@ -584,7 +584,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            init_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            init_timeout={"value": 60, "preprocessor": lambda x: float(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -1527,6 +1527,7 @@ class Settings:
                         init_settings["run_id"] = init_settings["resume"]
                     init_settings["resume"] = "allow"
             elif init_settings["resume"] is True:
+                # todo: add deprecation warning, switch to literal strings for resume
                 init_settings["resume"] = "auto"
 
         # update settings
