@@ -626,3 +626,11 @@ def check_logged_in(api: Api) -> bool:
         )
 
     return True
+
+
+def make_name_dns_safe(name: str) -> str:
+    resp = name.replace("_", "-").lower()
+    resp = re.sub(r"[^a-z\.\-]", "", resp)
+    # Actual length limit is 253, but we want to leave room for the generated suffix
+    resp = resp[:200]
+    return resp
