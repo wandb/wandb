@@ -4,8 +4,8 @@ orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.10.1
   go: circleci/go@1.7.1
-  gcloud: circleci/gcp-cli@3.0.0
-  gke: circleci/gcp-gke@1.4.0
+  gcloud: circleci/gcp-cli@3.0.1
+  gke: circleci/gcp-gke@2.0.0
 
 parameters:
   manual:
