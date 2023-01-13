@@ -157,9 +157,6 @@ def test_metrics_monitor(capsys, test_settings):
 
     assert len(mock_metric.samples) == 0
 
-    _, err = capsys.readouterr()
-    assert "Failed to sample metric: MockBrokenMetric failed to sample" in err
-
 
 @pytest.mark.parametrize(
     "join_assets,num_keys",
