@@ -1,6 +1,7 @@
 """Batching file prepare requests to our API."""
 
 import os
+from pathlib import Path
 import queue
 import shutil
 import threading
@@ -82,7 +83,7 @@ class StepChecksum:
                     except OSError:
                         shutil._USE_CP_SENDFILE = False  # type: ignore[attr-defined]
                         shutil.copy2(req.path, path)
-                self._stats.init_file(req.save_name, os.path.getsize(path))
+                self._stats.init_file(Path(req.path), os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(
                         path,
@@ -107,7 +108,7 @@ class StepChecksum:
                             )
 
                         self._stats.init_file(
-                            entry.local_path,
+                            Path(entry.local_path),
                             cast(int, entry.size),
                             is_artifact_file=True,
                         )
