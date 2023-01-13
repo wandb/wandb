@@ -249,7 +249,7 @@ class TestRetryAsync:
             ]
         )
 
-    def test_calls_on_retry_exc(self, mock_time: MockTime):
+    def test_calls_on_exc(self, mock_time: MockTime):
         backoff = mock.Mock(
             spec=retry.Backoff,
             next_sleep_or_reraise=mock.Mock(return_value=1 * SECOND),
@@ -267,10 +267,10 @@ class TestRetryAsync:
         async def fn():
             return fn_sync()
 
-        on_retry_exc = mock.Mock()
-        asyncio_run(retry.retry_async(backoff, fn, on_retry_exc=on_retry_exc))
+        on_exc = mock.Mock()
+        asyncio_run(retry.retry_async(backoff, fn, on_exc=on_exc))
 
-        on_retry_exc.assert_has_calls(
+        on_exc.assert_has_calls(
             [
                 mock.call(excs[0]),
                 mock.call(excs[1]),

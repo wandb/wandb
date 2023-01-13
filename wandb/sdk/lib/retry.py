@@ -272,18 +272,18 @@ async def retry_async(
     backoff: Backoff,
     fn: Callable[..., Awaitable[_R]],
     *args: Any,
-    on_retry_exc: Optional[Callable[[Exception], None]] = None,
+    on_exc: Optional[Callable[[Exception], None]] = None,
     **kwargs: Any,
 ) -> _R:
     """Call `fn` repeatedly until either it succeeds, or `backoff` decides we should give up.
 
-    Each time `fn` fails, `on_retry_exc` is called with the exception.
+    Each time `fn` fails, `on_exc` is called with the exception.
     """
 
     while True:
         try:
             return await fn(*args, **kwargs)
         except Exception as e:
-            if on_retry_exc is not None:
-                on_retry_exc(e)
+            if on_exc is not None:
+                on_exc(e)
             await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())
