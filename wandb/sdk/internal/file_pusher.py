@@ -1,4 +1,3 @@
-import concurrent.futures
 import logging
 import os
 import queue
@@ -148,13 +147,12 @@ class FilePusher:
     def commit_artifact(
         self,
         artifact_id: str,
-        *,
         finalize: bool = True,
-        before_commit: step_upload.PreCommitFn,
-        result_fut: "concurrent.futures.Future[None]",
+        before_commit: Optional[step_upload.PreCommitFn] = None,
+        on_commit: Optional[step_upload.PostCommitFn] = None,
     ):
         event = step_checksum.RequestCommitArtifact(
-            artifact_id, finalize, before_commit, result_fut
+            artifact_id, finalize, before_commit, on_commit
         )
         self._incoming_queue.put(event)
 
