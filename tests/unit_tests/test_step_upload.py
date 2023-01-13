@@ -136,27 +136,27 @@ class UploadBlockingMockApi(Mock):
 
 class TestFinish:
     @pytest.mark.parametrize(
-        ["api", "commands", "api_assert"],
+        ["make_api", "make_commands", "api_assert"],
         [
             (
-                make_api(),
+                lambda: make_api(),
                 lambda tmp_path: [],
                 lambda api: None,
             ),
             (
-                make_api(),
+                lambda: make_api(),
                 lambda tmp_path: [
                     make_request_upload(tmp_path / "nonexistent-file.txt")
                 ],
                 lambda api: api.upload_file_retry.assert_not_called(),
             ),
             (
-                make_api(),
+                lambda: make_api(),
                 lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
                 lambda api: api.upload_file_retry.assert_called(),
             ),
             (
-                make_api(),
+                lambda: make_api(),
                 lambda tmp_path: [
                     make_request_upload(make_tmp_file(tmp_path)),
                     make_request_upload(make_tmp_file(tmp_path)),
@@ -165,12 +165,14 @@ class TestFinish:
                 lambda api: api.upload_file_retry.assert_called(),
             ),
             (
-                make_api(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
+                lambda: make_api(
+                    upload_urls=Mock(side_effect=Exception("upload_urls failed"))
+                ),
                 lambda tmp_path: [make_request_upload(make_tmp_file(tmp_path))],
                 lambda api: api.upload_urls.assert_called(),
             ),
             (
-                make_api(
+                lambda: make_api(
                     upload_file_retry=Mock(
                         side_effect=Exception("upload_file_retry failed")
                     )
@@ -179,7 +181,7 @@ class TestFinish:
                 lambda api: api.upload_file_retry.assert_called(),
             ),
             (
-                make_api(
+                lambda: make_api(
                     upload_file_retry=Mock(
                         side_effect=Exception("upload_file_retry failed")
                     )
@@ -193,22 +195,28 @@ class TestFinish:
                 lambda api: api.upload_file_retry.assert_called(),
             ),
             (
-                make_api(),
+                lambda: make_api(),
                 lambda tmp_path: [make_request_commit("my-artifact")],
                 lambda api: api.commit_artifact.assert_called(),
             ),
             (
-                make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
+                lambda: make_api(
+                    commit_artifact=Mock(side_effect=Exception("commit failed"))
+                ),
                 lambda tmp_path: [make_request_commit("my-artifact")],
                 lambda api: api.commit_artifact.assert_called(),
             ),
             (
-                make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
+                lambda: make_api(
+                    commit_artifact=Mock(side_effect=Exception("commit failed"))
+                ),
                 lambda tmp_path: [make_request_commit("my-artifact")],
                 lambda api: api.commit_artifact.assert_called(),
             ),
             (
-                make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
+                lambda: make_api(
+                    commit_artifact=Mock(side_effect=Exception("commit failed"))
+                ),
                 lambda tmp_path: [
                     make_request_upload(
                         make_tmp_file(tmp_path), artifact_id="my-artifact"
@@ -222,12 +230,14 @@ class TestFinish:
     def test_finishes(
         self,
         tmp_path: Path,
-        api: Mock,
-        commands: Callable[[Path], Iterable[Event]],
+        make_api: Callable[[], Mock],
+        make_commands: Callable[[Path], Iterable[Event]],
         api_assert: Callable[[Mock], None],
     ):
+        api = make_api()
+
         q = queue.Queue()
-        for cmd in commands(tmp_path):
+        for cmd in make_commands(tmp_path):
             q.put(cmd)
         step_upload = make_step_upload(api=api, event_queue=q)
         step_upload.start()
@@ -339,14 +349,14 @@ class TestUpload:
             assert f.exists()
 
     @pytest.mark.parametrize(
-        ["api", "bad_command"],
+        ["make_api", "make_bad_command"],
         [
             (
-                make_api(),
+                lambda: make_api(),
                 lambda tmp_path: make_request_upload(tmp_path / "nonexistent-file.txt"),
             ),
             (
-                make_api(
+                lambda: make_api(
                     upload_urls=Mock(
                         wraps=mock_upload_urls,
                         side_effect=[Exception("upload_urls failed"), DEFAULT],
@@ -355,7 +365,7 @@ class TestUpload:
                 lambda tmp_path: make_request_upload(make_tmp_file(tmp_path)),
             ),
             (
-                make_api(
+                lambda: make_api(
                     upload_file_retry=Mock(
                         wraps=mock_upload_file_retry,
                         side_effect=[Exception("upload_file_retry failed"), DEFAULT],
@@ -368,11 +378,12 @@ class TestUpload:
     def test_error_doesnt_stop_future_uploads(
         self,
         tmp_path: Path,
-        api: Mock,
-        bad_command: Callable[[Path], Event],
+        make_api: Callable[[], Mock],
+        make_bad_command: Callable[[Path], Event],
     ):
+        api = make_api()
         q = queue.Queue()
-        q.put(bad_command(tmp_path))
+        q.put(make_bad_command(tmp_path))
 
         good_command = make_request_upload(make_tmp_file(tmp_path))
         q.put(good_command)
@@ -418,17 +429,18 @@ class TestUpload:
             mock_stats.update_uploaded_file.assert_called_with(str(f), f.stat().st_size)
 
         @pytest.mark.parametrize(
-            "save_fn",
+            "make_save_fn",
             [
-                None,
-                Mock(side_effect=Exception("save_fn failed")),
+                lambda: None,
+                lambda: Mock(side_effect=Exception("save_fn failed")),
             ],
         )
         def test_updates_on_failure(
             self,
             tmp_path: Path,
-            save_fn: Optional[Callable[[int, int], None]],
+            make_save_fn: Callable[[], Optional[Callable[[int, int], None]]],
         ):
+            save_fn = make_save_fn()
             f = make_tmp_file(tmp_path)
 
             api = make_api(
@@ -475,21 +487,23 @@ class TestUpload:
                 mock_stats.set_file_deduped.assert_not_called()
 
     @pytest.mark.parametrize(
-        ["save_fn", "api", "success"],
+        ["make_save_fn", "make_api", "success"],
         [
             (
-                None,
-                make_api(),
+                lambda: None,
+                lambda: make_api(),
                 True,
             ),
             (
-                None,
-                make_api(upload_urls=Mock(side_effect=Exception("upload_urls failed"))),
+                lambda: None,
+                lambda: make_api(
+                    upload_urls=Mock(side_effect=Exception("upload_urls failed"))
+                ),
                 False,
             ),
             (
-                None,
-                make_api(
+                lambda: None,
+                lambda: make_api(
                     upload_file_retry=Mock(
                         side_effect=Exception("upload_file_retry failed")
                     ),
@@ -497,18 +511,18 @@ class TestUpload:
                 False,
             ),
             (
-                Mock(return_value=False),
-                make_api(),
+                lambda: Mock(return_value=False),
+                lambda: make_api(),
                 True,
             ),
             (
-                Mock(return_value=True),
-                make_api(),
+                lambda: Mock(return_value=True),
+                lambda: make_api(),
                 True,
             ),
             (
-                Mock(side_effect=Exception("save_fn failed")),
-                make_api(),
+                lambda: Mock(side_effect=Exception("save_fn failed")),
+                lambda: make_api(),
                 False,
             ),
         ],
@@ -516,10 +530,12 @@ class TestUpload:
     def test_notifies_file_stream_on_success(
         self,
         tmp_path: Path,
-        save_fn: Optional[Callable[[int, int], bool]],
-        api: Mock,
+        make_save_fn: Callable[[], Optional[Callable[[int, int], bool]]],
+        make_api: Callable[[], Mock],
         success: bool,
     ):
+        save_fn = make_save_fn()
+        api = make_api()
         f = make_tmp_file(tmp_path)
 
         q = queue.Queue()

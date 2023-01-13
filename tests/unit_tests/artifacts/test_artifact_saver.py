@@ -1,3 +1,4 @@
+from typing import Callable
 from unittest.mock import Mock
 
 import pytest
@@ -82,28 +83,31 @@ class SomeCustomError(Exception):
 
 @pytest.mark.timeout(1)
 @pytest.mark.parametrize(
-    "api",
+    "make_api",
     [
-        make_api(use_artifact=Mock(side_effect=SomeCustomError("use_artifact failed"))),
-        make_api(
+        lambda: make_api(
+            use_artifact=Mock(side_effect=SomeCustomError("use_artifact failed"))
+        ),
+        lambda: make_api(
             create_artifact=Mock(side_effect=SomeCustomError("create_artifact failed"))
         ),
-        make_api(
+        lambda: make_api(
             create_artifact_manifest=Mock(
                 side_effect=SomeCustomError("create_artifact_manifest failed")
             )
         ),
-        make_api(
+        lambda: make_api(
             upload_file_retry=Mock(
                 side_effect=SomeCustomError("upload_file_retry failed")
             )
         ),
-        make_api(
+        lambda: make_api(
             commit_artifact=Mock(side_effect=SomeCustomError("commit_artifact failed"))
         ),
     ],
 )
-def test_reraises_err(api: internal_api.Api):
+def test_reraises_err(make_api: Callable[[], internal_api.Api]):
+    api = make_api()
     stream = Mock(spec=file_stream.FileStreamApi)
     pusher = file_pusher.FilePusher(api=api, file_stream=stream)
 
