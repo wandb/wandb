@@ -20,6 +20,12 @@ def main():
             art1 = run.use_artifact("test-artifact-1:latest")
             local_entry = art1.get_path(file_name)
             local_ref_path = local_entry.ref_url()
+            # Blow away cache
+            # This ensures our references work without having pre-loaded cache
+            from wandb.sdk.interface import artifacts
+
+            artifacts._artifacts_cache = None
+            # End blow away
             artifact.add_reference(local_ref_path)
             run.log_artifact(artifact)
 
