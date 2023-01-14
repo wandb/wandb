@@ -1264,8 +1264,10 @@ workflows:
       # Regression tests
       #
       - regression:
-          python_version_major: [ 3 ]
-          python_version_minor: [ 8 ]
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 8 ]
           name: "lint-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "lint-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           context: slack-secrets
