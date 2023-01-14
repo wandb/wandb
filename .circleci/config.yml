@@ -1267,9 +1267,9 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 8 ]
-          name: "lint-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "lint-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+              python_version_minor: [ 7 ]
+          name: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           context: slack-secrets
           notify_on_failure: false
       #
