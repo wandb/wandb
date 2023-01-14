@@ -221,11 +221,11 @@ jobs:
       python_version_minor:
         type: integer
         default: 7
-#      toxenv:
-#        type: string
-#      shard:
-#        type: string
-#        default: "base"
+      toxenv:
+        type: string
+      shard:
+        type: string
+        default: "base"
       notify_on_failure:
         type: boolean
         default: false
@@ -268,16 +268,16 @@ jobs:
 #                command: |
 #                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
 #            - save-test-results
-            # conditionally post a notification to slack if the job failed
-            - when:
-                condition: << parameters.notify_on_failure >>
-                steps:
-                  - slack/notify:
-                      event: fail
-                      template: basic_fail_1
-                      mentions: "@channel"
-                      # taken from slack-secrets context
-                      channel: << parameters.notify_on_failure_channel >>
+#            # conditionally post a notification to slack if the job failed
+#            - when:
+#                condition: << parameters.notify_on_failure >>
+#                steps:
+#                  - slack/notify:
+#                      event: fail
+#                      template: basic_fail_1
+#                      mentions: "@channel"
+#                      # taken from slack-secrets context
+#                      channel: << parameters.notify_on_failure_channel >>
 
   tox-base:
     parameters:
@@ -1267,6 +1267,13 @@ workflows:
       #
       # Linting
       #
+      - regression:
+          python_version_major: [ 3 ]
+          python_version_minor: [ 8 ]
+          name: "lint-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "lint-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          context: slack-secrets
+          notify_on_failure: false
       - tox-base:
           name: "code-check"
           python_version_minor: 8
