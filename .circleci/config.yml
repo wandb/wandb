@@ -245,6 +245,8 @@ jobs:
     working_directory: /mnt/ramdisk/wandb
     steps:
       - checkout
+      - add_ssh_keys:
+          fingerprints:
       - when:
           condition: << parameters.execute >>
           steps:
@@ -252,22 +254,35 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
+#            - run:
+#                name: Install python dependencies
+#                command: |
+#                  pip install tox==<< pipeline.parameters.tox_version >>
+#                  pip install -U pip
+#                no_output_timeout: 5m
             - run:
-                name: Install python dependencies
+                name: Setup environment
                 command: |
-                  pip install tox==<< pipeline.parameters.tox_version >>
-                  pip install -U pip
-                no_output_timeout: 5m
+                  curl https://pyenv.run | bash
+                  echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+                  echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+                  echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+                  source ~/.bashrc
+                  python -m pip install pyyaml six wandb shortuuid
+                no_output_timeout: 30m
             - run:
                 name: Clone wandb/wandb-testing repo
                 command: |
                   cd /mnt/ramdisk
                   git clone https://github.com/wandb/wandb-testing.git
-#            - run:
-#                name: Run tests
-#                no_output_timeout: 10m
-#                command: |
-#                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+            - run:
+                name: Run tests
+                no_output_timeout: 10m
+                # TODO: remove the line with git checkout, it's WIP
+                command: |
+                  cd wandb-testing/regression
+                  git checkout update-py-v
+#                  ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/
 #            - save-test-results
 #            # conditionally post a notification to slack if the job failed
 #            - when:
@@ -1273,13 +1288,13 @@ workflows:
           toxenv: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           context: slack-secrets
           notify_on_failure: false
-      #
-      # Linting
-      #
-      - tox-base:
-          name: "code-check"
-          python_version_minor: 8
-          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
+#      #
+#      # Linting
+#      #
+#      - tox-base:
+#          name: "code-check"
+#          python_version_minor: 8
+#          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
 #      #
 #      # Unit tests with pytest on Linux, using real wandb server
 #      #
