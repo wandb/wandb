@@ -4,8 +4,10 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 """
 
 import os
+import pathlib
 import platform
 import subprocess
+import sys
 import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -109,11 +111,15 @@ class _Service:
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
 
-            wbservice = os.environ.get("WBSERVICE")
             service_args = []
-            if wbservice:
+            if self._settings._use_nexus:
                 exec_cmd_list = []
-                service_args += [ wbservice ]
+                os_type = platform.system().lower()
+                arch = platform.machine().lower()
+                base = pathlib.Path(sys.modules["wandb"].__path__[0])
+                path = (base / "bin" / f"bin-{os_type}-{arch}" / "wandb-nexus").resolve()
+                assert path.exists()
+                service_args += [ path ]
             else:
                 service_args += [ "wandb", "service", ]
 

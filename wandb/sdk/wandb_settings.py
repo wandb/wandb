@@ -407,6 +407,7 @@ class Settings:
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
+    _use_nexus: bool
     _windows: bool
     allow_val_change: bool
     anonymous: str
@@ -551,6 +552,7 @@ class Settings:
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
             },
+            _use_nexus={"preprocessor": _str_as_bool},
             _windows={
                 "hook": lambda _: platform.system() == "Windows",
                 "auto_hook": True,
