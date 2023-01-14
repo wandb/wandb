@@ -213,6 +213,72 @@ commands:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
 jobs:
+  regression:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
+#      toxenv:
+#        type: string
+#      shard:
+#        type: string
+#        default: "base"
+      notify_on_failure:
+        type: boolean
+        default: false
+      notify_on_failure_channel:
+        type: string
+        default: "$SLACK_SDK_NIGHTLY_CI_CHANNEL"
+      parallelism:
+        type: integer
+        default: 1
+      execute:
+        type: boolean
+        default: true
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    parallelism: << parameters.parallelism >>
+    resource_class: xlarge
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - when:
+          condition: << parameters.execute >>
+          steps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update && apt-get install -y libsndfile1 ffmpeg
+            - run:
+                name: Install python dependencies
+                command: |
+                  pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install -U pip
+                no_output_timeout: 5m
+            - run:
+                name: Clone wandb/wandb-testing repo
+                command: |
+                  git clone https://github.com/wandb/wandb-testing.git
+#            - run:
+#                name: Run tests
+#                no_output_timeout: 10m
+#                command: |
+#                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+#            - save-test-results
+            # conditionally post a notification to slack if the job failed
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      mentions: "@channel"
+                      # taken from slack-secrets context
+                      channel: << parameters.notify_on_failure_channel >>
+
   tox-base:
     parameters:
       python_version_major:
@@ -1195,150 +1261,154 @@ workflows:
         - not: << pipeline.parameters.manual >>
     jobs:
       #
+      # Regression tests
+      #
+      -
+      #
       # Linting
       #
       - tox-base:
           name: "code-check"
           python_version_minor: 8
           toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
-      #
-      # Unit tests with pytest on Linux, using real wandb server
-      #
-      - pytest:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
-          name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-      #
-      # Unit tests with pytest on Linux, using the old mock server
-      #
-      - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
-          name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-      #
-      # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
-      #
-      - pytest:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [8]
-          name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          test_path: "tests/unit_tests/tests_launch"
-
-      #
-      # Functional tests with yea on Linux (base only)
-      #
-      - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              shard:
-                - "base"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
-          parallelism: 4
-      #
-      # Functional tests with yea on Linux
-      #
-      - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              shard:
-                - "sklearn"
-                - "metaflow"
-                - "tf115"
-                - "tf21"
-                - "tf24"
-                - "tf25"
-                - "tf26"
-                - "ray112"
-                - "ray2"
-                - "service"
-                - "noml"
-                - "grpc"
-                - "docs"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
-      #
-      # Functional tests with yea on Windows
-      #
-      - win:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 6
-          xdist: 1
-      #
-      # Unit tests with pytest on Windows and MacOS, using real wandb server
-      #
-      - win:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
-      - mac:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-      #
-      # wandb launch tests
-      #
-      - launch:
-          name: "mach-launch"
-          toxenv: "pylaunch,covercircle"
-      #
-      # sharded unit tests
-      #
-      # s_nb: notebook tests
-      - tox-base:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [6]
-          name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
-      - win:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 1
-          xdist: 1
-      - mac:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 1
-          xdist: 1
-      #
-      # pex test
-      #
-      - pex:
-          name: "pex"
+#      #
+#      # Unit tests with pytest on Linux, using real wandb server
+#      #
+#      - pytest:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [6, 7, 8, 9, 10]
+#          name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+#      #
+#      # Unit tests with pytest on Linux, using the old mock server
+#      #
+#      - tox-base:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [6, 7, 8, 9, 10]
+#          name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+#      #
+#      # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
+#      #
+#      - pytest:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [8]
+#          name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+#          test_path: "tests/unit_tests/tests_launch"
+#
+#      #
+#      # Functional tests with yea on Linux (base only)
+#      #
+#      - tox-base:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [7]
+#              shard:
+#                - "base"
+#          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+#          parallelism: 4
+#      #
+#      # Functional tests with yea on Linux
+#      #
+#      - tox-base:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [7]
+#              shard:
+#                - "sklearn"
+#                - "metaflow"
+#                - "tf115"
+#                - "tf21"
+#                - "tf24"
+#                - "tf25"
+#                - "tf26"
+#                - "ray112"
+#                - "ray2"
+#                - "service"
+#                - "noml"
+#                - "grpc"
+#                - "docs"
+#          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+#      #
+#      # Functional tests with yea on Windows
+#      #
+#      - win:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          parallelism: 6
+#          xdist: 1
+#      #
+#      # Unit tests with pytest on Windows and MacOS, using real wandb server
+#      #
+#      - win:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
+#      - mac:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+#      #
+#      # wandb launch tests
+#      #
+#      - launch:
+#          name: "mach-launch"
+#          toxenv: "pylaunch,covercircle"
+#      #
+#      # sharded unit tests
+#      #
+#      # s_nb: notebook tests
+#      - tox-base:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [6]
+#          name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
+#      - win:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          parallelism: 1
+#          xdist: 1
+#      - mac:
+#          matrix:
+#            parameters:
+#              python_version_major: [3]
+#              python_version_minor: [9]
+#          name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          parallelism: 1
+#          xdist: 1
+#      #
+#      # pex test
+#      #
+#      - pex:
+#          name: "pex"
 
 
   # todo: needs love
