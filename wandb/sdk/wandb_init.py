@@ -769,7 +769,7 @@ class _WandbInit:
         # TODO: add progress to let user know we are doing something
         run_start_result = run_start_handle.wait(timeout=30)
         if run_start_result is None:
-            run_start_handle.release()
+            run_start_handle.abandon()
 
         self._wl._global_run_stack.append(run)
         self.run = run
