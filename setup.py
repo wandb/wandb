@@ -44,6 +44,10 @@ launch_requirements = [
 
 models_requirements = ["cloudpickle"]
 
+nexus_requirements = [
+    "wandb-nexus @ git+https://github.com/wandb/wandb.git@hackweek-nexus#subdirectory=nexus",
+]
+
 
 setup(
     name="wandb",
@@ -98,6 +102,7 @@ setup(
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
         "models": models_requirements,
+        "nexus": nexus_requirements,
     },
 )
 
