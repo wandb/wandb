@@ -302,7 +302,7 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
 
 
 class MockApi:
-    client = None
+    _client = None
 
 
 def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
