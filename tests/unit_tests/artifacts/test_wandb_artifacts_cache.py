@@ -317,7 +317,7 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     )
 
     handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: MockApi()
+    handler._client = MockApi()
     monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.ref_target = lambda: uri
@@ -341,7 +341,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     )
 
     handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
-    handler._client = lambda: MockApi()
+    handler._client = MockApi()
     monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
     artifact.download = lambda: path
