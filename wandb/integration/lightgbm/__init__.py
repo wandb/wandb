@@ -50,17 +50,17 @@ if TYPE_CHECKING:
         evaluation_result_list: List[_EvalResultTuple]
 
 
-def _define_metric(data: str, metric_name: str) -> None:
+def _define_metric(data: str, metric_name: str, sep: str) -> None:
     """Capture model performance at the best step.
 
     instead of the last step, of training in your `wandb.summary`
     """
     if "loss" in str.lower(metric_name):
-        wandb.define_metric(f"{data}_{metric_name}", summary="min")
+        wandb.define_metric(f"{data}{sep}{metric_name}", summary="min")
     elif str.lower(metric_name) in MINIMIZE_METRICS:
-        wandb.define_metric(f"{data}_{metric_name}", summary="min")
+        wandb.define_metric(f"{data}{sep}{metric_name}", summary="min")
     elif str.lower(metric_name) in MAXIMIZE_METRICS:
-        wandb.define_metric(f"{data}_{metric_name}", summary="max")
+        wandb.define_metric(f"{data}{sep}{metric_name}", summary="max")
 
 
 def _checkpoint_artifact(
@@ -94,12 +94,13 @@ def _log_feature_importance(model: "Booster") -> None:
     )
 
 
-def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Callable:
+def wandb_callback(log_params: bool = True, define_metric: bool = True, sep: str = "_") -> Callable:
     """Automatically integrates LightGBM with wandb.
 
     Arguments:
         log_params: (boolean) if True (default) logs params passed to lightgbm.train as W&B config
         define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary`
+        sep: (str) separator that combines the validation set name and metric name.
 
     Passing `wandb_callback` to LightGBM will:
       - log params passed to lightgbm.train as W&B config (default).
@@ -137,7 +138,7 @@ def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Calla
             for i in range(len(env.evaluation_result_list)):
                 data_type = env.evaluation_result_list[i][0]
                 metric_name = env.evaluation_result_list[i][1]
-                _define_metric(data_type, metric_name)
+                _define_metric(data_type, metric_name, sep)
 
     def _callback(env: "CallbackEnv") -> None:
         if log_params_list[0]:
@@ -150,7 +151,7 @@ def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Calla
         for validation_key in eval_results.keys():
             for key in eval_results[validation_key].keys():
                 wandb.log(
-                    {validation_key + "_" + key: eval_results[validation_key][key][0]},
+                    {validation_key + sep + key: eval_results[validation_key][key][0]},
                     commit=False,
                 )
 
