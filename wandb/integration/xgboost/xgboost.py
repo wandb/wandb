@@ -61,6 +61,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         importance_type: (str) one of {weight, gain, cover, total_gain, total_cover} for tree model. weight for linear model.
         define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary`.
         sep: (str) separator that combines the validation set name and metric name.
+
     Passing `WandbCallback` to XGBoost will:
 
     - log the booster model configuration to Weights & Biases
