@@ -7,3 +7,4 @@ from .ipu import IPU  # noqa: F401
 from .memory import Memory  # noqa: F401
 from .network import Network  # noqa: F401
 from .tpu import TPU  # noqa: F401
+from .trainium import Trainium  # noqa: F401
