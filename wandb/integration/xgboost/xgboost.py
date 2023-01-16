@@ -60,7 +60,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         log_feature_importance: (boolean) if True log a feature importance bar plot
         importance_type: (str) one of {weight, gain, cover, total_gain, total_cover} for tree model. weight for linear model.
         define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary`.
-
+        sep: (str) separator that combines the validation set name and metric name.
     Passing `WandbCallback` to XGBoost will:
 
     - log the booster model configuration to Weights & Biases
@@ -98,12 +98,14 @@ class WandbCallback(xgb.callback.TrainingCallback):
         log_feature_importance: bool = True,
         importance_type: str = "gain",
         define_metric: bool = True,
+        sep: str = "-"
     ):
 
         self.log_model: bool = log_model
         self.log_feature_importance: bool = log_feature_importance
         self.importance_type: str = importance_type
         self.define_metric: bool = define_metric
+        self.sep = sep
 
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -147,9 +149,9 @@ class WandbCallback(xgb.callback.TrainingCallback):
             for metric_name, log in metric.items():
                 if self.define_metric:
                     self._define_metric(data, metric_name)
-                    wandb.log({f"{data}-{metric_name}": log[-1]}, commit=False)
+                    wandb.log({f"{data}{self.sep}{metric_name}": log[-1]}, commit=False)
                 else:
-                    wandb.log({f"{data}-{metric_name}": log[-1]}, commit=False)
+                    wandb.log({f"{data}{self.sep}{metric_name}": log[-1]}, commit=False)
 
         wandb.log({"epoch": epoch})
 
@@ -180,10 +182,10 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
     def _define_metric(self, data: str, metric_name: str) -> None:
         if "loss" in str.lower(metric_name):
-            wandb.define_metric(f"{data}-{metric_name}", summary="min")
+            wandb.define_metric(f"{data}{self.sep}{metric_name}", summary="min")
         elif str.lower(metric_name) in MINIMIZE_METRICS:
-            wandb.define_metric(f"{data}-{metric_name}", summary="min")
+            wandb.define_metric(f"{data}{self.sep}{metric_name}", summary="min")
         elif str.lower(metric_name) in MAXIMIZE_METRICS:
-            wandb.define_metric(f"{data}-{metric_name}", summary="max")
+            wandb.define_metric(f"{data}{self.sep}{metric_name}", summary="max")
         else:
             pass
