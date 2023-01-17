@@ -1,3 +1,12 @@
+## 0.13.9 (January 11, 2023)
+
+### :hammer: Fixes
+* fix(sdk): exercise extra caution when checking if AWS Trainium is available in the system by @dmitryduev in https://github.com/wandb/wandb/pull/4769
+* fix(sdk): restore 'util.generate_id' for legacy / user code by @moredatarequired in https://github.com/wandb/wandb/pull/4776
+* fix(sdk): replace `release` with `abandon` when releasing mailbox handle during init by @kptkin in https://github.com/wandb/wandb/pull/4766
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.8...v0.13.9
+
 ## 0.13.8 (January 10, 2023)
 
 ### :magic_wand: Enhancements

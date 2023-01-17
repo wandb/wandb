@@ -1,8 +1,8 @@
-import concurrent.futures
 import json
 import os
 import sys
 import tempfile
+import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
@@ -230,6 +230,8 @@ class ArtifactSaver:
             ),
         )
 
+        commit_event = threading.Event()
+
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
@@ -270,25 +272,24 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        commit_res: "concurrent.futures.Future[None]" = concurrent.futures.Future()
+        def on_commit() -> None:
+            if finalize and use_after_commit:
+                self._api.use_artifact(artifact_id)
+            step_prepare.shutdown()
+            commit_event.set()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
             artifact_id,
             finalize=finalize,
             before_commit=before_commit,
-            result_fut=commit_res,
+            on_commit=on_commit,
         )
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
-        try:
-            commit_res.result()
-        finally:
-            step_prepare.shutdown()
-
-        if finalize and use_after_commit:
-            self._api.use_artifact(artifact_id)
+        while not commit_event.is_set():
+            commit_event.wait()
 
         return self._server_artifact
 
