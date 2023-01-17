@@ -3056,7 +3056,7 @@ class Run:
         # printer = printer or get_printer(settings._jupyter)
         # TODO: add this to a higher verbosity level
         printer.display(
-            f"Tracking run with wandb version {wandb.__version__}", off=True
+            f"Tracking run with wandb version {wandb.__version__}", off=False
         )
 
     @staticmethod
