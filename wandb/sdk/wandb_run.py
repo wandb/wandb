@@ -1259,7 +1259,7 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = public.Artifact.from_id(val["id"], public_api)
+            artifact = public.Artifact.from_id(val["id"], public_api.client)
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
@@ -1272,7 +1272,7 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = public.Artifact.from_id(artifact_string, public_api)
+                artifact = public.Artifact.from_id(artifact_string, public_api._client)
             else:
                 artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
@@ -2861,8 +2861,6 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                # TODO: Verify that this _public_api() returns an API that contains the current entity and project in its settings
-                # TODO: Otherwise we have to get them from the Run, set them as overrides and pass them into the API instantiation
                 artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
             else:
                 self._backend.interface.publish_artifact(
@@ -3704,7 +3702,7 @@ class _LazyArtifact(ArtifactInterface):
             resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = public.Artifact.from_id(resp.artifact_id, self._api)
+            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
         assert isinstance(
             self._instance, ArtifactInterface
         ), "Insufficient permissions to fetch Artifact with id {} from {}".format(

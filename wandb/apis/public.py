@@ -952,7 +952,7 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = Artifact(self, entity, project, artifact_name)
+        artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -4294,11 +4294,10 @@ class Artifact(artifacts.Artifact):
     )
 
     @classmethod
-    def from_id(cls, artifact_id: str, api: Api):
+    def from_id(cls, artifact_id: str, client: Client):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        client = api.client
         response: Mapping[str, Any] = client.execute(
             Artifact.QUERY,
             variable_values={"id": artifact_id},
@@ -4346,9 +4345,8 @@ class Artifact(artifacts.Artifact):
 
             return artifact
 
-    def __init__(self, api, entity, project, name, attrs=None):
-        self.client = api.client
-        self._api = api
+    def __init__(self, client, entity, project, name, attrs=None):
+        self.client = client
         self._entity = entity
         self._project = project
         self._artifact_name = name
@@ -5171,7 +5169,7 @@ class Artifact(artifacts.Artifact):
     def _get_ref_artifact_from_entry(self, entry):
         """Helper function returns the referenced artifact from an entry"""
         artifact_id = util.host_from_path(entry.ref)
-        return Artifact.from_id(hex_to_b64_id(artifact_id), self._api)
+        return Artifact.from_id(hex_to_b64_id(artifact_id), self.client)
 
     def used_by(self):
         """Retrieves the runs which use this artifact directly
@@ -5533,7 +5531,7 @@ class Job:
             raise LaunchError(f"Job {self.name} had no source artifact")
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = Artifact.from_id(artifact_string, self._api)
+            code_artifact = Artifact.from_id(artifact_string, self._api._client)
         else:
             code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
