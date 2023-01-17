@@ -87,7 +87,7 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
         project = MagicMock()
         project.resource_args = {
             "kubernetes": {
-                "config_file": str(assets_path("dummy-kubecfg-annotations.yaml")),
+                "config_file": str(assets_path("launch_k8s_config.yaml")),
                 "job_spec": job_spec,
             }
         }
