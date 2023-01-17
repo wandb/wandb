@@ -254,12 +254,6 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
-#            - run:
-#                name: Install python dependencies
-#                command: |
-#                  pip install tox==<< pipeline.parameters.tox_version >>
-#                  pip install -U pip
-#                no_output_timeout: 5m
             - run:
                 name: Setup environment
                 command: |
@@ -277,12 +271,12 @@ jobs:
                   git clone https://github.com/wandb/wandb-testing.git
             - run:
                 name: Run tests
-                no_output_timeout: 10m
+                no_output_timeout: 240m
                 # TODO: remove the line with git checkout, it's WIP
                 command: |
                   cd /mnt/ramdisk/wandb-testing/regression
                   git checkout update-py-v
-#                  ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/
+                  ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/
 #            - save-test-results
 #            # conditionally post a notification to slack if the job failed
 #            - when:
