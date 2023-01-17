@@ -94,13 +94,13 @@ def _log_feature_importance(model: "Booster") -> None:
     )
 
 
-def wandb_callback(log_params: bool = True, define_metric: bool = True, sep: str = "_") -> Callable:
+def wandb_callback(log_params: bool = True, define_metric: bool = True, sep: str = "/") -> Callable:
     """Automatically integrates LightGBM with wandb.
 
     Arguments:
         log_params: (boolean) if True (default) logs params passed to lightgbm.train as W&B config
         define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary`
-        sep: (str) separator that combines the validation set name and metric name.
+        sep: (str) separator that combines the validation set name and metric name. (default: "/")
 
     Passing `wandb_callback` to LightGBM will:
       - log params passed to lightgbm.train as W&B config (default).

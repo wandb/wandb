@@ -60,7 +60,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         log_feature_importance: (boolean) if True log a feature importance bar plot
         importance_type: (str) one of {weight, gain, cover, total_gain, total_cover} for tree model. weight for linear model.
         define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary`.
-        sep: (str) separator that combines the validation set name and metric name.
+        sep: (str) separator that combines the validation set name and metric name. (default: "/")
 
     Passing `WandbCallback` to XGBoost will:
 
@@ -99,7 +99,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         log_feature_importance: bool = True,
         importance_type: str = "gain",
         define_metric: bool = True,
-        sep: str = "-"
+        sep: str = "/"
     ):
 
         self.log_model: bool = log_model
