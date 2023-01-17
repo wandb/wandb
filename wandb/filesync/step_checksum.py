@@ -1,10 +1,10 @@
 """Batching file prepare requests to our API."""
 
 import os
-from pathlib import Path
 import queue
 import shutil
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
 from wandb.filesync import dir_watcher, step_upload
