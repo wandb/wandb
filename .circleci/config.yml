@@ -1211,6 +1211,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          wandb_server_tag: "annirudh-upsert-bucket-queue"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
