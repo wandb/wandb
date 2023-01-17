@@ -162,6 +162,12 @@ fragment ArtifactFragment on Artifact {
     artifactType {
         id
         name
+        project {
+            name
+            entity {
+                name
+            }
+        }
     }
     commitHash
 }
@@ -4314,10 +4320,17 @@ class Artifact(artifacts.Artifact):
                             )
                             break
 
+            entity, project = None, None
+            if response["artifact"]["artifactType"] is not None:
+                at = response["artifact"]["artifactType"]
+                p = at.get("project")
+                project = p["name"]
+                entity = p["entity"]["name"]
+
             artifact = cls(
                 client=client,
-                entity=api.settings["entity"],
-                project=api.settings["project"],
+                entity=entity,
+                project=project,
                 name=name,
                 attrs=response["artifact"],
             )
