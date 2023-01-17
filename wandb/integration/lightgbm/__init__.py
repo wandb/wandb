@@ -94,7 +94,8 @@ def _log_feature_importance(model: "Booster") -> None:
     )
 
 
-def wandb_callback(log_params: bool = True, define_metric: bool = True, sep: str = "/") -> Callable:
+def wandb_callback(log_params: bool = True, define_metric: bool = True, sep: str = "/"
+) -> Callable:
     """Automatically integrates LightGBM with wandb.
 
     Arguments:

@@ -99,7 +99,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         log_feature_importance: bool = True,
         importance_type: str = "gain",
         define_metric: bool = True,
-        sep: str = "/"
+        sep: str = "/",
     ):
 
         self.log_model: bool = log_model
