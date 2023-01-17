@@ -269,7 +269,7 @@ def grab(args, vhash, bnum):
         # TODO: use tempfile
         print("Downloading circle artifacts...")
         s, o = subprocess.getstatusoutput(
-            f'curl -L  -o out.dat -H "Circle-Token: {args.api_token}" "{u}"'
+            f'curl -L  -o out.dat -H "Circle-Token: {args.api_token}" {u!r}'
         )
         assert s == 0
         os.rename("out.dat", cfname)
