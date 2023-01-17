@@ -1,6 +1,7 @@
 import logging
 import os
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
@@ -54,7 +55,7 @@ class UploadJob(threading.Thread):
         self._file_stream = file_stream
         self.silent = silent
         self.save_name = save_name
-        self.save_path = self.path = path
+        self.save_path = Path(path)
         self.artifact_id = artifact_id
         self.md5 = md5
         self.copied = copied
@@ -68,7 +69,7 @@ class UploadJob(threading.Thread):
             self.push()
         except Exception as e:
             exception = e
-            self._stats.update_failed_file(self.save_name)
+            self._stats.update_failed_file(self.save_path)
             logger.exception("Failed to upload file: %s", self.save_path)
             wandb.util.sentry_exc(e)
             if not self.silent:
@@ -122,7 +123,7 @@ class UploadJob(threading.Thread):
 
         if upload_url is None:
             logger.info("Skipped uploading %s", self.save_path)
-            self._stats.set_file_deduped(self.save_name)
+            self._stats.set_file_deduped(self.save_path)
         else:
             extra_headers = {}
             for upload_header in upload_headers:
@@ -143,4 +144,4 @@ class UploadJob(threading.Thread):
             logger.info("Uploaded file %s", self.save_path)
 
     def progress(self, total_bytes: int) -> None:
-        self._stats.update_uploaded_file(self.save_name, total_bytes)
+        self._stats.update_uploaded_file(self.save_path, total_bytes)
