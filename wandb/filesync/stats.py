@@ -83,12 +83,12 @@ class Stats:
         # modify this while we iterate
         with self._lock:
             file_stats = list(self._stats.items())
-        for save_name, stats in file_stats:
+        for path, stats in file_stats:
             if stats.artifact_file:
                 artifact_files += 1
-            elif wandb.sdk.lib.filenames.is_wandb_file(str(save_name)):
+            elif wandb.sdk.lib.filenames.is_wandb_file(str(path)):
                 wandb_files += 1
-            elif str(save_name).startswith("media"):
+            elif str(path).startswith("media"):
                 media_files += 1
             else:
                 other_files += 1
