@@ -1285,7 +1285,11 @@ def launch(
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
+@cli.command(
+    context_settings=CONTEXT,
+    help="Run a W&B launch agent (Experimental) on provided queue or queues. Example:" + 
+         "\nwandb launch-agent docker-queue gpu-queue -e wandb-admin",
+)
 @click.pass_context
 @click.option(
     "--project",
@@ -1300,7 +1304,6 @@ def launch(
     default=None,
     help="The entity to use. Defaults to current logged-in user",
 )
-@click.option("--queues", "-q", default=None, help="The queue names to poll")
 @click.option(
     "--max-jobs",
     "-j",
@@ -1310,6 +1313,7 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
+@click.argument("queues", nargs=-1)
 @display_error
 def launch_agent(
     ctx,
@@ -1319,6 +1323,9 @@ def launch_agent(
     max_jobs=None,
     config=None,
 ):
+    if not queues or queues == "":
+        raise LaunchError("To launch an agent please specify a queue or queues to target")
+
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1329,8 +1336,6 @@ def launch_agent(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
-    if queues is not None:
-        queues = queues.split(",")
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues
     )
