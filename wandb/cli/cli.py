@@ -1287,8 +1287,8 @@ def launch(
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Run a W&B launch agent (Experimental) on provided queue or queues. Example:" + 
-         "\nwandb launch-agent docker-queue gpu-queue -e wandb-admin",
+    no_args_is_help=True,
+    help="Run a W&B launch agent on provided queue or queues (Experimental)."
 )
 @click.pass_context
 @click.option(
@@ -1313,7 +1313,7 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
-@click.argument("queues", nargs=-1)
+@click.argument("queues", metavar="<queue-1 queue-2 ...>", nargs=-1)
 @display_error
 def launch_agent(
     ctx,
@@ -1324,7 +1324,7 @@ def launch_agent(
     config=None,
 ):
     if not queues or queues == "":
-        raise LaunchError("To launch an agent please specify a queue or queues to target")
+        raise LaunchError("To launch an agent please specify a queue or a space-seperated list of queues")
 
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
