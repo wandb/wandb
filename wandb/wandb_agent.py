@@ -382,7 +382,7 @@ class Agent:
         }
 
     @staticmethod
-    def _create_sweep_command(command: Optional[List[str]] = None) -> List[str]:
+    def _create_sweep_command(command: Optional[List] = None) -> List:
         """Returns sweep command, filling in environment variable macros."""
         # Start from default sweep command
         command = command or Agent.DEFAULT_SWEEP_COMMAND
