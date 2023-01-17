@@ -280,7 +280,7 @@ jobs:
                 no_output_timeout: 10m
                 # TODO: remove the line with git checkout, it's WIP
                 command: |
-                  cd wandb-testing/regression
+                  cd /mnt/ramdisk/wandb-testing/regression
                   git checkout update-py-v
 #                  ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/
 #            - save-test-results
