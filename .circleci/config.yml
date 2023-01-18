@@ -238,6 +238,8 @@ jobs:
       execute:
         type: boolean
         default: true
+      regression_command:
+        type: string
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -277,18 +279,18 @@ jobs:
                   source ~/.bashrc
                   cd /mnt/ramdisk/wandb-testing/regression
                   git checkout update-py-v
-                  ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/yolov5/
+                  << parameters.regression_command >>
 #            - save-test-results
-#            # conditionally post a notification to slack if the job failed
-#            - when:
-#                condition: << parameters.notify_on_failure >>
-#                steps:
-#                  - slack/notify:
-#                      event: fail
-#                      template: basic_fail_1
-#                      mentions: "@channel"
-#                      # taken from slack-secrets context
-#                      channel: << parameters.notify_on_failure_channel >>
+            # conditionally post a notification to slack if the job failed
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      mentions: "@channel"
+                      # taken from slack-secrets context
+                      channel: << parameters.notify_on_failure_channel >>
 
   tox-base:
     parameters:
@@ -1279,9 +1281,21 @@ workflows:
             parameters:
               python_version_major: [ 3 ]
               python_version_minor: [ 7 ]
+              regression_command:
+                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/yolov5/
+                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/huggingface/
+                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/keras/
+                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/pytorch/
+                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/tensorflow/
+                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/wandb-git/
+                - ./do-s3-regression.sh --cli_branch $CIRCLE_BRANCH tests/s3-beta/
+                - ./do-sagemaker-regression.sh --cli_branch $CIRCLE_BRANCH
           name: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          context: slack-secrets
+          regression_command: << matrix.regression_command >>
+          context:
+            - slack-secrets
+            - aws-wandb-testing-secrets
           notify_on_failure: false
 #      #
 #      # Linting
