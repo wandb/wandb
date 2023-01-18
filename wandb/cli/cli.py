@@ -1287,10 +1287,18 @@ def launch(
 
 @cli.command(
     context_settings=CONTEXT,
-    no_args_is_help=True,
-    help="Run a W&B launch agent on provided queue or queues (Experimental)."
+    help="Run a W&B launch agent (Experimental).",
 )
 @click.pass_context
+@click.option(
+    "--queue",
+    "-q",
+    "queues",
+    default=[],
+    multiple=True,
+    metavar="<queue(s)>",
+    help="The name of a queue for the agent to watch. Multiple -q flags supported.",
+)
 @click.option(
     "--project",
     "-p",
@@ -1313,7 +1321,6 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
-@click.argument("queues", metavar="<queue-1 queue-2 ...>", nargs=-1)
 @display_error
 def launch_agent(
     ctx,
@@ -1323,9 +1330,6 @@ def launch_agent(
     max_jobs=None,
     config=None,
 ):
-    if not queues or queues == "":
-        raise LaunchError("To launch an agent please specify a queue or a space-seperated list of queues")
-
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1342,6 +1346,11 @@ def launch_agent(
     if agent_config.get("project") is None:
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
+        )
+
+    if len(agent_config.get("queues")) == 0:
+        raise LaunchError(
+            "To launch an agent please specify a queue or a list of queues in the configuration file or cli."
         )
 
     check_logged_in(api)
