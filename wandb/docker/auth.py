@@ -284,7 +284,7 @@ class AuthConfig(dict):
         if self.creds_store or self.cred_helpers:
             store_name = self.get_credential_store(registry)
             if store_name is not None:
-                log.debug(f'Using credentials store "{store_name}"')
+                log.debug(f"Using credentials store {store_name!r}")
                 cfg = self._resolve_authconfig_credstore(registry, store_name)
                 if cfg is not None:
                     return cfg
