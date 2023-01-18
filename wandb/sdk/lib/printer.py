@@ -263,7 +263,7 @@ class PrinterJupyter(_Printer):
         return f'<strong style="color:#cdcd00">{text}</strong>'
 
     def link(self, link: str, text: Optional[str] = None) -> str:
-        return f'<a href="{link}" target="_blank">{text or link}</a>'
+        return f'<a href={link!r} target="_blank">{text or link}</a>'
 
     def emoji(self, name: str) -> str:
         return ""

@@ -507,7 +507,7 @@ def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
             value = split[1]
             i += 1
         if name in user_dict:
-            wandb.termerror(f"Repeated parameter: '{name}'")
+            wandb.termerror(f"Repeated parameter: {name!r}")
             sys.exit(1)
         user_dict[name] = value
     return user_dict
@@ -1345,7 +1345,7 @@ def prompt_choices(
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
     result = choices[idx]
-    wandb.termlog(f"You chose '{result}'")
+    wandb.termlog(f"You chose {result!r}")
     return result
 
 
@@ -1684,7 +1684,7 @@ def _log_thread_stacks() -> None:
             f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
         )
         for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f'  File: "{filename}", line {lineno}, in {name}')
+            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
             if line:
                 logger.info(f"  Line: {line}")
 
@@ -1869,7 +1869,7 @@ def ensure_text(
     elif isinstance(string, str):
         return string
     else:
-        raise TypeError(f"not expecting type '{type(string)}'")
+        raise TypeError(f"not expecting type {type(string)!r}")
 
 
 def make_artifact_name_safe(name: str) -> str:

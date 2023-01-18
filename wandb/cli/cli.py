@@ -929,7 +929,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            f"\"{queue or launch_config.get('queue', 'default')}\"",
+                            f"{(queue or launch_config.get('queue', 'default'))!r}",
                             "--project",
                             project,
                             "--job",
@@ -989,7 +989,7 @@ def sweep(
         sweep_path = sweep_id
 
     if sweep_path.find(" ") >= 0:
-        sweep_path = f'"{sweep_path}"'
+        sweep_path = f"{sweep_path!r}"
 
     if launch_config is not None or queue:
         wandb.termlog("Scheduler added to launch queue. Starting sweep...")
@@ -1199,7 +1199,7 @@ def launch(
             cuda = False
         else:
             raise LaunchError(
-                f"Invalid value for --cuda: '{cuda}' is not a valid boolean."
+                f"Invalid value for --cuda: {cuda!r} is not a valid boolean."
             )
 
     args_dict = util._user_args_to_dict(args_list)
