@@ -4324,8 +4324,8 @@ class Artifact(artifacts.Artifact):
                 p = at.get("project")
                 if p is not None:
                     project = p["name"]
-                if p.get("entity") is not None:
-                    entity = p.get("entity")["name"]
+                    if p.get("entity") is not None:
+                        entity = p.get("entity")["name"]
 
             artifact = cls(
                 client=client,
