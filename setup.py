@@ -45,7 +45,7 @@ launch_requirements = [
 models_requirements = ["cloudpickle"]
 
 nexus_requirements = [
-    "wandb-nexus @ git+https://github.com/wandb/wandb.git@hackweek-nexus#subdirectory=nexus",
+    "wandb-nexus @ git+https://github.com/wandb/nexus-golang.git@initial",
 ]
 
 
