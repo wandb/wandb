@@ -756,8 +756,8 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-            - gcloud/install:
-                version: "412.0.0"
+            - gcloud/install
+#                version: "413.0.0"
 #                components: "docker-credential-gcr"
             - setup_gcloud
             - setup_docker_buildx:
