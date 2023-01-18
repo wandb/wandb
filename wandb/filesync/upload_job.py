@@ -153,7 +153,6 @@ class UploadJob(threading.Thread):
                         )
                     )
                 raise
-        return
 
     def progress(self, total_bytes: int) -> None:
         self._stats.update_uploaded_file(self.save_name, total_bytes)
