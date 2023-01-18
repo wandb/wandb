@@ -38,6 +38,8 @@ spec:
       env:
         - name: WANDB_API_KEY
           value: WANDB_API_KEY_PLACEHOLDER
+        - name: WANDB_BASE_URL
+          value: https://api.qa.wandb.ai
       resources:
         limits:
           cpu: 3.999
