@@ -12,6 +12,7 @@ from wandb.sdk.launch.runner.kubernetes import (
     MAX_KUBERNETES_RETRIES,
     maybe_create_imagepull_secret,
 )
+from wandb.sdk.launch.utils import make_name_dns_safe
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -318,7 +319,7 @@ def test_launch_kube_suspend_cancel(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{entity}-{project}-asdfasdf"
+    pod_name = make_name_dns_safe(f"launch-{entity}-{project}-asdfasdf")
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -371,7 +372,7 @@ def test_launch_kube_failed(
     )
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{entity}-{project}-asdfasdf"
+    pod_name = make_name_dns_safe(f"launch-{entity}-{project}-asdfasdf")
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -413,7 +414,7 @@ def test_kube_user_container(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{entity}-{project}-asdfasdf"
+    pod_name = make_name_dns_safe(f"launch-{entity}-{project}-asdfasdf")
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -477,7 +478,7 @@ def test_kube_multi_container(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{entity}-{project}-asdfasdf"
+    pod_name = make_name_dns_safe(f"launch-{entity}-{project}-asdfasdf")
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -566,7 +567,7 @@ def test_get_status_failed(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{entity}-{project}-asdfasdf"
+    pod_name = make_name_dns_safe(f"launch-{entity}-{project}-asdfasdf")
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
