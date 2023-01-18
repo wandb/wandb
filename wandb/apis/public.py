@@ -3803,7 +3803,6 @@ class ProjectArtifactCollections(Paginator):
                 self.project,
                 r["node"]["name"],
                 self.type_name,
-                # r["node"],
             )
             for r in self.last_response["project"]["artifactType"][
                 "artifactCollections"
