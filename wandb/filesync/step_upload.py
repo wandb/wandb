@@ -138,7 +138,7 @@ class StepUpload:
                     termerror(
                         "Uploading artifact file failed. Artifact won't be committed."
                     )
-                    self._artifact_failed(job.artifact_id, event.exception)
+                    self._fail_artifact_futures(job.artifact_id, event.exception)
             self._running_jobs.pop(job.save_name)
             # If we have any pending jobs, start one now
             if self._pending_jobs:
@@ -216,17 +216,19 @@ class StepUpload:
                 if artifact_status["finalize"]:
                     self._api.commit_artifact(artifact_id)
             except Exception as exc:
-                self._artifact_failed(artifact_id, exc)
+                self._fail_artifact_futures(artifact_id, exc)
             else:
-                self._artifact_committed(artifact_id)
+                self._resolve_artifact_futures(artifact_id)
 
-    def _artifact_committed(self, artifact_id: str) -> None:
+    def _resolve_artifact_futures(self, artifact_id: str) -> None:
         status = self._artifacts[artifact_id]
         futures, status["result_futures"] = status["result_futures"], set()
         for result_fut in futures:
             result_fut.set_result(None)
 
-    def _artifact_failed(self, artifact_id: str, exc: Optional[BaseException]) -> None:
+    def _fail_artifact_futures(
+        self, artifact_id: str, exc: Optional[BaseException]
+    ) -> None:
         status = self._artifacts[artifact_id]
         futures, status["result_futures"] = status["result_futures"], set()
         for result_fut in futures:
