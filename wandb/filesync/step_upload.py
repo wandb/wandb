@@ -138,11 +138,7 @@ class StepUpload:
                     termerror(
                         "Uploading artifact file failed. Artifact won't be committed."
                     )
-                    for fut in self._artifacts[job.artifact_id]["result_futures"]:
-                        # Skip any futures we've already resolved
-                        # (perhaps because previous uploads failed)
-                        if not fut.done():
-                            fut.set_exception(event.exception)
+                    self._artifact_failed(job.artifact_id, event.exception)
             self._running_jobs.pop(job.save_name)
             # If we have any pending jobs, start one now
             if self._pending_jobs:
@@ -219,15 +215,22 @@ class StepUpload:
                     pre_callback()
                 if artifact_status["finalize"]:
                     self._api.commit_artifact(artifact_id)
-            finally:
-                exc = sys.exc_info()[1]
-                for result_fut in artifact_status["result_futures"]:
-                    # Skip any futures we've already resolved (perhaps because uploads failed)
-                    if not result_fut.done():
-                        if exc is None:
-                            result_fut.set_result(None)
-                        else:
-                            result_fut.set_exception(exc)
+            except Exception as exc:
+                self._artifact_failed(artifact_id, exc)
+            else:
+                self._artifact_committed(artifact_id)
+
+    def _artifact_committed(self, artifact_id: str) -> None:
+        status = self._artifacts[artifact_id]
+        futures, status["result_futures"] = status["result_futures"], set()
+        for result_fut in futures:
+            result_fut.set_result(None)
+
+    def _artifact_failed(self, artifact_id: str, exc: Optional[BaseException]) -> None:
+        status = self._artifacts[artifact_id]
+        futures, status["result_futures"] = status["result_futures"], set()
+        for result_fut in futures:
+            result_fut.set_exception(exc)
 
     def start(self) -> None:
         self._thread.start()

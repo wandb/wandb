@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
@@ -65,15 +64,14 @@ class UploadJob(threading.Thread):
     def run(self) -> None:
         try:
             self.push()
-            success = True
+        except Exception as exc:
+            self._done_queue.put(EventJobDone(self, exc))
+        else:
+            self._done_queue.put(EventJobDone(self, None))
+            self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
         finally:
-            exc = sys.exc_info()[1]
-            success = exc is None
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            self._done_queue.put(EventJobDone(self, exc))
-            if success:
-                self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> None:
         if self.save_fn:

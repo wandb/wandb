@@ -126,3 +126,53 @@ def test_reraises_err(make_api: Callable[[], internal_api.Api]):
             sequence_client_id="my-sequence-client-id",
             use_after_commit=True,
         )
+
+
+@pytest.mark.parametrize(
+    ["make_api", "finalize", "use_after_commit", "expect_use"],
+    [
+        (lambda: make_api(), True, True, True),
+        (lambda: make_api(), True, False, False),
+        (lambda: make_api(), False, True, False),
+        (lambda: make_api(), False, False, False),
+        (
+            lambda: make_api(commit_artifact=Mock(side_effect=SomeCustomError())),
+            True,
+            True,
+            False,
+        ),
+    ],
+)
+def test_calls_use_after_commit_if_finalize_and_no_error(
+    make_api: Callable[[], internal_api.Api],
+    finalize: bool,
+    use_after_commit: bool,
+    expect_use: bool,
+):
+    api = make_api()
+    stream = Mock(spec=file_stream.FileStreamApi)
+    pusher = file_pusher.FilePusher(api=api, file_stream=stream)
+
+    saver = ArtifactSaver(
+        api=api,
+        digest="abcd",
+        manifest_json=make_manifest_json(),
+        file_pusher=pusher,
+    )
+
+    try:
+        saver.save(
+            type="my-type",
+            name="my-name",
+            client_id="my-client-id",
+            sequence_client_id="my-sequence-client-id",
+            use_after_commit=use_after_commit,
+            finalize=finalize,
+        )
+    except SomeCustomError:
+        pass
+
+    if expect_use:
+        api.use_artifact.assert_called_once()
+    else:
+        api.use_artifact.assert_not_called()

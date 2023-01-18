@@ -641,6 +641,22 @@ class TestArtifactCommit:
 
         assert events == ["before", "commit"]
 
+    def test_error_doesnt_stop_future_jobs(self, tmp_path: Path):
+        api = make_api(commit_artifact=Mock(side_effect=Exception("commit failed")))
+
+        q = queue.Queue()
+        q.put(make_request_commit("art-1"))
+        q.put(make_request_upload(make_tmp_file(tmp_path), artifact_id="art-2"))
+        q.put(make_request_commit("art-2"))
+
+        step_upload = make_step_upload(api=api, event_queue=q)
+        step_upload.start()
+
+        finish_and_wait(q)
+
+        api.upload_file_retry.assert_called_once()
+        api.commit_artifact.assert_called_with("art-2")
+
     class TestAlwaysResolvesFut:
         def test_success(self):
             api = make_api()
