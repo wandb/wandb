@@ -85,8 +85,9 @@ class SomeCustomError(Exception):
 @pytest.mark.parametrize(
     "make_api",
     [
-        # TODO(spencerpearson): this test fails because of an underlying bug; fix it
-        # lambda: make_api(use_artifact=Mock(side_effect=SomeCustomError("use_artifact failed"))),
+        lambda: make_api(
+            use_artifact=Mock(side_effect=SomeCustomError("use_artifact failed"))
+        ),
         lambda: make_api(
             create_artifact=Mock(side_effect=SomeCustomError("create_artifact failed"))
         ),
@@ -95,15 +96,14 @@ class SomeCustomError(Exception):
                 side_effect=SomeCustomError("create_artifact_manifest failed")
             )
         ),
-        # TODO(spencerpearson): these tests fail because of an underlying bug; fix it
-        # lambda: make_api(
-        #     upload_file_retry=Mock(
-        #         side_effect=SomeCustomError("upload_file_retry failed")
-        #     )
-        # ),
-        # lambda: make_api(
-        #     commit_artifact=Mock(side_effect=SomeCustomError("commit_artifact failed"))
-        # ),
+        lambda: make_api(
+            upload_file_retry=Mock(
+                side_effect=SomeCustomError("upload_file_retry failed")
+            )
+        ),
+        lambda: make_api(
+            commit_artifact=Mock(side_effect=SomeCustomError("commit_artifact failed"))
+        ),
     ],
 )
 def test_reraises_err(make_api: Callable[[], internal_api.Api]):

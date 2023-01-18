@@ -78,8 +78,8 @@ def make_request_commit(artifact_id: str, **kwargs: Any) -> RequestCommitArtifac
     return RequestCommitArtifact(
         artifact_id=artifact_id,
         **{
-            "before_commit": None,
-            "on_commit": None,
+            "before_commit": lambda: None,
+            "result_fut": concurrent.futures.Future(),
             "finalize": True,
             **kwargs,
         },
@@ -198,27 +198,32 @@ class TestFinish:
                 lambda tmp_path: [make_request_commit("my-artifact")],
                 lambda api: api.commit_artifact.assert_called(),
             ),
-            # TODO(spencerpearson): these tests fail because of an underlying bug; fix it
-            # (
-            #     lambda: make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
-            #     lambda tmp_path: [make_request_commit("my-artifact")],
-            #     lambda api: api.commit_artifact.assert_called(),
-            # ),
-            # (
-            #     lambda: make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
-            #     lambda tmp_path: [make_request_commit("my-artifact")],
-            #     lambda api: api.commit_artifact.assert_called(),
-            # ),
-            # (
-            #     lambda: make_api(commit_artifact=Mock(side_effect=Exception("commit failed"))),
-            #     lambda tmp_path: [
-            #         make_request_upload(
-            #             make_tmp_file(tmp_path), artifact_id="my-artifact"
-            #         ),
-            #         make_request_commit("my-artifact"),
-            #     ],
-            #     lambda api: api.commit_artifact.assert_called(),
-            # ),
+            (
+                lambda: make_api(
+                    commit_artifact=Mock(side_effect=Exception("commit failed"))
+                ),
+                lambda tmp_path: [make_request_commit("my-artifact")],
+                lambda api: api.commit_artifact.assert_called(),
+            ),
+            (
+                lambda: make_api(
+                    commit_artifact=Mock(side_effect=Exception("commit failed"))
+                ),
+                lambda tmp_path: [make_request_commit("my-artifact")],
+                lambda api: api.commit_artifact.assert_called(),
+            ),
+            (
+                lambda: make_api(
+                    commit_artifact=Mock(side_effect=Exception("commit failed"))
+                ),
+                lambda tmp_path: [
+                    make_request_upload(
+                        make_tmp_file(tmp_path), artifact_id="my-artifact"
+                    ),
+                    make_request_commit("my-artifact"),
+                ],
+                lambda api: api.commit_artifact.assert_called(),
+            ),
         ],
     )
     def test_finishes(
@@ -643,7 +648,7 @@ class TestArtifactCommit:
             fut = concurrent.futures.Future()
 
             q = queue.Queue()
-            q.put(make_request_commit("my-art", on_commit=lambda: fut.set_result(None)))
+            q.put(make_request_commit("my-art", result_fut=fut))
 
             step_upload = make_step_upload(api=api, event_queue=q)
             step_upload.start()
@@ -652,7 +657,6 @@ class TestArtifactCommit:
 
             assert fut.done() and fut.exception() is None
 
-        @pytest.mark.skip("TODO(spencerpearson): test reveals longstanding bug; fix it")
         def test_upload_fails(self, tmp_path: Path):
             exc = Exception("upload_file_retry failed")
             api = make_api(upload_file_retry=Mock(side_effect=exc))
@@ -661,7 +665,7 @@ class TestArtifactCommit:
 
             q = queue.Queue()
             q.put(make_request_upload(make_tmp_file(tmp_path), artifact_id="my-art"))
-            q.put(make_request_commit("my-art", on_commit=lambda: fut.set_result(None)))
+            q.put(make_request_commit("my-art", result_fut=fut))
 
             step_upload = make_step_upload(api=api, event_queue=q)
             step_upload.start()
@@ -670,7 +674,6 @@ class TestArtifactCommit:
 
             assert fut.done() and fut.exception() == exc
 
-        @pytest.mark.skip("TODO(spencerpearson): test reveals longstanding bug; fix it")
         def test_before_commit_hook_fails(self):
             api = make_api()
 
@@ -683,7 +686,7 @@ class TestArtifactCommit:
                 make_request_commit(
                     "my-art",
                     before_commit=Mock(side_effect=exc),
-                    on_commit=lambda: fut.set_result(None),
+                    result_fut=fut,
                 )
             )
 
@@ -694,7 +697,6 @@ class TestArtifactCommit:
 
             assert fut.done() and fut.exception() == exc
 
-        @pytest.mark.skip("TODO(spencerpearson): test reveals longstanding bug; fix it")
         def test_commit_fails(self):
             exc = Exception("commit failed")
             api = make_api(commit_artifact=Mock(side_effect=exc))
@@ -702,7 +704,7 @@ class TestArtifactCommit:
             fut = concurrent.futures.Future()
 
             q = queue.Queue()
-            q.put(make_request_commit("my-art", on_commit=lambda: fut.set_result(None)))
+            q.put(make_request_commit("my-art", result_fut=fut))
 
             step_upload = make_step_upload(api=api, event_queue=q)
             step_upload.start()
