@@ -234,7 +234,7 @@ class ExponentialBackoff(Backoff):
         max_retries: Optional[int] = None,
         timeout_at: Optional[datetime.datetime] = None,
     ) -> None:
-        self._next_sleep = initial_sleep
+        self._next_sleep = min(max_sleep, initial_sleep)
         self._max_sleep = max_sleep
         self._remaining_retries = max_retries
         self._timeout_at = timeout_at

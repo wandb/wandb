@@ -209,6 +209,15 @@ class TestExponentialBackoff:
 
         assert t0 + dt <= mock_time.now() <= t0 + 2 * dt
 
+    def test_respects_max_sleep_if_smaller_than_initial_sleep(
+        self, mock_time: MockTime
+    ):
+        max_sleep = 10 * SECOND
+        backoff = retry.ExponentialBackoff(
+            initial_sleep=2 * max_sleep, max_sleep=max_sleep
+        )
+        assert backoff.next_sleep_or_reraise(MyError()) == max_sleep
+
 
 class TestRetryAsync:
     def test_follows_backoff_schedule(self, mock_time: MockTime):
