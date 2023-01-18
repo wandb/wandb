@@ -5,7 +5,6 @@ import pytest
 import wandb
 from wandb.cli import cli
 from wandb.errors import LaunchError
-from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -68,11 +67,9 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
-                "--queues",
+                "--queue",
                 "nonexistent_queue",
             ],
         )
@@ -116,10 +113,10 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
+                "--queue",
+                "default",
             ],
         )
 
@@ -140,10 +137,10 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
+                "--queue",
+                "default",
             ],
         )
 
@@ -422,10 +419,10 @@ def test_launch_agent_launch_error_continue(
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
+                "--queue",
+                "default",
             ],
         )
         assert "blah blah" in result.output
