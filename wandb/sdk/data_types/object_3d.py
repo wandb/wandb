@@ -198,10 +198,12 @@ class Object3D(BatchableMedia):
 
             if len(np_data.shape) != 2 or np_data.shape[1] not in {3, 4, 6}:
                 raise ValueError(
-                    """The shape of the numpy array must be one of either
+                    """
+                    The shape of the numpy array must be one of either
                                     [[x y z],       ...] nx3
                                      [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                                     [x y z r g b], ...] nx4 where is rgb is color"""
+                                     [x y z r g b], ...] nx4 where rgb is color
+                    """
                 )
 
             list_data = np_data.tolist()
@@ -232,18 +234,46 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":
+        """
+        Initializes Object3D from a numpy array.
+
+        Arguments:
+            data: (numpy array): Each entry in the array will
+                represent one point in the point cloud.
+
+
+        The shape of the numpy array must be one of either:
+        ```
+        [[x y z],       ...] nx3
+        [[x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+        [[x y z r g b], ...] nx4 where is rgb is color
+        """
         if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
 
         if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
             raise ValueError(
-                """The shape of the numpy array must be one of either
+                """
+                The shape of the numpy array must be one of either
                                 [[x y z],       ...] nx3
                                  [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                                 [x y z r g b], ...] nx4 where is rgb is color"""
+                                 [x y z r g b], ...] nx4 where rgb is color
+                """
             )
 
         return cls(data)
+
+    """
+    Initializes Object3D from a python object.
+
+    Arguments:
+        points (Sequence["Point"]): The points in the point cloud.
+        boxes (Sequence["Box3D"]): 3D bounding boxes intended to allow labeling parts of the point cloud. These 
+            will be displayed in the point cloud visualization.
+        vectors (Optional[Sequence["Vector3D"]]): Each vector will be displayed in the point cloud 
+            visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
+        point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
+    """
 
     @classmethod
     def from_point_cloud(
