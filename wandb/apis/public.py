@@ -4322,8 +4322,10 @@ class Artifact(artifacts.Artifact):
             if response["artifact"]["artifactType"] is not None:
                 at = response["artifact"]["artifactType"]
                 p = at.get("project")
-                project = p["name"]
-                entity = p["entity"]["name"]
+                if p is not None:
+                    project = p["name"]
+                if p.get("entity") is not None:
+                    entity = p.get("entity")["name"]
 
             artifact = cls(
                 client=client,
