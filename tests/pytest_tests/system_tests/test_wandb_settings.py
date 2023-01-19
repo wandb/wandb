@@ -181,13 +181,12 @@ def test_silent_run(wandb_init, test_settings):
     assert run._settings.silent is True
     run.finish()
 
-
+@pytest.mark.skip(reason="causes other tests that depend on capsys to fail")
 def test_silent_env_run(wandb_init):
     with mock.patch.dict("os.environ", WANDB_SILENT="true"):
         run = wandb_init()
         assert run._settings.silent is True
         run.finish()
-
 
 def test_strict_run(wandb_init, test_settings):
     test_settings = test_settings()
