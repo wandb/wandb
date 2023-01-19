@@ -16,6 +16,7 @@ import wandb
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_init import init as real_wandb_init
 from wandb.viz import custom_chart
+import io
 
 
 @pytest.fixture
