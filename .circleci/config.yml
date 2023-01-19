@@ -293,7 +293,7 @@ jobs:
         default: 6
       test_path:
         type: string
-        default: tests/unit_tests
+        default: tests/pytest_tests/system_tests
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -414,10 +414,10 @@ jobs:
         default: 3
       machine_executor:
         type: string
-        default: "default"  # "default" or "server-2019-cuda"
+        default: "default" # "default" or "server-2019-cuda"
       executor_size:
         type: string
-        default: "large"  # could only be "medium" for "server-2019-cuda"
+        default: "large" # could only be "medium" for "server-2019-cuda"
       execute:
         type: boolean
         default: true
@@ -442,7 +442,7 @@ jobs:
                   cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
             - when:
                 condition:
-                  equal: [ "server-2019-cuda", << parameters.machine_executor >> ]
+                  equal: ["server-2019-cuda", << parameters.machine_executor >>]
                 steps:
                   - run:
                       name: Update tox.ini on a GPU machine to install the proper pytorch version
@@ -1063,8 +1063,8 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8 ]
+              python_version_major: [3]
+              python_version_minor: [7, 8]
               shard:
                 - "imports1"
                 - "imports2"
@@ -1089,8 +1089,8 @@ workflows:
       - protobuf-compatability:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10 ]
+              python_version_major: [3]
+              python_version_minor: [7, 8, 9, 10]
           name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
       # standalone GPU tests on Windows
@@ -1100,8 +1100,8 @@ workflows:
           executor_size: "medium"
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 2
@@ -1207,7 +1207,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [6, 7, 8, 9, 10]
-          name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "system-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1338,7 +1338,6 @@ workflows:
       - pex:
           name: "pex"
 
-
   # todo: needs love
   #  manual_test:
   #    when: << pipeline.parameters.manual_test >>
@@ -1387,8 +1386,8 @@ workflows:
           execute: << pipeline.parameters.manual_nightly_execute_shard_imports >>
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8 ]
+              python_version_major: [3]
+              python_version_minor: [7, 8]
               shard:
                 - "imports1"
                 - "imports2"
@@ -1413,8 +1412,8 @@ workflows:
       - protobuf-compatability:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10 ]
+              python_version_major: [3]
+              python_version_minor: [7, 8, 9, 10]
           name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
       # standalone GPU tests on Windows
@@ -1425,8 +1424,8 @@ workflows:
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu_win >>
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 2
