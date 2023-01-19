@@ -285,7 +285,7 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 8
       toxenv:
         type: string
       notify_on_failure:
@@ -1349,10 +1349,6 @@ workflows:
           toxenv: "pylaunch,covercircle"
 
       - pytest:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [8]
           name: "launch-relay-server"
           toxenv: "pylaunch,covercircle"
           tox_args: "tests/pytest_tests/system_tests/tests_launch"
