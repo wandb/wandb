@@ -1384,11 +1384,7 @@ def create_app(user_ctx=None):
                                 "name": "mnist",
                                 "description": "",
                                 "createdAt": datetime.now().isoformat(),
-                                "aliases": {"edges": [{"node": {"alias": "latest"}}]}
-                                # "aliases": paginated(
-                                #     {"alias": "v%i" % ctx["page_count"]},
-                                #     ctx,
-                                # ),
+                                "aliases": {"edges": [{"node": {"alias": "latest"}}]},
                             }
                         }
                     }
