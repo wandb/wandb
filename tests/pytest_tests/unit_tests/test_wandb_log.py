@@ -25,7 +25,7 @@ def test_nice_log_error_config():
 def test_nice_log_error_summary():
     with pytest.raises(
         wandb.Error,
-        match=r'You must call wandb.init\(\) before wandb.summary\["great"\]',
+        match=r"You must call wandb.init\(\) before wandb.summary\['great'\]",
     ):
         wandb.summary["great"] = 1
     with pytest.raises(
