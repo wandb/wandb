@@ -238,7 +238,7 @@ jobs:
       execute:
         type: boolean
         default: true
-      test_path:
+      tox_args:
         type: string
         default: ""
     docker:
@@ -265,7 +265,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.test_path >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -424,6 +424,9 @@ jobs:
       execute:
         type: boolean
         default: true
+      tox_args:
+        type: string
+        default: ""
     executor:
       name: win/<< parameters.machine_executor >>
       size: << parameters.executor_size >>
@@ -462,7 +465,7 @@ jobs:
                   echo $GCLOUD_SERVICE_KEY > key.json
                   gcloud auth activate-service-account --key-file=key.json
                   yes | gcloud auth configure-docker
-                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
                 no_output_timeout: 10m
             - save-test-results
 
@@ -482,6 +485,9 @@ jobs:
       xdist:
         type: integer
         default: 3
+      tox_args:
+        type: string
+        default: ""
     macos:
       xcode: 13.4.1
     resource_class: large
@@ -497,7 +503,7 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -1085,7 +1091,7 @@ workflows:
                 - "imports12"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          test_path: "tests/functional_tests"
+          tox_args: "tests/functional_tests"
           context: slack-secrets
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
@@ -1110,6 +1116,7 @@ workflows:
               python_version_minor: [9]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 2
           xdist: 1
       #
@@ -1226,7 +1233,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          test_path: "tests/pytest_tests/unit_tests_old"
+          tox_args: "tests/pytest_tests/unit_tests_old"
       #
       # Unit tests with pytest on Linux
       #
@@ -1237,7 +1244,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          test_path: "tests/pytest_tests/unit_tests"
+          tox_args: "tests/pytest_tests/unit_tests"
       #
       # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
       #
@@ -1262,7 +1269,7 @@ workflows:
                 - "base"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
-          test_path: "tests/functional_tests"
+          tox_args: "tests/functional_tests"
 
           parallelism: 4
       #
@@ -1289,7 +1296,7 @@ workflows:
                 - "docs"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
-          test_path: "tests/functional_tests"
+          tox_args: "tests/functional_tests"
 
       #
       # Functional tests with yea on Windows
@@ -1301,6 +1308,7 @@ workflows:
               python_version_minor: [9]
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
       #
@@ -1312,7 +1320,9 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
+          tox_args: "tests/pytest_tests/unit_tests_old --timeout 300"
+
       - mac:
           matrix:
             parameters:
@@ -1320,7 +1330,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          test_path: "tests/pytest_tests/unit_tests_old"
+          tox_args: "tests/pytest_tests/unit_tests_old"
 
       #
       # wandb launch tests
@@ -1453,6 +1463,7 @@ workflows:
               python_version_minor: [9]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 2
           xdist: 1
       #
