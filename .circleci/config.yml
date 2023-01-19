@@ -1215,6 +1215,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "system-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
@@ -1226,7 +1227,6 @@ workflows:
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           test_path: "tests/pytest_tests/unit_tests_old"
-
       #
       # Unit tests with pytest on Linux
       #
@@ -1238,7 +1238,6 @@ workflows:
           name: "unit-s_base_lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           test_path: "tests/pytest_tests/unit_tests"
-
       #
       # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
       #
@@ -1302,7 +1301,6 @@ workflows:
               python_version_minor: [9]
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          test_path: "tests/functional_tests"
           parallelism: 6
           xdist: 1
       #
