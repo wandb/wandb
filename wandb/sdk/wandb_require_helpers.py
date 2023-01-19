@@ -9,6 +9,10 @@ requirement_env_var_mapping: Dict[str, str] = {
 }
 
 
+class RequirementsError(Exception):
+    pass
+
+
 def requires(requirement: str) -> FuncT:  # type: ignore
     """
     The decorator for gating features.
@@ -19,7 +23,7 @@ def requires(requirement: str) -> FuncT:  # type: ignore
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if not os.getenv(env_var):
-                raise Exception(
+                raise RequirementsError(
                     f"You need to enable this feature with `wandb.require({requirement!r})`"
                 )
             return func(*args, **kwargs)
@@ -47,6 +51,6 @@ class RequiresMixin:
     def _check_if_requirements_met(self) -> None:
         env_var = requirement_env_var_mapping[self.requirement]
         if not os.getenv(env_var):
-            raise Exception(
+            raise RequirementsError(
                 f'You must explicitly enable this feature with `wandb.require("{self.requirement})"'
             )

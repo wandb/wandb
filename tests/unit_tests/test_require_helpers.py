@@ -1,5 +1,5 @@
 import pytest
-from wandb.sdk.wandb_require_helpers import RequiresMixin, requires
+from wandb.sdk.wandb_require_helpers import RequirementsError, RequiresMixin, requires
 
 
 def test_requirements_mixin() -> None:
@@ -9,7 +9,7 @@ def test_requirements_mixin() -> None:
     class TestClass2:
         pass
 
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(RequirementsError):
         TestClass()
 
     assert TestClass2()
@@ -23,7 +23,7 @@ def test_requirements_decorator() -> None:
     def test_func2() -> None:
         return "pass"
 
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(RequirementsError):
         test_func()
 
     assert test_func2() == "pass"
