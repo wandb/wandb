@@ -54,7 +54,7 @@ import yaml
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -507,7 +507,7 @@ def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
             value = split[1]
             i += 1
         if name in user_dict:
-            wandb.termerror(f"Repeated parameter: '{name}'")
+            wandb.termerror(f"Repeated parameter: {name!r}")
             sys.exit(1)
         user_dict[name] = value
     return user_dict
@@ -863,6 +863,12 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
             launch_browser = False
 
     return launch_browser
+
+
+def generate_id(length: int = 8) -> str:
+    # Do not use this; use wandb.sdk.lib.runid.generate_id instead.
+    # This is kept only for legacy code.
+    return runid.generate_id(length)
 
 
 def parse_tfjob_config() -> Any:
@@ -1339,7 +1345,7 @@ def prompt_choices(
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
     result = choices[idx]
-    wandb.termlog(f"You chose '{result}'")
+    wandb.termlog(f"You chose {result!r}")
     return result
 
 
@@ -1678,7 +1684,7 @@ def _log_thread_stacks() -> None:
             f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
         )
         for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f'  File: "{filename}", line {lineno}, in {name}')
+            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
             if line:
                 logger.info(f"  Line: {line}")
 
@@ -1863,7 +1869,7 @@ def ensure_text(
     elif isinstance(string, str):
         return string
     else:
-        raise TypeError(f"not expecting type '{type(string)}'")
+        raise TypeError(f"not expecting type {type(string)!r}")
 
 
 def make_artifact_name_safe(name: str) -> str:

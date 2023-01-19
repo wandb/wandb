@@ -19,6 +19,7 @@ import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
 import wandb
+import wandb.env
 from wandb import trigger
 from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
@@ -632,6 +633,9 @@ class _WandbInit:
             if os.environ.get("PEX"):
                 tel.env.pex = True
 
+            if os.environ.get(wandb.env._DISABLE_SERVICE):
+                tel.feature.service_disabled = True
+
             if manager:
                 tel.feature.service = True
             if self.settings._flow_control_disabled:
@@ -765,7 +769,7 @@ class _WandbInit:
         # TODO: add progress to let user know we are doing something
         run_start_result = run_start_handle.wait(timeout=30)
         if run_start_result is None:
-            run_start_handle.release()
+            run_start_handle.abandon()
 
         self._wl._global_run_stack.append(run)
         self.run = run
