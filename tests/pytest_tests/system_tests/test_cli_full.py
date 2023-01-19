@@ -1,4 +1,3 @@
-import contextlib
 import netrc
 import os
 import traceback

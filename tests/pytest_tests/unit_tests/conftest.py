@@ -3,7 +3,6 @@ from typing import Callable, Dict, Generator, List
 
 import pytest
 
-
 # --------------------------------
 # Fixtures for user test point
 # --------------------------------

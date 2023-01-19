@@ -2,7 +2,6 @@ import copy
 import inspect
 import json
 import os
-import platform
 import subprocess
 import sys
 import tempfile
@@ -10,6 +9,7 @@ from unittest import mock
 
 import pytest
 import wandb
+from click.testing import CliRunner
 from wandb.errors import UsageError
 
 if sys.version_info >= (3, 8):

@@ -89,6 +89,7 @@ class ConsoleFormatter:
     RED = "\033[91m"
     END = "\033[0m"
 
+
 # --------------------------------
 # Fixtures for internal test point
 # --------------------------------

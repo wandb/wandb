@@ -3,7 +3,6 @@ disabled mode test.
 """
 
 import os
-import pickle
 from unittest import mock
 
 import pytest  # type: ignore

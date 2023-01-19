@@ -10,14 +10,15 @@ import git
 import pytest
 import wandb
 from click.testing import CliRunner
+from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.git import GitRepo
-from wandb import Api
 
 # --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
+
 
 @pytest.fixture(scope="session")
 def assets_path() -> Callable:
@@ -43,6 +44,7 @@ def copy_asset(assets_path) -> Callable:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
 
 @pytest.fixture
 def dummy_api_key():
@@ -72,6 +74,7 @@ def patch_prompt(monkeypatch):
 @pytest.fixture
 def runner(patch_apikey, patch_prompt):
     return CliRunner()
+
 
 # todo: this fixture should probably be autouse=True
 @pytest.fixture(scope="function", autouse=False)
@@ -119,6 +122,7 @@ def local_netrc(filesystem_isolate):
     # monkeypatch.setattr(os.path, "expanduser", expand)
     with unittest.mock.patch.object(os.path, "expanduser", expand):
         yield
+
 
 @pytest.fixture
 def git_repo(runner):

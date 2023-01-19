@@ -4,6 +4,7 @@ a live backend server.
 """
 import glob
 import inspect
+import io
 import os
 import tempfile
 import unittest.mock
@@ -16,7 +17,6 @@ import wandb
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_init import init as real_wandb_init
 from wandb.viz import custom_chart
-import io
 
 
 @pytest.fixture
