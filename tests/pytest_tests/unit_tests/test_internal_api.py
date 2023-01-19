@@ -232,7 +232,7 @@ class TestUploadFile:
             )
 
             progress_callback = Mock()
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 internal.InternalApi().upload_file(
                     "http://example.com/upload-dst",
                     some_file.open("rb"),

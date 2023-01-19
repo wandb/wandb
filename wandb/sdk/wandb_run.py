@@ -1159,7 +1159,7 @@ class Run:
                 )
         for v in kwargs:
             wandb.termwarn(
-                f"Label added for unsupported key '{v}' (ignored).",
+                f"Label added for unsupported key {v!r} (ignored).",
                 repeat=False,
             )
 
@@ -1233,7 +1233,7 @@ class Run:
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button()
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_mimebundle_(
         self, include: Optional[Any] = None, exclude: Optional[Any] = None
