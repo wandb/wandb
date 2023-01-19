@@ -240,6 +240,7 @@ jobs:
         default: true
       test_path:
         type: string
+        default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
