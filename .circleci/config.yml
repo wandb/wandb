@@ -294,9 +294,9 @@ jobs:
       xdist:
         type: integer
         default: 6
-      test_path:
+      tox_args:
         type: string
-        default: tests/pytest_tests/system_tests
+        default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -327,7 +327,7 @@ jobs:
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.test_path >>
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -1223,6 +1223,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/system_tests --ignore=tests/pytest_tests/system_tests/tests_launch"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
@@ -1354,7 +1355,7 @@ workflows:
               python_version_minor: [8]
           name: "launch-relay-server"
           toxenv: "pylaunch,covercircle"
-          test_path: "tests/pytest_tests/system_tests/tests_launch"
+          tox_args: "tests/pytest_tests/system_tests/tests_launch"
 
       #
       # sharded unit tests
