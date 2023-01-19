@@ -238,6 +238,8 @@ jobs:
       execute:
         type: boolean
         default: true
+      test_path:
+        type: string
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -1219,6 +1221,15 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [6, 7, 8, 9, 10]
+          name: "unit-s_base_lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          test_path: "tests/pytest_tests/unit_tests"
+
       #
       # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
       #
@@ -1229,7 +1240,7 @@ workflows:
               python_version_minor: [8]
           name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          test_path: "tests/unit_tests/tests_launch"
+          test_path: "tests/pytest_tests/system_tests/tests_launch"
 
       #
       # Functional tests with yea on Linux (base only)
