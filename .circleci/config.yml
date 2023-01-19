@@ -1296,7 +1296,7 @@ workflows:
               python_version_minor: [7]
               shard:
                 - "base"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
           tox_args: "tests/functional_tests"
 
@@ -1323,7 +1323,7 @@ workflows:
                 - "noml"
                 - "grpc"
                 - "docs"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
           tox_args: "tests/functional_tests"
 
@@ -1335,7 +1335,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-win-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
           parallelism: 6
@@ -1366,14 +1366,14 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [6]
-          name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-linux-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-win-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
@@ -1382,7 +1382,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-macos-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1

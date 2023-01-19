@@ -9,6 +9,8 @@ from typing import Any, Callable, Generator, Union
 import git
 import pytest
 import wandb
+import wandb.old.settings
+import wandb.util
 from click.testing import CliRunner
 from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -21,7 +23,7 @@ from wandb.sdk.lib.git import GitRepo
 
 
 @pytest.fixture(scope="session")
-def assets_path() -> Callable:
+def assets_path() -> Generator[Callable, None, None]:
     def assets_path_fn(path: Path) -> Path:
         return Path(__file__).resolve().parent / "assets" / path
 
@@ -29,7 +31,7 @@ def assets_path() -> Callable:
 
 
 @pytest.fixture
-def copy_asset(assets_path) -> Callable:
+def copy_asset(assets_path) -> Generator[Callable, None, None]:
     def copy_asset_fn(
         path: Union[str, Path], dst: Union[str, Path, None] = None
     ) -> Path:
@@ -44,6 +46,54 @@ def copy_asset(assets_path) -> Callable:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture(scope="function", autouse=True)
+def filesystem_isolate(tmp_path):
+    # Click>=8 implements temp_dir argument which depends on python>=3.7
+    kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    with CliRunner().isolated_filesystem(**kwargs):
+        yield
+
+
+# todo: this fixture should probably be autouse=True
+@pytest.fixture(scope="function", autouse=False)
+def local_settings(filesystem_isolate):
+    """Place global settings in an isolated dir"""
+    config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
+    filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
+
+    # todo: this breaks things in unexpected places
+    # todo: get rid of wandb.old
+    with unittest.mock.patch.object(
+        wandb.old.settings.Settings,
+        "_global_path",
+        return_value=config_path,
+    ):
+        yield
+
+
+@pytest.fixture(scope="function", autouse=True)
+def local_netrc(filesystem_isolate):
+    """Never use our real credentials, put them in their own isolated dir"""
+
+    original_expanduser = os.path.expanduser  # TODO: this seems overkill...
+
+    open(".netrc", "wb").close()  # Touch that netrc file
+
+    def expand(path):
+        if "netrc" in path:
+            try:
+                full_path = os.path.realpath("netrc")
+            except OSError:
+                full_path = original_expanduser(path)
+        else:
+            full_path = original_expanduser(path)
+        return full_path
+
+    # monkeypatch.setattr(os.path, "expanduser", expand)
+    with unittest.mock.patch.object(os.path, "expanduser", expand):
+        yield
 
 
 @pytest.fixture
@@ -74,54 +124,6 @@ def patch_prompt(monkeypatch):
 @pytest.fixture
 def runner(patch_apikey, patch_prompt):
     return CliRunner()
-
-
-# todo: this fixture should probably be autouse=True
-@pytest.fixture(scope="function", autouse=False)
-def local_settings(filesystem_isolate):
-    """Place global settings in an isolated dir"""
-    config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
-    filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
-
-    # todo: this breaks things in unexpected places
-    # todo: get rid of wandb.old
-    with unittest.mock.patch.object(
-        wandb.old.settings.Settings,
-        "_global_path",
-        return_value=config_path,
-    ):
-        yield
-
-
-@pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
-    with CliRunner().isolated_filesystem(**kwargs):
-        yield
-
-
-@pytest.fixture(scope="function", autouse=True)
-def local_netrc(filesystem_isolate):
-    """Never use our real credentials, put them in their own isolated dir"""
-
-    original_expanduser = os.path.expanduser  # TODO: this seems overkill...
-
-    open(".netrc", "wb").close()  # Touch that netrc file
-
-    def expand(path):
-        if "netrc" in path:
-            try:
-                full_path = os.path.realpath("netrc")
-            except OSError:
-                full_path = original_expanduser(path)
-        else:
-            full_path = original_expanduser(path)
-        return full_path
-
-    # monkeypatch.setattr(os.path, "expanduser", expand)
-    with unittest.mock.patch.object(os.path, "expanduser", expand):
-        yield
 
 
 @pytest.fixture
