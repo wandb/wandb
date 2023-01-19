@@ -9,11 +9,12 @@ import shutil
 import socket
 import string
 import subprocess
+import sys
 import threading
 import time
 import unittest.mock
 import urllib.parse
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Sequence
 from contextlib import contextmanager
 from copy import deepcopy
@@ -44,9 +45,12 @@ import wandb.util
 from click.testing import CliRunner
 from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.internal.writer import WriteManager
+from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 
@@ -56,6 +60,7 @@ except ImportError:
     from typing_extensions import Literal, TypedDict
 
 if TYPE_CHECKING:
+    from typing import Deque
 
     class RawRequestResponse(TypedDict):
         url: str
@@ -76,6 +81,12 @@ if TYPE_CHECKING:
         resolver: Callable[[Any], Optional[Dict[str, Any]]]
 
 
+# `local-testcontainer` ports
+LOCAL_BASE_PORT = "8080"
+SERVICES_API_PORT = "8083"
+FIXTURE_SERVICE_PORT = "9010"
+
+
 class ConsoleFormatter:
     BOLD = "\033[1m"
     CODE = "\033[2m"
@@ -93,7 +104,7 @@ class ConsoleFormatter:
 # --------------------------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def assets_path() -> Callable:
     def assets_path_fn(path: Path) -> Path:
         return Path(__file__).resolve().parent / "assets" / path
@@ -151,8 +162,10 @@ def clean_up():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate():
-    with CliRunner().isolated_filesystem():
+def filesystem_isolate(tmp_path):
+    # Click>=8 implements temp_dir argument which depends on python>=3.7
+    kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    with CliRunner().isolated_filesystem(**kwargs):
         yield
 
 
@@ -161,7 +174,7 @@ def filesystem_isolate():
 def local_settings(filesystem_isolate):
     """Place global settings in an isolated dir"""
     config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
-    wandb.util.mkdir_exists_ok(os.path.join(".config", "wandb"))
+    filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
 
     # todo: this breaks things in unexpected places
     # todo: get rid of wandb.old
@@ -223,7 +236,7 @@ def mocked_ipython(mocker):
 @pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem(), git.Repo.init(".") as repo:
-        wandb.util.mkdir_exists_ok("wandb")
+        filesystem.mkdir_exists_ok("wandb")
         # Because the forked process doesn't use my monkey patch above
         with open(os.path.join("wandb", "settings"), "w") as f:
             f.write("[default]\nproject: test")
@@ -403,7 +416,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             **{
-                "run_id": wandb.util.generate_id(),
+                "run_id": runid.generate_id(),
             },
             **kwargs_settings,
         }
@@ -476,11 +489,18 @@ def _internal_sender(
 
 
 @pytest.fixture()
+def _internal_context_keeper():
+    context_keeper = context.ContextKeeper()
+    yield context_keeper
+
+
+@pytest.fixture()
 def internal_sm(
     runner,
     internal_sender_q,
     internal_result_q,
     _internal_sender,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -489,6 +509,7 @@ def internal_sm(
                 record_q=internal_sender_q,
                 result_q=internal_result_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
             )
             return sm
 
@@ -506,10 +527,10 @@ def internal_hm(
     runner,
     internal_record_q,
     internal_result_q,
-    internal_sender_q,
     internal_writer_q,
     _internal_sender,
     stopped_event,
+    _internal_context_keeper,
 ):
     def helper(settings):
         with runner.isolated_filesystem():
@@ -518,11 +539,43 @@ def internal_hm(
                 record_q=internal_record_q,
                 result_q=internal_result_q,
                 stopped=stopped_event,
-                sender_q=internal_sender_q,
                 writer_q=internal_writer_q,
                 interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
             )
             return hm
+
+    yield helper
+
+
+@pytest.fixture()
+def internal_wm(
+    runner,
+    internal_writer_q,
+    internal_result_q,
+    internal_sender_q,
+    _internal_sender,
+    stopped_event,
+    _internal_context_keeper,
+):
+    def helper(settings):
+        with runner.isolated_filesystem():
+            wandb_file = settings.sync_file
+
+            # this is hacky, but we dont have a clean rundir always
+            # so lets at least make sure we can write to this dir
+            run_dir = Path(wandb_file).parent
+            os.makedirs(run_dir)
+
+            wm = WriteManager(
+                settings=SettingsStatic(settings.make_static()),
+                record_q=internal_writer_q,
+                result_q=internal_result_q,
+                sender_q=internal_sender_q,
+                interface=_internal_sender,
+                context_keeper=_internal_context_keeper,
+            )
+            return wm
 
     yield helper
 
@@ -569,6 +622,35 @@ def start_send_thread(
 
 
 @pytest.fixture()
+def start_write_thread(
+    internal_writer_q, internal_get_record, stopped_event, internal_process
+):
+    def start_write(write_manager):
+        def target():
+            try:
+                while True:
+                    payload = internal_get_record(
+                        input_q=internal_writer_q, timeout=0.1
+                    )
+                    if payload:
+                        write_manager.write(payload)
+                    elif stopped_event.is_set():
+                        break
+            except Exception:
+                stopped_event.set()
+                internal_process._alive = False
+
+        t = threading.Thread(target=target)
+        t.name = "testing-writer"
+        t.daemon = True
+        t.start()
+        return t
+
+    yield start_write
+    stopped_event.set()
+
+
+@pytest.fixture()
 def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
     def start_handle(handle_manager):
         def target():
@@ -593,20 +675,24 @@ def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
 def _start_backend(
     internal_hm,
     internal_sm,
+    internal_wm,
     _internal_sender,
     start_handle_thread,
+    start_write_thread,
     start_send_thread,
 ):
     def start_backend_func(run=None, initial_run=True, initial_start=True):
         ihm = internal_hm(run.settings)
+        iwm = internal_wm(run.settings)
         ism = internal_sm(run.settings)
         ht = start_handle_thread(ihm)
+        wt = start_write_thread(iwm)
         st = start_send_thread(ism)
         if initial_run:
             _run = _internal_sender.communicate_run(run)
             if initial_start:
                 _internal_sender.communicate_run_start(_run.run)
-        return ht, st
+        return ht, wt, st
 
     yield start_backend_func
 
@@ -700,7 +786,7 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--base-url",
-        default="http://localhost:8080",
+        default=f"http://localhost:{LOCAL_BASE_PORT}",
         help='cli to set "base-url"',
     )
     parser.addoption(
@@ -818,14 +904,14 @@ def check_server_up(
     :return:
     """
     app_health_endpoint = "healthz"
-    fixture_url = base_url.replace("8080", "9003")
+    fixture_url = base_url.replace(LOCAL_BASE_PORT, FIXTURE_SERVICE_PORT)
     fixture_health_endpoint = "health"
 
     if os.environ.get("CI") == "true":
         return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
 
     if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose ports 8080, 8083, and 9003
+        # start wandb server locally and expose ports 8080, 8083, and 9010
         command = [
             "docker",
             "run",
@@ -835,11 +921,11 @@ def check_server_up(
             "-v",
             "wandb:/vol",
             "-p",
-            "8080:8080",
+            f"{LOCAL_BASE_PORT}:{LOCAL_BASE_PORT}",
             "-p",
-            "8083:8083",
+            f"{SERVICES_API_PORT}:{SERVICES_API_PORT}",
             "-p",
-            "9003:9003",
+            f"{FIXTURE_SERVICE_PORT}:{FIXTURE_SERVICE_PORT}",
             "-e",
             "WANDB_ENABLE_TEST_CONTAINER=true",
             "--name",
@@ -869,7 +955,7 @@ class UserFixtureCommand:
     username: Optional[str] = None
     admin: bool = False
     endpoint: str = "db/user"
-    port: int = 9003
+    port: str = FIXTURE_SERVICE_PORT
     method: Literal["post"] = "post"
 
 
@@ -878,7 +964,7 @@ class AddAdminAndEnsureNoDefaultUser:
     email: str
     password: str
     endpoint: str = "api/users-admin"
-    port: int = 8083
+    port: str = SERVICES_API_PORT
     method: Literal["put"] = "put"
 
 
@@ -888,7 +974,7 @@ def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
         cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
     ) -> bool:
         endpoint = urllib.parse.urljoin(
-            base_url.replace("8080", str(cmd.port)),
+            base_url.replace(LOCAL_BASE_PORT, cmd.port),
             cmd.endpoint,
         )
 
@@ -1328,16 +1414,63 @@ class QueryResolver:
         return None
 
 
+class TokenizedCircularPattern:
+    APPLY_TOKEN = "1"
+    PASS_TOKEN = "0"
+    STOP_TOKEN = "2"
+
+    def __init__(self, pattern: str):
+        known_tokens = {self.APPLY_TOKEN, self.PASS_TOKEN, self.STOP_TOKEN}
+        if not pattern:
+            raise ValueError("Pattern cannot be empty")
+
+        if set(pattern) - known_tokens:
+            raise ValueError(f"Pattern can only contain {known_tokens}")
+        self.pattern: "Deque[str]" = deque(pattern)
+
+    def next(self):
+        if self.pattern[0] == self.STOP_TOKEN:
+            return
+        self.pattern.rotate(-1)
+
+    def should_apply(self) -> bool:
+        return self.pattern[0] == self.APPLY_TOKEN
+
+
 @dataclasses.dataclass
 class InjectedResponse:
     method: str
     url: str
     body: Union[str, Exception]
-    # json: Optional[Dict[str, Any]] = None
     status: int = 200
     content_type: str = "text/plain"
     # todo: add more fields for other types of responses?
-    counter: int = -1
+    custom_match_fn: Optional[Callable[..., bool]] = None
+    application_pattern: TokenizedCircularPattern = TokenizedCircularPattern("1")
+
+    # application_pattern defines the pattern of the response injection
+    # as the requests come in.
+    # 0 == do not inject the response
+    # 1 == inject the response
+    # 2 == stop using the response (END token)
+    #
+    # - when no END token is present, the pattern is repeated indefinitely
+    # - when END token is present, the pattern is applied until the END token is reached
+    # - to replicate the current behavior:
+    #  - use application_pattern = "1" if wanting to apply the pattern to all requests
+    #  - use application_pattern = "1" * COUNTER + "2" to apply the pattern to the first COUNTER requests
+    #
+    # Examples of application_pattern:
+    # 1. application_pattern = "1012"
+    #    - inject the response for the first request
+    #    - do not inject the response for the second request
+    #    - inject the response for the third request
+    #    - stop using the response starting from the fourth request onwards
+    # 2. application_pattern = "110"
+    #    repeat the following pattern indefinitely:
+    #    - inject the response for the first request
+    #    - inject the response for the second request
+    #    - stop using the response for the third request
 
     def __eq__(
         self,
@@ -1354,16 +1487,20 @@ class InjectedResponse:
             other, (InjectedResponse, requests.Request, requests.PreparedRequest)
         ):
             return False
-        if self.counter == 0:
-            return False
-        # todo: add more fields for other types of responses?
-        return self.method == other.method and self.url == other.url
+
+        # always check the method and url
+        ret = self.method == other.method and self.url == other.url
+        # use custom_match_fn to check, e.g. the request body content
+        if self.custom_match_fn is not None:
+            ret = ret and self.custom_match_fn(self, other)
+        return ret
 
     def to_dict(self):
+        excluded_fields = {"application_pattern", "custom_match_fn"}
         return {
             k: self.__getattribute__(k)
             for k in self.__dict__
-            if (not k.startswith("_") and k != "counter")
+            if (not k.startswith("_") and k not in excluded_fields)
         }
 
 
@@ -1411,6 +1548,7 @@ class RelayServer:
 
         # recursively merge-able object to store state
         self.resolver = QueryResolver()
+        # todo: add an option to add custom resolvers
         self.context = Context()
 
         # injected responses
@@ -1457,7 +1595,7 @@ class RelayServer:
         # replace the relay url with the real backend url (self.base_url)
         url = (
             urllib.parse.urlparse(request.url)
-            ._replace(netloc=self.base_url.netloc)
+            ._replace(netloc=self.base_url.netloc, scheme=self.base_url.scheme)
             .geturl()
         )
         headers = {key: value for (key, value) in request.headers if key != "Host"}
@@ -1470,16 +1608,19 @@ class RelayServer:
         ).prepare()
 
         for injected_response in self.inject:
+            # where are we in the application pattern?
+            should_apply = injected_response.application_pattern.should_apply()
             # check if an injected response matches the request
             if injected_response == prepared_relayed_request:
-                with responses.RequestsMock() as mocked_responses:
-                    # do the actual injection
-                    mocked_responses.add(**injected_response.to_dict())
-                    # ensure we don't apply this more times than requested
-                    injected_response.counter -= 1
-                    relayed_response = self.session.send(prepared_relayed_request)
+                # rotate the injection pattern
+                injected_response.application_pattern.next()
+                if should_apply:
+                    with responses.RequestsMock() as mocked_responses:
+                        # do the actual injection
+                        mocked_responses.add(**injected_response.to_dict())
+                        relayed_response = self.session.send(prepared_relayed_request)
 
-                    return relayed_response
+                        return relayed_response
 
         # normal case: no injected response matches the request
         relayed_response = self.session.send(prepared_relayed_request)
@@ -1706,7 +1847,7 @@ def inject_file_stream_response(base_url, user):
         run,
         body: Union[str, Exception] = "{}",
         status: int = 200,
-        counter: int = -1,
+        application_pattern: str = "1",
     ) -> InjectedResponse:
 
         if status > 299:
@@ -1722,7 +1863,7 @@ def inject_file_stream_response(base_url, user):
             ),
             body=body,
             status=status,
-            counter=counter,
+            application_pattern=TokenizedCircularPattern(application_pattern),
         )
 
     yield helper

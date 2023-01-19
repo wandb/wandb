@@ -228,7 +228,7 @@ class Report(Base):
             if hidden:
                 style += "display:none;"
                 prefix = ipython.toggle_button("report")
-            return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+            return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
         except AttributeError:
             termlog("HTML repr will be available after you save the report!")
 

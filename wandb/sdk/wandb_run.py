@@ -12,7 +12,8 @@ import threading
 import time
 import traceback
 from collections.abc import Mapping
-from datetime import timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import IntEnum
 from types import TracebackType
 from typing import (
@@ -38,9 +39,11 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
+from wandb.errors import MailboxError
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
+    Result,
     RunRecord,
     ServerInfoResponse,
 )
@@ -77,10 +80,10 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
+from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
@@ -104,7 +107,7 @@ if TYPE_CHECKING:
     )
 
     from .data_types.base_types.wb_value import WBValue
-    from .interface.artifacts import ArtifactEntry, ArtifactManifest
+    from .interface.artifacts import ArtifactManifest, ArtifactManifestEntry
     from .interface.interface import FilesDict, PolicyName
     from .lib.printer import PrinterJupyter, PrinterTerm
     from .wandb_alerts import AlertLevel
@@ -151,8 +154,15 @@ class TeardownHook(NamedTuple):
 class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
-    For now, we just use this to figure out if the user has requested a stop.
+    - check if the user has requested a stop.
+    - check the network status.
+    - check the run sync status.
     """
+
+    _stop_status_lock: threading.Lock
+    _stop_status_handle: Optional[MailboxHandle]
+    _network_status_lock: threading.Lock
+    _network_status_handle: Optional[MailboxHandle]
 
     def __init__(
         self,
@@ -166,53 +176,121 @@ class RunStatusChecker:
 
         self._join_event = threading.Event()
 
-        self._stop_thread = threading.Thread(target=self.check_status)
-        self._stop_thread.name = "ChkStopThr"
-        self._stop_thread.daemon = True
-        self._stop_thread.start()
+        self._stop_status_lock = threading.Lock()
+        self._stop_status_handle = None
+        self._stop_thread = threading.Thread(
+            target=self.check_stop_status,
+            name="ChkStopThr",
+            daemon=True,
+        )
 
-        self._retry_thread = threading.Thread(target=self.check_network_status)
-        self._retry_thread.name = "NetStatThr"
-        self._retry_thread.daemon = True
-        self._retry_thread.start()
+        self._network_status_lock = threading.Lock()
+        self._network_status_handle = None
+        self._network_status_thread = threading.Thread(
+            target=self.check_network_status,
+            name="NetStatThr",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._stop_thread.start()
+        self._network_status_thread.start()
+
+    def _loop_check_status(
+        self,
+        *,
+        lock: threading.Lock,
+        set_handle: Any,
+        timeout: int,
+        request: Any,
+        process: Any,
+    ) -> None:
+        local_handle: Optional[MailboxHandle] = None
+        join_requested = False
+        while not join_requested:
+            time_probe = time.monotonic()
+            if not local_handle:
+                local_handle = request()
+            assert local_handle
+
+            with lock:
+                if self._join_event.is_set():
+                    return
+                set_handle(local_handle)
+            try:
+                result = local_handle.wait(timeout=timeout)
+            except MailboxError:
+                # background threads are oportunistically getting results
+                # from the internal process but the internal process could
+                # be shutdown at any time.  In this case assume that the
+                # thread should exit silently.   This is possible
+                # because we do not have an atexit handler for the user
+                # process which quiesces active threads.
+                break
+            with lock:
+                set_handle(None)
+
+            if result:
+                process(result)
+
+            time_elapsed = time.monotonic() - time_probe
+            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
+            join_requested = self._join_event.wait(timeout=wait_time)
 
     def check_network_status(self) -> None:
-        join_requested = False
-        while not join_requested:
-            status_response = self._interface.communicate_network_status()
-            if status_response and status_response.network_responses:
-                for hr in status_response.network_responses:
-                    if (
-                        hr.http_status_code == 200 or hr.http_status_code == 0
-                    ):  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog(f"{hr.http_response_text}")
-                    else:
-                        wandb.termlog(
-                            "{} encountered ({}), retrying request".format(
-                                hr.http_status_code, hr.http_response_text.rstrip()
-                            )
+        def _process_network_status(result: Result) -> None:
+            network_status = result.response.network_status_response
+            for hr in network_status.network_responses:
+                if (
+                    hr.http_status_code == 200 or hr.http_status_code == 0
+                ):  # we use 0 for non-http errors (eg wandb errors)
+                    wandb.termlog(f"{hr.http_response_text}")
+                else:
+                    wandb.termlog(
+                        "{} encountered ({}), retrying request".format(
+                            hr.http_status_code, hr.http_response_text.rstrip()
                         )
-            join_requested = self._join_event.wait(self._retry_polling_interval)
+                    )
 
-    def check_status(self) -> None:
-        join_requested = False
-        while not join_requested:
-            status_response = self._interface.communicate_stop_status()
-            if status_response and status_response.run_should_stop:
+        self._loop_check_status(
+            lock=self._network_status_lock,
+            set_handle=lambda x: setattr(self, "_network_status_handle", x),
+            timeout=self._retry_polling_interval,
+            request=self._interface.deliver_network_status,
+            process=_process_network_status,
+        )
+
+    def check_stop_status(self) -> None:
+        def _process_stop_status(result: Result) -> None:
+            stop_status = result.response.stop_status_response
+            if stop_status.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-            join_requested = self._join_event.wait(self._stop_polling_interval)
+
+        self._loop_check_status(
+            lock=self._stop_status_lock,
+            set_handle=lambda x: setattr(self, "_stop_status_handle", x),
+            timeout=self._stop_polling_interval,
+            request=self._interface.deliver_stop_status,
+            process=_process_stop_status,
+        )
 
     def stop(self) -> None:
         self._join_event.set()
+        with self._stop_status_lock:
+            if self._stop_status_handle:
+                self._stop_status_handle.abandon()
+        with self._network_status_lock:
+            if self._network_status_handle:
+                self._network_status_handle.abandon()
 
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
-        self._retry_thread.join()
+        self._network_status_thread.join()
 
 
 class _run_decorator:  # noqa: N801
@@ -292,6 +370,13 @@ class _run_decorator:  # noqa: N801
             return func(self, *args, **kwargs)
 
         return wrapper
+
+
+@dataclass
+class RunStatus:
+    sync_items_total: int = field(default=0)
+    sync_items_pending: int = field(default=0)
+    sync_time: Optional[datetime] = field(default=None)
 
 
 class Run:
@@ -489,7 +574,6 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
-        self._code_artifact_info: Optional[Dict[str, str]] = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -766,7 +850,8 @@ class Run:
             tel.feature.set_run_name = True
         self._name = name
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property
     @_run_decorator._attach
@@ -786,7 +871,8 @@ class Run:
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property
     @_run_decorator._attach
@@ -805,7 +891,8 @@ class Run:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+            run = self._backend.interface._make_run(self)
+            self._backend.interface.publish_run(run)
 
     @property
     @_run_decorator._attach
@@ -994,7 +1081,6 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        self._code_artifact_info = {"name": name, "client_id": art._client_id}
 
         return self._log_artifact(art)
 
@@ -1073,7 +1159,7 @@ class Run:
                 )
         for v in kwargs:
             wandb.termwarn(
-                f"Label added for unsupported key '{v}' (ignored).",
+                f"Label added for unsupported key {v!r} (ignored).",
                 repeat=False,
             )
 
@@ -1147,7 +1233,7 @@ class Run:
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button()
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_mimebundle_(
         self, include: Optional[Any] = None, exclude: Optional[Any] = None
@@ -1341,6 +1427,11 @@ class Run:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
         self._step = self._get_starting_step()
+
+        # update settings from run_obj
+        self._settings._apply_run_start(message_to_dict(self._run_obj))
+        self._update_settings(self._settings)
+
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             process_context="user",
@@ -1688,7 +1779,7 @@ class Run:
             file_name = os.path.relpath(path, base_path)
             abs_path = os.path.abspath(path)
             wandb_path = os.path.join(self._settings.files_dir, file_name)
-            wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
+            filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
             if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
                 os.remove(wandb_path)
@@ -1783,6 +1874,30 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
+    @_run_decorator._attach
+    def status(
+        self,
+    ) -> RunStatus:
+        """Get sync info from the internal backend, about the current run's sync status."""
+        if not self._backend or not self._backend.interface:
+            return RunStatus()
+
+        handle_run_status = self._backend.interface.deliver_request_run_status()
+        result = handle_run_status.wait(timeout=-1)
+        assert result
+        sync_data = result.response.run_status_response
+
+        sync_time = None
+        if sync_data.sync_time.seconds:
+            sync_time = datetime.fromtimestamp(
+                sync_data.sync_time.seconds + sync_data.sync_time.nanos / 1e9
+            )
+        return RunStatus(
+            sync_items_total=sync_data.sync_items_total,
+            sync_items_pending=sync_data.sync_items_pending,
+            sync_time=sync_time,
+        )
+
     @staticmethod
     def plot_table(
         vega_spec_name: str,
@@ -1851,7 +1966,7 @@ class Run:
             output_log_path = os.path.join(
                 self._settings.files_dir, filenames.OUTPUT_FNAME
             )
-            # output writer might have been setup, see wrap_fallback case
+            # output writer might have been set up, see wrap_fallback case
             if not self._output_writer:
                 self._output_writer = filesystem.CRDedupedFile(
                     open(output_log_path, "wb")
@@ -2007,7 +2122,7 @@ class Run:
             self._check_version = self._backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
-        logger.info(f"got version response {self._check_version}")
+            logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -2023,9 +2138,11 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
-            self._run_status_checker = RunStatusChecker(self._backend.interface)
+            self._run_status_checker = RunStatusChecker(
+                interface=self._backend.interface,
+            )
+            self._run_status_checker.start()
 
         self._console_start()
         self._on_ready()
@@ -2085,39 +2202,6 @@ class Run:
 
         return installed_packages_list, input_types, output_types
 
-    def _log_job(self) -> None:
-        # don't produce a job if the run is sourced from a job
-        if (
-            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
-            is not None
-        ):
-            return
-
-        artifact = None
-        (
-            installed_packages_list,
-            input_types,
-            output_types,
-        ) = self._make_job_source_reqs()
-
-        for job_creation_function in [
-            self._create_repo_job,
-            self._create_artifact_job,
-            self._create_image_job,
-        ]:
-            artifact = job_creation_function(  # type: ignore
-                input_types, output_types, installed_packages_list
-            )
-
-            if artifact:
-                self.use_artifact(artifact)
-                logger.info(f"Created job using {job_creation_function.__name__}")
-                break
-            else:
-                logger.info(
-                    f"Failed to create job using {job_creation_function.__name__}"
-                )
-
     def _construct_job_artifact(
         self,
         name: str,
@@ -2135,89 +2219,13 @@ class Run:
 
         return job_artifact
 
-    def _create_repo_job(
-        self,
-        input_types: Dict[str, Any],
-        output_types: Dict[str, Any],
-        installed_packages_list: List[str],
-    ) -> Optional["Artifact"]:
-        """Create a job version artifact from a repo."""
-        has_repo = self._remote_url is not None and self._commit is not None
-        program_relpath = self._settings.program_relpath
-        if not has_repo or program_relpath is None:
-            return None
-        assert self._remote_url is not None
-        assert self._commit is not None
-        name = wandb.util.make_artifact_name_safe(
-            f"job-{self._remote_url}_{program_relpath}"
-        )
-        patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
-
-        source_info: JobSourceDict = {
-            "_version": "v0",
-            "source_type": "repo",
-            "source": {
-                "git": {
-                    "remote": self._remote_url,
-                    "commit": self._commit,
-                },
-                "entrypoint": [
-                    sys.executable.split("/")[-1],
-                    program_relpath,
-                ],
-                "args": self._settings._args,
-            },
-            "input_types": input_types,
-            "output_types": output_types,
-            "runtime": self._settings._python,
-        }
-
-        job_artifact = self._construct_job_artifact(
-            name, source_info, installed_packages_list, patch_path
-        )
-        return job_artifact
-
-    def _create_artifact_job(
-        self,
-        input_types: Dict[str, Any],
-        output_types: Dict[str, Any],
-        installed_packages_list: List[str],
-    ) -> Optional["Artifact"]:
-        if (
-            self._code_artifact_info is None
-            or self._run_obj is None
-            or self._settings.program_relpath is None
-        ):
-            return None
-        artifact_client_id = self._code_artifact_info.get("client_id")
-        name = f"job-{self._code_artifact_info['name']}"
-
-        source_info: JobSourceDict = {
-            "_version": "v0",
-            "source_type": "artifact",
-            "source": {
-                "artifact": f"wandb-artifact://_id/{artifact_client_id}",
-                "entrypoint": [
-                    sys.executable.split("/")[-1],
-                    self._settings.program_relpath,
-                ],
-                "args": self._settings._args,
-            },
-            "input_types": input_types,
-            "output_types": output_types,
-            "runtime": self._settings._python,
-        }
-        job_artifact = self._construct_job_artifact(
-            name, source_info, installed_packages_list
-        )
-        return job_artifact
-
     def _create_image_job(
         self,
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
         docker_image_name: Optional[str] = None,
+        args: Optional[List[str]] = None,
     ) -> Optional["Artifact"]:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
@@ -2225,11 +2233,11 @@ class Run:
             return None
 
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
-
+        s_args: Sequence[str] = args if args is not None else self._settings._args
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "source": {"image": docker_image_name, "args": self._settings._args},
+            "source": {"image": docker_image_name, "args": s_args},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
@@ -2240,10 +2248,16 @@ class Run:
 
         return job_artifact
 
-    def _log_job_artifact_with_image(self, docker_image_name: str) -> Artifact:
+    def _log_job_artifact_with_image(
+        self, docker_image_name: str, args: Optional[List[str]] = None
+    ) -> Artifact:
         packages, in_types, out_types = self._make_job_source_reqs()
         job_artifact = self._create_image_job(
-            in_types, out_types, packages, docker_image_name
+            in_types,
+            out_types,
+            packages,
+            args=args,
+            docker_image_name=docker_image_name,
         )
 
         artifact = self.log_artifact(job_artifact)
@@ -2278,11 +2292,8 @@ class Run:
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
-        if self._run_status_checker:
+        if self._run_status_checker is not None:
             self._run_status_checker.stop()
-
-        if not self._settings._offline and self._settings.enable_job_creation:
-            self._log_job()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
@@ -2304,7 +2315,7 @@ class Run:
             self._backend.interface.deliver_request_sampled_history()
         )
 
-        # wait for them, its ok to do this serially but this can be improved
+        # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
         self._poll_exit_response = result.response.poll_exit_response
@@ -2628,7 +2639,6 @@ class Run:
                 artifact.id,
                 use_as=use_as or artifact_or_name,
             )
-            return artifact
         else:
             artifact = artifact_or_name
             if aliases is None:
@@ -2648,7 +2658,6 @@ class Run:
                 )
                 artifact.wait()
                 artifact._use_as = use_as or artifact.name
-                return artifact
             elif isinstance(artifact, public.Artifact):
                 if (
                     self._launch_artifact_mapping
@@ -2662,12 +2671,14 @@ class Run:
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
                 )
-                return artifact
             else:
                 raise ValueError(
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_use_artifact(artifact)
+        return artifact
 
     @_run_decorator._attach
     def log_artifact(
@@ -2897,7 +2908,8 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
+                    f"Artifact {artifact.name} already exists with type {expected_type}; "
+                    f"cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3042,7 +3054,10 @@ class Run:
             return
 
         # printer = printer or get_printer(settings._jupyter)
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        # TODO: add this to a higher verbosity level
+        printer.display(
+            f"Tracking run with wandb version {wandb.__version__}", off=False
+        )
 
     @staticmethod
     def _header_sync_info(
@@ -3084,6 +3099,8 @@ class Run:
 
         run_state_str = "Resuming run" if settings.resumed else "Syncing run"
         run_name = settings.run_name
+        if not run_name:
+            return
 
         # printer = printer or get_printer(settings._jupyter)
         if printer._html:
@@ -3101,34 +3118,37 @@ class Run:
                     project_line = f"to {project_html} ({doc_html})"
 
                     if sweep_url:
-                        sweep_line = (
-                            f"Sweep page:  {printer.link(sweep_url, sweep_url)}"
-                        )
+                        sweep_line = f"Sweep page: {printer.link(sweep_url, sweep_url)}"
 
                 printer.display(
-                    [f"{run_state_str} {run_line} {project_line}", sweep_line]
+                    [f"{run_state_str} {run_line} {project_line}", sweep_line],
                 )
 
         else:
-            printer.display(f"{run_state_str} {printer.name(run_name)}")
-            if not settings.quiet:
-                printer.display(
-                    f'{printer.emoji("star")} View project at {printer.link(project_url)}'
-                )
-                if sweep_url:
-                    printer.display(
-                        f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
-                    )
             printer.display(
-                f'{printer.emoji("rocket")} View run at {printer.link(run_url)}'
+                f"{run_state_str} {printer.name(run_name)}", off=not run_name
             )
 
-            # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-            if Api().api.settings().get("anonymous") == "true":
+        if not settings.quiet:
+            # TODO: add verbosity levels and add this to higher levels
+            printer.display(
+                f'{printer.emoji("star")} View project at {printer.link(project_url)}'
+            )
+            if sweep_url:
                 printer.display(
-                    "Do NOT share these links with anyone. They can be used to claim your runs.",
-                    level="warn",
+                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
+        printer.display(
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+        )
+
+        # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
+        if Api().api.settings().get("anonymous") == "true":
+            printer.display(
+                "Do NOT share these links with anyone. They can be used to claim your runs.",
+                level="warn",
+                off=not run_name,
+            )
 
     # ------------------------------------------------------------------------------
     # FOOTER
@@ -3357,10 +3377,9 @@ class Run:
             info = []
             if settings.run_name and settings.run_url:
                 info = [
-                    f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
                 ]
             if poll_exit_response and poll_exit_response.file_counts:
-
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
                 info.append(
@@ -3696,6 +3715,10 @@ class _LazyArtifact(ArtifactInterface):
         return self._assert_instance().id
 
     @property
+    def source_version(self) -> Optional[str]:
+        return self._assert_instance().source_version
+
+    @property
     def version(self) -> str:
         return self._assert_instance().version
 
@@ -3785,7 +3808,7 @@ class _LazyArtifact(ArtifactInterface):
 
     # def add_reference(
     #     self,
-    #     uri: Union["ArtifactEntry", str],
+    #     uri: Union["ArtifactManifestEntry", str],
     #     name: Optional[str] = None,
     #     checksum: bool = True,
     #     max_objects: Optional[int] = None,
@@ -3795,7 +3818,7 @@ class _LazyArtifact(ArtifactInterface):
     # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
     #     return self._assert_instance().add(obj, name)
 
-    def get_path(self, name: str) -> "ArtifactEntry":
+    def get_path(self, name: str) -> "ArtifactManifestEntry":
         return self._assert_instance().get_path(name)
 
     def get(self, name: str) -> "WBValue":

@@ -12,12 +12,14 @@ import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
+    LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -54,7 +56,7 @@ class LaunchAgent:
         self._ticks = 0
         self._running = 0
         self._cwd = os.getcwd()
-        self._namespace = wandb.util.generate_id()
+        self._namespace = runid.generate_id()
         self._access = _convert_access("project")
         max_jobs_from_config = int(config.get("max_jobs", 1))
         if max_jobs_from_config == -1:
@@ -98,9 +100,14 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        wandb.termlog(
-            f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
-        )
+        if self._project == LAUNCH_DEFAULT_PROJECT:
+            wandb.termlog(
+                f"{LOG_PREFIX}agent {self._name} polling on queues {','.join(self._queues)} for jobs"
+            )
+        else:
+            wandb.termlog(
+                f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
+            )
 
     def update_status(self, status: str) -> None:
         update_ret = self._api.update_launch_agent_status(

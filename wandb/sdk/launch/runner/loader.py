@@ -11,9 +11,7 @@ __logger__ = logging.getLogger(__name__)
 
 # Statically register backend defined in wandb
 WANDB_RUNNERS: List[str] = [
-    "local",
     "local-container",
-    "bare",
     "local-process",
     "gcp-vertex",
     "sagemaker",

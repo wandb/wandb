@@ -20,7 +20,7 @@ def requires(requirement: str) -> FuncT:  # type: ignore
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if not os.getenv(env_var):
                 raise Exception(
-                    f'You need to enable this feature with `wandb.require("{requirement}")`'
+                    f"You need to enable this feature with `wandb.require({requirement!r})`"
                 )
             return func(*args, **kwargs)
 
