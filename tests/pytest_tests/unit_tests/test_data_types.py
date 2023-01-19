@@ -299,6 +299,9 @@ def mock_reference_get_responses():
         yield rsps
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="Windows doesn't support symlinks"
+)
 def test_image_refs(mock_reference_get_responses):
     mock_reference_get_responses.add(
         method="GET",
