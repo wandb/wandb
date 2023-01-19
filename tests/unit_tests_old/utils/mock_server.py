@@ -1384,7 +1384,6 @@ def create_app(user_ctx=None):
                                 "name": "mnist",
                                 "description": "",
                                 "createdAt": datetime.now().isoformat(),
-                                "aliases": {"edges": [{"node": {"alias": "latest"}}]},
                             }
                         }
                     }
