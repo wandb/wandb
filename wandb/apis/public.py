@@ -4153,14 +4153,12 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             cache_path = manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
                 manifest.entries[self.name],
                 local=True,
             )
         else:
             cache_path = manifest.storage_policy.load_file(
-                self._parent_artifact, self.name, manifest.entries[self.name]
+                self._parent_artifact, manifest.entries[self.name]
             )
 
         return self.copy(cache_path, os.path.join(root, self.name))
@@ -4169,8 +4167,6 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             return manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
                 manifest.entries[self.name],
                 local=False,
             )

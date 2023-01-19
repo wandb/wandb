@@ -223,7 +223,6 @@ def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb.Artifact("test", type="dataset"),
         wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
@@ -247,7 +246,6 @@ def test_s3_storage_handler_load_path_uses_cache(cache):
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb.Artifact("test", type="dataset"),
         wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
@@ -265,7 +263,6 @@ def test_gcs_storage_handler_load_path_nonlocal():
 
     handler = wandb_sdk.wandb_artifacts.GCSHandler()
     local_path = handler.load_path(
-        wandb.Artifact("test", type="dataset"),
         wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
@@ -289,7 +286,6 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb.Artifact("test", type="dataset"),
         wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
@@ -318,10 +314,7 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     artifact.get_path = lambda _: artifact
     artifact.ref_target = lambda: uri
 
-    local_path = handler.load_path(
-        artifact,
-        manifest_entry,
-    )
+    local_path = handler.load_path(manifest_entry)
     assert local_path == uri
 
 
@@ -342,11 +335,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     artifact.get_path = lambda _: artifact
     artifact.download = lambda: path
 
-    local_path = handler.load_path(
-        artifact,
-        manifest_entry,
-        local=True,
-    )
+    local_path = handler.load_path(manifest_entry, local=True)
     assert local_path == path
 
 

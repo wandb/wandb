@@ -1062,7 +1062,6 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb.Artifact("test", type="dataset"),
         wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
@@ -1091,7 +1090,7 @@ def test_tracking_storage_handler():
     # representing the location of the file *within the artifact*
     # rather than *on the filesystem*.
     #
-    # assert handler.load_path(art, entry) == "/path/to/file.txt"
+    # assert handler.load_path(entry) == "/path/to/file.txt"
 
 
 def test_manifest_json_version():
