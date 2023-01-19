@@ -1,3 +1,0 @@
-"""nexus"""
-
-print("hello nexus")

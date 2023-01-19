@@ -12,6 +12,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from wandb.util import get_module
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
@@ -113,13 +114,12 @@ class _Service:
 
             service_args = []
             if self._settings._use_nexus:
+                wandb_nexus = get_module("wandb_nexus",
+                    required="""Please install wandb nexus package using: 'pip install "wandb[nexus]"'""")
+                nexus_path = wandb_nexus.get_nexus_path()
+                assert nexus_path.exists()
+                service_args += [ nexus_path ]
                 exec_cmd_list = []
-                os_type = platform.system().lower()
-                arch = platform.machine().lower()
-                base = pathlib.Path(sys.modules["wandb"].__path__[0])
-                path = (base / "bin" / f"bin-{os_type}-{arch}" / "wandb-nexus").resolve()
-                assert path.exists()
-                service_args += [ path ]
             else:
                 service_args += [ "wandb", "service", ]
 
