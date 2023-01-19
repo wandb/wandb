@@ -344,7 +344,7 @@ class Property:
         self.__dict__[key] = value
 
     def __str__(self) -> str:
-        return f"'{self.value}'" if isinstance(self.value, str) else f"{self.value}"
+        return f"{self.value!r}" if isinstance(self.value, str) else f"{self.value}"
 
     def __repr__(self) -> str:
         return (
@@ -749,7 +749,7 @@ class Settings:
     def _validate_mode(value: str) -> bool:
         choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled"}
         if value not in choices:
-            raise UsageError(f"Settings field `mode`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True
 
     @staticmethod
@@ -758,14 +758,14 @@ class Settings:
         if value is not None:
             if len(value) > 128:
                 raise UsageError(
-                    f'Invalid project name "{value}": exceeded 128 characters'
+                    f"Invalid project name {value!r}: exceeded 128 characters"
                 )
             invalid_chars = {char for char in invalid_chars_list if char in value}
             if invalid_chars:
                 raise UsageError(
-                    f'Invalid project name "{value}": '
-                    f"cannot contain characters \"{','.join(invalid_chars_list)}\", "
-                    f"found \"{','.join(invalid_chars)}\""
+                    f"Invalid project name {value!r}: "
+                    f"cannot contain characters {','.join(invalid_chars_list)!r}, "
+                    f"found {','.join(invalid_chars)!r}"
                 )
         return True
 
@@ -776,7 +776,7 @@ class Settings:
             available_methods += multiprocessing.get_all_start_methods()
         if value not in available_methods:
             raise UsageError(
-                f"Settings field `start_method`: '{value}' not in {available_methods}"
+                f"Settings field `start_method`: {value!r} not in {available_methods}"
             )
         return True
 
@@ -795,21 +795,21 @@ class Settings:
         if value not in choices:
             # do not advertise internal console states
             choices -= {"wrap_emu", "wrap_raw"}
-            raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `console`: {value!r} not in {choices}")
         return True
 
     @staticmethod
     def _validate_problem(value: str) -> bool:
         choices: Set[str] = {"fatal", "warn", "silent"}
         if value not in choices:
-            raise UsageError(f"Settings field `problem`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `problem`: {value!r} not in {choices}")
         return True
 
     @staticmethod
     def _validate_anonymous(value: str) -> bool:
         choices: Set[str] = {"allow", "must", "never", "false", "true"}
         if value not in choices:
-            raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `anonymous`: {value!r} not in {choices}")
         return True
 
     @staticmethod
