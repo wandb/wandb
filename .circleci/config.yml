@@ -238,6 +238,9 @@ jobs:
       execute:
         type: boolean
         default: true
+      test_path:
+        type: string
+        default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -262,7 +265,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.test_path >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -1082,6 +1085,7 @@ workflows:
                 - "imports12"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          test_path: "tests/functional_tests"
           context: slack-secrets
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
@@ -1221,6 +1225,8 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          test_path: "tests/pytest_tests/unit_tests_old"
+
       #
       # Unit tests with pytest on Linux
       #
@@ -1231,6 +1237,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          test_path: "tests/pytest_tests/unit_tests"
 
       #
       # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
@@ -1256,6 +1263,8 @@ workflows:
                 - "base"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          test_path: "tests/functional_tests"
+
           parallelism: 4
       #
       # Functional tests with yea on Linux
@@ -1281,6 +1290,8 @@ workflows:
                 - "docs"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          test_path: "tests/functional_tests"
+
       #
       # Functional tests with yea on Windows
       #
@@ -1291,6 +1302,7 @@ workflows:
               python_version_minor: [9]
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          test_path: "tests/functional_tests"
           parallelism: 6
           xdist: 1
       #
@@ -1310,6 +1322,8 @@ workflows:
               python_version_minor: [9]
           name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          test_path: "tests/pytest_tests/unit_tests_old"
+
       #
       # wandb launch tests
       #
