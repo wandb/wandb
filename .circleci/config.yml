@@ -278,7 +278,7 @@ jobs:
                 command: |
                   source ~/.bashrc
                   tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
-#            - save-test-results
+            #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
                 condition: << parameters.notify_on_failure >>
@@ -766,9 +766,9 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - gcloud/install
-#            - gcloud/install:
-#                version: "413.0.0"
-#                components: "docker-credential-gcr"
+            #            - gcloud/install:
+            #                version: "413.0.0"
+            #                components: "docker-credential-gcr"
             - setup_gcloud
             - setup_docker_buildx:
                 docker_layer_caching: false
@@ -1289,15 +1289,17 @@ workflows:
       - regression:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - yolov5
                 - huggingface
                 - keras
                 - tensorflow
                 # - pytorch
-                - wandb-sdk
+                - wandb-sdk-standalone
+                - wandb-sdk-examples
+                - wandb-sdk-wandb-examples
                 - s3
                 - sagemaker
           name: "regression-<<matrix.shard>>"
