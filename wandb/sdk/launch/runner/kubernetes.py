@@ -21,6 +21,7 @@ from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
+    make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -301,9 +302,9 @@ class KubernetesRunner(AbstractRunner):
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
         if not job_metadata.get("name"):
-            job_metadata[
-                "generateName"
-            ] = f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
+            job_metadata["generateName"] = make_name_dns_safe(
+                f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
+            )
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
