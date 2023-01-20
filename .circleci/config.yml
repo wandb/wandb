@@ -264,20 +264,16 @@ jobs:
                   echo 'eval "$(pyenv init -)"' >> ~/.bashrc
                   echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
                   source ~/.bashrc
-                  python -m pip install pyyaml six wandb shortuuid
                 no_output_timeout: 30m
             - run:
-                name: Clone wandb/wandb-testing repo
-                command: |
-                  cd /mnt/ramdisk
-                  git clone https://github.com/wandb/wandb-testing.git
-            - run:
-                name: Run tests
+                name: Clone wandb/wandb-testing repo and run tests
                 no_output_timeout: 240m
                 # TODO: remove the line with git checkout, it's WIP
                 command: |
                   source ~/.bashrc
-                  cd /mnt/ramdisk/wandb-testing/regression
+                  git clone https://github.com/wandb/wandb-testing.git
+                  python -m pip install pyyaml six wandb shortuuid
+                  cd wandb-testing/regression
                   git checkout update-py-v
                   << parameters.regression_command >>
 #            - save-test-results
