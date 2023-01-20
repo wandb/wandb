@@ -166,7 +166,7 @@ class Config:
             return self.__getitem__(key)
         except KeyError as ke:
             raise AttributeError(
-                f"'{self.__class__}' object has no attribute '{key}'"
+                f"{self.__class__!r} object has no attribute {key!r}"
             ) from ke
 
     def __contains__(self, key):
