@@ -39,8 +39,8 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
-from wandb.sdk.lib.json_util import json_dumps_safer
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.json_util import json_dumps_safer
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME

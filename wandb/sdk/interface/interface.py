@@ -368,11 +368,7 @@ class InterfaceBase:
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-<<<<<<< HEAD
             proto_artifact.metadata = json_dumps_safer(artifact.metadata)
-=======
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
->>>>>>> 1079a0413c246ef87d79b2294ce1245f91dc480f
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact

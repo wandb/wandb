@@ -3,8 +3,8 @@ import os
 from typing import TYPE_CHECKING, Type, Union
 
 from wandb import util
-from wandb.sdk.lib.json_util import json_dump_safer
 from wandb.sdk.lib import runid
+from wandb.sdk.lib.json_util import json_dump_safer
 
 from .._private import MEDIA_TMP
 from .media import Media
