@@ -240,7 +240,7 @@ jobs:
         default: true
       tox_args:
         type: string
-        default: "--cli_branch $CIRCLE_BRANCH"
+        default: "--cli_branch $CIRCLE_BRANCH --dry-run"
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
