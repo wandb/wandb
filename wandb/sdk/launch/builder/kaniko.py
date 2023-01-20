@@ -363,10 +363,6 @@ class KanikoBuilder(AbstractBuilder):
                 args=args,
                 volume_mounts=volume_mounts,
                 env=[env],
-                resources=client.V1ResourceRequirements(
-                    requests={"cpu": "1", "memory": "2Gi", "ephemeral-storage": "16Gi"},
-                    limits={"cpu": "2", "memory": "4Gi", "ephemeral-storage": "16Gi"},
-                ),
             )
         else:
             container = client.V1Container(
@@ -374,10 +370,6 @@ class KanikoBuilder(AbstractBuilder):
                 image="gcr.io/kaniko-project/executor:v1.8.0",
                 args=args,
                 volume_mounts=volume_mounts,
-                resources=client.V1ResourceRequirements(
-                    requests={"cpu": "1", "memory": "2Gi", "ephemeral-storage": "16Gi"},
-                    limits={"cpu": "2", "memory": "4Gi", "ephemeral-storage": "16Gi"},
-                ),
             )
         # Create and configure a spec section
         template = client.V1PodTemplateSpec(
