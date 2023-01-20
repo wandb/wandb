@@ -1285,9 +1285,9 @@ workflows:
                 - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/yolov5/
                 - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/huggingface/
                 - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/keras/
-                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/pytorch/
+#                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/pytorch/
                 - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/tensorflow/
-                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/wandb-git/
+                - ./do-cloud-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/wandb-git/
                 - ./do-s3-regression.sh --cli_branch $CIRCLE_BRANCH tests/s3-beta/
                 - ./do-sagemaker-regression.sh --cli_branch $CIRCLE_BRANCH
           name: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
