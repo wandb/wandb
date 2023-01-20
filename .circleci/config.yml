@@ -1300,7 +1300,7 @@ workflows:
                 - wandb-sdk
                 - s3
                 - sagemaker
-          name: "regression-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "regression-<<matrix.shard>>"
           toxenv: "regression-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           context:
             - slack-secrets
