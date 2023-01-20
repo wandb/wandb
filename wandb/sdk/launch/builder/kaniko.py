@@ -364,7 +364,7 @@ class KanikoBuilder(AbstractBuilder):
                 volume_mounts=volume_mounts,
                 env=[env],
                 resources=client.V1ResourceRequirements(
-                    requests={"cpu": "1", "memory": "2Gi", "ephemeral-storage": "8Gi"},
+                    requests={"cpu": "1", "memory": "2Gi", "ephemeral-storage": "16Gi"},
                     limits={"cpu": "2", "memory": "4Gi", "ephemeral-storage": "16Gi"},
                 ),
             )
@@ -375,7 +375,7 @@ class KanikoBuilder(AbstractBuilder):
                 args=args,
                 volume_mounts=volume_mounts,
                 resources=client.V1ResourceRequirements(
-                    requests={"cpu": "1", "memory": "2Gi", "ephemeral-storage": "8Gi"},
+                    requests={"cpu": "1", "memory": "2Gi", "ephemeral-storage": "16Gi"},
                     limits={"cpu": "2", "memory": "4Gi", "ephemeral-storage": "16Gi"},
                 ),
             )
