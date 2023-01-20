@@ -77,6 +77,29 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
         assert "Not all of requested queues (nonexistent_queue) found" in result.output
 
 
+def test_agent_queues_config(runner, test_settings, live_mock_server, monkeypatch):
+    monkeypatch.setattr(
+        wandb.sdk.launch.launch,
+        "LAUNCH_CONFIG_FILE",
+        os.path.join("./config/wandb/launch-config.yaml"),
+    )
+    launch_config = {"build": {"type": "docker"}, "queues": ["q1", "q2"]}
+
+    with runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+            json.dump(launch_config, f)
+        result = runner.invoke(
+            cli.launch_agent,
+            [
+                "--entity",
+                "mock_server_entity",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "Not all of requested queues (q1, q2) found" in result.output
+
+
 def test_agent_failed_default_create(runner, test_settings, live_mock_server):
     with runner.isolated_filesystem():
         live_mock_server.set_ctx({"successfully_create_default_queue": False})

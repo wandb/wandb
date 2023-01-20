@@ -1294,7 +1294,7 @@ def launch(
     "--queue",
     "-q",
     "queues",
-    default=[],
+    default=None,
     multiple=True,
     metavar="<queue(s)>",
     help="The name of a queue for the agent to watch. Multiple -q flags supported.",
