@@ -108,7 +108,7 @@ class SockServerReadThread(threading.Thread):
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(  # type: ignore
                 self, shandler_str, None
             )
-            assert shandler, f"unknown handle: {shandler_str}"
+            assert shandler, f"unknown handle: {shandler_str}"  # type: ignore
             shandler(sreq)
 
     def stop(self) -> None:
@@ -139,6 +139,7 @@ class SockServerReadThread(threading.Thread):
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
+        self._mux.start_stream(stream_id)
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach

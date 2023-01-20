@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.13.6.dev1"
+__version__ = "0.13.10.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -54,7 +54,7 @@ from wandb.errors import CommError, UsageError
 _preinit = wandb.wandb_lib.preinit
 _lazyloader = wandb.wandb_lib.lazyloader
 
-# Call import module hook to setup any needed require hooks
+# Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
 
 from wandb import wandb_torch
@@ -121,7 +121,7 @@ def _assert_is_user_process():
 # globals
 Api = PublicApi
 api = InternalApi()
-run: Optional["wandb.sdk.wandb_run.Run"] = None
+run: Optional["wandb_sdk.wandb_run.Run"] = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)

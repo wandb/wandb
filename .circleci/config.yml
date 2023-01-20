@@ -4,7 +4,8 @@ orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.10.1
   go: circleci/go@1.7.1
-  gke: circleci/gcp-gke@1.4.0
+  gcloud: circleci/gcp-cli@3.0.1
+  gke: circleci/gcp-gke@2.0.0
 
 parameters:
   manual:
@@ -54,7 +55,7 @@ parameters:
     default: "gcr.io"
   gcp_cluster_name:
     type: string
-    default: "gke-yea"
+    default: "sdk-nightly"
   manual_nightly:
     type: boolean
     default: false
@@ -125,9 +126,12 @@ commands:
         default: << pipeline.parameters.gcp_cluster_name >>
     steps:
       - run:
-          name: "Setup gcloud"
+          name: "Setup gcloud and kubectl"
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+            gcloud --quiet components update
+            gcloud --quiet components install gke-gcloud-auth-plugin
+            gcloud --quiet components install kubectl
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
@@ -204,7 +208,6 @@ commands:
       - run:
           name: "Get gke cluster credentials"
           command: |
-            gcloud components install gke-gcloud-auth-plugin
             gcloud container clusters get-credentials << parameters.cluster >>
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
@@ -235,6 +238,9 @@ jobs:
       execute:
         type: boolean
         default: true
+      tox_args:
+        type: string
+        default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -259,7 +265,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -279,7 +285,7 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 8
       toxenv:
         type: string
       notify_on_failure:
@@ -288,9 +294,9 @@ jobs:
       xdist:
         type: integer
         default: 6
-      test_path:
+      tox_args:
         type: string
-        default: tests/unit_tests
+        default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -321,7 +327,7 @@ jobs:
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.test_path >>
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -363,7 +369,34 @@ jobs:
           no_output_timeout: 5m
           command: |
             pex . -o wandb.pex
-            ./wandb.pex -c "import wandb; wandb.init(mode='offline'); wandb.finish()"
+            WANDB_EXECUTABLE=./wandb.pex ./wandb.pex -c "import wandb; import os; wandb.init(mode='offline'); wandb.finish()"
+      - save-test-results
+
+  protobuf-compatability:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Check protobuf version compatibility
+          command: |
+            pip install -U pip
+            pip install .
+            python tools/check-protobuf-version-compatibility.py
+          no_output_timeout: 5m
       - save-test-results
 
   win:
@@ -384,13 +417,16 @@ jobs:
         default: 3
       machine_executor:
         type: string
-        default: "default"  # "default" or "server-2019-cuda"
+        default: "default" # "default" or "server-2019-cuda"
       executor_size:
         type: string
-        default: "large"  # could only be "medium" for "server-2019-cuda"
+        default: "large" # could only be "medium" for "server-2019-cuda"
       execute:
         type: boolean
         default: true
+      tox_args:
+        type: string
+        default: ""
     executor:
       name: win/<< parameters.machine_executor >>
       size: << parameters.executor_size >>
@@ -412,7 +448,7 @@ jobs:
                   cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
             - when:
                 condition:
-                  equal: [ "server-2019-cuda", << parameters.machine_executor >> ]
+                  equal: ["server-2019-cuda", << parameters.machine_executor >>]
                 steps:
                   - run:
                       name: Update tox.ini on a GPU machine to install the proper pytorch version
@@ -429,7 +465,7 @@ jobs:
                   echo $GCLOUD_SERVICE_KEY > key.json
                   gcloud auth activate-service-account --key-file=key.json
                   yes | gcloud auth configure-docker
-                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
                 no_output_timeout: 10m
             - save-test-results
 
@@ -449,6 +485,9 @@ jobs:
       xdist:
         type: integer
         default: 3
+      tox_args:
+        type: string
+        default: ""
     macos:
       xcode: 13.4.1
     resource_class: large
@@ -464,7 +503,7 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -632,7 +671,7 @@ jobs:
         type: string
       python_version:
         type: string
-        default: "3.8"
+        default: "3.9"
       git_branch:
         type: string
         default: "main"
@@ -649,10 +688,10 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
+            #                version: "413.0.0"
+            #                components: "docker-credential-gcr"
+            - setup_gcloud
             - setup_docker_buildx:
                 docker_layer_caching: false
             - run:
@@ -665,7 +704,6 @@ jobs:
                     --build-arg GIT_BRANCH=<< parameters.git_branch >> \
                     --build-arg UTC_DATE=$(date -u +%Y%m%d) \
                     .
-            - setup_gcloud
             - run:
                 name: "Push << parameters.description >> to container registry"
                 command: |
@@ -707,15 +745,16 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
+      - setup_gcloud
       - create_gke_cluster:
+          cluster: << parameters.cluster >>
+      - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
       - run:
           name: "Install GPU drivers"
-          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+          command: |
+            kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
@@ -743,10 +782,7 @@ jobs:
     steps:
       - checkout
       - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
+      - gcloud/install
       - setup_gcloud
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
@@ -820,10 +856,7 @@ jobs:
           condition: << parameters.execute >>
           steps:
             - go/install
-            - gke/install
-            - run:
-                name: "Update gcloud components"
-                command: gcloud --quiet components update
+            - gcloud/install
             - setup_gcloud
             - get_gke_cluster_credentials:
                 cluster: << parameters.cluster >>
@@ -1041,8 +1074,8 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8 ]
+              python_version_major: [3]
+              python_version_minor: [7, 8]
               shard:
                 - "imports1"
                 - "imports2"
@@ -1058,9 +1091,19 @@ workflows:
                 - "imports12"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           context: slack-secrets
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
+      #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7, 8, 9, 10]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
       # standalone GPU tests on Windows
       #
@@ -1069,10 +1112,11 @@ workflows:
           executor_size: "medium"
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 2
           xdist: 1
       #
@@ -1087,7 +1131,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: true
           requires:
@@ -1168,16 +1212,18 @@ workflows:
           name: "code-check"
           python_version_minor: 8
           toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
+
       #
-      # Unit tests with pytest on Linux, using real wandb server
+      # System tests with pytest on Linux, using real wandb server
       #
       - pytest:
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [6, 7, 8, 9, 10]
-          name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/system_tests --ignore=tests/pytest_tests/system_tests/tests_launch"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
@@ -1186,19 +1232,59 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [6, 7, 8, 9, 10]
-          name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
       #
-      # Unit tests with pytest on Linux, using real wandb server -- for launch (unit_tests/tests_launch)
+      # Unit tests with pytest on Linux
       #
-      - pytest:
+      - tox-base:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [8]
-          name: "unit-s_base-lin-pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "pylaunch<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          test_path: "tests/unit_tests/tests_launch"
+              python_version_minor: [6, 7, 8, 9, 10]
+          name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/unit_tests"
+
+      #
+      # Unit tests with pytest on Windows and MacOS
+      #
+      - win:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
+          tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
+
+      - win:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
+          tox_args: "tests/pytest_tests/unit_tests --timeout 300"
+
+      - mac:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
+
+      - mac:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/unit_tests"
 
       #
       # Functional tests with yea on Linux (base only)
@@ -1210,8 +1296,10 @@ workflows:
               python_version_minor: [7]
               shard:
                 - "base"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          tox_args: "tests/functional_tests"
+
           parallelism: 4
       #
       # Functional tests with yea on Linux
@@ -1226,6 +1314,7 @@ workflows:
                 - "metaflow"
                 - "tf115"
                 - "tf21"
+                - "tf24"
                 - "tf25"
                 - "tf26"
                 - "ray112"
@@ -1234,8 +1323,10 @@ workflows:
                 - "noml"
                 - "grpc"
                 - "docs"
-          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          tox_args: "tests/functional_tests"
+
       #
       # Functional tests with yea on Windows
       #
@@ -1244,33 +1335,24 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "func-win-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
-      #
-      # Unit tests with pytest on Windows and MacOS, using real wandb server
-      #
-      - win:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
-      - mac:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+
       #
       # wandb launch tests
       #
       - launch:
-          name: "mach-launch"
+          name: "launch-mock-server"
           toxenv: "pylaunch,covercircle"
+
+      - pytest:
+          name: "launch-relay-server"
+          toxenv: "pylaunch,covercircle"
+          tox_args: "tests/pytest_tests/system_tests/tests_launch"
+
       #
       # sharded unit tests
       #
@@ -1280,14 +1362,14 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [6]
-          name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-linux-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-win-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
@@ -1296,7 +1378,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-macos-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
@@ -1354,8 +1436,8 @@ workflows:
           execute: << pipeline.parameters.manual_nightly_execute_shard_imports >>
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8 ]
+              python_version_major: [3]
+              python_version_minor: [7, 8]
               shard:
                 - "imports1"
                 - "imports2"
@@ -1375,6 +1457,15 @@ workflows:
           notify_on_failure: true
           notify_on_failure_channel: $SLACK_SDK_NIGHTLY_CI_GROWTH_CHANNEL
       #
+      # protobuf compatibility tests
+      #
+      - protobuf-compatability:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7, 8, 9, 10]
+          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1383,10 +1474,11 @@ workflows:
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu_win >>
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
           parallelism: 2
           xdist: 1
       #
@@ -1402,8 +1494,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              # todo: replace 3.11-rc with 3.11 when it's released on 2022-10-24
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11-rc"]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:

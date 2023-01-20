@@ -32,7 +32,12 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    check_logged_in,
+    construct_launch_spec,
+)
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
 
@@ -398,7 +403,7 @@ def init(ctx, project, entity, reset, mode):
     api.set_setting("project", project, persist=True)
     api.set_setting("base_url", api.settings().get("base_url"), persist=True)
 
-    util.mkdir_exists_ok(wandb_dir())
+    filesystem.mkdir_exists_ok(wandb_dir())
     with open(os.path.join(wandb_dir(), ".gitignore"), "w") as file:
         file.write("*\n!settings")
 
@@ -692,6 +697,16 @@ def sync(
     default=False,
     help="Resume a sweep to continue running new runs.",
 )
+@click.option(
+    "--queue",
+    default=None,
+    help="The name of a launch queue (configured with a resource), available in the current user or team.",
+)
+@click.option(
+    "--project-queue",
+    default=LAUNCH_DEFAULT_PROJECT,
+    help="Specify sweeps launch project",
+)
 @click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
@@ -704,12 +719,14 @@ def sweep(
     program,
     settings,
     update,
-    launch_config,
+    launch_config,  # TODO(gst): deprecate
     stop,
     cancel,
     pause,
     resume,
     config_yaml_or_sweep_id,
+    queue,
+    project_queue,
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -863,10 +880,15 @@ def sweep(
     )
 
     _launch_scheduler_spec = None
-    if launch_config is not None:
-        launch_config = util.load_json_yaml_dict(launch_config)
-        if launch_config is None:
-            raise LaunchError(f"Invalid format for launch config at {launch_config}")
+    if launch_config is not None or queue:
+        if launch_config:
+            launch_config = util.load_json_yaml_dict(launch_config)
+            if launch_config is None:
+                raise LaunchError(
+                    f"Invalid format for launch config at {launch_config}"
+                )
+        else:
+            launch_config = {}
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
 
         if entity is None or project is None:
@@ -886,7 +908,8 @@ def sweep(
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": launch_config.get("queue", "default"),
+                "queue": queue or launch_config.get("queue", "default"),
+                "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
                         "placeholder-uri-scheduler",  # uri
@@ -906,13 +929,11 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            launch_config.get("queue", "default"),
+                            f"{(queue or launch_config.get('queue', 'default'))!r}",
                             "--project",
                             project,
                             "--job",
                             _job,
-                            "--resource",
-                            launch_config.get("resource", "local-process"),
                             # TODO(hupo): Add num-workers as option in launch config
                             # "--num_workers",
                             # launch_config.get("scheduler", {}).get("num_workers", 1),
@@ -968,9 +989,9 @@ def sweep(
         sweep_path = sweep_id
 
     if sweep_path.find(" ") >= 0:
-        sweep_path = f'"{sweep_path}"'
+        sweep_path = f"{sweep_path!r}"
 
-    if launch_config is not None:
+    if launch_config is not None or queue:
         wandb.termlog("Scheduler added to launch queue. Starting sweep...")
     else:
         wandb.termlog(
@@ -988,14 +1009,14 @@ def sweep(
 
 @cli.command(
     help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
+    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
 @click.argument("uri", nargs=1, required=False)
 @click.option(
     "--job",
     "-j",
-    metavar="<str>",
+    metavar="(str)",
     default=None,
     help="Name of the job to launch. If passed in, launch does not require a uri.",
 )
@@ -1033,7 +1054,7 @@ def sweep(
 @click.option(
     "--entity",
     "-e",
-    metavar="<str>",
+    metavar="(str)",
     default=None,
     help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
     "If passed in, will override the entity value passed in using a config file.",
@@ -1041,7 +1062,7 @@ def sweep(
 @click.option(
     "--project",
     "-p",
-    metavar="<str>",
+    metavar="(str)",
     default=None,
     help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
     "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",
@@ -1051,9 +1072,9 @@ def sweep(
     "-r",
     metavar="BACKEND",
     default=None,
-    help="Execution resource to use for run. Supported values: 'local'."
-    " If passed in, will override the resource value passed in using a config file."
-    " Defaults to 'local'.",
+    help="Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'. "
+    " This is now a required parameter if pushing to a queue with no resource configuration. "
+    " If passed in, will override the resource value passed in using a config file.",
 )
 @click.option(
     "--docker-image",
@@ -1117,6 +1138,13 @@ def sweep(
     default=None,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
+# TODO: this is only included for back compat. But we should remove this in the future
+@click.option(
+    "--project-queue",
+    "-pq",
+    default=None,
+    help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
+)
 @display_error
 def launch(
     uri,
@@ -1136,6 +1164,7 @@ def launch(
     cuda,
     build,
     repository,
+    project_queue,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
@@ -1170,7 +1199,7 @@ def launch(
             cuda = False
         else:
             raise LaunchError(
-                f"Invalid value for --cuda: '{cuda}' is not a valid boolean."
+                f"Invalid value for --cuda: {cuda!r} is not a valid boolean."
             )
 
     args_dict = util._user_args_to_dict(args_list)
@@ -1192,10 +1221,7 @@ def launch(
     else:
         config = {}
 
-    if resource is None and config.get("resource") is not None:
-        resource = config.get("resource")
-    elif resource is None:
-        resource = "local-container"
+    resource = resource or config.get("resource")
 
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
@@ -1250,6 +1276,7 @@ def launch(
             git_version,
             docker_image,
             args_dict,
+            project_queue,
             resource_args,
             cuda=cuda,
             build=build,
@@ -1365,7 +1392,9 @@ def scheduler(
     kwargs = {}
     for i, _arg in enumerate(ctx.args):
         if isinstance(_arg, str) and _arg.startswith("--"):
-            kwargs[_arg[2:]] = ctx.args[i + 1]
+            # convert input kwargs from hyphens to underscores
+            _key = _arg[2:].replace("-", "_")
+            kwargs[_key] = ctx.args[i + 1]
 
     _scheduler = load_scheduler("sweep")(
         api,
@@ -1899,7 +1928,7 @@ def pull(run, project, entity):
             sys.stdout.write("File %s\r" % name)
             dirname = os.path.dirname(name)
             if dirname != "":
-                wandb.util.mkdir_exists_ok(dirname)
+                filesystem.mkdir_exists_ok(dirname)
             with click.progressbar(
                 length=length,
                 label="File %s" % name,
@@ -2028,7 +2057,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
                     "Failed to apply patch, try un-staging any un-committed changes"
                 )
 
-    util.mkdir_exists_ok(wandb_dir())
+    filesystem.mkdir_exists_ok(wandb_dir())
     config_path = os.path.join(wandb_dir(), "config.yaml")
     config = Config()
     for k, v in json_config.items():

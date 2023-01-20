@@ -13,6 +13,7 @@ from pkg_resources import parse_version
 from wandb_gql import gql  # type: ignore
 
 import wandb
+from wandb.sdk.lib import runid
 
 from ...apis.internal import Api
 from ...apis.public import Artifact as ArtifactAPI
@@ -23,7 +24,7 @@ GET_RUN_MAX_TIME = 10
 MIN_RETRYS = 3
 CHECKMARK = "\u2705"
 RED_X = "\u274C"
-ID_PREFIX = wandb.util.generate_id()
+ID_PREFIX = runid.generate_id()
 
 
 def nice_id(name):
@@ -233,7 +234,7 @@ def verify_digest(
 
 
 def artifact_with_path_or_paths(
-    name: str, verify_dir: str = None, singular: bool = False
+    name: str, verify_dir: Optional[str] = None, singular: bool = False
 ) -> "Artifact":
     art = wandb.Artifact(type="artsy", name=name)
     # internal file

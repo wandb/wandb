@@ -5,18 +5,24 @@ import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
-from wandb.sdk.launch._project_spec import create_project_from_spec
+from wandb.sdk.launch._project_spec import (
+    compute_command_args,
+    create_project_from_spec,
+)
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
     construct_launch_spec,
     validate_launch_spec_source,
 )
 
 
-def push_to_queue(api: Api, queue_name: str, launch_spec: Dict[str, Any]) -> Any:
+def push_to_queue(
+    api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
+) -> Any:
     try:
-        res = api.push_to_run_queue(queue_name, launch_spec)
+        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -36,6 +42,7 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
+    project_queue: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
@@ -52,7 +59,7 @@ def launch_add(
     project: Target project to send launched run to
     entity: Target entity to send launched run to
     queue: the name of the queue to enqueue the run to
-    resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    resource: Execution backend for the run: W&B provides built-in support for "local-container" backend
     entry_point: Entry point to run within the project. Defaults to using the entry point used
         in the original run for wandb URIs, or main.py for git repository URIs.
     name: Name run under which to launch the run.
@@ -69,6 +76,8 @@ def launch_add(
             to that job artifact to queue
     repository: optional string to control the name of the remote repository, used when
         pushing images to a registry
+    project_queue: optional string to control the name of the project for the queue. Primarily used
+        for back compatibility with project scoped queues
 
 
     Example:
@@ -105,6 +114,7 @@ def launch_add(
         version,
         docker_image,
         params,
+        project_queue,
         resource_args,
         cuda,
         run_id=run_id,
@@ -127,6 +137,7 @@ def _launch_add(
     version: Optional[str],
     docker_image: Optional[str],
     params: Optional[Dict[str, Any]],
+    project_queue: Optional[str],
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
@@ -153,6 +164,11 @@ def _launch_add(
     )
 
     if build:
+        if resource == "local-process":
+            raise LaunchError(
+                "Cannot build a docker image for the resource: local-process"
+            )
+
         if launch_spec.get("job") is not None:
             wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
@@ -165,7 +181,8 @@ def _launch_add(
             job_type="launch_job",
         )
 
-        job_artifact = run._log_job_artifact_with_image(docker_image_uri)
+        args = compute_command_args(launch_project.override_args)
+        job_artifact = run._log_job_artifact_with_image(docker_image_uri, args)
         job_name = job_artifact.wait().name
 
         job = f"{launch_spec['entity']}/{launch_spec['project']}/{job_name}"
@@ -174,13 +191,23 @@ def _launch_add(
 
     if queue_name is None:
         queue_name = "default"
+    if project_queue is None:
+        project_queue = LAUNCH_DEFAULT_PROJECT
 
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec)
+    res = push_to_queue(api, queue_name, launch_spec, project_queue)
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+
+    updated_spec = res.get("runSpec")
+    if updated_spec:
+        if updated_spec.get("resource_args"):
+            launch_spec["resource_args"] = updated_spec.get("resource_args")
+        if updated_spec.get("resource"):
+            launch_spec["resource"] = updated_spec.get("resource")
+
+    wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     container_job = False
@@ -195,5 +222,6 @@ def _launch_add(
         queue_name,
         res["runQueueItemId"],
         container_job,
+        project_queue,
     )
     return queued_run  # type: ignore

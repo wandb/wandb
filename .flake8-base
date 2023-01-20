@@ -13,11 +13,8 @@ exclude =
     *.egg-info
     .cache
     .eggs
-    ./tests/conftest.py
-    ./tests/assets/fixtures/train.py
-    ./tests/utils/
-    ./tests/logs/
-    ./tests/unit_tests_old/
+    ./tests/pytest_tests/assets/fixtures/train.py
+    ./tests/pytest_tests/unit_tests_old/
     ./tests/functional_tests/t0_main/metaflow/
     ./tests/functional_tests/t0_main/fastai/t1_v1.py
     ./wandb/__init__.py
@@ -32,7 +29,6 @@ exclude =
     ./wandb/integration/magic.py
     ./wandb/integration/keras/keras.py
     ./wandb/integration/metaflow/
-    ./wandb/sdk/internal/internal_api.py
     ./wandb/keras/
     ./wandb/superagent/
     ./wandb/plots/
