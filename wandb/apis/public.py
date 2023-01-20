@@ -4042,7 +4042,7 @@ class ArtifactCollection:
         )
 
     @property
-    def aliases(self, per_page=50):
+    def aliases(self):
         """Artifact Collection Aliases"""
         return self._aliases
 
@@ -4055,7 +4055,7 @@ class ArtifactCollection:
             $artifactTypeName: String!,
             $artifactCollectionName: String!,
             $cursor: String,
-            $perPage: Int = 50
+            $perPage: Int = 1000
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
