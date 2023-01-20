@@ -4318,14 +4318,9 @@ class Artifact(artifacts.Artifact):
                             )
                             break
 
-            entity, project = None, None
-            if response["artifact"]["artifactType"] is not None:
-                at = response["artifact"]["artifactType"]
-                p = at.get("project")
-                if p is not None:
-                    project = p["name"]
-                    if p.get("entity") is not None:
-                        entity = p.get("entity")["name"]
+            p = response.get("artifact", {}).get("artifactType", {}).get("project", {})
+            project = p.get("name")  # defaults to None
+            entity = p.get("entity", {}).get("name")
 
             artifact = cls(
                 client=client,
