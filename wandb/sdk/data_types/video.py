@@ -4,6 +4,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -100,7 +101,7 @@ class Video(BatchableMedia):
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + self._format
+                MEDIA_TMP.name, runid.generate_id() + "." + self._format
             )
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
@@ -136,7 +137,9 @@ class Video(BatchableMedia):
         # encode sequence of images into gif string
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
-        filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
+        filename = os.path.join(
+            MEDIA_TMP.name, runid.generate_id() + "." + self._format
+        )
         if TYPE_CHECKING:
             kwargs: Dict[str, Optional[bool]] = {}
         try:  # older versions of moviepy do not support logger argument
@@ -224,7 +227,7 @@ class Video(BatchableMedia):
         step: Union[int, str],
     ) -> dict:
         base_path = os.path.join(run.dir, cls.get_media_subdir())
-        util.mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
 
         meta = {
             "_type": "videos",

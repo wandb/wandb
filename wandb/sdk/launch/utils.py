@@ -42,6 +42,7 @@ PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
+LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 
 _logger = logging.getLogger(__name__)
@@ -73,28 +74,35 @@ def sanitize_wandb_api_key(s: str) -> str:
     return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
 
 
+def get_project_from_job(job: str) -> Optional[str]:
+    job_parts = job.split("/")
+    if len(job_parts) == 3:
+        return job_parts[1]
+    return None
+
+
 def set_project_entity_defaults(
     uri: Optional[str],
+    job: Optional[str],
     api: Api,
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
 ) -> Tuple[str, str]:
     # set the target project and entity if not provided
+    source_uri = None
     if uri is not None:
         if _is_wandb_uri(uri):
-            _, uri_project, _ = parse_wandb_uri(uri)
+            _, source_uri, _ = parse_wandb_uri(uri)
         elif _is_git_uri(uri):
-            uri_project = os.path.splitext(os.path.basename(uri))[0]
-        else:
-            uri_project = UNCATEGORIZED_PROJECT
-    else:
-        uri_project = UNCATEGORIZED_PROJECT
+            source_uri = os.path.splitext(os.path.basename(uri))[0]
+    elif job is not None:
+        source_uri = get_project_from_job(job)
     if project is None:
         config_project = None
         if launch_config:
             config_project = launch_config.get("project")
-        project = config_project or uri_project or UNCATEGORIZED_PROJECT
+        project = config_project or source_uri or UNCATEGORIZED_PROJECT
     if entity is None:
         config_entity = None
         if launch_config:
@@ -134,6 +142,7 @@ def construct_launch_spec(
         launch_spec["job"] = job
     project, entity = set_project_entity_defaults(
         uri,
+        job,
         api,
         project,
         entity,
@@ -150,7 +159,7 @@ def construct_launch_spec(
         launch_spec["docker"]["docker_image"] = docker_image
 
     if "resource" not in launch_spec:
-        launch_spec["resource"] = resource or "local"
+        launch_spec["resource"] = resource if resource else None
 
     if "git" not in launch_spec:
         launch_spec["git"] = {}
@@ -617,3 +626,11 @@ def check_logged_in(api: Api) -> bool:
         )
 
     return True
+
+
+def make_name_dns_safe(name: str) -> str:
+    resp = name.replace("_", "-").lower()
+    resp = re.sub(r"[^a-z\.\-]", "", resp)
+    # Actual length limit is 253, but we want to leave room for the generated suffix
+    resp = resp[:200]
+    return resp

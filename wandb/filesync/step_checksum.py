@@ -6,8 +6,8 @@ import shutil
 import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
-import wandb.util
 from wandb.filesync import dir_watcher, step_upload
+from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
     import tempfile
@@ -21,11 +21,7 @@ if TYPE_CHECKING:
 class RequestUpload(NamedTuple):
     path: str
     save_name: dir_watcher.SaveName
-    artifact_id: Optional[str]
     copy: bool
-    use_prepare_flow: bool
-    save_fn: Optional[step_upload.SaveFn]
-    digest: Optional[str]
 
 
 class RequestStoreManifestFiles(NamedTuple):
@@ -76,9 +72,9 @@ class StepChecksum:
                 if req.copy:
                     path = os.path.join(
                         self._tempdir.name,
-                        f"{wandb.util.generate_id()}-{req.save_name}",
+                        f"{runid.generate_id()}-{req.save_name}",
                     )
-                    wandb.util.mkdir_exists_ok(os.path.dirname(path))
+                    filesystem.mkdir_exists_ok(os.path.dirname(path))
                     try:
                         # certain linux distros throw an exception when copying
                         # large files: https://bugs.python.org/issue43743
@@ -86,23 +82,16 @@ class StepChecksum:
                     except OSError:
                         shutil._USE_CP_SENDFILE = False  # type: ignore[attr-defined]
                         shutil.copy2(req.path, path)
-                checksum = None
-                if req.use_prepare_flow:
-                    # passing a checksum through indicates that we'd like to use the
-                    # "prepare" file upload flow, in which we prepare the files in
-                    # the database before uploading them. This is currently only
-                    # used for artifact manifests
-                    checksum = wandb.util.md5_file(path)
                 self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(
                         path,
                         req.save_name,
-                        req.artifact_id,
-                        checksum,
+                        None,
+                        None,
                         req.copy,
-                        req.save_fn,
-                        req.digest,
+                        None,
+                        None,
                     )
                 )
             elif isinstance(req, RequestStoreManifestFiles):
@@ -111,7 +100,7 @@ class StepChecksum:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(
                             save_fn: "internal_artifacts.SaveFn",
-                            entry: "artifacts.ArtifactEntry",
+                            entry: "artifacts.ArtifactManifestEntry",
                         ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(
                                 entry, progress_callback

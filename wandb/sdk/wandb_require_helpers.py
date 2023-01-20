@@ -1,10 +1,12 @@
 import os
 from functools import wraps
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, Callable, Dict, TypeVar, cast
 
 FuncT = TypeVar("FuncT", bound=Callable[..., Any])
 
-requirement_env_var_mapping = {"report-editing:v0": "WANDB_REQUIRE_REPORT_EDITING_V0"}
+requirement_env_var_mapping: Dict[str, str] = {
+    "report-editing:v0": "WANDB_REQUIRE_REPORT_EDITING_V0"
+}
 
 
 def requires(requirement: str) -> FuncT:  # type: ignore
@@ -18,7 +20,7 @@ def requires(requirement: str) -> FuncT:  # type: ignore
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if not os.getenv(env_var):
                 raise Exception(
-                    f'You need to enable this feature with `wandb.require("{requirement}")`'
+                    f"You need to enable this feature with `wandb.require({requirement!r})`"
                 )
             return func(*args, **kwargs)
 
@@ -48,7 +50,3 @@ class RequiresMixin:
             raise Exception(
                 f'You must explicitly enable this feature with `wandb.require("{self.requirement})"'
             )
-
-
-class RequiresReportEditingMixin(RequiresMixin):
-    requirement = "report-editing:v0"

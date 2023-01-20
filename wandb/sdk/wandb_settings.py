@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import platform
 import re
+import shutil
 import socket
 import sys
 import tempfile
@@ -35,6 +36,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -342,7 +344,7 @@ class Property:
         self.__dict__[key] = value
 
     def __str__(self) -> str:
-        return f"'{self.value}'" if isinstance(self.value, str) else f"{self.value}"
+        return f"{self.value!r}" if isinstance(self.value, str) else f"{self.value}"
 
     def __repr__(self) -> str:
         return (
@@ -371,6 +373,8 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _flow_control_custom: bool
+    _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
     _jupyter: bool
@@ -381,8 +385,10 @@ class Settings:
     _live_policy_rate_limit: int
     _live_policy_wait_time: int
     _log_level: int
+    _network_buffer: int
     _noop: bool
     _offline: bool
+    _sync: bool
     _os: str
     _platform: str
     _python: str
@@ -390,12 +396,14 @@ class Settings:
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
+    _service_wait: int
     _start_datetime: datetime
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
+    _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -404,6 +412,7 @@ class Settings:
     anonymous: str
     api_key: str
     base_url: str  # The base url for the wandb api
+    cache_dir: str  # The directory to use for artifacts cache: <cache_dir>/artifacts
     code_dir: str
     config_paths: Sequence[str]
     console: str
@@ -414,7 +423,6 @@ class Settings:
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
-    enable_job_creation: bool
     entity: str
     files_dir: str
     force: bool
@@ -425,7 +433,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
-    init_timeout: int
+    init_timeout: float
     is_local: bool
     label_disable: bool
     launch: bool
@@ -499,6 +507,7 @@ class Settings:
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
@@ -520,11 +529,24 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _flow_control_disabled={
+                "hook": lambda _: self._network_buffer == 0,
+                "auto_hook": True,
+            },
+            _flow_control_custom={
+                "hook": lambda _: bool(self._network_buffer),
+                "auto_hook": True,
+            },
+            _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
+            _service_wait={"value": 30, "preprocessor": int},
             _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
             _stats_samples_to_average={"value": 15},
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
+            _stats_neuron_monitor_config_path={
+                "hook": lambda x: self._path_convert(x),
+            },
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -549,7 +571,6 @@ class Settings:
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
-            enable_job_creation={"preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
@@ -563,7 +584,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            init_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            init_timeout={"value": 60, "preprocessor": lambda x: float(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -726,7 +747,7 @@ class Settings:
     def _validate_mode(value: str) -> bool:
         choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled"}
         if value not in choices:
-            raise UsageError(f"Settings field `mode`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True
 
     @staticmethod
@@ -735,14 +756,14 @@ class Settings:
         if value is not None:
             if len(value) > 128:
                 raise UsageError(
-                    f'Invalid project name "{value}": exceeded 128 characters'
+                    f"Invalid project name {value!r}: exceeded 128 characters"
                 )
             invalid_chars = {char for char in invalid_chars_list if char in value}
             if invalid_chars:
                 raise UsageError(
-                    f'Invalid project name "{value}": '
-                    f"cannot contain characters \"{','.join(invalid_chars_list)}\", "
-                    f"found \"{','.join(invalid_chars)}\""
+                    f"Invalid project name {value!r}: "
+                    f"cannot contain characters {','.join(invalid_chars_list)!r}, "
+                    f"found {','.join(invalid_chars)!r}"
                 )
         return True
 
@@ -753,7 +774,7 @@ class Settings:
             available_methods += multiprocessing.get_all_start_methods()
         if value not in available_methods:
             raise UsageError(
-                f"Settings field `start_method`: '{value}' not in {available_methods}"
+                f"Settings field `start_method`: {value!r} not in {available_methods}"
             )
         return True
 
@@ -772,21 +793,21 @@ class Settings:
         if value not in choices:
             # do not advertise internal console states
             choices -= {"wrap_emu", "wrap_raw"}
-            raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `console`: {value!r} not in {choices}")
         return True
 
     @staticmethod
     def _validate_problem(value: str) -> bool:
         choices: Set[str] = {"fatal", "warn", "silent"}
         if value not in choices:
-            raise UsageError(f"Settings field `problem`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `problem`: {value!r} not in {choices}")
         return True
 
     @staticmethod
     def _validate_anonymous(value: str) -> bool:
         choices: Set[str] = {"allow", "must", "never", "false", "true"}
         if value not in choices:
-            raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
+            raise UsageError(f"Settings field `anonymous`: {value!r} not in {choices}")
         return True
 
     @staticmethod
@@ -1008,7 +1029,7 @@ class Settings:
         self.__unexpected_args: Set[str] = set()
 
         # Set default settings values
-        # We start off with the class attributes and `default_props`' dicts
+        # We start off with the class attributes and `default_props` dicts
         # and then create Property objects.
         # Once initialized, attributes are to only be updated using the `update` method
         default_props = self._default_props()
@@ -1396,9 +1417,11 @@ class Settings:
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
 
-        # one special case here is running inside a PEX environment,
-        # see https://pex.readthedocs.io/en/latest/index.html for more info about PEX
-        _executable = self._executable or os.environ.get("PEX") or sys.executable
+        _executable = (
+            os.environ.get(wandb.env._EXECUTABLE, self._executable)
+            or sys.executable
+            or shutil.which("python")
+        )
         if _executable is None or _executable == "":
             _executable = "python3"
         settings["_executable"] = _executable
@@ -1504,6 +1527,7 @@ class Settings:
                         init_settings["run_id"] = init_settings["resume"]
                     init_settings["resume"] = "allow"
             elif init_settings["resume"] is True:
+                # todo: add deprecation warning, switch to literal strings for resume
                 init_settings["resume"] = "auto"
 
         # update settings
@@ -1525,7 +1549,7 @@ class Settings:
         # persist our run id in case of failure
         # check None for mypy
         if self.resume == "auto" and self.resume_fname is not None:
-            wandb.util.mkdir_exists_ok(self.wandb_dir)
+            filesystem.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 
