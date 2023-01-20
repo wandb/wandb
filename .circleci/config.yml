@@ -238,8 +238,9 @@ jobs:
       execute:
         type: boolean
         default: true
-      regression_command:
+      tox_args:
         type: string
+        default: "--cli_branch $CIRCLE_BRANCH"
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: << parameters.parallelism >>
@@ -266,16 +267,17 @@ jobs:
                   source ~/.bashrc
                 no_output_timeout: 30m
             - run:
-                name: Clone wandb/wandb-testing repo and run tests
+                name: Install tox
+                command: |
+                  pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install -U pip
+                no_output_timeout: 5m
+            - run:
+                name: Run tests
                 no_output_timeout: 240m
-                # TODO: remove the line with git checkout, it's WIP
                 command: |
                   source ~/.bashrc
-                  git clone https://github.com/wandb/wandb-testing.git
-                  python -m pip install pyyaml six wandb shortuuid
-                  cd wandb-testing/regression
-                  git checkout update-py-v
-                  << parameters.regression_command >>
+                  tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
 #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -1289,18 +1291,17 @@ workflows:
             parameters:
               python_version_major: [ 3 ]
               python_version_minor: [ 7 ]
-              regression_command:
-                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/yolov5/
-                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/huggingface/
-                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/keras/
-#                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/pytorch/
-                - ./do-main-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/tensorflow/
-                - ./do-cloud-regression.sh --cli_branch $CIRCLE_BRANCH tests/main/wandb-git/
-                - ./do-s3-regression.sh --cli_branch $CIRCLE_BRANCH tests/s3-beta/
-                - ./do-sagemaker-regression.sh --cli_branch $CIRCLE_BRANCH
-          name: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "regression-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          regression_command: << matrix.regression_command >>
+              shard:
+                - yolov5
+                - huggingface
+                - keras
+                - tensorflow
+                # - pytorch
+                - wandb-sdk
+                - s3
+                - sagemaker
+          name: "regression-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "regression-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           context:
             - slack-secrets
             - aws-wandb-testing-secrets
