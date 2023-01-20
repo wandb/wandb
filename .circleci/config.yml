@@ -1299,7 +1299,7 @@ workflows:
                 # - pytorch
                 - wandb-sdk-standalone
                 - wandb-sdk-examples
-                - wandb-sdk-wandb-examples
+                - wandb-sdk-other
                 - s3
                 - sagemaker
           name: "regression-<<matrix.shard>>"
