@@ -56,7 +56,6 @@ from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 from wandb.sdk.lib.json_util import json_dumps_safer
 
-
 if TYPE_CHECKING:
     import wandb.apis.reports
     import wandb.apis.reports.util

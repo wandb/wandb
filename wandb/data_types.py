@@ -47,8 +47,8 @@ from .sdk.data_types.object_3d import Object3D
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
 from .sdk.data_types.video import Video
-from .sdk.lib.json_util import json_dump_safer, json_serializable
 from .sdk.lib import runid
+from .sdk.lib.json_util import json_dump_safer, json_serializable
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
 # Once we fully type this file and move it all into sdk, then we will need to clean up the
