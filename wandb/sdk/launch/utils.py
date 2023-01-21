@@ -41,9 +41,7 @@ PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
-LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
-DEFAULT_PROJECT = "model-registry"
 DEFAULT_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
