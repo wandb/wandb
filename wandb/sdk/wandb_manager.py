@@ -95,16 +95,23 @@ class _Manager:
 
     def __init__(self, settings: "Settings") -> None:
         # TODO: warn if user doesnt have grpc installed
-        from wandb.sdk.service import service
-
         self._settings = settings
         self._atexit_lambda = None
         self._hooks = None
+        self._service = None
 
-        self._service = service._Service(settings=self._settings)
+        if self._settings.mode == "disabled":
+            return
+
+        self._setup_service()
+
+    def _setup_service(self) -> None:
+        from wandb.sdk.service import service
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
+        self._service = service._Service(settings=self._settings)
+
         use_grpc = self._settings._service_transport == "grpc"
 
         token = _ManagerToken.from_environment()
@@ -164,7 +171,8 @@ class _Manager:
         return self._service
 
     def _get_service_interface(self) -> "ServiceInterface":
-        assert self._service
+        if self._service is None:
+            self._setup_service()
         svc_iface = self._service.service_interface
         assert svc_iface
         return svc_iface
