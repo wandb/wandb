@@ -253,7 +253,7 @@ jobs:
             - run:
                 name: Install system deps
                 command: |
-                  apt-get update && apt-get install -y libsndfile1 ffmpeg
+                  apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
             - run:
                 name: Setup environment
                 command: |
@@ -1193,7 +1193,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 8]
+              python_version_minor: [8]
               shard:
                 - "imports1"
                 - "imports2"
