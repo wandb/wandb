@@ -278,7 +278,7 @@ class _WandbSetup:
     (Forked processes will get a new copy of the object)
     """
 
-    _instance = None
+    _instance: Optional["_WandbSetup__WandbSetup"] = None
 
     def __init__(self, settings=None) -> None:
         pid = os.getpid()
