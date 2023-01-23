@@ -993,7 +993,7 @@ class Attrs:
         elif name in self._attrs.keys():
             return self._attrs[name]
         else:
-            raise AttributeError(f"'{repr(self)}' object has no attribute '{name}'")
+            raise AttributeError(f"{repr(self)!r} object has no attribute {name!r}")
 
 
 class Paginator:
@@ -1481,7 +1481,7 @@ class Project(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button("project")
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -2259,7 +2259,7 @@ class Run(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button()
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -2682,7 +2682,7 @@ class Sweep(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button("sweep")
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -3460,7 +3460,7 @@ class BetaReport(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button("report")
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -4134,14 +4134,12 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             cache_path = manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
                 manifest.entries[self.name],
                 local=True,
             )
         else:
             cache_path = manifest.storage_policy.load_file(
-                self._parent_artifact, self.name, manifest.entries[self.name]
+                self._parent_artifact, manifest.entries[self.name]
             )
 
         return self.copy(cache_path, os.path.join(root, self.name))
@@ -4150,8 +4148,6 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             return manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
                 manifest.entries[self.name],
                 local=False,
             )
