@@ -162,6 +162,12 @@ fragment ArtifactFragment on Artifact {
     artifactType {
         id
         name
+        project {
+            name
+            entity {
+                name
+            }
+        }
     }
     commitHash
 }
@@ -4308,10 +4314,14 @@ class Artifact(artifacts.Artifact):
                             )
                             break
 
+            p = response.get("artifact", {}).get("artifactType", {}).get("project", {})
+            project = p.get("name")  # defaults to None
+            entity = p.get("entity", {}).get("name")
+
             artifact = cls(
                 client=client,
-                entity=None,
-                project=None,
+                entity=entity,
+                project=project,
                 name=name,
                 attrs=response["artifact"],
             )

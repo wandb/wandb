@@ -1023,7 +1023,7 @@ class Run:
     @_run_decorator._attach
     def log_code(
         self,
-        root: str = ".",
+        root: Optional[str] = ".",
         name: Optional[str] = None,
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
