@@ -24,7 +24,6 @@ from wandb import trigger
 from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.jupyter import Notebook
 from wandb.sdk.lib import runid
 from wandb.util import _is_artifact_representation, sentry_exc
 
@@ -112,7 +111,7 @@ class _WandbInit:
         self._teardown_hooks: List[TeardownHook] = []
         self._wl: Optional[wandb_setup._WandbSetup] = None
         self._reporter: Optional[wandb.sdk.lib.reporting.Reporter] = None
-        self.notebook: Optional[Notebook] = None
+        self.notebook: Optional["wandb.jupyter.Notebook"] = None
         self.printer: Optional[Printer] = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
@@ -121,7 +120,7 @@ class _WandbInit:
 
     def _setup_printer(self, settings: Settings) -> None:
         if self.printer:
-            return None
+            return
         self.printer = get_printer(settings._jupyter)
 
     def setup(self, kwargs: Any) -> None:  # noqa: C901
@@ -227,7 +226,7 @@ class _WandbInit:
         self.sweep_config = dict()
         sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
-        self.init_artifact_config = dict()  # type: ignore
+        self.init_artifact_config: Dict[str, Any] = dict()
         for config_data in (
             sagemaker_config,
             self._wl._config,
@@ -431,7 +430,7 @@ class _WandbInit:
 
     def _jupyter_setup(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
-        self.notebook = Notebook(settings)
+        self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
 
         # Monkey patch ipython publish to capture displayed outputs
