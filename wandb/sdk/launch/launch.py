@@ -85,8 +85,10 @@ def resolve_agent_config(
         if type(resolved_config.get("queue")) == str:
             resolved_config["queues"].append(resolved_config["queue"])
         else:
-            raise LaunchError(f"Invalid launch agent config for key 'queue' with type: {type(resolved_config.get('queue'))}."
-                              + " Specify multiple queues with the 'queues' key")
+            raise LaunchError(
+                f"Invalid launch agent config for key 'queue' with type: {type(resolved_config.get('queue'))}"
+                + " (expected str). Specify multiple queues with the 'queues' key"
+            )
 
     if (
         resolved_config["entity"] != defaults["entity"]
