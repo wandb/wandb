@@ -22,11 +22,14 @@ import wandb
 from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
 
+Logger = Union[logging.Logger, "_EarlyLogger"]
+Settings = Union["wandb_settings.Settings", Dict[str, Any]]
+
 # logger will be configured to be either a standard logger instance or _EarlyLogger
-logger = None
+logger: Optional[Logger] = None
 
 
-def _set_logger(log_object):
+def _set_logger(log_object: Logger) -> None:
     """Configure module logger."""
     global logger
     logger = log_object
@@ -35,32 +38,32 @@ def _set_logger(log_object):
 class _EarlyLogger:
     """Early logger which captures logs in memory until logging can be configured."""
 
-    def __init__(self):
-        self._log = []
-        self._exception = []
+    def __init__(self) -> None:
+        self._log: List[tuple] = []
+        self._exception: List[tuple] = []
         # support old warn() as alias of warning()
         self.warn = self.warning
 
-    def debug(self, msg, *args, **kwargs):
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((logging.DEBUG, msg, args, kwargs))
 
-    def info(self, msg, *args, **kwargs):
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((logging.INFO, msg, args, kwargs))
 
-    def warning(self, msg, *args, **kwargs):
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((logging.WARNING, msg, args, kwargs))
 
-    def error(self, msg, *args, **kwargs):
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((logging.ERROR, msg, args, kwargs))
 
-    def critical(self, msg, *args, **kwargs):
+    def critical(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((logging.CRITICAL, msg, args, kwargs))
 
-    def exception(self, msg, *args, **kwargs):
-        self._exception.append(msg, args, kwargs)
+    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._exception.append((msg, args, kwargs))
 
-    def log(self, level, msg, *args, **kwargs):
-        self._log.append(level, msg, args, kwargs)
+    def log(self, level: str, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._log.append((level, msg, args, kwargs))
 
     def _flush(self):
         assert self is not logger
@@ -79,9 +82,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def __init__(
         self,
         pid: int,
-        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
+        settings: Optional[Settings] = None,
         environ: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
         self._config = None
@@ -111,9 +114,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _settings_setup(
         self,
-        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
+        settings: Optional[Settings] = None,
         early_logger: Optional[_EarlyLogger] = None,
-    ):
+    ) -> "wandb_settings.Settings":
         s = wandb_settings.Settings()
         s._apply_base(pid=self._pid, _logger=early_logger)
         s._apply_config_files(_logger=early_logger)
@@ -131,9 +134,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
         return s
 
-    def _update(
-        self, settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None
-    ) -> None:
+    def _update(self, settings: Optional[Settings] = None) -> None:
         if settings is None:
             return
         # self._settings.unfreeze()
@@ -145,7 +146,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             self._settings.update(settings, source=wandb_settings.Source.SETUP)
         # self._settings.freeze()
 
-    def _update_user_settings(self, settings=None):
+    def _update_user_settings(self, settings: Optional[Settings] = None):
         settings = settings or self._settings
         # Get rid of cached results to force a refresh.
         self._server = None
@@ -155,18 +156,18 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             self._settings._apply_user(user_settings)
             # self._settings.freeze()
 
-    def _early_logger_flush(self, new_logger):
+    def _early_logger_flush(self, new_logger: Logger) -> None:
         if not self._early_logger:
             return
         _set_logger(new_logger)
         # self._settings._clear_early_logger()
         self._early_logger._flush()
 
-    def _get_logger(self):
+    def _get_logger(self) -> Logger:
         return logger
 
     @property
-    def settings(self):
+    def settings(self) -> "wandb_settings.Settings":
         return self._settings
 
     def _get_entity(self) -> Optional[str]:
@@ -187,7 +188,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _get_teams(self) -> List[str]:
         if self._settings and self._settings._offline:
-            return None
+            return []
         if self._server is None:
             self._load_viewer()
         teams = self._server._viewer.get("teams")
@@ -195,14 +196,16 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             teams = [team["node"]["name"] for team in teams["edges"]]
         return teams or []
 
-    def _load_viewer(self, settings=None) -> None:
+    def _load_viewer(self, settings: Optional[Settings] = None) -> None:
         if self._settings and self._settings._offline:
             return
         s = server.Server(settings=settings)
         s.query_with_timeout()
         self._server = s
 
-    def _load_user_settings(self, settings=None) -> Optional[Dict[str, Any]]:
+    def _load_user_settings(
+        self, settings: Settings = None
+    ) -> Optional[Dict[str, Any]]:
         if self._server is None:
             self._load_viewer(settings=settings)
 
@@ -221,7 +224,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
         return user_settings
 
-    def _check(self):
+    def _check(self) -> None:
         if hasattr(threading, "main_thread"):
             if threading.current_thread() is not threading.main_thread():
                 pass
@@ -230,7 +233,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         if getattr(sys, "frozen", False):
             print("frozen, could be trouble")
 
-    def _setup(self):
+    def _setup(self) -> None:
         self._setup_manager()
 
         sweep_path = self._settings.sweep_param_path
@@ -242,8 +245,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         # if config_paths was set, read in config dict
         if self._settings.config_paths:
             # TODO(jhr): handle load errors, handle list of files
-            config_paths = self._settings.config_paths.split(",")
-            for config_path in config_paths:
+            for config_path in self._settings.config_paths:
                 config_dict = config_util.dict_from_config_file(config_path)
                 if config_dict is None:
                     continue
@@ -252,7 +254,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                 else:
                     self._config = config_dict
 
-    def _teardown(self, exit_code: Optional[int] = None):
+    def _teardown(self, exit_code: Optional[int] = None) -> None:
         exit_code = exit_code or 0
         self._teardown_manager(exit_code=exit_code)
 
