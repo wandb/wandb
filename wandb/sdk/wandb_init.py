@@ -111,7 +111,7 @@ class _WandbInit:
         self._teardown_hooks: List[TeardownHook] = []
         self._wl: Optional[wandb_setup._WandbSetup] = None
         self._reporter: Optional[wandb.sdk.lib.reporting.Reporter] = None
-        self.notebook: Optional["wandb.jupyter.Notebook"] = None
+        self.notebook: Optional["wandb.jupyter.Notebook"] = None  # type: ignore
         self.printer: Optional[Printer] = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
@@ -706,7 +706,7 @@ class _WandbInit:
 
         run_proto = backend.interface._make_run(run)
         run_init_handle: Optional[MailboxHandle] = None
-        run_result: Optional["pb.Result"] = None
+        run_result: Optional["pb.RunUpdateResult"] = None
 
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
