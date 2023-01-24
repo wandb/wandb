@@ -114,15 +114,19 @@ def test_uses_userspecified_custom_ssl_certs(
     ssl_server: http.server.HTTPServer,
     make_env: Callable[[Path], Mapping[str, str]],
 ):
-    url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
+    try:
+        url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
 
-    with pytest.raises(requests.exceptions.SSLError):
-        requests.get(url)
+        with pytest.raises(requests.exceptions.SSLError):
+            requests.get(url)
 
-    env = make_env(ssl_creds.cert)
-    srpdebug(f"SRP: url = {url}")
-    srpdebug(f"SRP: env = {env}")
-    srpdebug(f"SRP: listdir = {os.listdir(ssl_creds.cert.parent)}")
-    with patch.dict("os.environ", env):
-        srpdebug(f"env = {os.environ}")
-        assert requests.get(url).status_code == 200
+        env = make_env(ssl_creds.cert)
+        srpdebug(f"SRP: url = {url}")
+        srpdebug(f"SRP: env = {env}")
+        srpdebug(f"SRP: listdir = {os.listdir(ssl_creds.cert.parent)}")
+        with patch.dict("os.environ", env):
+            srpdebug(f"env = {os.environ}")
+            assert requests.get(url).status_code == 200
+    except Exception as e:
+        srpdebug(f"SRP: Exception = {e}")
+        assert False
