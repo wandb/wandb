@@ -32,12 +32,13 @@ def monitor():
 
     def close(self):
         recorder.orig_close(self)
-        m = re.match(r".+(video\.\d+).+", getattr(self, path))
-        if m:
-            key = m.group(1)
-        else:
-            key = "videos"
-        wandb.log({key: wandb.Video(getattr(self, path))})
+        if wandb.run:
+            m = re.match(r".+(video\.\d+).+", getattr(self, path))
+            if m:
+                key = m.group(1)
+            else:
+                key = "videos"
+            wandb.log({key: wandb.Video(getattr(self, path))})
 
     def del_(self):
         self.orig_close()
