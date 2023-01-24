@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock
 
 import kubernetes
@@ -51,6 +52,56 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         run = runner.run(launch_project=project, builder=builder, registry_config={})
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name
+
+
+def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path):
+    jobs = {}
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
+
+    with relay_server():
+        api = Api()
+        runner = load_backend(
+            backend_name="kubernetes",
+            api=api,
+            backend_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+        )
+
+        entity_name = "testentity"
+        project_name = "testproject"
+        expected_generate_name = make_name_dns_safe(
+            f"launch-{entity_name}-{project_name}-"
+        )
+        expected_run_name = expected_generate_name + "testname"
+
+        setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
+
+        job_spec = json.dumps({"metadata": {"annotations": {"x": "y"}}})
+
+        project = MagicMock()
+        project.resource_args = {
+            "kubernetes": {
+                "config_file": str(assets_path("launch_k8s_config.yaml")),
+                "job_spec": job_spec,
+            }
+        }
+        project.target_entity = entity_name
+        project.target_project = project_name
+        project.override_config = {}
+        project.job = "testjob"
+
+        builder = load_builder({"type": "noop"})
+
+        run = runner.run(launch_project=project, builder=builder, registry_config={})
+    assert run.name == expected_run_name
+    assert run.job["metadata"]["generateName"] == expected_generate_name
+    assert run.job["metadata"]["annotations"] == {"x": "y"}
 
 
 class MockDict(dict):
