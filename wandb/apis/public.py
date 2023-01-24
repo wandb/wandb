@@ -4020,10 +4020,13 @@ class ArtifactCollection:
         self.project = project
         self.name = name
         self.type = type
+        self._aliases = []
         self._attrs = attrs
         if self._attrs is None:
             self.load()
-        self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
+        self._aliases = [
+            a["node"]["alias"] for a in self._attrs["aliases"]["edges"] if a["node"]
+        ]
 
     @property
     def id(self):
