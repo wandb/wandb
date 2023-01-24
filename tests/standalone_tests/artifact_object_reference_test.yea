@@ -1,0 +1,13 @@
+tag:
+  shard: standalone-cpu
+  platforms:
+    - linux
+    - mac
+    - win
+depend:
+  requirements:
+    - imageio
+plugin:
+  - wandb
+assert:
+  - :wandb:runs: None

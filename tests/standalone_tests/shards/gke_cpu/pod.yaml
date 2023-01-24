@@ -38,6 +38,16 @@ spec:
       env:
         - name: WANDB_API_KEY
           value: WANDB_API_KEY_PLACEHOLDER
+        - name: AWS_ACCESS_KEY_ID
+          value: AWS_ACCESS_KEY_ID_PLACEHOLDER
+        - name: AWS_SECRET_ACCESS_KEY
+          value: AWS_SECRET_ACCESS_KEY_PLACEHOLDER
+        - name: AWS_DEFAULT_REGION
+          value: AWS_DEFAULT_REGION_PLACEHOLDER
+        - name: GCLOUD_SERVICE_KEY
+          value: GCLOUD_SERVICE_KEY_PLACEHOLDER
+        - name: GCLOUD_PROJECT
+          value: GCLOUD_PROJECT_PLACEHOLDER
       resources:
         limits:
           cpu: 3.999

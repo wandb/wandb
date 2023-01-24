@@ -1,9 +1,13 @@
 import argparse
 import logging
+import os
+import pathlib
+import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, fields
-from typing import Any, List
+from typing import Any, List, Union
 
 if sys.version_info < (3, 8):
     from typing_extensions import Literal
@@ -11,11 +15,12 @@ else:
     from typing import Literal
 
 Command = Literal["gke", "gce"]
+Path = Union[str, pathlib.Path]
 
 
 @dataclass
 class GKEConfig:
-    cluster_name: str = "sdk-nightly"
+    cluster_name: str = "sdk-k8s"
     num_nodes: int = 1
     machine_type: str = "n1-standard-8"
     maintenance_policy: str = "TERMINATE"
@@ -23,6 +28,7 @@ class GKEConfig:
     disk_type: str = "pd-ssd"
     accelerator_type: str = "nvidia-tesla-t4"
     accelerator_count: int = 1
+    pod_config: str = "pod.yaml"
 
 
 @dataclass
@@ -125,8 +131,8 @@ class GKE:
                 self.config.disk_size,
                 "--disk-type",
                 self.config.disk_type,
-                "--accelerator",
-                f"type={self.config.accelerator_type},count={self.config.accelerator_count}",
+                # "--accelerator",
+                # f"type={self.config.accelerator_type},count={self.config.accelerator_count}",
             ]
         )
 
@@ -140,6 +146,47 @@ class GKE:
                 self.config.cluster_name,
             ]
         )
+
+    def install_gpu_drivers(self) -> None:
+        self.get_cluster_credentials()
+        subprocess.run(
+            [
+                "kubectl",
+                "apply",
+                "-f",
+                "https://raw.githubusercontent.com/GoogleCloudPlatform/"
+                "container-engine-accelerators/master/nvidia-driver-installer/"
+                "cos/daemonset-preloaded-latest.yaml",
+            ]
+        )
+
+    def deploy_pod(self) -> None:
+        self.get_cluster_credentials()
+        # replace macro's in config file and save to temp file
+        with open(self.config.pod_config) as template:
+            config = template.read()
+        # find all strings that end with _PLACEHOLDER in config
+        placeholders = re.findall(r"(\w+)_PLACEHOLDER", config)
+
+        missing_env_vars = []
+        for placeholder in placeholders:
+            if placeholder in os.environ:
+                config = config.replace(
+                    f"{placeholder}_PLACEHOLDER",
+                    f"'{os.environ[placeholder]}'",
+                )
+            else:
+                missing_env_vars.append(placeholder)
+        if missing_env_vars:
+            raise ValueError(
+                "Missing environment variables to replace placeholders in pod config: "
+                f"{missing_env_vars}"
+            )
+
+        with tempfile.NamedTemporaryFile(mode="w") as f:
+            f.write(config)
+            f.flush()
+            subprocess.run(["kubectl", "apply", "-f", f.name])
 
     def delete_cluster(self) -> None:
         subprocess.run(
