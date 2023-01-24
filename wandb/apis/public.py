@@ -4029,7 +4029,7 @@ class ArtifactCollection:
         self._attrs = attrs
         if self._attrs is None:
             self.load()
-        self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
+        self._aliases = [a["node"] for a in self._attrs["aliases"]["edges"]]
 
     @property
     def id(self):
