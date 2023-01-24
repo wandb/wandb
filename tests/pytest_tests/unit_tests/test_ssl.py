@@ -1,10 +1,10 @@
 import contextlib
 import dataclasses
 import http.server
-import logging
 import os
 import platform
 import ssl
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
@@ -14,8 +14,6 @@ import pytest
 import requests
 import wandb.apis
 import wandb.env
-
-logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -96,37 +94,27 @@ def test_disable_ssl(
         assert requests.get(url).status_code == 200
 
 
-def srpdebug(s: str):
-    print(s)
-    logger.error(s)
-
-
 @pytest.mark.parametrize(
     "make_env",
     [
-        # lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
+        lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
     ],
 )
-# @pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
+@pytest.mark.skipif(
+    platform.system() == "Windows" and sys.version_info[:2] == (3, 9),
+    reason="Fails on Windows with Python 3.9",
+)
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
     ssl_server: http.server.HTTPServer,
     make_env: Callable[[Path], Mapping[str, str]],
 ):
-    try:
-        url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
+    url = f"https://{ssl_server.server_address[0]}:{ssl_server.server_address[1]}"
 
-        with pytest.raises(requests.exceptions.SSLError):
-            requests.get(url)
+    with pytest.raises(requests.exceptions.SSLError):
+        requests.get(url)
 
-        env = make_env(ssl_creds.cert)
-        srpdebug(f"SRP: url = {url}")
-        srpdebug(f"SRP: env = {env}")
-        srpdebug(f"SRP: listdir = {os.listdir(ssl_creds.cert.parent)}")
-        with patch.dict("os.environ", env):
-            srpdebug(f"env = {os.environ}")
-            assert requests.get(url).status_code == 200
-    except Exception as e:
-        srpdebug(f"SRP: Exception = {e}")
-        assert False
+    with patch.dict("os.environ", make_env(ssl_creds.cert)):
+        print(os.environ)
+        assert requests.get(url).status_code == 200
