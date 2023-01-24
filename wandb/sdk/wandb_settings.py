@@ -128,7 +128,7 @@ def _redact_dict(
     return safe_dict
 
 
-def _get_program() -> Optional[Any]:
+def _get_program() -> Optional[str]:
     program = os.getenv(wandb.env.PROGRAM)
     if program is not None:
         return program

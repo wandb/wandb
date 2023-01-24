@@ -65,7 +65,7 @@ class _EarlyLogger:
     def log(self, level: str, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((level, msg, args, kwargs))
 
-    def _flush(self):
+    def _flush(self) -> None:
         assert self is not logger
         for level, msg, args, kwargs in self._log:
             logger.log(level, msg, *args, **kwargs)
