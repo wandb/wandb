@@ -1,6 +1,7 @@
 import contextlib
 import dataclasses
 import http.server
+import logging
 import os
 import platform
 import ssl
@@ -13,6 +14,8 @@ import pytest
 import requests
 import wandb.apis
 import wandb.env
+
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -93,14 +96,19 @@ def test_disable_ssl(
         assert requests.get(url).status_code == 200
 
 
+def srpdebug(s: str):
+    print(s)
+    logger.error(s)
+
+
 @pytest.mark.parametrize(
     "make_env",
     [
-        lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
+        # lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
     ],
 )
-@pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
+# @pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
     ssl_server: http.server.HTTPServer,
@@ -111,6 +119,10 @@ def test_uses_userspecified_custom_ssl_certs(
     with pytest.raises(requests.exceptions.SSLError):
         requests.get(url)
 
-    with patch.dict("os.environ", make_env(ssl_creds.cert)):
-        print(os.environ)
+    env = make_env(ssl_creds.cert)
+    srpdebug(f"SRP: url = {url}")
+    srpdebug(f"SRP: env = {env}")
+    srpdebug(f"SRP: listdir = {os.listdir(ssl_creds.cert.parent)}")
+    with patch.dict("os.environ", env):
+        srpdebug(f"env = {os.environ}")
         assert requests.get(url).status_code == 200
