@@ -224,9 +224,14 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     """
     env_vars = {}
     env_vars["WANDB_BASE_URL"] = api.settings("base_url")
-    env_vars["WANDB_API_KEY"] = api.api_key
     env_vars["WANDB_PROJECT"] = launch_project.target_project
     env_vars["WANDB_ENTITY"] = launch_project.target_entity
+    # TODO: do we want to do this in here?
+    if api.has_service_account:
+        # TODO: make this properly delagate to a launch user
+        env_vars["WANDB_ACCESS_TOKEN"] = api.fetch_token(launch_project.target_entity)
+    else:
+        env_vars["WANDB_API_KEY"] = api.api_key
     env_vars["WANDB_LAUNCH"] = "True"
     env_vars["WANDB_RUN_ID"] = launch_project.run_id
     if launch_project.docker_image:

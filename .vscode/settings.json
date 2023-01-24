@@ -12,6 +12,13 @@
     "./wandb/vendor/gql-0.2.0",
     "./wandb/vendor/graphql-core-1.1"
   ],
+  "[python]": {
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true,
+        "source.organizeImports": true
+    }
+  },
+  "ruff.organizeImports": false,
 
   "python.linting.enabled": true,
   "python.linting.flake8Enabled": true,
@@ -25,5 +32,6 @@
   "python.formatting.autopep8Args": ["--max-line-length", "120"],
   "python.testing.pytestArgs": ["."],
   "python.linting.pylintEnabled": false,
-  "jupyter.jupyterServerType": "local"
+  "jupyter.jupyterServerType": "local",
+  "python.analysis.typeCheckingMode": "basic"
 }

@@ -362,6 +362,7 @@ class Settings:
     # and to help with IDE autocomplete.
     _args: Sequence[str]
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _service_account_mode: bool  # We're logging in as a service account
     _colab: bool
     _config_dict: Config
     _console: SettingsConsole

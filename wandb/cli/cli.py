@@ -209,12 +209,13 @@ def projects(entity, display=True):
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option("--service", default=False, is_flag=True, help="Login as a service account")
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, host, cloud, relogin, anonymously, no_offline=False):
+def login(key, host, cloud, service, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -226,6 +227,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
     login_settings = dict(
         _cli_only_mode=True,
+        _service_account_mode=service,
         _disable_viewer=relogin,
         anonymous=anon_mode,
     )

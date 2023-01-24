@@ -27,6 +27,7 @@ from typing import (
 
 import click
 import requests
+from requests.auth import AuthBase
 import yaml
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
@@ -34,10 +35,12 @@ from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
 import wandb
 from wandb import __version__, env, util
+from wandb.apis.auth import OIDCAuth
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.lib.jwks import JWKS
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -166,7 +169,7 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
+                auth=self.auth,
                 url=f"{self.settings('base_url')}/graphql",
             )
         )
@@ -195,9 +198,27 @@ class Api:
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
 
+    @property
+    def auth(self) -> AuthBase | Tuple[str, str]:
+        if os.getenv(env.ACCESS_TOKEN):
+            return OIDCAuth(
+                f"{self.settings('base_url')}/oidc/token", os.environ[env.ACCESS_TOKEN]
+            )
+        else:
+            return ("api", self.api_key or "")
+
+    @property
+    def has_service_account(self) -> bool:
+        # TODO: also check if the current host supports v2 service accounts
+        return JWKS.configured
+
+    def fetch_token(self, subject: str, expires_in: Optional[int] = None) -> str:
+        jwks = JWKS(self.api_url + "/oidc/token")
+        return jwks.fetch_token(subject, expires_in)["access_token"]
+
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
-        self.client.transport.auth = ("api", self.api_key or "")
+        self.client.transport.auth = self.auth
 
     def relocate(self) -> None:
         """Ensures the current api points to the right server"""
@@ -1817,7 +1838,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
+        response = requests.get(url, auth=self.auth, stream=True)  # type: ignore
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 

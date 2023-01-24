@@ -43,6 +43,7 @@ from wandb_gql.transport.requests import RequestsHTTPTransport
 
 import wandb
 from wandb import __version__, env, util
+from wandb.apis.auth import OIDCAuth
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
@@ -386,6 +387,16 @@ class Api:
     """
     )
 
+    CREATE_PUBLIC_KEY = gql(
+        """
+    mutation CreatePublicKey($token: String!, $jwk: JSONString!) {
+        createPublicKey(input: {token: $token, JWK: $jwk}) {
+            publicKeyID
+        }
+    }
+        """
+    )
+
     def __init__(
         self,
         overrides=None,
@@ -419,11 +430,18 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=("api", self.api_key),
+                auth=self.auth,
                 url="%s/graphql" % self.settings["base_url"],
             )
         )
         self._client = RetryingClient(self._base_client)
+
+    @property
+    def auth(self):
+        if os.getenv(env.ACCESS_TOKEN):
+            return OIDCAuth("%s/oidc/token" % self.settings["base_url"], os.environ[env.ACCESS_TOKEN])
+        else:
+            return ("api", self.api_key)
 
     def create_run(self, **kwargs):
         """Create a new run"""
@@ -2788,7 +2806,7 @@ class File(Attrs):
         path = os.path.join(root, self.name)
         if os.path.exists(path) and not replace:
             raise ValueError("File already exists, pass replace=True to overwrite")
-        util.download_file_from_url(path, self.url, Api().api_key)
+        util.download_file_from_url(path, self.url, Api().auth)
         return open(path)
 
     @normalize_exceptions

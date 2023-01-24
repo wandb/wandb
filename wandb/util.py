@@ -52,6 +52,7 @@ from typing import (
 from urllib.parse import quote
 
 import requests
+from requests.auth import AuthBase
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
 import yaml
@@ -970,8 +971,11 @@ def no_retry_4xx(e: Exception) -> bool:
         return True
     if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
         return True
-    body = json.loads(e.response.content)
-    raise UsageError(body["errors"][0]["message"])
+    try:
+        body = json.loads(e.response.content)
+    except ValueError:
+        body = {"error": e.response.content}
+    raise UsageError(body.get("errors", [{"message": body.get("error")}])[0]["message"])
 
 
 def no_retry_auth(e: Any) -> bool:
@@ -1366,9 +1370,9 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 
 
 def download_file_from_url(
-    dest_path: str, source_url: str, api_key: Optional[str] = None
+    dest_path: str, source_url: str, auth: Optional[AuthBase | Tuple[str, str]] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
+    response = requests.get(source_url, auth=auth, stream=True, timeout=5)  # type: ignore
     response.raise_for_status()
 
     if os.sep in dest_path:

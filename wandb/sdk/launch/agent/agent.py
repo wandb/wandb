@@ -78,6 +78,18 @@ class LaunchAgent:
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
     @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def entity(self) -> str:
+        return self._entity
+
+    @property
+    def project(self) -> str:
+        return self._project
+
+    @property
     def job_ids(self) -> List[Union[int, str]]:
         """Returns a list of keys running job ids for the agent."""
         return list(self._jobs.keys())
