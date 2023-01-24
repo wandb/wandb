@@ -366,7 +366,7 @@ if __name__ == "__main__":
         ]
 
         subparser.add_argument("command", choices=actions, help="command to run")
-        print("lol")
+
         target_config = getattr(sys.modules[__name__], f"{command.upper()}Config")
         for field in fields(target_config):
             subparser.add_argument(
