@@ -16,6 +16,8 @@ import sys
 from distutils.util import strtobool
 from typing import List, MutableMapping, Optional, Union
 
+import appdirs
+
 Env = Optional[MutableMapping]
 
 CONFIG_PATHS = "WANDB_CONFIG_PATHS"
@@ -70,6 +72,7 @@ HOST = "WANDB_HOST"
 ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
+DATA_DIR = "WANDB_DATA_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
@@ -79,6 +82,7 @@ SENTRY_DSN = "WANDB_SENTRY_DSN"
 INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
+_EXECUTABLE = "WANDB_EXECUTABLE"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -114,6 +118,7 @@ def immutable_keys() -> List[str]:
         AGENT_REPORT_INTERVAL,
         HTTP_TIMEOUT,
         HOST,
+        DATA_DIR,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
@@ -345,8 +350,16 @@ def get_magic(
     return val
 
 
+def get_data_dir(env: Optional[Env] = None) -> str:
+    default_dir = appdirs.user_data_dir("wandb")
+    if env is None:
+        env = os.environ
+    val = env.get(DATA_DIR, default_dir)
+    return val
+
+
 def get_cache_dir(env: Optional[Env] = None) -> str:
-    default_dir = os.path.expanduser(os.path.join("~", ".cache", "wandb"))
+    default_dir = appdirs.user_cache_dir("wandb")
     if env is None:
         env = os.environ
     val = env.get(CACHE_DIR, default_dir)
