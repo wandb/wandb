@@ -5,7 +5,6 @@ import pytest
 import wandb
 from wandb.cli import cli
 from wandb.errors import LaunchError
-from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -68,16 +67,37 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
-                "--queues",
+                "--queue",
                 "nonexistent_queue",
             ],
         )
         assert result.exit_code != 0
         assert "Not all of requested queues (nonexistent_queue) found" in result.output
+
+
+def test_agent_queues_config(runner, test_settings, live_mock_server, monkeypatch):
+    monkeypatch.setattr(
+        wandb.sdk.launch.launch,
+        "LAUNCH_CONFIG_FILE",
+        os.path.join("./config/wandb/launch-config.yaml"),
+    )
+    launch_config = {"build": {"type": "docker"}, "queues": ["q1", "q2"]}
+
+    with runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+            json.dump(launch_config, f)
+        result = runner.invoke(
+            cli.launch_agent,
+            [
+                "--entity",
+                "mock_server_entity",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "Not all of requested queues (q1, q2) found" in result.output
 
 
 def test_agent_failed_default_create(runner, test_settings, live_mock_server):
@@ -116,10 +136,10 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
+                "--queue",
+                "default",
             ],
         )
 
@@ -140,10 +160,10 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
+                "--queue",
+                "default",
             ],
         )
 
@@ -422,10 +442,10 @@ def test_launch_agent_launch_error_continue(
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
-                "test_project",
                 "--entity",
                 "mock_server_entity",
+                "--queue",
+                "default",
             ],
         )
         assert "blah blah" in result.output

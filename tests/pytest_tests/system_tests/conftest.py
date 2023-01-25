@@ -75,7 +75,7 @@ if TYPE_CHECKING:
 # `local-testcontainer` ports
 LOCAL_BASE_PORT = "8080"
 SERVICES_API_PORT = "8083"
-FIXTURE_SERVICE_PORT = "9010"
+FIXTURE_SERVICE_PORT = "9015"
 
 
 class ConsoleFormatter:
@@ -568,7 +568,7 @@ def check_server_up(
         return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
 
     if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose ports 8080, 8083, and 9010
+        # start wandb server locally and expose necessary ports to the host
         command = [
             "docker",
             "run",
@@ -587,6 +587,8 @@ def check_server_up(
             "WANDB_ENABLE_TEST_CONTAINER=true",
             "--name",
             "wandb-local",
+            "--platform",
+            "linux/amd64",
             f"gcr.io/wandb-production/local-testcontainer:{wandb_server_tag}",
         ]
         subprocess.Popen(command)
