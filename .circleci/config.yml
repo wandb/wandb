@@ -437,13 +437,14 @@ jobs:
           command: |
             pip install -U pip
             pip install pex
+            pip install .
           no_output_timeout: 5m
       - run:
           name: Run pex test
           no_output_timeout: 5m
           command: |
             pex . -o wandb.pex
-            WANDB_EXECUTABLE=./wandb.pex ./wandb.pex -c "import wandb; import os; wandb.init(mode='offline'); wandb.finish()"
+            ./wandb.pex -c "import wandb; import os; wandb.init(mode='offline'); wandb.finish()"
       - save-test-results
 
   protobuf-compatability:
