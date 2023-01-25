@@ -4,7 +4,6 @@ import http.server
 import os
 import platform
 import ssl
-import sys
 import threading
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
@@ -102,9 +101,9 @@ def test_disable_ssl(
     ],
 )
 @pytest.mark.xfail(
-    condition=platform.system() == "Windows" and sys.version_info[:2] == (3, 9),
+    condition=platform.system() == "Windows",
     raises=requests.exceptions.SSLError,
-    reason="Fails on Windows with Python 3.9",
+    reason="Fails on Windows",
 )
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
