@@ -1,3 +1,63 @@
+# type: ignore
+
+import dataclasses
+import json
+import logging
+import socket
+import threading
+import time
+import urllib.parse
+from collections import defaultdict, deque
+from copy import deepcopy
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Union,
+)
+from typing import TYPE_CHECKING
+
+import flask
+
+import pandas as pd
+
+import requests
+
+import responses
+
+import wandb
+import wandb.util
+
+try:
+    from typing import Literal, TypedDict
+except ImportError:
+    from typing_extensions import Literal, TypedDict
+
+if TYPE_CHECKING:
+
+    class RawRequestResponse(TypedDict):
+        url: str
+        request: Optional[Any]
+        response: Dict[str, Any]
+        time_elapsed: float  # seconds
+
+    ResolverName = Literal[
+        "upsert_bucket",
+        "upload_files",
+        "uploaded_files",
+        "preempting",
+        "upsert_sweep",
+    ]
+
+    class Resolver(TypedDict):
+        name: ResolverName
+        resolver: Callable[[Any], Optional[Dict[str, Any]]]
+
+
 class DeliberateHTTPError(Exception):
     def __init__(self, message, status_code: int = 500):
         Exception.__init__(self)
