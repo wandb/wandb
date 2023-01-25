@@ -769,14 +769,18 @@ class InterfaceBase:
     def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
         raise NotImplementedError
 
-    def deliver_check_version(self, current_version: Optional[str] = None) -> MailboxHandle:
+    def deliver_check_version(
+        self, current_version: Optional[str] = None
+    ) -> MailboxHandle:
         check_version = pb.CheckVersionRequest()
         if current_version:
             check_version.current_version = current_version
         return self._deliver_check_version(check_version)
 
     @abstractmethod
-    def _deliver_check_version(self, check_version: pb.CheckVersionRequest) -> MailboxHandle:
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_stop_status(self) -> MailboxHandle:

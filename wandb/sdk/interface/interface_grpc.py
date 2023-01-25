@@ -351,7 +351,9 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
-    def _deliver_check_version(self, check_version: pb.CheckVersionRequest) -> MailboxHandle:
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
         assert self._stub
         self._assign(check_version)
         check_version_response = self._stub.CheckVersion(check_version)

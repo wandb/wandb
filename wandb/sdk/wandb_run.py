@@ -2120,7 +2120,8 @@ class Run:
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
             version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__)
+                current_version=wandb.__version__
+            )
             version_result = version_handle.wait(timeout=30)
             if not version_result:
                 version_handle.abandon()

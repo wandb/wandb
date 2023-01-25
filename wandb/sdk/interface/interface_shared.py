@@ -589,7 +589,9 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(attach=attach)
         return self._deliver_record(record)
 
-    def _deliver_check_version(self, check_version: pb.CheckVersionRequest) -> MailboxHandle:
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
         record = self._make_request(check_version=check_version)
         return self._deliver_record(record)
 
