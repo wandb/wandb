@@ -62,7 +62,6 @@ class _Service:
     ) -> bool:
         time_max = time.monotonic() + self._settings._service_wait
         while time.monotonic() < time_max:
-            print(proc)
             if proc and proc.poll():
                 # process finished
                 print("proc exited with", proc.returncode)
@@ -125,7 +124,6 @@ class _Service:
                 service_args.append("--serve-grpc")
             else:
                 service_args.append("--serve-sock")
-            print(kwargs)
             internal_proc = subprocess.Popen(
                 exec_cmd_list + service_args,
                 env=os.environ,
