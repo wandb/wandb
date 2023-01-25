@@ -74,7 +74,7 @@ class LocalContainerRunner(AbstractRunner):
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
-            "local-container"
+            "local-container", {}
         )
         # TODO: leaving this here because of existing CLI command
         # we should likely just tell users to specify the gpus arg directly
@@ -122,7 +122,6 @@ class LocalContainerRunner(AbstractRunner):
                 launch_project,
                 repository,
                 entry_point,
-                docker_args,
             )
             command_str = " ".join(
                 get_docker_command(image_uri, env_vars, [""], docker_args)

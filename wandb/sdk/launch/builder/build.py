@@ -539,7 +539,6 @@ def build_image_with_builder(
     launch_project: LaunchProject,
     repository: Optional[Any],
     entry_point: EntryPoint,
-    docker_args: dict,
 ) -> Optional[str]:
     """
     Helper for testing and logging
@@ -549,7 +548,6 @@ def build_image_with_builder(
         launch_project,
         repository,
         entry_point,
-        docker_args,
     )
     return image_uri
 
