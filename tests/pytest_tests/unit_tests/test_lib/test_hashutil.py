@@ -54,7 +54,7 @@ def test_md5_file_hex_single_file(data):
 # @pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_md5_file_b64_three_files(data1, text, data2):
     open("a.bin", "wb").write(data1)
-    open("b.txt", "w").write(text)
+    open("b.txt", "w", encoding="utf-8").write(text)
     open("c.bin", "wb").write(data2)
     data = data1 + text.encode("utf-8") + data2
     # Intentionally provide the paths out of order (check sorting).
@@ -67,7 +67,7 @@ def test_md5_file_b64_three_files(data1, text, data2):
 # @pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_md5_file_hex_three_files(data1, text, data2):
     open("a.bin", "wb").write(data1)
-    open("b.txt", "w").write(text)
+    open("b.txt", "w", encoding="utf-8").write(text)
     open("c.bin", "wb").write(data2)
     data = data1 + text.encode("utf-8") + data2
     # Intentionally provide the paths out of order (check sorting).
