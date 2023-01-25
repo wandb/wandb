@@ -117,9 +117,7 @@ def test_run_cuda_version(
         "cuda": True,
         "resource": "local",
         "resource_args": {},
-        "docker": {
-            "cuda_version": "10.0",
-        },
+        "cuda_version": "10.0",
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)

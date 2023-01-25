@@ -957,6 +957,13 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "project": "test",
         "docker_image": image_name,
         "synchronous": False,
+        "resource_args": {
+            "local-container": {
+                "volume": ["test-volume:/test-volume", "test-volume-2:/test-volume-2"],
+                "env": ["TEST_ENV=test-env", "FROM_MY_ENV"],
+                "t": True,
+            }
+        },
     }
     expected_command = [
         "docker",
@@ -980,6 +987,15 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "WANDB_ARTIFACTS='{}'",
         "--network",
         "host",
+        "--volume",
+        "/test-volume:/test-volume",
+        "--volume",
+        "/test-volume-2:/test-volume-2",
+        "--env",
+        "TEST_ENV=test-env",
+        "--env",
+        "FROM_MY_ENV",
+        "-t",
     ]
     if sys.platform == "linux" or sys.platform == "linux2":
         expected_command += ["--add-host", "host.docker.internal:host-gateway"]
