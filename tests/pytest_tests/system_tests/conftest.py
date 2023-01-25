@@ -12,15 +12,7 @@ from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from queue import Empty, Queue
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import pytest
 import requests
@@ -34,7 +26,12 @@ from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.writer import WriteManager
 from wandb.sdk.lib.mailbox import Mailbox
-from wandb.testing.relay import DeliberateHTTPError, InjectedResponse, RelayServer, TokenizedCircularPattern
+from wandb.testing.relay import (
+    DeliberateHTTPError,
+    InjectedResponse,
+    RelayServer,
+    TokenizedCircularPattern,
+)
 
 try:
     from typing import Literal

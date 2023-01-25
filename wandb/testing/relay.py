@@ -10,6 +10,7 @@ import urllib.parse
 from collections import defaultdict, deque
 from copy import deepcopy
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -19,14 +20,10 @@ from typing import (
     Optional,
     Union,
 )
-from typing import TYPE_CHECKING
 
 import flask
-
 import pandas as pd
-
 import requests
-
 import responses
 
 import wandb
