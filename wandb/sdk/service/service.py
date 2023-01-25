@@ -5,6 +5,7 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 
 import os
 import platform
+import shutil
 import subprocess
 import tempfile
 import time
@@ -98,15 +99,16 @@ class _Service:
         else:
             kwargs.update(start_new_session=True)
 
-        pid = os.getpid()
+        pid = str(os.getpid())
 
         with tempfile.TemporaryDirectory() as tmpdir:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
-            pid_str = str(os.getpid())
-            executable = self._settings._executable
-            # exec_cmd_list = [executable, "-m"]
             exec_cmd_list = []
+            if shutil.which("wandb") is None:
+                executable = self._settings._executable
+                exec_cmd_list = [executable, "-m"]
+
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
@@ -116,7 +118,7 @@ class _Service:
                 "--port-filename",
                 fname,
                 "--pid",
-                pid_str,
+                pid,
                 "--debug",
             ]
             if self._use_grpc:
