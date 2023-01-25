@@ -14,7 +14,6 @@ import plotly
 import pytest
 import requests
 import tensorflow as tf
-
 import wandb
 from wandb import util
 
@@ -688,7 +687,7 @@ def test_resolve_aliases(aliases):
     assert "latest" in result
     assert len(set(result)) == len(result)
     if aliases and not isinstance(aliases, str):
-        assert set(aliases) - set(result) == {}
+        assert set(aliases) >= set(result)
 
 
 # Compute recursive dicts for tests
