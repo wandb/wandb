@@ -61,6 +61,7 @@ class _Service:
     ) -> bool:
         time_max = time.monotonic() + self._settings._service_wait
         while time.monotonic() < time_max:
+            print(proc)
             if proc and proc.poll():
                 # process finished
                 print("proc exited with", proc.returncode)
@@ -104,7 +105,8 @@ class _Service:
 
             pid_str = str(os.getpid())
             executable = self._settings._executable
-            exec_cmd_list = [executable, "-m"]
+            # exec_cmd_list = [executable, "-m"]
+            exec_cmd_list = []
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
@@ -121,6 +123,7 @@ class _Service:
                 service_args.append("--serve-grpc")
             else:
                 service_args.append("--serve-sock")
+            print(kwargs)
             internal_proc = subprocess.Popen(
                 exec_cmd_list + service_args,
                 env=os.environ,
