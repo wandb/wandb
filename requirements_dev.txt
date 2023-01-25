@@ -59,7 +59,7 @@ kubernetes
 # .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 # vvvvvvvvvv - below are for extra sweeps
 sweeps>=0.2.0; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-# ^^^^^^^^^^ - above are for extra launch
+# ^^^^^^^^^^ - above are for extra sweeps
 # .[azure]
 # vvvvvvvvvv - below are for extra azure
 azure-storage-blob
