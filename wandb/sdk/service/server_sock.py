@@ -171,6 +171,7 @@ class SockServerReadThread(threading.Thread):
         # encode relay information so the right socket picks up the data
         record.control.relay_id = self._sock_client._sockid
         stream_id = record._info.stream_id
+        # print(">>> server_record_publish", record)
         iface = self._mux.get_stream(stream_id).interface
         assert iface.record_q
         iface.record_q.put(record)
