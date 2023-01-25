@@ -8,8 +8,13 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 import wandb
 import wandb.filesync.step_prepare
 from wandb import util
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 
-from ..interface.artifacts import ArtifactEntry, ArtifactManifest
+from ..interface.artifacts import (
+    ArtifactManifest,
+    ArtifactManifestEntry,
+    get_staging_dir,
+)
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2
@@ -25,7 +30,7 @@ if TYPE_CHECKING:
 
     class SaveFn(Protocol):
         def __call__(
-            self, entry: ArtifactEntry, progress_callback: "ProgressFn"
+            self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
         ) -> Any:
             pass
 
@@ -80,6 +85,41 @@ class ArtifactSaver:
         self._server_artifact = None
 
     def save(
+        self,
+        type: str,
+        name: str,
+        client_id: str,
+        sequence_client_id: str,
+        distributed_id: Optional[str] = None,
+        finalize: bool = True,
+        metadata: Optional[Dict] = None,
+        description: Optional[str] = None,
+        aliases: Optional[Sequence[str]] = None,
+        labels: Optional[List[str]] = None,
+        use_after_commit: bool = False,
+        incremental: bool = False,
+        history_step: Optional[int] = None,
+    ) -> Optional[Dict]:
+        try:
+            return self._save_internal(
+                type,
+                name,
+                client_id,
+                sequence_client_id,
+                distributed_id,
+                finalize,
+                metadata,
+                description,
+                aliases,
+                labels,
+                use_after_commit,
+                incremental,
+                history_step,
+            )
+        finally:
+            self._cleanup_staged_entries()
+
+    def _save_internal(
         self,
         type: str,
         name: str,
@@ -197,7 +237,7 @@ class ArtifactSaver:
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
-            digest = wandb.util.md5_file(path)
+            digest = md5_file_b64(path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
@@ -265,6 +305,21 @@ class ArtifactSaver:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = util.URIStr(
                         "wandb-artifact://{}/{}".format(
-                            util.b64_to_hex_id(artifact_id), artifact_file_path
+                            b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )
                     )
+
+    def _cleanup_staged_entries(self) -> None:
+        """Remove all staging copies of local files.
+
+        We made a staging copy of each local file to freeze it at "add" time.
+        We need to delete them once we've uploaded the file or confirmed we
+        already have a committed copy.
+        """
+        staging_dir = get_staging_dir()
+        for entry in self._manifest.entries.values():
+            if entry.local_path and entry.local_path.startswith(staging_dir):
+                try:
+                    os.remove(entry.local_path)
+                except OSError:
+                    pass

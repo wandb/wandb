@@ -184,12 +184,14 @@ class PrinterTerm(_Printer):
 
     def link(self, link: str, text: Optional[str] = None) -> str:
         ret: str = click.style(link, fg="blue", underline=True)
+        # ret = f"\x1b[m{text or link}\x1b[0m"
+        # ret = f"\x1b]8;;{link}\x1b\\{ret}\x1b]8;;\x1b\\"
         return ret
 
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+            emojis = dict(star="⭐️", broom="🧹", rocket="🚀", gorilla="🦍", turtle="🐢")
 
         return emojis.get(name, "")
 
@@ -261,7 +263,7 @@ class PrinterJupyter(_Printer):
         return f'<strong style="color:#cdcd00">{text}</strong>'
 
     def link(self, link: str, text: Optional[str] = None) -> str:
-        return f'<a href="{link}" target="_blank">{text or link}</a>'
+        return f'<a href={link!r} target="_blank">{text or link}</a>'
 
     def emoji(self, name: str) -> str:
         return ""
@@ -295,7 +297,10 @@ class PrinterJupyter(_Printer):
         return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
 
 
-def get_printer(_jupyter: Optional[bool] = None) -> Union[PrinterTerm, PrinterJupyter]:
+Printer = Union[PrinterTerm, PrinterJupyter]
+
+
+def get_printer(_jupyter: Optional[bool] = None) -> Printer:
     if _jupyter and ipython.in_jupyter():
         return PrinterJupyter()
     return PrinterTerm()

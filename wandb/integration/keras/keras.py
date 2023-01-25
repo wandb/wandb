@@ -234,7 +234,21 @@ patch_tf_keras()
 ### For gradient logging ###
 
 
-class _CustomOptimizer(tf.keras.optimizers.Optimizer):
+def _get_custom_optimizer_parent_class():
+    from pkg_resources import parse_version
+
+    if parse_version(tf.__version__) >= parse_version("2.9.0"):
+        custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
+    else:
+        custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
+
+    return custom_optimizer_parent_class
+
+
+_custom_optimizer_parent_class = _get_custom_optimizer_parent_class()
+
+
+class _CustomOptimizer(_custom_optimizer_parent_class):
     def __init__(self):
         super().__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
@@ -1002,7 +1016,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
-        except (ImportError, RuntimeError, TypeError) as e:
+        except (ImportError, RuntimeError, TypeError, AttributeError) as e:
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
                 "as an W&B Artifact in the 'tf' format."

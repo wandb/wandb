@@ -27,12 +27,12 @@ class Metric:
     def __init__(
         self,
         name: str,
-        step_metric: str = None,
-        step_sync: bool = None,
-        hidden: bool = None,
-        summary: Sequence[str] = None,
-        goal: str = None,
-        overwrite: bool = None,
+        step_metric: Optional[str] = None,
+        step_sync: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+        summary: Optional[Sequence[str]] = None,
+        goal: Optional[str] = None,
+        overwrite: Optional[bool] = None,
     ) -> None:
         self._callback = None
         self._name = name
