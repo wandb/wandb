@@ -1418,12 +1418,12 @@ class Settings:
                 settings["username"] = str(os.getuid())
 
         _executable = (
-            os.environ.get(wandb.env._EXECUTABLE, self._executable)
+            self._executable
+            or os.environ.get(wandb.env._EXECUTABLE)
+            or shutil.which("python3")
             or sys.executable
-            or shutil.which("python")
+            or "python3"
         )
-        if _executable is None or _executable == "":
-            _executable = "python3"
         settings["_executable"] = _executable
 
         settings["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
