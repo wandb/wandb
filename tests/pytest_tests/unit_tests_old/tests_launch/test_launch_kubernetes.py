@@ -455,7 +455,6 @@ def test_kube_user_container(
 
     run = launch.run(**kwargs)
     out, err = capsys.readouterr()
-    assert "Docker args are not supported for Kubernetes" in err
     job = run.get_job()
     container = job.spec.template.spec.containers[0]
     assert container.image == "test:tag"

@@ -17,12 +17,7 @@ from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
-from ..utils import (
-    LOG_PREFIX,
-    PROJECT_SYNCHRONOUS,
-    run_shell,
-    to_camel_case,
-)
+from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
 from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)

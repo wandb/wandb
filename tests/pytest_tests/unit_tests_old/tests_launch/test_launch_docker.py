@@ -37,9 +37,7 @@ def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_r
         "cuda": True,
         "resource": "local",
         "resource_args": {},
-        "docker": {
-            "cuda_version": "11.0",
-        },
+        "cuda_version": "11.0",
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
