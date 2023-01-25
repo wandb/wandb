@@ -38,6 +38,7 @@ except ImportError:
     from typing_extensions import Literal, TypedDict
 
 if TYPE_CHECKING:
+    from typing import Deque
 
     class RawRequestResponse(TypedDict):
         url: str

@@ -1,20 +1,15 @@
 import dataclasses
-import json
-import logging
 import os
 import platform
 import secrets
-import socket
 import string
 import subprocess
 import threading
 import time
 import unittest.mock
 import urllib.parse
-from collections import defaultdict, deque
 from collections.abc import Sequence
 from contextlib import contextmanager
-from copy import deepcopy
 from pathlib import Path
 from queue import Empty, Queue
 from typing import (
@@ -22,18 +17,13 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Iterable,
     List,
-    Mapping,
     Optional,
     Union,
 )
 
-import flask
-import pandas as pd
 import pytest
 import requests
-import responses
 import wandb
 import wandb.old.settings
 import wandb.util
@@ -44,33 +34,12 @@ from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.writer import WriteManager
 from wandb.sdk.lib.mailbox import Mailbox
-from wandb.testing.relay import InjectedResponse, RelayServer, TokenizedCircularPattern
+from wandb.testing.relay import DeliberateHTTPError, InjectedResponse, RelayServer, TokenizedCircularPattern
 
 try:
-    from typing import Literal, TypedDict
+    from typing import Literal
 except ImportError:
-    from typing_extensions import Literal, TypedDict
-
-if TYPE_CHECKING:
-    from typing import Deque
-
-    class RawRequestResponse(TypedDict):
-        url: str
-        request: Optional[Any]
-        response: Dict[str, Any]
-        time_elapsed: float  # seconds
-
-    ResolverName = Literal[
-        "upsert_bucket",
-        "upload_files",
-        "uploaded_files",
-        "preempting",
-        "upsert_sweep",
-    ]
-
-    class Resolver(TypedDict):
-        name: ResolverName
-        resolver: Callable[[Any], Optional[Dict[str, Any]]]
+    from typing_extensions import Literal
 
 
 # `local-testcontainer` ports
