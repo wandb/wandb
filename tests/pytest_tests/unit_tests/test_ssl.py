@@ -100,7 +100,6 @@ def test_disable_ssl(
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
     ],
 )
-@pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
     ssl_server: http.server.HTTPServer,
