@@ -102,10 +102,6 @@ def test_disable_ssl(
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
     ],
 )
-@pytest.mark.skipif(
-    not (platform.system() == "Windows" and sys.version_info[:2] in {(3, 9), (3, 10)}),
-    reason="  TODO(spencerpearson)  ",
-)
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
     ssl_server: http.server.HTTPServer,
@@ -118,15 +114,4 @@ def test_uses_userspecified_custom_ssl_certs(
 
     with patch.dict("os.environ", make_env(ssl_creds.cert)):
         print(os.environ)
-        assert {
-            "env": make_env(ssl_creds.cert),
-            "sys.version_info": sys.version_info,
-            "urllib3.__version__": urllib3.__version__,
-            "requests.__version__": requests.__version__,
-        } == {
-            "env": "...",
-            "sys.version_info": "...",
-            "urllib3.__version__": "...",
-            "requests.__version__": "...",
-        }
         assert requests.get(url).status_code == 200
