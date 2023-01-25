@@ -1023,7 +1023,7 @@ class Run:
     @_run_decorator._attach
     def log_code(
         self,
-        root: str = ".",
+        root: Optional[str] = ".",
         name: Optional[str] = None,
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
@@ -2119,9 +2119,14 @@ class Run:
 
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
-            self._check_version = self._backend.interface.communicate_check_version(
+            version_handle = self._backend.interface.deliver_check_version(
                 current_version=wandb.__version__
             )
+            version_result = version_handle.wait(timeout=30)
+            if not version_result:
+                version_handle.abandon()
+                return
+            self._check_version = version_result.response.check_version_response
             logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
