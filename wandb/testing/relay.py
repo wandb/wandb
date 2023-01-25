@@ -4,6 +4,7 @@ import dataclasses
 import json
 import logging
 import socket
+import sys
 import threading
 import time
 import urllib.parse
@@ -33,6 +34,11 @@ try:
     from typing import Literal, TypedDict
 except ImportError:
     from typing_extensions import Literal, TypedDict
+
+if sys.version_info >= (3, 8):
+    from typing import Protocol
+else:
+    from typing_extensions import Protocol
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -492,15 +498,25 @@ class InjectedResponse:
         }
 
 
+class RelayControlProtocol(Protocol):
+    def process(self, request: "flask.Request") -> None:
+        ...  # pragma: no cover
+
+    def control(self, request: "flask.Request") -> Mapping[str, str]:
+        ...  # pragma: no cover
+
+
 class RelayServer:
     def __init__(
         self,
         base_url: str,
         inject: Optional[List[InjectedResponse]] = None,
+        control: Optional[RelayControlProtocol] = None,
     ) -> None:
         # todo for the future:
         #  - consider switching from Flask to Quart
         #  - async app will allow for better failure injection/poor network perf
+        self.relay_control = control
         self.app = flask.Flask(__name__)
         self.app.logger.setLevel(logging.INFO)
         self.app.register_error_handler(DeliberateHTTPError, self.handle_http_exception)
@@ -528,6 +544,13 @@ class RelayServer:
             view_func=self.storage_file,
             methods=["PUT", "GET"],
         )
+        if control:
+            self.app.add_url_rule(
+                rule="/_control",
+                endpoint="_control",
+                view_func=self.control,
+                methods=["POST"],
+            )
         # @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
         self.port = self._get_free_port()
         self.base_url = urllib.parse.urlparse(base_url)
@@ -624,6 +647,9 @@ class RelayServer:
         request_data = request.get_json()
         response_data = response.json() or {}
 
+        if self.relay_control:
+            self.relay_control.process(request)
+
         # store raw data
         raw_data: "RawRequestResponse" = {
             "url": request.url,
@@ -710,3 +736,7 @@ class RelayServer:
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
         return relayed_response.json()
+
+    def control(self) -> Mapping[str, str]:
+        assert self.relay_control
+        return self.relay_control.control(flask.request)

@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from queue import Empty, Queue
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pytest
 import requests
