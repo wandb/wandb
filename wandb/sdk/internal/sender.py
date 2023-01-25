@@ -427,7 +427,7 @@ class SendManager:
         self._maybe_report_status(always=True)
 
     def send_request_check_version(self, record: "Record") -> None:
-        assert record.control.mailbox_slot
+        assert record.control.req_resp or record.control.mailbox_slot
         result = proto_util._result_from_record(record)
         current_version = (
             record.request.check_version.current_version or wandb.__version__
@@ -456,7 +456,7 @@ class SendManager:
         resp.run.CopyFrom(self._run)
 
     def send_request_attach(self, record: "Record") -> None:
-        assert record.control.mailbox_slot
+        assert record.control.req_resp or record.control.mailbox_slot
         result = proto_util._result_from_record(record)
         self._send_request_attach(
             record.request.attach, result.response.attach_response
