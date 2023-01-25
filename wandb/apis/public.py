@@ -3809,7 +3809,6 @@ class ProjectArtifactCollections(Paginator):
                 self.project,
                 r["node"]["name"],
                 self.type_name,
-                r["node"],
             )
             for r in self.last_response["project"]["artifactType"][
                 "artifactCollections"
@@ -4030,6 +4029,7 @@ class ArtifactCollection:
         self._attrs = attrs
         if self._attrs is None:
             self.load()
+        self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
 
     @property
     def id(self):
@@ -4047,14 +4047,21 @@ class ArtifactCollection:
             per_page=per_page,
         )
 
+    @property
+    def aliases(self):
+        """Artifact Collection Aliases"""
+        return self._aliases
+
     def load(self):
         query = gql(
             """
         query ArtifactCollection(
             $entityName: String!,
             $projectName: String!,
-            $artifactTypeName: String!
-            $artifactCollectionName: String!
+            $artifactTypeName: String!,
+            $artifactCollectionName: String!,
+            $cursor: String,
+            $perPage: Int = 1000
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
@@ -4063,6 +4070,18 @@ class ArtifactCollection:
                         name
                         description
                         createdAt
+                        aliases(after: $cursor, first: $perPage){
+                            edges {
+                                node {
+                                    alias
+                                }
+                                cursor
+                            }
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                        }
                     }
                 }
             }

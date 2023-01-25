@@ -587,6 +587,8 @@ def check_server_up(
             "WANDB_ENABLE_TEST_CONTAINER=true",
             "--name",
             "wandb-local",
+            "--platform",
+            "linux/amd64",
             f"gcr.io/wandb-production/local-testcontainer:{wandb_server_tag}",
         ]
         subprocess.Popen(command)
