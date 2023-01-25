@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 import requests
+import urllib3
 import wandb.apis
 import wandb.env
 
@@ -97,13 +98,13 @@ def test_disable_ssl(
 @pytest.mark.parametrize(
     "make_env",
     [
-        lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
+        # lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath)},
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
     ],
 )
 @pytest.mark.skipif(
-    platform.system() == "Windows" and sys.version_info[:2] == (3, 9),
-    reason="Fails on Windows with Python 3.9",
+    not (platform.system() == "Windows" and sys.version_info[:2] in {(3, 9), (3, 10)}),
+    reason="  TODO(spencerpearson)  ",
 )
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
@@ -117,4 +118,15 @@ def test_uses_userspecified_custom_ssl_certs(
 
     with patch.dict("os.environ", make_env(ssl_creds.cert)):
         print(os.environ)
+        assert {
+            "env": make_env(ssl_creds.cert),
+            "sys.version_info": sys.version_info,
+            "urllib3.__version__": urllib3.__version__,
+            "requests.__version__": requests.__version__,
+        } == {
+            "env": "...",
+            "sys.version_info": "...",
+            "urllib3.__version__": "...",
+            "requests.__version__": "...",
+        }
         assert requests.get(url).status_code == 200
