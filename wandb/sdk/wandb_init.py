@@ -895,10 +895,10 @@ def _attach(
     if not attach_result:
         attach_handle.abandon()
         raise UsageError("Timeout attaching to run")
-    attach_response = result.response.attach_response
+    attach_response = attach_result.response.attach_response
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
-    run._set_run_obj(resp.run)
+    run._set_run_obj(attach_response.run)
     run._on_attach()
     return run
 

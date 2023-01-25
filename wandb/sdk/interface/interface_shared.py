@@ -585,6 +585,10 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(stop_status=stop_status)
         return self._deliver_record(record)
 
+    def _deliver_attach(self, attach: pb.AttachRequest) -> MailboxHandle:
+        record = self._make_request(attach=attach)
+        return self._deliver_record(record)
+
     def _deliver_network_status(
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle:

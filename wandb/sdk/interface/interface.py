@@ -761,6 +761,14 @@ class InterfaceBase:
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_attach(self, attach_id: str) -> MailboxHandle:
+        attach = pb.AttachRequest(attach_id=attach_id)
+        return self._deliver_attach(attach)
+
+    @abstractmethod
+    def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_stop_status(self) -> MailboxHandle:
         status = pb.StopStatusRequest()
         return self._deliver_stop_status(status)

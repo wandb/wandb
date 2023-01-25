@@ -351,6 +351,15 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_attach(self, attach: pb.AttachRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(attach)
+        attach_resposne = self._stub.Attach(attach)
+        response = pb.Response(attach_response=attach_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         assert self._stub
         self._assign(get_summary)
