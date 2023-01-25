@@ -38,7 +38,7 @@ def md5_file_hex(*paths: Union[str, PathLike]) -> HexMD5:
 def _md5_file_hasher(*paths: Union[str, PathLike]) -> "hashlib._Hash":
     md5_hash = hashlib.md5()
     for path in sorted(str(p) for p in paths):
-        print(f"{path=}", end=" ")
+        print(f"{path}", end=" ")
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(64 * 1024), b""):
                 md5_hash.update(chunk)
