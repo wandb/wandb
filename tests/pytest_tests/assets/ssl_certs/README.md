@@ -19,7 +19,7 @@ I don't really understand all that, but here are the most valuable things I lear
 
 - "Why do we need the `mv ...certificate hash???...`?
 
-    TLDR: `requests` and `httpx` both provide a way for the user to specify a directory full of trusted certificates for SSL to use. Each certificate file in that directory must be named based on its hash, or else OpenSSL (which both libs use under the hood) won't be able to find it. We _could_ just `mv localhost.cert $(...hash it...).0` instead; this just seems a little cleaner to me.
+    TLDR: `requests` and `httpx` both provide a way for the user to specify a directory full of trusted certificates for SSL to use. Each certificate file in that directory must be named based on its hash, or else OpenSSL (which both libs use under the hood) won't be able to find it. (I'd prefer to `ln -s localhost.cert ${HASH}.0` instead, but IME the symlink doesn't work robustly on Windows.)
 
     Details:
 
