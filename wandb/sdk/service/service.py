@@ -103,11 +103,8 @@ class _Service:
         with tempfile.TemporaryDirectory() as tmpdir:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
-            exec_cmd_list = []
-            if shutil.which("wandb") is None:
-                executable = self._settings._executable
-                exec_cmd_list = [executable, "-m"]
-
+            executable = self._settings._executable
+            exec_cmd_list = [executable, "-m"]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
