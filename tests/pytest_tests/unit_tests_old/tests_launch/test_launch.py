@@ -17,7 +17,6 @@ from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
 from wandb.sdk.lib import runid
@@ -25,7 +24,6 @@ from wandb.sdk.lib import runid
 from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path
 
 EMPTY_BACKEND_CONFIG = {
-    PROJECT_DOCKER_ARGS: {},
     PROJECT_SYNCHRONOUS: True,
 }
 

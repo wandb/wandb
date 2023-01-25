@@ -19,7 +19,6 @@ from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     run_shell,
     to_camel_case,
@@ -184,12 +183,6 @@ class AWSSagemakerRunner(AbstractRunner):
             if login_resp is None or "Login Succeeded" not in login_resp:
                 raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
-        docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
-        if docker_args and list(docker_args) != ["docker_image"]:
-            wandb.termwarn(
-                "Docker args are not supported for Sagemaker Resource. Not using docker args"
-            )
-
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
@@ -199,7 +192,6 @@ class AWSSagemakerRunner(AbstractRunner):
                 launch_project,
                 repository,
                 entry_point,
-                {},
             )
 
         if not self.ack_run_queue_item(launch_project):
