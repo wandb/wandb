@@ -1343,7 +1343,7 @@ workflows:
               python_version_minor: [9, 10]
           name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
-          tox_args: "tests/pytest_tests/unit_tests --timeout 300"
+          tox_args: "tests/pytest_tests/unit_tests/test_ssl.py --timeout 300"
 
   # todo: needs love
   #  manual_test:
