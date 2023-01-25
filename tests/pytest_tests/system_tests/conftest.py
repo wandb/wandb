@@ -44,7 +44,7 @@ from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.writer import WriteManager
 from wandb.sdk.lib.mailbox import Mailbox
-from .relay import RelayServer
+from wandb.tools.relay import RelayServer
 
 try:
     from typing import Literal, TypedDict
