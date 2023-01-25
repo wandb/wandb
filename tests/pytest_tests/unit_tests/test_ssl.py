@@ -101,8 +101,9 @@ def test_disable_ssl(
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
     ],
 )
-@pytest.mark.skipif(
-    platform.system() == "Windows" and sys.version_info[:2] == (3, 9),
+@pytest.mark.xfail(
+    condition=platform.system() == "Windows" and sys.version_info[:2] == (3, 9),
+    raises=requests.exceptions.SSLError,
     reason="Fails on Windows with Python 3.9",
 )
 def test_uses_userspecified_custom_ssl_certs(
