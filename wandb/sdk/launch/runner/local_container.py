@@ -191,23 +191,17 @@ def get_docker_command(
 
     if docker_args:
         for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name)]
-                else:
-                    cmd += ["--" + shlex.quote(name)]
+            if len(name) == 1:
+                prefix = "-" + shlex.quote(name)
             else:
-                # Passed name=value
-                if len(name) == 1:
-                    prefix = "-" + shlex.quote(name)
-                else:
-                    prefix = "--" + shlex.quote(name)
-                if isinstance(value, list):
-                    for v in value:
-                        cmd += [prefix, shlex.quote(str(v))]
-                else:
-                    cmd += [prefix, shlex.quote(str(value))]
+                prefix = "--" + shlex.quote(name)
+            if isinstance(value, list):
+                for v in value:
+                    cmd += [prefix, shlex.quote(str(v))]
+            elif isinstance(value, bool) and value:
+                cmd += [prefix]
+            else:
+                cmd += [prefix, shlex.quote(str(value))]
 
     cmd += [shlex.quote(image)]
     cmd += entry_cmd
