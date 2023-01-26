@@ -1,6 +1,7 @@
-from flask import Flask, jsonify
-import wandb
 import argparse
+
+import wandb
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
