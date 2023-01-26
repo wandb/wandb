@@ -2,7 +2,6 @@ import contextlib
 import dataclasses
 import http.server
 import os
-import platform
 import ssl
 import threading
 from pathlib import Path
