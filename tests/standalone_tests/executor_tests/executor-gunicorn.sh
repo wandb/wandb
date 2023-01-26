@@ -25,3 +25,5 @@ done
 pkill -9 -f uwsgi
 
 popd
+
+exit 0

@@ -17,7 +17,7 @@ do
         echo "Curl request $i succeeded"
     else
         echo "Error: curl request $i failed"
-        exit 1    
+        exit 1
     fi
 done
 
@@ -25,3 +25,4 @@ done
 pkill -9 -f uwsgi
 
 popd
+exit 0

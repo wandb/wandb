@@ -25,3 +25,5 @@ done
 # Kill the process
 kill -9 $flask_pid
 popd
+
+exit 0
