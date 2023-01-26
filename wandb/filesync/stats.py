@@ -1,7 +1,9 @@
 import threading
+from pathlib import Path
 from typing import MutableMapping, NamedTuple
 
 import wandb
+import wandb.sdk.lib.filenames
 
 
 class FileStats(NamedTuple):
@@ -27,10 +29,10 @@ class FileCountsByCategory(NamedTuple):
 
 class Stats:
     def __init__(self) -> None:
-        self._stats: MutableMapping[str, "FileStats"] = {}
+        self._stats: MutableMapping[Path, "FileStats"] = {}
         self._lock = threading.Lock()
 
-    def init_file(self, path: str, size: int, is_artifact_file: bool = False) -> None:
+    def init_file(self, path: Path, size: int, is_artifact_file: bool = False) -> None:
         with self._lock:
             self._stats[path] = FileStats(
                 deduped=False,
@@ -40,7 +42,7 @@ class Stats:
                 artifact_file=is_artifact_file,
             )
 
-    def set_file_deduped(self, path: str) -> None:
+    def set_file_deduped(self, path: Path) -> None:
         with self._lock:
             orig = self._stats[path]
             self._stats[path] = orig._replace(
@@ -48,13 +50,13 @@ class Stats:
                 uploaded=orig.total,
             )
 
-    def update_uploaded_file(self, path: str, total_uploaded: int) -> None:
+    def update_uploaded_file(self, path: Path, total_uploaded: int) -> None:
         with self._lock:
             self._stats[path] = self._stats[path]._replace(
                 uploaded=total_uploaded,
             )
 
-    def update_failed_file(self, path: str) -> None:
+    def update_failed_file(self, path: Path) -> None:
         with self._lock:
             self._stats[path] = self._stats[path]._replace(
                 uploaded=0,
@@ -84,7 +86,7 @@ class Stats:
         for path, stats in file_stats:
             if stats.artifact_file:
                 artifact_files += 1
-            elif wandb.wandb_lib.filenames.is_wandb_file(path):  # type: ignore[attr-defined]  # TODO(spencerpearson): this is probably synonymous with wandb.sdk.lib.filenames...?
+            elif wandb.sdk.lib.filenames.is_wandb_file(str(path)):
                 wandb_files += 1
             elif path.startswith("media"):
                 media_files += 1

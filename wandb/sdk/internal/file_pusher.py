@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 import queue
 import tempfile
 import time
@@ -129,7 +130,7 @@ class FilePusher:
 
         save_name = dir_watcher.SaveName(wandb.util.to_forward_slash_path(save_name))
         event = step_checksum.RequestUpload(
-            path,
+            Path(path),
             dir_watcher.SaveName(save_name),
             copy,
         )

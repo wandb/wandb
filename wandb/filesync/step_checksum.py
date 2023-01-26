@@ -4,6 +4,7 @@ import os
 import queue
 import shutil
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
 from wandb.filesync import dir_watcher, step_upload
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class RequestUpload(NamedTuple):
-    path: str
+    path: Path
     save_name: dir_watcher.SaveName
     copy: bool
 
@@ -70,9 +71,11 @@ class StepChecksum:
             if isinstance(req, RequestUpload):
                 path = req.path
                 if req.copy:
-                    path = os.path.join(
-                        self._tempdir.name,
-                        f"{runid.generate_id()}-{req.save_name}",
+                    path = Path(
+                        os.path.join(
+                            self._tempdir.name,
+                            f"{runid.generate_id()}-{req.save_name}",
+                        )
                     )
                     filesystem.mkdir_exists_ok(os.path.dirname(path))
                     try:
@@ -113,7 +116,7 @@ class StepChecksum:
                         )
                         self._output_queue.put(
                             step_upload.RequestUpload(
-                                entry.local_path,
+                                Path(entry.local_path),
                                 dir_watcher.SaveName(
                                     entry.path
                                 ),  # typecast might not be legit

@@ -1,6 +1,7 @@
 import logging
 import os
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
@@ -29,7 +30,7 @@ class UploadJob(threading.Thread):
         file_stream: "file_stream.FileStreamApi",
         silent: bool,
         save_name: "dir_watcher.SaveName",
-        path: "dir_watcher.PathStr",
+        path: Path,
         artifact_id: Optional[str],
         md5: Optional[str],
         copied: bool,
@@ -53,7 +54,7 @@ class UploadJob(threading.Thread):
         self._file_stream = file_stream
         self.silent = silent
         self.save_name = save_name
-        self.save_path = self.path = path
+        self.save_path = path
         self.artifact_id = artifact_id
         self.md5 = md5
         self.copied = copied

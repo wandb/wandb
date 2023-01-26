@@ -1,5 +1,6 @@
 """Batching file prepare requests to our API."""
 
+from pathlib import Path
 import queue
 import sys
 import threading
@@ -42,7 +43,7 @@ SaveFn = Callable[["progress.ProgressFn"], Any]
 
 
 class RequestUpload(NamedTuple):
-    path: str
+    path: Path
     save_name: "dir_watcher.SaveName"
     artifact_id: Optional[str]
     md5: Optional[str]
