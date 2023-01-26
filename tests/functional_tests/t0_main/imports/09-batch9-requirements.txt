@@ -1,4 +1,4 @@
-mmcv
+mmcv>=2.0.0rc1
 mmsegmentation
 mmdet
 mmengine
