@@ -56,6 +56,7 @@ from wandb.util import (
     _is_artifact_string,
     _is_artifact_version_weave_dict,
     _is_py_path,
+    _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
     sentry_set_scope,
@@ -1023,7 +1024,7 @@ class Run:
     @_run_decorator._attach
     def log_code(
         self,
-        root: str = ".",
+        root: Optional[str] = ".",
         name: Optional[str] = None,
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
@@ -2119,9 +2120,14 @@ class Run:
 
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
-            self._check_version = self._backend.interface.communicate_check_version(
+            version_handle = self._backend.interface.deliver_check_version(
                 current_version=wandb.__version__
             )
+            version_result = version_handle.wait(timeout=30)
+            if not version_result:
+                version_handle.abandon()
+                return
+            self._check_version = version_result.response.check_version_response
             logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
@@ -2919,7 +2925,6 @@ class Run:
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
-        aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
                 name = f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
@@ -2942,10 +2947,8 @@ class Run:
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
-        if isinstance(aliases, str):
-            aliases = [aliases]
         artifact.finalize()
-        return artifact, aliases
+        return artifact, _resolve_aliases(aliases)
 
     @_run_decorator._attach
     def alert(

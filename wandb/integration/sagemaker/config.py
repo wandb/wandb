@@ -1,11 +1,12 @@
 import json
 import os
 import re
+from typing import Any, Dict
 
 from . import files as sm_files
 
 
-def parse_sm_config():
+def parse_sm_config() -> Dict[str, Any]:
     """Attempts to parse SageMaker configuration.
 
     Returns:
