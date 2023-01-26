@@ -1420,8 +1420,8 @@ class Settings:
         _executable = (
             self._executable
             or os.environ.get(wandb.env._EXECUTABLE)
-            or shutil.which("python3")
             or sys.executable
+            or shutil.which("python3")
             or "python3"
         )
         settings["_executable"] = _executable

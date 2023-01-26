@@ -11,6 +11,11 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from . import _startup_debug, port_file
+from ...errors import (
+    ServiceStartPortError,
+    ServiceStartTimeoutError,
+    ServiceStartProcessError,
+)
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
@@ -58,13 +63,31 @@ class _Service:
 
     def _wait_for_ports(
         self, fname: str, proc: Optional[subprocess.Popen] = None
-    ) -> bool:
+    ) -> None:
+        """
+        Wait for the service to write the port file and then read it.
+
+        Args:
+            fname: The path to the port file.
+            proc: The process to wait for.
+
+        Raises:
+            ServiceStartTimeoutError: If the service takes too long to start.
+            ServiceStartPortError: If the service writes an invalid port file or unable to read it.
+            ServiceStartProcessError: If the service process exits unexpectedly.
+
+        """
         time_max = time.monotonic() + self._settings._service_wait
         while time.monotonic() < time_max:
             if proc and proc.poll():
                 # process finished
                 print("proc exited with", proc.returncode)
-                return False
+                raise ServiceStartProcessError(
+                    f"The wandb service process exited with {proc.returncode}. "
+                    "Ensure that `sys.executable` is a valid python interpreter. "
+                    "You can override it with the `_executable` setting "
+                    "or with the `WANDB__EXECUTABLE` environment variable."
+                )
             if not os.path.isfile(fname):
                 time.sleep(0.2)
                 continue
@@ -77,10 +100,17 @@ class _Service:
                 self._grpc_port = pf.grpc_port
                 self._sock_port = pf.sock_port
             except Exception as e:
-                print("Error:", e)
-                return False
-            return True
-        return False
+                # todo: point at the docs. this could be due to a number of reasons,
+                #  for example, being unable to write to the port file etc.
+                raise ServiceStartPortError(
+                    f"Failed to allocate port for wandb service: {e}."
+                )
+            return
+        raise ServiceStartTimeoutError(
+            "Timed out waiting for wandb service to start after "
+            f"{self._settings._service_wait} seconds. "
+            "Try increasing the timeout with the `_service_wait` setting."
+        )
 
     def _launch_server(self) -> None:
         """Launch server and set ports."""
@@ -126,9 +156,8 @@ class _Service:
                 **kwargs,
             )
             self._startup_debug_print("wait_ports")
-            ports_found = self._wait_for_ports(fname, proc=internal_proc)
+            self._wait_for_ports(fname, proc=internal_proc)
             self._startup_debug_print("wait_ports_done")
-            assert ports_found
             self._internal_proc = internal_proc
         self._startup_debug_print("launch_done")
 
