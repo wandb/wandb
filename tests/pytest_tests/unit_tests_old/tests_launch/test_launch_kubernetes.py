@@ -454,7 +454,6 @@ def test_kube_user_container(
     del kwargs["resource_args"]["kubernetes"]["job_spec"]
 
     run = launch.run(**kwargs)
-    out, err = capsys.readouterr()
     job = run.get_job()
     container = job.spec.template.spec.containers[0]
     assert container.image == "test:tag"
