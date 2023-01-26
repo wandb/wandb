@@ -778,7 +778,7 @@ class StoragePolicy:
         pass
 
     def load_file(
-        self, artifact: Artifact, name: str, manifest_entry: ArtifactManifestEntry
+        self, artifact: Artifact, manifest_entry: ArtifactManifestEntry
     ) -> str:
         raise NotImplementedError
 
@@ -799,8 +799,6 @@ class StoragePolicy:
 
     def load_reference(
         self,
-        artifact: Artifact,
-        name: str,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> str:
@@ -818,7 +816,6 @@ class StorageHandler:
 
     def load_path(
         self,
-        artifact: Artifact,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
@@ -988,7 +985,15 @@ _artifacts_cache = None
 def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
     if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
+        singleton = wandb.sdk.wandb_setup._WandbSetup._instance
+        cache_dir_base = (
+            wandb.run.settings.cache_dir
+            if wandb.run and wandb.run.settings.cache_dir
+            else singleton._settings.cache_dir
+            if singleton and singleton._settings.cache_dir
+            else env.get_cache_dir()
+        )
+        cache_dir = os.path.join(cache_dir_base, "artifacts")
         _artifacts_cache = ArtifactsCache(cache_dir)
     return _artifacts_cache
 

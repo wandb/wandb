@@ -162,6 +162,12 @@ fragment ArtifactFragment on Artifact {
     artifactType {
         id
         name
+        project {
+            name
+            entity {
+                name
+            }
+        }
     }
     commitHash
 }
@@ -993,7 +999,7 @@ class Attrs:
         elif name in self._attrs.keys():
             return self._attrs[name]
         else:
-            raise AttributeError(f"'{repr(self)}' object has no attribute '{name}'")
+            raise AttributeError(f"{repr(self)!r} object has no attribute {name!r}")
 
 
 class Paginator:
@@ -1056,7 +1062,8 @@ class Paginator:
 
     def __getitem__(self, index):
         loaded = True
-        while loaded and index > len(self.objects) - 1:
+        stop = index.stop if isinstance(index, slice) else index
+        while loaded and stop > len(self.objects) - 1:
             loaded = self._load_page()
         return self.objects[index]
 
@@ -1480,7 +1487,7 @@ class Project(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button("project")
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -2258,7 +2265,7 @@ class Run(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button()
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -2681,7 +2688,7 @@ class Sweep(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button("sweep")
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -3459,7 +3466,7 @@ class BetaReport(Attrs):
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button("report")
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -3802,7 +3809,6 @@ class ProjectArtifactCollections(Paginator):
                 self.project,
                 r["node"]["name"],
                 self.type_name,
-                r["node"],
             )
             for r in self.last_response["project"]["artifactType"][
                 "artifactCollections"
@@ -4023,6 +4029,7 @@ class ArtifactCollection:
         self._attrs = attrs
         if self._attrs is None:
             self.load()
+        self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
 
     @property
     def id(self):
@@ -4040,14 +4047,21 @@ class ArtifactCollection:
             per_page=per_page,
         )
 
+    @property
+    def aliases(self):
+        """Artifact Collection Aliases"""
+        return self._aliases
+
     def load(self):
         query = gql(
             """
         query ArtifactCollection(
             $entityName: String!,
             $projectName: String!,
-            $artifactTypeName: String!
-            $artifactCollectionName: String!
+            $artifactTypeName: String!,
+            $artifactCollectionName: String!,
+            $cursor: String,
+            $perPage: Int = 1000
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
@@ -4056,6 +4070,18 @@ class ArtifactCollection:
                         name
                         description
                         createdAt
+                        aliases(after: $cursor, first: $perPage){
+                            edges {
+                                node {
+                                    alias
+                                }
+                                cursor
+                            }
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                        }
                     }
                 }
             }
@@ -4133,14 +4159,12 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             cache_path = manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
                 manifest.entries[self.name],
                 local=True,
             )
         else:
             cache_path = manifest.storage_policy.load_file(
-                self._parent_artifact, self.name, manifest.entries[self.name]
+                self._parent_artifact, manifest.entries[self.name]
             )
 
         return self.copy(cache_path, os.path.join(root, self.name))
@@ -4149,8 +4173,6 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             return manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
                 manifest.entries[self.name],
                 local=False,
             )
@@ -4311,10 +4333,14 @@ class Artifact(artifacts.Artifact):
                             )
                             break
 
+            p = response.get("artifact", {}).get("artifactType", {}).get("project", {})
+            project = p.get("name")  # defaults to None
+            entity = p.get("entity", {}).get("name")
+
             artifact = cls(
                 client=client,
-                entity=None,
-                project=None,
+                entity=entity,
+                project=project,
                 name=name,
                 attrs=response["artifact"],
             )

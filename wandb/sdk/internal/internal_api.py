@@ -194,6 +194,7 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
+        self._upload_file_session = requests.Session()
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -2031,7 +2032,9 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = self._upload_file_session.put(
+                    url, data=progress, headers=extra_headers
+                )
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
