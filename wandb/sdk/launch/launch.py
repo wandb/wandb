@@ -31,13 +31,13 @@ def resolve_agent_config(
     entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[int],
-    queues: Optional[List[str]],
+    queues: Optional[Tuple[str]],
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
         "entity": api.default_entity,
         "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
-        "queues": ["default"],
+        "queues": [],
         "api_key": api.api_key,
         "base_url": api.settings("base_url"),
         "registry": {},
@@ -78,9 +78,18 @@ def resolve_agent_config(
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
         resolved_config.update({"max_jobs": int(max_jobs)})
+    if queues:
+        resolved_config.update({"queues": list(queues)})
+    # queue -> queues
+    if resolved_config.get("queue"):
+        if type(resolved_config.get("queue")) == str:
+            resolved_config["queues"].append(resolved_config["queue"])
+        else:
+            raise LaunchError(
+                f"Invalid launch agent config for key 'queue' with type: {type(resolved_config.get('queue'))}"
+                + " (expected str). Specify multiple queues with the 'queues' key"
+            )
 
-    if queues is not None:
-        resolved_config.update({"queues": queues})
     if (
         resolved_config["entity"] != defaults["entity"]
         or resolved_config["api_key"] != defaults["api_key"]
