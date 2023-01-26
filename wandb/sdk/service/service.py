@@ -5,7 +5,9 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 
 import os
 import platform
+import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -16,6 +18,7 @@ from ...errors import (
     ServiceStartTimeoutError,
     ServiceStartProcessError,
 )
+from ...util import sentry_reraise, sentry_set_scope, sentry_exc
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
@@ -42,6 +45,8 @@ class _Service:
         self._sock_port = None
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
+
+        sentry_set_scope({"project": "junk"}, process_context="service")
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
@@ -81,7 +86,10 @@ class _Service:
         while time.monotonic() < time_max:
             if proc and proc.poll():
                 # process finished
-                print("proc exited with", proc.returncode)
+                # define these variables for sentry context grab:
+                command = proc.args  # noqa: F841
+                sys_executable = sys.executable  # noqa: F841
+                which_python = shutil.which("python3")  # noqa: F841
                 raise ServiceStartProcessError(
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
@@ -156,7 +164,10 @@ class _Service:
                 **kwargs,
             )
             self._startup_debug_print("wait_ports")
-            self._wait_for_ports(fname, proc=internal_proc)
+            try:
+                self._wait_for_ports(fname, proc=internal_proc)
+            except Exception as e:
+                sentry_reraise(e, delay=True)
             self._startup_debug_print("wait_ports_done")
             self._internal_proc = internal_proc
         self._startup_debug_print("launch_done")
