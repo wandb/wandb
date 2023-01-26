@@ -30,11 +30,9 @@ class Stats:
         self._stats: MutableMapping[str, "FileStats"] = {}
         self._lock = threading.Lock()
 
-    def init_file(
-        self, save_name: str, size: int, is_artifact_file: bool = False
-    ) -> None:
+    def init_file(self, path: str, size: int, is_artifact_file: bool = False) -> None:
         with self._lock:
-            self._stats[save_name] = FileStats(
+            self._stats[path] = FileStats(
                 deduped=False,
                 total=size,
                 uploaded=0,
@@ -42,23 +40,23 @@ class Stats:
                 artifact_file=is_artifact_file,
             )
 
-    def set_file_deduped(self, save_name: str) -> None:
+    def set_file_deduped(self, path: str) -> None:
         with self._lock:
-            orig = self._stats[save_name]
-            self._stats[save_name] = orig._replace(
+            orig = self._stats[path]
+            self._stats[path] = orig._replace(
                 deduped=True,
                 uploaded=orig.total,
             )
 
-    def update_uploaded_file(self, save_name: str, total_uploaded: int) -> None:
+    def update_uploaded_file(self, path: str, total_uploaded: int) -> None:
         with self._lock:
-            self._stats[save_name] = self._stats[save_name]._replace(
+            self._stats[path] = self._stats[path]._replace(
                 uploaded=total_uploaded,
             )
 
-    def update_failed_file(self, save_name: str) -> None:
+    def update_failed_file(self, path: str) -> None:
         with self._lock:
-            self._stats[save_name] = self._stats[save_name]._replace(
+            self._stats[path] = self._stats[path]._replace(
                 uploaded=0,
                 failed=True,
             )
@@ -83,12 +81,12 @@ class Stats:
         # modify this while we iterate
         with self._lock:
             file_stats = list(self._stats.items())
-        for save_name, stats in file_stats:
+        for path, stats in file_stats:
             if stats.artifact_file:
                 artifact_files += 1
-            elif wandb.wandb_lib.filenames.is_wandb_file(save_name):  # type: ignore[attr-defined]  # TODO(spencerpearson): this is probably synonymous with wandb.sdk.lib.filenames...?
+            elif wandb.wandb_lib.filenames.is_wandb_file(path):  # type: ignore[attr-defined]  # TODO(spencerpearson): this is probably synonymous with wandb.sdk.lib.filenames...?
                 wandb_files += 1
-            elif save_name.startswith("media"):
+            elif path.startswith("media"):
                 media_files += 1
             else:
                 other_files += 1

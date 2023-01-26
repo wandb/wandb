@@ -82,7 +82,7 @@ class StepChecksum:
                     except OSError:
                         shutil._USE_CP_SENDFILE = False  # type: ignore[attr-defined]
                         shutil.copy2(req.path, path)
-                self._stats.init_file(req.save_name, os.path.getsize(path))
+                self._stats.init_file(path, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(
                         path,
