@@ -4,7 +4,6 @@ set -e
 script_dir=$(dirname "$(realpath "$0")")
 pushd $script_dir
 
-#uwsgi --master --socket 0.0.0.0:6000 --protocol=http -w flask_app:app --processes 2&
 gunicorn -w 2 -b 0.0.0.0:6000 flask_app:app &
 
 # Wait for uwsgi to start
