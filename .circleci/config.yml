@@ -1522,10 +1522,10 @@ workflows:
               python_version_major: [ 3 ]
               python_version_minor: [ 9 ]
               toxenv:
-                - "executors-uwsgi"
-#                - "executors-gunicorn"
-#                - "executors-pex"
-          name: "exec-linux-<<matrix.toxenv>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+                - "executor-uwsgi"
+#                - "executor-gunicorn"
+#                - "executor-pex"
+          name: "<<matrix.toxenv>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
       # pex test
       #
