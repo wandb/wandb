@@ -17,7 +17,6 @@ from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
     LAUNCH_DEFAULT_PROJECT,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
     validate_launch_spec_source,
@@ -171,11 +170,9 @@ def _run(
         registry["url"] = repository
         launch_config["registry"] = registry
 
-    given_docker_args, build_config, registry_config = construct_builder_args(
+    build_config, registry_config = construct_builder_args(
         launch_config,
     )
-
-    runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
 
     builder = builder_loader.load_builder(build_config)
     backend = loader.load_backend(resource, api, runner_config)

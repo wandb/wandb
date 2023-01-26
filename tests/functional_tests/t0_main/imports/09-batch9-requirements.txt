@@ -1,5 +1,6 @@
-mmcv
+mmcv>=2.0.0rc1
 mmsegmentation
 mmdet
+mmengine
 git+https://github.com/open-mmlab/mmocr.git
 git+https://github.com/open-mmlab/mmclassification.git
