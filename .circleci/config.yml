@@ -1525,7 +1525,7 @@ workflows:
                 - "executors-uwsgi"
 #                - "executors-gunicorn"
 #                - "executors-pex"
-          name: "exec-linux-<<>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "exec-linux-<<matrix.toxenv>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
       # pex test
       #
