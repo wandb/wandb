@@ -673,7 +673,7 @@ def test_parse_entity_project_item():
     assert entity == ""
 
 
-def test_resolve_alises_requires_iterable():
+def test_resolve_aliases_requires_iterable():
     with pytest.raises(ValueError):
         util._resolve_aliases(5)
 
