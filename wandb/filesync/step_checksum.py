@@ -110,7 +110,7 @@ class StepChecksum:
                             )
 
                         self._stats.init_file(
-                            entry.local_path,
+                            Path(entry.local_path),
                             cast(int, entry.size),
                             is_artifact_file=True,
                         )
