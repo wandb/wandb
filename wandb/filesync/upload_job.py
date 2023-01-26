@@ -121,7 +121,7 @@ class UploadJob(threading.Thread):
 
         if upload_url is None:
             logger.info("Skipped uploading %s", self.save_path)
-            self._stats.set_file_deduped(self.save_name)
+            self._stats.set_file_deduped(self.save_path)
         else:
             extra_headers = {}
             for upload_header in upload_headers:
@@ -142,7 +142,7 @@ class UploadJob(threading.Thread):
                     )
                 logger.info("Uploaded file %s", self.save_path)
             except Exception as e:
-                self._stats.update_failed_file(self.save_name)
+                self._stats.update_failed_file(self.save_path)
                 logger.exception("Failed to upload file: %s", self.save_path)
                 wandb.util.sentry_exc(e)
                 if not self.silent:
@@ -155,4 +155,4 @@ class UploadJob(threading.Thread):
         return True
 
     def progress(self, total_bytes: int) -> None:
-        self._stats.update_uploaded_file(self.save_name, total_bytes)
+        self._stats.update_uploaded_file(self.save_path, total_bytes)
