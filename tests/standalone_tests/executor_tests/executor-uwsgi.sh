@@ -7,7 +7,7 @@ pushd $script_dir
 uwsgi --master --socket 0.0.0.0:6000 --protocol=http -w flask_app:app --processes 2&
 
 # Wait for uwsgi to start
-sleep 2
+sleep 3
 
 # Loop to make 3 curl requests
 for i in {1..3}
@@ -21,8 +21,9 @@ do
     fi
 done
 
-# Kill the uwsgi process
-pkill -9 -f uwsgi
+# Kill the uwsgi process if not on ci
+if [ -z "$CI" ]; then
+    pkill -9 -f uwsgi
+fi
 
 popd
-exit 0
