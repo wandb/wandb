@@ -1514,6 +1514,19 @@ workflows:
           parallelism: 1
           xdist: 1
       #
+      # functional tests with different executors
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 9 ]
+              toxenv:
+                - "executors-uwsgi"
+#                - "executors-gunicorn"
+#                - "executors-pex"
+          name: "exec-linux-<<>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
       # pex test
       #
       - pex:
