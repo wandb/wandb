@@ -51,6 +51,7 @@ class SyncThread(threading.Thread):
         app_url=None,
         sync_tensorboard=None,
         log_path=None,
+        resume=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -65,6 +66,7 @@ class SyncThread(threading.Thread):
         self._app_url = app_url
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
+        self._resume = resume
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -250,7 +252,7 @@ class SyncThread(threading.Thread):
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
             root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
-            sm = sender.SendManager.setup(root_dir)
+            sm = sender.SendManager.setup(root_dir, resume=self._resume)
             if sync_tb:
                 self._send_tensorboard(tb_root, tb_logdirs, sm)
                 continue
@@ -317,6 +319,7 @@ class SyncManager:
         verbose=None,
         sync_tensorboard=None,
         log_path=None,
+        resume=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -329,6 +332,7 @@ class SyncManager:
         self._verbose = verbose
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
+        self._resume = resume
 
     def status(self):
         pass
@@ -349,6 +353,7 @@ class SyncManager:
             app_url=self._app_url,
             sync_tensorboard=self._sync_tensorboard,
             log_path=self._log_path,
+            resume=self._resume,
         )
         self._thread.start()
 
