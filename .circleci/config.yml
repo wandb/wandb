@@ -942,8 +942,8 @@ jobs:
             - run:
                 name: "Propagate GCP & AWS credential environment variables to pod.yaml"
                 command: |
-                  GCLOUD_SERVICE_KEY_TRIMMED=$(echo $GCLOUD_SERVICE_KEY | tr -d "\n")
-                  sed -i -e 's^GCLOUD_SERVICE_KEY_PLACEHOLDER^'"\'$GCLOUD_SERVICE_KEY_TRIMMED\'"'^g' << parameters.path >>/<< parameters.pod_config_name >>
+                  GCLOUD_SERVICE_KEY_FLATTENED=$(echo $GCLOUD_SERVICE_KEY | tr -d "\\n")
+                  sed -i -e 's^GCLOUD_SERVICE_KEY_PLACEHOLDER^'"\'$GCLOUD_SERVICE_KEY_FLATTENED\'"'^g' << parameters.path >>/<< parameters.pod_config_name >>
                   sed -i -e 's^GCLOUD_PROJECT_PLACEHOLDER^'"$GOOGLE_PROJECT_ID"'^g' << parameters.path >>/<< parameters.pod_config_name >>
                   sed -i -e 's^AWS_DEFAULT_REGION_PLACEHOLDER^'"$AWS_DEFAULT_REGION"'^g' << parameters.path >>/<< parameters.pod_config_name >>
                   sed -i -e 's^AWS_ACCESS_KEY_ID_PLACEHOLDER^'"$AWS_ACCESS_KEY_ID"'^g' << parameters.path >>/<< parameters.pod_config_name >>
