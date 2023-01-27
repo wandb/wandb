@@ -77,48 +77,19 @@ def test_calls_commit_on_success():
     api.commit_artifact.assert_called_once()
 
 
-class SomeCustomError(Exception):
-    pass
-
-
 @pytest.mark.timeout(1)
-@pytest.mark.parametrize(
-    "make_api",
-    [
-        # TODO(spencerpearson): this test fails because of an underlying bug; fix it
-        # lambda: make_api(use_artifact=Mock(side_effect=SomeCustomError("use_artifact failed"))),
-        lambda: make_api(
-            create_artifact=Mock(side_effect=SomeCustomError("create_artifact failed"))
-        ),
-        lambda: make_api(
-            create_artifact_manifest=Mock(
-                side_effect=SomeCustomError("create_artifact_manifest failed")
-            )
-        ),
-        # TODO(spencerpearson): these tests fail because of an underlying bug; fix it
-        # lambda: make_api(
-        #     upload_file_retry=Mock(
-        #         side_effect=SomeCustomError("upload_file_retry failed")
-        #     )
-        # ),
-        # lambda: make_api(
-        #     commit_artifact=Mock(side_effect=SomeCustomError("commit_artifact failed"))
-        # ),
-    ],
-)
-def test_reraises_err(make_api: Callable[[], internal_api.Api]):
-    api = make_api()
-    stream = Mock(spec=file_stream.FileStreamApi)
-    pusher = file_pusher.FilePusher(api=api, file_stream=stream)
+class TestReraisesErr:
+    def _save_artifact(self, api: Mock):
+        stream = Mock(spec=file_stream.FileStreamApi)
+        pusher = file_pusher.FilePusher(api=api, file_stream=stream)
 
-    saver = ArtifactSaver(
-        api=api,
-        digest="abcd",
-        manifest_json=make_manifest_json(),
-        file_pusher=pusher,
-    )
+        saver = ArtifactSaver(
+            api=api,
+            digest="abcd",
+            manifest_json=make_manifest_json(),
+            file_pusher=pusher,
+        )
 
-    with pytest.raises(SomeCustomError):
         saver.save(
             type="my-type",
             name="my-name",
@@ -126,3 +97,39 @@ def test_reraises_err(make_api: Callable[[], internal_api.Api]):
             sequence_client_id="my-sequence-client-id",
             use_after_commit=True,
         )
+
+    @pytest.mark.skip(
+        reason="TODO(spencerpearson): fix the longstanding bug this test reveals"
+    )
+    def test_use_artifact_err_reraised(self):
+        exc = Exception("test-exc")
+        with pytest.raises(Exception, match="test-exc"):
+            self._save_artifact(api=make_api(use_artifact=Mock(side_effect=exc)))
+
+    def test_create_artifact_err_reraised(self):
+        exc = Exception("test-exc")
+        with pytest.raises(Exception, match="test-exc"):
+            self._save_artifact(api=make_api(create_artifact=Mock(side_effect=exc)))
+
+    def test_create_artifact_manifest_err_reraised(self):
+        exc = Exception("test-exc")
+        with pytest.raises(Exception, match="test-exc"):
+            self._save_artifact(
+                api=make_api(create_artifact_manifest=Mock(side_effect=exc))
+            )
+
+    @pytest.mark.skip(
+        reason="TODO(spencerpearson): fix the longstanding bug this test reveals"
+    )
+    def test_upload_file_retry_err_reraised(self):
+        exc = Exception("test-exc")
+        with pytest.raises(Exception, match="test-exc"):
+            self._save_artifact(api=make_api(upload_file_retry=Mock(side_effect=exc)))
+
+    @pytest.mark.skip(
+        reason="TODO(spencerpearson): fix the longstanding bug this test reveals"
+    )
+    def test_commit_artifact_err_reraised(self):
+        exc = Exception("test-exc")
+        with pytest.raises(Exception, match="test-exc"):
+            self._save_artifact(api=make_api(commit_artifact=Mock(side_effect=exc)))
