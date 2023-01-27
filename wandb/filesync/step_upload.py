@@ -133,6 +133,7 @@ class StepUpload:
     def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
+            job.join()
 
             if event.exc is not None:
                 logger.exception(
@@ -217,23 +218,19 @@ class StepUpload:
             artifact_status["pending_count"] == 0
             and artifact_status["commit_requested"]
         ):
-            exc = None
             try:
                 for pre_callback in artifact_status["pre_commit_callbacks"]:
                     pre_callback()
                 if artifact_status["finalize"]:
                     self._api.commit_artifact(artifact_id)
-            except Exception as e:
-                exc = e
+            except Exception as exc:
                 termerror(
                     f"Committing artifact failed. Artifact {artifact_id} won't be finalized."
                 )
-                termerror(str(e))
-            finally:
-                if exc is None:
-                    self._resolve_artifact_futures(artifact_id)
-                else:
-                    self._fail_artifact_futures(artifact_id, exc)
+                termerror(str(exc))
+                self._fail_artifact_futures(artifact_id, exc)
+            else:
+                self._resolve_artifact_futures(artifact_id)
 
     def _fail_artifact_futures(self, artifact_id: str, exc: Exception) -> None:
         futures = self._artifacts[artifact_id]["result_futures"]
