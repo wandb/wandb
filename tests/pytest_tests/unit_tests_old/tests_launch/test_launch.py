@@ -15,17 +15,12 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    PROJECT_DOCKER_ARGS,
-    PROJECT_SYNCHRONOUS,
-)
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, PROJECT_SYNCHRONOUS
 from wandb.sdk.lib import runid
 
 from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path
 
 EMPTY_BACKEND_CONFIG = {
-    PROJECT_DOCKER_ARGS: {},
     PROJECT_SYNCHRONOUS: True,
 }
 
@@ -962,6 +957,16 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "project": "test",
         "docker_image": image_name,
         "synchronous": False,
+        "resource_args": {
+            "local-container": {
+                "volume": [
+                    "/test-volume:/test-volume",
+                    "/test-volume-2:/test-volume-2",
+                ],
+                "env": ["TEST_ENV=test-env", "FROM_MY_ENV"],
+                "t": True,
+            }
+        },
     }
     expected_command = [
         "docker",
@@ -983,6 +988,15 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "WANDB_CONFIG='{}'",
         "-e",
         "WANDB_ARTIFACTS='{}'",
+        "--volume",
+        "/test-volume:/test-volume",
+        "--volume",
+        "/test-volume-2:/test-volume-2",
+        "--env",
+        "TEST_ENV=test-env",
+        "--env",
+        "FROM_MY_ENV",
+        "-t",
         "--network",
         "host",
     ]
