@@ -215,14 +215,14 @@ def resolve_gcp_region(resource_args, gcp_config, registry_config):
     Raises:
         LaunchError: If the region cannot be resolved.
     """
-    registry_region = registry_config.get("region")
-    if registry_region:
-        # TODO: validate the region is valid
-        return registry_region
     gcp_zone = resource_args.get("gcp_region") or gcp_config["properties"].get(
         "compute", {}
     ).get("zone")
     if not gcp_zone:
+        registry_region = registry_config.get("region")
+        if registry_region:
+            # TODO: validate the region is valid
+            return registry_region
         raise LaunchError(
             "Vertex requires a region for compute. Specify a region under key gcp_region."
         )
