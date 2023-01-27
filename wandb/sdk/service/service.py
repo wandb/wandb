@@ -12,13 +12,13 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from . import _startup_debug, port_file
 from ...errors import (
     ServiceStartPortError,
-    ServiceStartTimeoutError,
     ServiceStartProcessError,
+    ServiceStartTimeoutError,
 )
 from ...util import sentry_reraise, sentry_set_scope
+from . import _startup_debug, port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
