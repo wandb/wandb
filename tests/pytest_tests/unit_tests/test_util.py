@@ -673,15 +673,21 @@ def test_parse_entity_project_item():
     assert entity == ""
 
 
-def test_resolve_aliases():
+def test_resolve_aliases_requires_iterable():
     with pytest.raises(ValueError):
         util._resolve_aliases(5)
 
-    aliases = util._resolve_aliases(["best", "dev"])
-    assert aliases == ["best", "dev", "latest"]
 
-    aliases = util._resolve_aliases("boom")
-    assert aliases == ["boom", "latest"]
+@pytest.mark.parametrize(
+    "aliases", [["best", "dev"], "boom", None, ("latest"), ["boom", "boom"]]
+)
+def test_resolve_aliases(aliases):
+    result = util._resolve_aliases(aliases)
+    assert isinstance(result, list)
+    assert "latest" in result
+    assert len(set(result)) == len(result)
+    if aliases and not isinstance(aliases, str):
+        assert set(aliases) <= set(result)
 
 
 # Compute recursive dicts for tests
