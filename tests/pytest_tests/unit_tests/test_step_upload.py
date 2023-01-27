@@ -332,6 +332,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
+                max_jobs=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
@@ -350,6 +351,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
+                max_jobs=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
@@ -368,6 +370,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
+                max_jobs=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
@@ -702,4 +705,5 @@ def test_is_alive_until_last_job_finishes(
 
     unblock.set()
     assert done.wait(2)
+    step_upload._thread.join(timeout=0.1)
     assert not step_upload.is_alive()
