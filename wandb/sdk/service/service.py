@@ -18,7 +18,7 @@ from ...errors import (
     ServiceStartTimeoutError,
     ServiceStartProcessError,
 )
-from ...util import sentry_reraise, sentry_set_scope, sentry_exc
+from ...util import sentry_reraise, sentry_set_scope
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 

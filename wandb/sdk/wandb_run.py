@@ -59,7 +59,6 @@ from wandb.util import (
     add_import_hook,
     parse_artifact_string,
     sentry_set_scope,
-    sentry_exc,
     to_forward_slash_path,
 )
 from wandb.viz import CustomChart, Visualize, custom_chart
