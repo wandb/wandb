@@ -1,5 +1,3 @@
-from typing import Callable
-
 import pytest
 from wandb.filesync import stats
 
