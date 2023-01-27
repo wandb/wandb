@@ -169,7 +169,7 @@ class TestFinish:
         )
         api.upload_file_retry.assert_not_called()
 
-    def test_finishes_after_multiple_uploads(sel, tmp_path: Path):
+    def test_finishes_after_multiple_uploads(self, tmp_path: Path):
         api = make_api()
         run_step_upload(
             [
