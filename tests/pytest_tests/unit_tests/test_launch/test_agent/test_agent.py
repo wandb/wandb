@@ -3,14 +3,6 @@ from unittest.mock import MagicMock
 from wandb.sdk.launch.agent.agent import LaunchAgent
 
 
-class TermSetupSettings:
-    def __init__(self):
-        self.silent = True
-        self.show_info = True
-        self.show_warnings = True
-        self.show_errors = True
-
-
 def test_loop_capture_stack_trace(mocker):
     _setup(mocker)
     mock_config = {
