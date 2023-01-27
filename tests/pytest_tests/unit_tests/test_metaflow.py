@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 if platform.system() == "Windows":
-    pytest.importorskip("metaflow", reason="metaflow does not support native Windows")
+    pytest.skip("metaflow does not support native Windows", allow_module_level=True)
 
 import pandas as pd
 from metaflow import FlowSpec, step  # noqa: I100, I202
