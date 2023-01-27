@@ -1,6 +1,8 @@
+[build-system]
+build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core"]
+
 [tool.black]
-line-length = 88
-include = '\.pyi?$'
 exclude = '''
 wandb/vendor/
 | wandb/bin/
@@ -13,9 +15,190 @@ wandb/vendor/
 | .pyc
 | .tox/
 '''
+include = '\.pyi?$'
+line-length = 88
 
 [tool.isort]
+extend_skip_glob = ["wandb/proto/**", "wandb/vendor/**"]
 profile = "black"
 skip = ["wandb/__init__.py"]
-extend_skip_glob = ["wandb/vendor/**", "wandb/proto/**"]
 skip_gitignore = "True"
+
+[tool.poetry]
+authors = ["Weights & Biases <support@wandb.com>"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.6",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: System :: Logging",
+  "Topic :: System :: Monitoring"
+]
+description = "A CLI and library for interacting with the Weights and Biases API."
+documentation = "https://docs.wandb.ai/"
+homepage = "https://wandb.ai/site"
+license = "MIT"
+name = "wandb"
+readme = "package_readme.md"
+repository = "https://github.com/wandb/wandb"
+version = "0.13.9"
+
+[tool.poetry.dependencies]
+appdirs = ">=1.4.3"
+aws = {optional = true, version = "^0.2.5"}
+azure-storage-blob = {optional = true, version = "^12.14.1"}
+bokeh = {optional = true, python = '>=3.8', version = "^3.0.3"}
+botocore = {optional = true, version = "^1.29.58"}
+chardet = {optional = true, version = "^5.1.0"}
+click = ">=7.0,<8.0.0 || >8.0.0"
+cloudpickle = {optional = true, version = "^2.2.1"}
+dataclasses = {python = "<3.7", version = "^0.8"}
+docker-pycreds = ">=0.4.0"
+gitpython = ">=1.0.0"
+google-cloud-storage = {optional = true, version = "^2.7.0"}
+grpcio = {optional = true, version = ">=1.27.2"}
+iso8601 = {optional = true, version = "^1.1.0"}
+kubernetes = {optional = true, version = "^25.3.0"}
+minio = {optional = true, version = "^7.1.13"}
+moviepy = {optional = true, version = "^1.0.3"}
+nbconvert = {optional = true, version = "^7.2.9"}
+nbformat = {optional = true, version = "^5.7.3"}
+numpy = {optional = true, python = '>=3.8', version = "^1.24.1"}
+pathtools = "^0.1.2"
+pillow = {optional = true, version = "^9.4.0"}
+plotly = {optional = true, version = "^5.13.0"}
+protobuf = [
+  {markers = "python_version < '3.9' and sys_platform == 'linux'", version = ">=3.12.0,<4.21.0 || >4.21.0,<5"},
+  {markers = "python_version == '3.9' and sys_platform == 'linux'", version = ">=3.15.0,<4.21.0 || >4.21.0,<5"},
+  {markers = "python_version > '3.9' or sys_platform != 'linux'", version = ">=3.19.0,<4.21.0 || >4.21.0,<5"}
+]
+psutil = ">=5.0.0"
+python = "^3.7"
+pyyaml = "^6.0"
+rdkit-pypi = {optional = true, version = "^2022.9.4"}
+requests = ">=2.0.0,<3"
+sentry-sdk = ">=1.0.0"
+setproctitle = "^1.3.2"
+setuptools = "^66.1.1"
+sh = {optional = true, version = "^1.14.3"}
+soundfile = {optional = true, version = "^0.11.0"}
+sweeps = {optional = true, version = ">=0.2.0"}
+typing-extensions = {python = '<3.10', version = "^4.4.0"}
+
+[tool.poetry.extras]
+all = [
+  "aws",
+  "azure",
+  "gcp",
+  "grpc",
+  "kubeflow",
+  "launch",
+  "media",
+  "models",
+  "service",
+  "sweeps"
+]
+aws = ["boto3"]
+azure = ["azure-storage-blob"]
+gcp = ["google-cloud-storage"]
+grpc = ["grpcio"]
+kubeflow = ["google-cloud-storage", "kubernetes", "minio", "sh"]
+launch = [
+  "boto3",
+  "botocore",
+  "chardet",
+  "google-cloud-storage",
+  "iso8601",
+  "kubernetes",
+  "nbconvert",
+  "nbformat",
+  "typing_extensions"
+]
+media = [
+  "bokeh",
+  "moviepy",
+  "numpy",
+  "pillow",
+  "plotly",
+  "rdkit-pypi",
+  "soundfile"
+]
+models = ["cloudpickle"]
+service = []
+sweeps = ["sweeps"]
+
+[tool.poetry.group.build.dependencies]
+bump2version = "^1.0.1"
+bumpversion = "^0.6.0"
+libcst = "^0.4.9"
+twine = "^4.0.2"
+
+[tool.poetry.group.coverage.dependencies]
+codecov = "^2.1.12"
+coverage = "^7.1.0"
+pycobertura = "^3.0.0"
+pytest = "^7.2.1"
+pytest-cov = "^4.0.0"
+
+[tool.poetry.group.dev.dependencies]
+google-cloud-aiplatform = "^1.21.0"
+imageio = "^2.25.0"
+ipykernel = {python = ">=3.8", version = "^6.20.2"}
+ipython = {python = ">=3.8", version = "^8.8.0"}
+matplotlib = {python = '>=3.8', version = "!=3.5.2"}
+nbclient = "^0.7.2"
+pandas = {python = '>=3.8', version = "^1.5.3"}
+scikit-learn = {python = ">=3.8,<3.12", version = "^1.2.1"}
+scipy = {python = ">=3.8,<3.12", version = ">=1.6.1"}
+
+[tool.poetry.group.lint.dependencies]
+black = {extras = ["jupyter"], version = "^22.12.0"}
+darglint = ">=1.8.0"
+flake8 = {python = ">=3.8.1", version = "^6.0.0"}
+flake8-bugbear = ">=21.4.2"
+flake8-docstrings = ">=1.3.1"
+flake8-fixme = "^1.1.1"
+flake8-typing-imports = ">=1.1"
+grpcio = ">=1.46.3"
+isort = "^5.11.4"
+pep8-naming = "^0.13.3"
+pylint = {python = ">=3.7.2", version = "^2.15.10"}
+
+[tool.poetry.group.protobuf.dependencies]
+grpcio = ">=1.50.0"
+grpcio-tools = ">=1.50.0"
+mypy-protobuf = ">=3.4.0"
+
+[tool.poetry.group.test.dependencies]
+hypothesis = "^6.65.1"
+mock = ">=2.0.0"
+moto = {extras = ["s3"], version = "^4.1.1"}
+parameterized = "^0.8.1"
+pytest = "^7.2.1"
+pytest-cov = "^4.0.0"
+pytest-flakefinder = "^1.1.0"
+pytest-flask = "^1.2.0"
+pytest-mock = "^3.10.0"
+pytest-openfiles = "^0.5.0"
+pytest-rerunfailures = "^11.0"
+pytest-timeout = "^2.1.0"
+pytest-xdist = "^3.1.0"
+tox-pyenv = ">=1.0.3"
+
+[tool.poetry.group.typing.dependencies]
+grpcio = "^1.51.1"
+lxml = "^4.9.2"
+mypy = "^0.991"
+types-click = "^7.1.8"
+
+[tool.poetry.scripts]
+wandb = "wandb.cli.cli:cli"
+wb = "wandb.cli.cli:cli"
