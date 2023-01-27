@@ -1,5 +1,7 @@
 """Batching file prepare requests to our API."""
 
+import concurrent.futures
+import logging
 import queue
 import sys
 import threading
@@ -15,6 +17,7 @@ from typing import (
     Union,
 )
 
+import wandb.util
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
 
@@ -32,13 +35,14 @@ if TYPE_CHECKING:
         pending_count: int
         commit_requested: bool
         pre_commit_callbacks: MutableSet["PreCommitFn"]
-        post_commit_callbacks: MutableSet["PostCommitFn"]
+        result_futures: MutableSet["concurrent.futures.Future[None]"]
 
 
 PreCommitFn = Callable[[], None]
-PostCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], Any]
+
+logger = logging.getLogger(__name__)
 
 
 class RequestUpload(NamedTuple):
@@ -54,8 +58,8 @@ class RequestUpload(NamedTuple):
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
-    before_commit: Optional[PreCommitFn]
-    on_commit: Optional[PostCommitFn]
+    before_commit: PreCommitFn
+    result_fut: "concurrent.futures.Future[None]"
 
 
 class RequestFinish(NamedTuple):
@@ -129,15 +133,22 @@ class StepUpload:
     def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
-            job.join()
+
+            if event.exc is not None:
+                logger.exception(
+                    "Failed to upload file: %s", job.path, exc_info=event.exc
+                )
+
             if job.artifact_id:
-                if event.success:
+                if event.exc is None:
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
                     self._maybe_commit_artifact(job.artifact_id)
                 else:
-                    termerror(
-                        "Uploading artifact file failed. Artifact won't be committed."
-                    )
+                    if not self.silent:
+                        termerror(
+                            "Uploading artifact file failed. Artifact won't be committed."
+                        )
+                    self._fail_artifact_futures(job.artifact_id, event.exc)
             self._running_jobs.pop(job.save_name)
             # If we have any pending jobs, start one now
             if self._pending_jobs:
@@ -148,14 +159,10 @@ class StepUpload:
                 self._init_artifact(event.artifact_id)
             self._artifacts[event.artifact_id]["commit_requested"] = True
             self._artifacts[event.artifact_id]["finalize"] = event.finalize
-            if event.before_commit:
-                self._artifacts[event.artifact_id]["pre_commit_callbacks"].add(
-                    event.before_commit
-                )
-            if event.on_commit:
-                self._artifacts[event.artifact_id]["post_commit_callbacks"].add(
-                    event.on_commit
-                )
+            self._artifacts[event.artifact_id]["pre_commit_callbacks"].add(
+                event.before_commit
+            )
+            self._artifacts[event.artifact_id]["result_futures"].add(event.result_fut)
             self._maybe_commit_artifact(event.artifact_id)
         elif isinstance(event, RequestUpload):
             if event.artifact_id is not None:
@@ -169,10 +176,7 @@ class StepUpload:
         else:
             raise Exception("Programming error: unhandled event: %s" % str(event))
 
-    def _start_upload_job(self, event: Event) -> None:
-        if not isinstance(event, RequestUpload):
-            raise Exception("Programming error: invalid event")
-
+    def _start_upload_job(self, event: RequestUpload) -> None:
         # Operations on a single backend file must be serialized. if
         # we're already uploading this file, put the event on the
         # end of the queue
@@ -204,7 +208,7 @@ class StepUpload:
             "pending_count": 0,
             "commit_requested": False,
             "pre_commit_callbacks": set(),
-            "post_commit_callbacks": set(),
+            "result_futures": set(),
         }
 
     def _maybe_commit_artifact(self, artifact_id: str) -> None:
@@ -213,12 +217,35 @@ class StepUpload:
             artifact_status["pending_count"] == 0
             and artifact_status["commit_requested"]
         ):
-            for callback in artifact_status["pre_commit_callbacks"]:
-                callback()
-            if artifact_status["finalize"]:
-                self._api.commit_artifact(artifact_id)
-            for callback in artifact_status["post_commit_callbacks"]:
-                callback()
+            exc = None
+            try:
+                for pre_callback in artifact_status["pre_commit_callbacks"]:
+                    pre_callback()
+                if artifact_status["finalize"]:
+                    self._api.commit_artifact(artifact_id)
+            except Exception as e:
+                exc = e
+                termerror(
+                    f"Committing artifact failed. Artifact {artifact_id} won't be finalized."
+                )
+                termerror(str(e))
+            finally:
+                if exc is None:
+                    self._resolve_artifact_futures(artifact_id)
+                else:
+                    self._fail_artifact_futures(artifact_id, exc)
+
+    def _fail_artifact_futures(self, artifact_id: str, exc: Exception) -> None:
+        futures = self._artifacts[artifact_id]["result_futures"]
+        for result_fut in futures:
+            result_fut.set_exception(exc)
+        futures.clear()
+
+    def _resolve_artifact_futures(self, artifact_id: str) -> None:
+        futures = self._artifacts[artifact_id]["result_futures"]
+        for result_fut in futures:
+            result_fut.set_result(None)
+        futures.clear()
 
     def start(self) -> None:
         self._thread.start()
