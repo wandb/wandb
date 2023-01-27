@@ -65,12 +65,9 @@ class RequestFinish(NamedTuple):
     callback: Optional[OnRequestFinishFn]
 
 
-class EventJobDone(NamedTuple):
-    request: RequestUpload
-    exc: Optional[BaseException]
-
-
-Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone]
+Event = Union[
+    RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone
+]
 
 
 class StepUpload:
@@ -97,7 +94,9 @@ class StepUpload:
         )
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
-        self._running_jobs: MutableMapping[dir_watcher.SaveName, RequestUpload] = {}
+        self._running_jobs: MutableMapping[
+            dir_watcher.SaveName, upload_job.UploadJob
+        ] = {}
         self._pending_jobs: MutableSequence[RequestUpload] = []
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
@@ -135,8 +134,8 @@ class StepUpload:
                 break
 
     def _handle_event(self, event: Event) -> None:
-        if isinstance(event, EventJobDone):
-            job = event.request
+        if isinstance(event, upload_job.EventJobDone):
+            job = event.job
 
             if event.exc is not None:
                 logger.exception(
@@ -186,9 +185,22 @@ class StepUpload:
             return
 
         # Start it.
-        self._spawn_upload(event)
+        job = upload_job.UploadJob(
+            self._stats,
+            self._api,
+            self._file_stream,
+            self.silent,
+            event.save_name,
+            event.path,
+            event.artifact_id,
+            event.md5,
+            event.copied,
+            event.save_fn,
+            event.digest,
+        )
+        self._spawn_upload(job)
 
-    def _spawn_upload(self, event: RequestUpload) -> None:
+    def _spawn_upload(self, job: upload_job.UploadJob) -> None:
         """Spawns an upload job, and handles the bookkeeping of `self._running_jobs`.
 
         Context: it's important that, whenever we add an entry to `self._running_jobs`,
@@ -214,27 +226,14 @@ class StepUpload:
         #
         # This would be very bad!
         # So, this line has to happen _outside_ the `pool.submit()`.
-        self._running_jobs[event.save_name] = event
+        self._running_jobs[job.save_name] = job
 
         def run_and_notify() -> None:
             try:
-                job = upload_job.UploadJob(
-                    self._stats,
-                    self._api,
-                    self._file_stream,
-                    self.silent,
-                    event.save_name,
-                    event.path,
-                    event.artifact_id,
-                    event.md5,
-                    event.copied,
-                    event.save_fn,
-                    event.digest,
-                )
                 job.run()
             finally:
                 self._event_queue.put(
-                    EventJobDone(request=event, exc=sys.exc_info()[1])
+                    upload_job.EventJobDone(job=job, exc=sys.exc_info()[1])
                 )
 
         self._pool.submit(run_and_notify)
