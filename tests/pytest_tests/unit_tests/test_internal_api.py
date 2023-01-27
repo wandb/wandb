@@ -211,6 +211,7 @@ class TestUploadFile:
             [
                 requests.exceptions.Timeout(),
                 requests.exceptions.ConnectionError(),
+                (400, {}, ""),
                 (500, {}, ""),
             ],
         )
@@ -232,7 +233,7 @@ class TestUploadFile:
             )
 
             progress_callback = Mock()
-            with pytest.raises(Exception):  # noqa: B017
+            with pytest.raises((retry.TransientError, requests.RequestException)):
                 internal.InternalApi().upload_file(
                     "http://example.com/upload-dst",
                     some_file.open("rb"),

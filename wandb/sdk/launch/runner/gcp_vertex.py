@@ -16,7 +16,7 @@ from wandb.util import get_module
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder
 from ..builder.build import construct_gcp_registry_uri, get_env_vars_dict
-from ..utils import LOG_PREFIX, PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell
+from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -129,11 +129,6 @@ class VertexRunner(AbstractRunner):
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
         )
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        if docker_args and list(docker_args) != ["docker_image"]:
-            wandb.termwarn(
-                f"{LOG_PREFIX}Docker args are not supported for GCP. Not using docker args."
-            )
 
         entry_point = launch_project.get_single_entry_point()
 
@@ -151,7 +146,6 @@ class VertexRunner(AbstractRunner):
                 launch_project,
                 repository,
                 entry_point,
-                docker_args,
             )
 
         if not self.ack_run_queue_item(launch_project):

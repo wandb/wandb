@@ -233,6 +233,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         env_vars["WANDB_DOCKER"] = launch_project.docker_image
     if launch_project.name is not None:
         env_vars["WANDB_NAME"] = launch_project.name
+    if "author" in launch_project.launch_spec:
+        env_vars["WANDB_USERNAME"] = launch_project.launch_spec["author"]
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
@@ -516,11 +518,9 @@ def join(split_command: List[str]) -> str:
 def construct_builder_args(
     launch_config: Optional[Dict] = None,
     build_config: Optional[Dict] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     registry_config = None
-    given_docker_args = {}
     if launch_config is not None:
-        given_docker_args = launch_config.get("docker", {}).get("args", {})
         build_config = launch_config.get("build")
         registry_config = launch_config.get("registry")
 
@@ -533,7 +533,7 @@ def construct_builder_args(
         default_launch_config, build_config, registry_config
     )
 
-    return given_docker_args, build_config, registry_config
+    return build_config, registry_config
 
 
 def build_image_with_builder(
@@ -541,7 +541,6 @@ def build_image_with_builder(
     launch_project: LaunchProject,
     repository: Optional[Any],
     entry_point: EntryPoint,
-    docker_args: dict,
 ) -> Optional[str]:
     """
     Helper for testing and logging
@@ -551,7 +550,6 @@ def build_image_with_builder(
         launch_project,
         repository,
         entry_point,
-        docker_args,
     )
     return image_uri
 
@@ -573,7 +571,7 @@ def build_image_from_project(
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
 
-    docker_args, builder_config, registry_config = construct_builder_args(launch_config)
+    builder_config, registry_config = construct_builder_args(launch_config)
     launch_project = fetch_and_validate_project(launch_project, api)
     # Currently support either url or repository keywords in registry
     repository = registry_config.get("url") or registry_config.get("repository")
@@ -593,7 +591,6 @@ def build_image_from_project(
         launch_project,
         repository,
         entry_point,
-        docker_args,
     )
     if not image_uri:
         raise LaunchError("Error building image uri")
