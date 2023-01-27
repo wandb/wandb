@@ -284,15 +284,7 @@ class KanikoBuilder(AbstractBuilder):
                 f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
             )
         finally:
-            wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
-            try:
-                # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
-                if self.cloud_provider.lower() == "aws":
-                    core_v1.delete_namespaced_config_map(config_map_name, "wandb")
-                    self._delete_docker_ecr_config_map(core_v1)
-                batch_v1.delete_namespaced_job(build_job_name, "wandb")
-            except Exception as e:
-                raise LaunchError(f"Exception during Kubernetes resource clean up {e}")
+            self._cleanup(config_map_name, build_job_name)
 
         return image_uri
 
@@ -304,18 +296,7 @@ class KanikoBuilder(AbstractBuilder):
         image_tag: str,
         build_context_path: str,
     ) -> "client.V1Job":
-        env = None
-        if self.instance_mode and self.cloud_provider.lower() == "aws":
-            region = repository.split(".")[3]
-            env = client.V1EnvVar(name="AWS_REGION", value=region)
-
-        if self.cloud_provider.lower() == "gcp" and self.credentials_secret_mount_path:
-            env = client.V1EnvVar(
-                name="GOOGLE_APPLICATION_CREDENTIALS",
-                value=os.path.join(
-                    self.credentials_secret_mount_path, "credentials.json"
-                ),
-            )
+        env = self._get_env(repository)
         volume_mounts = []
         if self.cloud_provider.lower() == "aws":
             volume_mounts += [
@@ -422,3 +403,30 @@ class KanikoBuilder(AbstractBuilder):
         )
 
         return job
+
+    def _get_env(self, repository: str) -> Optional["client.V1EnvVar"]:
+        if self.instance_mode and self.cloud_provider.lower() == "aws":
+            region = repository.split(".")[3]
+            return client.V1EnvVar(name="AWS_REGION", value=region)
+        elif self.cloud_provider.lower() == "gcp":
+            return client.V1EnvVar(
+                name="GOOGLE_APPLICATION_CREDENTIALS",
+                value=os.path.join(
+                    self.credentials_secret_mount_path, "credentials.json"
+                ),
+            )
+        else:
+            return None
+
+    def _cleanup(self, config_map_name: str, build_job_name: str) -> None:
+        core_v1 = client.CoreV1Api()
+        batch_v1 = client.BatchV1Api()
+        wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
+        try:
+            # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
+            if self.cloud_provider.lower() == "aws":
+                core_v1.delete_namespaced_config_map(config_map_name, "wandb")
+                self._delete_docker_ecr_config_map(core_v1)
+            batch_v1.delete_namespaced_job(build_job_name, "wandb")
+        except Exception as e:
+            raise LaunchError(f"Exception during Kubernetes resource clean up {e}")
