@@ -44,7 +44,7 @@ def find_list_of_key_locations_and_dicts(data, search_key: str, root=None):
             found.extend(
                 find_list_of_key_locations_and_dicts(val, search_key, root=find_root)
             )
-    elif isinstance(data, (str, int, float)):
+    elif isinstance(data, (str, int, float)) or data is None:
         pass
     else:
         raise RuntimeError(f"unknown type: type={type(data)} data={data}")

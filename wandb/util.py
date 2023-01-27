@@ -34,6 +34,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Iterable,
     List,
     Mapping,
     NewType,
@@ -1769,7 +1770,7 @@ def _parse_entity_project_item(path: str) -> tuple:
     return tuple(reversed(padded_words))
 
 
-def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
     """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
     Ensures that "latest" is always present in the returned list.
 
@@ -1787,19 +1788,15 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
         assert aliases == ["boom", "latest"]
 
     """
-    if aliases is None:
-        aliases = []
-
-    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
-        raise ValueError("`aliases` must either be None or of type str or list")
+    aliases = aliases or ["latest"]
 
     if isinstance(aliases, str):
         aliases = [aliases]
 
-    if "latest" not in aliases:
-        aliases.append("latest")
-
-    return aliases
+    try:
+        return list(set(aliases) | {"latest"})
+    except TypeError as exc:
+        raise ValueError("`aliases` must be Iterable or None") from exc
 
 
 def _is_artifact_object(v: Any) -> bool:
