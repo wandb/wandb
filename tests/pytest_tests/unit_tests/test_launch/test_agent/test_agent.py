@@ -24,8 +24,7 @@ def test_loop_capture_stack_trace(mocker):
 
     agent.loop()
 
-    call_args = mocker.termerror.call_args.args
-    assert "Traceback (most recent call last):" in call_args[0]
+    assert "Traceback (most recent call last):" in mocker.termerror.call_args[0][0]
 
 
 def _setup(mocker):
