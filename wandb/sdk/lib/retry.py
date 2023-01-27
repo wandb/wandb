@@ -221,7 +221,7 @@ class Backoff(abc.ABC):
 
     @abc.abstractmethod
     def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
-        raise NotImplementedError # pragma: no cover
+        raise NotImplementedError  # pragma: no cover
 
 
 class ExponentialBackoff(Backoff):
