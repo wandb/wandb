@@ -335,10 +335,6 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["image"] = launch_project.docker_image
             image_uri = launch_project.docker_image
             # TODO: handle secret pulling image from registry
-        elif any(["image" in cont for cont in containers]):
-            # user specified image configurations via kubernetes yaml, could have multiple images
-            # dont specify run id if user provided image, could have multiple runs
-            # TODO: handle secret pulling image from registries?
         else:
             if len(containers) > 1:
                 raise LaunchError(
