@@ -17,7 +17,6 @@ from typing import (
     Union,
 )
 
-import wandb.util
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
 

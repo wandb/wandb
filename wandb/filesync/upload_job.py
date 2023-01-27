@@ -75,7 +75,7 @@ class UploadJob(threading.Thread):
             if success:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
-    def push(self):
+    def push(self) -> None:
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
