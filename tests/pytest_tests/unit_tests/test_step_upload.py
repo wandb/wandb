@@ -484,26 +484,24 @@ class TestUpload:
                 [True, False],
             )
             def test_notifies_on_success(self, tmp_path: Path, deduped: bool):
-                api = make_api()
                 cmd = make_request_upload(
                     make_tmp_file(tmp_path), save_fn=Mock(return_value=deduped)
                 )
                 mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-                run_step_upload([cmd], api=api, file_stream=mock_file_stream)
+                run_step_upload([cmd], file_stream=mock_file_stream)
 
                 mock_file_stream.push_success.assert_called_once_with(
                     cmd.artifact_id, cmd.save_name
                 )
 
             def test_no_notify_on_err(self, tmp_path: Path):
-                api = make_api()
                 cmd = make_request_upload(
                     make_tmp_file(tmp_path), save_fn=Mock(side_effect=Exception())
                 )
                 mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-                run_step_upload([cmd], api=api, file_stream=mock_file_stream)
+                run_step_upload([cmd], file_stream=mock_file_stream)
 
                 mock_file_stream.push_success.assert_not_called()
 
