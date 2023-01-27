@@ -36,7 +36,6 @@ class DockerBuilder(AbstractBuilder):
         launch_project: LaunchProject,
         repository: Optional[str],
         entrypoint: EntryPoint,
-        docker_args: Dict[str, Any],
     ) -> str:
 
         if repository:
@@ -51,7 +50,6 @@ class DockerBuilder(AbstractBuilder):
             launch_project,
             image_uri,
             sanitize_wandb_api_key(" ".join(entry_cmd)),
-            docker_args,
             dockerfile_str,
         )
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
