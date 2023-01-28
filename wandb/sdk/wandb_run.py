@@ -2040,6 +2040,8 @@ class Run:
         else:
             raise ValueError("unhandled console")
         try:
+            out_redir.save()
+            err_redir.save()
             out_redir.install()
             err_redir.install()
             self._out_redir = out_redir
