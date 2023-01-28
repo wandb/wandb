@@ -17,8 +17,6 @@ from typing import (
     Union,
 )
 
-import wandb
-
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
 

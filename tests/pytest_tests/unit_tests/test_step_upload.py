@@ -8,7 +8,6 @@ from typing import Any, Callable, Iterable, MutableSequence, Optional
 from unittest.mock import DEFAULT, Mock, patch
 
 import pytest
-import wandb.env
 from wandb.filesync import stats
 from wandb.filesync.step_upload import (
     Event,
