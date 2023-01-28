@@ -5,9 +5,10 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, MutableSequence, Optional
-from unittest.mock import DEFAULT, Mock
+from unittest.mock import DEFAULT, Mock, patch
 
 import pytest
+import wandb.env
 from wandb.filesync import stats
 from wandb.filesync.step_upload import (
     Event,
@@ -64,6 +65,15 @@ def make_step_upload(
 
 
 def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
+
+    if (kwargs.get("save_fn") is not None) and ("save_fn_async" not in kwargs):
+        save_fn = kwargs["save_fn"]
+
+        async def save_fn_async(*args, **kwargs):
+            return save_fn(*args, **kwargs)
+
+        kwargs["save_fn_async"] = save_fn_async
+
     return RequestUpload(
         path=str(path),
         **{
@@ -72,6 +82,7 @@ def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
             "md5": None,
             "copied": False,
             "save_fn": None,
+            "save_fn_async": None,
             "digest": None,
             **kwargs,
         },
@@ -245,6 +256,11 @@ class TestFinish:
 
 
 class TestUpload:
+    @pytest.fixture(autouse=True, params=[True, False])
+    def use_async_upload(self, request):
+        with patch("wandb.env.get_use_async_upload", return_value=request.param):
+            yield request.param
+
     def test_upload(
         self,
         tmp_path: Path,
@@ -506,6 +522,32 @@ class TestUpload:
                 run_step_upload([cmd], file_stream=mock_file_stream)
 
                 mock_file_stream.push_success.assert_not_called()
+
+    def test_uses_save_fn_async_iff_env_says_to(
+        self, tmp_path: Path, use_async_upload: bool
+    ):
+        save_fn_sync = Mock(return_value=False)
+
+        async def _save_fn_async(*args, **kwargs):
+            return False
+
+        save_fn_async = Mock(wraps=_save_fn_async)
+        q = queue.Queue()
+        cmd = make_request_upload(
+            make_tmp_file(tmp_path), save_fn=save_fn_sync, save_fn_async=save_fn_async
+        )
+        q.put(cmd)
+
+        step_upload = make_step_upload(event_queue=q, silent=False)
+        step_upload.start()
+        finish_and_wait(q)
+
+        if use_async_upload:
+            save_fn_async.assert_called_once()
+            save_fn_sync.assert_not_called()
+        else:
+            save_fn_sync.assert_called_once()
+            save_fn_async.assert_not_called()
 
 
 class TestArtifactCommit:

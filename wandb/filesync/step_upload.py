@@ -1,13 +1,15 @@
 """Batching file prepare requests to our API."""
 
+import asyncio
 import concurrent.futures
 import logging
+import os
 import queue
 import sys
 import threading
 from typing import (
     TYPE_CHECKING,
-    Any,
+    Awaitable,
     Callable,
     MutableMapping,
     MutableSequence,
@@ -17,6 +19,8 @@ from typing import (
     Union,
 )
 
+import wandb.env
+import wandb.util
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
 
@@ -39,7 +43,8 @@ if TYPE_CHECKING:
 
 PreCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
-SaveFn = Callable[["progress.ProgressFn"], Any]
+SaveFn = Callable[["progress.ProgressFn"], bool]
+SaveFnAsync = Callable[["progress.ProgressFn"], Awaitable[bool]]
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +56,7 @@ class RequestUpload(NamedTuple):
     md5: Optional[str]
     copied: bool
     save_fn: Optional[SaveFn]
+    save_fn_async: Optional[SaveFnAsync]
     digest: Optional[str]
 
 
@@ -93,10 +99,17 @@ class StepUpload:
             max_workers=max_jobs,
         )
 
+        self._loop = asyncio.new_event_loop()
+        self._loop.set_default_executor(self._pool)
+        self._loop_thread = threading.Thread(
+            target=self._loop.run_forever,
+            daemon=True,
+            name="wandb-upload-async",
+        )
+        self._async_concurrency_limiter = asyncio.Semaphore(500, loop=self._loop)
+
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
-        self._running_jobs: MutableMapping[
-            dir_watcher.SaveName, upload_job.UploadJob
-        ] = {}
+        self._running_jobs: MutableMapping[dir_watcher.SaveName, RequestUpload] = {}
         self._pending_jobs: MutableSequence[RequestUpload] = []
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
@@ -184,23 +197,12 @@ class StepUpload:
             self._pending_jobs.append(event)
             return
 
-        # Start it.
-        job = upload_job.UploadJob(
-            self._stats,
-            self._api,
-            self._file_stream,
-            self.silent,
-            event.save_name,
-            event.path,
-            event.artifact_id,
-            event.md5,
-            event.copied,
-            event.save_fn,
-            event.digest,
-        )
-        self._spawn_upload(job)
+        if event.save_fn_async is not None and wandb.env.get_use_async_upload():
+            self._spawn_upload_async(event, event.save_fn_async)
+        else:
+            self._spawn_upload_sync(event)
 
-    def _spawn_upload(self, job: upload_job.UploadJob) -> None:
+    def _spawn_upload_sync(self, event: RequestUpload) -> None:
         """Spawns an upload job, and handles the bookkeeping of `self._running_jobs`.
 
         Context: it's important that, whenever we add an entry to `self._running_jobs`,
@@ -226,17 +228,72 @@ class StepUpload:
         #
         # This would be very bad!
         # So, this line has to happen _outside_ the `pool.submit()`.
-        self._running_jobs[job.save_name] = job
+        self._running_jobs[event.save_name] = event
 
         def run_and_notify() -> None:
             try:
-                job.run()
+                self._do_upload_sync(event)
             finally:
                 self._event_queue.put(
-                    upload_job.EventJobDone(job=job, exc=sys.exc_info()[1])
+                    upload_job.EventJobDone(event, exc=sys.exc_info()[1])
                 )
 
         self._pool.submit(run_and_notify)
+
+    def _spawn_upload_async(
+        self, event: RequestUpload, save_fn_async: SaveFnAsync
+    ) -> None:
+        """Equivalent to _spawn_upload_sync, but uses the async event loop instead of a thread."""
+
+        self._running_jobs[event.save_name] = event
+
+        async def run_and_notify() -> None:
+            try:
+                await self._do_upload_async(event, save_fn_async)
+            finally:
+                self._event_queue.put(
+                    upload_job.EventJobDone(event, exc=sys.exc_info()[1])
+                )
+
+        self._loop.call_soon_threadsafe(
+            self._loop.create_task,
+            run_and_notify(),
+        )
+
+    def _do_upload_sync(self, event: RequestUpload) -> None:
+        job = upload_job.UploadJob(
+            self._stats,
+            self._api,
+            self._file_stream,
+            self.silent,
+            event.save_name,
+            event.path,
+            event.artifact_id,
+            event.md5,
+            event.copied,
+            event.save_fn,
+            event.digest,
+        )
+        job.run()
+
+    async def _do_upload_async(
+        self, event: RequestUpload, save_fn_async: SaveFnAsync
+    ) -> None:
+        try:
+            async with self._async_concurrency_limiter:
+                deduped = await save_fn_async(
+                    lambda _, t: self._stats.update_uploaded_file(event.path, t)
+                )
+        except Exception:
+            self._stats.update_failed_file(event.save_name)
+            raise
+        finally:
+            if event.copied and os.path.isfile(event.path):
+                os.remove(event.path)
+
+        self._file_stream.push_success(event.artifact_id, event.save_name)  # type: ignore
+        if deduped:
+            self._stats.set_file_deduped(event.save_name)
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
@@ -281,6 +338,7 @@ class StepUpload:
 
     def start(self) -> None:
         self._thread.start()
+        self._loop_thread.start()
 
     def is_alive(self) -> bool:
         return self._thread.is_alive()

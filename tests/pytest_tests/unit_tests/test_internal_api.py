@@ -1,4 +1,6 @@
+import asyncio
 import base64
+import concurrent.futures
 import hashlib
 import os
 import tempfile
@@ -6,9 +8,11 @@ from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, Union
 from unittest.mock import Mock, call
 
+import httpx
 import pytest
 import requests
 import responses
+import respx
 import wandb.errors
 from wandb.apis import internal
 from wandb.errors import CommError
@@ -432,3 +436,117 @@ class TestUploadFileRetry:
             )
 
         assert handler.call_count == num_retries + 1
+
+
+class TestUploadFileRetryAsync:
+    @pytest.fixture(autouse=True)
+    def mock_sleep(self, monkeypatch: pytest.MonkeyPatch):
+        async def _sleep(dur):
+            pass
+
+        monkeypatch.setattr(asyncio, "sleep", _sleep)
+
+    @pytest.mark.parametrize(
+        ["schedule", "num_requests"],
+        [
+            ([200], 1),
+            ([500, 500, 200], 3),
+        ],
+    )
+    def test_stops_after_success(
+        self,
+        some_file: Path,
+        mock_respx: "respx.MockRouter",
+        schedule: Sequence[int],
+        num_requests: int,
+    ):
+        route = mock_respx.put("http://example.com/upload-dst")
+        route.side_effect = [httpx.Response(status) for status in schedule]
+
+        asyncio.run(
+            internal.InternalApi().upload_file_retry_async(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+            )
+        )
+
+        assert route.call_count == num_requests
+
+    def test_stops_after_bad_status(
+        self,
+        some_file: Path,
+        mock_respx: "respx.MockRouter",
+    ):
+        route = mock_respx.put("http://example.com/upload-dst")
+        route.side_effect = [httpx.Response(400)]
+
+        with pytest.raises(httpx.HTTPStatusError):
+            asyncio.run(
+                internal.InternalApi().upload_file_retry_async(
+                    "http://example.com/upload-dst",
+                    some_file.open("rb"),
+                )
+            )
+        assert route.call_count == 1
+
+    def test_stops_after_retry_limit_exceeded(
+        self,
+        some_file: Path,
+        mock_respx: "respx.MockRouter",
+    ):
+        num_retries = 8
+        route = mock_respx.put("http://example.com/upload-dst")
+        route.side_effect = httpx.Response(500)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            asyncio.run(
+                internal.InternalApi().upload_file_retry_async(
+                    "http://example.com/upload-dst",
+                    some_file.open("rb"),
+                    num_retries=num_retries,
+                )
+            )
+
+        assert route.call_count == num_retries + 1
+
+    @pytest.mark.parametrize(
+        ["headers", "expect_delegate"],
+        [
+            ({}, False),
+            ({"x-ms-blob-type": "BlockBlob"}, True),
+        ],
+    )
+    def test_delegates_to_sync_upload_if_azure(
+        self,
+        some_file: Path,
+        mock_respx: "respx.MockRouter",
+        headers: Mapping[str, str],
+        expect_delegate: bool,
+    ):
+        if not expect_delegate:
+            mock_respx.put("http://example.com/upload-dst").mock(
+                return_value=httpx.Response(200)
+            )
+
+        executor = concurrent.futures.ThreadPoolExecutor()
+        executor.submit = Mock(wraps=executor.submit)
+
+        api = internal.InternalApi()
+        api.upload_file_retry = Mock()
+
+        loop = asyncio.new_event_loop()
+        loop.set_default_executor(executor)
+        loop.run_until_complete(
+            api.upload_file_retry_async(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+                extra_headers=headers,
+            )
+        )
+
+        if expect_delegate:
+            api.upload_file_retry.assert_called_once()
+            executor.submit.assert_called_once()
+        else:
+            api.upload_file_retry.assert_not_called()
+            executor.submit.assert_not_called()

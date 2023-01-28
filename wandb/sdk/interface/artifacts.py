@@ -782,7 +782,17 @@ class StoragePolicy:
     ) -> str:
         raise NotImplementedError
 
-    def store_file(
+    def store_file_sync(
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactManifestEntry,
+        preparer: "StepPrepare",
+        progress_callback: Optional["progress.ProgressFn"] = None,
+    ) -> bool:
+        raise NotImplementedError
+
+    async def store_file_async(
         self,
         artifact_id: str,
         artifact_manifest_id: str,

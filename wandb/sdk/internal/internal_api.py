@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import base64
 import datetime
 import json
@@ -27,6 +28,7 @@ from typing import (
 )
 
 import click
+import httpx
 import requests
 import yaml
 from wandb_gql import Client, gql  # type: ignore
@@ -45,7 +47,7 @@ from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 from . import context
-from .progress import Progress
+from .progress import AsyncProgress, Progress
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +186,7 @@ class Api:
                 url=f"{self.settings('base_url')}/graphql",
             )
         )
+        self._async_httpx_client = httpx.AsyncClient()
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
             self.execute,
@@ -2030,6 +2033,81 @@ class Api:
                 util.sentry_reraise(e)
 
         return response
+
+    async def upload_file_retry_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        num_retries: int = 100,
+    ) -> None:
+        if extra_headers is not None and "x-ms-blob-type" in extra_headers:
+            print("SRP: delegating", url, extra_headers)
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: self.upload_file_retry(
+                    url=url,
+                    file=file,
+                    callback=callback,
+                    extra_headers=extra_headers,
+                ),
+            )
+            return
+
+        progress = AsyncProgress(Progress(file, callback=callback))
+
+        def check_exc_retriable(exc: Exception) -> bool:
+            progress.rewind()
+
+            logger.error(f"upload_file_retry_async exception {url}: {exc}")
+            if isinstance(exc, httpx.RequestError) and exc.request is not None:
+                logger.error(
+                    f"upload_file_retry_async request headers: {exc.request.headers}"
+                )
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
+                logger.error(
+                    f"upload_file_retry_async response body: {exc.response.content}"
+                )
+
+            retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
+            return (
+                isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
+                or (
+                    isinstance(exc, httpx.HTTPStatusError)
+                    and exc.response.status_code in retriable_codes
+                )
+                or (
+                    isinstance(exc, httpx.HTTPStatusError)
+                    and exc.response.status_code == 400
+                    and extra_headers is not None
+                    and "x-amz-meta-md5" in extra_headers
+                    and "RequestTimeout" in str(exc.response.content)
+                )
+            )
+
+        backoff = retry.FilteredBackoff(
+            filter=check_exc_retriable,
+            wrapped=retry.ExponentialBackoff(
+                initial_sleep=datetime.timedelta(seconds=1),
+                max_sleep=datetime.timedelta(seconds=60),
+                max_retries=num_retries,
+                timeout_at=datetime.datetime.now() + datetime.timedelta(days=7),
+            ),
+        )
+
+        async def put_and_raise_for_status(client, *args, **kwargs) -> None:
+            response = await client.put(*args, **kwargs)
+            response.raise_for_status()
+
+        await retry.retry_async(
+            backoff=backoff,
+            fn=put_and_raise_for_status,
+            client=self._async_httpx_client,
+            url=url,
+            content=progress,
+            headers=extra_headers,
+        )
 
     @normalize_exceptions
     def register_agent(

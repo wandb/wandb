@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class EventJobDone(NamedTuple):
-    job: "UploadJob"
+    job: "step_upload.RequestUpload"
     exc: Optional[BaseException]
 
 

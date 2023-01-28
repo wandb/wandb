@@ -37,6 +37,7 @@ xgboost
 lightgbm
 rdkit-pypi; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
+respx>=0.20.0
 
 # TODO: fix extra dependencies
 #   We need to improve how we do requirements_dev as specifying .[extra] creates

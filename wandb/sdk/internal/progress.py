@@ -83,3 +83,23 @@ class Progress:
         return self.len
 
     next = __next__
+
+
+class AsyncProgress:
+    def __init__(self, progress: Progress) -> None:
+        self._progress = progress
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._progress)
+        except StopIteration:
+            raise StopAsyncIteration
+
+    def __len__(self):
+        return len(self._progress)
+
+    def rewind(self) -> None:
+        self._progress.rewind()

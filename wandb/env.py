@@ -81,6 +81,7 @@ INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
 _EXECUTABLE = "WANDB_EXECUTABLE"
+ASYNC_UPLOAD = "WANDB_USE_ASYNC_UPLOAD"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -369,6 +370,10 @@ def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:
         env = os.environ
     val = bool(env.get(USE_V1_ARTIFACTS, False))
     return val
+
+
+def get_use_async_upload() -> bool:
+    return _env_as_bool(ASYNC_UPLOAD, default="False")
 
 
 def get_agent_max_initial_failures(
