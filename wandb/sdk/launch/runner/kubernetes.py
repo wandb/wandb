@@ -335,7 +335,7 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["image"] = launch_project.docker_image
             image_uri = launch_project.docker_image
             # TODO: handle secret pulling image from registry
-        else:
+        elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
