@@ -1,12 +1,13 @@
 import hashlib
-from io import BytesIO
 import logging
 import os
-from typing import Any, cast, Dict, List, Optional, Sequence, Type, TYPE_CHECKING, Union
+from io import BytesIO
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
+from urllib import parse
 
-from pkg_resources import parse_version
 import wandb
 from wandb import util
+from wandb.sdk.lib import runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -17,35 +18,44 @@ from .helper_types.image_mask import ImageMask
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
     import numpy as np  # type: ignore
-    import PIL  # type: ignore
     import torch  # type: ignore
+    from PIL.Image import Image as PILImage
+
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
     ImageDataType = Union[
-        "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
+        "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
     ImageDataOrPathType = Union[str, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
 def _server_accepts_image_filenames() -> bool:
+    from pkg_resources import parse_version
+
     # Newer versions of wandb accept large image filenames arrays
     # but older versions would have issues with this.
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    return parse_version("0.12.10") <= parse_version(max_cli_version)
+    accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
+        max_cli_version
+    )
+    return accepts_image_filenames
 
 
 def _server_accepts_artifact_path() -> bool:
+    from pkg_resources import parse_version
+
     target_version = "0.12.14"
     max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
-    return max_cli_version is not None and parse_version(
+    accepts_artifact_path: bool = max_cli_version is not None and parse_version(
         target_version
     ) <= parse_version(max_cli_version)
+    return accepts_artifact_path
 
 
 class Image(BatchableMedia):
@@ -107,7 +117,7 @@ class Image(BatchableMedia):
     _caption: Optional[str]
     _width: Optional[int]
     _height: Optional[int]
-    _image: Optional["PIL.Image"]
+    _image: Optional["PILImage"]
     _classes: Optional["Classes"]
     _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
     _masks: Optional[Dict[str, "ImageMask"]]
@@ -140,7 +150,10 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
         elif isinstance(data_or_path, str):
-            self._initialize_from_path(data_or_path)
+            if self.path_is_reference(data_or_path):
+                self._initialize_from_reference(data_or_path)
+            else:
+                self._initialize_from_path(data_or_path)
         else:
             self._initialize_from_data(data_or_path, mode)
 
@@ -206,7 +219,8 @@ class Image(BatchableMedia):
                     for key in total_classes.keys()
                 ]
             )
-        self._width, self._height = self.image.size  # type: ignore
+        if self.image is not None:
+            self._width, self._height = self.image.size
         self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
@@ -236,14 +250,23 @@ class Image(BatchableMedia):
         )
         self._set_file(path, is_tmp=False)
         self._image = pil_image.open(path)
+        assert self._image is not None
         self._image.load()
         ext = os.path.splitext(path)[1][1:]
+        self.format = ext
+
+    def _initialize_from_reference(self, path: str) -> None:
+        self._path = path
+        self._is_tmp = False
+        self._sha256 = hashlib.sha256(path.encode("utf-8")).hexdigest()
+        path = parse.urlparse(path).path
+        ext = path.split("/")[-1].split(".")[-1]
         self.format = ext
 
     def _initialize_from_data(
         self,
         data: "ImageDataType",
-        mode: str = None,
+        mode: Optional[str] = None,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -260,7 +283,7 @@ class Image(BatchableMedia):
                 "torchvision.utils", "torchvision is required to render images"
             )
             if hasattr(data, "requires_grad") and data.requires_grad:
-                data = data.detach()
+                data = data.detach()  # type: ignore
             data = vis_util.make_grid(data, normalize=True)
             self._image = pil_image.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
@@ -274,8 +297,9 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, str(util.generate_id()) + ".png")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".png")
         self.format = "png"
+        assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
@@ -334,6 +358,11 @@ class Image(BatchableMedia):
         # space, but there are also custom charts, and maybe others. Let's
         # commit to getting all that fixed up before moving this to  the top
         # level Media class.
+        if self.path_is_reference(self._path):
+            raise ValueError(
+                "Image media created by a reference to external storage cannot currently be added to a run"
+            )
+
         if (
             not _server_accepts_artifact_path()
             or self._get_artifact_entry_ref_url() is None
@@ -478,7 +507,7 @@ class Image(BatchableMedia):
 
         def size_equals_image(image: "Image") -> bool:
             img_width, img_height = image.image.size  # type: ignore
-            return img_width == width and img_height == height  # type: ignore
+            return img_width == width and img_height == height
 
         sizes_match = all(size_equals_image(img) for img in seq)
         if not sizes_match:
@@ -580,12 +609,16 @@ class Image(BatchableMedia):
         if not isinstance(other, Image):
             return False
         else:
+            if self.path_is_reference(self._path) and self.path_is_reference(
+                other._path
+            ):
+                return self._path == other._path
             self_image = self.image
             other_image = other.image
             if self_image is not None:
-                self_image = list(self_image.getdata())
+                self_image = list(self_image.getdata())  # type: ignore
             if other_image is not None:
-                other_image = list(other_image.getdata())
+                other_image = list(other_image.getdata())  # type: ignore
 
             return (
                 self._grouping == other._grouping
@@ -610,9 +643,9 @@ class Image(BatchableMedia):
             self._image = None
 
     @property
-    def image(self) -> Optional["PIL.Image"]:
+    def image(self) -> Optional["PILImage"]:
         if self._image is None:
-            if self._path is not None:
+            if self._path is not None and not self.path_is_reference(self._path):
                 pil_image = util.get_module(
                     "PIL.Image",
                     required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',

@@ -1,3 +1,19 @@
+__all__ = [
+    "Error",
+    "UsageError",
+    "CommError",
+    "LogError",
+    "DockerError",
+    "LogMultiprocessError",
+    "MultiprocessError",
+    "RequireError",
+    "ExecutionError",
+    "LaunchError",
+    "SweepError",
+    "WaitTimeoutError",
+    "ContextCancelledError",
+]
+
 from typing import List, Optional
 
 
@@ -102,16 +118,19 @@ class SweepError(Error):
     pass
 
 
-__all__ = [
-    "Error",
-    "UsageError",
-    "CommError",
-    "LogError",
-    "DockerError",
-    "LogMultiprocessError",
-    "MultiprocessError",
-    "RequireError",
-    "ExecutionError",
-    "LaunchError",
-    "SweepError",
-]
+class WaitTimeoutError(Error):
+    """Raised when wait() timeout occurs before process is finished"""
+
+    pass
+
+
+class MailboxError(Error):
+    """Generic Mailbox Exception"""
+
+    pass
+
+
+class ContextCancelledError(Error):
+    """Context cancelled Exception"""
+
+    pass

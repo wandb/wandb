@@ -3,33 +3,22 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, cast, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 if False:
     import boto3  # type: ignore
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.docker as docker
+from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
+from .._project_spec import LaunchProject, get_entry_point_command
+from ..builder.build import get_env_vars_dict
+from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import (
-    get_entry_point_command,
-    LaunchProject,
-)
-from ..builder.build import (
-    get_env_vars_dict,
-)
-from ..utils import (
-    LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
-    PROJECT_SYNCHRONOUS,
-    run_shell,
-    to_camel_case,
-)
-
 
 _logger = logging.getLogger(__name__)
 
@@ -189,12 +178,6 @@ class AWSSagemakerRunner(AbstractRunner):
             if login_resp is None or "Login Succeeded" not in login_resp:
                 raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
-        docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
-        if docker_args and list(docker_args) != ["docker_image"]:
-            wandb.termwarn(
-                "Docker args are not supported for Sagemaker Resource. Not using docker args"
-            )
-
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
@@ -204,7 +187,6 @@ class AWSSagemakerRunner(AbstractRunner):
                 launch_project,
                 repository,
                 entry_point,
-                {},
             )
 
         if not self.ack_run_queue_item(launch_project):

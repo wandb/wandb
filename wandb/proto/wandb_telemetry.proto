@@ -62,7 +62,7 @@ message Imports {
   bool flash = 34;
   bool optuna = 35;
   bool recbole = 36;
-  bool mmcv = 37; 
+  bool mmcv = 37;
   bool mmdet = 38;
   bool torchdrug = 39;
   bool torchtext = 40;
@@ -106,6 +106,8 @@ message Imports {
   bool jina = 78;
   bool kornia = 79;
   bool albumentations = 80;
+  bool keras_cv = 81;
+  bool mmengine = 82;
 }
 
 message Feature {
@@ -146,6 +148,14 @@ message Feature {
   bool tensorboard_sync = 35; // wandb.init(sync_tensorboard=True)
   bool kfp_wandb_log = 36; // wandb.integration.kfp.wandb_log
   bool maybe_run_overwrite = 37; // Run might have been overwritten
+  bool keras_metrics_logger = 38; // Keras WandbMetricsLogger used
+  bool keras_model_checkpoint = 39; // Keras WandbModelCheckpoint used
+  bool keras_wandb_eval_callback = 40; // Keras WandbEvalCallback used
+  bool flow_control_overflow = 41; // Hit flow control threshold
+  bool sync = 42; // Run was synced with wandb sync
+  bool flow_control_disabled = 43; // Flow control disabled by user
+  bool flow_control_custom = 44; // Flow control customized by user
+  bool service_disabled = 45; // Service disabled by user
 }
 
 message Env {
@@ -158,6 +168,8 @@ message Env {
   bool start_forkserver = 7;  // multiprocessing forkserver
   bool start_thread = 8;      // thread start method
   bool maybe_mp = 9; // maybe user running multiprocessing
+  bool trainium = 10; // AWS Trainium env detected
+  bool pex = 11; // pex env detected
 }
 
 message Labels {

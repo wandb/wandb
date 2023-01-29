@@ -9,22 +9,16 @@ from typing import Any, Dict, List, Optional
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
-from ..builder.build import (
-    docker_image_exists,
-    get_env_vars_dict,
-    pull_docker_image,
-)
+from .._project_spec import LaunchProject, get_entry_point_command
+from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
 from ..utils import (
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
-    LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
-    PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
 )
-
+from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
 
@@ -79,7 +73,11 @@ class LocalContainerRunner(AbstractRunner):
         registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        docker_args: Dict[str, Any] = launch_project.resource_args.get(
+            "local-container", {}
+        )
+        # TODO: leaving this here because of existing CLI command
+        # we should likely just tell users to specify the gpus arg directly
         if launch_project.cuda:
             docker_args["gpus"] = "all"
 
@@ -103,6 +101,7 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
+
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.image_name
@@ -123,7 +122,6 @@ class LocalContainerRunner(AbstractRunner):
                 launch_project,
                 repository,
                 entry_point,
-                docker_args,
             )
             command_str = " ".join(
                 get_docker_command(image_uri, env_vars, [""], docker_args)
@@ -173,7 +171,7 @@ def get_docker_command(
     image: str,
     env_vars: Dict[str, str],
     entry_cmd: List[str],
-    docker_args: Dict[str, Any] = None,
+    docker_args: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
@@ -192,18 +190,17 @@ def get_docker_command(
 
     if docker_args:
         for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name)]
-                else:
-                    cmd += ["--" + shlex.quote(name)]
+            if len(name) == 1:
+                prefix = "-" + shlex.quote(name)
             else:
-                # Passed name=value
-                if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name), shlex.quote(str(value))]
-                else:
-                    cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
+                prefix = "--" + shlex.quote(name)
+            if isinstance(value, list):
+                for v in value:
+                    cmd += [prefix, shlex.quote(str(v))]
+            elif isinstance(value, bool) and value:
+                cmd += [prefix]
+            else:
+                cmd += [prefix, shlex.quote(str(value))]
 
     cmd += [shlex.quote(image)]
     cmd += entry_cmd

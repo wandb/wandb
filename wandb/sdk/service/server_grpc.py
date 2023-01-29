@@ -6,17 +6,17 @@ Implement grpc servicer.
 from typing import TYPE_CHECKING
 
 import grpc
+
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from .service_base import _pbmap_apply_dict
-from .streams import StreamMux
 from .. import lib as wandb_lib
 from ..lib.proto_util import settings_dict_from_pbmap
-
+from .service_base import _pbmap_apply_dict
+from .streams import StreamMux
 
 if TYPE_CHECKING:
 
@@ -88,6 +88,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert result  # TODO: handle errors
         return result
 
+    def ServerInfo(  # noqa: N802
+        self, server_info: pb.ServerInfoRequest, context: grpc.ServicerContext
+    ) -> pb.ServerInfoResponse:
+        stream_id = server_info._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        result = iface.communicate_server_info()
+        assert result  # TODO: handle errors
+        return result
+
     def GetSummary(  # noqa: N802
         self, get_summary: pb.GetSummaryRequest, context: grpc.ServicerContext
     ) -> pb.GetSummaryResponse:
@@ -153,6 +162,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.LinkArtifactResult()
         return result
 
+    def UseArtifact(  # noqa: N802
+        self, use_artifact: pb.UseArtifactRecord, context: grpc.ServicerContext
+    ) -> pb.UseArtifactResult:
+        stream_id = use_artifact._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_use_artifact(use_artifact)
+        result = pb.UseArtifactResult()
+        return result
+
     def ArtifactSend(  # noqa: N802
         self, art_send: pb.ArtifactSendRequest, context: grpc.ServicerContext
     ) -> pb.ArtifactSendResponse:
@@ -170,6 +188,24 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         resp = iface._communicate_artifact_poll(art_poll)
         assert resp
         return resp
+
+    def Cancel(  # noqa: N802
+        self, cancel: pb.CancelRequest, context: grpc.ServicerContext
+    ) -> pb.CancelResponse:
+        stream_id = cancel._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_cancel(cancel)
+        response = pb.CancelResponse()
+        return response
+
+    def Keepalive(  # noqa: N802
+        self, keepalive: pb.KeepaliveRequest, context: grpc.ServicerContext
+    ) -> pb.KeepaliveResponse:
+        stream_id = keepalive._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_keepalive(keepalive)
+        response = pb.KeepaliveResponse()
+        return response
 
     def TBSend(  # noqa: N802
         self, tb_data: pb.TBRecord, context: grpc.ServicerContext
@@ -300,6 +336,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.AlertResult()
         return result
 
+    def RunStatus(  # noqa: N802
+        self, run_status: pb.RunStatusRequest, context: grpc.ServicerContext
+    ) -> pb.RunStatusResponse:
+        stream_id = run_status._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        handle = iface._deliver_request_run_status(run_status)
+        result = handle.wait(timeout=-1)
+        assert result
+        return result.response.run_status_response
+
     def Status(  # noqa: N802
         self, status: pb.StatusRequest, context: grpc.ServicerContext
     ) -> pb.StatusResponse:
@@ -345,6 +391,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
+        self._mux.start_stream(stream_id)
         result = spb.ServerInformStartResponse()
         return result
 

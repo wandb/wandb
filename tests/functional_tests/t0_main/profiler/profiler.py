@@ -1,8 +1,8 @@
 """test profiler track and sync `pt.trace.json` files functionality"""
 
 import torch
-from torch.nn.functional import log_softmax, max_pool2d, relu
 import wandb
+from torch.nn.functional import log_softmax, max_pool2d, relu
 
 
 def test_profiler():

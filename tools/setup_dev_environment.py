@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
+import pathlib
 import platform
 import re
 import subprocess
 import sys
 
 from pkg_resources import parse_version
-
 
 PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10"]
 TOX_VERSION = "3.24.0"
@@ -131,11 +131,15 @@ def main():
     )
 
     print("Installing dependencies: tox...")
+    # path to this file's parent:
+    cwd = pathlib.Path(__file__).parent.parent.absolute()
+
     subprocess.run(
         ["python", "-m", "pip", "install", "-qq", f"tox=={TOX_VERSION}"],
         stdout=sys.stdout,
         stderr=subprocess.STDOUT,
         check=True,
+        cwd=cwd,
     )
 
     print(f"{Console.GREEN}Development environment setup!{Console.END}")

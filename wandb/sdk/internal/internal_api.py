@@ -1,4 +1,14 @@
-from abc import ABC
+import ast
+import base64
+import datetime
+import json
+import logging
+import os
+import re
+import socket
+import sys
+import threading
+from copy import deepcopy
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -9,66 +19,63 @@ from typing import (
     List,
     Mapping,
     MutableMapping,
+    Optional,
     Sequence,
     TextIO,
     Tuple,
-    TypeVar,
-    Optional,
     Union,
 )
+
+import click
+import requests
+import yaml
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
-import ast
-import base64
-from copy import deepcopy
-import datetime
-from io import BytesIO
-import json
-import os
-from pkg_resources import parse_version
-import re
-import requests
-import logging
-import socket
-import sys
-
-import click
-import yaml
-
 import wandb
-from wandb import __version__
-from wandb import env
-from wandb.old.settings import Settings
-from wandb import util
+from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from wandb.old.settings import Settings
+from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
-
+from . import context
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
-        from typing import Literal, Protocol, TypedDict
+        from typing import Literal, TypedDict
     else:
-        from typing_extensions import Literal, Protocol, TypedDict
+        from typing_extensions import Literal, TypedDict
 
     from .progress import ProgressFn
 
-    class CreateArtifactFileSpecInput(TypedDict):
+    class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
 
-        artifactID: str
+        artifactID: str  # noqa: N815
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]
+        artifactManifestID: Optional[str]  # noqa: N815
+
+    class CreateArtifactFilesResponseFile(TypedDict):
+        id: str
+        name: str
+        displayName: str  # noqa: N815
+        uploadUrl: Optional[str]  # noqa: N815
+        uploadHeaders: Sequence[str]  # noqa: N815
+        artifact: "CreateArtifactFilesResponseFileNode"
+
+    class CreateArtifactFilesResponseFileNode(TypedDict):
+        id: str
 
     class DefaultSettings(TypedDict):
         section: str
@@ -80,8 +87,7 @@ if TYPE_CHECKING:
         entity: Optional[str]
         project: Optional[str]
 
-    _Response = TypeVar("_Response", bound=MutableMapping)
-    _ArtifactVersion = TypeVar("_ArtifactVersion", bound=MutableMapping)
+    _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
@@ -90,6 +96,13 @@ if TYPE_CHECKING:
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
+
+
+class _ThreadLocalData(threading.local):
+    context: Optional[context.Context]
+
+    def __init__(self) -> None:
+        self.context = None
 
 
 class Api:
@@ -108,6 +121,8 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
+    _global_context: context.Context
+    _local_data: _ThreadLocalData
 
     def __init__(
         self,
@@ -120,11 +135,15 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+            days=7
+        ),
         environ: MutableMapping = os.environ,
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
         self._environ = environ
+        self._global_context = context.Context()
+        self._local_data = _ThreadLocalData()
         self.default_settings: "DefaultSettings" = {
             "section": "default",
             "git_remote": "origin",
@@ -166,7 +185,7 @@ class Api:
             )
         )
         self.retry_callback = retry_callback
-        self.gql = retry.Retry(
+        self._retry_gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
@@ -175,6 +194,7 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
+        self._upload_file_session = requests.Session()
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -189,6 +209,24 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
+
+    def gql(self, *args: Any, **kwargs: Any) -> Any:
+        ret = self._retry_gql(
+            *args,
+            retry_cancel_event=self.context.cancel_event,
+            **kwargs,
+        )
+        return ret
+
+    def set_local_context(self, api_context: Optional[context.Context]) -> None:
+        self._local_data.context = api_context
+
+    def clear_local_context(self) -> None:
+        self._local_data.context = None
+
+    @property
+    def context(self) -> context.Context:
+        return self._local_data.context or self._global_context
 
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
@@ -1032,13 +1070,111 @@ class Api:
         return result
 
     @normalize_exceptions
-    def push_to_run_queue(
-        self, queue_name: str, launch_spec: Dict[str, str]
+    def push_to_run_queue_by_name(
+        self, entity: str, project: str, queue_name: str, run_spec: str
     ) -> Optional[Dict[str, Any]]:
-        # TODO(kdg): add pushToRunQueueByName to avoid this extra query
+        """
+        Queryless mutation, should be used before legacy fallback method
+        """
+
+        mutation = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+                runSpec
+            }
+        }
+        """
+        )
+        variables = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "runSpec": run_spec,
+        }
+        try:
+            result: Optional[Dict[str, Any]] = self.gql(
+                mutation, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
+
+            if not result:
+                return None
+
+            if result.get("runSpec"):
+                run_spec = json.loads(str(result["runSpec"]))
+                result["runSpec"] = run_spec
+
+            return result
+        except Exception as e:
+            if (
+                'Cannot query field "runSpec" on type "PushToRunQueueByNamePayload"'
+                not in str(e)
+            ):
+                return None
+
+        mutation_no_runspec = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+
+        try:
+            result = self.gql(
+                mutation_no_runspec, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
+        except Exception:
+            result = None
+
+        return result
+
+    @normalize_exceptions
+    def push_to_run_queue(
+        self,
+        queue_name: str,
+        launch_spec: Dict[str, str],
+        project_queue: str,
+    ) -> Optional[Dict[str, Any]]:
         entity = launch_spec["entity"]
-        project = launch_spec["project"]
-        queues_found = self.get_project_run_queues(entity, project)
+        run_spec = json.dumps(launch_spec)
+
+        push_result = self.push_to_run_queue_by_name(
+            entity, project_queue, queue_name, run_spec
+        )
+
+        if push_result:
+            return push_result
+
+        """ Legacy Method """
+        queues_found = self.get_project_run_queues(entity, project_queue)
         matching_queues = [
             q
             for q in queues_found
@@ -1054,38 +1190,30 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    "No default queue existing for {}/{} creating one.".format(
-                        entity, project
-                    )
+                    f"No default queue existing for entity: {entity} in project: {project_queue}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
-                    launch_spec["project"],
+                    project_queue,
                     queue_name,
                     access="PROJECT",
                 )
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
-                            entity, project
-                        )
+                        f"Unable to create default queue for entity: {entity} on project: {project_queue}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
 
             else:
                 wandb.termwarn(
-                    "Unable to push to run queue {}. Queue not found.".format(
-                        queue_name
-                    )
+                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
-                "Unable to push to run queue {}. More than one queue found with this name.".format(
-                    queue_name
-                )
+                f"Unable to push to run queue {queue_name}. More than one queue found with this name."
             )
             return None
         else:
@@ -1767,7 +1895,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)
+        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 
@@ -1787,9 +1915,9 @@ class Api:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file
             already existed and was up-to-date.
         """
-        fileName = metadata["name"]
-        path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
-        if self.file_current(fileName, metadata["md5"]):
+        filename = metadata["name"]
+        path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
+        if self.file_current(filename, B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -1833,7 +1961,6 @@ class Api:
                 response = requests.models.Response()
                 response.status_code = e.response.status_code
                 response.headers = e.response.headers
-                response.raw = e.response.internal_response
                 raise requests.exceptions.RequestException(e.message, response=response)
             else:
                 raise requests.exceptions.ConnectionError(e.message)
@@ -1869,7 +1996,9 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = self._upload_file_session.put(
+                    url, data=progress, headers=extra_headers
+                )
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -1878,11 +2007,22 @@ class Api:
             response_content = e.response.content if e.response is not None else ""
             logger.error(f"upload_file response body: {response_content}")
             status_code = e.response.status_code if e.response is not None else 0
+            # S3 reports retryable request timeouts out-of-band
+            is_aws_retryable = (
+                "x-amz-meta-md5" in extra_headers
+                and status_code == 400
+                and "RequestTimeout" in str(response_content)
+            )
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
-            if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
-                e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+            if (
+                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
+                or isinstance(
+                    e,
+                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                )
+                or is_aws_retryable
             ):
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
@@ -1933,18 +2073,6 @@ class Api:
         if project_name is None:
             project_name = self.settings("project")
 
-        # don't retry on validation or not found errors
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         response = self.gql(
             mutation,
             variable_values={
@@ -1953,7 +2081,7 @@ class Api:
                 "projectName": project_name,
                 "sweep": sweep_id,
             },
-            check_retry_fn=no_retry_4xx,
+            check_retry_fn=util.no_retry_4xx,
         )
         result: dict = response["createAgent"]["agent"]
         return result
@@ -2115,7 +2243,7 @@ class Api:
             }
         }
         """
-        # FIXME(jhr): we need protocol versioning to know schema is not supported
+        # TODO(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
 
         # launchScheduler was introduced in core v0.14.0
@@ -2144,19 +2272,6 @@ class Api:
             )
         )
 
-        # don't retry on validation errors
-        # TODO(jhr): generalize error handling routines
-        def no_retry_4xx(e: Exception) -> bool:
-            if not isinstance(e, requests.HTTPError):
-                return True
-            if (
-                not (e.response.status_code >= 400 and e.response.status_code < 500)
-                or e.response.status_code == 429
-            ):
-                return True
-            body = json.loads(e.response.content)
-            raise UsageError(body["errors"][0]["message"])
-
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
 
@@ -2177,7 +2292,7 @@ class Api:
                         "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
-                    check_retry_fn=no_retry_4xx,
+                    check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
                 raise e
@@ -2221,9 +2336,9 @@ class Api:
         return key
 
     @staticmethod
-    def file_current(fname: str, md5: str) -> bool:
+    def file_current(fname: str, md5: B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5"""
-        return os.path.isfile(fname) and util.md5_file(fname) == md5
+        return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
     @normalize_exceptions
     def pull(
@@ -2242,8 +2357,8 @@ class Api:
         project, run = self.parse_slug(project, run=run)
         urls = self.download_urls(project, run, entity)
         responses = []
-        for fileName in urls:
-            _, response = self.download_write_file(urls[fileName])
+        for filename in urls:
+            _, response = self.download_write_file(urls[filename])
             if response:
                 responses.append(response)
 
@@ -2529,12 +2644,14 @@ class Api:
         description: Optional[str] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[Dict] = None,
-        aliases: List[Dict[str, str]] = None,
+        aliases: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
+        from pkg_resources import parse_version
+
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
@@ -2691,17 +2808,10 @@ class Api:
         """
         )
 
-        # retry conflict errors for 2 minutes, default to no_auth_retry
-        check_retry_fn = util.make_check_retry_fn(
-            check_fn=util.check_retry_conflict,
-            check_timedelta=datetime.timedelta(minutes=2),
-            fallback_retry_fn=util.no_retry_auth,
-        )
-
-        response: "_Response" = self.gql(  # type: ignore
+        response: "_Response" = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
-            check_retry_fn=check_retry_fn,
+            timeout=60,
         )
         return response
 
@@ -2870,7 +2980,7 @@ class Api:
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
-    ) -> Mapping[str, Mapping[str, Any]]:
+    ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
         mutation = gql(
             """
         mutation CreateArtifactFiles(

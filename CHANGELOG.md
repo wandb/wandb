@@ -1,3 +1,341 @@
+## 0.13.9 (January 11, 2023)
+
+### :hammer: Fixes
+* fix(sdk): exercise extra caution when checking if AWS Trainium is available in the system by @dmitryduev in https://github.com/wandb/wandb/pull/4769
+* fix(sdk): restore 'util.generate_id' for legacy / user code by @moredatarequired in https://github.com/wandb/wandb/pull/4776
+* fix(sdk): replace `release` with `abandon` when releasing mailbox handle during init by @kptkin in https://github.com/wandb/wandb/pull/4766
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.8...v0.13.9
+
+## 0.13.8 (January 10, 2023)
+
+### :magic_wand: Enhancements
+* feat(artifacts): keep uncommitted uploads in separate staging area by @moredatarequired in https://github.com/wandb/wandb/pull/4505
+* perf(sdk): improve file descriptor management by @dmitryduev in https://github.com/wandb/wandb/pull/4617
+* feat(launch): default to using model-registry project for agent and launch_add by @KyleGoyette in https://github.com/wandb/wandb/pull/4613
+* feat(sdk): add `exist_ok=False` to `file.download()` by @janosh in https://github.com/wandb/wandb/pull/4564
+* feat(launch): auto create job artifacts from runs with required ingredients by @KyleGoyette in https://github.com/wandb/wandb/pull/4660
+* feat(sdk): add generalized response injection pattern for tests by @kptkin in https://github.com/wandb/wandb/pull/4729
+* perf(sdk): replace multiprocessing.Queue's with queue.Queue's by @dmitryduev in https://github.com/wandb/wandb/pull/4672
+* feat(sdk): use transaction log to cap memory usage by @raubitsj in https://github.com/wandb/wandb/pull/4724
+* feat(integrations): support system metrics for AWS Trainium by @dmitryduev in https://github.com/wandb/wandb/pull/4671
+### :hammer: Fixes
+* fix(sdk): correct the type hint for wandb.run by @edwag in https://github.com/wandb/wandb/pull/4585
+* fix(sdk): resume collecting system metrics on object restart by @dmitryduev in https://github.com/wandb/wandb/pull/4572
+* fix(launch): fix env handling and node_selector handling by @KyleGoyette in https://github.com/wandb/wandb/pull/4555
+* fix(public-api): fix Job.call() using the wrong keyword (queue vs queue_name) when calling launch_add. by @TimH98 in https://github.com/wandb/wandb/pull/4625
+* fix(sweeps): sweeps schedulers handles multi word parameters by @gtarpenning in https://github.com/wandb/wandb/pull/4640
+* fix(launch): allow spaces in requirements file, remove duplicate wandb bootstrap file by @TimH98 in https://github.com/wandb/wandb/pull/4647
+* fix(artifacts): correctly handle url-encoded local file references. by @moredatarequired in https://github.com/wandb/wandb/pull/4665
+* fix(artifacts): get digest directly instead of from the manifests' manifest by @moredatarequired in https://github.com/wandb/wandb/pull/4681
+* fix(artifacts): artifact.version should be the version index from the associated collection by @vwrj in https://github.com/wandb/wandb/pull/4486
+* fix(sdk): remove duplicate generate_id functions, replace shortuuid with secrets by @moredatarequired in https://github.com/wandb/wandb/pull/4676
+* fix(integrations): fix type check for jax.Array introduced in jax==0.4.1 by @dmitryduev in https://github.com/wandb/wandb/pull/4718
+* fix(sdk): fix hang after failed wandb.init (add cancel)  by @raubitsj in https://github.com/wandb/wandb/pull/4405
+* fix(sdk): allow users to provide path to custom executables by @kptkin in https://github.com/wandb/wandb/pull/4604
+* fix(sdk): fix TypeError when trying to slice a Paginator object by @janosh in https://github.com/wandb/wandb/pull/4575
+* fix(integrations): add `AttributeError` to the list of handled exceptions when saving a keras model by @froody in https://github.com/wandb/wandb/pull/4732
+* fix(launch): remove args from jobs by @KyleGoyette in https://github.com/wandb/wandb/pull/4750
+### :books: Docs
+* docs(sweeps): fix typo in docs by @gtarpenning in https://github.com/wandb/wandb/pull/4627
+* docs(sdk): fix typo in docstring for data_types.Objects3D by @ngrayluna in https://github.com/wandb/wandb/pull/4543
+* docs(sdk): remove less than, greater than characters from dosctrings… by @ngrayluna in https://github.com/wandb/wandb/pull/4687
+* docs(sdk): update SECURITY.md by @dmitryduev in https://github.com/wandb/wandb/pull/4616
+* docs(sdk): Update README.md by @ngrayluna in https://github.com/wandb/wandb/pull/4468
+### :gear: Dev
+* test(sdk): update t2_fix_error_cond_feature_importances to install scikit-learn by @dmitryduev in https://github.com/wandb/wandb/pull/4573
+* chore(sdk): update base Docker images for nightly testing by @dmitryduev in https://github.com/wandb/wandb/pull/4566
+* chore(sdk): change sklearn to scikit-learn in functional sacred test by @dmitryduev in https://github.com/wandb/wandb/pull/4577
+* chore(launch): add error check for `--build` when resource=local-process by @gtarpenning in https://github.com/wandb/wandb/pull/4513
+* chore(sweeps): update scheduler and agent resource handling to allow DRC override by @gtarpenning in https://github.com/wandb/wandb/pull/4480
+* chore(sdk): require sdk-team review for adding or removing high-level… by @dmitryduev in https://github.com/wandb/wandb/pull/4594
+* chore(launch): remove requirement to make target project match queue by @KyleGoyette in https://github.com/wandb/wandb/pull/4612
+* chore(sdk): enhance nightly cloud testing process by @dmitryduev in https://github.com/wandb/wandb/pull/4602
+* chore(sdk): update pull request template by @raubitsj in https://github.com/wandb/wandb/pull/4633
+* chore(launch): return updated runSpec after pushToRunQueue query by @gtarpenning in https://github.com/wandb/wandb/pull/4516
+* chore(launch): fix for run spec handling in sdk by @gtarpenning in https://github.com/wandb/wandb/pull/4636
+* chore(sdk): remove test dependency on old fastparquet package by @raubitsj in https://github.com/wandb/wandb/pull/4656
+* test(artifacts): fix dtype np.float (does not exist), set to python float by @moredatarequired in https://github.com/wandb/wandb/pull/4661
+* chore(sdk): correct 'exclude' to 'ignore-paths' in .pylintrc by @moredatarequired in https://github.com/wandb/wandb/pull/4659
+* chore(sdk): use pytest tmp_path so we can inspect failures by @raubitsj in https://github.com/wandb/wandb/pull/4664
+* chore(launch): reset build command after building by @gtarpenning in https://github.com/wandb/wandb/pull/4626
+* ci(sdk): rerun flaking tests in CI with pytest-rerunfailures by @dmitryduev in https://github.com/wandb/wandb/pull/4430
+* chore(sdk): remove dead code from filesync logic by @speezepearson in https://github.com/wandb/wandb/pull/4638
+* chore(sdk): remove unused fields from a filesync message by @speezepearson in https://github.com/wandb/wandb/pull/4662
+* chore(sdk): refactor retry logic to use globals instead of dependency-injecting them by @speezepearson in https://github.com/wandb/wandb/pull/4588
+* test(sdk): add unit tests for filesync.StepUpload by @speezepearson in https://github.com/wandb/wandb/pull/4652
+* test(sdk): add tests for Api.upload_file_retry by @speezepearson in https://github.com/wandb/wandb/pull/4639
+* chore(launch): remove fallback resource when not specified for a queue by @gtarpenning in https://github.com/wandb/wandb/pull/4637
+* test(artifacts): improve storage handler test coverage by @moredatarequired in https://github.com/wandb/wandb/pull/4674
+* test(integrations): fix import tests by @dmitryduev in https://github.com/wandb/wandb/pull/4690
+* chore(sdk): make MetricsMonitor less verbose on errors by @dmitryduev in https://github.com/wandb/wandb/pull/4618
+* test(sdk): address fixture server move from port 9003 to 9010 in local-testcontainer by @dmitryduev in https://github.com/wandb/wandb/pull/4716
+* chore(sdk): vendor promise==2.3.0 to unequivocally rm six dependency by @dmitryduev in https://github.com/wandb/wandb/pull/4622
+* chore(artifacts): allow setting artifact cache dir in wandb.init(...) by @dmitryduev in https://github.com/wandb/wandb/pull/3644
+* test(sdk): temporary lower network buffer for testing by @raubitsj in https://github.com/wandb/wandb/pull/4737
+* chore(sdk): add telemetry if the user running in pex environment  by @kptkin in https://github.com/wandb/wandb/pull/4747
+* chore(sdk): add more flow control telemetry by @raubitsj in https://github.com/wandb/wandb/pull/4739
+* chore(sdk): add settings and debug for service startup issues (wait_for_ports) by @raubitsj in https://github.com/wandb/wandb/pull/4749
+* test(sdk): fix AWS Trainium test by @dmitryduev in https://github.com/wandb/wandb/pull/4753
+* chore(sdk): fix status checker thread issue when user process exits without finish() by @raubitsj in https://github.com/wandb/wandb/pull/4761
+* chore(sdk): add telemetry for service disabled usage by @kptkin in https://github.com/wandb/wandb/pull/4762
+### :nail_care: Cleanup
+* style(sdk): use the same syntax whenever raising exceptions by @moredatarequired in https://github.com/wandb/wandb/pull/4559
+* refactor(sdk): combine _safe_mkdirs with mkdir_exist_ok by @moredatarequired in https://github.com/wandb/wandb/pull/4650
+* refactor(artifacts): use a pytest fixture for the artifact cache by @moredatarequired in https://github.com/wandb/wandb/pull/4648
+* refactor(artifacts): use ArtifactEntry directly instead of subclassing by @moredatarequired in https://github.com/wandb/wandb/pull/4649
+* refactor(artifacts): consolidate hash utilities into lib.hashutil by @moredatarequired in https://github.com/wandb/wandb/pull/4525
+* style(public-api): format public file with proper formating by @kptkin in https://github.com/wandb/wandb/pull/4697
+* chore(sdk): install tox into proper env in dev env setup tool by @dmitryduev in https://github.com/wandb/wandb/pull/4318
+* refactor(sdk): clean up the init and run logic by @kptkin in https://github.com/wandb/wandb/pull/4730
+
+## New Contributors
+* @edwag made their first contribution in https://github.com/wandb/wandb/pull/4585
+* @TimH98 made their first contribution in https://github.com/wandb/wandb/pull/4625
+* @froody made their first contribution in https://github.com/wandb/wandb/pull/4732
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.7...v0.13.8
+
+## 0.13.7 (December 14, 2022)
+
+### :hammer: Fixes
+* revert(artifacts): revert `Circular reference detected` change to resolve `Object of type Tensor is not JSON serializable` by @raubitsj in https://github.com/wandb/wandb/pull/4629
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.6...v0.13.7
+
+## 0.13.6 (December 6, 2022)
+
+### :magic_wand: Enhancements
+* feat(sweeps): add `Sweep.expected_run_count` to public Api by @gtarpenning in https://github.com/wandb/wandb/pull/4434
+* feat(launch): support volume mounts and security contexts in kubernetes runner by @KyleGoyette in https://github.com/wandb/wandb/pull/4475
+* feat(launch): add a new `--build` flag for building and then pushing the image to a queue by @gtarpenning in https://github.com/wandb/wandb/pull/4061
+* feat(integrations): add ability to log learning rate using WandbMetricsLogger by @soumik12345 in https://github.com/wandb/wandb/pull/4391
+* feat(sdk): improve Report API in preparation for GA by @andrewtruong in https://github.com/wandb/wandb/pull/4499
+### :hammer: Fixes
+* fix(artifacts): add filter for `artifact_version` to only retrieve committed artifacts by @estellazx in https://github.com/wandb/wandb/pull/4401
+* fix(cli): deflake `wandb verify` by @vanpelt in https://github.com/wandb/wandb/pull/4438
+* fix(launch): fix the type of the override args passed through to a LaunchProject from a Job by @KyleGoyette in https://github.com/wandb/wandb/pull/4416
+* fix(launch): remove extra colon from log prefix by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4450
+* fix(sdk): add support for service running in a pex based environment by @kptkin in https://github.com/wandb/wandb/pull/4440
+* fix(sdk): fix probing static IPU info by @dmitryduev in https://github.com/wandb/wandb/pull/4464
+* fix(public-api): change `artifactSequence` to `artifactCollection` in public GQL requests by @tssweeney in https://github.com/wandb/wandb/pull/4531
+* fix(integrations): fix TF compatibility issues with `WandbModelCheckpoint` by @soumik12345 in https://github.com/wandb/wandb/pull/4432
+* fix(integrations): make Keras WandbCallback compatible with TF version >= 2.11.0 by @ayulockin in https://github.com/wandb/wandb/pull/4533
+* fix(integrations): update gym integration to match last version by @younik in https://github.com/wandb/wandb/pull/4571
+* fix(sdk): harden internal thread management in SystemMetrics by @dmitryduev in https://github.com/wandb/wandb/pull/4439
+### :books: Docs
+* docs(sdk): remove non-existent argument `table_key` from `plot_table()` doc string by @janosh in https://github.com/wandb/wandb/pull/4495
+* docs(artifacts): correct parameter name in docstring example by @ngrayluna in https://github.com/wandb/wandb/pull/4528
+### :gear: Dev
+* chore(launch): improved git fetch time by specifying a `refspec` and `depth=1` by @gtarpenning in https://github.com/wandb/wandb/pull/4459
+* chore(sdk): fix linguist rule to ignore grpc generated files by @raubitsj in https://github.com/wandb/wandb/pull/4470
+* chore(launch): new shard for launch tests by @gtarpenning in https://github.com/wandb/wandb/pull/4427
+* chore(public-api): upgrade Node 12 based GitHub Actions by @moredatarequired in https://github.com/wandb/wandb/pull/4506
+* test(artifacts): skip flaky `artifact_metadata_save` test by @speezepearson in https://github.com/wandb/wandb/pull/4463
+* test(artifacts): replace sleeps with flush when waiting on a file to write by @moredatarequired in https://github.com/wandb/wandb/pull/4523
+* test(artifacts): use `tmp_path` fixture instead of writing local files during tests by @moredatarequired in https://github.com/wandb/wandb/pull/4521
+* chore(launch): fix broken queue test by @gtarpenning in https://github.com/wandb/wandb/pull/4548
+* test(artifacts): `skip` instead of `xfail` for test `test_artifact_metadata_save` by @speezepearson in https://github.com/wandb/wandb/pull/4550
+* test(sdk): add many tests for InternalApi.upload_file by @speezepearson in https://github.com/wandb/wandb/pull/4539
+* chore(artifacts): add artifact Sequence fallback for older servers by @tssweeney in https://github.com/wandb/wandb/pull/4565
+* test(sdk): make protobuf version requirements more granular by @dmitryduev in https://github.com/wandb/wandb/pull/4479
+### :nail_care: Cleanup
+* fix(artifacts): when committing artifacts, don't retry 409 Conflict errors by @speezepearson in https://github.com/wandb/wandb/pull/4260
+* refactor(artifacts): add programmatic alias addition/removal from SDK on artifacts by @vwrj in https://github.com/wandb/wandb/pull/4429
+* fix(integrations): remove `wandb.sklearn.plot_decision_boundaries` that contains dead logic by @kptkin in https://github.com/wandb/wandb/pull/4348
+* chore(sdk): adds an option to force pull the latest version of a test dev-container image by @kptkin in https://github.com/wandb/wandb/pull/4352
+* feat(launch): noop builder by @KyleGoyette in https://github.com/wandb/wandb/pull/4275
+* refactor(launch): remove unused attribute by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4497
+* style(sdk): update `mypy` to 0.991 by @dmitryduev in https://github.com/wandb/wandb/pull/4546
+* refactor(launch): add more robust uri parsing by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4498
+* style(sdk): turn on linting for internal_api.py by @speezepearson in https://github.com/wandb/wandb/pull/4545
+* build(sdk): remove dependency on six by modifying vendored libs by @dmitryduev in https://github.com/wandb/wandb/pull/4280
+
+## New Contributors
+* @moredatarequired made their first contribution in https://github.com/wandb/wandb/pull/4508
+* @soumik12345 made their first contribution in https://github.com/wandb/wandb/pull/4391
+* @younik made their first contribution in https://github.com/wandb/wandb/pull/4571
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.5...v0.13.6
+
+## 0.13.5 (November 3, 2022)
+
+### :magic_wand: Enhancements
+* feat(artifacts): add an option to upload image references by @estellazx in https://github.com/wandb/wandb/pull/4303
+### :hammer: Fixes
+* fix(launch): generate more readable image names by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4379
+* fix(artifacts): use hash(`etag`+`url`) instead of just `etag`, as key,  in artifacts cache by @speezepearson in https://github.com/wandb/wandb/pull/4371
+* fix(artifacts): wait for artifact to commit before telling the user it's ready when using `wandb artifact put` by @speezepearson in https://github.com/wandb/wandb/pull/4381
+* fix(sdk): prefix vendor watchdog library by @raubitsj in https://github.com/wandb/wandb/pull/4389
+* fix(artifacts): fix `Circular reference detected` error, when updating metadata with numpy array longer than 32 elements by @estellazx in https://github.com/wandb/wandb/pull/4221
+* fix(integrations): add a random string to run_id on SageMaker not to break DDP mode by @dmitryduev in https://github.com/wandb/wandb/pull/4276
+### :gear: Dev
+* ci(sdk): make sure we dont shutdown test cluster before grabbing results by @raubitsj in https://github.com/wandb/wandb/pull/4361
+* test(artifacts): add standalone artifact test to nightly cpu suite by @raubitsj in https://github.com/wandb/wandb/pull/4360
+* chore(sdk): rename default branch to `main` by @raubitsj in https://github.com/wandb/wandb/pull/4374
+* build(sdk): update mypy extension for protobuf type checking by @dmitryduev in https://github.com/wandb/wandb/pull/4392
+* chore(sdk): update codeql-analysis.yml branch name by @zythosec in https://github.com/wandb/wandb/pull/4393
+* ci(sdk): move functional import tests to nightly and expand python version coverage by @dmitryduev in https://github.com/wandb/wandb/pull/4395
+* ci(sdk): add Slack notification for failed nightly import tests by @dmitryduev in https://github.com/wandb/wandb/pull/4403
+* test(cli): fix broken CLI tests that attempt uploading non-existent artifacts by @dmitryduev in https://github.com/wandb/wandb/pull/4426
+### :nail_care: Cleanup
+* fix(launch): job creation through use_artifact instead of log_artifact by @KyleGoyette in https://github.com/wandb/wandb/pull/4337
+* ci(sdk): add a GH action to automate parts of the release process by @dmitryduev in https://github.com/wandb/wandb/pull/4355
+* fix(media): 3D Point Clouds now viewable in UI in all situations by @ssisk in https://github.com/wandb/wandb/pull/4353
+* fix(launch): Git URLs were failing if fsmonitor is enabled by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4333
+* style(sdk): ignore new proto generated file directories by @raubitsj in https://github.com/wandb/wandb/pull/4354
+* chore(launch): fix a bug preventing Run Queue deletion in the SDK  by @gtarpenning in https://github.com/wandb/wandb/pull/4321
+* chore(launch): add support for `pushToRunQueueByName` mutation by @gtarpenning in https://github.com/wandb/wandb/pull/4292
+* refactor(sdk): refactor system metrics monitoring and probing by @dmitryduev in https://github.com/wandb/wandb/pull/4213
+* style(sdk): fix gitattribute for protobuf generated files by @raubitsj in https://github.com/wandb/wandb/pull/4400
+
+## New Contributors
+* @ssisk made their first contribution in https://github.com/wandb/wandb/pull/4353
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.4...v0.13.5
+
+## 0.13.4 (October 5, 2022)
+
+### :magic_wand: Enhancements
+* feat(launch): show entity and project in k8s job names by @KyleGoyette in https://github.com/wandb/wandb/pull/4216
+* feat(sweeps): add environment variable sweep command macro by @hu-po in https://github.com/wandb/wandb/pull/4200
+* feat(media): add `from_*` constructors and scene camera and bounding box confidence scores to `Object3D` data type by @dmitryduev in https://github.com/wandb/wandb/pull/4319
+* feat(artifacts): add simple progress indicator for artifact downloads by @speezepearson in https://github.com/wandb/wandb/pull/4255
+* feat(integrations): add `WandbMetricsLogger` callback - a `Keras` dedicated metrics logger callback by @ayulockin in https://github.com/wandb/wandb/pull/4244
+* feat(integrations): add `WandbModelCheckpoint` callback - a `Keras` model checkpointing callback by @ayulockin in https://github.com/wandb/wandb/pull/4245
+* feat(integrations): add `WandbEvalCallback` callback - a `Keras` callback for logging model predictions as W&B tables by @ayulockin in https://github.com/wandb/wandb/pull/4302
+### :hammer: Fixes
+* fix(launch): cast agent's config max_jobs attribute to integer by @KyleGoyette in https://github.com/wandb/wandb/pull/4262
+* fix(cli): correct the displayed path to the `debug-cli.log` (debug log) by @jamie-rasmussen in https://github.com/wandb/wandb/pull/4271
+* fix(artifacts): catch retry-able request timeout when uploading artifacts to AWS by @nickpenaranda in https://github.com/wandb/wandb/pull/4304
+* fix(sdk): improve user feedback for long running calls: summary, finish by @raubitsj in https://github.com/wandb/wandb/pull/4169
+* fix(integrations): fix RuntimeError when using `keras.WandbCallback` with `tf.MirroredStrategy` by @ayulockin in https://github.com/wandb/wandb/pull/4310
+### :gear: Dev
+* ci(sdk): add code analysis/scanning with `codeql` by @dmitryduev in https://github.com/wandb/wandb/pull/4250
+* ci(sdk): validate PR titles to ensure compliance with Conventional Commits guidelines by @dmitryduev in https://github.com/wandb/wandb/pull/4268
+* chore(launch): harden launch by pining the build versions of `kaniko` and `launch-agent-dev` by @KyleGoyette in https://github.com/wandb/wandb/pull/4194
+* test(sdk): add telemetry for the `mmengine` package by @manangoel99 in https://github.com/wandb/wandb/pull/4273
+* chore(sdk): add the `build` type to our conventional commits setup by @dmitryduev in https://github.com/wandb/wandb/pull/4282
+* test(sdk): add `tensorflow_datasets` requirement to `imports12` shard by @dmitryduev in https://github.com/wandb/wandb/pull/4316
+* test(integrations): fix sb3 test by pinning upstream requirement by @dmitryduev in https://github.com/wandb/wandb/pull/4346
+* build(sdk): make the SDK compatible with protobuf v4 by @dmitryduev in https://github.com/wandb/wandb/pull/4279
+* chore(sdk): fix flake8 output coloring by @dmitryduev in https://github.com/wandb/wandb/pull/4347
+* test(artifacts): fix artifact reference test asset directory by @raubitsj in https://github.com/wandb/wandb/pull/4350
+### :nail_care: Cleanup
+* style(sdk): fix type hint for `filters` argument in `public_api.runs` by @epwalsh in https://github.com/wandb/wandb/pull/4256
+* style(artifacts): improve type annotations around artifact-file-creation by @speezepearson in https://github.com/wandb/wandb/pull/4259
+* style(sdk): improve type annotations and VSCode config for public API by @speezepearson in https://github.com/wandb/wandb/pull/4252
+* style(sdk): make type annotations more easily navigable in VSCode by @speezepearson in https://github.com/wandb/wandb/pull/4005
+* style(artifacts): introduce str NewTypes and use them for various Artifact fields by @speezepearson in https://github.com/wandb/wandb/pull/4326
+* style(artifacts): add type annotations to get better IDE hints for boto3 usage by @speezepearson in https://github.com/wandb/wandb/pull/4338
+
+## New Contributors
+* @epwalsh made their first contribution in https://github.com/wandb/wandb/pull/4256
+* @mjvanderboon made their first contribution in https://github.com/wandb/wandb/pull/4309
+* @jamie-rasmussen made their first contribution in https://github.com/wandb/wandb/pull/4271
+* @nickpenaranda made their first contribution in https://github.com/wandb/wandb/pull/4304
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.3...v0.13.4
+
+## 0.13.3 (September 8, 2022)
+
+#### :nail_care: Enhancement
+* Adds `raytune` examples / tests by @raubitsj in https://github.com/wandb/wandb/pull/4053
+* Refactors `pytest` unit tests to run against real `wandb server` by @kptkin in https://github.com/wandb/wandb/pull/4066
+* Adds Launch `kubernetes` support of taints and tolerations by @KyleGoyette in https://github.com/wandb/wandb/pull/4086
+* Adds Sweeps on Launch on Kubernetes by @hu-po in https://github.com/wandb/wandb/pull/4035
+* Adds parallelism to functional testing by @raubitsj in https://github.com/wandb/wandb/pull/4096
+* Upgrades `mypy` to version `0.971` by @dmitryduev in https://github.com/wandb/wandb/pull/3952
+* Adds Mailbox async internal process communication by @raubitsj in https://github.com/wandb/wandb/pull/3568
+* Implements searching launch job in sweep config by @hu-po in https://github.com/wandb/wandb/pull/4120
+* Improves performance when sending large messages by @raubitsj in https://github.com/wandb/wandb/pull/4119
+* Vendors the latest `nvidia-ml-py-11.515.48` by @dmitryduev in https://github.com/wandb/wandb/pull/4109
+* Improves performance by increase recv size on service socket by @raubitsj in https://github.com/wandb/wandb/pull/4122
+* Adds isort support with black profile by @kptkin in https://github.com/wandb/wandb/pull/4136
+* Implements pushing test-results to CircleCI for nightly tests by @raubitsj in https://github.com/wandb/wandb/pull/4153
+* Adds debug mode for `pytest` unit tests by @dmitryduev in https://github.com/wandb/wandb/pull/4145
+* Adds support for arguments in Launch Jobs by @KyleGoyette in https://github.com/wandb/wandb/pull/4129
+* Adds FetchRunQueueItemById query by @gtarpenning in https://github.com/wandb/wandb/pull/4106
+* Adds telemetry for keras-cv by @manangoel99 in https://github.com/wandb/wandb/pull/4196
+* Adds sentry session tracking by @raubitsj in https://github.com/wandb/wandb/pull/4157
+* Adds the ability to log artifact while linking to registered model by @ibindlish in https://github.com/wandb/wandb/pull/4233
+
+#### :broom: Cleanup
+* Breaks gradient and parameters hooks by @kptkin in https://github.com/wandb/wandb/pull/3509
+* Adds explicit error message for double uri/docker-image by @gtarpenning in https://github.com/wandb/wandb/pull/4069
+* Tests that the wandb_init fixture args are in sync with wandb.init() by @dmitryduev in https://github.com/wandb/wandb/pull/4079
+* Upgrades the GKE cluster used for nightly tests to `n1-standard-8` by @dmitryduev in https://github.com/wandb/wandb/pull/4065
+* Moves service teardown to the end of tests by @kptkin in https://github.com/wandb/wandb/pull/4083
+* Reduce the `pytest` job parallelism from 10 to 6 by @kptkin in https://github.com/wandb/wandb/pull/4085
+* Removes service user doc by @kptkin in https://github.com/wandb/wandb/pull/4088
+* Move `_timestamp` logic to the internal process by @kptkin in https://github.com/wandb/wandb/pull/4087
+* Adds Launch `gitversion` error message by @gtarpenning in https://github.com/wandb/wandb/pull/4028
+* Updates KFP machine VM image in CircleCI by @dmitryduev in https://github.com/wandb/wandb/pull/4094
+* Upgrades sweeps to latest version by @hu-po in https://github.com/wandb/wandb/pull/4104
+* Implements Sweep scheduler cleanup and better tests by @hu-po in https://github.com/wandb/wandb/pull/4100
+* Adds a requirement for the sdk-team to approve API changes by @raubitsj in https://github.com/wandb/wandb/pull/4128
+* Adds additional time for artifact commit by @raubitsj in https://github.com/wandb/wandb/pull/4133
+* Implements tox configuration with dynamic resolution by @kptkin in https://github.com/wandb/wandb/pull/4138
+* Removes `buildx` version pin for nightly builds by @dmitryduev in https://github.com/wandb/wandb/pull/4144
+* Moves Launch run configs from entrypoint into params by @hu-po in https://github.com/wandb/wandb/pull/4164
+* Removes Slack orb usage from Win job on CircleCI by @dmitryduev in https://github.com/wandb/wandb/pull/4171
+* Adds heartbeat parsing for Launch run args using legacy agent by @hu-po in https://github.com/wandb/wandb/pull/4180
+* Add better error handling when tearing down service by @kptkin in https://github.com/wandb/wandb/pull/4161
+* Cleans up Launch job creation pipeline by @KyleGoyette in https://github.com/wandb/wandb/pull/4183
+* Adds detail to error message when uploading an artifact with the wrong type by @speezepearson in https://github.com/wandb/wandb/pull/4184
+* Adds optional timeout parameter to artifacts wait() by @estellazx in https://github.com/wandb/wandb/pull/4181
+* Sanitizes numpy generics in keys by @raubitsj in https://github.com/wandb/wandb/pull/4146
+* Removes reassignment of run function in public api by @martinabeleda in https://github.com/wandb/wandb/pull/4115
+* Makes pulling sweeps optional when using public api to query for runs by @kptkin in https://github.com/wandb/wandb/pull/4186
+* Updates ref docs for `wandb.init` to give more info on special characters by @scottire in https://github.com/wandb/wandb/pull/4191
+
+#### :bug: Bug Fix
+* Fixes Sweeps on Launch Jobs requirement by @hu-po in https://github.com/wandb/wandb/pull/3947
+* Fixes Artifact metadata JSON-encoding to accept more types by @speezepearson in https://github.com/wandb/wandb/pull/4038
+* Adjusts `root_dir` setting processing logic by @dmitryduev in https://github.com/wandb/wandb/pull/4049
+* Prevents run.log() from mutating passed in arguments by @kptkin in https://github.com/wandb/wandb/pull/4058
+* Fixes `05-batch5.py` test by @dmitryduev in https://github.com/wandb/wandb/pull/4074
+* Allows users to control the `run_id` through the launch spec by @gtarpenning in https://github.com/wandb/wandb/pull/4070
+* Fixes accidental overwrite in `config.yml` by @dmitryduev in https://github.com/wandb/wandb/pull/4081
+* Ensures propagating overridden `base_url` when initializing public API by @dmitryduev in https://github.com/wandb/wandb/pull/4026
+* Fixes Sweeps on Launch CLI launch config, relpath by @hu-po in https://github.com/wandb/wandb/pull/4073
+* Fixes broken Launch apikey error message by @gtarpenning in https://github.com/wandb/wandb/pull/4071
+* Marks flakey sweeps test xfail by @hu-po in https://github.com/wandb/wandb/pull/4095
+* Fixes Launch `gitversion` error message by @gtarpenning in https://github.com/wandb/wandb/pull/4103
+* Fixes `yea-wandb` dev release -> release by @raubitsj in https://github.com/wandb/wandb/pull/4098
+* Cleans up outstanding issues after the client->wandb rename by @kptkin in https://github.com/wandb/wandb/pull/4105
+* Fixes test precision recall by @kptkin in https://github.com/wandb/wandb/pull/4108
+* Fixes functional sklearn test by @raubitsj in https://github.com/wandb/wandb/pull/4107
+* Fixes hang caused by keyboard interrupt on windows by @kptkin in https://github.com/wandb/wandb/pull/4116
+* Fixes default test container tag by @kptkin in https://github.com/wandb/wandb/pull/4137
+* Fixes summary handling in conftest.py by @dmitryduev in https://github.com/wandb/wandb/pull/4140
+* Fixes some small typos in cli output by @lukas in https://github.com/wandb/wandb/pull/4126
+* Fixes issue triggered by colab update by using default file and catching exceptions by @raubitsj in https://github.com/wandb/wandb/pull/4156
+* Fixes mailbox locking issue by @raubitsj in https://github.com/wandb/wandb/pull/4214
+* Fixes variable inclusion in log string by @klieret in https://github.com/wandb/wandb/pull/4219
+* Corrects `wandb.Artifacts.artifact.version` attribute by @ngrayluna in https://github.com/wandb/wandb/pull/4199
+* Fixes piping of docker args by Launch Agent by @KyleGoyette in https://github.com/wandb/wandb/pull/4215
+* Fixes RecursionError when printing public API User object without email fetched by @speezepearson in https://github.com/wandb/wandb/pull/4193
+* Fixes deserialization of numeric column names by @tssweeney in https://github.com/wandb/wandb/pull/4241
+
+## New Contributors
+* @gtarpenning made their first contribution in https://github.com/wandb/wandb/pull/4069
+* @estellazx made their first contribution in https://github.com/wandb/wandb/pull/4181
+* @klieret made their first contribution in https://github.com/wandb/wandb/pull/4219
+* @ngrayluna made their first contribution in https://github.com/wandb/wandb/pull/4199
+* @martinabeleda made their first contribution in https://github.com/wandb/wandb/pull/4115
+* @ibindlish made their first contribution in https://github.com/wandb/wandb/pull/4233
+* @scottire made their first contribution in https://github.com/wandb/wandb/pull/4191
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.2...v0.13.3
+
+## 0.13.2 (August 22, 2022)
+
+#### :bug: Bug Fix
+* Fix issue triggered by colab update by using default file and catching exceptions by @raubitsj in https://github.com/wandb/wandb/pull/4156
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.1...v0.13.2
+
 ## 0.13.1 (August 5, 2022)
 
 #### :bug: Bug Fix

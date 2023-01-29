@@ -1,9 +1,13 @@
 """
-Tools for integrating `wandb` with [`Keras`](https://keras.io/), a deep learning API for [`TensorFlow`](https://www.tensorflow.org/).
-
-Use the `WandbCallback` to add `wandb` logging to any `Keras` model.
+Tools for integrating `wandb` with [`Keras`](https://keras.io/),
+a deep learning API for [`TensorFlow`](https://www.tensorflow.org/).
 """
+__all__ = (
+    "WandbCallback",
+    "WandbMetricsLogger",
+    "WandbModelCheckpoint",
+    "WandbEvalCallback",
+)
 
-from .keras import WandbCallback
-
-__all__ = ["WandbCallback"]
+from .callbacks import WandbEvalCallback, WandbMetricsLogger, WandbModelCheckpoint
+from .keras import WandbCallback  # todo: legacy callback to be deprecated

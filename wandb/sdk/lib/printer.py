@@ -1,12 +1,13 @@
 # Note: this is a helper printer class, this file might go away once we switch to rich console printing
 
-from abc import abstractmethod
 import itertools
 import platform
 import sys
+from abc import abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
 
 import click
+
 import wandb
 
 from . import ipython, sparkline
@@ -167,34 +168,41 @@ class PrinterTerm(_Printer):
         else:
             return wandb.termlog
 
-    def progress_update(self, text: str, percentage: Optional[float] = None) -> None:
+    def progress_update(self, text: str, percent_done: Optional[float] = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
     def progress_close(self) -> None:
         wandb.termlog(" " * 79)
 
     def code(self, text: str) -> str:
-        return click.style(text, bold=True)
+        ret: str = click.style(text, bold=True)
+        return ret
 
     def name(self, text: str) -> str:
-        return click.style(text, fg="yellow")
+        ret: str = click.style(text, fg="yellow")
+        return ret
 
     def link(self, link: str, text: Optional[str] = None) -> str:
-        return click.style(link, fg="blue", underline=True)
+        ret: str = click.style(link, fg="blue", underline=True)
+        # ret = f"\x1b[m{text or link}\x1b[0m"
+        # ret = f"\x1b]8;;{link}\x1b\\{ret}\x1b]8;;\x1b\\"
+        return ret
 
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+            emojis = dict(star="⭐️", broom="🧹", rocket="🚀", gorilla="🦍", turtle="🐢")
 
         return emojis.get(name, "")
 
     def status(self, text: str, failure: Optional[bool] = None) -> str:
         color = "red" if failure else "green"
-        return click.style(text, fg=color)
+        ret: str = click.style(text, fg=color)
+        return ret
 
     def files(self, text: str) -> str:
-        return click.style(text, fg="magenta", bold=True)
+        ret: str = click.style(text, fg="magenta", bold=True)
+        return ret
 
     def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
         max_len = max(len(row[0]) for row in rows)
@@ -255,7 +263,7 @@ class PrinterJupyter(_Printer):
         return f'<strong style="color:#cdcd00">{text}</strong>'
 
     def link(self, link: str, text: Optional[str] = None) -> str:
-        return f'<a href="{link}" target="_blank">{text or link}</a>'
+        return f'<a href={link!r} target="_blank">{text or link}</a>'
 
     def emoji(self, name: str) -> str:
         return ""
@@ -289,7 +297,10 @@ class PrinterJupyter(_Printer):
         return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
 
 
-def get_printer(_jupyter: Optional[bool] = None) -> Union[PrinterTerm, PrinterJupyter]:
+Printer = Union[PrinterTerm, PrinterJupyter]
+
+
+def get_printer(_jupyter: Optional[bool] = None) -> Printer:
     if _jupyter and ipython.in_jupyter():
         return PrinterJupyter()
     return PrinterTerm()

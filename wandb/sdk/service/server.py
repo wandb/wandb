@@ -3,18 +3,18 @@
 Start up grpc or socket transport servers.
 """
 
-from concurrent import futures
 import logging
 import os
 import sys
+from concurrent import futures
 from typing import Optional
 
 import wandb
 
-from . import port_file
+from ..lib import tracelog
+from . import _startup_debug, port_file
 from .server_sock import SocketServer
 from .streams import StreamMux
-from ..lib import tracelog
 
 
 class WandbServer:
@@ -25,14 +25,15 @@ class WandbServer:
     _serve_grpc: bool
     _serve_sock: bool
     _sock_server: Optional[SocketServer]
+    _startup_debug_enabled: bool
 
     def __init__(
         self,
-        grpc_port: int = None,
-        sock_port: int = None,
-        port_fname: str = None,
-        address: str = None,
-        pid: int = None,
+        grpc_port: Optional[int] = None,
+        sock_port: Optional[int] = None,
+        port_fname: Optional[str] = None,
+        address: Optional[str] = None,
+        pid: Optional[int] = None,
         debug: bool = True,
         serve_grpc: bool = False,
         serve_sock: bool = False,
@@ -46,6 +47,7 @@ class WandbServer:
         self._serve_grpc = serve_grpc
         self._serve_sock = serve_sock
         self._sock_server = None
+        self._startup_debug_enabled = _startup_debug.is_enabled()
 
         if grpc_port:
             _ = wandb.util.get_module(
@@ -65,9 +67,11 @@ class WandbServer:
         pf.write(self._port_fname)
 
     def _start_grpc(self, mux: StreamMux) -> int:
-        from .server_grpc import WandbServicer
         import grpc
+
         from wandb.proto import wandb_server_pb2_grpc as spb_grpc
+
+        from .server_grpc import WandbServicer
 
         address: str = self._address or "127.0.0.1"
         port: int = self._grpc_port or 0
@@ -120,12 +124,20 @@ class WandbServer:
         if tracelog_mode:
             tracelog.enable(tracelog_mode)
 
+    def _startup_debug_print(self, message: str) -> None:
+        if not self._startup_debug_enabled:
+            return
+        _startup_debug.print_message(message)
+
     def serve(self) -> None:
         self._setup_tracelog()
         mux = StreamMux()
+        self._startup_debug_print("before_network")
         grpc_port = self._start_grpc(mux=mux) if self._serve_grpc else None
         sock_port = self._start_sock(mux=mux) if self._serve_sock else None
+        self._startup_debug_print("after_network")
         self._inform_used_ports(grpc_port=grpc_port, sock_port=sock_port)
+        self._startup_debug_print("after_inform")
         setproctitle = wandb.util.get_optional_module("setproctitle")
         if setproctitle:
             service_ver = 2
@@ -137,5 +149,6 @@ class WandbServer:
             service_id = f"{service_ver}-{pid}-{transport}-{port}"
             proc_title = f"wandb-service({service_id})"
             setproctitle.setproctitle(proc_title)
+        self._startup_debug_print("before_loop")
         mux.loop()
         self._stop_servers()

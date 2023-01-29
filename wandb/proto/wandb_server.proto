@@ -15,7 +15,9 @@ service InternalService {
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse) {}
   rpc SampledHistory(SampledHistoryRequest) returns (SampledHistoryResponse) {}
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
+  rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
+  rpc RunStatus(RunStatusRequest) returns (RunStatusResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
   rpc Metric(MetricRecord) returns (MetricResult) {}
@@ -30,12 +32,16 @@ service InternalService {
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
   rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
+  rpc UseArtifact(UseArtifactRecord) returns (UseArtifactResult) {}
 
   // rpc messages for async operations: Send, Poll, Cancel, Release
   rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}
   rpc ArtifactPoll(ArtifactPollRequest) returns (ArtifactPollResponse) {}
   // rpc ArtifactCancel(ArtifactCancelRequest) returns (ArtifactCancelResponse) {}
   // rpc ArtifactRelease(ArtifactReleaseRequest) returns (ArtifactReleaseResponse) {}
+
+  rpc Cancel(CancelRequest) returns (CancelResponse) {}
+  rpc Keepalive(KeepaliveRequest) returns (KeepaliveResponse) {}
 
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Pause(PauseRequest) returns (PauseResponse) {}

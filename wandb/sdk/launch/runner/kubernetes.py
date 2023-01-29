@@ -8,20 +8,21 @@ from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
 from kubernetes.client.models.v1_job import V1Job  # type: ignore
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
+
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module, load_json_yaml_dict
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
+from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..utils import (
-    get_kube_context_and_api_client,
     LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    get_kube_context_and_api_client,
+    make_name_dns_safe,
 )
+from .abstract import AbstractRun, AbstractRunner, Status
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
@@ -164,10 +165,17 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
         if resource_args.get("node_name"):
             pod_spec["nodeName"] = resource_args.get("node_name")
-        if resource_args.get("node_selectors"):
-            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        if resource_args.get("node_selector"):
+            pod_spec["nodeSelector"] = resource_args.get("node_selector")
         if resource_args.get("tolerations"):
             pod_spec["tolerations"] = resource_args.get("tolerations")
+        if resource_args.get("security_context"):
+            pod_spec["securityContext"] = resource_args.get("security_context")
+        if resource_args.get("volumes") is not None:
+            vols = resource_args.get("volumes")
+            if not isinstance(vols, list):
+                raise LaunchError("volumes must be a list of volume specifications")
+            pod_spec["volumes"] = vols
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -195,6 +203,13 @@ class KubernetesRunner(AbstractRunner):
                     cont.get("resources") != container_resources
                 )  # if multiple containers and we changed something
                 cont["resources"] = container_resources
+            if resource_args.get("volume_mounts") is not None:
+                vol_mounts = resource_args.get("volume_mounts")
+                if not isinstance(vol_mounts, list):
+                    raise LaunchError(
+                        "volume mounts must be a list of volume mount specifications"
+                    )
+                cont["volumeMounts"] = vol_mounts
             cont["security_context"] = {
                 "allowPrivilegeEscalation": False,
                 "capabilities": {"drop": ["ALL"]},
@@ -228,7 +243,7 @@ class KubernetesRunner(AbstractRunner):
 
         pod_names = [pi.metadata.name for pi in pods.items]
         wandb.termlog(
-            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]}`."
+            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]} -n {namespace}`."
         )
         return pod_names
 
@@ -286,7 +301,9 @@ class KubernetesRunner(AbstractRunner):
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
         if not job_metadata.get("name"):
-            job_metadata["generateName"] = "launch-"
+            job_metadata["generateName"] = make_name_dns_safe(
+                f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
+            )
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
@@ -301,13 +318,7 @@ class KubernetesRunner(AbstractRunner):
 
         # env vars
         env_vars = get_env_vars_dict(launch_project, self._api)
-
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         secret = None
-        if docker_args and list(docker_args) != ["docker_image"]:
-            wandb.termwarn(
-                f"{LOG_PREFIX}Docker args are not supported for Kubernetes. Not using docker args"
-            )
         # only need to do this if user is providing image, on build, our image sets an entrypoint
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
         if launch_project.docker_image and entry_cmd:
@@ -345,9 +356,7 @@ class KubernetesRunner(AbstractRunner):
                     f"{LOG_PREFIX}Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
             assert entry_point is not None
-            image_uri = builder.build_image(
-                launch_project, repository, entry_point, docker_args
-            )
+            image_uri = builder.build_image(launch_project, repository, entry_point)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             secret = maybe_create_imagepull_secret(
@@ -357,11 +366,14 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["image"] = image_uri
 
         # reassemble spec
-        given_env_vars = resource_args.get("env", {})
-        merged_env_vars = {**env_vars, **given_env_vars}
+        given_env_vars = resource_args.get("env", [])
+        kubernetes_style_env_vars = [
+            {"name": k, "value": v} for k, v in env_vars.items()
+        ]
         for cont in containers:
-            cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
+            cont["env"] = given_env_vars + kubernetes_style_env_vars
         pod_spec["containers"] = containers
+
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:

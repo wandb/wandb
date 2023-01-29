@@ -135,7 +135,7 @@ def get_credential_store(authconfig: Dict, registry: str) -> Optional[str]:
 
 
 class AuthConfig(dict):
-    def __init__(self, dct: Dict, credstore_env: Mapping = None) -> None:
+    def __init__(self, dct: Dict, credstore_env: Optional[Mapping] = None) -> None:
         super().__init__(dct)
         if "auths" not in dct:
             dct["auths"] = {}
@@ -162,7 +162,7 @@ class AuthConfig(dict):
         conf = {}
         for registry, entry in entries.items():
             if not isinstance(entry, dict):
-                log.debug(f"Config entry for key {registry} is not auth config")
+                log.debug(f"Config entry for key {registry} is not auth config")  # type: ignore
                 # We sometimes fall back to parsing the whole config as if it
                 # was the auth config by itself, for legacy purposes. In that
                 # case, we fail silently and return an empty conf if any of the
@@ -208,7 +208,7 @@ class AuthConfig(dict):
         cls,
         config_path: Optional[str],
         config_dict: Optional[Dict[str, Any]],
-        credstore_env: Mapping = None,
+        credstore_env: Optional[Mapping] = None,
     ) -> "AuthConfig":
         """
         Loads authentication data from a Docker configuration file in the given
@@ -284,7 +284,7 @@ class AuthConfig(dict):
         if self.creds_store or self.cred_helpers:
             store_name = self.get_credential_store(registry)
             if store_name is not None:
-                log.debug(f'Using credentials store "{store_name}"')
+                log.debug(f"Using credentials store {store_name!r}")
                 cfg = self._resolve_authconfig_credstore(registry, store_name)
                 if cfg is not None:
                     return cfg
@@ -401,9 +401,9 @@ def parse_auth(
 
 
 def load_config(
-    config_path: str = None,
-    config_dict: Dict[str, Any] = None,
-    credstore_env: Mapping = None,
+    config_path: Optional[str] = None,
+    config_dict: Optional[Dict[str, Any]] = None,
+    credstore_env: Optional[Mapping] = None,
 ) -> AuthConfig:
     return AuthConfig.load_config(config_path, config_dict, credstore_env)
 

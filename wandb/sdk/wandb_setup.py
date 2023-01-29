@@ -15,20 +15,12 @@ import logging
 import os
 import sys
 import threading
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 
-from . import wandb_manager
-from . import wandb_settings
+from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
-
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
 logger = None
@@ -260,19 +252,14 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                 else:
                     self._config = config_dict
 
-    def _teardown(self, exit_code: int = None):
+    def _teardown(self, exit_code: Optional[int] = None):
         exit_code = exit_code or 0
         self._teardown_manager(exit_code=exit_code)
 
     def _setup_manager(self) -> None:
         if not self._settings._require_service:
             return
-        # Temporary setting to allow use of grpc so that we can keep
-        # that code from rotting during the transition
-        use_grpc = self._settings._service_transport == "grpc"
-        self._manager = wandb_manager._Manager(
-            _use_grpc=use_grpc, settings=self._settings
-        )
+        self._manager = wandb_manager._Manager(settings=self._settings)
 
     def _teardown_manager(self, exit_code: int) -> None:
         if not self._manager:
@@ -291,7 +278,7 @@ class _WandbSetup:
     (Forked processes will get a new copy of the object)
     """
 
-    _instance = None
+    _instance: Optional["_WandbSetup__WandbSetup"] = None
 
     def __init__(self, settings=None) -> None:
         pid = os.getpid()

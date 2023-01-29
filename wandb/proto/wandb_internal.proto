@@ -43,8 +43,9 @@ message Record {
     FinalRecord     final = 20;
     HeaderRecord    header = 21;
     FooterRecord    footer = 22;
-    RunPreemptingRecord preempting = 23;    
+    RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
+    UseArtifactRecord use_artifact = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -57,6 +58,10 @@ message Control {
   bool req_resp = 1;  // record is expecting a result
   bool local = 2;     // should not be persisted or synchronized
   string relay_id = 3;  // used by service transport to identify correct stream
+  string mailbox_slot = 4;  // mailbox slot
+  bool always_send = 5;  // message to sender
+  bool flow_control = 6;  // message should be passed to flow control
+  int64 end_offset = 7;  // end of message offset of this written message
 }
 
 /*
@@ -75,7 +80,7 @@ message Result {
   }
   Control             control = 16;
   string              uuid = 24;
-  _ResultInfo _info = 200;
+  _ResultInfo         _info = 200;
 }
 
 /*
@@ -488,9 +493,18 @@ message Request {
     ArtifactSendRequest   artifact_send = 14;
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
+    KeepaliveRequest      keepalive = 17;
+    RunStatusRequest      run_status = 20;
+    CancelRequest         cancel = 21;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
+    ServerInfoRequest     server_info = 67;
+    SenderMarkRequest     sender_mark = 68;
+    SenderReadRequest     sender_read = 69;
+    StatusReportRequest   status_report = 70;
+    SummaryRecordRequest  summary_record = 71;
+    TelemetryRecordRequest telemetry_record = 72;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -500,6 +514,7 @@ message Request {
  */
 message Response {
   oneof response_type {
+    KeepaliveResponse      keepalive_response = 18;
     StopStatusResponse     stop_status_response = 19;
     NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
@@ -511,9 +526,12 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
+    RunStatusResponse      run_status_response = 35;
+    CancelResponse         cancel_response = 36;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
+    ServerInfoResponse     server_info_response = 67;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -524,17 +542,20 @@ message Response {
 message DeferRequest {
   enum DeferState {
     BEGIN = 0;
-    FLUSH_STATS = 1;
-    FLUSH_PARTIAL_HISTORY = 2;
-    FLUSH_TB = 3;
-    FLUSH_SUM = 4;
-    FLUSH_DEBOUNCER = 5;
-    FLUSH_OUTPUT = 6;
-    FLUSH_DIR = 7;
-    FLUSH_FP = 8;
-    FLUSH_FS = 9;
-    FLUSH_FINAL = 10;
-    END = 11;
+    FLUSH_RUN = 1;
+    FLUSH_STATS = 2;
+    FLUSH_PARTIAL_HISTORY = 3;
+    FLUSH_TB = 4;
+    FLUSH_SUM = 5;
+    FLUSH_DEBOUNCER = 6;
+    FLUSH_OUTPUT = 7;
+    FLUSH_JOB = 8;
+    FLUSH_DIR = 9;
+    FLUSH_FP = 10;
+    JOIN_FP = 11;
+    FLUSH_FS = 12;
+    FLUSH_FINAL = 13;
+    END = 14;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -625,10 +646,50 @@ message PollExitRequest {
 message PollExitResponse {
   bool            done = 1;
   RunExitResult   exit_result = 2;
-  FileCounts      file_counts = 3;
-  FilePusherStats pusher_stats = 4;
-  LocalInfo local_info = 5;
-  ServerMessages server_messages = 6;
+  FilePusherStats pusher_stats = 3;
+  FileCounts      file_counts = 4;
+}
+
+/*
+ * Sender requests
+ */
+message SenderMarkRequest {
+}
+
+message SenderReadRequest {
+  int64 start_offset = 1;
+  int64 final_offset = 2;
+  // TODO: implement cancel for paused ops
+  // repeated string cancel_list = 3;
+}
+
+message StatusReportRequest {
+  int64 record_num = 1;
+  int64 sent_offset = 2;
+  google.protobuf.Timestamp sync_time = 3;
+}
+
+/*
+ * Requests wrapping Records
+ */
+message SummaryRecordRequest {
+  SummaryRecord   summary = 1;
+}
+
+message TelemetryRecordRequest {
+  TelemetryRecord telemetry = 1;
+}
+
+/*
+ * ServerInfoRequest:
+ */
+message ServerInfoRequest {
+  _RequestInfo _info = 200;
+}
+
+message ServerInfoResponse {
+  LocalInfo      local_info = 1;
+  ServerMessages server_messages = 2;
 }
 
 message ServerMessages{
@@ -743,6 +804,22 @@ message SampledHistoryResponse {
 }
 
 /*
+ * RunStatusRequest:
+ */
+message RunStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message RunStatusResponse {
+  int64 sync_items_total = 1;
+  int64 sync_items_pending = 2;
+  google.protobuf.Timestamp sync_time = 3;
+  // TODO(flowcontrol): can we give the user an indication of step position
+  // int64 sync_history_step = 3;
+  // google.protobuf.Timestamp sync_history_time = 4;
+}
+
+/*
  * RunStartRequest: start the run
  */
 message RunStartRequest {
@@ -816,4 +893,39 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
+}
+
+/*
+ * Keepalive:
+ */
+message KeepaliveRequest {
+  _RequestInfo _info = 200;
+}
+
+message KeepaliveResponse {
+}
+
+/*
+ * UseArtifact:
+ */
+message UseArtifactRecord {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+
+  _RecordInfo     _info = 200;
+}
+
+message UseArtifactResult {
+}
+
+/*
+ * Cancel:
+ */
+message CancelRequest {
+  string cancel_slot = 1;  // mailbox slot
+  _RequestInfo _info = 200;
+}
+
+message CancelResponse {
 }

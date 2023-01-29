@@ -3,19 +3,16 @@ import os
 import queue
 import tempfile
 import time
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
-from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
 import wandb.util
+from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import (
-        artifacts as internal_artifacts,
-        file_stream,
-        internal_api,
-    )
+    from wandb.sdk.internal import artifacts as internal_artifacts
+    from wandb.sdk.internal import file_stream, internal_api
 
 
 # Temporary directory for copies we make of some file types to
@@ -116,11 +113,7 @@ class FilePusher:
         self,
         save_name: dir_watcher.SaveName,
         path: str,
-        artifact_id: Optional[str] = None,
         copy: bool = True,
-        use_prepare_flow: bool = False,
-        save_fn: Optional[step_upload.SaveFn] = None,
-        digest: Optional[str] = None,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
         Arguments:
@@ -138,11 +131,7 @@ class FilePusher:
         event = step_checksum.RequestUpload(
             path,
             dir_watcher.SaveName(save_name),
-            artifact_id,
             copy,
-            use_prepare_flow,
-            save_fn,
-            digest,
         )
         self._incoming_queue.put(event)
 

@@ -8,20 +8,20 @@ from typing import Any, Dict, Optional
 
 import kubernetes  # type: ignore
 from kubernetes import client
+
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
-from .build import _create_docker_build_ctx, generate_dockerfile
 from .._project_spec import (
-    create_metadata_file,
     EntryPoint,
-    get_entry_point_command,
     LaunchProject,
+    create_metadata_file,
+    get_entry_point_command,
 )
-from ..utils import get_kube_context_and_api_client, LOG_PREFIX, sanitize_wandb_api_key
-
+from ..utils import LOG_PREFIX, get_kube_context_and_api_client, sanitize_wandb_api_key
+from .build import _create_docker_build_ctx, generate_dockerfile
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
@@ -211,18 +211,18 @@ class KanikoBuilder(AbstractBuilder):
             wandb.termlog(
                 f"{LOG_PREFIX}Failed while checking if build is required, defaulting to building: {e}"
             )
-            return False
+            return True
 
     def build_image(
         self,
         launch_project: LaunchProject,
         repository: Optional[str],
         entrypoint: EntryPoint,
-        docker_args: Dict[str, Any],
     ) -> str:
 
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
+
         image_uri = f"{repository}:{launch_project.image_tag}"
         wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
         if not self.check_build_required(repository, launch_project):
@@ -239,7 +239,6 @@ class KanikoBuilder(AbstractBuilder):
             launch_project,
             image_uri,
             sanitize_wandb_api_key(entry_cmd),
-            docker_args,
             sanitize_wandb_api_key(dockerfile_str),
         )
         context_path = _create_docker_build_ctx(launch_project, dockerfile_str)
@@ -358,7 +357,7 @@ class KanikoBuilder(AbstractBuilder):
         if env is not None:
             container = client.V1Container(
                 name="wandb-container-build",
-                image="gcr.io/kaniko-project/executor:latest",
+                image="gcr.io/kaniko-project/executor:v1.8.0",
                 args=args,
                 volume_mounts=volume_mounts,
                 env=[env],
@@ -366,7 +365,7 @@ class KanikoBuilder(AbstractBuilder):
         else:
             container = client.V1Container(
                 name="wandb-container-build",
-                image="gcr.io/kaniko-project/executor:latest",
+                image="gcr.io/kaniko-project/executor:v1.8.0",
                 args=args,
                 volume_mounts=volume_mounts,
             )

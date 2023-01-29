@@ -1,6 +1,6 @@
-from tensorboard.compat.proto import summary_pb2
 import tensorflow as tf
 import wandb
+from tensorboard.compat.proto import summary_pb2
 
 
 def main():

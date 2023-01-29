@@ -1,16 +1,18 @@
-from abc import ABC, abstractmethod
 import logging
 import os
 import subprocess
 import sys
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
+
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
 
@@ -117,7 +119,7 @@ class AbstractRunner(ABC):
         self._api = api
         self.backend_config = backend_config
         self._cwd = os.getcwd()
-        self._namespace = wandb.util.generate_id()
+        self._namespace = runid.generate_id()
 
     def find_executable(
         self, cmd: str

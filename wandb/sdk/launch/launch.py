@@ -2,21 +2,23 @@ import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+import yaml
+
+import wandb
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError, LaunchError
-import yaml
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder import loader as builder_loader
+from .builder.build import construct_builder_args
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
-    construct_launch_spec,
     LAUNCH_CONFIG_FILE,
-    PROJECT_DOCKER_ARGS,
+    LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
-    resolve_build_and_registry_config,
+    construct_launch_spec,
     validate_launch_spec_source,
 )
 
@@ -28,19 +30,20 @@ def resolve_agent_config(
     entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[int],
-    queues: Optional[List[str]],
+    queues: Optional[Tuple[str]],
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
         "entity": api.default_entity,
+        "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
-        "queues": ["default"],
+        "queues": [],
         "api_key": api.api_key,
         "base_url": api.settings("base_url"),
         "registry": {},
         "build": {},
         "runner": {},
     }
-
+    user_set_project = False
     resolved_config: Dict[str, Any] = defaults
     if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         config = {}
@@ -50,27 +53,42 @@ def resolve_agent_config(
                 print(config)
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
+        if config.get("project") is not None:
+            user_set_project = True
         resolved_config.update(dict(config))
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
+        user_set_project = True
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
     if os.environ.get("WANDB_API_KEY") is not None:
         resolved_config.update({"api_key": os.environ.get("WANDB_API_KEY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
-        resolved_config.update({"max_jobs": os.environ.get("WANDB_LAUNCH_MAX_JOBS")})
+        resolved_config.update(
+            {"max_jobs": int(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))}
+        )
     if os.environ.get("WANDB_BASE_URL") is not None:
         resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
 
     if project is not None:
         resolved_config.update({"project": project})
+        user_set_project = True
     if entity is not None:
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
         resolved_config.update({"max_jobs": int(max_jobs)})
+    if queues:
+        resolved_config.update({"queues": list(queues)})
+    # queue -> queues
+    if resolved_config.get("queue"):
+        if type(resolved_config.get("queue")) == str:
+            resolved_config["queues"].append(resolved_config["queue"])
+        else:
+            raise LaunchError(
+                f"Invalid launch agent config for key 'queue' with type: {type(resolved_config.get('queue'))}"
+                + " (expected str). Specify multiple queues with the 'queues' key"
+            )
 
-    if queues is not None:
-        resolved_config.update({"queues": queues})
     if (
         resolved_config["entity"] != defaults["entity"]
         or resolved_config["api_key"] != defaults["api_key"]
@@ -83,6 +101,11 @@ def resolve_agent_config(
             entity=resolved_config["entity"],
         )
         api = Api(default_settings=settings)
+
+    if user_set_project:
+        wandb.termwarn(
+            "Specifying a project for the launch agent is deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
+        )
 
     return resolved_config, api
 
@@ -112,6 +135,7 @@ def _run(
     cuda: Optional[bool],
     api: Api,
     run_id: Optional[str],
+    repository: Optional[str],
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     launch_spec = construct_launch_spec(
@@ -130,6 +154,7 @@ def _run(
         launch_config,
         cuda,
         run_id,
+        repository,
     )
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
@@ -138,25 +163,17 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    build_config: Optional[Dict[str, Any]] = None
-    registry_config = None
-    if launch_config is not None:
-        given_docker_args = launch_config.get("docker", {}).get("args", {})
-        build_config = launch_config.get("build")
-        registry_config = launch_config.get("registry")
-        runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
-    else:
-        runner_config[PROJECT_DOCKER_ARGS] = {}
 
-    default_launch_config = None
+    if repository:  # override existing registry with CLI arg
+        launch_config = launch_config or {}
+        registry = launch_config.get("registry", {})
+        registry["url"] = repository
+        launch_config["registry"] = registry
 
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
-            default_launch_config = yaml.safe_load(f)
-
-    build_config, registry_config = resolve_build_and_registry_config(
-        default_launch_config, build_config, registry_config
+    build_config, registry_config = construct_builder_args(
+        launch_config,
     )
+
     builder = builder_loader.load_builder(build_config)
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
@@ -167,9 +184,7 @@ def _run(
         return submitted_run
     else:
         raise ExecutionError(
-            "Unavailable backend {}, available backends: {}".format(
-                resource, ", ".join(loader.WANDB_RUNNERS)
-            )
+            f"Unavailable backend {resource}, available backends: {', '.join(loader.WANDB_RUNNERS)}"
         )
 
 
@@ -181,7 +196,7 @@ def run(
     version: Optional[str] = None,
     parameters: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
-    resource: str = "local",
+    resource: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -190,6 +205,7 @@ def run(
     synchronous: Optional[bool] = True,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
+    repository: Optional[str] = None,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
@@ -203,7 +219,7 @@ def run(
     parameters: Parameters (dictionary) for the entry point command. Defaults to using the
         the parameters used to run the original run.
     name: Name run under which to launch the run.
-    resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    resource: Execution backend for the run.
     resource_args: Resource related arguments for launching runs onto a remote backend.
         Will be stored on the constructed launch config under ``resource_args``.
     project: Target project to send launched run to
@@ -211,7 +227,7 @@ def run(
     config: A dictionary containing the configuration for the run. May also contain
     resource specific arguments under the key "resource_args".
     synchronous: Whether to block while waiting for a run to complete. Defaults to True.
-        Note that if ``synchronous`` is False and ``backend`` is "local", this
+        Note that if ``synchronous`` is False and ``backend`` is "local-container", this
         method will return, but the current process will block when exiting until
         the local run completes. If the current process is interrupted, any
         asynchronous runs launched via this method will be terminated. If
@@ -219,7 +235,7 @@ def run(
         error out as well.
     cuda: Whether to build a CUDA-enabled docker image or not
     run_id: ID for the run (To ultimately replace the :name: field)
-
+    repository: string name of repository path for remote registry
 
     Example:
         import wandb
@@ -242,6 +258,10 @@ def run(
     if config is None:
         config = {}
 
+    # default to local container for runs without a queue
+    if resource is None:
+        resource = "local-container"
+
     submitted_run_obj = _run(
         uri=uri,
         job=job,
@@ -259,6 +279,7 @@ def run(
         cuda=cuda,
         api=api,
         run_id=run_id,
+        repository=repository,
     )
 
     return submitted_run_obj

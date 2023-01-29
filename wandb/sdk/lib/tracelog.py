@@ -16,16 +16,14 @@ import logging
 import secrets
 import sys
 import threading
-from typing import cast
-from typing import Optional
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Optional, cast
 
 if TYPE_CHECKING:
     import multiprocessing
     import queue
     import socket
     from typing import Union
+
     from wandb.proto import wandb_internal_pb2 as pb
     from wandb.proto import wandb_server_pb2 as spb
 
@@ -55,9 +53,9 @@ def _log(
     msg_type: str,
     log_type: str,
     is_response: bool = False,
-    record: "pb.Record" = None,
-    result: "pb.Result" = None,
-    resource: str = None,
+    record: Optional["pb.Record"] = None,
+    result: Optional["pb.Result"] = None,
+    resource: Optional[str] = None,
 ) -> None:
     prefix = "TRACELOG(1)"
     tname = threading.current_thread().name
@@ -102,7 +100,9 @@ def _result_msg_type(result: "pb.Result") -> str:
     return msg_type
 
 
-def _log_message(msg: "MessageType", log_type: str, resource: str = None) -> None:
+def _log_message(
+    msg: "MessageType", log_type: str, resource: Optional[str] = None
+) -> None:
     record: Optional["pb.Record"] = None
     result: Optional["pb.Result"] = None
     is_response = False
@@ -230,7 +230,7 @@ def annotate_message(msg: "MessageQueueType") -> None:
     return None
 
 
-def enable(log_mode: str = None) -> None:
+def enable(log_mode: Optional[str] = None) -> None:
     global tracelog_mode
     if log_mode:
         tracelog_mode = log_mode

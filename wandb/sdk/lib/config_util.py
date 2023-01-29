@@ -2,13 +2,13 @@ import json
 import logging
 import os
 
+import yaml
+
 import wandb
 from wandb.errors import Error
 from wandb.util import load_yaml
-import yaml
 
 from . import filesystem
-
 
 logger = logging.getLogger("wandb")
 
@@ -69,7 +69,7 @@ def dict_no_value_from_proto_list(obj_list):
         if not isinstance(possible_dict, dict) or "value" not in possible_dict:
             # (tss) TODO: This is protecting against legacy 'wandb_version' field.
             # Should investigate why the config payload even has 'wandb_version'.
-            logger.warning(f"key '{item.key}' has no 'value' attribute")
+            logger.warning(f"key {item.key!r} has no 'value' attribute")
             continue
         d[item.key] = possible_dict["value"]
 
@@ -88,7 +88,7 @@ def save_config_file_from_dict(config_filename, config_dict):
             encoding="utf-8",
         )
     data = s.decode("utf-8")
-    filesystem._safe_makedirs(os.path.dirname(config_filename))
+    filesystem.mkdir_exists_ok(os.path.dirname(config_filename))
     with open(config_filename, "w") as conf_file:
         conf_file.write(data)
 

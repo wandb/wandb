@@ -1,24 +1,24 @@
 """Handle Manager."""
 
-from collections import defaultdict
 import json
 import logging
 import math
 import numbers
+import time
+from collections import defaultdict
 from queue import Queue
 from threading import Event
-import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
-    cast,
     Dict,
     Iterable,
     List,
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
+    cast,
 )
 
 from wandb.proto.wandb_internal_pb2 import (
@@ -26,21 +26,21 @@ from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     Record,
     Result,
+    RunRecord,
     SampledHistoryItem,
     SummaryItem,
     SummaryRecord,
+    SummaryRecordRequest,
 )
 
-from . import meta, sample, stats, tb_watcher
-from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
+from . import context, sample, tb_watcher
+from .settings_static import SettingsStatic
+from .system.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import (
-        ArtifactDoneRequest,
-        MetricSummary,
-    )
+    from wandb.proto.wandb_internal_pb2 import ArtifactDoneRequest, MetricSummary
 
 
 SummaryDict = Dict[str, Any]
@@ -65,14 +65,14 @@ class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _partial_history: Dict[str, Any]
+    _run_proto: Optional[RunRecord]
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _stopped: Event
-    _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
-    _system_stats: Optional[stats.SystemStats]
+    _system_monitor: Optional[SystemMonitor]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
     _metric_defines: Dict[str, MetricRecord]
     _metric_globs: Dict[str, MetricRecord]
@@ -82,6 +82,7 @@ class HandleManager:
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -89,20 +90,20 @@ class HandleManager:
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: Event,
-        sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: InterfaceQueue,
+        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._stopped = stopped
-        self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
+        self._context_keeper = context_keeper
 
         self._tb_watcher = None
-        self._system_stats = None
+        self._system_monitor = None
         self._step = 0
 
         self._track_time = None
@@ -112,6 +113,7 @@ class HandleManager:
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
         self._sampled_history = defaultdict(sample.UniformSampleAccumulator)
+        self._run_proto = None
         self._partial_history = dict()
         self._metric_defines = defaultdict(MetricRecord)
         self._metric_globs = defaultdict(MetricRecord)
@@ -125,37 +127,41 @@ class HandleManager:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
+        self._context_keeper.add_from_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
-        assert handler, f"unknown handle: {handler_str}"
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
+        assert handler, f"unknown handle: {handler_str}"  # type: ignore
         handler(record)
 
     def handle_request(self, record: Record) -> None:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "handle_request_" + request_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         if request_type != "network_status":
             logger.debug(f"handle_request: {request_type}")
-        assert handler, f"unknown handle: {handler_str}"
+        assert handler, f"unknown handle: {handler_str}"  # type: ignore
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
-        if not self._settings._offline or always_send:
-            tracelog.log_message_queue(record, self._sender_q)
-            self._sender_q.put(record)
-        if not record.control.local and self._writer_q:
-            tracelog.log_message_queue(record, self._writer_q)
-            self._writer_q.put(record)
+        if always_send:
+            record.control.always_send = True
+        tracelog.log_message_queue(record, self._writer_q)
+        self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
         tracelog.log_message_queue(result, self._result_q)
+        context_id = context.context_id_from_result(result)
+        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def debounce(self) -> None:
         pass
+
+    def handle_request_cancel(self, record: Record) -> None:
+        self._dispatch_record(record)
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -164,10 +170,10 @@ class HandleManager:
         logger.info(f"handle defer: {state}")
         # only handle flush tb (sender handles the rest)
         if state == defer.FLUSH_STATS:
-            if self._system_stats:
-                # TODO(jhr): this could block so we dont really want to call shutdown
-                # from handler thread
-                self._system_stats.shutdown()
+            # TODO(jhr): this could block so we dont really want to call shutdown
+            # from handler thread
+            if self._system_monitor is not None:
+                self._system_monitor.finish()
         elif state == defer.FLUSH_TB:
             if self._tb_watcher:
                 # shutdown tensorboard workers so we get all metrics flushed
@@ -205,6 +211,9 @@ class HandleManager:
     def handle_link_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_use_artifact(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
@@ -217,12 +226,16 @@ class HandleManager:
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
-        record = Record(summary=summary)
         if flush:
+            record = Record(summary=summary)
             self._dispatch_record(record)
         elif not self._settings._offline:
-            tracelog.log_message_queue(record, self._sender_q)
-            self._sender_q.put(record)
+            # Send this summary update as a request since we arent persisting every update
+            summary_record = SummaryRecordRequest(summary=summary)
+            request_record = self._interface._make_request(
+                summary_record=summary_record
+            )
+            self._dispatch_record(request_record)
 
     def _save_history(
         self,
@@ -513,6 +526,12 @@ class HandleManager:
             self.handle_history(Record(history=history))
             self._partial_history = {}
 
+    def handle_request_sender_mark_report(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
+    def handle_request_status_report(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
     def handle_request_partial_history(self, record: Record) -> None:
         partial_history = record.request.partial_history
 
@@ -665,16 +684,15 @@ class HandleManager:
         else:
             self._accumulate_time = 0
 
+        # system monitor
+        self._system_monitor = SystemMonitor(
+            self._settings,
+            self._interface,
+        )
         if not self._settings._disable_stats:
-            self._system_stats = stats.SystemStats(
-                settings=self._settings, interface=self._interface
-            )
-            self._system_stats.start()
-
+            self._system_monitor.start()
         if not self._settings._disable_meta and not run_start.run.resumed:
-            run_meta = meta.Meta(settings=self._settings, interface=self._interface)
-            run_meta.probe()
-            run_meta.write()
+            self._system_monitor.probe(publish=True)
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
@@ -686,18 +704,18 @@ class HandleManager:
         self._respond_result(result)
 
     def handle_request_resume(self, record: Record) -> None:
-        if self._system_stats is not None:
-            logger.info("starting system metrics thread")
-            self._system_stats.start()
+        if self._system_monitor is not None:
+            logger.info("starting system metrics thread or process")
+            self._system_monitor.start()
 
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
         self._track_time = time.time()
 
     def handle_request_pause(self, record: Record) -> None:
-        if self._system_stats is not None:
-            logger.info("stopping system metrics thread")
-            self._system_stats.shutdown()
+        if self._system_monitor is not None:
+            logger.info("stopping system metrics thread or process")
+            self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
             self._track_time = None
@@ -712,7 +730,10 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
+        # TODO(mempressure): do something better?
+        assert record.control.req_resp
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
 
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
@@ -745,7 +766,7 @@ class HandleManager:
             self._metric_defines[metric.step_metric] = m
             mr = Record()
             mr.metric.CopyFrom(m)
-            mr.control.local = True  # Dont store this, just send it
+            mr.control.local = True  # Don't store this, just send it
             self._dispatch_record(mr)
 
         self._dispatch_record(record)
@@ -800,6 +821,16 @@ class HandleManager:
             result.response.sampled_history_response.item.append(item)
         self._respond_result(result)
 
+    def handle_request_server_info(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
+    def handle_request_keepalive(self, record: Record) -> None:
+        """keepalive is a noop, we just want to verify transport is alive."""
+        pass
+
+    def handle_request_run_status(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
         result = proto_util._result_from_record(record)
@@ -810,6 +841,7 @@ class HandleManager:
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+        # self._context_keeper._debug_print_orphans()
 
     def __next__(self) -> Record:
         return self._record_q.get(block=True)

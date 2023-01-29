@@ -44,6 +44,15 @@ import requests
 
 CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 
+NIGHTLY_SHARDS = (
+    "standalone-cpu",
+    "standalone-gpu",
+    "kfp",
+    "standalone-gpu-win",
+    "imports",
+    "regression",
+)
+
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
 platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
 py_name_dict = dict(
@@ -51,12 +60,14 @@ py_name_dict = dict(
     py37="py37",
     py38="py38",
     py39="py39",
+    py310="py310",
 )
 py_image_dict = dict(
     py36="python:3.6",
     py37="python:3.7",
     py38="python:3.8",
     py39="python:3.9",
+    py310="python:3.10",
 )
 
 
@@ -154,16 +165,9 @@ def trigger(args):
 def trigger_nightly(args):
     url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
 
-    default_shards = {
-        "standalone-cpu",
-        "standalone-gpu",
-        "standalone-tpu",
-        "standalone-local",
-        "kfp",
-    }
+    default_shards = set(NIGHTLY_SHARDS)
     shards = {
-        f"manual_nightly_execute_shard_{shard.replace('-', '_')}": False
-        for shard in default_shards
+        f"nightly_execute_{shard.replace('-', '_')}": False for shard in default_shards
     }
 
     requested_shards = set(args.shards.split(",")) if args.shards else default_shards
@@ -176,7 +180,7 @@ def trigger_nightly(args):
         )
     # flip the requested shards to True
     for shard in requested_shards:
-        shards[f"manual_nightly_execute_shard_{shard.replace('-', '_')}"] = True
+        shards[f"nightly_execute_{shard.replace('-', '_')}"] = True
 
     payload = {
         "branch": args.branch,
@@ -184,8 +188,8 @@ def trigger_nightly(args):
             **{
                 "manual": True,
                 "manual_nightly": True,
-                "manual_nightly_git_branch": args.branch,
-                "manual_nightly_slack_notify": args.slack_notify or False,
+                "nightly_git_branch": args.branch,
+                "nightly_slack_notify": args.slack_notify,
             },
             **shards,
         },
@@ -265,7 +269,7 @@ def grab(args, vhash, bnum):
         # TODO: use tempfile
         print("Downloading circle artifacts...")
         s, o = subprocess.getstatusoutput(
-            f'curl -L  -o out.dat -H "Circle-Token: {args.api_token}" "{u}"'
+            f'curl -L  -o out.dat -H "Circle-Token: {args.api_token}" {u!r}'
         )
         assert s == 0
         os.rename("out.dat", cfname)
@@ -320,14 +324,8 @@ def process_args():
     )
     parse_trigger_nightly.add_argument(
         "--shards",
-        default=(
-            "standalone-cpu,"
-            "standalone-gpu,"
-            "standalone-tpu,"
-            "standalone-local,"
-            "kfp"
-        ),
-        help="comma-separated shards (standalone-{cpu,gpu,tpu,local},kfp)",
+        default=",".join(NIGHTLY_SHARDS),
+        help="comma-separated shards (standalone-{cpu,gpu,gpu-win},kfp,imports,regression)",
     )
     parse_trigger_nightly.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"
