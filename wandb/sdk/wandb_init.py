@@ -173,7 +173,7 @@ class _WandbInit:
         # since users might launch multiple runs in the same process
         # TODO(kdg): allow users to control this via launch settings
         if settings.launch and singleton is not None:
-            settings.update({"run_id": None})
+            settings.update({"run_id": None}, source=Source.INIT)
 
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
