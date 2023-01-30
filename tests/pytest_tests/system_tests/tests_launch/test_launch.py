@@ -114,13 +114,17 @@ def test_launch_multi_run(relay_server, runner, user, wandb_init, test_settings)
         assert run2.id != "test"
 
 
-# def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
-#     with runner.isolated_filesystem():
-#         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-#         test_settings.update(
-#             launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-#         )
-#         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-#         assert run.config.epochs == 10
-#         assert run.config.lr == 0.004
-#         run.finish()
+def test_launch_multi_run_context(
+    relay_server, runner, user, wandb_init, test_settings
+):
+    with runner.isolated_filesystem(), mock.patch.dict(
+        "os.environ", {"WANDB_RUN_ID": "test", "WANDB_LAUNCH": "true"}
+    ):
+        with wandb_init() as run1:
+            run1.log({"test": 1})
+
+        with wandb_init() as run2:
+            run2.log({"test": 2})
+
+        assert run1.id == "test"
+        assert run2.id != "test"
