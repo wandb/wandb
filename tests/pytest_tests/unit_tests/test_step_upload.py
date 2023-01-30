@@ -531,15 +531,16 @@ class TestUpload:
             return False
 
         save_fn_async = Mock(wraps=_save_fn_async)
-        q = queue.Queue()
-        cmd = make_request_upload(
-            make_tmp_file(tmp_path), save_fn=save_fn_sync, save_fn_async=save_fn_async
-        )
-        q.put(cmd)
 
-        step_upload = make_step_upload(event_queue=q, silent=False)
-        step_upload.start()
-        finish_and_wait(q)
+        run_step_upload(
+            [
+                make_request_upload(
+                    make_tmp_file(tmp_path),
+                    save_fn=save_fn_sync,
+                    save_fn_async=save_fn_async,
+                )
+            ]
+        )
 
         if use_async_upload:
             save_fn_async.assert_called_once()
