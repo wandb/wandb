@@ -21,6 +21,10 @@ from wandb.sdk.lib import retry
 from .test_retry import MockTime, mock_time  # noqa: F401
 
 
+def asyncio_run(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
+
+
 @pytest.fixture
 def mock_responses():
     with responses.RequestsMock() as rsps:
@@ -463,7 +467,7 @@ class TestUploadFileRetryAsync:
         route = mock_respx.put("http://example.com/upload-dst")
         route.side_effect = [httpx.Response(status) for status in schedule]
 
-        asyncio.run(
+        asyncio_run(
             internal.InternalApi().upload_file_retry_async(
                 "http://example.com/upload-dst",
                 some_file.open("rb"),
@@ -481,7 +485,7 @@ class TestUploadFileRetryAsync:
         route.side_effect = [httpx.Response(400)]
 
         with pytest.raises(httpx.HTTPStatusError):
-            asyncio.run(
+            asyncio_run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
                     some_file.open("rb"),
@@ -499,7 +503,7 @@ class TestUploadFileRetryAsync:
         route.side_effect = httpx.Response(500)
 
         with pytest.raises(httpx.HTTPStatusError):
-            asyncio.run(
+            asyncio_run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
                     some_file.open("rb"),

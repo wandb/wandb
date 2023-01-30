@@ -2044,7 +2044,7 @@ class Api:
     ) -> None:
         if extra_headers is not None and "x-ms-blob-type" in extra_headers:
             print("SRP: delegating", url, extra_headers)
-            await asyncio.get_running_loop().run_in_executor(
+            await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: self.upload_file_retry(
                     url=url,
