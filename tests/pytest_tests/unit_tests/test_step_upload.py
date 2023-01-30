@@ -567,6 +567,29 @@ class TestUpload:
             save_fn_async.assert_not_called()
 
 
+@patch("wandb.env.get_use_async_upload", return_value=True)
+def test_async_upload_falls_back_to_sync_on_error(tmp_path: Path):
+    save_fn_sync = Mock(return_value=False)
+
+    async def _save_fn_async(*args, **kwargs):
+        raise Exception("Async upload failed")
+
+    save_fn_async = Mock(wraps=_save_fn_async)
+
+    run_step_upload(
+        [
+            make_request_upload(
+                make_tmp_file(tmp_path),
+                save_fn=save_fn_sync,
+                save_fn_async=save_fn_async,
+            )
+        ],
+    )
+
+    save_fn_async.assert_called_once()
+    save_fn_sync.assert_called_once()
+
+
 class TestArtifactCommit:
     @pytest.mark.parametrize(
         ["finalize"],

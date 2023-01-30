@@ -19,6 +19,7 @@ from typing import (
     Union,
 )
 
+import wandb
 import wandb.env
 import wandb.util
 from wandb.errors.term import termerror
@@ -284,16 +285,22 @@ class StepUpload:
                 deduped = await save_fn_async(
                     lambda _, t: self._stats.update_uploaded_file(event.path, t)
                 )
-        except Exception:
-            self._stats.update_failed_file(event.save_name)
-            raise
+        except Exception as e:
+            # Async uploads aren't yet (2023-01) battle-tested.
+            # Fall back to the "normal" synchronous upload.
+            logger.exception("async upload failed", exc_info=e)
+            self._loop.run_in_executor(None, wandb.util.sentry_exc, e)
+            wandb.termwarn(
+                "Async file upload failed; falling back to sync", repeat=False
+            )
+            await self._loop.run_in_executor(None, self._do_upload_sync, event)
+        else:
+            self._file_stream.push_success(event.artifact_id, event.save_name)  # type: ignore
+            if deduped:
+                self._stats.set_file_deduped(event.save_name)
         finally:
             if event.copied and os.path.isfile(event.path):
                 os.remove(event.path)
-
-        self._file_stream.push_success(event.artifact_id, event.save_name)  # type: ignore
-        if deduped:
-            self._stats.set_file_deduped(event.save_name)
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
