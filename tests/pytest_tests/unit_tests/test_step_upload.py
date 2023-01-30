@@ -389,6 +389,23 @@ class TestUpload:
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
 
+        def test_save_fn_err(self, tmp_path: Path):
+            api = make_api()
+            good_cmd = make_request_upload(make_tmp_file(tmp_path))
+            run_step_upload(
+                [
+                    make_request_upload(
+                        make_tmp_file(tmp_path),
+                        save_fn=Mock(side_effect=Exception("save_fn failed")),
+                    ),
+                    good_cmd,
+                ],
+                api=api,
+                max_jobs=1,
+            )
+            good_url = get_upload_url(good_cmd.save_name)
+            assert api.upload_file_retry.call_args[0][0] == good_url
+
     class TestStats:
         def test_updates_on_read_without_save_fn(
             self,
