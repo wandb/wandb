@@ -915,6 +915,7 @@ class ArtifactsCache:
                     if file.startswith(ArtifactsCache._TMP_PREFIX):
                         os.remove(path)
                         bytes_reclaimed += stat.st_size
+                        continue
                 except OSError:
                     continue
                 paths[path] = stat
