@@ -1377,6 +1377,11 @@ class Run:
 
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
+
+        # NOTE: console output is only allowed on the process which installed the callback
+        # this will prevent potential corruption in the socket to the service.  Other methods
+        # are protected by the _attach run decorator, but this callback was installed on the
+        # write function of stdout and stderr streams.
         console_pid = getattr(self, "_attach_pid", 0)
         if console_pid != os.getpid():
             return
@@ -2044,6 +2049,7 @@ class Run:
         else:
             raise ValueError("unhandled console")
         try:
+            # save stdout and stderr before installing new write functions
             out_redir.save()
             err_redir.save()
             out_redir.install()
