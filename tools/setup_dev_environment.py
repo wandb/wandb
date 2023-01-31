@@ -10,6 +10,7 @@ import sys
 from pkg_resources import parse_version
 
 PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10"]
+PIP_VERSION = "21.1.2"
 TOX_VERSION = "3.24.0"
 
 
@@ -30,15 +31,15 @@ class Console:
     END = "\033[0m"
 
 
-def pin_pip_version(python_version, pip_version='21.1.2'):
+def pin_version(python_version, package_name, package_version):
     p = subprocess.run(
-        f"eval \"$(pyenv init -)\"; "
+        f'eval "$(pyenv init -)"; '
         f"(pyenv shell {python_version}; "
-        f"python -m pip install --upgrade pip=={pip_version})",
-        shell=True
+        f"python -m pip install --upgrade {package_name}=={package_version})",
+        shell=True,
     )
     if p.returncode != 0:
-        print(f"Failed to install pip=={pip_version}")
+        print(f"Failed to install {package_name}=={package_version}")
 
 
 def main():
@@ -131,7 +132,8 @@ def main():
             )
             if p.returncode != 0:
                 print(f"Failed to install {latest}")
-        pin_pip_version(latest)
+        pin_version(latest, "pip", PIP_VERSION)
+        pin_version(latest, "tox", TOX_VERSION)
         installed_python_versions.append(latest)
 
     print(f"Setting local pyenv versions to: {' '.join(installed_python_versions)}")
