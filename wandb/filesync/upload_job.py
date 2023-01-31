@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 class EventJobDone(NamedTuple):
     job: "UploadJob"
-    exc: Optional[BaseException]
+    exc: Optional[Exception]
 
 
 logger = logging.getLogger(__name__)
@@ -57,14 +57,18 @@ class UploadJob:
         super().__init__()
 
     def run(self) -> None:
-        success = False
+        exc = None
         try:
             self.push()
-            success = True
+        except Exception as e:
+            exc = e
+            # Don't reraise the exception; that will print out a noisy stack trace
+            # to stderr. Instead, we'll just send the exc back to the StepUpload,
+            # which will log it as appropriate.
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            if success:
+            if exc is None:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> None:
