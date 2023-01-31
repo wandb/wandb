@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import pathlib
 import platform
 import re
 import subprocess
@@ -9,14 +8,14 @@ import sys
 
 from pkg_resources import parse_version
 
-PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10"]
+PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
 PIP_VERSION = "21.1.2"
 TOX_VERSION = "3.24.0"
 
 
 # Python 3.6 is not installable on Macs with Apple silicon
 if platform.system() == "Darwin" and platform.processor() == "arm":
-    PYTHON_VERSIONS.pop(0)
+    PYTHON_VERSIONS = [v for v in PYTHON_VERSIONS if v != "3.6"]
 
 
 class Console:
@@ -31,15 +30,29 @@ class Console:
     END = "\033[0m"
 
 
-def pin_version(python_version, package_name, package_version):
-    p = subprocess.run(
-        f'eval "$(pyenv init -)"; '
-        f"(pyenv shell {python_version}; "
-        f"python -m pip install --upgrade {package_name}=={package_version})",
-        shell=True,
-    )
-    if p.returncode != 0:
-        print(f"Failed to install {package_name}=={package_version}")
+def run_in_env(command, python_version=None):
+    """Run a command in a pyenv environment."""
+    if python_version:
+        command = f"eval \"$(pyenv init -)\"; (pyenv shell {python_version}; {command})"
+    return subprocess.check_output(command, shell=True).decode("utf-8")
+
+
+def installed_versions(python_version):
+    """List of installed package/versions."""
+    list_cmd = "pip list --format=freeze --disable-pip-version-check"
+    return run_in_env(list_cmd, python_version=python_version).split()
+
+
+def pin_version(package_name, package_version, python_version=None):
+    versioned_package = f"{package_name}=={package_version}"
+    if versioned_package in installed_versions(python_version):
+        return
+    print(f"Installing {versioned_package}", end=" ")
+    if python_version:
+        print(f"for Python {python_version}", end=" ")
+    print("...")
+    install_command = f"python -m pip install --upgrade {versioned_package} -qq"
+    return run_in_env(install_command, python_version=python_version)
 
 
 def main():
@@ -132,8 +145,8 @@ def main():
             )
             if p.returncode != 0:
                 print(f"Failed to install {latest}")
-        pin_version(latest, "pip", PIP_VERSION)
-        pin_version(latest, "tox", TOX_VERSION)
+        pin_version("pip", PIP_VERSION, python_version=latest)
+        pin_version("tox", TOX_VERSION, python_version=latest)
         installed_python_versions.append(latest)
 
     print(f"Setting local pyenv versions to: {' '.join(installed_python_versions)}")
@@ -143,18 +156,7 @@ def main():
         stderr=subprocess.STDOUT,
         check=True,
     )
-
-    print("Installing dependencies: tox...")
-    # path to this file's parent:
-    cwd = pathlib.Path(__file__).parent.parent.absolute()
-
-    subprocess.run(
-        ["python", "-m", "pip", "install", "-qq", f"tox=={TOX_VERSION}"],
-        stdout=sys.stdout,
-        stderr=subprocess.STDOUT,
-        check=True,
-        cwd=cwd,
-    )
+    pin_version("tox", TOX_VERSION)
 
     print(f"{Console.GREEN}Development environment setup!{Console.END}")
     print()
