@@ -269,7 +269,7 @@ class StepUpload:
             else:
                 self._resolve_artifact_futures(artifact_id)
 
-    def _fail_artifact_futures(self, artifact_id: str, exc: Exception) -> None:
+    def _fail_artifact_futures(self, artifact_id: str, exc: BaseException) -> None:
         futures = self._artifacts[artifact_id]["result_futures"]
         for result_future in futures:
             result_future.set_exception(exc)

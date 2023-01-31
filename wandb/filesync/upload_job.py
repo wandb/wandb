@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 class EventJobDone(NamedTuple):
     job: "UploadJob"
-    exc: Optional[Exception]
+    exc: Optional[BaseException]
 
 
 logger = logging.getLogger(__name__)
