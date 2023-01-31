@@ -908,17 +908,16 @@ class ArtifactsCache:
         total_size: int = 0
         for root, _, files in os.walk(self._cache_dir):
             for file in files:
-                path = os.path.join(root, file)
-                stat = os.stat(path)
+                try:
+                    path = os.path.join(root, file)
+                    stat = os.stat(path)
 
-                if file.startswith(ArtifactsCache._TMP_PREFIX):
-                    try:
+                    if file.startswith(ArtifactsCache._TMP_PREFIX):
                         os.remove(path)
                         bytes_reclaimed += stat.st_size
-                    except OSError:
-                        pass
+                        continue
+                except OSError:
                     continue
-
                 paths[path] = stat
                 total_size += stat.st_size
 
