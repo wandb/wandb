@@ -1377,6 +1377,10 @@ class Run:
 
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
+        console_pid = getattr(self, "_attach_pid", 0)
+        if console_pid != os.getpid():
+            return
+
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output_raw(name, data)
 
