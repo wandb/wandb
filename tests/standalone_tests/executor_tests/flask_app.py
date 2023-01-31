@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 @app.route("/wandb", methods=["GET"])
 def test_uwsgi():
-    with wandb.init(settings={"console": "off"}) as run:
+    with wandb.init() as run:
         dataset_name = "check_uwsgi_flask"
         artifact = wandb.Artifact(dataset_name, type="dataset")
         artifact.metadata["datasetName"] = dataset_name
