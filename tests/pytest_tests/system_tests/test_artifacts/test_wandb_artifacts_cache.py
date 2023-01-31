@@ -3,8 +3,8 @@ import os
 import platform
 import random
 from multiprocessing import Pool
-from unittest import mock
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import wandb
