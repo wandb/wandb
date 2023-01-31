@@ -33,7 +33,7 @@ class Console:
 def run_in_env(command, python_version=None):
     """Run a command in a pyenv environment."""
     if python_version:
-        command = f"eval \"$(pyenv init -)\"; (pyenv shell {python_version}; {command})"
+        command = f'eval "$(pyenv init -)"; (pyenv shell {python_version}; {command})'
     return subprocess.check_output(command, shell=True).decode("utf-8")
 
 
