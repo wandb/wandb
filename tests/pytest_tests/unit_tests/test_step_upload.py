@@ -568,26 +568,46 @@ class TestUpload:
 
 
 @patch("wandb.env.get_use_async_upload", return_value=True)
-def test_async_upload_falls_back_to_sync_on_error(tmp_path: Path):
-    save_fn_sync = Mock(return_value=False)
+class TestAsyncUpload:
+    def test_falls_back_to_sync_on_error(self, tmp_path: Path):
+        save_fn_sync = Mock(return_value=False)
 
-    async def _save_fn_async(*args, **kwargs):
-        raise Exception("Async upload failed")
+        async def _save_fn_async(*args, **kwargs):
+            raise Exception("Async upload failed")
 
-    save_fn_async = Mock(wraps=_save_fn_async)
+        save_fn_async = Mock(wraps=_save_fn_async)
 
-    run_step_upload(
-        [
-            make_request_upload(
-                make_tmp_file(tmp_path),
-                save_fn=save_fn_sync,
-                save_fn_async=save_fn_async,
-            )
-        ],
-    )
+        run_step_upload(
+            [
+                make_request_upload(
+                    make_tmp_file(tmp_path),
+                    save_fn=save_fn_sync,
+                    save_fn_async=save_fn_async,
+                )
+            ],
+        )
 
-    save_fn_async.assert_called_once()
-    save_fn_sync.assert_called_once()
+        save_fn_async.assert_called_once()
+        save_fn_sync.assert_called_once()
+
+    @patch("wandb.util.sentry_exc")
+    def test_reports_err_to_sentry(self, sentry_exc: Mock, tmp_path: Path):
+        exc = Exception("Async upload failed")
+
+        async def save_fn_async(*args, **kwargs):
+            raise exc
+
+        run_step_upload(
+            [
+                make_request_upload(
+                    make_tmp_file(tmp_path),
+                    save_fn=Mock(return_value=False),
+                    save_fn_async=save_fn_async,
+                )
+            ],
+        )
+
+        sentry_exc.assert_called_once_with(exc)
 
 
 class TestArtifactCommit:
