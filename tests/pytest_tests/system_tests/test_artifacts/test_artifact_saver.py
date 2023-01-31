@@ -97,9 +97,6 @@ class TestReraisesErr:
             use_after_commit=True,
         )
 
-    @pytest.mark.skip(
-        reason="TODO(spencerpearson): fix the longstanding bug this test reveals"
-    )
     def test_use_artifact_err_reraised(self):
         exc = Exception("test-exc")
         with pytest.raises(Exception, match="test-exc"):
@@ -117,17 +114,11 @@ class TestReraisesErr:
                 api=make_api(create_artifact_manifest=Mock(side_effect=exc))
             )
 
-    @pytest.mark.skip(
-        reason="TODO(spencerpearson): fix the longstanding bug this test reveals"
-    )
     def test_upload_file_retry_err_reraised(self):
         exc = Exception("test-exc")
         with pytest.raises(Exception, match="test-exc"):
             self._save_artifact(api=make_api(upload_file_retry=Mock(side_effect=exc)))
 
-    @pytest.mark.skip(
-        reason="TODO(spencerpearson): fix the longstanding bug this test reveals"
-    )
     def test_commit_artifact_err_reraised(self):
         exc = Exception("test-exc")
         with pytest.raises(Exception, match="test-exc"):
