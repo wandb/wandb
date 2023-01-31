@@ -201,15 +201,15 @@ def sentry_exc(
     return None
 
 
-def sentry_reraise(exc: Any) -> None:
+def sentry_reraise(exc: Any, delay: bool = False) -> None:
     """Re-raise an exception after logging it to Sentry
 
     Use this for top-level exceptions when you want the user to see the traceback.
 
     Must be called from within an exception handler.
     """
-    sentry_exc(exc)
-    # this will messily add this "reraise" function to the stack trace
+    sentry_exc(exc, delay=delay)
+    # this will messily add this "reraise" function to the stack trace,
     # but hopefully it's not too bad
     raise exc.with_traceback(sys.exc_info()[2])
 

@@ -301,9 +301,11 @@ class Trainium:
         # need to be extra careful as neuron tools could be pre-installed
         # on some systems that do not have the hardware
         try:
+            # redirect stderr to null to avoid printing errors to the console
             output = subprocess.check_output(
                 NEURON_LS_COMMAND,
                 universal_newlines=True,
+                stderr=subprocess.DEVNULL,
             ).strip()
             if len(json.loads(output)) > 0:
                 return True

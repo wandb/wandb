@@ -58,7 +58,7 @@ class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
     before_commit: PreCommitFn
-    result_fut: "concurrent.futures.Future[None]"
+    result_future: "concurrent.futures.Future[None]"
 
 
 class RequestFinish(NamedTuple):
@@ -165,7 +165,9 @@ class StepUpload:
             self._artifacts[event.artifact_id]["pre_commit_callbacks"].add(
                 event.before_commit
             )
-            self._artifacts[event.artifact_id]["result_futures"].add(event.result_fut)
+            self._artifacts[event.artifact_id]["result_futures"].add(
+                event.result_future
+            )
             self._maybe_commit_artifact(event.artifact_id)
         elif isinstance(event, RequestUpload):
             if event.artifact_id is not None:
@@ -269,14 +271,14 @@ class StepUpload:
 
     def _fail_artifact_futures(self, artifact_id: str, exc: BaseException) -> None:
         futures = self._artifacts[artifact_id]["result_futures"]
-        for result_fut in futures:
-            result_fut.set_exception(exc)
+        for result_future in futures:
+            result_future.set_exception(exc)
         futures.clear()
 
     def _resolve_artifact_futures(self, artifact_id: str) -> None:
         futures = self._artifacts[artifact_id]["result_futures"]
-        for result_fut in futures:
-            result_fut.set_result(None)
+        for result_future in futures:
+            result_future.set_result(None)
         futures.clear()
 
     def start(self) -> None:
