@@ -6,6 +6,7 @@ import logging
 import os
 import pprint
 import time
+import traceback
 from typing import Any, Dict, List, Union
 
 import wandb
@@ -204,8 +205,10 @@ class LaunchAgent:
                         if job:
                             try:
                                 self.run_job(job)
-                            except Exception as e:
-                                wandb.termerror(f"Error running job: {e}")
+                            except Exception:
+                                wandb.termerror(
+                                    f"Error running job: {traceback.format_exc()}"
+                                )
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)

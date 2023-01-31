@@ -5,11 +5,19 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 
 import os
 import platform
+import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from ...errors import (
+    ServiceStartPortError,
+    ServiceStartProcessError,
+    ServiceStartTimeoutError,
+)
+from ...util import sentry_reraise, sentry_set_scope
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
@@ -38,6 +46,8 @@ class _Service:
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
+        sentry_set_scope(process_context="service")
+
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
         self._use_grpc = self._settings._service_transport == "grpc"
@@ -58,13 +68,34 @@ class _Service:
 
     def _wait_for_ports(
         self, fname: str, proc: Optional[subprocess.Popen] = None
-    ) -> bool:
+    ) -> None:
+        """
+        Wait for the service to write the port file and then read it.
+
+        Args:
+            fname: The path to the port file.
+            proc: The process to wait for.
+
+        Raises:
+            ServiceStartTimeoutError: If the service takes too long to start.
+            ServiceStartPortError: If the service writes an invalid port file or unable to read it.
+            ServiceStartProcessError: If the service process exits unexpectedly.
+
+        """
         time_max = time.monotonic() + self._settings._service_wait
         while time.monotonic() < time_max:
             if proc and proc.poll():
                 # process finished
-                print("proc exited with", proc.returncode)
-                return False
+                # define these variables for sentry context grab:
+                command = proc.args  # noqa: F841
+                sys_executable = sys.executable  # noqa: F841
+                which_python = shutil.which("python3")  # noqa: F841
+                raise ServiceStartProcessError(
+                    f"The wandb service process exited with {proc.returncode}. "
+                    "Ensure that `sys.executable` is a valid python interpreter. "
+                    "You can override it with the `_executable` setting "
+                    "or with the `WANDB__EXECUTABLE` environment variable."
+                )
             if not os.path.isfile(fname):
                 time.sleep(0.2)
                 continue
@@ -77,10 +108,17 @@ class _Service:
                 self._grpc_port = pf.grpc_port
                 self._sock_port = pf.sock_port
             except Exception as e:
-                print("Error:", e)
-                return False
-            return True
-        return False
+                # todo: point at the docs. this could be due to a number of reasons,
+                #  for example, being unable to write to the port file etc.
+                raise ServiceStartPortError(
+                    f"Failed to allocate port for wandb service: {e}."
+                )
+            return
+        raise ServiceStartTimeoutError(
+            "Timed out waiting for wandb service to start after "
+            f"{self._settings._service_wait} seconds. "
+            "Try increasing the timeout with the `_service_wait` setting."
+        )
 
     def _launch_server(self) -> None:
         """Launch server and set ports."""
@@ -97,12 +135,11 @@ class _Service:
         else:
             kwargs.update(start_new_session=True)
 
-        pid = os.getpid()
+        pid = str(os.getpid())
 
         with tempfile.TemporaryDirectory() as tmpdir:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
-            pid_str = str(os.getpid())
             executable = self._settings._executable
             exec_cmd_list = [executable, "-m"]
             # Add coverage collection if needed
@@ -114,7 +151,7 @@ class _Service:
                 "--port-filename",
                 fname,
                 "--pid",
-                pid_str,
+                pid,
                 "--debug",
             ]
             if self._use_grpc:
@@ -127,9 +164,11 @@ class _Service:
                 **kwargs,
             )
             self._startup_debug_print("wait_ports")
-            ports_found = self._wait_for_ports(fname, proc=internal_proc)
+            try:
+                self._wait_for_ports(fname, proc=internal_proc)
+            except Exception as e:
+                sentry_reraise(e, delay=True)
             self._startup_debug_print("wait_ports_done")
-            assert ports_found
             self._internal_proc = internal_proc
         self._startup_debug_print("launch_done")
 

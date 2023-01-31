@@ -82,8 +82,8 @@ def make_request_commit(artifact_id: str, **kwargs: Any) -> RequestCommitArtifac
     return RequestCommitArtifact(
         artifact_id=artifact_id,
         **{
-            "before_commit": None,
-            "on_commit": None,
+            "before_commit": lambda: None,
+            "result_future": concurrent.futures.Future(),
             "finalize": True,
             **kwargs,
         },
@@ -213,7 +213,6 @@ class TestFinish:
         )
         api.commit_artifact.assert_called()
 
-    @pytest.mark.skip(reason="TODO(spencerpearson): fix the bug this test reveals")
     def test_finishes_after_artifact_commit_err(self, tmp_path: Path):
         api = make_api(commit_artifact=Mock(side_effect=Exception("commit failed")))
         run_step_upload(
@@ -587,36 +586,32 @@ class TestArtifactCommit:
 
     class TestAlwaysResolvesFut:
         def test_success(self):
-            fut = concurrent.futures.Future()
+            future = concurrent.futures.Future()
 
             run_step_upload(
-                [make_request_commit("my-art", on_commit=lambda: fut.set_result(None))],
+                [make_request_commit("my-art", result_future=future)],
             )
 
-            assert fut.done() and fut.exception() is None
+            assert future.done() and future.exception() is None
 
-        @pytest.mark.skip("TODO(spencerpearson): test reveals longstanding bug; fix it")
         def test_upload_fails(self, tmp_path: Path):
             exc = Exception("upload_file_retry failed")
             api = make_api(upload_file_retry=Mock(side_effect=exc))
 
-            fut = concurrent.futures.Future()
+            future = concurrent.futures.Future()
 
             run_step_upload(
                 [
                     make_request_upload(make_tmp_file(tmp_path), artifact_id="my-art"),
-                    make_request_commit(
-                        "my-art", on_commit=lambda: fut.set_result(None)
-                    ),
+                    make_request_commit("my-art", result_future=future),
                 ],
                 api=api,
             )
 
-            assert fut.done() and fut.exception() == exc
+            assert future.done() and future.exception() == exc
 
-        @pytest.mark.skip("TODO(spencerpearson): test reveals longstanding bug; fix it")
         def test_before_commit_hook_fails(self):
-            fut = concurrent.futures.Future()
+            future = concurrent.futures.Future()
 
             exc = Exception("upload_file_retry failed")
 
@@ -625,26 +620,25 @@ class TestArtifactCommit:
                     make_request_commit(
                         "my-art",
                         before_commit=Mock(side_effect=exc),
-                        on_commit=lambda: fut.set_result(None),
+                        result_future=future,
                     )
                 ]
             )
 
-            assert fut.done() and fut.exception() == exc
+            assert future.done() and future.exception() == exc
 
-        @pytest.mark.skip("TODO(spencerpearson): test reveals longstanding bug; fix it")
         def test_commit_fails(self):
             exc = Exception("commit failed")
             api = make_api(commit_artifact=Mock(side_effect=exc))
 
-            fut = concurrent.futures.Future()
+            future = concurrent.futures.Future()
 
             run_step_upload(
-                [make_request_commit("my-art", on_commit=lambda: fut.set_result(None))],
+                [make_request_commit("my-art", result_future=future)],
                 api=api,
             )
 
-            assert fut.done() and fut.exception() == exc
+            assert future.done() and future.exception() == exc
 
 
 def test_enforces_max_jobs(
