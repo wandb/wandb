@@ -49,7 +49,7 @@ parameters:
     default: 1
   tox_version:
     type: string
-    default: "3.24.0"
+    default: "4.4.3"
   container_registry:
     type: string
     default: "gcr.io"
@@ -274,7 +274,7 @@ jobs:
                 no_output_timeout: 240m
                 command: |
                   source ~/.bashrc
-                  tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -339,7 +339,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -400,7 +400,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox -v -e <<parameters.toxenv>>  \
+            tox r -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
@@ -507,7 +507,7 @@ jobs:
                   echo $GCLOUD_SERVICE_KEY > key.json
                   gcloud auth activate-service-account --key-file=key.json
                   yes | gcloud auth configure-docker
-                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
                 no_output_timeout: 10m
             - save-test-results
 
@@ -545,7 +545,7 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -575,7 +575,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            python3 -m tox -vv -e << parameters.toxenv >>
+            python3 -m tox r -vv -e << parameters.toxenv >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -643,7 +643,7 @@ jobs:
             - run:
                 name: Run tests
                 command: |
-                  tox -v -e << parameters.toxenv >>
+                  tox r -v -e << parameters.toxenv >>
                 no_output_timeout: 25m
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
@@ -1103,7 +1103,7 @@ workflows:
             - equal:
                 - << pipeline.schedule.name >>
                 - "nightly"
-        - << pipeline.parameters.manual_nightly >>  # this is a manual trigger
+        - << pipeline.parameters.manual_nightly >> # this is a manual trigger
     jobs:
       #
       # "And now my watch begins"
@@ -1120,8 +1120,8 @@ workflows:
       - regression:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - yolov5
                 - huggingface
@@ -1486,8 +1486,8 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
               toxenv:
                 - "executor-uwsgi"
                 - "executor-gunicorn"
