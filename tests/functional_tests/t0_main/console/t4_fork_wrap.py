@@ -1,27 +1,28 @@
 #!/usr/bin/env python
 
-import time
 import os
-import sys
 
 import wandb
 
-print("start", sys.stdout.write)
 
-print("parent", os.getpid())
+print("before")
 
 run = wandb.init()
 
-pid = os.fork()
+child_pid = os.fork()
 
-if pid > 0:
-    # parent
-    print("parent", os.getpid(), sys.stdout.write)
+if child_pid > 0:
+    print("parent")
 else:
-    print("child", os.getpid(), sys.stdout.write)
-
+    print("child")
 print("both")
 
-if pid > 0:
-    time.sleep(5)
-    run.finish()
+if child_pid == 0:
+    # note, we need to force exit because the fork process has atexit waiting for service shutdown
+    os._exit(0)
+
+wait_pid, wait_exit = os.waitpid(child_pid, 0)
+run.finish
+
+assert wait_pid == child_pid
+assert wait_exit == 0
