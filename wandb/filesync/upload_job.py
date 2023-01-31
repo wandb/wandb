@@ -57,18 +57,14 @@ class UploadJob:
         super().__init__()
 
     def run(self) -> None:
-        exc = None
+        success = False
         try:
             self.push()
-        except Exception as e:
-            exc = e
-            # Don't reraise the exception; that will print out a noisy stack trace
-            # to stderr. Instead, we'll just send the exc back to the StepUpload,
-            # which will log it as appropriate.
+            success = True
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            if exc is None:
+            if success:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> None:
