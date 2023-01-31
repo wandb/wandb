@@ -21,7 +21,7 @@ if child_pid == 0:
     os._exit(0)
 
 wait_pid, wait_exit = os.waitpid(child_pid, 0)
-run.finish
+run.finish()
 
 assert wait_pid == child_pid
 assert wait_exit == 0
