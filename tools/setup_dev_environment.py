@@ -30,6 +30,17 @@ class Console:
     END = "\033[0m"
 
 
+def pin_pip_version(python_version, pip_version='21.1.2'):
+    p = subprocess.run(
+        f"eval \"$(pyenv init -)\"; "
+        f"(pyenv shell {python_version}; "
+        f"python -m pip install --upgrade pip=={pip_version})",
+        shell=True
+    )
+    if p.returncode != 0:
+        print(f"Failed to install pip=={pip_version}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -120,6 +131,7 @@ def main():
             )
             if p.returncode != 0:
                 print(f"Failed to install {latest}")
+        pin_pip_version(latest)
         installed_python_versions.append(latest)
 
     print(f"Setting local pyenv versions to: {' '.join(installed_python_versions)}")
