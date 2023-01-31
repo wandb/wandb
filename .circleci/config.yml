@@ -274,7 +274,7 @@ jobs:
                 no_output_timeout: 240m
                 command: |
                   source ~/.bashrc
-                  tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -339,7 +339,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -400,7 +400,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox r -v -e <<parameters.toxenv>>  \
+            tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
@@ -507,7 +507,7 @@ jobs:
                   echo $GCLOUD_SERVICE_KEY > key.json
                   gcloud auth activate-service-account --key-file=key.json
                   yes | gcloud auth configure-docker
-                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
                 no_output_timeout: 10m
             - save-test-results
 
@@ -545,7 +545,7 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox r -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -571,11 +571,11 @@ jobs:
           name: pull base docker images
           command: |
             docker pull nvidia/cuda:10.0-runtime
-            docker pull python:3.6-buster
+            docker pull python:3.7-buster
       - run:
           name: Run tests
           command: |
-            python3 -m tox r -vv -e << parameters.toxenv >>
+            python3 -m tox run -vv -e << parameters.toxenv >>
           no_output_timeout: 10m
       - save-test-results
 
@@ -643,7 +643,7 @@ jobs:
             - run:
                 name: Run tests
                 command: |
-                  tox r -v -e << parameters.toxenv >>
+                  tox run -v -e << parameters.toxenv >>
                 no_output_timeout: 25m
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
@@ -1219,7 +1219,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
           requires:
@@ -1318,7 +1318,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
+              python_version_minor: [7, 8, 9, 10]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           tox_args: "tests/pytest_tests/system_tests --ignore=tests/pytest_tests/system_tests/tests_launch"
@@ -1329,7 +1329,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
+              python_version_minor: [7, 8, 9, 10]
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
@@ -1340,7 +1340,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6, 7, 8, 9, 10]
+              python_version_minor: [7, 8, 9, 10]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           tox_args: "tests/pytest_tests/unit_tests"
@@ -1459,7 +1459,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6]
+              python_version_minor: [7]
           name: "unit-linux-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
