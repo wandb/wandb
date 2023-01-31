@@ -20,6 +20,7 @@ import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.disabled import RunDisabled
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 
 if TYPE_CHECKING:
@@ -985,13 +986,15 @@ def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
     if _artifacts_cache is None:
         singleton = wandb.sdk.wandb_setup._WandbSetup._instance
-        cache_dir_base = (
-            wandb.run.settings.cache_dir
-            if wandb.run and wandb.run.settings.cache_dir
-            else singleton._settings.cache_dir
-            if singleton and singleton._settings.cache_dir
-            else env.get_cache_dir()
-        )
+        cache_dir_base = env.get_cache_dir()
+        if (
+            wandb.run
+            and not isinstance(wandb.run, RunDisabled)
+            and wandb.run.settings.cache_dir
+        ):
+            cache_dir_base = wandb.run.settings.cache_dir
+        elif singleton and singleton._settings.cache_dir:
+            cache_dir_base = singleton._settings.cache_dir
         cache_dir = os.path.join(cache_dir_base, "artifacts")
         _artifacts_cache = ArtifactsCache(cache_dir)
     return _artifacts_cache

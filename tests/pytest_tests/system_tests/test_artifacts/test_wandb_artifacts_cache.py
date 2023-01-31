@@ -4,6 +4,7 @@ import platform
 import random
 from multiprocessing import Pool
 from unittest import mock
+from pathlib import Path
 
 import pytest
 import wandb
@@ -357,3 +358,9 @@ def test_artifacts_cache_location_init(tmp_path, wandb_init, test_settings):
         with mock.patch("wandb.sdk.interface.artifacts._artifacts_cache", None):
             cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
             assert cache._cache_dir == os.path.join(tmp_path, "artifacts")
+
+
+def test_artifacts_cache_when_disabled():
+    with mock.patch.dict("os.environ", WANDB_MODE="disabled"):
+        cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+        assert Path(cache._cache_dir).is_dir()
