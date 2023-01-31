@@ -55,41 +55,37 @@ version = "0.13.10.dev1"
 python = "^3.6.2"
 appdirs = "^1.4.3"
 aws = {version = "^0.2.5", optional = true}
-azure-storage-blob = {version = ">=12.13.1", optional = true}
-bokeh = {optional = true, version = ">=2.3.3"}
-boto3 = {version = ">=1.23.1", optional = true}
-botocore = {optional = true, version = "^1.26.10"}
-chardet = {optional = true, version = "^5.0.0"}
-click = "^7.0.0 || ^8.0.1"
+azure-storage-blob = {version = "~12.13.1", optional = true}
+bokeh = {optional = true, version = "~2.3.3"}
+boto3 = {version = "~1.23.1", optional = true}
+botocore = {optional = true, version = "~1.26.10"}
+chardet = {optional = true, version = "~5.0.0"}
+click = "~8.0.4"
 cloudpickle = {optional = true, version = "^2.2.1"}
 dataclasses = {python = "<3.7", version = "^0.8"}
 docker-pycreds = "^0.4.0"
-gitpython = "^3.1.18"
-google-cloud-storage = {optional = true, version = "^2.0.0"}
+gitpython = "~3.1.18"
+google-cloud-storage = {optional = true, version = "~2.0.0"}
 grpcio = {optional = true, version = "^1.27.2"}
 iso8601 = {optional = true, version = "^1.1.0"}
 kubernetes = {optional = true, version = "^25.3.0"}
 minio = {optional = true, version = "^7.1.13"}
 moviepy = {optional = true, version = "^1.0.3"}
-nbconvert = {optional = true, version = "^6.0.7"}
-nbformat = {optional = true, version = "^5.1.3"}
-numpy = {optional = true, version = ">=1.19.5"}
+nbconvert = {optional = true, version = "~6.0.7"}
+nbformat = {optional = true, version = "~5.1.3"}
+numpy = {optional = true, version = "~1.19.5"}
 pathtools = "^0.1.2"
 pillow = {optional = true, version = "^8.4.0"}
 plotly = {optional = true, version = "^5.13.0"}
-protobuf = [
-  {markers = "python_version < '3.9' and sys_platform == 'linux'", version = ">=3.12.0,<4.21.0 || >4.21.0,<5"},
-  {markers = "python_version == '3.9' and sys_platform == 'linux'", version = ">=3.15.0,<4.21.0 || >4.21.0,<5"},
-  {markers = "python_version > '3.9' or sys_platform != 'linux'", version = ">=3.19.0,<4.21.0 || >4.21.0,<5"}
-]
+protobuf = "~3.19.0"
 psutil = "^5.0.0"
 pyyaml = "^6.0"
 rdkit = {optional = true, version = ">=2022.3.3", markers = "(platform_machine == 'arm64' and python_version >= '3.7') or python_version >= '3.8'"}
 rdkit-pypi = {optional = true, version = ">=2021.9.4", markers = "platform_machine != 'arm64' and python_version < '3.8'"}
-requests = "^2.0.0"
+requests = "~2.27.1"
 sentry-sdk = "^1.14.0"
-setproctitle = "^1.2.3"
-setuptools = ">=59.6.0"
+setproctitle = "~1.2.3"
+setuptools = "~59.6.0"
 sh = {optional = true, version = "^1.14.3"}
 soundfile = {optional = true, version = "^0.11.0"}
 sweeps = {optional = true, version = "^0.2.0"}
@@ -141,36 +137,37 @@ sweeps = ["sweeps"]
 [tool.poetry.group.build.dependencies]
 bump2version = "^1.0.1"
 bumpversion = "^0.6.0"
-libcst = "^0.4.1"
-twine = ">=3.8.0"
+libcst = "~0.4.1"
+twine = "~3.8.0"
 
 [tool.poetry.group.coverage.dependencies]
 codecov = "^2.1.12"
-coverage = ">=6.2"
-pycobertura = ">=2.1.0"
-pytest-cov = "^4.0.0"
+coverage = {extras = ["toml"], version = "~6.2" }
+pycobertura = "~2.1.0"
+pytest-cov = "~4.0.0"
 
 [tool.poetry.group.dev.dependencies]
 google-cloud-aiplatform = {version = "^1.4.3", python = ">=3.7"}
-imageio = "^2.15.0"
-ipykernel = ">=5.5.6"
-ipython = ">=7.16.3"
-matplotlib = "^3.3.4,!=3.5.2"
-nbclient = "^0.5.9"
-pandas = "^1.1.5"
-scipy = "^1.5.4"
+imageio = "~2.15.0"
+ipykernel = "~5.5.6"
+ipython = "~7.16.3"
+matplotlib = "~3.3.4"  # or !=3.5.2
+nbclient = "~0.5.9"
+pandas = "~1.1.5"
+scipy = "~1.5.4"
+scikit-learn = "~0.24.2"
 
 [tool.poetry.group.lint.dependencies]
-black = {extras = ["jupyter"], version = "^22.8.0"}
+black = {extras = ["jupyter"], version = "~22.8.0"}
 darglint = "^1.8.0"
-flake8 = ">=5.0.4"
-flake8-bugbear = ">=21.4.2"
-flake8-docstrings = ">=1.3.1"
+flake8 = "~5.0.4"
+flake8-bugbear = "~22.9.23"
+flake8-docstrings = "~1.6.0"
 flake8-fixme = "^1.1.1"
-flake8-typing-imports = ">=1.1"
-isort = "^5.10.1"
-pep8-naming = "^0.13.1"
-pylint = "^2.13.9"
+flake8-typing-imports = "~1.12.0"
+isort = "~5.10.1"
+pep8-naming = "0.13.1"
+pylint = "~2.13.9"
 
 [tool.poetry.group.protobuf]
 optional = true
@@ -181,19 +178,18 @@ grpcio-tools = {version = "^1.48.2", python = ">=3.7"}
 mypy-protobuf = {version = "^3.3.0", python = ">=3.7"}
 
 [tool.poetry.group.test.dependencies]
-hypothesis = "^6.31.6"
+hypothesis = "~6.31.6"
 mock = ">=2.0.0"
-moto = {extras = ["s3"], version = "^4.0.13" }
+moto = {extras = ["s3"], version = "~4.0.13" }
 parameterized = "^0.8.1"
-pytest = "^7.0.1"
+pytest = "~7.0.1"
 pytest-flakefinder = "^1.1.0"
 pytest-flask = "^1.2.0"
-pytest-mock = "^3.6.1"
+pytest-mock = "~3.6.1"
 pytest-openfiles = "^0.5.0"
-pytest-rerunfailures = ">=10.3"
+pytest-rerunfailures = "~10.3"
 pytest-timeout = "^2.1.0"
-pytest-xdist = "^3.0.2"
-tox-pyenv = ">=1.0.3"
+pytest-xdist = "~3.0.2"
 
 [tool.poetry.group.typing.dependencies]
 lxml = "^4.9.2"
