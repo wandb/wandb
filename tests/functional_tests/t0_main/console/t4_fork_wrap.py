@@ -4,7 +4,6 @@ import os
 
 import wandb
 
-
 print("before")
 
 run = wandb.init()
