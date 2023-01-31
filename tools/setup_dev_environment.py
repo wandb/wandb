@@ -164,7 +164,7 @@ def main():
     print(f"{Console.CODE}  tox{Console.END}")
     print("Run a specific test in a specific environment:")
     print(
-        f"{Console.CODE}  tox -e py37 -- tests/test_public_api.py -k test_run_config{Console.END}"
+        f"{Console.CODE}  tox -e py37 -- tests/pytest_tests/unit_tests/test_public_api.py -k proj{Console.END}"
     )
     print("Lint code:")
     print(f"{Console.CODE}  tox -e format,flake8,mypy{Console.END}")
