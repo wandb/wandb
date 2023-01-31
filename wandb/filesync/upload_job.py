@@ -4,6 +4,7 @@ import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
+import wandb.util
 
 if TYPE_CHECKING:
     import queue
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
 class EventJobDone(NamedTuple):
     job: "UploadJob"
-    success: bool
+    exc: Optional[Exception]
 
 
 logger = logging.getLogger(__name__)
@@ -62,17 +63,22 @@ class UploadJob(threading.Thread):
         super().__init__()
 
     def run(self) -> None:
-        success = False
+        exc = None
         try:
-            success = self.push()
+            self.push()
+        except Exception as e:
+            exc = e
+            # Don't reraise the exception; that will print out a noisy stack trace
+            # to stderr. Instead, we'll just send the exc back to the StepUpload,
+            # which will log it as appropriate.
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            self._done_queue.put(EventJobDone(self, success))
-            if success:
+            self._done_queue.put(EventJobDone(job=self, exc=exc))
+            if exc is None:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
-    def push(self) -> bool:
+    def push(self) -> None:
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
@@ -92,14 +98,14 @@ class UploadJob(threading.Thread):
                         self.save_path, type(e).__name__, message
                     )
                 )
-                return False
+                raise
 
             if deduped:
                 logger.info("Skipped uploading %s", self.save_path)
                 self._stats.set_file_deduped(self.save_path)
             else:
                 logger.info("Uploaded file %s", self.save_path)
-            return True
+            return
 
         if self.md5:
             # This is the new artifact manifest upload flow, in which we create the
@@ -151,8 +157,7 @@ class UploadJob(threading.Thread):
                             self.save_name, type(e).__name__, e
                         )
                     )
-                return False
-        return True
+                raise
 
     def progress(self, total_bytes: int) -> None:
         self._stats.update_uploaded_file(self.save_name, total_bytes)
