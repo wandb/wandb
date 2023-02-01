@@ -1,10 +1,10 @@
 from warnings import simplefilter
 
 import numpy as np
-from sklearn.utils.multiclass import unique_labels
+from wandb.sklearn import utils
 
 import wandb
-from wandb.sklearn import utils
+from sklearn.utils.multiclass import unique_labels
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

@@ -3,8 +3,9 @@ import os
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
-from wandb import util
 from wandb.sdk.lib import filesystem, runid
+
+from wandb import util
 
 from . import _dtypes
 from ._private import MEDIA_TMP

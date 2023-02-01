@@ -1,7 +1,6 @@
 import pprint
 from typing import Any, Dict, List, Optional
 
-import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
@@ -16,6 +15,8 @@ from wandb.sdk.launch.utils import (
     construct_launch_spec,
     validate_launch_spec_source,
 )
+
+import wandb
 
 
 def push_to_queue(

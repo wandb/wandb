@@ -6,9 +6,10 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Optional, Tuple
 
-import wandb
 import wandb.util
 from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
+
+import wandb
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts

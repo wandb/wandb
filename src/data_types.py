@@ -25,9 +25,10 @@ import pprint
 import tempfile
 from typing import Optional
 
+from wandb.sdk.lib import filesystem
+
 import wandb
 from wandb import util
-from wandb.sdk.lib import filesystem
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (

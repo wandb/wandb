@@ -2,10 +2,11 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-import wandb
 import wandb.docker as docker
 from wandb.errors import DockerError, LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+
+import wandb
 
 from .._project_spec import (
     EntryPoint,

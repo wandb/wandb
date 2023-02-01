@@ -4,8 +4,9 @@ module server
 
 import json
 
-from wandb import util
 from wandb.apis import InternalApi
+
+from wandb import util
 
 
 class ServerError(Exception):

@@ -8,14 +8,14 @@ import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import pkg_resources
+import wandb.docker as docker
 import yaml
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
-
-import wandb
-import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
+
+import wandb
 
 from ...lib.git import GitRepo
 from .._project_spec import (

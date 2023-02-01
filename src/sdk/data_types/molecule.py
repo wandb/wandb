@@ -3,8 +3,9 @@ import os
 import pathlib
 from typing import TYPE_CHECKING, Optional, Sequence, Type, Union
 
-from wandb import util
 from wandb.sdk.lib import runid
+
+from wandb import util
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media

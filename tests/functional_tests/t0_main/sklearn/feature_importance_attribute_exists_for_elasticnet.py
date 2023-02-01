@@ -18,6 +18,7 @@ assert:
     - :wandb:runs[0][summary][feature_importances][nrows]: 30
 """
 import wandb
+
 from sklearn import datasets
 from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import train_test_split

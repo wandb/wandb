@@ -1,8 +1,9 @@
 from collections.abc import Iterable, Sequence
 
+from wandb.sdk.lib import deprecate
+
 import wandb
 from wandb import util
-from wandb.sdk.lib import deprecate
 
 
 def deprecation_notice() -> None:

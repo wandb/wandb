@@ -8,9 +8,9 @@ from base64 import b64encode
 
 import requests
 from requests.compat import urljoin
+from wandb.sdk.lib import filesystem
 
 import wandb
-from wandb.sdk.lib import filesystem
 
 try:
     from IPython.core.getipython import get_ipython

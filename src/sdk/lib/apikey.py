@@ -11,11 +11,11 @@ from urllib.parse import urlparse
 
 import click
 import requests
-
-import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
 from wandb.util import _is_databricks, isatty, prompt_choices
+
+import wandb
 
 from .wburls import wburls
 

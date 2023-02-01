@@ -3,10 +3,10 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
-
-import wandb
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError, LaunchError
+
+import wandb
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent

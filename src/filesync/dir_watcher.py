@@ -15,8 +15,9 @@ from typing import (
     Optional,
 )
 
-from wandb import util
 from wandb.sdk.interface.interface import GlobStr
+
+from wandb import util
 
 if TYPE_CHECKING:
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api

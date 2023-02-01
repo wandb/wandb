@@ -3,10 +3,10 @@ from typing import Any, Dict, Optional, Union
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
-
-import wandb
 from wandb.integration.keras.keras import patch_tf_keras
 from wandb.sdk.lib import telemetry
+
+import wandb
 
 if sys.version_info >= (3, 8):
     from typing import Literal

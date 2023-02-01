@@ -2,9 +2,9 @@ import abc
 from typing import Any, Dict, List, Optional
 
 from tensorflow.keras.callbacks import Callback  # type: ignore
+from wandb.sdk.lib import telemetry
 
 import wandb
-from wandb.sdk.lib import telemetry
 
 
 class WandbEvalCallback(Callback, abc.ABC):

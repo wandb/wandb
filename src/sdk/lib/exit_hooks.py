@@ -3,8 +3,9 @@ import traceback
 from types import TracebackType
 from typing import TYPE_CHECKING, Optional, Type
 
-import wandb
 from wandb.errors import Error
+
+import wandb
 
 if TYPE_CHECKING:
     from typing import NoReturn

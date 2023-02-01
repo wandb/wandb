@@ -13,9 +13,10 @@ import socket
 import threading
 import time
 
+from wandb.apis import InternalApi
+
 import wandb
 from wandb import util, wandb_sdk
-from wandb.apis import InternalApi
 
 logger = logging.getLogger(__name__)
 

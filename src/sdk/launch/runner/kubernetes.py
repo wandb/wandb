@@ -8,11 +8,11 @@ from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
 from kubernetes.client.models.v1_job import V1Job  # type: ignore
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
-
-import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module, load_json_yaml_dict
+
+import wandb
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict

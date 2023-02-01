@@ -1,13 +1,13 @@
 from warnings import simplefilter
 
 import numpy as np
+from wandb.sklearn import utils
+
 import sklearn
+import wandb
 from sklearn import model_selection, naive_bayes
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
-
-import wandb
-from wandb.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

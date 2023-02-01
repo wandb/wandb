@@ -5,9 +5,10 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
 
+from wandb.sdk.lib import runid
+
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -20,7 +21,6 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
     import torch  # type: ignore
     from PIL.Image import Image as PILImage
-
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ..wandb_artifacts import Artifact as LocalArtifact

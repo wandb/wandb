@@ -19,10 +19,10 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
+from wandb.sdk.lib import runid
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP

@@ -5,16 +5,16 @@ import re
 import shutil
 from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast
 
-import wandb
-from wandb import util
 from wandb._globals import _datatypes_callback
 from wandb.sdk.lib import filesystem
+
+import wandb
+from wandb import util
 
 from .wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
-
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ...wandb_artifacts import Artifact as LocalArtifact
@@ -158,8 +158,9 @@ class Media(WBValue):
         """
         # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
         # into Media itself we should get rid of them
-        from wandb import Image
         from wandb.data_types import Audio
+
+        from wandb import Image
 
         json_obj = {}
         if isinstance(run, wandb.wandb_sdk.wandb_run.Run):

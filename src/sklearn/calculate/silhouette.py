@@ -1,11 +1,11 @@
 from warnings import simplefilter
 
 import numpy as np
-from sklearn.metrics import silhouette_samples, silhouette_score
-from sklearn.preprocessing import LabelEncoder
+from wandb.sklearn import utils
 
 import wandb
-from wandb.sklearn import utils
+from sklearn.metrics import silhouette_samples, silhouette_score
+from sklearn.preprocessing import LabelEncoder
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

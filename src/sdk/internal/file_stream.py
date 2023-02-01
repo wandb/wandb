@@ -39,10 +39,10 @@ if TYPE_CHECKING:
 
 
 import requests
+from wandb.sdk.internal import internal_api
 
 import wandb
 from wandb import env, util
-from wandb.sdk.internal import internal_api
 
 from ..lib import file_stream_utils
 

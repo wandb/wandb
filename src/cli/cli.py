@@ -17,17 +17,14 @@ import traceback
 from functools import wraps
 
 import click
+
+# from wandb.old.core import wandb_dir
+import wandb.sdk.verify.verify as wandb_verify
 import yaml
 from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
-
-import wandb
-
-# from wandb.old.core import wandb_dir
-import wandb.sdk.verify.verify as wandb_verify
-from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
@@ -40,6 +37,9 @@ from wandb.sdk.launch.utils import (
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
+
+import wandb
+from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())

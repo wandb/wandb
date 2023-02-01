@@ -12,11 +12,12 @@ Example:
 import os
 from typing import Optional, Sequence, Union
 
-import wandb
 from wandb.env import _DISABLE_SERVICE, REQUIRE_SERVICE
 from wandb.errors import RequireError
 from wandb.sdk import wandb_run
 from wandb.sdk.lib.wburls import wburls
+
+import wandb
 
 
 class _Requires:

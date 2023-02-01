@@ -23,11 +23,11 @@ from copy import deepcopy
 
 import pandas as pd
 from PIL import Image
+from wandb.plots.utils import test_missing
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 import wandb
 from wandb import util
-from wandb.plots.utils import test_missing
-from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 def named_entity(docs):

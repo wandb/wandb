@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from dockerpycreds.utils import find_executable  # type: ignore
-
 from wandb.docker import auth, www_authenticate
 from wandb.errors import DockerError
 

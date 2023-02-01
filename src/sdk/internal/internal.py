@@ -25,9 +25,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, List, Optional
 
 import psutil
+from wandb.util import sentry_exc, sentry_set_scope
 
 import wandb
-from wandb.util import sentry_exc, sentry_set_scope
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog

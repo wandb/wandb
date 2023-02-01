@@ -6,12 +6,12 @@ Implement grpc servicer.
 from typing import TYPE_CHECKING
 
 import grpc
-
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
+
+import wandb
 
 from .. import lib as wandb_lib
 from ..lib.proto_util import settings_dict_from_pbmap

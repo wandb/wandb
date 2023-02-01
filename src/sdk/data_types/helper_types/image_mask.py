@@ -2,9 +2,10 @@ import numbers
 import os
 from typing import TYPE_CHECKING, Optional, Type, Union
 
+from wandb.sdk.lib import runid
+
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
 
 from .._private import MEDIA_TMP
 from ..base_types.media import Media

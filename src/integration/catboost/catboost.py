@@ -6,10 +6,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import List, Union
 
-from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 import wandb
-from wandb.sdk.lib import telemetry as wb_telemetry
+from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
 
 
 class WandbCallback:

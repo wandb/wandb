@@ -3,10 +3,10 @@ import logging
 import os
 
 import yaml
-
-import wandb
 from wandb.errors import Error
 from wandb.util import load_yaml
+
+import wandb
 
 from . import filesystem
 

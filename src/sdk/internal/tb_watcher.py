@@ -12,11 +12,12 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import wandb
-from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
 from wandb.viz import CustomChart
+
+import wandb
+from wandb import util
 
 from . import run as internal_run
 
@@ -25,7 +26,6 @@ if TYPE_CHECKING:
 
     from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
     from tensorboard.compat.proto.event_pb2 import ProtoEvent
-
     from wandb.proto.wandb_internal_pb2 import RunRecord
     from wandb.sdk.interface.interface import FilesDict
 

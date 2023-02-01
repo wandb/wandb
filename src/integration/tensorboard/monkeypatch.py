@@ -5,8 +5,9 @@ import re
 import socket
 from typing import Any, Optional
 
-import wandb
 import wandb.util
+
+import wandb
 
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
 TENSORBOARD_X_MODULE = "tensorboardX.writer"

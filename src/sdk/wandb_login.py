@@ -14,10 +14,10 @@ else:
     from typing_extensions import Literal
 
 import click
-
-import wandb
 from wandb.errors import UsageError
 from wandb.old.settings import Settings as OldSettings
+
+import wandb
 
 from ..apis import InternalApi
 from .internal.internal_api import Api

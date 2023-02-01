@@ -1,9 +1,10 @@
 import numbers
 from typing import TYPE_CHECKING, Optional, Type, Union
 
+from wandb.util import has_num
+
 import wandb
 from wandb import util
-from wandb.util import has_num
 
 from ..base_types.json_metadata import JSONMetadata
 

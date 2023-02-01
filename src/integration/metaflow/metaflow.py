@@ -14,8 +14,9 @@ import pickle
 from functools import wraps
 from pathlib import Path
 
-import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
+
+import wandb
 
 try:
     from metaflow import current

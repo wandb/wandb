@@ -10,10 +10,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import click
 import requests
 from pkg_resources import parse_version
+from wandb.sdk.lib import runid
 from wandb_gql import gql  # type: ignore
 
 import wandb
-from wandb.sdk.lib import runid
 
 from ...apis.internal import Api
 from ...apis.public import Artifact as ArtifactAPI

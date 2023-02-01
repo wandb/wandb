@@ -6,10 +6,11 @@ import os
 
 import pandas as pd
 from metaflow import FlowSpec, Parameter, step
+from wandb.integration.metaflow import wandb_log
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
-from wandb.integration.metaflow import wandb_log
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["METAFLOW_USER"] = "test_user"

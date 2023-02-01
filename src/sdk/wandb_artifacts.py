@@ -26,16 +26,16 @@ from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
 import urllib3
-
-import wandb
 import wandb.data_types as data_types
-from wandb import env, util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 from wandb.sdk.internal import progress
 from wandb.util import LogicalFilePathStr
+
+import wandb
+from wandb import env, util
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
@@ -72,7 +72,6 @@ if TYPE_CHECKING:
     import boto3.s3  # type: ignore
     import boto3.session  # type: ignore
     import google.cloud.storage as gcs_module  # type: ignore
-
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.internal import internal_api

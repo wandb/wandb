@@ -14,11 +14,11 @@ import traceback
 from typing import Any, Dict, List, Optional
 
 import yaml
+from wandb.agents.pyagent import pyagent
+from wandb.apis import InternalApi
 
 import wandb
 from wandb import util, wandb_lib, wandb_sdk
-from wandb.agents.pyagent import pyagent
-from wandb.apis import InternalApi
 
 logger = logging.getLogger(__name__)
 

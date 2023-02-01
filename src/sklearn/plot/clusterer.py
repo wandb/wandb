@@ -2,10 +2,10 @@
 from warnings import simplefilter
 
 import pandas as pd
-import sklearn
-
-import wandb
 from wandb.sklearn import calculate, utils
+
+import sklearn
+import wandb
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

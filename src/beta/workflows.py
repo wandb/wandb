@@ -2,11 +2,12 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Union
 
-import wandb
 import wandb.data_types as data_types
 from wandb.data_types import _SavedModel
 from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
 from wandb.sdk.interface.artifacts import ArtifactManifestEntry
+
+import wandb
 
 
 def _add_any(

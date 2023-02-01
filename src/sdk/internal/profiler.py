@@ -1,9 +1,10 @@
 """Integration with pytorch profiler."""
 import os
 
-import wandb
 from wandb.errors import Error, UsageError
 from wandb.sdk.lib import telemetry
+
+import wandb
 
 PYTORCH_MODULE = "torch"
 PYTORCH_PROFILER_MODULE = "torch.profiler"

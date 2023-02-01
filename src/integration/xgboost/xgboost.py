@@ -5,11 +5,11 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-import xgboost as xgb  # type: ignore
-from xgboost import Booster
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 import wandb
-from wandb.sdk.lib import telemetry as wb_telemetry
+import xgboost as xgb  # type: ignore
+from xgboost import Booster
 
 MINIMIZE_METRICS = [
     "rmse",

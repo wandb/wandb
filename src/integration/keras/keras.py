@@ -12,16 +12,17 @@ from itertools import chain
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
-
-import wandb
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
 from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.util import add_import_hook
 
+import wandb
+
 
 def _check_keras_version():
-    from keras import __version__ as keras_version
     from pkg_resources import parse_version
+
+    from keras import __version__ as keras_version
 
     if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(

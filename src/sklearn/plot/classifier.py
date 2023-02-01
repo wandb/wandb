@@ -2,11 +2,11 @@
 from warnings import simplefilter
 
 import numpy as np
-from sklearn import naive_bayes
-
-import wandb
 import wandb.plots
 from wandb.sklearn import calculate, utils
+
+import wandb
+from sklearn import naive_bayes
 
 from . import shared
 

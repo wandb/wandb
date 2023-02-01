@@ -68,7 +68,6 @@ class WandbServer:
 
     def _start_grpc(self, mux: StreamMux) -> int:
         import grpc
-
         from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 
         from .server_grpc import WandbServicer

@@ -2,8 +2,9 @@ import logging
 import os
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
-import wandb
 import wandb.util
+
+import wandb
 
 if TYPE_CHECKING:
 

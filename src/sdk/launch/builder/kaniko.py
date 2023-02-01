@@ -8,11 +8,11 @@ from typing import Any, Dict, Optional
 
 import kubernetes  # type: ignore
 from kubernetes import client
-
-import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
+
+import wandb
 
 from .._project_spec import (
     EntryPoint,

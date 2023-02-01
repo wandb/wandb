@@ -95,8 +95,9 @@ def termlog(string="", newline=True, repeat=True):
     if len(PRINTED_MESSAGES) < 1000:
         PRINTED_MESSAGES.add(line)
     if os.getenv(env.SILENT):
-        from wandb import util
         from wandb.sdk.lib import filesystem
+
+        from wandb import util
 
         filesystem.mkdir_exists_ok(os.path.dirname(util.get_log_file_path()))
         with open(util.get_log_file_path(), "w") as log:

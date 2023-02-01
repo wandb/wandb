@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
+from wandb.sdk.lib import telemetry
 
 import wandb
-from wandb.sdk.lib import telemetry
 
 from ..keras import patch_tf_keras
 

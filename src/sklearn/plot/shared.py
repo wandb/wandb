@@ -2,9 +2,9 @@
 from warnings import simplefilter
 
 import numpy as np
+from wandb.sklearn import calculate, utils
 
 import wandb
-from wandb.sklearn import calculate, utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

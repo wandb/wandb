@@ -32,9 +32,6 @@ from typing import (
 )
 
 import requests
-
-import wandb
-from wandb import errors, trigger, util
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
@@ -63,6 +60,9 @@ from wandb.util import (
     to_forward_slash_path,
 )
 from wandb.viz import CustomChart, Visualize, custom_chart
+
+import wandb
+from wandb import errors, trigger, util
 
 from . import wandb_artifacts, wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry

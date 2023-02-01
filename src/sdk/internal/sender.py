@@ -25,13 +25,13 @@ from typing import (
 )
 
 import requests
-
-import wandb
-from wandb import util
 from wandb.errors import ContextCancelledError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
+
+import wandb
+from wandb import util
 
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue

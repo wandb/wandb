@@ -18,14 +18,15 @@ import tempfile
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
-import wandb
 import wandb.env
-from wandb import trigger
 from wandb.errors import CommError, UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
 from wandb.util import _is_artifact_representation, sentry_exc
+
+import wandb
+from wandb import trigger
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend

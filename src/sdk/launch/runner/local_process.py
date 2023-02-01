@@ -2,8 +2,9 @@ import logging
 import shlex
 from typing import Any, List, Optional
 
-import wandb
 from wandb.errors import LaunchError
+
+import wandb
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict

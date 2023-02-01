@@ -5,12 +5,13 @@ config.
 import logging
 from typing import Optional
 
-import wandb
 from wandb.util import (
     _is_artifact_representation,
     check_dict_contains_nested_artifact,
     json_friendly_val,
 )
+
+import wandb
 
 from . import wandb_helper
 from .lib import config_util

@@ -1,11 +1,12 @@
-import wandb
-from wandb import util
 from wandb.plots.utils import (
     deprecation_notice,
     encode_labels,
     test_missing,
     test_types,
 )
+
+import wandb
+from wandb import util
 
 chart_limit = wandb.Table.MAX_ROWS
 

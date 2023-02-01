@@ -35,8 +35,9 @@ import asyncio  # noqa: F401
 
 import dask.distributed  # noqa: F401
 import joblib  # noqa: F401
-import sacred  # noqa: F401
 import wandb
+
+import sacred  # noqa: F401
 
 run = wandb.init()
 wandb.log(dict(loss=1))

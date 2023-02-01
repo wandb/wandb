@@ -8,10 +8,10 @@ if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
 import yaml
-
-import wandb
 from wandb.errors import LaunchError
 from wandb.util import get_module
+
+import wandb
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder

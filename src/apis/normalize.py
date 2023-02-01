@@ -8,10 +8,10 @@ from functools import wraps
 from typing import Callable, TypeVar
 
 import requests
+from wandb.errors import CommError, ContextCancelledError
 from wandb_gql.client import RetryError
 
 from wandb import env
-from wandb.errors import CommError, ContextCancelledError
 
 _F = TypeVar("_F", bound=Callable)
 

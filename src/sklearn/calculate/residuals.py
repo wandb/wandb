@@ -1,9 +1,9 @@
 from warnings import simplefilter
 
-from sklearn import model_selection
+from wandb.sklearn import utils
 
 import wandb
-from wandb.sklearn import utils
+from sklearn import model_selection
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

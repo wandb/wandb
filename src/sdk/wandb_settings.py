@@ -31,14 +31,15 @@ from typing import (
 )
 from urllib.parse import quote, urlencode, urlparse, urlsplit
 
-import wandb
 import wandb.env
-from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
+
+import wandb
+from wandb import util
 
 from .lib import apikey
 from .lib.git import GitRepo

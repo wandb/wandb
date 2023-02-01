@@ -46,9 +46,8 @@ else:
     from typing_extensions import Literal
 
 import fastai  # type: ignore[import]
-from fastai.callbacks import TrackerCallback  # type: ignore[import]
-
 import wandb
+from fastai.callbacks import TrackerCallback  # type: ignore[import]
 
 try:
     import matplotlib  # type: ignore[import]

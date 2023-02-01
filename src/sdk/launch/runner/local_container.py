@@ -6,8 +6,9 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional
 
-import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+
+import wandb
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image

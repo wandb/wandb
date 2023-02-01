@@ -7,7 +7,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-import wandb
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
@@ -17,6 +16,8 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SweepRun,
 )
 from wandb.wandb_agent import Agent as LegacySweepAgent
+
+import wandb
 
 logger = logging.getLogger(__name__)
 

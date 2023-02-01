@@ -2,9 +2,9 @@
 from warnings import simplefilter
 
 import numpy as np
+from wandb.sklearn import calculate, utils
 
 import wandb
-from wandb.sklearn import calculate, utils
 
 from . import shared
 

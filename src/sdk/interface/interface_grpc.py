@@ -8,7 +8,6 @@ import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 import grpc
-
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb

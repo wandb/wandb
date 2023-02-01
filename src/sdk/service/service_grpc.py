@@ -6,7 +6,6 @@ Implement ServiceInterface for grpc transport.
 from typing import TYPE_CHECKING, Optional
 
 import grpc
-
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 

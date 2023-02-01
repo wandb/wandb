@@ -24,9 +24,9 @@ import flask
 import pandas as pd
 import requests
 import responses
+import wandb.util
 
 import wandb
-import wandb.util
 
 try:
     from typing import Literal, TypedDict

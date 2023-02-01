@@ -16,11 +16,12 @@ from typing import (
     Union,
 )
 
-import wandb
-from wandb import env, util
 from wandb.data_types import WBValue
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
+
+import wandb
+from wandb import env, util
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency

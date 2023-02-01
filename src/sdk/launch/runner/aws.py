@@ -8,12 +8,13 @@ from typing import Any, Dict, Optional, Tuple, cast
 if False:
     import boto3  # type: ignore
 
-import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
+
+import wandb
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict

@@ -8,12 +8,12 @@ import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
-
-import wandb
-from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, LaunchError
 from wandb.sdk.launch.wandb_reference import WandbReference
+
+import wandb
+from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact

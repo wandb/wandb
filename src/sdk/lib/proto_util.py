@@ -11,7 +11,6 @@ if TYPE_CHECKING:  # pragma: no cover
         RepeatedCompositeFieldContainer,
     )
     from google.protobuf.message import Message
-
     from wandb.proto import wandb_server_pb2 as spb
     from wandb.proto import wandb_telemetry_pb2 as tpb
 
