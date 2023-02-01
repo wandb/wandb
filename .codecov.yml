@@ -14,8 +14,8 @@ comment:
   after_n_builds: 51
 
 ignore:
-  - "wandb/vendor"
-  - "wandb/proto"
+  - "src/vendor"
+  - "src/proto"
 
 coverage:
   precision: 2
@@ -32,33 +32,33 @@ coverage:
         informational: true
       sdk:
         paths:
-          - wandb/sdk/*.py
+          - src/sdk/*.py
       sdk-internal:
         paths:
-          - wandb/sdk/internal/
+          - src/sdk/internal/
       sdk-launch:
         paths:
-          - wandb/sdk/launch/
+          - src/sdk/launch/
       sdk-service:
         paths:
-          - wandb/sdk/service/
+          - src/sdk/service/
       sdk-other:
         paths:
-          - "!wandb/sdk/*.py"
-          - "!wandb/sdk/internal/"
-          - "!wandb/sdk/launch/"
-          - "!wandb/sdk/service/"
-          - wandb/sdk/
+          - "!src/sdk/*.py"
+          - "!src/sdk/internal/"
+          - "!src/sdk/launch/"
+          - "!src/sdk/service/"
+          - src/sdk/
       apis:
         informational: true
         paths:
-          - wandb/apis/
+          - src/apis/
       other:
         informational: true
         paths:
-          - "!wandb/sdk/"
-          - "!wandb/apis/"
-          - wandb/
+          - "!src/sdk/"
+          - "!src/apis/"
+          - src/
 
 parsers:
   gcov:

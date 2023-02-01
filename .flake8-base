@@ -17,28 +17,28 @@ exclude =
     ./tests/pytest_tests/unit_tests_old/
     ./tests/functional_tests/t0_main/metaflow/
     ./tests/functional_tests/t0_main/fastai/t1_v1.py
-    ./wandb/__init__.py
-    ./wandb/wandb_torch.py
-    ./wandb/bin
+    ./src/__init__.py
+    ./src/wandb_torch.py
+    ./src/bin
     ./wandb/data/
-    ./wandb/errors/
-    ./wandb/old/
-    ./wandb/proto/
-    ./wandb/proto_check/
-    ./wandb/env.py
-    ./wandb/integration/magic.py
-    ./wandb/integration/keras/keras.py
-    ./wandb/integration/metaflow/
-    ./wandb/keras/
-    ./wandb/superagent/
-    ./wandb/plots/
-    ./wandb/sklearn/
-    ./wandb/viz.py
-    ./wandb/vendor/
+    ./src/errors/
+    ./src/old/
+    ./src/proto/
+    ./src/proto_check/
+    ./src/env.py
+    ./src/integration/magic.py
+    ./src/integration/keras/keras.py
+    ./src/integration/metaflow/
+    ./src/keras/
+    ./src/superagent/
+    ./src/plots/
+    ./src/sklearn/
+    ./src/viz.py
+    ./src/vendor/
     */wandb/run-*/files/code/
     */wandb/offline-run-*/files/code/
 
 per-file-ignores =
-   wandb/cli/cli.py:C901,I202
-   wandb/wandb_controller.py:N803,N806
-   wandb/filesync/step_checksum.py:B023
+   src/cli/cli.py:C901,I202
+   src/wandb_controller.py:N803,N806
+   src/filesync/step_checksum.py:B023

@@ -1,11 +1,11 @@
-include wandb/py.typed
+include src/py.typed
 include package_readme.md
 include requirements.txt
 include requirements_sweeps.txt
-include wandb/bin/apple_gpu_stats
+include src/bin/apple_gpu_stats
 
 
-recursive-include wandb *.py
-recursive-include wandb *.sh
+recursive-include src *.py
+recursive-include src *.sh
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]

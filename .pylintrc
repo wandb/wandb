@@ -1,6 +1,6 @@
 [MASTER]
 ignore-paths =
-    wandb/vendor
+    src/vendor
 
 max-line-length = 180
 good-names = logger

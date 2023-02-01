@@ -1,6 +1,6 @@
 [paths]
 canonicalsrc =
-    wandb/
+    src/
     .tox/func-s_base-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_docs-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
@@ -22,11 +22,11 @@ canonicalsrc =
 concurrency = multiprocessing,thread
 
 source =
-    wandb/
+    src/
 
 omit =
-    wandb/vendor/*
-    wandb/proto/*
+    src/vendor/*
+    src/proto/*
 
 [report]
 exclude_lines =
@@ -35,5 +35,5 @@ exclude_lines =
     @abstractmethod
 
 omit =
-    wandb/vendor/*
-    wandb/proto/*
+    src/vendor/*
+    src/proto/*

@@ -55,7 +55,7 @@ setup(
     author_email="support@wandb.com",
     url="https://github.com/wandb/wandb",
     packages=["wandb"],
-    package_dir={"wandb": "wandb"},
+    package_dir={"wandb": "src"},
     package_data={"wandb": ["py.typed"]},
     entry_points={
         "console_scripts": [
