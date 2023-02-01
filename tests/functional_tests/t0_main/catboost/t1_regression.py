@@ -2,8 +2,9 @@
 """Test CatBoost integration."""
 
 import wandb
-from catboost import CatBoostClassifier, Pool, datasets
 from wandb.catboost import WandbCallback, log_summary
+
+from catboost import CatBoostClassifier, Pool, datasets
 
 train_df, _ = datasets.msrank_10k()
 X, Y = train_df[train_df.columns[1:]], train_df[train_df.columns[0]]

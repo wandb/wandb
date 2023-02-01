@@ -11,10 +11,11 @@ import math
 import os
 import subprocess
 
-import keras
 import numpy as np
 import pandas
 import wandb
+
+import keras
 from keras import optimizers
 from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
 from keras.models import Sequential

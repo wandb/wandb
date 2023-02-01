@@ -8,8 +8,9 @@ if platform.system() == "Windows":
 
 import pandas as pd
 from metaflow import FlowSpec, step  # noqa: I100, I202
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
+
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 
 try:
     import torch

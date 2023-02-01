@@ -54,11 +54,12 @@ assert:
 import autogluon  # noqa: F401
 import autokeras  # noqa: F401
 import catalyst  # noqa: F401
-import catboost  # noqa: F401
 import datasets  # noqa: F401
 import deepchem  # noqa: F401
 import deepctr  # noqa: F401
 import wandb
+
+import catboost  # noqa: F401
 
 run = wandb.init()
 wandb.log(dict(loss=1))

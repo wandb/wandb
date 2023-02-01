@@ -38,6 +38,7 @@ def test_noop_decorator_does_not_modify_inputs():
         ):
             import joblib
             import numpy as np
+
             from sklearn.ensemble import RandomForestClassifier
 
             with open(x_train_path, "rb") as f:
@@ -80,6 +81,7 @@ def test_decorator_does_not_modify_inputs():
     ):
         import joblib
         import numpy as np
+
         from sklearn.ensemble import RandomForestClassifier
 
         with open(x_train_path, "rb") as f:

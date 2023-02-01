@@ -34,6 +34,7 @@ def preprocess_data(
 
     import numpy as np
     import wandb
+
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
 
@@ -97,6 +98,7 @@ def train_model(
     import joblib
     import numpy as np
     import wandb
+
     from sklearn.ensemble import RandomForestClassifier
 
     def add_wandb_visualization(run, mlpipeline_ui_metadata_path):
@@ -156,6 +158,7 @@ def test_model(
     import joblib
     import numpy as np
     import wandb
+
     from sklearn.ensemble import RandomForestClassifier  # noqa: F401
     from sklearn.metrics import accuracy_score, precision_score, recall_score
 

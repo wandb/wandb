@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """Test lightgbm integration."""
 
-import lightgbm as lgb
 import pandas as pd
 import requests
 import wandb
 from wandb.integration.lightgbm import log_summary, wandb_callback
+
+import lightgbm as lgb
 
 # load data
 # load or create your dataset

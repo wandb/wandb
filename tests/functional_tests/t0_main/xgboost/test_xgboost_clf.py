@@ -2,9 +2,10 @@
 """Test xgboost integration for classification task."""
 
 import wandb
+from wandb.integration.xgboost import WandbCallback
+
 from sklearn.datasets import load_wine
 from sklearn.model_selection import train_test_split
-from wandb.integration.xgboost import WandbCallback
 from xgboost import XGBClassifier
 
 X, y = load_wine(return_X_y=True, as_frame=True)

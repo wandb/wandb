@@ -32,6 +32,7 @@ def preprocess_data(
     seed: int = 1337,
 ):
     import numpy as np
+
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
 
@@ -61,6 +62,7 @@ def train_model(
 ):
     import joblib
     import numpy as np
+
     from sklearn.ensemble import RandomForestClassifier
 
     with open(X_train_path, "rb") as f:
@@ -87,6 +89,7 @@ def test_model(
 
     import joblib
     import numpy as np
+
     from sklearn.ensemble import RandomForestClassifier  # noqa: F401
     from sklearn.metrics import accuracy_score, precision_score, recall_score
 
