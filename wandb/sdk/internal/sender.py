@@ -1567,6 +1567,8 @@ class SendManager:
                 proto_artifact.run_id = self._run.run_id
                 proto_artifact.project = self._run.project
                 proto_artifact.entity = self._run.entity
+                for alias in ["latest"]:
+                    proto_artifact.aliases.append(alias)
                 proto_artifact.user_created = True
                 proto_artifact.use_after_commit = True
                 proto_artifact.finalize = True
