@@ -570,7 +570,7 @@ class ParallelCoordinatesPlot(Panel):
         validators=[TypeValidator(Union[PCColumn, str], how="keys")],
     )
     title: Optional[str] = Attr(json_path="spec.config.chartTitle")
-    gradient: Optional[list[str]] = Attr(json_path="spec.config.customGradient")
+    gradient: Optional[list] = Attr(json_path="spec.config.customGradient")
 
     # Attr(json_path="spec.config.dimensions")
     # Attr(json_path="spec.config.gradientColor")
