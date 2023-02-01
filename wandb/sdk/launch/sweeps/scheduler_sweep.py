@@ -55,6 +55,13 @@ class SweepScheduler(Scheduler):
         self._heartbeat_queue_sleep: float = heartbeat_queue_sleep
 
     def _start(self) -> None:
+        import random
+
+        r = wandb.init(
+            name=f"sweep-scheduler-{random.randint(0, 10000)}", project="hyper-testing"
+        )
+        r.log_code()
+
         for worker_id in range(self._num_workers):
             logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
             agent_config = self._api.register_agent(

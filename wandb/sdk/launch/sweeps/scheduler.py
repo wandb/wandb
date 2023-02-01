@@ -1,6 +1,8 @@
 """Abstract Scheduler class."""
+import base64
 import logging
 import os
+import yaml
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -75,7 +77,10 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            raw = self._api.sweep(
+                sweep_id, "{}", entity=self._entity, project=self._project
+            )
+            self._sweep_config = yaml.safe_load(raw["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
         self._sweep_id: str = sweep_id or "empty-sweep-id"
@@ -167,13 +172,23 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
             self._stop_run(run_id)
 
-    def _stop_run(self, run_id: str) -> None:
+    def _stop_run(self, run_id: str) -> bool:
         """Stops a run and removes it from the scheduler"""
         if run_id in self._runs:
             run: SweepRun = self._runs[run_id]
             run.state = SimpleRunState.DEAD
-            # TODO(hupo): Send command to backend to stop run
-            wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
+
+            encoded_run_id = base64.standard_b64encode(
+                f"Run:v1:{run.queued_run.id}:{self._project}:{self._entity}".encode()
+            ).decode("utf-8")
+
+            success = self.api.stop_run(encoded_run_id)
+            if success:
+                wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
+            else:
+                wandb.termlog(f"{LOG_PREFIX} Failed while stopping run {run_id}.")
+
+            return success
 
     def _update_run_states(self) -> None:
         _runs_to_remove: List[str] = []

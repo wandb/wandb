@@ -3198,3 +3198,29 @@ class Api:
     def _flatten_edges(self, response: "_Response") -> List[Dict]:
         """Return an array from the nested graphql relay structure"""
         return [node["node"] for node in response["edges"]]
+
+    def _stop_run(
+        self,
+        run_id,
+    ) -> None:
+        mutation = gql(
+            """
+            mutation stopRun($id: ID!) {
+                stopRun(input: {
+                    id: $id
+                }) {
+                    clientMutationId
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "id": run_id,
+            },
+        )
+
+        return response["stopRun"].get("success")
