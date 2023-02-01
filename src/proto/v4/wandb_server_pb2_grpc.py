@@ -2,9 +2,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from wandb.proto import wandb_internal_pb2 as wandb_dot_proto_dot_wandb__internal__pb2
-from wandb.proto import wandb_server_pb2 as wandb_dot_proto_dot_wandb__server__pb2
-from wandb.proto import wandb_telemetry_pb2 as wandb_dot_proto_dot_wandb__telemetry__pb2
+from src.proto import wandb_internal_pb2 as src_dot_proto_dot_wandb__internal__pb2
+from src.proto import wandb_server_pb2 as src_dot_proto_dot_wandb__server__pb2
+from src.proto import wandb_telemetry_pb2 as src_dot_proto_dot_wandb__telemetry__pb2
 
 
 class InternalServiceStub(object):
@@ -18,208 +18,208 @@ class InternalServiceStub(object):
         """
         self.RunUpdate = channel.unary_unary(
                 '/wandb_internal.InternalService/RunUpdate',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.RunRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.FromString,
                 )
         self.Attach = channel.unary_unary(
                 '/wandb_internal.InternalService/Attach',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
                 )
         self.TBSend = channel.unary_unary(
                 '/wandb_internal.InternalService/TBSend',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.TBResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.TBRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.TBResult.FromString,
                 )
         self.RunStart = channel.unary_unary(
                 '/wandb_internal.InternalService/RunStart',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.RunStartRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunStartResponse.FromString,
                 )
         self.GetSummary = channel.unary_unary(
                 '/wandb_internal.InternalService/GetSummary',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.FromString,
                 )
         self.SampledHistory = channel.unary_unary(
                 '/wandb_internal.InternalService/SampledHistory',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.FromString,
                 )
         self.PollExit = channel.unary_unary(
                 '/wandb_internal.InternalService/PollExit',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.PollExitRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.PollExitResponse.FromString,
                 )
         self.ServerInfo = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInfo',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.FromString,
                 )
         self.Shutdown = channel.unary_unary(
                 '/wandb_internal.InternalService/Shutdown',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.FromString,
                 )
         self.RunStatus = channel.unary_unary(
                 '/wandb_internal.InternalService/RunStatus',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStatusRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStatusResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.RunStatusRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunStatusResponse.FromString,
                 )
         self.RunExit = channel.unary_unary(
                 '/wandb_internal.InternalService/RunExit',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunExitResult.FromString,
                 )
         self.RunPreempting = channel.unary_unary(
                 '/wandb_internal.InternalService/RunPreempting',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.FromString,
                 )
         self.Metric = channel.unary_unary(
                 '/wandb_internal.InternalService/Metric',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.MetricRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.MetricResult.FromString,
                 )
         self.PartialLog = channel.unary_unary(
                 '/wandb_internal.InternalService/PartialLog',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PartialHistoryRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PartialHistoryResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.PartialHistoryRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.PartialHistoryResponse.FromString,
                 )
         self.Log = channel.unary_unary(
                 '/wandb_internal.InternalService/Log',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.HistoryRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.HistoryResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.HistoryRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.HistoryResult.FromString,
                 )
         self.Summary = channel.unary_unary(
                 '/wandb_internal.InternalService/Summary',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SummaryRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SummaryResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.SummaryRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.SummaryResult.FromString,
                 )
         self.Config = channel.unary_unary(
                 '/wandb_internal.InternalService/Config',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.ConfigRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.ConfigResult.FromString,
                 )
         self.Files = channel.unary_unary(
                 '/wandb_internal.InternalService/Files',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.FilesRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.FilesResult.FromString,
                 )
         self.Output = channel.unary_unary(
                 '/wandb_internal.InternalService/Output',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.OutputRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.OutputResult.FromString,
                 )
         self.OutputRaw = channel.unary_unary(
                 '/wandb_internal.InternalService/OutputRaw',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.OutputRawResult.FromString,
                 )
         self.Telemetry = channel.unary_unary(
                 '/wandb_internal.InternalService/Telemetry',
-                request_serializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.FromString,
                 )
         self.Alert = channel.unary_unary(
                 '/wandb_internal.InternalService/Alert',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.AlertRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.AlertResult.FromString,
                 )
         self.Artifact = channel.unary_unary(
                 '/wandb_internal.InternalService/Artifact',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactResult.FromString,
                 )
         self.LinkArtifact = channel.unary_unary(
                 '/wandb_internal.InternalService/LinkArtifact',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.FromString,
                 )
         self.UseArtifact = channel.unary_unary(
                 '/wandb_internal.InternalService/UseArtifact',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.UseArtifactRecord.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.UseArtifactResult.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.UseArtifactRecord.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.UseArtifactResult.FromString,
                 )
         self.ArtifactSend = channel.unary_unary(
                 '/wandb_internal.InternalService/ArtifactSend',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.FromString,
                 )
         self.ArtifactPoll = channel.unary_unary(
                 '/wandb_internal.InternalService/ArtifactPoll',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
                 )
         self.Cancel = channel.unary_unary(
                 '/wandb_internal.InternalService/Cancel',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.CancelRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.CancelResponse.FromString,
                 )
         self.Keepalive = channel.unary_unary(
                 '/wandb_internal.InternalService/Keepalive',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.FromString,
                 )
         self.CheckVersion = channel.unary_unary(
                 '/wandb_internal.InternalService/CheckVersion',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.FromString,
                 )
         self.Pause = channel.unary_unary(
                 '/wandb_internal.InternalService/Pause',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.PauseRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.PauseResponse.FromString,
                 )
         self.Resume = channel.unary_unary(
                 '/wandb_internal.InternalService/Resume',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.ResumeRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.ResumeResponse.FromString,
                 )
         self.Status = channel.unary_unary(
                 '/wandb_internal.InternalService/Status',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__internal__pb2.StatusRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__internal__pb2.StatusResponse.FromString,
                 )
         self.ServerShutdown = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerShutdown',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.FromString,
                 )
         self.ServerStatus = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerStatus',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.FromString,
                 )
         self.ServerInformInit = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformInit',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.FromString,
                 )
         self.ServerInformStart = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformStart',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.FromString,
                 )
         self.ServerInformFinish = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformFinish',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
                 )
         self.ServerInformAttach = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformAttach',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.FromString,
                 )
         self.ServerInformDetach = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformDetach',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.FromString,
                 )
         self.ServerInformTeardown = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformTeardown',
-                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.FromString,
+                request_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.SerializeToString,
+                response_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.FromString,
                 )
 
 
@@ -478,208 +478,208 @@ def add_InternalServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'RunUpdate': grpc.unary_unary_rpc_method_handler(
                     servicer.RunUpdate,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.SerializeToString,
             ),
             'Attach': grpc.unary_unary_rpc_method_handler(
                     servicer.Attach,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.AttachRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.AttachResponse.SerializeToString,
             ),
             'TBSend': grpc.unary_unary_rpc_method_handler(
                     servicer.TBSend,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.TBResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.TBRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.TBResult.SerializeToString,
             ),
             'RunStart': grpc.unary_unary_rpc_method_handler(
                     servicer.RunStart,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunStartRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.RunStartResponse.SerializeToString,
             ),
             'GetSummary': grpc.unary_unary_rpc_method_handler(
                     servicer.GetSummary,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.SerializeToString,
             ),
             'SampledHistory': grpc.unary_unary_rpc_method_handler(
                     servicer.SampledHistory,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.SerializeToString,
             ),
             'PollExit': grpc.unary_unary_rpc_method_handler(
                     servicer.PollExit,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.PollExitRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.PollExitResponse.SerializeToString,
             ),
             'ServerInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInfo,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.SerializeToString,
             ),
             'Shutdown': grpc.unary_unary_rpc_method_handler(
                     servicer.Shutdown,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.SerializeToString,
             ),
             'RunStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.RunStatus,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStatusRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStatusResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunStatusRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.RunStatusResponse.SerializeToString,
             ),
             'RunExit': grpc.unary_unary_rpc_method_handler(
                     servicer.RunExit,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunExitRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.RunExitResult.SerializeToString,
             ),
             'RunPreempting': grpc.unary_unary_rpc_method_handler(
                     servicer.RunPreempting,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.SerializeToString,
             ),
             'Metric': grpc.unary_unary_rpc_method_handler(
                     servicer.Metric,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.MetricRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.MetricResult.SerializeToString,
             ),
             'PartialLog': grpc.unary_unary_rpc_method_handler(
                     servicer.PartialLog,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PartialHistoryRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PartialHistoryResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.PartialHistoryRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.PartialHistoryResponse.SerializeToString,
             ),
             'Log': grpc.unary_unary_rpc_method_handler(
                     servicer.Log,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.HistoryRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.HistoryResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.HistoryRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.HistoryResult.SerializeToString,
             ),
             'Summary': grpc.unary_unary_rpc_method_handler(
                     servicer.Summary,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SummaryRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SummaryResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.SummaryRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.SummaryResult.SerializeToString,
             ),
             'Config': grpc.unary_unary_rpc_method_handler(
                     servicer.Config,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.ConfigRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.ConfigResult.SerializeToString,
             ),
             'Files': grpc.unary_unary_rpc_method_handler(
                     servicer.Files,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.FilesRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.FilesResult.SerializeToString,
             ),
             'Output': grpc.unary_unary_rpc_method_handler(
                     servicer.Output,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.OutputRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.OutputResult.SerializeToString,
             ),
             'OutputRaw': grpc.unary_unary_rpc_method_handler(
                     servicer.OutputRaw,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.OutputRawResult.SerializeToString,
             ),
             'Telemetry': grpc.unary_unary_rpc_method_handler(
                     servicer.Telemetry,
-                    request_deserializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.SerializeToString,
             ),
             'Alert': grpc.unary_unary_rpc_method_handler(
                     servicer.Alert,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.AlertRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.AlertResult.SerializeToString,
             ),
             'Artifact': grpc.unary_unary_rpc_method_handler(
                     servicer.Artifact,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactResult.SerializeToString,
             ),
             'LinkArtifact': grpc.unary_unary_rpc_method_handler(
                     servicer.LinkArtifact,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.SerializeToString,
             ),
             'UseArtifact': grpc.unary_unary_rpc_method_handler(
                     servicer.UseArtifact,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.UseArtifactRecord.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.UseArtifactResult.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.UseArtifactRecord.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.UseArtifactResult.SerializeToString,
             ),
             'ArtifactSend': grpc.unary_unary_rpc_method_handler(
                     servicer.ArtifactSend,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.SerializeToString,
             ),
             'ArtifactPoll': grpc.unary_unary_rpc_method_handler(
                     servicer.ArtifactPoll,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.SerializeToString,
             ),
             'Cancel': grpc.unary_unary_rpc_method_handler(
                     servicer.Cancel,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CancelResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.CancelRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.CancelResponse.SerializeToString,
             ),
             'Keepalive': grpc.unary_unary_rpc_method_handler(
                     servicer.Keepalive,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.SerializeToString,
             ),
             'CheckVersion': grpc.unary_unary_rpc_method_handler(
                     servicer.CheckVersion,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.SerializeToString,
             ),
             'Pause': grpc.unary_unary_rpc_method_handler(
                     servicer.Pause,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.PauseRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.PauseResponse.SerializeToString,
             ),
             'Resume': grpc.unary_unary_rpc_method_handler(
                     servicer.Resume,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.ResumeRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.ResumeResponse.SerializeToString,
             ),
             'Status': grpc.unary_unary_rpc_method_handler(
                     servicer.Status,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__internal__pb2.StatusRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__internal__pb2.StatusResponse.SerializeToString,
             ),
             'ServerShutdown': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerShutdown,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.SerializeToString,
             ),
             'ServerStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerStatus,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.SerializeToString,
             ),
             'ServerInformInit': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformInit,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.SerializeToString,
             ),
             'ServerInformStart': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformStart,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.SerializeToString,
             ),
             'ServerInformFinish': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformFinish,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.SerializeToString,
             ),
             'ServerInformAttach': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformAttach,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.SerializeToString,
             ),
             'ServerInformDetach': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformDetach,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.SerializeToString,
             ),
             'ServerInformTeardown': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformTeardown,
-                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.SerializeToString,
+                    request_deserializer=src_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.FromString,
+                    response_serializer=src_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -703,8 +703,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/RunUpdate',
-            wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.RunRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -720,8 +720,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Attach',
-            wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -737,8 +737,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/TBSend',
-            wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.TBResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.TBRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.TBResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -754,8 +754,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/RunStart',
-            wandb_dot_proto_dot_wandb__internal__pb2.RunStartRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.RunStartResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.RunStartRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.RunStartResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -771,8 +771,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/GetSummary',
-            wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -788,8 +788,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/SampledHistory',
-            wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -805,8 +805,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/PollExit',
-            wandb_dot_proto_dot_wandb__internal__pb2.PollExitRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.PollExitResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.PollExitRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.PollExitResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -822,8 +822,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInfo',
-            wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.ServerInfoRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.ServerInfoResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -839,8 +839,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Shutdown',
-            wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -856,8 +856,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/RunStatus',
-            wandb_dot_proto_dot_wandb__internal__pb2.RunStatusRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.RunStatusResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.RunStatusRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.RunStatusResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -873,8 +873,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/RunExit',
-            wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.RunExitResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.RunExitResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -890,8 +890,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/RunPreempting',
-            wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -907,8 +907,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Metric',
-            wandb_dot_proto_dot_wandb__internal__pb2.MetricRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.MetricResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.MetricRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.MetricResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -924,8 +924,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/PartialLog',
-            wandb_dot_proto_dot_wandb__internal__pb2.PartialHistoryRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.PartialHistoryResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.PartialHistoryRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.PartialHistoryResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -941,8 +941,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Log',
-            wandb_dot_proto_dot_wandb__internal__pb2.HistoryRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.HistoryResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.HistoryRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.HistoryResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -958,8 +958,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Summary',
-            wandb_dot_proto_dot_wandb__internal__pb2.SummaryRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.SummaryResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.SummaryRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.SummaryResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -975,8 +975,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Config',
-            wandb_dot_proto_dot_wandb__internal__pb2.ConfigRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.ConfigResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.ConfigRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.ConfigResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -992,8 +992,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Files',
-            wandb_dot_proto_dot_wandb__internal__pb2.FilesRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.FilesResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.FilesRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.FilesResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1009,8 +1009,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Output',
-            wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.OutputRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.OutputResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1026,8 +1026,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/OutputRaw',
-            wandb_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.OutputRawResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.OutputRawResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1043,8 +1043,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Telemetry',
-            wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.FromString,
+            src_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
+            src_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1060,8 +1060,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Alert',
-            wandb_dot_proto_dot_wandb__internal__pb2.AlertRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.AlertResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.AlertRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.AlertResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1077,8 +1077,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Artifact',
-            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.ArtifactResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1094,8 +1094,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/LinkArtifact',
-            wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1111,8 +1111,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/UseArtifact',
-            wandb_dot_proto_dot_wandb__internal__pb2.UseArtifactRecord.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.UseArtifactResult.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.UseArtifactRecord.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.UseArtifactResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1128,8 +1128,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ArtifactSend',
-            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1145,8 +1145,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ArtifactPoll',
-            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1162,8 +1162,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Cancel',
-            wandb_dot_proto_dot_wandb__internal__pb2.CancelRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.CancelResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.CancelRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.CancelResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1179,8 +1179,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Keepalive',
-            wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1196,8 +1196,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/CheckVersion',
-            wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1213,8 +1213,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Pause',
-            wandb_dot_proto_dot_wandb__internal__pb2.PauseRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.PauseResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.PauseRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.PauseResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1230,8 +1230,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Resume',
-            wandb_dot_proto_dot_wandb__internal__pb2.ResumeRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.ResumeResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.ResumeRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.ResumeResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1247,8 +1247,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Status',
-            wandb_dot_proto_dot_wandb__internal__pb2.StatusRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.StatusResponse.FromString,
+            src_dot_proto_dot_wandb__internal__pb2.StatusRequest.SerializeToString,
+            src_dot_proto_dot_wandb__internal__pb2.StatusResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1264,8 +1264,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerShutdown',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1281,8 +1281,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerStatus',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1298,8 +1298,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformInit',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1315,8 +1315,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformStart',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1332,8 +1332,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformFinish',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1349,8 +1349,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformAttach',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1366,8 +1366,8 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformDetach',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -1383,7 +1383,7 @@ class InternalService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformTeardown',
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.FromString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.SerializeToString,
+            src_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

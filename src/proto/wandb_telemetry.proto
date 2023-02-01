@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package wandb_internal;
 
-import "wandb/proto/wandb_base.proto";
+import "src/proto/wandb_base.proto";
 
 /*
  * Telemetry

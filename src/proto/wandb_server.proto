@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package wandb_internal;
 
-import "wandb/proto/wandb_base.proto";
-import "wandb/proto/wandb_internal.proto";
-import "wandb/proto/wandb_telemetry.proto";
+import "src/proto/wandb_base.proto";
+import "src/proto/wandb_internal.proto";
+import "src/proto/wandb_telemetry.proto";
 
 
 service InternalService {

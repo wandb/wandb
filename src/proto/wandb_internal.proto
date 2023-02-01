@@ -3,8 +3,8 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
-import "wandb/proto/wandb_base.proto";
-import "wandb/proto/wandb_telemetry.proto";
+import "src/proto/wandb_base.proto";
+import "src/proto/wandb_telemetry.proto";
 
 /*
  * Record: Persistent on disk data (BE CAREFUL)
@@ -105,7 +105,7 @@ message FooterRecord {
 }
 
 /*
- * RunRecord: wandb/sdk/wandb_run/Run
+ * RunRecord: src/sdk/wandb_run/Run
  */
 message RunRecord {
   string                    run_id = 1;
@@ -177,7 +177,7 @@ message RunPreemptingResult {
 }
 
 /*
- * SettingsRecord: wandb/sdk/wandb_settings/Settings
+ * SettingsRecord: src/sdk/wandb_settings/Settings
  */
 message SettingsRecord {
   repeated SettingsItem item = 1;
@@ -190,7 +190,7 @@ message SettingsItem {
 }
 
 /*
- * HistoryRecord: wandb/sdk/wandb_history/History
+ * HistoryRecord: src/sdk/wandb_history/History
  */
 message HistoryStep {
   int64 num = 1;
@@ -246,7 +246,7 @@ message OutputRawResult {
 }
 
 /*
- * MetricRecord: wandb/sdk/wandb_metric/Metric
+ * MetricRecord: src/sdk/wandb_metric/Metric
  */
 message MetricRecord {
   // only name or globname is set
@@ -295,7 +295,7 @@ message MetricSummary {
 }
 
 /*
- * ConfigRecord: wandb/sdk/wandb_config/Config
+ * ConfigRecord: src/sdk/wandb_config/Config
  */
 message ConfigRecord {
   repeated ConfigItem update = 1;
@@ -313,7 +313,7 @@ message ConfigResult {
 }
 
 /*
- * SummaryRecord: wandb/sdk/wandb_summary/Summary
+ * SummaryRecord: src/sdk/wandb_summary/Summary
  */
 message SummaryRecord {
   repeated SummaryItem update = 1;
@@ -582,7 +582,7 @@ message ResumeResponse {
 }
 
 /*
- * LoginRequest: wandb/sdk/wandb_login
+ * LoginRequest: src/sdk/wandb_login
  */
 message LoginRequest {
   string api_key = 1;
