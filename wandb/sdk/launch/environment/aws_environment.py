@@ -2,12 +2,16 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-import boto3
-from botocore.exceptions import ClientError
-
 from wandb.errors import LaunchError
+from wandb.util import get_module
 
-from . import AbstractEnvironment, EnvironmentError
+
+from .abstract import AbstractEnvironment
+
+boto3 = get_module("boto3", required="AWS environment requires boto3 to be installed.")
+botocore = get_module(
+    "botocore", required="AWS environment requires botocore to be installed."
+)
 
 
 @dataclass
@@ -37,7 +41,7 @@ class AwsConfig:
             AwsConfig: The AwsConfig.
 
         Raises:
-            Exception: If the dictionary is not valid.
+            LaunchError: If the dictionary is not valid.
         """
         # Check that all required keys are set.
         required_keys = ["region"]
@@ -83,15 +87,15 @@ class AwsEnvironment(AbstractEnvironment):
         """Verify that the AWS environment is configured correctly.
 
         Raises:
-            EnvironmentError: If the AWS environment is not configured correctly.
+            LaunchError: If the AWS environment is not configured correctly.
         """
         try:
             session = self.get_session()
             client = session.client("sts")
             client.get_caller_identity()
             # TODO: log identity details from the response
-        except ClientError as e:
-            raise EnvironmentError(
+        except botocore.exceptions.ClientError as e:
+            raise LaunchError(
                 f"Could not verify AWS environment. Please verify that your AWS credentials are configured correctly. {e}"
             )
 
@@ -112,8 +116,8 @@ class AwsEnvironment(AbstractEnvironment):
             session = self.get_session()
             client = session.client("s3")
             client.head_bucket(Bucket=bucket)
-        except ClientError as e:
-            raise EnvironmentError(
+        except botocore.exceptions.ClientError as e:
+            raise LaunchError(
                 f"Could not verify AWS storage. Please verify that your AWS credentials are configured correctly. {e}"
             )
 
@@ -128,8 +132,8 @@ class AwsEnvironment(AbstractEnvironment):
         """
         try:
             return boto3.Session(region_name=self.config.region)
-        except ClientError as e:
-            raise EnvironmentError(f"Could not create AWS session. {e}")
+        except botocore.exceptions.ClientError as e:
+            raise LaunchError(f"Could not create AWS session. {e}")
 
     def copy(self, source: str, destination: str) -> None:
         """Copy a file or directory to storage.
@@ -140,7 +144,7 @@ class AwsEnvironment(AbstractEnvironment):
             recursive (bool, optional): If True, copy the directory recursively. Defaults to False.
 
         Raises:
-            Exception: If the copy fails.
+            EnvironmentError: If the copy fails.
         """
         bucket = destination.replace("s3://", "").split("/")[0]
         key = destination.replace(f"s3://{bucket}/", "")
@@ -154,5 +158,5 @@ class AwsEnvironment(AbstractEnvironment):
                         bucket,
                         f"{key}/{os.path.join(path, file).replace(source, '')}",
                     )
-        except ClientError as e:
-            raise EnvironmentError(f"Could not copy {source} to {destination}. {e}")
+        except botocore.exceptions.ClientError as e:
+            raise LaunchError(f"Could not copy {source} to {destination}. {e}")

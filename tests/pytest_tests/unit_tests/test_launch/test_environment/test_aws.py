@@ -1,4 +1,4 @@
-from wandb.sdk.launch.environment import AwsEnvironment, AwsConfig
+from wandb.sdk.launch.environment.aws_environment import AwsEnvironment, AwsConfig
 from wandb.errors import LaunchError
 import pytest
 
