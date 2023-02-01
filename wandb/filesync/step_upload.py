@@ -83,11 +83,15 @@ class StepUpload:
         self._api = api
         self._stats = stats
         self._event_queue = event_queue
-        self._max_jobs = max_jobs
         self._file_stream = file_stream
 
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
+
+        self._pool = concurrent.futures.ThreadPoolExecutor(
+            thread_name_prefix="wandb-upload",
+            max_workers=max_jobs,
+        )
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs: MutableMapping[
@@ -132,7 +136,6 @@ class StepUpload:
     def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
-            job.join()
 
             if event.exc is not None:
                 logger.exception(
@@ -171,10 +174,7 @@ class StepUpload:
                 if event.artifact_id not in self._artifacts:
                     self._init_artifact(event.artifact_id)
                 self._artifacts[event.artifact_id]["pending_count"] += 1
-            if len(self._running_jobs) == self._max_jobs:
-                self._pending_jobs.append(event)
-            else:
-                self._start_upload_job(event)
+            self._start_upload_job(event)
         else:
             raise Exception("Programming error: unhandled event: %s" % str(event))
 
@@ -188,7 +188,6 @@ class StepUpload:
 
         # Start it.
         job = upload_job.UploadJob(
-            self._event_queue,
             self._stats,
             self._api,
             self._file_stream,
@@ -201,8 +200,45 @@ class StepUpload:
             event.save_fn,
             event.digest,
         )
-        self._running_jobs[event.save_name] = job
-        job.start()
+        self._spawn_upload(job)
+
+    def _spawn_upload(self, job: upload_job.UploadJob) -> None:
+        """Spawns an upload job, and handles the bookkeeping of `self._running_jobs`.
+
+        Context: it's important that, whenever we add an entry to `self._running_jobs`,
+        we ensure that a corresponding `EventJobDone` message will eventually get handled;
+        otherwise, the `_running_jobs` entry will never get removed, and the StepUpload
+        will never shut down.
+
+        The sole purpose of this function is to make sure that the code that adds an entry
+        to `self._running_jobs` is textually right next to the code that eventually enqueues
+        the `EventJobDone` message. This should help keep them in sync.
+        """
+
+        # Adding the entry to `self._running_jobs` MUST happen in the main thread,
+        # NOT in the job that gets submitted to the thread-pool, to guard against
+        # this sequence of events:
+        # - StepUpload receives a RequestUpload
+        #     ...and therefore spawns a thread to do the upload
+        # - StepUpload receives a RequestFinish
+        #     ...and checks `self._running_jobs` to see if there are any tasks to wait for...
+        #     ...and there are none, because the addition to `self._running_jobs` happens in
+        #        the background thread, which the scheduler hasn't yet run...
+        #     ...so the StepUpload shuts down. Even though we haven't uploaded the file!
+        #
+        # This would be very bad!
+        # So, this line has to happen _outside_ the `pool.submit()`.
+        self._running_jobs[job.save_name] = job
+
+        def run_and_notify() -> None:
+            try:
+                job.run()
+            finally:
+                self._event_queue.put(
+                    upload_job.EventJobDone(job=job, exc=sys.exc_info()[1])
+                )
+
+        self._pool.submit(run_and_notify)
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
@@ -233,7 +269,7 @@ class StepUpload:
             else:
                 self._resolve_artifact_futures(artifact_id)
 
-    def _fail_artifact_futures(self, artifact_id: str, exc: Exception) -> None:
+    def _fail_artifact_futures(self, artifact_id: str, exc: BaseException) -> None:
         futures = self._artifacts[artifact_id]["result_futures"]
         for result_future in futures:
             result_future.set_exception(exc)
