@@ -124,7 +124,7 @@ class LocalContainerRunner(AbstractRunner):
                 entry_point,
             )
             command_str = " ".join(
-                get_docker_command(image_uri, env_vars, [""], docker_args)
+                get_docker_command(image_uri, env_vars, [], docker_args)
             ).strip()
 
         if not self.ack_run_queue_item(launch_project):
@@ -201,9 +201,12 @@ def get_docker_command(
                 cmd += [prefix]
             else:
                 cmd += [prefix, shlex.quote(str(value))]
-
+    # entry_cmd is empty if we built the container
+    # or if the user did not provide and override entrypoint
+    # in the launch spec
+    if entry_cmd:
+        cmd += ["--entrypoint"] + entry_cmd
     cmd += [shlex.quote(image)]
-    cmd += entry_cmd
     return cmd
 
 
