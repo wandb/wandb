@@ -1567,8 +1567,9 @@ class SendManager:
                 proto_artifact.run_id = self._run.run_id
                 proto_artifact.project = self._run.project
                 proto_artifact.entity = self._run.entity
-                for alias in ["latest"]:
-                    proto_artifact.aliases.append(alias)
+                # TODO: this should be removed when the latest tag is handled
+                # by the backend (WB-12116)
+                proto_artifact.aliases.append("latest")
                 proto_artifact.user_created = True
                 proto_artifact.use_after_commit = True
                 proto_artifact.finalize = True
