@@ -382,13 +382,14 @@ class Agent:
         }
 
     @staticmethod
-    def _create_sweep_command(command: Optional[List[str]] = None) -> List[str]:
+    def _create_sweep_command(command: Optional[List] = None) -> List:
         """Returns sweep command, filling in environment variable macros."""
         # Start from default sweep command
         command = command or Agent.DEFAULT_SWEEP_COMMAND
         for i, chunk in enumerate(command):
-            # # Replace environment variable macros
-            if Agent.SWEEP_COMMAND_ENV_VAR_REGEX.search(chunk):
+            # Replace environment variable macros
+            # Search a str(chunk), but allow matches to be of any (ex: int) type
+            if Agent.SWEEP_COMMAND_ENV_VAR_REGEX.search(str(chunk)):
                 # Replace from backwards forwards
                 matches = list(Agent.SWEEP_COMMAND_ENV_VAR_REGEX.finditer(chunk))
                 for m in matches[::-1]:

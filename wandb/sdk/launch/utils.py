@@ -38,7 +38,6 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
-PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
@@ -626,3 +625,11 @@ def check_logged_in(api: Api) -> bool:
         )
 
     return True
+
+
+def make_name_dns_safe(name: str) -> str:
+    resp = name.replace("_", "-").lower()
+    resp = re.sub(r"[^a-z\.\-]", "", resp)
+    # Actual length limit is 253, but we want to leave room for the generated suffix
+    resp = resp[:200]
+    return resp

@@ -7,6 +7,7 @@ import os
 import re
 import socket
 import sys
+import threading
 from copy import deepcopy
 from typing import (
     IO,
@@ -43,6 +44,7 @@ from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
+from . import context
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
@@ -96,6 +98,13 @@ if TYPE_CHECKING:
 #     def __getitem__(self, name: str) -> Any: ...
 
 
+class _ThreadLocalData(threading.local):
+    context: Optional[context.Context]
+
+    def __init__(self) -> None:
+        self.context = None
+
+
 class Api:
     """W&B Internal Api wrapper
 
@@ -112,6 +121,8 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
+    _global_context: context.Context
+    _local_data: _ThreadLocalData
 
     def __init__(
         self,
@@ -131,6 +142,8 @@ class Api:
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
         self._environ = environ
+        self._global_context = context.Context()
+        self._local_data = _ThreadLocalData()
         self.default_settings: "DefaultSettings" = {
             "section": "default",
             "git_remote": "origin",
@@ -172,7 +185,7 @@ class Api:
             )
         )
         self.retry_callback = retry_callback
-        self.gql = retry.Retry(
+        self._retry_gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
@@ -181,6 +194,7 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
+        self._upload_file_session = requests.Session()
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -195,6 +209,24 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
+
+    def gql(self, *args: Any, **kwargs: Any) -> Any:
+        ret = self._retry_gql(
+            *args,
+            retry_cancel_event=self.context.cancel_event,
+            **kwargs,
+        )
+        return ret
+
+    def set_local_context(self, api_context: Optional[context.Context]) -> None:
+        self._local_data.context = api_context
+
+    def clear_local_context(self) -> None:
+        self._local_data.context = None
+
+    @property
+    def context(self) -> context.Context:
+        return self._local_data.context or self._global_context
 
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
@@ -1964,7 +1996,9 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = self._upload_file_session.put(
+                    url, data=progress, headers=extra_headers
+                )
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")

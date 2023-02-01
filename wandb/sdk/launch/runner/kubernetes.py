@@ -18,9 +18,9 @@ from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
+    make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -301,9 +301,9 @@ class KubernetesRunner(AbstractRunner):
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
         if not job_metadata.get("name"):
-            job_metadata[
-                "generateName"
-            ] = f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
+            job_metadata["generateName"] = make_name_dns_safe(
+                f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
+            )
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
@@ -318,13 +318,7 @@ class KubernetesRunner(AbstractRunner):
 
         # env vars
         env_vars = get_env_vars_dict(launch_project, self._api)
-
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         secret = None
-        if docker_args and list(docker_args) != ["docker_image"]:
-            wandb.termwarn(
-                f"{LOG_PREFIX}Docker args are not supported for Kubernetes. Not using docker args"
-            )
         # only need to do this if user is providing image, on build, our image sets an entrypoint
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
         if launch_project.docker_image and entry_cmd:
@@ -362,9 +356,7 @@ class KubernetesRunner(AbstractRunner):
                     f"{LOG_PREFIX}Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
             assert entry_point is not None
-            image_uri = builder.build_image(
-                launch_project, repository, entry_point, docker_args
-            )
+            image_uri = builder.build_image(launch_project, repository, entry_point)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             secret = maybe_create_imagepull_secret(

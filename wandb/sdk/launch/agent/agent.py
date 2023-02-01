@@ -6,12 +6,14 @@ import logging
 import os
 import pprint
 import time
+import traceback
 from typing import Any, Dict, List, Union
 
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
@@ -20,7 +22,6 @@ from ..runner.loader import load_backend
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     resolve_build_and_registry_config,
 )
@@ -55,7 +56,7 @@ class LaunchAgent:
         self._ticks = 0
         self._running = 0
         self._cwd = os.getcwd()
-        self._namespace = wandb.util.generate_id()
+        self._namespace = runid.generate_id()
         self._access = _convert_access("project")
         max_jobs_from_config = int(config.get("max_jobs", 1))
         if max_jobs_from_config == -1:
@@ -156,8 +157,6 @@ class LaunchAgent:
         _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
-            PROJECT_DOCKER_ARGS: (launch_spec.get("docker", {}) or {}).get("args", {})
-            or {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
 
@@ -206,8 +205,10 @@ class LaunchAgent:
                         if job:
                             try:
                                 self.run_job(job)
-                            except Exception as e:
-                                wandb.termerror(f"Error running job: {e}")
+                            except Exception:
+                                wandb.termerror(
+                                    f"Error running job: {traceback.format_exc()}"
+                                )
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)

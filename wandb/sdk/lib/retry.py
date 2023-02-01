@@ -1,14 +1,18 @@
+import abc
+import asyncio
 import datetime
 import functools
 import logging
 import os
 import random
+import threading
 import time
-from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
+from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
 
 import wandb
+from wandb.errors import ContextCancelledError
 from wandb.util import CheckRetryFnType
 
 logger = logging.getLogger(__name__)
@@ -18,6 +22,7 @@ logger = logging.getLogger(__name__)
 # should only use these variables, not call the stdlib funcs directly.
 NOW_FN = datetime.datetime.now
 SLEEP_FN = time.sleep
+SLEEP_ASYNC_FN = asyncio.sleep
 
 
 class TransientError(Exception):
@@ -50,6 +55,7 @@ class Retry(Generic[_R]):
         self,
         call_fn: Callable[..., _R],
         retry_timedelta: Optional[datetime.timedelta] = None,
+        retry_cancel_event: Optional[threading.Event] = None,
         num_retries: Optional[int] = None,
         check_retry_fn: CheckRetryFnType = lambda e: True,
         retryable_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
@@ -61,6 +67,7 @@ class Retry(Generic[_R]):
         self._error_prefix = error_prefix
         self._last_print = datetime.datetime.now() - datetime.timedelta(minutes=1)
         self._retry_timedelta = retry_timedelta
+        self._retry_cancel_event = retry_cancel_event
         self._num_retries = num_retries
         if retryable_exceptions is not None:
             self._retryable_exceptions = retryable_exceptions
@@ -69,12 +76,21 @@ class Retry(Generic[_R]):
         self._index = 0
         self.retry_callback = retry_callback
 
+    def _sleep_check_cancelled(
+        self, wait_seconds: float, cancel_event: Optional[threading.Event]
+    ) -> bool:
+        if not cancel_event:
+            SLEEP_FN(wait_seconds)
+            return False
+        cancelled = cancel_event.wait(wait_seconds)
+        return cancelled
+
     @property
     def num_iters(self) -> int:
         """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _R:
+    def __call__(self, *args: Any, **kwargs: Any) -> _R:  # noqa: C901
         """Call the wrapped function, with retries.
 
         Arguments:
@@ -86,6 +102,8 @@ class Retry(Generic[_R]):
         retry_timedelta = kwargs.pop("retry_timedelta", self._retry_timedelta)
         if retry_timedelta is None:
             retry_timedelta = datetime.timedelta(days=365)
+
+        retry_cancel_event = kwargs.pop("retry_cancel_event", self._retry_cancel_event)
 
         num_retries = kwargs.pop("num_retries", self._num_retries)
         if num_retries is None:
@@ -151,7 +169,7 @@ class Retry(Generic[_R]):
                     raise
 
                 if self._num_iter == 2:
-                    logger.exception("Retry attempt failed:")
+                    logger.info("Retry attempt failed:", exc_info=e)
                     if (
                         isinstance(e, HTTPError)
                         and e.response is not None
@@ -169,7 +187,11 @@ class Retry(Generic[_R]):
                         )
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
-            SLEEP_FN(sleep + random.random() * 0.25 * sleep)
+            cancelled = self._sleep_check_cancelled(
+                sleep + random.random() * 0.25 * sleep, cancel_event=retry_cancel_event
+            )
+            if cancelled:
+                raise ContextCancelledError("retry timeout")
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS
@@ -192,3 +214,76 @@ def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
         return wrapped_fn  # type: ignore
 
     return decorator
+
+
+class Backoff(abc.ABC):
+    """A backoff strategy: decides whether to sleep or give up when an exception is raised."""
+
+    @abc.abstractmethod
+    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
+        raise NotImplementedError  # pragma: no cover
+
+
+class ExponentialBackoff(Backoff):
+    """Jittered exponential backoff: sleep times increase ~exponentially up to some limit."""
+
+    def __init__(
+        self,
+        initial_sleep: datetime.timedelta,
+        max_sleep: datetime.timedelta,
+        max_retries: Optional[int] = None,
+        timeout_at: Optional[datetime.datetime] = None,
+    ) -> None:
+        self._next_sleep = min(max_sleep, initial_sleep)
+        self._max_sleep = max_sleep
+        self._remaining_retries = max_retries
+        self._timeout_at = timeout_at
+
+    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
+        if self._remaining_retries is not None:
+            if self._remaining_retries <= 0:
+                raise exc
+            self._remaining_retries -= 1
+
+        if self._timeout_at is not None and NOW_FN() > self._timeout_at:
+            raise exc
+
+        result, self._next_sleep = self._next_sleep, min(
+            self._max_sleep, self._next_sleep * (1 + random.random())
+        )
+
+        return result
+
+
+class FilteredBackoff(Backoff):
+    """Re-raise any exceptions that fail a predicate; delegate others to another Backoff."""
+
+    def __init__(self, filter: Callable[[Exception], bool], wrapped: Backoff) -> None:
+        self._filter = filter
+        self._wrapped = wrapped
+
+    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
+        if not self._filter(exc):
+            raise exc
+        return self._wrapped.next_sleep_or_reraise(exc)
+
+
+async def retry_async(
+    backoff: Backoff,
+    fn: Callable[..., Awaitable[_R]],
+    *args: Any,
+    on_exc: Optional[Callable[[Exception], None]] = None,
+    **kwargs: Any,
+) -> _R:
+    """Call `fn` repeatedly until either it succeeds, or `backoff` decides we should give up.
+
+    Each time `fn` fails, `on_exc` is called with the exception.
+    """
+
+    while True:
+        try:
+            return await fn(*args, **kwargs)
+        except Exception as e:
+            if on_exc is not None:
+                on_exc(e)
+            await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())

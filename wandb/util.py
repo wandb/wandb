@@ -34,6 +34,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Iterable,
     List,
     Mapping,
     NewType,
@@ -49,13 +50,12 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-import shortuuid  # type: ignore
 import yaml
 
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -201,15 +201,15 @@ def sentry_exc(
     return None
 
 
-def sentry_reraise(exc: Any) -> None:
+def sentry_reraise(exc: Any, delay: bool = False) -> None:
     """Re-raise an exception after logging it to Sentry
 
     Use this for top-level exceptions when you want the user to see the traceback.
 
     Must be called from within an exception handler.
     """
-    sentry_exc(exc)
-    # this will messily add this "reraise" function to the stack trace
+    sentry_exc(exc, delay=delay)
+    # this will messily add this "reraise" function to the stack trace,
     # but hopefully it's not too bad
     raise exc.with_traceback(sys.exc_info()[2])
 
@@ -307,7 +307,12 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
+    vendor_packages = (
+        "gql-0.2.0",
+        "graphql-core-1.1",
+        "watchdog_0_9_0",
+        "promise-2.3.0",
+    )
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -503,7 +508,7 @@ def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
             value = split[1]
             i += 1
         if name in user_dict:
-            wandb.termerror(f"Repeated parameter: '{name}'")
+            wandb.termerror(f"Repeated parameter: {name!r}")
             sys.exit(1)
         user_dict[name] = value
     return user_dict
@@ -538,7 +543,7 @@ def is_pytorch_tensor_typename(typename: str) -> bool:
 
 
 def is_jax_tensor_typename(typename: str) -> bool:
-    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+    return typename.startswith("jaxlib.") and "Array" in typename
 
 
 def get_jax_tensor(obj: Any) -> Optional[Any]:
@@ -862,9 +867,9 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
 
 
 def generate_id(length: int = 8) -> str:
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return str(run_gen.random(length))
+    # Do not use this; use wandb.sdk.lib.runid.generate_id instead.
+    # This is kept only for legacy code.
+    return runid.generate_id(length)
 
 
 def parse_tfjob_config() -> Any:
@@ -1025,7 +1030,7 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
 
 
 def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
-    """Check if the exception is a conflict or gone type so it can be retried or not.
+    """Check if the exception is a conflict or gone type, so it can be retried or not.
 
     Returns:
         True - Should retry this operation
@@ -1341,7 +1346,7 @@ def prompt_choices(
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
     result = choices[idx]
-    wandb.termlog(f"You chose '{result}'")
+    wandb.termlog(f"You chose {result!r}")
     return result
 
 
@@ -1680,7 +1685,7 @@ def _log_thread_stacks() -> None:
             f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
         )
         for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f'  File: "{filename}", line {lineno}, in {name}')
+            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
             if line:
                 logger.info(f"  Line: {line}")
 
@@ -1765,7 +1770,7 @@ def _parse_entity_project_item(path: str) -> tuple:
     return tuple(reversed(padded_words))
 
 
-def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
     """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
     Ensures that "latest" is always present in the returned list.
 
@@ -1783,19 +1788,15 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
         assert aliases == ["boom", "latest"]
 
     """
-    if aliases is None:
-        aliases = []
-
-    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
-        raise ValueError("`aliases` must either be None or of type str or list")
+    aliases = aliases or ["latest"]
 
     if isinstance(aliases, str):
         aliases = [aliases]
 
-    if "latest" not in aliases:
-        aliases.append("latest")
-
-    return aliases
+    try:
+        return list(set(aliases) | {"latest"})
+    except TypeError as exc:
+        raise ValueError("`aliases` must be Iterable or None") from exc
 
 
 def _is_artifact_object(v: Any) -> bool:
@@ -1865,7 +1866,7 @@ def ensure_text(
     elif isinstance(string, str):
         return string
     else:
-        raise TypeError(f"not expecting type '{type(string)}'")
+        raise TypeError(f"not expecting type {type(string)!r}")
 
 
 def make_artifact_name_safe(name: str) -> str:

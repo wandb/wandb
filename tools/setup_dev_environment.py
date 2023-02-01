@@ -8,13 +8,14 @@ import sys
 
 from pkg_resources import parse_version
 
-PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10"]
+PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+PIP_VERSION = "21.1.2"
 TOX_VERSION = "3.24.0"
 
 
 # Python 3.6 is not installable on Macs with Apple silicon
 if platform.system() == "Darwin" and platform.processor() == "arm":
-    PYTHON_VERSIONS.pop(0)
+    PYTHON_VERSIONS = [v for v in PYTHON_VERSIONS if v != "3.6"]
 
 
 class Console:
@@ -27,6 +28,31 @@ class Console:
     YELLOW = "\033[93m"
     RED = "\033[91m"
     END = "\033[0m"
+
+
+def run_in_env(command, python_version=None):
+    """Run a command in a pyenv environment."""
+    if python_version:
+        command = f'eval "$(pyenv init -)"; (pyenv shell {python_version}; {command})'
+    return subprocess.check_output(command, shell=True).decode("utf-8")
+
+
+def installed_versions(python_version):
+    """List of installed package/versions."""
+    list_cmd = "pip list --format=freeze --disable-pip-version-check"
+    return run_in_env(list_cmd, python_version=python_version).split()
+
+
+def pin_version(package_name, package_version, python_version=None):
+    versioned_package = f"{package_name}=={package_version}"
+    if versioned_package in installed_versions(python_version):
+        return
+    print(f"Installing {versioned_package}", end=" ")
+    if python_version:
+        print(f"for Python {python_version}", end=" ")
+    print("...")
+    install_command = f"python -m pip install --upgrade {versioned_package} -qq"
+    return run_in_env(install_command, python_version=python_version)
 
 
 def main():
@@ -119,6 +145,8 @@ def main():
             )
             if p.returncode != 0:
                 print(f"Failed to install {latest}")
+        pin_version("pip", PIP_VERSION, python_version=latest)
+        pin_version("tox", TOX_VERSION, python_version=latest)
         installed_python_versions.append(latest)
 
     print(f"Setting local pyenv versions to: {' '.join(installed_python_versions)}")
@@ -128,14 +156,7 @@ def main():
         stderr=subprocess.STDOUT,
         check=True,
     )
-
-    print("Installing dependencies: tox...")
-    subprocess.run(
-        ["python", "-m", "pip", "install", "-qq", f"tox=={TOX_VERSION}"],
-        stdout=sys.stdout,
-        stderr=subprocess.STDOUT,
-        check=True,
-    )
+    pin_version("tox", TOX_VERSION)
 
     print(f"{Console.GREEN}Development environment setup!{Console.END}")
     print()
@@ -143,7 +164,7 @@ def main():
     print(f"{Console.CODE}  tox{Console.END}")
     print("Run a specific test in a specific environment:")
     print(
-        f"{Console.CODE}  tox -e py37 -- tests/test_public_api.py -k test_run_config{Console.END}"
+        f"{Console.CODE}  tox -e py37 -- tests/pytest_tests/unit_tests/test_public_api.py -k proj{Console.END}"
     )
     print("Lint code:")
     print(f"{Console.CODE}  tox -e format,flake8,mypy{Console.END}")
