@@ -37,7 +37,7 @@ class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
     before_commit: step_upload.PreCommitFn
-    result_fut: "concurrent.futures.Future[None]"
+    result_future: "concurrent.futures.Future[None]"
 
 
 class RequestFinish(NamedTuple):
@@ -124,7 +124,10 @@ class StepChecksum:
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(
                     step_upload.RequestCommitArtifact(
-                        req.artifact_id, req.finalize, req.before_commit, req.result_fut
+                        req.artifact_id,
+                        req.finalize,
+                        req.before_commit,
+                        req.result_future,
                     )
                 )
             elif isinstance(req, RequestFinish):

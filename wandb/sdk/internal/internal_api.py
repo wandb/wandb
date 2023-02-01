@@ -2067,7 +2067,7 @@ class Api:
                 )
             if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
                 logger.error(
-                    f"upload_file_retry_async response body: {exc.response.content}"
+                    f"upload_file_retry_async response body: {exc.response.content!r}"
                 )
 
             retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
@@ -2096,7 +2096,7 @@ class Api:
             ),
         )
 
-        async def put_and_raise_for_status(client, *args, **kwargs) -> None:
+        async def put_and_raise_for_status(client, *args: Any, **kwargs: Any) -> None:
             response = await client.put(*args, **kwargs)
             response.raise_for_status()
 

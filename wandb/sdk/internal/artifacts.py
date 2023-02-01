@@ -283,20 +283,20 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        commit_res: "concurrent.futures.Future[None]" = concurrent.futures.Future()
+        commit_result: "concurrent.futures.Future[None]" = concurrent.futures.Future()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
             artifact_id,
             finalize=finalize,
             before_commit=before_commit,
-            result_fut=commit_res,
+            result_future=commit_result,
         )
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
         try:
-            commit_res.result()
+            commit_result.result()
         finally:
             step_prepare.shutdown()
 
