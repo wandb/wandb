@@ -68,7 +68,8 @@ class LaunchProject:
             _logger.info(f"{LOG_PREFIX}Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
-        wandb.termlog(f"{LOG_PREFIX}Launch project got job {job}")
+        if job is not None:
+            wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
         self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
