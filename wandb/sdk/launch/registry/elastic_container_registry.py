@@ -2,12 +2,16 @@ import base64
 from dataclasses import dataclass
 from typing import Tuple
 
-from botocore.exceptions import ClientError
 
 from wandb.errors import LaunchError
-from wandb.sdk.launch.environment import AwsEnvironment
+from wandb.util import get_module
+from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 
-from . import AbstractRegistry, RegistryError
+from .abstract import AbstractRegistry
+
+botocore = get_module(
+    "botocore", required="AWS environment requires botocore to be installed."
+)
 
 
 @dataclass
@@ -31,7 +35,7 @@ class EcrConfig:
             EcrConfig: The EcrConfig.
 
         Raises:
-            RegistryError: If the dictionary is not valid.
+            LaunchError: If the dictionary is not valid.
         """
         # Check that all required keys are set.
         required_keys = ["repo"]
@@ -79,11 +83,11 @@ class ElasticContainerRegistry(AbstractRegistry):
             response = client.describe_repositories(repositoryNames=[self.config.repo])
             self.uri = response["repositories"][0]["repositoryUri"].split("/")[0]
 
-        except ClientError as e:
+        except botocore.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
             msg = e.response["Error"]["Message"]
             # TODO: Log the code and the message here?
-            raise RegistryError(
+            raise LaunchError(
                 f"Error verifying Elastic Container Registry: {code} {msg}"
             )
 
@@ -108,11 +112,11 @@ class ElasticContainerRegistry(AbstractRegistry):
                 .replace(b"AWS:", b"")
                 .decode("utf-8"),
             )
-        except ClientError as e:
+        except botocore.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
             msg = e.response["Error"]["Message"]
             # TODO: Log the code and the message here?
-            raise RegistryError(f"Error getting username and password: {code} {msg}")
+            raise LaunchError(f"Error getting username and password: {code} {msg}")
 
     def get_repo_uri(self) -> str:
         """Get the uri of the repository.
@@ -147,8 +151,8 @@ class ElasticContainerRegistry(AbstractRegistry):
                 if tag in i["imageTags"]:
                     return True
             return False
-        except ClientError as e:
+        except botocore.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
             msg = e.response["Error"]["Message"]
             # TODO: Log the code and the message here?
-            raise RegistryError(f"Error checking if image exists: {code} {msg}")
+            raise LaunchError(f"Error checking if image exists: {code} {msg}")
