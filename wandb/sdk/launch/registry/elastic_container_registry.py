@@ -21,7 +21,7 @@ class EcrConfig:
     repo: str
 
     @classmethod
-    def from_dict(cls, config_dict: dict):
+    def from_dict(cls, config_dict: dict) -> "EcrConfig":
         """Create an EcrConfig from a dictionary.
 
         Args:
@@ -60,13 +60,13 @@ class ElasticContainerRegistry(AbstractRegistry):
     environment: AwsEnvironment
     uri: str
 
-    def __init__(self, config, environment):
+    def __init__(self, config: EcrConfig, environment: AwsEnvironment) -> None:
         super().__init__()
         self.config = config
         self.environment = environment
         self.verify()
 
-    def verify(self):
+    def verify(self) -> None:
         """Verify that the registry is accessible and the configured repo exists.
 
         Raises:
@@ -114,7 +114,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             # TODO: Log the code and the message here?
             raise RegistryError(f"Error getting username and password: {code} {msg}")
 
-    def get_repo_uri(self):
+    def get_repo_uri(self) -> str:
         """Get the uri of the repository.
 
         Returns:
@@ -122,7 +122,7 @@ class ElasticContainerRegistry(AbstractRegistry):
         """
         return self.uri + "/" + self.config.repo
 
-    def check_exists(self, image_uri):
+    def check_exists(self, image_uri: str) -> bool:
         """Check if an image exists in the registry.
 
         Args:

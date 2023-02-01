@@ -27,7 +27,7 @@ class AwsConfig:
     kubernetes_secret: Optional[str] = None
 
     @classmethod
-    def from_dict(cls, config_dict: dict):
+    def from_dict(cls, config_dict: dict) -> "AwsConfig":
         """Create an AwsConfig from a dictionary.
 
         Args:
@@ -66,7 +66,7 @@ class AwsConfig:
 class AwsEnvironment(AbstractEnvironment):
     config: AwsConfig
 
-    def __init__(self, config: AwsConfig):
+    def __init__(self, config: AwsConfig) -> None:
         """Initialize the AWS environment.
 
         Args:
@@ -79,7 +79,7 @@ class AwsEnvironment(AbstractEnvironment):
         self.config = config
         self.verify()
 
-    def verify(self):
+    def verify(self) -> None:
         """Verify that the AWS environment is configured correctly.
 
         Raises:
@@ -95,7 +95,7 @@ class AwsEnvironment(AbstractEnvironment):
                 f"Could not verify AWS environment. Please verify that your AWS credentials are configured correctly. {e}"
             )
 
-    def verify_storage(self, uri: str):
+    def verify_storage(self, uri: str) -> None:
         """Verify that storage is configured correctly.
 
         Args:
@@ -117,7 +117,7 @@ class AwsEnvironment(AbstractEnvironment):
                 f"Could not verify AWS storage. Please verify that your AWS credentials are configured correctly. {e}"
             )
 
-    def get_session(self):
+    def get_session(self) -> "boto3.Session":
         """Get an AWS session.
 
         Returns:
@@ -131,7 +131,7 @@ class AwsEnvironment(AbstractEnvironment):
         except ClientError as e:
             raise EnvironmentError(f"Could not create AWS session. {e}")
 
-    def copy(self, source: str, destination: str):
+    def copy(self, source: str, destination: str) -> None:
         """Copy a file or directory to storage.
 
         Args:
