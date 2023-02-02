@@ -15,6 +15,9 @@ __all__ = [
     "ServiceStartProcessError",
     "ServiceStartTimeoutError",
     "ServiceStartPortError",
+    "ServiceConnectProcessExistsError",
+    "ServiceConnectRefusedError",
+    "ServiceConnectError",
 ]
 
 from typing import List, Optional
@@ -157,7 +160,19 @@ class ServiceStartPortError(Error):
     pass
 
 
-class ServiceProcessExistsError(Error):
+class ServiceConnectError(Error):
     """Raised when service process is not running"""
+
+    pass
+
+
+class ServiceConnectRefusedError(Error):
+    """Raised when service process is not running"""
+
+    pass
+
+
+class ServiceConnectProcessExistsError(Error):
+    """Raised when service process is not running, but WANDB_SERVICE exists"""
 
     pass
