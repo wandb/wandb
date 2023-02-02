@@ -201,7 +201,9 @@ def get_gcp_config(config: str = "default") -> Any:
     return {"properties": {}}
 
 
-def resolve_gcp_region(resource_args, gcp_config, registry_config):
+def resolve_gcp_region(
+    resource_args: dict, gcp_config: dict, registry_config: dict
+) -> str:
     """Resolve the GCP region from resource args, gcp config, and registry config.
 
     Args:
@@ -219,7 +221,7 @@ def resolve_gcp_region(resource_args, gcp_config, registry_config):
         gcp_config.get("properties", {}).get("compute", {}).get("zone")
     )
     if not gcp_zone:
-        registry_region = registry_config.get("region")
+        registry_region: str = registry_config.get("region", "")
         if registry_region:
             # TODO: validate the region is valid
             return registry_region
@@ -249,7 +251,7 @@ def resolve_artifact_repo(
     """
 
     # If a full repo uri is specified, use that
-    registry_repo = registry_config.get("url")
+    registry_repo: str = registry_config.get("url", "")
     if registry_repo:
         # TODO: Do some kind of validation that this repo is valid
         return registry_repo
@@ -268,7 +270,7 @@ def resolve_artifact_repo(
     return repository
 
 
-def resolve_docker_host(resource_args, gcp_region):
+def resolve_docker_host(resource_args: dict, gcp_region: str) -> str:
     """Resolve the docker host from resource args and gcloud configuration."""
     resource_host = resource_args.get("docker_host")
     default_host = f"{gcp_region}-docker.pkg.dev"

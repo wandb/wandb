@@ -29,13 +29,12 @@ _logger = logging.getLogger(__name__)
 
 
 def resolve_agent_config(
-    config_path: Dict[str, Any],
+    config_path: str,
     api: Api,
     entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[List[str]],
-    config: Optional[str] = None,  # Path to config file
 ) -> Tuple[Dict[str, Any], Api]:
     """Resolve launch agent configuration from possible configuration sources.
 
