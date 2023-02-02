@@ -202,7 +202,10 @@ class StepUpload:
             self._pending_jobs.append(event)
             return
 
-        if event.save_fn_async is not None and wandb.env.get_use_async_upload():
+        if (
+            event.save_fn_async is not None
+            and wandb.env.get_async_upload_concurrency_limit() is not None
+        ):
             self._spawn_upload_async(event, event.save_fn_async)
         else:
             self._spawn_upload_sync(event)

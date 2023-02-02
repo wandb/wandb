@@ -255,9 +255,11 @@ class TestFinish:
 
 
 class TestUpload:
-    @pytest.fixture(autouse=True, params=[True, False])
+    @pytest.fixture(autouse=True, params=[None, 100])
     def use_async_upload(self, request):
-        with patch("wandb.env.get_use_async_upload", return_value=request.param):
+        with patch(
+            "wandb.env.get_async_upload_concurrency_limit", return_value=request.param
+        ):
             yield request.param
 
     def test_upload(
@@ -567,7 +569,7 @@ class TestUpload:
             save_fn_async.assert_not_called()
 
 
-@patch("wandb.env.get_use_async_upload", return_value=True)
+@patch("wandb.env.get_async_upload_concurrency_limit", return_value=10)
 class TestAsyncUpload:
     def test_falls_back_to_sync_on_error(self, tmp_path: Path):
         save_fn_sync = Mock(return_value=False)
