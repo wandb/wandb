@@ -25,11 +25,7 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import (
-    DEFAULT_CONFIG_FILE,
-    LOG_PREFIX,
-    resolve_build_and_registry_config,
-)
+from ..utils import DEFAULT_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
 from .abstract import AbstractBuilder
 from .loader import load_builder
 

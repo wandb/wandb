@@ -1,16 +1,18 @@
 import subprocess
 
 import pytest
+from google.cloud import aiplatform
+
 import wandb
 import wandb.sdk.launch.launch as launch
-from google.cloud import aiplatform
 from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.gcp_vertex import (
     get_gcp_config,
-    run_shell,
     resolve_artifact_repo,
     resolve_gcp_region,
+    run_shell,
 )
+
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
 SUCCEEDED = "JobState.JOB_STATE_SUCCEEDED"

@@ -1,9 +1,9 @@
 import logging
 import os
+import pprint
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
-import pprint
 
 import wandb
 from wandb.apis.internal import Api
@@ -16,9 +16,9 @@ from .builder.build import construct_builder_args
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
-    LOG_PREFIX,
     DEFAULT_CONFIG_FILE,
     LAUNCH_DEFAULT_PROJECT,
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
