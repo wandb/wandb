@@ -56,6 +56,7 @@ from wandb.util import (
     _is_artifact_string,
     _is_artifact_version_weave_dict,
     _is_py_path,
+    _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
     sentry_set_scope,
@@ -1376,6 +1377,15 @@ class Run:
 
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
+
+        # NOTE: console output is only allowed on the process which installed the callback
+        # this will prevent potential corruption in the socket to the service.  Other methods
+        # are protected by the _attach run decorator, but this callback was installed on the
+        # write function of stdout and stderr streams.
+        console_pid = getattr(self, "_attach_pid", 0)
+        if console_pid != os.getpid():
+            return
+
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output_raw(name, data)
 
@@ -2039,6 +2049,9 @@ class Run:
         else:
             raise ValueError("unhandled console")
         try:
+            # save stdout and stderr before installing new write functions
+            out_redir.save()
+            err_redir.save()
             out_redir.install()
             err_redir.install()
             self._out_redir = out_redir
@@ -2924,7 +2937,6 @@ class Run:
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
-        aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
                 name = f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
@@ -2947,10 +2959,8 @@ class Run:
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
-        if isinstance(aliases, str):
-            aliases = [aliases]
         artifact.finalize()
-        return artifact, aliases
+        return artifact, _resolve_aliases(aliases)
 
     @_run_decorator._attach
     def alert(

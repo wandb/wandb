@@ -2,7 +2,6 @@ import contextlib
 import dataclasses
 import http.server
 import os
-import platform
 import ssl
 import threading
 from pathlib import Path
@@ -25,9 +24,13 @@ class SSLCredPaths:
 @pytest.fixture(scope="session")
 def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
     ca_path = assets_path("ssl_certs")
+
+    # don't hardcode the cert's filename, which has to be the hash of the cert
+    [cert_path] = ca_path.glob("*.0")
+
     return SSLCredPaths(
         ca_path=ca_path,
-        cert=ca_path / "localhost.crt",
+        cert=cert_path,
         key=ca_path / "localhost.key",
     )
 
@@ -100,7 +103,6 @@ def test_disable_ssl(
         lambda certpath: {"REQUESTS_CA_BUNDLE": str(certpath.parent)},
     ],
 )
-@pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_uses_userspecified_custom_ssl_certs(
     ssl_creds: SSLCredPaths,
     ssl_server: http.server.HTTPServer,
