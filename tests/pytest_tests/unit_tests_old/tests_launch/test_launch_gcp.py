@@ -322,8 +322,4 @@ def test_resolve_gcp_region():
 
     assert resolve_gcp_region({}, gcp_config, {}) == "us-east1"
     assert resolve_gcp_region(resource_args, gcp_config, {}) == "resource-region"
-    assert resolve_gcp_region({}, gcp_config, registry_config) == "registry-region"
-    assert (
-        resolve_gcp_region(resource_args, gcp_config, registry_config)
-        == "registry-region"
-    )
+    assert resolve_gcp_region({}, {}, registry_config) == "registry-region"
