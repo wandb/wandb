@@ -12,6 +12,9 @@ __all__ = [
     "SweepError",
     "WaitTimeoutError",
     "ContextCancelledError",
+    "ServiceStartProcessError",
+    "ServiceStartTimeoutError",
+    "ServiceStartPortError",
 ]
 
 from typing import List, Optional
@@ -132,5 +135,23 @@ class MailboxError(Error):
 
 class ContextCancelledError(Error):
     """Context cancelled Exception"""
+
+    pass
+
+
+class ServiceStartProcessError(Error):
+    """Raised when a known error occurs when launching wandb service"""
+
+    pass
+
+
+class ServiceStartTimeoutError(Error):
+    """Raised when service start times out"""
+
+    pass
+
+
+class ServiceStartPortError(Error):
+    """Raised when service start fails to find a port"""
 
     pass
