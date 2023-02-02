@@ -34,18 +34,15 @@ class GitInfo(TypedDict):
 class GitSourceDict(TypedDict):
     git: GitInfo
     entrypoint: List[str]
-    args: List[str]
 
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
     entrypoint: List[str]
-    args: List[str]
 
 
 class ImageSourceDict(TypedDict):
     image: str
-    args: List[str]
 
 
 class JobSourceDict(TypedDict, total=False):
@@ -69,7 +66,7 @@ class JobBuilder:
     _config: Optional[Dict[str, Any]]
     _summary: Optional[Dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
-    _used_job: bool
+    _disable: bool
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -78,7 +75,7 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
-        self._used_job = False
+        self._disable = False
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -87,12 +84,12 @@ class JobBuilder:
         self._summary = summary
 
     @property
-    def used_job(self) -> bool:
-        return self._used_job
+    def disable(self) -> bool:
+        return self._disable
 
-    @used_job.setter
-    def used_job(self, val: bool) -> None:
-        self._used_job = val
+    @disable.setter
+    def disable(self, val: bool) -> None:
+        self._disable = val
 
     def _set_logged_code_artifact(
         self, res: Optional[Dict], artifact: "ArtifactRecord"
@@ -106,7 +103,7 @@ class JobBuilder:
             )
 
     def _build_repo_job(
-        self, metadata: Dict[str, Any], program_relpath: str, args: List[str]
+        self, metadata: Dict[str, Any], program_relpath: str
     ) -> Tuple[Artifact, GitSourceDict]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
@@ -119,7 +116,6 @@ class JobBuilder:
                 os.path.basename(sys.executable),
                 program_relpath,
             ],
-            "args": args,
             "git": {
                 "remote": remote,
                 "commit": commit,
@@ -137,7 +133,7 @@ class JobBuilder:
         return artifact, source
 
     def _build_artifact_job(
-        self, program_relpath: str, args: List[str]
+        self, program_relpath: str
     ) -> Tuple[Artifact, ArtifactSourceDict]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: update executable to a method that supports pex
@@ -146,7 +142,6 @@ class JobBuilder:
                 os.path.basename(sys.executable),
                 program_relpath,
             ],
-            "args": args,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
 
@@ -156,7 +151,7 @@ class JobBuilder:
         return artifact, source
 
     def _build_image_job(
-        self, metadata: Dict[str, Any], args: List[str]
+        self, metadata: Dict[str, Any]
     ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
@@ -164,7 +159,6 @@ class JobBuilder:
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         source: ImageSourceDict = {
             "image": image_name,
-            "args": args,
         }
         return artifact, source
 
@@ -183,7 +177,6 @@ class JobBuilder:
             return None
 
         program_relpath: Optional[str] = metadata.get("codePath")
-        args: List[str] = metadata.get("args", [])
 
         artifact = None
         source_type = None
@@ -193,14 +186,14 @@ class JobBuilder:
 
         if self._has_git_job_ingredients(metadata, program_relpath):
             assert program_relpath is not None
-            artifact, source = self._build_repo_job(metadata, program_relpath, args)
+            artifact, source = self._build_repo_job(metadata, program_relpath)
             source_type = "repo"
         elif self._has_artifact_job_ingredients(program_relpath):
             assert program_relpath is not None
-            artifact, source = self._build_artifact_job(program_relpath, args)
+            artifact, source = self._build_artifact_job(program_relpath)
             source_type = "artifact"
         elif self._has_image_job_ingredients(metadata):
-            artifact, source = self._build_image_job(metadata, args)
+            artifact, source = self._build_image_job(metadata)
             source_type = "image"
 
         if artifact is None or source_type is None or source is None:

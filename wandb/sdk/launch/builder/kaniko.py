@@ -218,7 +218,6 @@ class KanikoBuilder(AbstractBuilder):
         launch_project: LaunchProject,
         repository: Optional[str],
         entrypoint: EntryPoint,
-        docker_args: Dict[str, Any],
     ) -> str:
 
         if repository is None:
@@ -240,7 +239,6 @@ class KanikoBuilder(AbstractBuilder):
             launch_project,
             image_uri,
             sanitize_wandb_api_key(entry_cmd),
-            docker_args,
             sanitize_wandb_api_key(dockerfile_str),
         )
         context_path = _create_docker_build_ctx(launch_project, dockerfile_str)

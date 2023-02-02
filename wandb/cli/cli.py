@@ -929,7 +929,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            f"\"{queue or launch_config.get('queue', 'default')}\"",
+                            f"{(queue or launch_config.get('queue', 'default'))!r}",
                             "--project",
                             project,
                             "--job",
@@ -989,7 +989,7 @@ def sweep(
         sweep_path = sweep_id
 
     if sweep_path.find(" ") >= 0:
-        sweep_path = f'"{sweep_path}"'
+        sweep_path = f"{sweep_path!r}"
 
     if launch_config is not None or queue:
         wandb.termlog("Scheduler added to launch queue. Starting sweep...")
@@ -1199,7 +1199,7 @@ def launch(
             cuda = False
         else:
             raise LaunchError(
-                f"Invalid value for --cuda: '{cuda}' is not a valid boolean."
+                f"Invalid value for --cuda: {cuda!r} is not a valid boolean."
             )
 
     args_dict = util._user_args_to_dict(args_list)
@@ -1285,8 +1285,20 @@ def launch(
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
+@cli.command(
+    context_settings=CONTEXT,
+    help="Run a W&B launch agent (Experimental).",
+)
 @click.pass_context
+@click.option(
+    "--queue",
+    "-q",
+    "queues",
+    default=None,
+    multiple=True,
+    metavar="<queue(s)>",
+    help="The name of a queue for the agent to watch. Multiple -q flags supported.",
+)
 @click.option(
     "--project",
     "-p",
@@ -1300,7 +1312,6 @@ def launch(
     default=None,
     help="The entity to use. Defaults to current logged-in user",
 )
-@click.option("--queues", "-q", default=None, help="The queue names to poll")
 @click.option(
     "--max-jobs",
     "-j",
@@ -1329,14 +1340,17 @@ def launch_agent(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
-    if queues is not None:
-        queues = queues.split(",")
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues
     )
     if agent_config.get("project") is None:
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
+        )
+
+    if len(agent_config.get("queues")) == 0:
+        raise LaunchError(
+            "To launch an agent please specify a queue or a list of queues in the configuration file or cli."
         )
 
     check_logged_in(api)

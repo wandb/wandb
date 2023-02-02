@@ -259,12 +259,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def _setup_manager(self) -> None:
         if not self._settings._require_service:
             return
-        # Temporary setting to allow use of grpc so that we can keep
-        # that code from rotting during the transition
-        use_grpc = self._settings._service_transport == "grpc"
-        self._manager = wandb_manager._Manager(
-            _use_grpc=use_grpc, settings=self._settings
-        )
+        self._manager = wandb_manager._Manager(settings=self._settings)
 
     def _teardown_manager(self, exit_code: int) -> None:
         if not self._manager:
@@ -283,7 +278,7 @@ class _WandbSetup:
     (Forked processes will get a new copy of the object)
     """
 
-    _instance = None
+    _instance: Optional["_WandbSetup__WandbSetup"] = None
 
     def __init__(self, settings=None) -> None:
         pid = os.getpid()

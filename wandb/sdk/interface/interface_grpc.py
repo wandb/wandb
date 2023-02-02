@@ -351,6 +351,26 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
+        assert self._stub
+        self._assign(check_version)
+        check_version_response = self._stub.CheckVersion(check_version)
+        response = pb.Response(check_version_response=check_version_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_attach(self, attach: pb.AttachRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(attach)
+        attach_response = self._stub.Attach(attach)
+        response = pb.Response(attach_response=attach_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         assert self._stub
         self._assign(get_summary)
@@ -399,6 +419,17 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(sampled_history)
         sampled_history_response = self._stub.SampledHistory(sampled_history)
         response = pb.Response(sampled_history_response=sampled_history_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
+    ) -> MailboxHandle:
+        assert self._stub
+        self._assign(run_status)
+        run_status_response = self._stub.RunStatus(run_status)
+        response = pb.Response(run_status_response=run_status_response)
         result = pb.Result(response=response)
         handle = self._deliver(result)
         return handle
