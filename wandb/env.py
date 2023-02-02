@@ -81,6 +81,7 @@ INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
 _EXECUTABLE = "WANDB_EXECUTABLE"
+DISABLE_JOB_CREATION = "WANDB_DISABLE_JOB_CREATION"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -406,6 +407,15 @@ def disable_git(env: Optional[Env] = None) -> bool:
     if env is None:
         env = os.environ
     val = env.get(DISABLE_GIT, default="False")
+    if isinstance(val, str):
+        val = False if val.lower() == "false" else True
+    return val
+
+
+def disable_job_creation(env: Optional[Env] = None) -> bool:
+    if env is None:
+        env = os.environ
+    val = env.get(DISABLE_JOB_CREATION, default="False")
     if isinstance(val, str):
         val = False if val.lower() == "false" else True
     return val
