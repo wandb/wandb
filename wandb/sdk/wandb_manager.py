@@ -7,8 +7,11 @@ import atexit
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import psutil
+
 import wandb
 from wandb import env, trigger
+from wandb.errors import ServiceProcessExistsError
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
@@ -126,7 +129,14 @@ class _Manager:
 
         port = self._token.port
         svc_iface = self._get_service_interface()
-        svc_iface._svc_connect(port=port)
+        try:
+            svc_iface._svc_connect(port=port)
+        except ConnectionRefusedError as e:
+            if not psutil.pid_exists(self._token.pid):
+                raise ServiceProcessExistsError(
+                    "Connection to wandb service failed, since the process is not available. See [TODO] for more details"
+                )
+            raise e
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()

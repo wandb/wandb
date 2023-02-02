@@ -155,3 +155,8 @@ class ServiceStartPortError(Error):
     """Raised when service start fails to find a port"""
 
     pass
+
+class ServiceProcessExistsError(Error):
+    """Raised when service process is not running"""
+
+    pass
