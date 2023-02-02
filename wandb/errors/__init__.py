@@ -156,6 +156,7 @@ class ServiceStartPortError(Error):
 
     pass
 
+
 class ServiceProcessExistsError(Error):
     """Raised when service process is not running"""
 
