@@ -84,7 +84,7 @@ def test_build_image_job(runner):
         artifact = job_builder.build()
         assert artifact is not None
         truncated_name = image_name[: MAX_ARTIFACT_NAME_LENGTH - len("job-")]
-        assert artifact.name == truncated_name
+        assert artifact.name == f"job-{truncated_name}"
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
