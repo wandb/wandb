@@ -252,7 +252,12 @@ class SyncThread(threading.Thread):
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
             root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
-            sm = sender.SendManager.setup(root_dir, append=self._append)
+
+            # When appending we are allowing a possible resume, ie the run
+            # doesnt have to exist already
+            resume = "allow" if self._append else None
+
+            sm = sender.SendManager.setup(root_dir, resume=resume)
             if sync_tb:
                 self._send_tensorboard(tb_root, tb_logdirs, sm)
                 continue
