@@ -121,8 +121,9 @@ class JobBuilder:
                 "commit": commit,
             },
         }
-
-        name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
+        max_remote_name = 128 - len("job-") - len("_" + program_relpath)
+        truncated_remote_name = remote[:max_remote_name]
+        name = make_artifact_name_safe(f"job-{truncated_remote_name}_{program_relpath}")
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
@@ -144,8 +145,9 @@ class JobBuilder:
             ],
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-
-        name = f"job-{self._logged_code_artifact['name']}"
+        max_name = 128 - len("job-")
+        truncated_name = self._logged_code_artifact["name"][:max_name]
+        name = f"job-{truncated_name}"
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         return artifact, source
@@ -155,7 +157,9 @@ class JobBuilder:
     ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
-        name = make_artifact_name_safe(f"job-{image_name}")
+        max_name = 128 - len("job-")
+        truncated_image_name = image_name[:max_name]
+        name = make_artifact_name_safe(f"job-{truncated_image_name}")
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         source: ImageSourceDict = {
             "image": image_name,
