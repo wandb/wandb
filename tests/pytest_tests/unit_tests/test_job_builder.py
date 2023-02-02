@@ -2,9 +2,9 @@ import json
 import string
 import random
 
-from wandb.util import make_artifact_name_safe
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.util import make_artifact_name_safe
 
 
 def str_of_length(n):
