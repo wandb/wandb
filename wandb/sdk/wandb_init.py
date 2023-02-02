@@ -1000,7 +1000,7 @@ def init(
             a model against different test sets. Group gives you a way to
             organize runs together into a larger whole, and you can toggle this
             on and off in the UI. For more details, see our
-            [guide to grouping runs](https://docs.wandb.com/library/grouping).
+            [guide to grouping runs](https://docs.wandb.com/guides/runs/grouping).
         job_type: (str, optional) Specify the type of run, which is useful when
             you're grouping runs together into larger experiments using group.
             For example, you might have multiple jobs in a group, with job types
@@ -1042,7 +1042,7 @@ def init(
                 `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
                 wandb will automatically resume the run with the id. Otherwise,
                 wandb will crash.
-            See [our guide to resuming runs](https://docs.wandb.com/library/advanced/resuming)
+            See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming)
             for more.
         reinit: (bool, optional) Allow multiple `wandb.init()` calls in the same
             process. (default: `False`)
@@ -1077,13 +1077,13 @@ def init(
             tensorboardX and save the relevant events file. (default: `False`)
         monitor_gym: (bool, optional) Automatically log videos of environment when
             using OpenAI Gym. (default: `False`)
-            See [our guide to this integration](https://docs.wandb.com/library/integrations/openai-gym).
+            See [our guide to this integration](https://docs.wandb.com/guides/integrations/openai-gym).
         id: (str, optional) A unique ID for this run, used for resuming. It must
             be unique in the project, and if you delete a run you can't reuse
             the ID. Use the `name` field for a short descriptive name, or `config`
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
-            See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
+            See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
 
     Examples:
     ### Set where the run is logged
