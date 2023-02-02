@@ -2,7 +2,8 @@ import json
 import string
 import random
 
-from wandb.sdk.internal.job_builder import MAX_ARTIFACT_NAME_LENGTH, JobBuilder
+from wandb.util import make_artifact_name_safe
+from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
 
 
@@ -26,11 +27,11 @@ def test_build_repo_job(runner):
             f.write(json.dumps(metadata))
         settings = SettingsStatic({"files_dir": "./"})
         job_builder = JobBuilder(settings)
-        max_len_remote = MAX_ARTIFACT_NAME_LENGTH - len("job-") - len("_blah_test.py")
-        truncated_name = remote_name[:max_len_remote]
         artifact = job_builder.build()
         assert artifact is not None
-        assert artifact.name == f"job-{truncated_name}_blah_test.py"
+        assert artifact.name == make_artifact_name_safe(
+            f"job-{remote_name}_blah_test.py"
+        )
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
@@ -55,11 +56,9 @@ def test_build_artifact_job(runner):
             "id": "testtest",
             "name": artifact_name,
         }
-        max_name_len = MAX_ARTIFACT_NAME_LENGTH - len("job-")
-        truncated_name = artifact_name[-max_name_len:]
         artifact = job_builder.build()
         assert artifact is not None
-        assert artifact.name == f"job-{truncated_name}"
+        assert artifact.name == make_artifact_name_safe(f"job-{artifact_name}")
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
@@ -83,8 +82,7 @@ def test_build_image_job(runner):
         job_builder = JobBuilder(settings)
         artifact = job_builder.build()
         assert artifact is not None
-        truncated_name = image_name[: MAX_ARTIFACT_NAME_LENGTH - len("job-")]
-        assert artifact.name == f"job-{truncated_name}"
+        assert artifact.name == make_artifact_name_safe(f"job-{image_name}")
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
