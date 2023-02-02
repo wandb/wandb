@@ -121,6 +121,7 @@ class JobBuilder:
                 "commit": commit,
             },
         }
+
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
