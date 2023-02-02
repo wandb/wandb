@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, List, Optional, Union
 
 from .assets.asset_registry import asset_registry
 from .assets.interfaces import Asset, Interface
+from .assets.open_metrics import OpenMetrics
 from .system_info import SystemInfo
 
 if TYPE_CHECKING:
@@ -83,6 +84,22 @@ class SystemMonitor:
                     shutdown_event=self._shutdown_event,
                 )
             )
+
+        # OpenMetrics-compatible endpoints
+        open_metrics_endpoints = settings._stats_open_metrics_endpoints
+        for name, endpoint in open_metrics_endpoints:
+            if not OpenMetrics.is_available(url=endpoint):
+                continue
+            logger.debug(f"Monitoring OpenMetrics endpoint: {endpoint}")
+            open_metrics = OpenMetrics(
+                interface=self.asset_interface or self.backend_interface,
+                settings=settings,
+                shutdown_event=self._shutdown_event,
+                name=name,
+                url=endpoint,
+            )
+            assert isinstance(open_metrics, Asset)
+            self.assets.append(open_metrics)
 
         # static system info, both hardware and software
         self.system_info: SystemInfo = SystemInfo(
