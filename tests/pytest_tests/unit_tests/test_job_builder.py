@@ -1,6 +1,6 @@
 import json
-import string
 import random
+import string
 
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
