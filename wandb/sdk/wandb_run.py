@@ -770,7 +770,7 @@ class Run:
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
 
-    def __deepcopy__(self, memo) -> "Run":
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "Run":
         return self
 
     def __getstate__(self) -> Any:
