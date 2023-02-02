@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
 JOB_ARTIFACT_TYPE = "job"
+MAX_ARTIFACT_NAME_LENGTH = 128
 
 
 class GitInfo(TypedDict):
@@ -121,8 +122,10 @@ class JobBuilder:
                 "commit": commit,
             },
         }
-        max_remote_name = 128 - len("job-") - len("_" + program_relpath)
-        truncated_remote_name = remote[:max_remote_name]
+        max_remote_name_length = (
+            MAX_ARTIFACT_NAME_LENGTH - len("job-") - len("_" + program_relpath)
+        )
+        truncated_remote_name = remote[:max_remote_name_length]
         name = make_artifact_name_safe(f"job-{truncated_remote_name}_{program_relpath}")
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
@@ -145,8 +148,9 @@ class JobBuilder:
             ],
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-        max_name = 128 - len("job-")
-        truncated_name = self._logged_code_artifact["name"][:max_name]
+        max_name_length = MAX_ARTIFACT_NAME_LENGTH - len("job-")
+        # left truncate to preserve code path
+        truncated_name = self._logged_code_artifact["name"][-max_name_length:]
         name = f"job-{truncated_name}"
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
@@ -157,8 +161,8 @@ class JobBuilder:
     ) -> Tuple[Artifact, ImageSourceDict]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
-        max_name = 128 - len("job-")
-        truncated_image_name = image_name[:max_name]
+        max_name_length = MAX_ARTIFACT_NAME_LENGTH - len("job-")
+        truncated_image_name = image_name[:max_name_length]
         name = make_artifact_name_safe(f"job-{truncated_image_name}")
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         source: ImageSourceDict = {
