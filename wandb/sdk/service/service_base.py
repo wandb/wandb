@@ -83,7 +83,7 @@ class ServiceInterface:
         raise NotImplementedError
 
     @abstractmethod
-    def _svc_inform_console_stop(self) -> None:
+    def _svc_inform_console_stop(self, run_id: str) -> None:
         raise NotImplementedError
 
     @abstractmethod

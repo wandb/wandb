@@ -82,6 +82,6 @@ class ServiceGrpcInterface(ServiceInterface):
         # TODO: implement me
         pass
 
-    def _svc_inform_console_stop(self) -> None:
+    def _svc_inform_console_stop(self, run_id: str) -> None:
         # TODO: implement me
         pass

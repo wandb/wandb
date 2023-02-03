@@ -144,7 +144,9 @@ class SockServerReadThread(threading.Thread):
         self._mux.update_stream(stream_id, settings=settings)
         self._mux.start_stream(stream_id)
 
-    def _make_output_record(self, console_req: "spb.ServerInformConsoleDataRequest") -> "pb.OutputRecord": 
+    def _make_output_record(
+        self, console_req: "spb.ServerInformConsoleDataRequest"
+    ) -> "pb.OutputRecord":
         name = console_req.output_type
         data = console_req.output_data
         if name == "stdout":

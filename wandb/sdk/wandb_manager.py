@@ -139,7 +139,7 @@ class _Manager:
     def _redirect_cb(self, name: str, data: str) -> None:
         try:
             self._inform_console_data(name, data)
-        except Exception as e:
+        except Exception:
             # console data is opportunistically saved, it should be safe
             # but we dont want to crash if there is an issue
             pass
@@ -165,8 +165,10 @@ class _Manager:
         self._err_redir.install()  # type: ignore
 
     def _redirect_uninstall(self) -> None:
-        self._out_redir.uninstall()  # type: ignore
-        self._err_redir.uninstall()  # type: ignore
+        if self._out_redir:
+            self._out_redir.uninstall()  # type: ignore
+        if self._err_redir:
+            self._err_redir.uninstall()  # type: ignore
         self._out_redir = None
         self._err_redir = None
 
