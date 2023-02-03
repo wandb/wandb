@@ -83,6 +83,31 @@ class AwsEnvironment(AbstractEnvironment):
             verify=verify,
         )
 
+    @classmethod
+    def from_default(cls):
+        """Create an AWS environment from the default AWS environment.
+
+        Returns:
+            AwsEnvironment: The AWS environment.
+        """
+        try:
+            session = boto3.Session()
+            region = session.region_name
+            credentials = session.get_credentials()
+            access_key = credentials.access_key
+            secret_key = credentials.secret_key
+            session_token = credentials.token
+        except botocore.client.ClientError as e:
+            raise LaunchError(
+                f"Could not create AWS environment from default environment. Please verify that your AWS credentials are configured correctly. {e}"
+            )
+        return cls(
+            region=region,
+            access_key=access_key,
+            secret_key=secret_key,
+            session_token=session_token,
+        )
+
     def verify(self) -> None:
         """Verify that the AWS environment is configured correctly.
 
