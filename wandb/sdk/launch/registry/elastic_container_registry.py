@@ -14,59 +14,16 @@ botocore = get_module(
 )
 
 
-@dataclass
-class EcrConfig:
-    """Elastic Container Registry configuration object.
-
-    Attributes:
-        repo (str): The name of the image repository.
-    """
-
-    repo: str
-
-    @classmethod
-    def from_dict(cls, config_dict: dict) -> "EcrConfig":
-        """Create an EcrConfig from a dictionary.
-
-        Args:
-            config_dict (dict): The dictionary.
-
-        Returns:
-            EcrConfig: The EcrConfig.
-
-        Raises:
-            LaunchError: If the dictionary is not valid.
-        """
-        # Check that all required keys are set.
-        required_keys = ["repo"]
-        for key in required_keys:
-            if key not in config_dict:
-                raise LaunchError(
-                    f"Required key {key} missing in ecr registry config.\n{config_dict}"
-                )
-        # Check for unknown keys.
-        for key in config_dict:
-            if key not in required_keys + []:
-                raise LaunchError(
-                    f"Unknown key {key} in ecr registry config.\n{config_dict}"
-                )
-
-        # Construct the config.
-        return cls(
-            repo=config_dict["repo"],
-        )
-
-
 class ElasticContainerRegistry(AbstractRegistry):
     """Elastic Container Registry class."""
 
-    config: EcrConfig
+    repo_name: str
     environment: AwsEnvironment
     uri: str
 
-    def __init__(self, config: EcrConfig, environment: AwsEnvironment) -> None:
+    def __init__(self, repo_name, environment: AwsEnvironment) -> None:
         super().__init__()
-        self.config = config
+        self.repo_name = repo_name
         self.environment = environment
         self.verify()
 
@@ -80,7 +37,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             session = self.environment.get_session()
             client = session.client("ecr")
             response = client.describe_registry()
-            response = client.describe_repositories(repositoryNames=[self.config.repo])
+            response = client.describe_repositories(repositoryNames=[self.repo_name])
             self.uri = response["repositories"][0]["repositoryUri"].split("/")[0]
 
         except botocore.exceptions.ClientError as e:
@@ -143,7 +100,7 @@ class ElasticContainerRegistry(AbstractRegistry):
         tag = image_uri.split(":")[1]
         try:
             response = client.describe_images(
-                repositoryName=self.config.repo,
+                repositoryName=self.repo_name,
                 imageIds=[{"imageTag": tag}],
                 filter={"tagStatus": "TAGGED"},
             )
