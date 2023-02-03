@@ -158,14 +158,20 @@ class MetricsMonitor:
             logger.error(f"Failed to publish metrics: {e}")
 
     def start(self) -> None:
-        if self._process is None and not self._shutdown_event.is_set():
+        if self._process is not None or self._shutdown_event.is_set():
+            return None
+
+        thread_name = f"{self.asset_name}"
+        try:
             self._process = threading.Thread(
                 target=self.monitor,
                 daemon=True,
-                name=f"{self.asset_name}",
+                name=thread_name,
             )
             self._process.start()
-            logger.info(f"Started {self._process.name}")
+            logger.info(f"Started {thread_name}")
+        except Exception as e:
+            logger.warning(f"Failed to start {thread_name}: {e}")
 
     def finish(self) -> None:
         if self._process is None:
