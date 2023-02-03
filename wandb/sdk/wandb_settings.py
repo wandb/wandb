@@ -1385,7 +1385,9 @@ class Settings:
             settings["save_code"] = wandb.env.should_save_code()
 
         settings["disable_git"] = wandb.env.disable_git()
-        settings["disable_job_creation"] = wandb.env.disable_job_creation()
+        settings["disable_job_creation"] = os.environ.get(
+            wandb.env.DISABLE_JOB_CREATION
+        )
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):

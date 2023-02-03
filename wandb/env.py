@@ -410,12 +410,3 @@ def disable_git(env: Optional[Env] = None) -> bool:
     if isinstance(val, str):
         val = False if val.lower() == "false" else True
     return val
-
-
-def disable_job_creation(env: Optional[Env] = None) -> bool:
-    if env is None:
-        env = os.environ
-    val = env.get(DISABLE_JOB_CREATION, default="False")
-    if isinstance(val, str):
-        val = False if val.lower() == "false" else True
-    return val
