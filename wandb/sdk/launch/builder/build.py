@@ -182,8 +182,7 @@ def get_base_setup(
     version is built on nvidia:cuda"""
 
     python_base_image = f"python:{py_version}-buster"
-    if launch_project.cuda:
-        cuda_version = launch_project.cuda_version or DEFAULT_CUDA_VERSION
+    if launch_project.cuda_base_image:
         # cuda image doesn't come with python tooling
         if py_major == "2":
             python_packages = [
@@ -200,7 +199,7 @@ def get_base_setup(
                 "python3-setuptools",
             ]
         base_setup = CUDA_SETUP_TEMPLATE.format(
-            cuda_base_image=f"nvidia/cuda:{cuda_version}-runtime",
+            cuda_base_image=launch_project.cuda_base_image,
             python_packages=" \\\n".join(python_packages),
             py_version=py_version,
         )

@@ -78,7 +78,7 @@ class LaunchProject:
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_version: Optional[str] = launch_spec.get("cuda_version")
+        self.cuda_version: Optional[str] = resource_args.get("cuda_base_image")
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
