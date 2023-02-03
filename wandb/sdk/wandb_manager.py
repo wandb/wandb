@@ -135,6 +135,7 @@ class _Manager:
 
     def _setup(self) -> None:
         self._atexit_setup()
+        self._console_setup()
 
     def _redirect_cb(self, name: str, data: str) -> None:
         try:
@@ -173,7 +174,11 @@ class _Manager:
         self._err_redir = None
 
     def _console_setup(self) -> None:
-        if self._out_redir or self._err_redir:
+        # avoid circular import. fix this
+        from wandb.sdk.wandb_settings import SettingsConsole
+
+        console = self._settings._console
+        if console != SettingsConsole.REDIRECT:
             return
         self._redirect_install()
 
@@ -254,7 +259,6 @@ class _Manager:
         svc_iface._svc_inform_console_data(name, data)
 
     def _inform_console_start(self, run_id: str) -> None:
-        self._console_setup()
         self._flush_console()
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_console_start(run_id=run_id)
