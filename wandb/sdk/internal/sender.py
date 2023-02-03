@@ -21,6 +21,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Union,
     cast,
 )
 
@@ -269,7 +270,7 @@ class SendManager:
         self._debounce_status_time = time_now
 
     @classmethod
-    def setup(cls, root_dir: str) -> "SendManager":
+    def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
         Currently, we're using this primarily for `sync.py`.
         """
@@ -280,7 +281,7 @@ class SendManager:
             root_dir=root_dir,
             _start_time=0,
             git_remote=None,
-            resume=None,
+            resume=resume,
             program=None,
             ignore_globs=(),
             run_id=None,
