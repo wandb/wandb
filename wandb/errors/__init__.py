@@ -12,9 +12,6 @@ __all__ = [
     "SweepError",
     "WaitTimeoutError",
     "ContextCancelledError",
-    "ServiceStartProcessError",
-    "ServiceStartTimeoutError",
-    "ServiceStartPortError",
 ]
 
 from typing import List, Optional
