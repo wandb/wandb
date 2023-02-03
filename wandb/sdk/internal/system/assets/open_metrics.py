@@ -1,7 +1,8 @@
 import logging
 import multiprocessing as mp
-from collections import deque
-from typing import TYPE_CHECKING, Dict, List
+from collections import defaultdict, deque
+from hashlib import md5
+from typing import TYPE_CHECKING, Dict, List, Union
 
 import requests
 import wandb
@@ -38,102 +39,120 @@ class OpenMetricsMetric:
         self.session = requests.Session()
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<hash>": <index>}}
-        self.label_map: "Dict[str, Dict[str, int]]" = {}
+        self.label_map: "Dict[str, Dict[str, int]]" = defaultdict(dict)
+        self.label_hashes: "Dict[str, dict]" = {}
         # {name}.{metric.name}.{<index from label_map>}: {value, timestamp, exemplar}
 
-    def parse_open_metrics_endpoint(self) -> None:
+    def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
         assert prometheus_client_parser is not None
         response = self.session.get(self.url)
         # print(response.text)
+        measurement = {}
         for family in prometheus_client_parser.text_string_to_metric_families(
             response.text
         ):
-            print(family.type)
-            if family.type == "counter":
-                print(family.samples)
-            # for sample in family.samples:
-            #     if sample.timestamp is not None:
-            #         print(sample)
-            if family.type == "gauge":
-                for sample in family.samples:
-                    print(sample)
-                print()
+            if family.type not in ("counter", "gauge"):
+                # todo: add support for other metric types
+                # todo: log warning about that
+                continue
 
-            # follow this white rabbit:
-            """
-            convert to an object:
-            {
-                "DCGM_FI_DEV_GPU_UTIL": {
-                    "<hash_0>": {
-                        "samples": [...],  # extract values and append to this list
-                        "type": "gauge",
-                        "labels": {...},
-                    },
+            for sample in family.samples:
+                # md5 hash of the labels
+                label_hash = md5(str(sample.labels).encode("utf-8")).hexdigest()
+                # print(label_hash, sample.name, sample.labels, sample.value)
+                if label_hash not in self.label_map[sample.name]:
+                    self.label_map[sample.name][label_hash] = len(
+                        self.label_map[sample.name]
+                    )
+                    self.label_hashes[label_hash] = sample.labels
+                index = self.label_map[sample.name][label_hash]
+                measurement[f"{sample.name}.{index}"] = sample.value
+                # {
+                #     "value": sample.value,
+                #     "labels": sample.labels,
+                #     "timestamp": sample.timestamp,
+                #     "exemplar": sample.exemplar,
+                # }
+            # print()
+
+        return measurement
+
+        # follow this white rabbit:
+        """
+        convert to an object:
+        {
+            "DCGM_FI_DEV_GPU_UTIL": {
+                "<hash_0>": {
+                    "samples": [...],  # extract values and append to this list
+                    "type": "gauge",
+                    "labels": {...},
                 },
-                "DCGM_FI_DEV_POWER_USAGE": {
-                    ...
+            },
+            "DCGM_FI_DEV_POWER_USAGE": {
+                ...
+            },
+        }
+
+
+
+        {
+            "DCGM_FI_DEV_GPU_UTIL": [
+                {
+                    "labels": {
+                        "gpu": "0",
+                        "UUID": "GPU-c601d117-58ff-cd30-ae20-529ab192ba51",
+                        ...
+                    },
+                    "hash": "<hash the labels to ease aggregation downstream?>",
+                    "value": 33.0,
+                    "timestamp": None,
+                    "exemplar": None,
                 },
-            }
-
-
-
-            {
-                "DCGM_FI_DEV_GPU_UTIL": [
-                    {
-                        "labels": {
-                            "gpu": "0",
-                            "UUID": "GPU-c601d117-58ff-cd30-ae20-529ab192ba51",
-                            ...
-                        },
-                        "hash": "<hash the labels to ease aggregation downstream?>",
-                        "value": 33.0,
-                        "timestamp": None,
-                        "exemplar": None,
+                {
+                    "labels": {
+                        "gpu": "1",
+                        "UUID": "GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",
+                        ...
                     },
-                    {
-                        "labels": {
-                            "gpu": "1",
-                            "UUID": "GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",
-                            ...
-                        },
-                        "hash": "<hash the labels to ease aggregation downstream?>",
-                        "value": 99.0,
-                        "timestamp": None,
-                        "exemplar": None,
+                    "hash": "<hash the labels to ease aggregation downstream?>",
+                    "value": 99.0,
+                    "timestamp": None,
+                    "exemplar": None,
+                },
+            ],
+            "DCGM_FI_DEV_POWER_USAGE": [
+                {
+                    "labels": {
+                        "gpu": "0",
+                        "UUID": "GPU-c601d117-58ff-cd30-ae20-529ab192ba51",
+                        ...
                     },
-                ],
-                "DCGM_FI_DEV_POWER_USAGE": [
-                    {
-                        "labels": {
-                            "gpu": "0",
-                            "UUID": "GPU-c601d117-58ff-cd30-ae20-529ab192ba51",
-                            ...
-                        },
-                        "hash": "<hash the labels to ease aggregation downstream?>",
-                        "value": 14.27,
-                        "timestamp": None,
-                        "exemplar": None,
+                    "hash": "<hash the labels to ease aggregation downstream?>",
+                    "value": 14.27,
+                    "timestamp": None,
+                    "exemplar": None,
+                },
+                {
+                    "labels": {
+                        "gpu": "1",
+                        "UUID": "GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",
+                        ...
                     },
-                    {
-                        "labels": {
-                            "gpu": "1",
-                            "UUID": "GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",
-                            ...
-                        },
-                        "hash": "<hash the labels to ease aggregation downstream?>",
-                        "value": 69.652,
-                        "timestamp": None,
-                        "exemplar": None,
-                    }
-                ],
-            }
-            """
+                    "hash": "<hash the labels to ease aggregation downstream?>",
+                    "value": 69.652,
+                    "timestamp": None,
+                    "exemplar": None,
+                }
+            ],
+        }
+        """
 
     def sample(self) -> None:
-        ...
-        # sample = ...
-        # self.samples.append(sample)
-        self.parse_open_metrics_endpoint()
+        sample = self.parse_open_metrics_endpoint()
+        self.samples.append(sample)
+        # print(self.label_map)
+        print(self.samples)
+        # print(self.label_hashes)
 
     def clear(self) -> None:
         self.samples.clear()
