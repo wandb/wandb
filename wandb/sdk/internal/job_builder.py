@@ -75,7 +75,7 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
-        self._disable = False
+        self._disable = settings.disable_job_creation
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config

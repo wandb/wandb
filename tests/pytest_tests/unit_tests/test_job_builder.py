@@ -25,7 +25,7 @@ def test_build_repo_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./"})
+        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
         job_builder = JobBuilder(settings)
         artifact = job_builder.build()
         assert artifact is not None
@@ -50,7 +50,7 @@ def test_build_artifact_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./"})
+        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
         job_builder = JobBuilder(settings)
         job_builder._logged_code_artifact = {
             "id": "testtest",
@@ -78,7 +78,7 @@ def test_build_image_job(runner):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic({"files_dir": "./"})
+        settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
         job_builder = JobBuilder(settings)
         artifact = job_builder.build()
         assert artifact is not None
@@ -89,14 +89,14 @@ def test_build_image_job(runner):
 
 
 def test_set_disabled():
-    settings = SettingsStatic({"files_dir": "./"})
+    settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
     job_builder = JobBuilder(settings)
     job_builder.disable = "testtest"
     assert job_builder.disable == "testtest"
 
 
 def test_no_metadata_file():
-    settings = SettingsStatic({"files_dir": "./"})
+    settings = SettingsStatic({"files_dir": "./", "disable_job_creation": False})
     job_builder = JobBuilder(settings)
     artifact = job_builder.build()
     assert artifact is None
