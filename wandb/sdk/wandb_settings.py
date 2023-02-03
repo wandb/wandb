@@ -571,7 +571,7 @@ class Settings:
             disable_code={"preprocessor": _str_as_bool},
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
-            disable_job_creation={"preprocessor": _str_as_bool},
+            disable_job_creation={"value": False, "preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -1385,9 +1385,6 @@ class Settings:
             settings["save_code"] = wandb.env.should_save_code()
 
         settings["disable_git"] = wandb.env.disable_git()
-        settings["disable_job_creation"] = os.environ.get(
-            wandb.env.DISABLE_JOB_CREATION
-        )
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):

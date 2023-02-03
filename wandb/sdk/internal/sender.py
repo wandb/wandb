@@ -298,6 +298,7 @@ class SendManager:
             _sync=True,
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
+            disable_job_creation=False,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
