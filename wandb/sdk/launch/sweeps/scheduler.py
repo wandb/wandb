@@ -90,6 +90,9 @@ class Scheduler(ABC):
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
         self._project_queue = project_queue or self._project
+        # Queue args
+        self._queue_sleep = 1.0
+        self._queue_timeout = 1.0
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 

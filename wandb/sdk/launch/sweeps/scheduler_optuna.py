@@ -45,6 +45,7 @@ class OptunaScheduler(Scheduler):
         self._num_workers: int = num_workers
 
         self._public_api = PublicApi()
+        self._internal_api = InternalApi()
 
         self.study: optuna.study.Study = None
         self._trial_func = None
@@ -129,60 +130,23 @@ class OptunaScheduler(Scheduler):
         # Make sure Scheduler is alive
         if not self.is_alive():
             return
-        # AgentHeartbeat wants a Dict of runs which are running or queued
-        _run_states: Dict[str, bool] = {}
-        for run_id, run in self._yield_runs():
-            # Filter out runs that are from a different worker thread
-            if run.worker_id == worker_id and run.state == SimpleRunState.ALIVE:
-                _run_states[run_id] = True
-        logger.debug(
-            f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
-        )
-        commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
-            self._workers[worker_id].agent_id,  # agent_id: str
-            {},  # metrics: dict
-            _run_states,  # run_states: dict
-        )
-        logger.debug(
-            f"{LOG_PREFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
-        )
-        if commands:
-            for command in commands:
-                # The command "type" can be one of "run", "resume", "stop", "exit"
-                _type = command.get("type", None)
-                if _type in ["exit", "stop"]:
-                    # Tell (virtual) agent to stop running
-                    self.state = SchedulerState.STOPPED
-                    self.exit()
-                    return
-                elif _type in ["run", "resume"]:
-                    _run_id = command.get("run_id", None)
-                    if _run_id is None:
-                        self.state = SchedulerState.FAILED
-                        raise SchedulerError(
-                            f"AgentHeartbeat command {command} missing run_id"
-                        )
-                    if _run_id in self._runs:
-                        wandb.termlog(f"{LOG_PREFIX} Skipping duplicate run {run_id}")
-                    else:
-                        program = command.get("program")
-                        if not program:
-                            self._sweep_config.get("program")
+        
+        if len(self._job_queue) == 0:  # add another run!
+            # upsert run
+            run = self._internal_api.upsert_run(
+                sweep_name=self._sweep_name,
+            )[0]
 
-                        config, trial = self._trial_func()
-                        run = SweepRun(
-                            id=_run_id,
-                            args=config,
-                            logs=command.get("logs", []),
-                            program=program,
-                            worker_id=worker_id,
-                        )
-                        self._run_trials[run.id] = trial
-                        self._runs[run.id] = run
-                        self._job_queue.put(run)
-                else:
-                    self.state = SchedulerState.FAILED
-                    raise SchedulerError(f"AgentHeartbeat unknown command type {_type}")
+            config, trial = self._trial_func()
+            run = SweepRun(
+                id=run['id'],
+                args=config,
+                program=self._sweep_config.get("program"),
+                worker_id=worker_id,
+            )
+            self._run_trials[run.id] = trial
+            self._runs[run.id] = run
+            self._job_queue.put(run)
 
     def _run(self) -> None:
         """
