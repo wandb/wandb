@@ -12,18 +12,33 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from ...errors import (
-    ServiceStartPortError,
-    ServiceStartProcessError,
-    ServiceStartTimeoutError,
-)
-from ...util import sentry_reraise, sentry_set_scope
+from wandb.errors import Error
+from wandb.util import sentry_reraise, sentry_set_scope
+
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
+
+
+class ServiceStartProcessError(Error):
+    """Raised when a known error occurs when launching wandb service"""
+
+    pass
+
+
+class ServiceStartTimeoutError(Error):
+    """Raised when service start times out"""
+
+    pass
+
+
+class ServiceStartPortError(Error):
+    """Raised when service start fails to find a port"""
+
+    pass
 
 
 class _Service:
