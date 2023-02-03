@@ -144,8 +144,7 @@ class JobBuilder:
             ],
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-
-        name = f"job-{self._logged_code_artifact['name']}"
+        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         return artifact, source
