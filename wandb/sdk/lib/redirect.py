@@ -718,6 +718,8 @@ class Redirect(RedirectBase):
         super().__init__(src=src, cbs=cbs)
         self._installed = False
         self._emulator = TerminalEmulator()
+        self._emulator_flush_request = None
+        self._emulator_flush_done = None
 
     def _pipe(self):
         if pty:
@@ -745,6 +747,8 @@ class Redirect(RedirectBase):
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
+        self._emulator_flush_request = threading.Event()
+        self._emulator_flush_done = threading.Event()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
@@ -826,9 +830,18 @@ class Redirect(RedirectBase):
             except OSError:
                 return
 
+    def _emulator_mark_flushed(self):
+        if not self._emulator_flush_request:
+            return
+        if not self._emulator_flush_request.is_set():
+            return
+        self._emulator_flush_request.clear()
+        self._emulator_flush_done.set()
+
     def _emulator_write(self):
         while True:
             if self._queue.empty():
+                self._emulator_mark_flushed()
                 if self._stopped.is_set():
                     return
                 time.sleep(0.5)
@@ -840,8 +853,16 @@ class Redirect(RedirectBase):
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
                 [self.flush(line) for line in data]
+                self._emulator_mark_flushed()
                 return
             try:
                 self._emulator.write(b"".join(data).decode("utf-8"))
             except Exception:
                 pass
+            self._emulator_mark_flushed()
+
+    def emulator_flush(self) -> bool:
+        self._emulator_flush_request.set()
+        success = self._emulator_flush_done.wait(30)
+        self.flush()
+        return success

@@ -135,15 +135,14 @@ class _Manager:
 
     def _setup(self) -> None:
         self._atexit_setup()
-        self._console_setup()
 
     def _redirect_cb(self, name: str, data: str) -> None:
-        # print(f"GO2T {name} {data}")
         try:
             self._inform_console_data(name, data)
         except Exception as e:
-            print("BADBADBAD", e)
-            raise e
+            # console data is opportunistically saved, it should be safe
+            # but we dont want to crash if there is an issue
+            pass
 
     def _redirect_install(self) -> None:
         out_redir = redirect.Redirect(
@@ -162,23 +161,28 @@ class _Manager:
         )
         self._out_redir = out_redir
         self._err_redir = err_redir
-        out_redir.install()  # type: ignore
-        err_redir.install()  # type: ignore
+        self._out_redir.install()  # type: ignore
+        self._err_redir.install()  # type: ignore
 
     def _redirect_uninstall(self) -> None:
         self._out_redir.uninstall()  # type: ignore
         self._err_redir.uninstall()  # type: ignore
-        print("uninstalled")
         self._out_redir = None
         self._err_redir = None
 
     def _console_setup(self) -> None:
-        print("DEBUG: console setup")
+        if self._out_redir or self._err_redir:
+            return
         self._redirect_install()
 
     def _console_teardown(self) -> None:
-        print("DEBUG: console teardown")
         self._redirect_uninstall()
+
+    def _flush_console(self) -> None:
+        if self._out_redir:
+            self._out_redir.emulator_flush()
+        if self._err_redir:
+            self._err_redir.emulator_flush()
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
@@ -248,9 +252,12 @@ class _Manager:
         svc_iface._svc_inform_console_data(name, data)
 
     def _inform_console_start(self, run_id: str) -> None:
+        self._console_setup()
+        self._flush_console()
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_console_start(run_id=run_id)
 
-    def _inform_console_stop(self) -> None:
+    def _inform_console_stop(self, run_id: str) -> None:
+        self._flush_console()
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_console_stop()
+        svc_iface._svc_inform_console_stop(run_id=run_id)
