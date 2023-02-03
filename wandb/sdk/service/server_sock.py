@@ -2,7 +2,7 @@ import queue
 import socket
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Set
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
@@ -82,7 +82,7 @@ class SockServerReadThread(threading.Thread):
     _mux: StreamMux
     _stopped: "Event"
     _clients: ClientDict
-    _console_run_ids: List[str]
+    _console_run_ids: Set[str]
 
     def __init__(
         self, conn: socket.socket, mux: StreamMux, clients: ClientDict
@@ -95,7 +95,7 @@ class SockServerReadThread(threading.Thread):
         self._sock_client = sock_client
         self._stopped = mux._get_stopped_event()
         self._clients = clients
-        self._console_run_ids = []
+        self._console_run_ids = set()
 
     def run(self) -> None:
         while not self._stopped.is_set():
@@ -144,27 +144,29 @@ class SockServerReadThread(threading.Thread):
         self._mux.update_stream(stream_id, settings=settings)
         self._mux.start_stream(stream_id)
 
+    def _make_output_record(self, console_req: "spb.ServerInformConsoleDataRequest") -> "pb.OutputRecord": 
+        name = console_req.output_type
+        data = console_req.output_data
+        if name == "stdout":
+            otype = pb.OutputRecord.OutputType.STDOUT
+        elif name == "stderr":
+            otype = pb.OutputRecord.OutputType.STDERR
+        else:
+            raise Exception(f"Invalid console name: {name}")
+
+        output_record = pb.OutputRecord(output_type=otype, line=data)
+        output_record.timestamp.GetCurrentTime()
+        return output_record
+
     def server_inform_console_data(self, sreq: "spb.ServerRequest") -> None:
+        if not self._console_run_ids:
+            return
         request = sreq.inform_console_data
-        for run_id in self._console_run_ids:
-
-            name = request.output_type
-            data = request.output_data
-            if name == "stdout":
-                otype = pb.OutputRecord.OutputType.STDOUT
-            elif name == "stderr":
-                otype = pb.OutputRecord.OutputType.STDERR
-            else:
-                raise Exception(f"Invalid console name: {name}")
-
-            o = pb.OutputRecord(output_type=otype, line=data)
-            o.timestamp.GetCurrentTime()
-
+        output_record = self._make_output_record(request)
+        for stream_id in self._console_run_ids:
             record = pb.Record()
-            record.output.CopyFrom(o)
+            record.output.CopyFrom(output_record)
 
-            stream_id = run_id
-            # print(f"SEND: {stream_id}, {record}")
             try:
                 iface = self._mux.get_stream(stream_id).interface
             except Exception:
@@ -175,17 +177,13 @@ class SockServerReadThread(threading.Thread):
 
     def server_inform_console_start(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_console_start
-        run_id = request.run_id
-        print(f"DEBUG console start {run_id}")
-        # TODO: move this datastructure to mux?
-        if run_id not in self._console_run_ids:
-            self._console_run_ids.append(run_id)
+        stream_id = request.run_id
+        self._console_run_ids.add(stream_id)
 
     def server_inform_console_stop(self, sreq: "spb.ServerRequest") -> None:
-        request = sreq.inform_console_start
-        stream_id = request._info.stream_id
-        print(f"DEBUG console stop {stream_id}")
-        # TODO
+        request = sreq.inform_console_stop
+        stream_id = request.run_id
+        self._console_run_ids.discard(stream_id)
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach

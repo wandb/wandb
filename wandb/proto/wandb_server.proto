@@ -152,6 +152,7 @@ message ServerInformConsoleStartResponse {
 }
 
 message ServerInformConsoleStopRequest {
+  string run_id = 1;
   _RecordInfo _info = 200;
 }
 

@@ -81,8 +81,8 @@ class ServiceSockInterface(ServiceInterface):
         assert self._sock_client
         self._sock_client.send(inform_console_start=inform_console_start)
 
-    def _svc_inform_console_stop(self) -> None:
-        inform_console_stop = spb.ServerInformConsoleStopRequest()
+    def _svc_inform_console_stop(self, run_id: str) -> None:
+        inform_console_stop = spb.ServerInformConsoleStopRequest(run_id=run_id)
 
         assert self._sock_client
         self._sock_client.send(inform_console_stop=inform_console_stop)
