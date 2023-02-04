@@ -1,4 +1,5 @@
 import os
+import re
 
 from wandb.errors import LaunchError
 from wandb.util import get_module
@@ -135,10 +136,18 @@ class AwsEnvironment(AbstractEnvironment):
             recursive (bool, optional): If True, copy the directory recursively. Defaults to False.
 
         Raises:
-            LaunchError: If the copy fails.
+            LaunchError: If the copy fails, the source path does not exist, or the
+                destination is not a valid s3 URI.
         """
-        bucket = destination.replace("s3://", "").split("/")[0]
-        key = destination.replace(f"s3://{bucket}/", "")
+        if not os.path.isdir(source):
+            raise LaunchError(f"Source {source} does not exist.")
+        match = re.match(r"s3://([^/]+)(/.*)?", destination)
+        if not match:
+            raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
+        bucket = match.group(1)
+        key = match.group(2).lstrip("/")
+        if not key:
+            key = ""
         session = self.get_session()
         try:
             client = session.client("s3")
@@ -152,4 +161,10 @@ class AwsEnvironment(AbstractEnvironment):
                         f"{key}/{abs_path.replace(source, '').lstrip('/')}",
                     )
         except botocore.exceptions.ClientError as e:
-            raise LaunchError(f"Could not copy {source} to {destination}. {e}")
+            raise LaunchError(
+                f"botocore error attempting to copy {source} to {destination}. {e}"
+            )
+        except Exception as e:
+            raise LaunchError(
+                f"Unexpected error attempting to copy {source} to {destination}. {e}"
+            )

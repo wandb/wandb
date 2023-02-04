@@ -75,7 +75,7 @@ def test_verify(mocker):
     environment.verify()
 
 
-def test_copy_files(mocker):
+def test_upload_files(mocker):
     """Test that we issue the correct api calls to upload files to s3."""
     """
     Step one here is to mock the os.walk function to return a list of files
@@ -116,6 +116,9 @@ def test_copy_files(mocker):
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
         return_value=session,
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.os.path.isdir", return_value=True
     )
 
     environment = AwsEnvironment(
@@ -167,3 +170,20 @@ def test_copy_files(mocker):
         "bucket",
         "key/module/submodule/this.py",
     )
+
+
+def test_upload_invalid_path(mocker):
+    """Test that we raise an error when the source path is not a directory or
+    the destination path is not a valid s3 URI."""
+    environment = _get_environment()
+    with pytest.raises(LaunchError) as e:
+        environment.upload("invalid_path", "s3://bucket/key")
+    assert "Source invalid_path does not exist." == str(e.value)
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.os.path.isdir",
+        return_value=True,
+    )
+    for path in ["s3a://bucket/key", "s3n://bucket/key"]:
+        with pytest.raises(LaunchError) as e:
+            environment.upload("tests", path)
+        assert f"Destination {path} is not a valid s3 URI." == str(e.value)
