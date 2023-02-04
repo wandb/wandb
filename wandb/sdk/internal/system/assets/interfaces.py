@@ -161,7 +161,7 @@ class MetricsMonitor:
         if self._process is not None or self._shutdown_event.is_set():
             return None
 
-        thread_name = f"{self.asset_name}"
+        thread_name = f"{self.asset_name[:15]}"  # thread names are limited to 15 chars
         try:
             self._process = threading.Thread(
                 target=self.monitor,

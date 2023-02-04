@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Dict, List, Union
 
 import requests
 import wandb
-from .aggregators import aggregate_last
+from .aggregators import aggregate_last, aggregate_mean
 from .interfaces import (
     Interface,
     Metric,
@@ -33,33 +33,30 @@ class OpenMetricsMetric:
     OpenMetrics endpoint.
     """
 
-    def __init__(self, url: str) -> None:
-        self.name = f"OpenMetrics::{url}"
+    def __init__(self, name: str, url: str) -> None:
+        self.name = name
         self.url = url
         self.session = requests.Session()
         self.samples: "Deque[dict]" = deque([])
-        # {"<metric name>": {"<hash>": <index>}}
+        # {"<metric name>": {"<labels hash>": <index>}}
         self.label_map: "Dict[str, Dict[str, int]]" = defaultdict(dict)
         self.label_hashes: "Dict[str, dict]" = {}
-        # {name}.{metric.name}.{<index from label_map>}: {value, timestamp, exemplar}
 
     def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
         assert prometheus_client_parser is not None
         response = self.session.get(self.url)
-        # print(response.text)
         measurement = {}
         for family in prometheus_client_parser.text_string_to_metric_families(
             response.text
         ):
             if family.type not in ("counter", "gauge"):
-                # todo: add support for other metric types
-                # todo: log warning about that
+                # todo: add support for other metric types?
+                # todo: log warning about that?
                 continue
 
             for sample in family.samples:
                 # md5 hash of the labels
                 label_hash = md5(str(sample.labels).encode("utf-8")).hexdigest()
-                # print(label_hash, sample.name, sample.labels, sample.value)
                 if label_hash not in self.label_map[sample.name]:
                     self.label_map[sample.name][label_hash] = len(
                         self.label_map[sample.name]
@@ -67,91 +64,14 @@ class OpenMetricsMetric:
                     self.label_hashes[label_hash] = sample.labels
                 index = self.label_map[sample.name][label_hash]
                 measurement[f"{sample.name}.{index}"] = sample.value
-                # {
-                #     "value": sample.value,
-                #     "labels": sample.labels,
-                #     "timestamp": sample.timestamp,
-                #     "exemplar": sample.exemplar,
-                # }
-            # print()
 
         return measurement
-
-        # follow this white rabbit:
-        """
-        convert to an object:
-        {
-            "DCGM_FI_DEV_GPU_UTIL": {
-                "<hash_0>": {
-                    "samples": [...],  # extract values and append to this list
-                    "type": "gauge",
-                    "labels": {...},
-                },
-            },
-            "DCGM_FI_DEV_POWER_USAGE": {
-                ...
-            },
-        }
-
-
-
-        {
-            "DCGM_FI_DEV_GPU_UTIL": [
-                {
-                    "labels": {
-                        "gpu": "0",
-                        "UUID": "GPU-c601d117-58ff-cd30-ae20-529ab192ba51",
-                        ...
-                    },
-                    "hash": "<hash the labels to ease aggregation downstream?>",
-                    "value": 33.0,
-                    "timestamp": None,
-                    "exemplar": None,
-                },
-                {
-                    "labels": {
-                        "gpu": "1",
-                        "UUID": "GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",
-                        ...
-                    },
-                    "hash": "<hash the labels to ease aggregation downstream?>",
-                    "value": 99.0,
-                    "timestamp": None,
-                    "exemplar": None,
-                },
-            ],
-            "DCGM_FI_DEV_POWER_USAGE": [
-                {
-                    "labels": {
-                        "gpu": "0",
-                        "UUID": "GPU-c601d117-58ff-cd30-ae20-529ab192ba51",
-                        ...
-                    },
-                    "hash": "<hash the labels to ease aggregation downstream?>",
-                    "value": 14.27,
-                    "timestamp": None,
-                    "exemplar": None,
-                },
-                {
-                    "labels": {
-                        "gpu": "1",
-                        "UUID": "GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",
-                        ...
-                    },
-                    "hash": "<hash the labels to ease aggregation downstream?>",
-                    "value": 69.652,
-                    "timestamp": None,
-                    "exemplar": None,
-                }
-            ],
-        }
-        """
 
     def sample(self) -> None:
         sample = self.parse_open_metrics_endpoint()
         self.samples.append(sample)
         # print(self.label_map)
-        print(self.samples)
+        # print(self.samples)
         # print(self.label_hashes)
 
     def clear(self) -> None:
@@ -160,8 +80,16 @@ class OpenMetricsMetric:
     def aggregate(self) -> dict:
         if not self.samples:
             return {}
-        aggregate = aggregate_last(self.samples)
-        return {self.name: aggregate}
+
+        stats = {}
+        for key in self.samples[0].keys():
+            samples = [s[key] for s in self.samples if key in s]
+            if samples and all(isinstance(s, (int, float)) for s in samples):
+                stats[f"{self.name}.{key}"] = aggregate_mean(samples)
+            else:
+                stats[f"{self.name}.{key}"] = aggregate_last(samples)
+        # print(stats)
+        return stats
 
 
 class OpenMetrics:
@@ -182,7 +110,7 @@ class OpenMetrics:
         self.settings = settings
         self.shutdown_event = shutdown_event
 
-        self.metrics: List[Metric] = [OpenMetricsMetric(url)]
+        self.metrics: List[Metric] = [OpenMetricsMetric(name, url)]
 
         self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
             asset_name=self.name,
@@ -212,9 +140,12 @@ class OpenMetrics:
                 )
             ):
                 return True
-        except Exception:
-            logger.debug(f"OpenMetrics endpoint {url} is not available", exc_info=True)
-            return False
+        except Exception as e:
+            logger.debug(
+                f"OpenMetrics endpoint {url} is not available: {e}", exc_info=True
+            )
+
+        return False
 
     def start(self) -> None:
         self.metrics_monitor.start()
@@ -223,4 +154,5 @@ class OpenMetrics:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
+        # todo: also return self.label_hashes
         return {self.name: self.url}
