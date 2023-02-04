@@ -1,10 +1,7 @@
 import os
-from dataclasses import dataclass
-from typing import Optional
 
 from wandb.errors import LaunchError
 from wandb.util import get_module
-
 
 from .abstract import AbstractEnvironment
 
@@ -23,6 +20,7 @@ class AwsEnvironment(AbstractEnvironment):
         access_key: str,
         secret_key: str,
         session_token: str,
+        verify: bool = True,
     ) -> None:
         """Initialize the AWS environment.
 
@@ -33,14 +31,15 @@ class AwsEnvironment(AbstractEnvironment):
             LaunchError: If the AWS environment is not configured correctly.
         """
         super().__init__()
-        self.__region = region
-        self.__access_key = access_key
-        self.__secret_key = secret_key
-        self.__session_token = session_token
-        self.verify()
+        self._region = region
+        self._access_key = access_key
+        self._secret_key = secret_key
+        self._session_token = session_token
+        if verify:
+            self.verify()
 
     @classmethod
-    def from_default(cls):
+    def from_default(cls, verify=True):
         """Create an AWS environment from the default AWS environment.
 
         Returns:
@@ -62,6 +61,7 @@ class AwsEnvironment(AbstractEnvironment):
             access_key=access_key,
             secret_key=secret_key,
             session_token=session_token,
+            verify=verify,
         )
 
     def verify(self) -> None:
@@ -113,16 +113,21 @@ class AwsEnvironment(AbstractEnvironment):
         """
         try:
             return boto3.Session(
-                aws_access_key_id=self.__access_key,
-                aws_secret_access_key=self.__secret_key,
-                aws_session_token=self.__session_token,
-                region_name=self.__region,
+                aws_access_key_id=self._access_key,
+                aws_secret_access_key=self._secret_key,
+                aws_session_token=self._session_token,
+                region_name=self._region,
             )
         except botocore.exceptions.ClientError as e:
             raise LaunchError(f"Could not create AWS session. {e}")
 
-    def copy(self, source: str, destination: str) -> None:
-        """Copy a directory to s3 from local storage.
+    def upload(self, source: str, destination: str) -> None:
+        """Upload a directory to s3 from local storage.
+
+        The upload will place the contents of the source directory in the destination
+        with the same directory structure. So if the source is "foo/bar" and the
+        destination is "s3://bucket/key", the contents of "foo/bar" will be uploaded
+        to "s3://bucket/key/bar".
 
         Args:
             source (str): The path to the file or directory.
@@ -139,10 +144,12 @@ class AwsEnvironment(AbstractEnvironment):
             client = session.client("s3")
             for path, _, files in os.walk(source):
                 for file in files:
+                    abs_path = os.path.join(path, file)
+
                     client.upload_file(
-                        os.path.join(path, file),
+                        abs_path,
                         bucket,
-                        f"{key}/{os.path.join(path, file).replace(source, '')}",
+                        f"{key}/{abs_path.replace(source, '').lstrip('/')}",
                     )
         except botocore.exceptions.ClientError as e:
             raise LaunchError(f"Could not copy {source} to {destination}. {e}")

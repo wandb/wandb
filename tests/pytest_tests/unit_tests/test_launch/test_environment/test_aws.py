@@ -1,11 +1,169 @@
-from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
-from wandb.errors import LaunchError
-import pytest
-
 from unittest.mock import MagicMock
 
+import pytest
+from botocore.exceptions import ClientError
 
-def test_create_aws_environment():
-    """Test AwsEnvironment"""
-    env = AwsEnvironment(region="us-west-2")
-    env
+from wandb.errors import LaunchError
+from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
+
+
+def _get_environment():
+    return AwsEnvironment(
+        region="us-west-2",
+        secret_key="secret_key",
+        access_key="access_key",
+        session_token="token",
+        verify=False,
+    )
+
+
+def test_from_default(mocker) -> None:
+    """Test creating an AWS environment from the default credentials."""
+    boto3 = MagicMock()
+    session = MagicMock()
+    session.region_name = "us-west-2"
+    credentials = MagicMock()
+    credentials.access_key = "access_key"
+    credentials.secret_key = "secret_key"
+    credentials.token = "token"
+    session.get_credentials.return_value = credentials
+    session.get_credentials
+    boto3.Session.return_value = session
+    mocker.patch("wandb.sdk.launch.environment.aws_environment.boto3", boto3)
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment", MagicMock()
+    )
+    default_environment = AwsEnvironment.from_default(verify=False)
+    assert default_environment._region == "us-west-2"
+    assert default_environment._access_key == "access_key"
+    assert default_environment._secret_key == "secret_key"
+    assert default_environment._session_token == "token"
+
+
+def test_verify_storage(mocker):
+    """Test that the AwsEnvironment correctly verifies storage."""
+    session = MagicMock()
+    client = MagicMock()
+    client.head_bucket.return_value = "Success!"
+    session.client.return_value = client
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
+        return_value=session,
+    )
+    environment = _get_environment()
+    environment.verify_storage("s3://bucket/key")
+
+    def _raise(*args, **kwargs):
+        raise ClientError({}, "Error")
+
+    environment.get_session = _raise
+    with pytest.raises(LaunchError):
+        environment.verify_storage("s3://bucket/key")
+
+
+def test_verify(mocker):
+    """Test that the AwsEnvironment correctly verifies."""
+    session = MagicMock()
+    client = MagicMock()
+    client.get_caller_identity.return_value = "Success!"
+    session.client.return_value = client
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
+        return_value=session,
+    )
+    environment = _get_environment()
+    environment.verify()
+
+
+def test_copy_files(mocker):
+    """Test that we issue the correct api calls to upload files to s3."""
+    """
+    Step one here is to mock the os.walk function to return a list of files
+    corresponding to the following directory structure:
+    source_dir
+    ├── Dockerfile
+    ├── main.py
+    ├── module
+    │   ├── submodule
+    │   │   ├── that.py
+    │   │   └── this.py
+    │   ├── dataset.py
+    │   ├── eval.py
+    │   └── model.py
+    └── requirements.txt
+    """
+    source_dir = "source_dir"
+    walk_output = [
+        (f"{source_dir}", None, ["Dockerfile", "main.py", "requirements.txt"]),
+        (f"{source_dir}/module", "", ["dataset.py", "eval.py", "model.py"]),
+        (
+            f"{source_dir}/module/submodule",
+            "",
+            [
+                "that.py",
+                "this.py",
+            ],
+        ),
+    ]
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.os.walk",
+        return_value=walk_output,
+    )
+    session = MagicMock()
+    client = MagicMock()
+
+    session.client.return_value = client
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
+        return_value=session,
+    )
+
+    environment = AwsEnvironment(
+        region="us-west-2",
+        access_key="access_key",
+        secret_key="secret_key",
+        session_token="token",
+        verify=False,
+    )
+    environment.upload(source_dir, "s3://bucket/key")
+
+    assert client.upload_file.call_args_list[0][0] == (
+        f"{source_dir}/Dockerfile",
+        "bucket",
+        "key/Dockerfile",
+    )
+    assert client.upload_file.call_args_list[1][0] == (
+        f"{source_dir}/main.py",
+        "bucket",
+        "key/main.py",
+    )
+    assert client.upload_file.call_args_list[2][0] == (
+        f"{source_dir}/requirements.txt",
+        "bucket",
+        "key/requirements.txt",
+    )
+    assert client.upload_file.call_args_list[3][0] == (
+        f"{source_dir}/module/dataset.py",
+        "bucket",
+        "key/module/dataset.py",
+    )
+    assert client.upload_file.call_args_list[4][0] == (
+        f"{source_dir}/module/eval.py",
+        "bucket",
+        "key/module/eval.py",
+    )
+    assert client.upload_file.call_args_list[5][0] == (
+        f"{source_dir}/module/model.py",
+        "bucket",
+        "key/module/model.py",
+    )
+    assert client.upload_file.call_args_list[6][0] == (
+        f"{source_dir}/module/submodule/that.py",
+        "bucket",
+        "key/module/submodule/that.py",
+    )
+    assert client.upload_file.call_args_list[7][0] == (
+        f"{source_dir}/module/submodule/this.py",
+        "bucket",
+        "key/module/submodule/this.py",
+    )
