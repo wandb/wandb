@@ -52,6 +52,7 @@ typing_extensions
 boto3
 botocore
 google-cloud-storage
+google-cloud-compute
 kubernetes
 # ^^^^^^^^^^ - above are for extra launch
 # .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')

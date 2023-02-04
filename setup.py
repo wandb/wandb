@@ -38,6 +38,8 @@ launch_requirements = [
     "typing_extensions",
     "boto3",
     "botocore",
+    "google-auth",
+    "google-cloud-compute",
     "google-cloud-storage",
     "kubernetes",
 ]
