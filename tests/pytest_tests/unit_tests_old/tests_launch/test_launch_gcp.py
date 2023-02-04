@@ -1,7 +1,6 @@
 import subprocess
 
 import pytest
-from google.cloud import aiplatform
 
 import wandb
 import wandb.sdk.launch.launch as launch
