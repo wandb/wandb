@@ -83,6 +83,21 @@ class StringTupleValue(google.protobuf.message.Message):
 
 global___StringTupleValue = StringTupleValue
 
+class StringTupleTupleValue(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    STRING_TUPLE_VALUES_FIELD_NUMBER: builtins.int
+    @property
+    def string_tuple_values(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StringTupleValue]: ...
+    def __init__(
+        self,
+        *,
+        string_tuple_values: collections.abc.Iterable[global___StringTupleValue] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["string_tuple_values", b"string_tuple_values"]) -> None: ...
+
+global___StringTupleTupleValue = StringTupleTupleValue
+
 class SettingsValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -93,6 +108,7 @@ class SettingsValue(google.protobuf.message.Message):
     NULL_VALUE_FIELD_NUMBER: builtins.int
     TUPLE_VALUE_FIELD_NUMBER: builtins.int
     TIMESTAMP_VALUE_FIELD_NUMBER: builtins.int
+    TUPLE_TUPLE_VALUE_FIELD_NUMBER: builtins.int
     int_value: builtins.int
     string_value: builtins.str
     float_value: builtins.float
@@ -101,6 +117,8 @@ class SettingsValue(google.protobuf.message.Message):
     @property
     def tuple_value(self) -> global___StringTupleValue: ...
     timestamp_value: builtins.str
+    @property
+    def tuple_tuple_value(self) -> global___StringTupleTupleValue: ...
     def __init__(
         self,
         *,
@@ -111,10 +129,11 @@ class SettingsValue(google.protobuf.message.Message):
         null_value: builtins.bool = ...,
         tuple_value: global___StringTupleValue | None = ...,
         timestamp_value: builtins.str = ...,
+        tuple_tuple_value: global___StringTupleTupleValue | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["value_type", b"value_type"]) -> typing_extensions.Literal["int_value", "string_value", "float_value", "bool_value", "null_value", "tuple_value", "timestamp_value"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_tuple_value", b"tuple_tuple_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_tuple_value", b"tuple_tuple_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["value_type", b"value_type"]) -> typing_extensions.Literal["int_value", "string_value", "float_value", "bool_value", "null_value", "tuple_value", "timestamp_value", "tuple_tuple_value"] | None: ...
 
 global___SettingsValue = SettingsValue
 
