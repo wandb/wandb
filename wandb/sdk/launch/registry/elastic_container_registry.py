@@ -1,5 +1,4 @@
 import base64
-from dataclasses import dataclass
 from typing import Tuple
 
 
@@ -61,14 +60,11 @@ class ElasticContainerRegistry(AbstractRegistry):
             session = self.environment.get_session()
             client = session.client("ecr")
             response = client.get_authorization_token()
-            return (
-                "AWS",
-                base64.standard_b64decode(
-                    response["authorizationData"][0]["authorizationToken"]
-                )
-                .replace(b"AWS:", b"")
-                .decode("utf-8"),
-            )
+            username, password = base64.standard_b64decode(
+                response["authorizationData"][0]["authorizationToken"]
+            ).split(b":")
+            return username.decode("utf-8"), password.decode("utf-8")
+
         except botocore.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
             msg = e.response["Error"]["Message"]
