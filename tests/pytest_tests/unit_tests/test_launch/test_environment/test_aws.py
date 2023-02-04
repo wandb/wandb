@@ -3,10 +3,9 @@ from unittest.mock import MagicMock
 
 import pytest
 from botocore.exceptions import ClientError
+
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.utils import LaunchError
-
-from unittest.mock import MagicMock
 
 
 def _get_environment():

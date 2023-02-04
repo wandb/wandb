@@ -84,7 +84,7 @@ class AwsEnvironment(AbstractEnvironment):
         )
 
     @classmethod
-    def from_default(cls):
+    def from_default(cls, verify=True):
         """Create an AWS environment from the default AWS environment.
 
         Returns:
@@ -106,6 +106,7 @@ class AwsEnvironment(AbstractEnvironment):
             access_key=access_key,
             secret_key=secret_key,
             session_token=session_token,
+            verify=verify,
         )
 
     def verify(self) -> None:
