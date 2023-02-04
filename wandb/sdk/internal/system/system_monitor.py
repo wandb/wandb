@@ -48,6 +48,8 @@ class SystemMonitor:
         self._shutdown_event: mp.synchronize.Event = mp.Event()
         self._process: Optional[Union[mp.Process, threading.Thread]] = None
 
+        self.settings = settings
+
         # settings._stats_join_assets controls whether we should join stats from different assets
         # before publishing them to the backend. If set to False, we will publish stats from each
         # asset separately, using the backend interface. If set to True, we will aggregate stats from
@@ -60,14 +62,16 @@ class SystemMonitor:
         sampling_interval: float = float(
             max(
                 0.1,
-                settings._stats_sample_rate_seconds,
+                self.settings._stats_sample_rate_seconds,
             )
         )  # seconds
         # The number of samples to aggregate (e.g. average or compute max/min etc.)
         # before publishing; defaults to 15; valid range: [1:30]
-        samples_to_aggregate: int = min(30, max(1, settings._stats_samples_to_average))
+        samples_to_aggregate: int = min(
+            30, max(1, self.settings._stats_samples_to_average)
+        )
         self.publishing_interval: float = sampling_interval * samples_to_aggregate
-        self.join_assets: bool = settings._stats_join_assets
+        self.join_assets: bool = self.settings._stats_join_assets
 
         self.backend_interface = interface
         self.asset_interface: Optional[AssetInterface] = (
@@ -75,37 +79,47 @@ class SystemMonitor:
         )
 
         # hardware assets
-        self.assets: List["Asset"] = []
-        for asset_class in asset_registry:
-            self.assets.append(
-                asset_class(
-                    interface=self.asset_interface or self.backend_interface,
-                    settings=settings,
-                    shutdown_event=self._shutdown_event,
-                )
-            )
+        self.assets: List["Asset"] = self._get_assets()
 
-        # OpenMetrics-compatible endpoints
-        # print(settings)
-        open_metrics_endpoints = settings._stats_open_metrics_endpoints
+        # OpenMetrics/Prometheus-compatible endpoints
+        self.assets.extend(self._get_open_metrics_assets())
+
+        # static system info, both hardware and software
+        self.system_info: SystemInfo = SystemInfo(
+            settings=self.settings, interface=interface
+        )
+
+    def _get_assets(self) -> List["Asset"]:
+        return [
+            asset_class(
+                interface=self.asset_interface or self.backend_interface,
+                settings=self.settings,
+                shutdown_event=self._shutdown_event,
+            )
+            for asset_class in asset_registry
+        ]
+
+    def _get_open_metrics_assets(self) -> List["Asset"]:
+        open_metrics_endpoints = self.settings._stats_open_metrics_endpoints
+        if not open_metrics_endpoints:
+            return []
+
+        assets = []
         for name, endpoint in open_metrics_endpoints:
             if not OpenMetrics.is_available(url=endpoint):
                 continue
             logger.debug(f"Monitoring OpenMetrics endpoint: {endpoint}")
             open_metrics = OpenMetrics(
                 interface=self.asset_interface or self.backend_interface,
-                settings=settings,
+                settings=self.settings,
                 shutdown_event=self._shutdown_event,
                 name=name,
                 url=endpoint,
             )
             assert isinstance(open_metrics, Asset)
-            self.assets.append(open_metrics)
+            assets.append(open_metrics)
 
-        # static system info, both hardware and software
-        self.system_info: SystemInfo = SystemInfo(
-            settings=settings, interface=interface
-        )
+        return assets
 
     def aggregate_and_publish_asset_metrics(self) -> None:
         if self.asset_interface is None:
