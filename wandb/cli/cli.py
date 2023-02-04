@@ -482,6 +482,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Number of runs to show")
+@click.option("--append", is_flag=True, default=False, help="Append run")
 @display_error
 def sync(
     ctx,
@@ -504,6 +505,7 @@ def sync(
     clean=None,
     clean_old_hours=24,
     clean_force=None,
+    append=None,
 ):
     # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
     os.environ["WANDB_DIR"] = TMPDIR.name
@@ -572,6 +574,7 @@ def sync(
             verbose=verbose,
             sync_tensorboard=_sync_tensorboard,
             log_path=_wandb_log_path,
+            append=append,
         )
         for p in _path:
             sm.add(p)
@@ -1285,8 +1288,20 @@ def launch(
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
+@cli.command(
+    context_settings=CONTEXT,
+    help="Run a W&B launch agent (Experimental).",
+)
 @click.pass_context
+@click.option(
+    "--queue",
+    "-q",
+    "queues",
+    default=None,
+    multiple=True,
+    metavar="<queue(s)>",
+    help="The name of a queue for the agent to watch. Multiple -q flags supported.",
+)
 @click.option(
     "--project",
     "-p",
@@ -1300,7 +1315,6 @@ def launch(
     default=None,
     help="The entity to use. Defaults to current logged-in user",
 )
-@click.option("--queues", "-q", default=None, help="The queue names to poll")
 @click.option(
     "--max-jobs",
     "-j",
@@ -1329,14 +1343,17 @@ def launch_agent(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
-    if queues is not None:
-        queues = queues.split(",")
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues
     )
     if agent_config.get("project") is None:
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
+        )
+
+    if len(agent_config.get("queues")) == 0:
+        raise LaunchError(
+            "To launch an agent please specify a queue or a list of queues in the configuration file or cli."
         )
 
     check_logged_in(api)
