@@ -38,7 +38,14 @@ def _pbmap_apply_dict(
         elif isinstance(v, str):
             sv.string_value = v
         elif isinstance(v, Iterable) and not isinstance(v, (str, bytes, Mapping)):
-            sv.tuple_value.string_values.extend(v)
+            if all(isinstance(x, str) for x in v):  # Iterable[str]
+                sv.tuple_value.string_values.extend(v)
+            elif all(isinstance(x, Iterable) for x in v) and all(
+                isinstance(y, str) for x in v for y in x
+            ):  # Iterable[Iterable[str]]
+                for x in v:
+                    tp = spb.StringTupleValue(string_values=x)
+                    sv.tuple_tuple_value.string_tuple_values.append(tp)
         elif isinstance(v, datetime.datetime):
             sv.timestamp_value = datetime.datetime.strftime(v, "%Y%m%d_%H%M%S")
         else:

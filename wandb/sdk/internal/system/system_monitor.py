@@ -86,6 +86,7 @@ class SystemMonitor:
             )
 
         # OpenMetrics-compatible endpoints
+        # print(settings)
         open_metrics_endpoints = settings._stats_open_metrics_endpoints
         for name, endpoint in open_metrics_endpoints:
             if not OpenMetrics.is_available(url=endpoint):
@@ -164,13 +165,14 @@ class SystemMonitor:
 
     def start(self) -> None:
         self._shutdown_event.clear()
-        if self._process is None:
-            logger.info("Starting system monitor")
-            # self._process = mp.Process(target=self._start, name="SystemMonitor")
-            self._process = threading.Thread(
-                target=self._start, daemon=True, name="SystemMonitor"
-            )
-            self._process.start()
+        if self._process is not None:
+            return None
+        logger.info("Starting system monitor")
+        # self._process = mp.Process(target=self._start, name="SystemMonitor")
+        self._process = threading.Thread(
+            target=self._start, daemon=True, name="SystemMonitor"
+        )
+        self._process.start()
 
     def finish(self) -> None:
         if self._process is None:

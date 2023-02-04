@@ -85,6 +85,9 @@ def settings_dict_from_pbmap(
             v = None
         elif v_type == "tuple_value":
             v = tuple(v_obj.tuple_value.string_values)
+        elif v_type == "tuple_tuple_value":
+            v_obj_tup = tuple(v_obj.tuple_tuple_value.string_tuple_values)
+            v = tuple(tuple(vv.string_values) for vv in v_obj_tup)
         elif v_type == "timestamp_value":
             v = datetime.strptime(v_obj.timestamp_value, "%Y%m%d_%H%M%S")
         d[k] = v
