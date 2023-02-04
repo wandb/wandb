@@ -1,10 +1,9 @@
 import base64
 from typing import Tuple
 
-
 from wandb.errors import LaunchError
-from wandb.util import get_module
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
+from wandb.util import get_module
 
 from .abstract import AbstractRegistry
 
@@ -20,7 +19,7 @@ class ElasticContainerRegistry(AbstractRegistry):
     environment: AwsEnvironment
     uri: str
 
-    def __init__(self, repo_name, environment: AwsEnvironment) -> None:
+    def __init__(self, repo_name: str, environment: AwsEnvironment) -> None:
         super().__init__()
         self.repo_name = repo_name
         self.environment = environment
@@ -77,9 +76,9 @@ class ElasticContainerRegistry(AbstractRegistry):
         Returns:
             str: The uri of the repository.
         """
-        return self.uri + "/" + self.config.repo
+        return self.uri + "/" + self.repo_name
 
-    def check_exists(self, image_uri: str) -> bool:
+    def check_image_exists(self, image_uri: str) -> bool:
         """Check if an image exists in the registry.
 
         Args:

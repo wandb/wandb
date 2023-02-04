@@ -2,7 +2,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from botocore.exceptions import ClientError
-
 from wandb.errors import LaunchError
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 

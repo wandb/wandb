@@ -40,7 +40,7 @@ class AwsEnvironment(AbstractEnvironment):
             self.verify()
 
     @classmethod
-    def from_default(cls, verify=True):
+    def from_default(cls, verify: bool = True) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 
         Returns:
@@ -103,7 +103,7 @@ class AwsEnvironment(AbstractEnvironment):
                 f"Could not verify AWS storage. Please verify that your AWS credentials are configured correctly. {e}"
             )
 
-    def get_session(self) -> "boto3.Session":
+    def get_session(self) -> "boto3.Session":  # type: ignore
         """Get an AWS session.
 
         Returns:
