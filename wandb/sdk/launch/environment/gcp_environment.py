@@ -18,7 +18,11 @@ google.cloud.compute_v1 = get_module(
     required="Google Cloud Platform support requires the google-cloud-compute package. "
     "Please install it with `pip install google-cloud-compute`.",
 )
-# discovery = googleapiclient.discovery
+google.auth.credentials = get_module(
+    "google.auth.credentials",
+    required="Google Cloud Platform support requires google-auth. "
+    "Please install it with `pip install google-auth`.",
+)
 google.auth.transport.requests = get_module(
     "google.auth.transport.requests",
     required="Google Cloud Platform support requires google-auth. "
@@ -108,7 +112,15 @@ class GcpEnvironment(AbstractEnvironment):
             )
         if not creds.valid:
             _logger.log(logging.INFO, "Refreshing GCP credentials")
-            creds.refresh(google.auth.transport.requests.Request())
+            try:
+                creds.refresh(google.auth.transport.requests.Request())
+            except google.auth.exceptions.RefreshError:
+                raise LaunchError(
+                    "Could not refresh Google Cloud Platform credentials. Please run "
+                    "`gcloud auth application-default login` or set the environment "
+                    "variable GOOGLE_APPLICATION_CREDENTIALS to the path of a valid "
+                    "service account key file."
+                )
         if not creds.valid:
             raise LaunchError(
                 "Invalid Google Cloud Platform credentials. Please run "
