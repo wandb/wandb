@@ -21,6 +21,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Union,
     cast,
 )
 
@@ -269,7 +270,7 @@ class SendManager:
         self._debounce_status_time = time_now
 
     @classmethod
-    def setup(cls, root_dir: str) -> "SendManager":
+    def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
         Currently, we're using this primarily for `sync.py`.
         """
@@ -280,7 +281,7 @@ class SendManager:
             root_dir=root_dir,
             _start_time=0,
             git_remote=None,
-            resume=None,
+            resume=resume,
             program=None,
             ignore_globs=(),
             run_id=None,
@@ -298,6 +299,7 @@ class SendManager:
             _sync=True,
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
+            disable_job_creation=False,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
@@ -1554,27 +1556,28 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
+        if self._job_builder.disable or self._settings.get("_offline", False):
+            return
         self._job_builder.set_config(
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
         )
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        if not self._settings.get("_offline", False) and not self._job_builder.disable:
-            artifact = self._job_builder.build()
-            if artifact is not None and self._run is not None:
-                proto_artifact = self._interface._make_artifact(artifact)
-                proto_artifact.run_id = self._run.run_id
-                proto_artifact.project = self._run.project
-                proto_artifact.entity = self._run.entity
-                # TODO: this should be removed when the latest tag is handled
-                # by the backend (WB-12116)
-                proto_artifact.aliases.append("latest")
-                proto_artifact.user_created = True
-                proto_artifact.use_after_commit = True
-                proto_artifact.finalize = True
+        artifact = self._job_builder.build()
+        if artifact is not None and self._run is not None:
+            proto_artifact = self._interface._make_artifact(artifact)
+            proto_artifact.run_id = self._run.run_id
+            proto_artifact.project = self._run.project
+            proto_artifact.entity = self._run.entity
+            # TODO: this should be removed when the latest tag is handled
+            # by the backend (WB-12116)
+            proto_artifact.aliases.append("latest")
+            proto_artifact.user_created = True
+            proto_artifact.use_after_commit = True
+            proto_artifact.finalize = True
 
-                self._interface._publish_artifact(proto_artifact)
+            self._interface._publish_artifact(proto_artifact)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)
