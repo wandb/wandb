@@ -41,6 +41,7 @@ launch_requirements = [
     "google-auth",
     "google-cloud-compute",
     "google-cloud-storage",
+    "google-cloud-artifact-registry",
     "kubernetes",
 ]
 
