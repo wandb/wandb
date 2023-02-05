@@ -58,7 +58,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         """
         self.repository = repository
         self.image_name = image_name
-        if not re.match(r"^\w+$", image_name):
+        if not re.match(r"^\w[\w.-]+$", image_name):
             raise LaunchError(
                 f"The image name {image_name} is invalid. The image name must "
                 "consist of alphanumeric characters and underscores."
