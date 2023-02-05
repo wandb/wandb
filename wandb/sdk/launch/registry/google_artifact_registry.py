@@ -77,6 +77,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         parent = (
             f"projects/{self.environment.project}/locations/{self.environment.region}"
         )
+        # We need to list the repositories to verify that the repository exists.
         request = google.cloud.artifactregistry.ListRepositoriesRequest(parent=parent)
         client = google.cloud.artifactregistry.ArtifactRegistryClient(
             credentials=credentials
@@ -88,9 +89,11 @@ class GoogleArtifactRegistry(AbstractRegistry):
                 "The provided credentials do not have permission to access the "
                 f"Google Artifact Registry repository {self.repository}."
             )
+        # Look for self.repository in the list of responses.
         for repo in response:
             if repo.name.endswith(self.repository):
                 break
+        # If we didn't find the repository, raise an error.
         else:
             raise LaunchError(
                 f"The Google Artifact Registry repository {self.repository} does not exist."
