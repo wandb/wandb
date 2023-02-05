@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
 from wandb.sdk.launch.utils import LaunchError
 
