@@ -86,6 +86,14 @@ class Progress:
 
 
 class AsyncProgress:
+    """Wrapper around Progress, to make it async iterable.
+
+    httpx, for streaming uploads, requires the data source to be an async iterable.
+    If we pass in a sync iterable (like a bare `Progress` instance), httpx will
+    get confused, think we're trying to make a synchronous request, and raise.
+    So we need this wrapper class to be an async iterable but *not* a sync iterable.
+    """
+
     def __init__(self, progress: Progress) -> None:
         self._progress = progress
 
