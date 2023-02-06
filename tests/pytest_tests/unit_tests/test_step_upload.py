@@ -1,4 +1,6 @@
+import asyncio
 import concurrent.futures
+import functools
 import queue
 import random
 import threading
@@ -8,6 +10,7 @@ from typing import Any, Callable, Iterable, MutableSequence, Optional
 from unittest.mock import DEFAULT, Mock, patch
 
 import pytest
+import wandb.env
 from wandb.filesync import stats
 from wandb.filesync.step_upload import (
     Event,
@@ -125,12 +128,19 @@ class UploadBlockingMockApi(Mock):
             **kwargs,
             upload_urls=Mock(wraps=mock_upload_urls),
             upload_file_retry=Mock(wraps=self._mock_upload),
+            upload_file_retry_async=Mock(wraps=self._mock_upload_async),
         )
 
-        self.mock_upload_file_waiters: MutableSequence[threading.Event] = []
+        self.mock_upload_file_waiters: MutableSequence[Callable[[], None]] = []
         self.mock_upload_started = threading.Condition()
 
-    def wait_for_upload(self, timeout: float) -> Optional[threading.Event]:
+    @property
+    def mock_upload_started_async(self) -> asyncio.Condition:
+        if self._mock_upload_started_async is None:
+            self._mock_upload_started_async = asyncio.Condition()
+        return self._mock_upload_started_async
+
+    def wait_for_upload(self, timeout: float) -> Optional[Callable[[], None]]:
         with self.mock_upload_started:
             if not self.mock_upload_started.wait_for(
                 lambda: len(self.mock_upload_file_waiters) > 0,
@@ -142,9 +152,19 @@ class UploadBlockingMockApi(Mock):
     def _mock_upload(self, *args, **kwargs):
         ev = threading.Event()
         with self.mock_upload_started:
-            self.mock_upload_file_waiters.append(ev)
+            self.mock_upload_file_waiters.append(ev.set)
             self.mock_upload_started.notify_all()
         ev.wait()
+
+    async def _mock_upload_async(self, *args, **kwargs):
+        ev = asyncio.Event()
+        loop = asyncio.get_event_loop()
+        with self.mock_upload_started:
+            self.mock_upload_file_waiters.append(
+                functools.partial(loop.call_soon_threadsafe, ev.set)
+            )
+            self.mock_upload_started.notify_all()
+        await ev.wait()
 
 
 def run_step_upload(
@@ -250,7 +270,7 @@ class TestFinish:
 
         unblock = api.wait_for_upload(2)
         assert not done.wait(0.1)
-        unblock.set()
+        unblock()
         assert done.wait(2)
 
 
@@ -300,11 +320,11 @@ class TestUpload:
 
         time.sleep(0.1)  # TODO: better way to wait for the message to be processed
         assert api.upload_file_retry.call_count == 1
-        unblock.set()
+        unblock()
 
         unblock = api.wait_for_upload(2)
         assert unblock
-        unblock.set()
+        unblock()
 
         finish_and_wait(q)
         assert api.upload_file_retry.call_count == 2
@@ -329,7 +349,7 @@ class TestUpload:
         unblock = api.wait_for_upload(2)
         assert f.exists()
 
-        unblock.set()
+        unblock()
 
         finish_and_wait(q)
 
@@ -651,7 +671,7 @@ class TestArtifactCommit:
         )  # TODO: better way to wait for the Commit message to be processed
         api.commit_artifact.assert_not_called()
 
-        unblock.set()
+        unblock()
         finish_and_wait(q)
         api.commit_artifact.assert_called_once()
 
@@ -772,12 +792,62 @@ def test_enforces_max_jobs(
     assert not api.wait_for_upload(0.1)
 
     # ...until we release one of the first jobs
-    waiters.pop().set()
+    waiters.pop()()
     waiters.append(api.wait_for_upload(0.1))
 
     # let all jobs finish, to release the threads
     for w in waiters:
-        w.set()
+        w()
+
+    finish_and_wait(q)
+
+
+def test_enforces_max_jobs_async(
+    monkeypatch,
+    tmp_path: Path,
+):
+    monkeypatch.setattr(
+        wandb.env,
+        "get_async_upload_concurrency_limit",
+        Mock(return_value=3),
+    )
+
+    q = queue.Queue()
+
+    api = UploadBlockingMockApi()
+
+    async def save_fn_async(path: Path, *args, **kwargs):
+        await api.upload_file_retry_async(f"http://dst/{path}", path.open("rb"))
+
+    def add_job():
+        path = make_tmp_file(tmp_path)
+        q.put(
+            make_request_upload(
+                path, save_fn_async=functools.partial(save_fn_async, path)
+            )
+        )
+
+    step_upload = make_step_upload(api=api, event_queue=q)
+    step_upload.start()
+
+    waiters = []
+
+    # first few jobs should start without blocking
+    for _ in range(wandb.env.get_async_upload_concurrency_limit()):
+        add_job()
+        waiters.append(api.wait_for_upload(0.1))
+
+    # next job should block...
+    add_job()
+    assert not api.wait_for_upload(0.1)
+
+    # ...until we release one of the first jobs
+    waiters.pop()()
+    waiters.append(api.wait_for_upload(0.1))
+
+    # let all jobs finish, to release the threads
+    for w in waiters:
+        w()
 
     finish_and_wait(q)
 
@@ -801,7 +871,7 @@ def test_is_alive_until_last_job_finishes(
     time.sleep(0.1)  # TODO: better way to wait for the message to be processed
     assert step_upload.is_alive()
 
-    unblock.set()
+    unblock()
     assert done.wait(2)
     step_upload._thread.join(timeout=0.1)
     assert not step_upload.is_alive()

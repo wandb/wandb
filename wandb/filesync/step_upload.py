@@ -85,7 +85,7 @@ class StepUpload:
         api: "internal_api.Api",
         stats: "stats.Stats",
         event_queue: "queue.Queue[Event]",
-        max_jobs: int,
+        max_jobs: int,  # TODO: rename to `max_threads`?
         file_stream: "file_stream.FileStreamApi",
         silent: bool = False,
     ) -> None:
@@ -109,7 +109,17 @@ class StepUpload:
             daemon=True,
             name="wandb-upload-async",
         )
-        self._async_concurrency_limiter = asyncio.Semaphore(500, loop=self._loop)
+        async_limit = wandb.env.get_async_upload_concurrency_limit()
+        self._async_concurrency_limiter = asyncio.Semaphore(
+            async_limit if async_limit is not None else 256,
+            # Before Python 3.10: if we don't set `loop=self._loop`,
+            #   then the Semaphore will bind to the wrong event loop,
+            #   causing errors when a coroutine tries to wait for it;
+            #   see https://pastebin.com/XcrS9suX .
+            # After 3.10: the `loop` argument doesn't exist.
+            # So we need to only conditionally pass in `loop`.
+            **({} if sys.version_info >= (3, 10) else {"loop": self._loop}),
+        )
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs: MutableMapping[dir_watcher.SaveName, RequestUpload] = {}
