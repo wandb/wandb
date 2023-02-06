@@ -1,6 +1,4 @@
-"""
-Implementation of the GCP environment for wandb launch.
-"""
+"""Implementation of the GCP environment for wandb launch."""
 import logging
 import os
 import re
