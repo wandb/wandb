@@ -1007,7 +1007,10 @@ def no_retry_auth(e: Any) -> bool:
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise CommError(
-            "Invalid or missing api_key. Run `wandb login` and make sure your host is configured correctly."
+            "The API key is either invalid or missing, or the host is incorrect. "
+            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
+            "The host defaults to 'https://wandb.ai' if not specified. "
+            f"(Error {e.response.status_code}: {e.response.reason})"
         )
     elif wandb.run:
         raise CommError(f"Permission denied to access {wandb.run.path}")
