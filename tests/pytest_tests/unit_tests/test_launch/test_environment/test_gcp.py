@@ -80,3 +80,60 @@ def test_upload_file(mocker):
     mock_storage_client.return_value.bucket.assert_called_once_with("bucket")
     mock_bucket.blob.assert_called_once_with("key")
     mock_blob.upload_from_filename.assert_called_once_with("source")
+
+
+def test_upload_dir(mocker):
+    """Test that a directory is uploaded correctly."""
+    credentials = MagicMock()
+    credentials.valid = True
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.google.auth.default",
+        return_value=(credentials, "project"),
+    )
+    mock_storage_client = MagicMock()
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.google.cloud.storage.Client",
+        mock_storage_client,
+    )
+    mock_bucket = MagicMock()
+    mock_storage_client.return_value.bucket.return_value = mock_bucket
+    mock_blob = MagicMock()
+    mock_bucket.blob.return_value = mock_blob
+    environment = GcpEnvironment("region", verify=False)
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.os.path.isfile",
+        return_value=True,
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.os.path.isdir",
+        return_value=True,
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.os.walk",
+        return_value=[
+            ("source", ["subdir"], ["file1", "file2"]),
+            ("source/subdir", [], ["file3"]),
+        ],
+    )
+    environment.upload_dir("source", "gs://bucket/key")
+    mock_storage_client.assert_called_once_with(credentials=credentials)
+    mock_storage_client.return_value.bucket.assert_called_once_with("bucket")
+
+    def _relpath(path, start):
+        return path.replace(start, "").lstrip("/")
+
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.os.path.relpath",
+        _relpath,
+    )
+
+    mock_bucket.blob.assert_has_calls(
+        [
+            mocker.call("key/file1"),
+            mocker.call().upload_from_filename("source/file1"),
+            mocker.call("key/file2"),
+            mocker.call().upload_from_filename("source/file2"),
+            mocker.call("key/subdir/file3"),
+            mocker.call().upload_from_filename("source/subdir/file3"),
+        ],
+    )

@@ -122,7 +122,7 @@ class AwsEnvironment(AbstractEnvironment):
                 f"botocore error attempting to copy {source} to {destination}. {e}"
             )
 
-    def upload_directory(self, source: str, destination: str) -> None:
+    def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to s3 from local storage.
 
         The upload will place the contents of the source directory in the destination
