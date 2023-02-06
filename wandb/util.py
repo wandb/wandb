@@ -1015,7 +1015,12 @@ def no_retry_auth(e: Any) -> bool:
     elif wandb.run:
         raise CommError(f"Permission denied to access {wandb.run.path}")
     else:
-        raise CommError("Permission denied, ask the project owner to grant you access")
+        raise CommError(
+            "It appears that you do not have permission to access the requested resource. "
+            "Please reach out to the project owner to grant you access. "
+            "If you have the correct permissions, verify that there are no issues with your networking setup."
+            f"(Error {e.response.status_code}: {e.response.reason})"
+        )
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:

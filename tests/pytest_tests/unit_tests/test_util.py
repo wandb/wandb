@@ -490,6 +490,7 @@ def test_no_retry_auth():
     with pytest.raises(wandb.CommError):
         util.no_retry_auth(e)
     e.response.status_code = 403
+    e.response.reason = "Forbidden"
     with mock.patch("wandb.run", mock.MagicMock()):
         with pytest.raises(wandb.CommError):
             util.no_retry_auth(e)
