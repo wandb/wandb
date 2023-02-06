@@ -936,6 +936,8 @@ class SendManager:
                 error.message = str(e)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
+            else:
+                logger.error(e, exc_info=True)
             return
 
         assert self._run  # self._run is configured in _init_run()
