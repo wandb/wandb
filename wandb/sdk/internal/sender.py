@@ -933,7 +933,6 @@ class SendManager:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
                 error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.PERMISSION
                 error.message = str(e)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
