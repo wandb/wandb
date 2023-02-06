@@ -2036,8 +2036,11 @@ class Run(Attrs):
         )
         api.set_current_run_id(self.id)
         root = os.path.abspath(root)
-        name = os.path.relpath(path, root)
-        with open(os.path.join(root, name), "rb") as f:
+        path = os.path.abspath(path)
+        common_path = os.path.commonpath([path, root])
+        name = os.path.relpath(path, common_path)
+        # name = os.path.relpath(path, root)
+        with open(path, "rb") as f:
             api.push({util.to_forward_slash_path(name): f})
         return Files(self.client, self, [name])[0]
 
