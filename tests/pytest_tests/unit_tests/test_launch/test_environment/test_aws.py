@@ -74,7 +74,7 @@ def test_verify(mocker):
     environment.verify()
 
 
-def test_upload_files(mocker):
+def test_upload_directory(mocker):
     """Test that we issue the correct api calls to upload files to s3."""
     """
     Step one here is to mock the os.walk function to return a list of files
@@ -127,7 +127,7 @@ def test_upload_files(mocker):
         session_token="token",
         verify=False,
     )
-    environment.upload(source_dir, "s3://bucket/key")
+    environment.upload_directory(source_dir, "s3://bucket/key")
 
     assert client.upload_file.call_args_list[0][0] == (
         f"{source_dir}/Dockerfile",
@@ -186,3 +186,26 @@ def test_upload_invalid_path(mocker):
         with pytest.raises(LaunchError) as e:
             environment.upload("tests", path)
         assert f"Destination {path} is not a valid s3 URI." == str(e.value)
+
+
+def test_upload_file(mocker):
+    client = MagicMock()
+    session = MagicMock()
+    session.client.return_value = client
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
+        return_value=session,
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.os.path.isfile", return_value=True
+    )
+    environment = _get_environment()
+    environment.upload_file("source_file", "s3://bucket/key")
+    assert client.upload_file.call_args_list[0][0] == (
+        "source_file",
+        "bucket",
+        "key",
+    )
+    with pytest.raises(LaunchError) as e:
+        environment.upload_file("source_file", "s3a://bucket/key")
+        assert e.content == "Destination s3a://bucket/key is not a valid s3 URI."
