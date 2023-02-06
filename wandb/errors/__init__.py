@@ -16,7 +16,7 @@ __all__ = [
 ]
 
 
-from exceptions import (
+from .exceptions import (
     Error,
     CommError,
     ServerError,
@@ -27,6 +27,7 @@ from exceptions import (
     ServerPermanentError,
     InternalError,
     UsageError,
+    MailboxError,
     DockerError,
     UnsupportedError,
     RequireError,
