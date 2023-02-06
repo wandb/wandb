@@ -29,7 +29,7 @@ import requests
 
 import wandb
 from wandb import util
-from wandb.errors import ContextCancelledError, CommError
+from wandb.errors import CommError, ContextCancelledError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
