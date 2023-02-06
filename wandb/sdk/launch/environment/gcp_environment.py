@@ -187,3 +187,34 @@ class GcpEnvironment(AbstractEnvironment):
             blob.upload_from_filename(source)
         except google.api_core.exceptions.GoogleAPICallError as e:
             raise LaunchError(f"Could not upload file to GCS: {e}")
+
+    def upload_dir(self, source: str, destination: str) -> None:
+        """Upload a directory to GCS.
+
+        Args:
+            source: The path to the local directory.
+            destination: The path to the GCS directory.
+
+        Raises:
+            LaunchError: If the directory cannot be uploaded.
+        """
+        if not os.path.isdir(source):
+            raise LaunchError(f"Directory {source} does not exist.")
+        match = gcs_uri_re.match(destination)
+        if not match:
+            raise LaunchError(f"Invalid GCS URI: {destination}")
+        bucket = match.group(1)
+        key = match.group(2).lstrip("/")
+        try:
+            storage_client = google.cloud.storage.Client(
+                credentials=self.get_credentials()
+            )
+            bucket = storage_client.bucket(bucket)
+            for root, _, files in os.walk(source):
+                for file in files:
+                    local_path = os.path.join(root, file)
+                    gcs_path = os.path.join(key, os.path.relpath(local_path, source))
+                    blob = bucket.blob(gcs_path)
+                    blob.upload_from_filename(local_path)
+        except google.api_core.exceptions.GoogleAPICallError as e:
+            raise LaunchError(f"Could not upload directory to GCS: {e}")

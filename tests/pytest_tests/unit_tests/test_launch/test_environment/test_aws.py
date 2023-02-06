@@ -50,14 +50,14 @@ def test_verify_storage(mocker):
         return_value=session,
     )
     environment = _get_environment()
-    environment.verify_storage("s3://bucket/key")
+    environment.verify_storage_uri("s3://bucket/key")
 
     def _raise(*args, **kwargs):
         raise ClientError({}, "Error")
 
     environment.get_session = _raise
     with pytest.raises(LaunchError):
-        environment.verify_storage("s3://bucket/key")
+        environment.verify_storage_uri("s3://bucket/key")
 
 
 def test_verify(mocker):
@@ -127,7 +127,7 @@ def test_upload_directory(mocker):
         session_token="token",
         verify=False,
     )
-    environment.upload_directory(source_dir, "s3://bucket/key")
+    environment.upload_dir(source_dir, "s3://bucket/key")
 
     assert client.upload_file.call_args_list[0][0] == (
         f"{source_dir}/Dockerfile",
@@ -176,7 +176,7 @@ def test_upload_invalid_path(mocker):
     the destination path is not a valid s3 URI."""
     environment = _get_environment()
     with pytest.raises(LaunchError) as e:
-        environment.upload("invalid_path", "s3://bucket/key")
+        environment.upload_dir("invalid_path", "s3://bucket/key")
     assert "Source invalid_path does not exist." == str(e.value)
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.os.path.isdir",
@@ -184,7 +184,7 @@ def test_upload_invalid_path(mocker):
     )
     for path in ["s3a://bucket/key", "s3n://bucket/key"]:
         with pytest.raises(LaunchError) as e:
-            environment.upload("tests", path)
+            environment.upload_dir("tests", path)
         assert f"Destination {path} is not a valid s3 URI." == str(e.value)
 
 
