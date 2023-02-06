@@ -53,6 +53,7 @@ class GcpEnvironment(AbstractEnvironment):
     """
 
     region: str
+    _project: str
 
     def __init__(self, region: str, verify: bool = True) -> None:
         """Initialize the GCP environment.
@@ -66,13 +67,13 @@ class GcpEnvironment(AbstractEnvironment):
                 configured.
         """
         super().__init__()
-        self.region = region
-        self._project = None
+        self.region: str = region
+        self._project = ""
         if verify:
             self.verify()
 
     @property
-    def project(self):
+    def project(self) -> str:
         """Get the name of the gcp project.
 
         The project name is determined by the credentials, so this method
@@ -84,11 +85,14 @@ class GcpEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the launch environment cannot be verified.
         """
-        if self._project is None:
-            self.verify()
+        if not self._project:
+            raise LaunchError(
+                "This GcpEnvironment has not been verified. Please call verify() "
+                "before accessing the project."
+            )
         return self._project
 
-    def get_credentials(self) -> google.auth.credentials.Credentials:
+    def get_credentials(self) -> google.auth.credentials.Credentials:  # type: ignore
         """Get the GCP credentials.
 
         Uses google.auth.default() to get the credentials. If the credentials
@@ -103,9 +107,10 @@ class GcpEnvironment(AbstractEnvironment):
         """
         try:
             creds, project = google.auth.default()
-            if self._project is None:
+            if not self._project:
                 self._project = project
-            elif self._project != project:
+                return
+            if self._project != project:
                 # This should never happen, but we check just in case.
                 raise LaunchError(
                     "The GCP project specified by the credentials has changed. "
@@ -137,7 +142,7 @@ class GcpEnvironment(AbstractEnvironment):
             )
         return creds
 
-    def verify(self):
+    def verify(self) -> None:
         """Verify the credentials, region, and project.
 
         Credentials and region are verified by calling get_credentials(). The
