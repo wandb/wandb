@@ -11,6 +11,8 @@ botocore = get_module(
     "botocore", required="AWS environment requires botocore to be installed."
 )
 
+s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
+
 
 class AwsEnvironment(AbstractEnvironment):
     """AWS environment."""
@@ -81,28 +83,6 @@ class AwsEnvironment(AbstractEnvironment):
                 f"Could not verify AWS environment. Please verify that your AWS credentials are configured correctly. {e}"
             )
 
-    def verify_storage(self, uri: str) -> None:
-        """Verify that storage is configured correctly.
-
-        Args:
-            uri (str): The URI of the storage.
-
-        Raises:
-            LaunchError: If the storage is not configured correctly.
-
-        Returns:
-            None
-        """
-        bucket = uri.replace("s3://", "").split("/")[0]
-        try:
-            session = self.get_session()
-            client = session.client("s3")
-            client.head_bucket(Bucket=bucket)
-        except botocore.exceptions.ClientError as e:
-            raise LaunchError(
-                f"Could not verify AWS storage. Please verify that your AWS credentials are configured correctly. {e}"
-            )
-
     def get_session(self) -> "boto3.Session":  # type: ignore
         """Get an AWS session.
 
@@ -122,7 +102,27 @@ class AwsEnvironment(AbstractEnvironment):
         except botocore.exceptions.ClientError as e:
             raise LaunchError(f"Could not create AWS session. {e}")
 
-    def upload(self, source: str, destination: str) -> None:
+    def upload_file(self, source: str, destination: str) -> None:
+        """Upload a file to s3 from local storage."""
+        if not os.path.isfile(source):
+            raise LaunchError(f"Source {source} does not exist.")
+        match = s3_uri_re.match(destination)
+        if not match:
+            raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
+        bucket = match.group(1)
+        key = match.group(2).lstrip("/")
+        if not key:
+            key = ""
+        session = self.get_session()
+        try:
+            client = session.client("s3")
+            client.upload_file(source, bucket, key)
+        except botocore.exceptions.ClientError as e:
+            raise LaunchError(
+                f"botocore error attempting to copy {source} to {destination}. {e}"
+            )
+
+    def upload_directory(self, source: str, destination: str) -> None:
         """Upload a directory to s3 from local storage.
 
         The upload will place the contents of the source directory in the destination
@@ -141,7 +141,7 @@ class AwsEnvironment(AbstractEnvironment):
         """
         if not os.path.isdir(source):
             raise LaunchError(f"Source {source} does not exist.")
-        match = re.match(r"s3://([^/]+)(/.*)?", destination)
+        match = s3_uri_re.match(destination)
         if not match:
             raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
         bucket = match.group(1)
@@ -154,7 +154,6 @@ class AwsEnvironment(AbstractEnvironment):
             for path, _, files in os.walk(source):
                 for file in files:
                     abs_path = os.path.join(path, file)
-
                     client.upload_file(
                         abs_path,
                         bucket,
@@ -167,4 +166,26 @@ class AwsEnvironment(AbstractEnvironment):
         except Exception as e:
             raise LaunchError(
                 f"Unexpected error attempting to copy {source} to {destination}. {e}"
+            )
+
+    def verify_storage_uri(self, uri: str) -> None:
+        """Verify that storage is configured correctly.
+
+        Args:
+            uri (str): The URI of the storage.
+
+        Raises:
+            LaunchError: If the storage is not configured correctly.
+
+        Returns:
+            None
+        """
+        bucket = uri.replace("s3://", "").split("/")[0]
+        try:
+            session = self.get_session()
+            client = session.client("s3")
+            client.head_bucket(Bucket=bucket)
+        except botocore.exceptions.ClientError as e:
+            raise LaunchError(
+                f"Could not verify AWS storage. Please verify that your AWS credentials are configured correctly. {e}"
             )
