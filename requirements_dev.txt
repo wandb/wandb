@@ -25,7 +25,7 @@ plotly
 bokeh
 tqdm
 docker
-stable_baselines3
+# stable_baselines3
 tensorboard
 # gym
 jax[cpu]; sys_platform == 'darwin' or sys_platform == 'linux'
