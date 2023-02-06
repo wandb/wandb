@@ -2,6 +2,8 @@
 Implementation of the GCP environment for wandb launch.
 """
 import logging
+import os
+import re
 
 from wandb.errors import LaunchError
 from wandb.util import get_module
@@ -28,7 +30,12 @@ google.auth.transport.requests = get_module(
     required="Google Cloud Platform support requires google-auth. "
     "Please install it with `pip install google-auth`.",
 )
-storage = get_module(
+google.api_core.exceptions = get_module(
+    "google.api_core.exceptions",
+    required="Google Cloud Platform support requires google-api-core. "
+    "Please install it with `pip install google-api-core`.",
+)
+google.cloud.storage = get_module(
     "google.cloud.storage",
     required="Google Cloud Platform support requires google-cloud-storage. "
     "Please install it with `pip install google-cloud-storage.",
@@ -36,6 +43,8 @@ storage = get_module(
 
 
 _logger = logging.getLogger(__name__)
+
+gcs_uri_re = re.compile(r"gs://([^/]+)/(.+)")
 
 
 class GcpEnvironment(AbstractEnvironment):
@@ -151,3 +160,30 @@ class GcpEnvironment(AbstractEnvironment):
             raise LaunchError(
                 f"Region {self.region} is not available in project {self.project}."
             )
+
+    def upload_file(self, source: str, destination: str) -> None:
+        """Upload a file to GCS.
+
+        Args:
+            source: The path to the local file.
+            destination: The path to the GCS file.
+
+        Raises:
+            LaunchError: If the file cannot be uploaded.
+        """
+        if not os.path.isfile(source):
+            raise LaunchError(f"File {source} does not exist.")
+        match = gcs_uri_re.match(destination)
+        if not match:
+            raise LaunchError(f"Invalid GCS URI: {destination}")
+        bucket = match.group(1)
+        key = match.group(2).lstrip("/")
+        try:
+            storage_client = google.cloud.storage.Client(
+                credentials=self.get_credentials()
+            )
+            bucket = storage_client.bucket(bucket)
+            blob = bucket.blob(key)
+            blob.upload_from_filename(source)
+        except google.api_core.exceptions.GoogleAPICallError as e:
+            raise LaunchError(f"Could not upload file to GCS: {e}")
