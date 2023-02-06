@@ -24,6 +24,8 @@ s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
 
 _logger = logging.getLogger(__name__)
 
+s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
+
 
 class AwsEnvironment(AbstractEnvironment):
     """AWS environment."""
