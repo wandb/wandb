@@ -88,7 +88,7 @@ class OpenMetricsMetric:
                 stats[f"{self.name}.{key}"] = aggregate_mean(samples)
             else:
                 stats[f"{self.name}.{key}"] = aggregate_last(samples)
-        # print(stats)
+        print(stats)
         return stats
 
 
