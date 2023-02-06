@@ -1,3 +1,4 @@
+"""Implementation of Google Artifact Registry for wandb launch."""
 import re
 
 from wandb.errors import LaunchError

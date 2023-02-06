@@ -1,3 +1,4 @@
+"""Implementation of Elastic Container Registry class for wandb launch."""
 import base64
 from typing import Tuple
 
@@ -13,13 +14,28 @@ botocore = get_module(
 
 
 class ElasticContainerRegistry(AbstractRegistry):
-    """Elastic Container Registry class."""
+    """Elastic Container Registry class.
+
+    Attributes:
+        repo_name (str): The name of the repository.
+        environment (AwsEnvironment): The AWS environment.
+        uri (str): The uri of the repository.
+    """
 
     repo_name: str
     environment: AwsEnvironment
     uri: str
 
     def __init__(self, repo_name: str, environment: AwsEnvironment) -> None:
+        """Initialize the Elastic Container Registry.
+
+        Args:
+            repo_name (str): The name of the repository.
+            environment (AwsEnvironment): The AWS environment.
+
+        Raises:
+            LaunchError: If there is an error verifying the registry.
+        """
         super().__init__()
         self.repo_name = repo_name
         self.environment = environment

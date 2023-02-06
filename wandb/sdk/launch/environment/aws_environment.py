@@ -1,3 +1,5 @@
+"""Implements the AWS environment."""
+
 import os
 import re
 
@@ -103,7 +105,23 @@ class AwsEnvironment(AbstractEnvironment):
             raise LaunchError(f"Could not create AWS session. {e}")
 
     def upload_file(self, source: str, destination: str) -> None:
-        """Upload a file to s3 from local storage."""
+        """Upload a file to s3 from local storage.
+
+        The destination is a valid s3 URI, e.g. s3://bucket/key and will
+        be used as a prefix for the uploaded file.  Only the filename of the source
+        is kept in the upload key.  So if the source is "foo/bar" and the
+        destination is "s3://bucket/key", the file "foo/bar" will be uploaded
+        to "s3://bucket/key/bar".
+
+        Args:
+            source (str): The path to the file or directory.
+            destination (str): The uri of the storage destination. This should
+                be a valid s3 URI, e.g. s3://bucket/key.
+
+        Raises:
+            LaunchError: If the copy fails, the source path does not exist, or the
+                destination is not a valid s3 URI, or the upload fails.
+        """
         if not os.path.isfile(source):
             raise LaunchError(f"Source {source} does not exist.")
         match = s3_uri_re.match(destination)
@@ -169,18 +187,25 @@ class AwsEnvironment(AbstractEnvironment):
             )
 
     def verify_storage_uri(self, uri: str) -> None:
-        """Verify that storage is configured correctly.
+        """Verify that s3 storage is configured correctly.
+
+        This will check that the bucket exists and that the credentials are
+        configured correctly.
 
         Args:
             uri (str): The URI of the storage.
 
         Raises:
-            LaunchError: If the storage is not configured correctly.
+            LaunchError: If the storage is not configured correctly or the URI is
+                not a valid s3 URI.
 
         Returns:
             None
         """
-        bucket = uri.replace("s3://", "").split("/")[0]
+        match = s3_uri_re.match(uri)
+        if not match:
+            raise LaunchError(f"Destination {uri} is not a valid s3 URI.")
+        bucket = match.group(1)
         try:
             session = self.get_session()
             client = session.client("s3")
