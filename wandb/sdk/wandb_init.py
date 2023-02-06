@@ -51,6 +51,7 @@ if TYPE_CHECKING:
 
 logger: Optional[logging.Logger] = None  # logger configured during wandb.init()
 
+#testing!!
 
 def _set_logger(log_object: logging.Logger) -> None:
     """Configure module logger."""
