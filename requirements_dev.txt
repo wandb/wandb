@@ -25,9 +25,7 @@ plotly
 bokeh
 tqdm
 docker
-stable_baselines3
 tensorboard
-gym
 jax[cpu]; sys_platform == 'darwin' or sys_platform == 'linux'
 fastcore; python_version > '3.6'
 fastcore==1.3.29; python_version == '3.6'
