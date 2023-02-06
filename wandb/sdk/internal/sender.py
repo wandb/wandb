@@ -929,6 +929,7 @@ class SendManager:
         try:
             self._init_run(run, config_value_dict)
         except CommError as e:
+            logger.error(e, exc_info=True)
             if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
@@ -936,8 +937,6 @@ class SendManager:
                 error.message = str(e)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
-            else:
-                logger.error(e, exc_info=True)
             return
 
         assert self._run  # self._run is configured in _init_run()
