@@ -109,7 +109,6 @@ class GcpEnvironment(AbstractEnvironment):
             creds, project = google.auth.default()
             if not self._project:
                 self._project = project
-                return
             if self._project != project:
                 # This should never happen, but we check just in case.
                 raise LaunchError(
