@@ -183,7 +183,9 @@ class Scheduler(ABC):
             run.state = SimpleRunState.DEAD
 
             if not run.queued_run:
-                logging.debug(f"tried to _stop_run but run not queued yet (run_id:{run.id})")
+                logging.debug(
+                    f"tried to _stop_run but run not queued yet (run_id:{run.id})"
+                )
 
             encoded_run_id = base64.standard_b64encode(
                 f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
@@ -203,7 +205,7 @@ class Scheduler(ABC):
 
     def _update_run_states(self) -> None:
         _runs_to_remove: List[str] = []
-        for run_id, run in self._yield_runs():                
+        for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
                 if _state is None or _state in [

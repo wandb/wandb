@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+
 @dataclass
 class _Worker:
     agent_config: Dict[str, Any]
@@ -150,14 +151,20 @@ class OptunaScheduler(Scheduler):
         if not self.is_alive():
             return
 
-        if self._job_queue.empty() and len(self._runs) < self._num_workers:  # add another run!
+        if (
+            self._job_queue.empty() and len(self._runs) < self._num_workers
+        ):  # add another run!
             # upsert run
             run = self._internal_api.upsert_run(
                 sweep_name=self._sweep_id,
-                state='pending',
+                state="pending",
             )[0]
-            
-            run_id = base64.b64decode(bytes(run['id'].encode('utf-8'))).decode('utf-8').split(":")[2]
+
+            run_id = (
+                base64.b64decode(bytes(run["id"].encode("utf-8")))
+                .decode("utf-8")
+                .split(":")[2]
+            )
 
             config, trial = self._trial_func()
             run = SweepRun(
@@ -208,9 +215,7 @@ class OptunaScheduler(Scheduler):
         # send to launch
         self._add_to_launch_queue(
             run_id=srun.id,
-            entry_point=["python3", srun.program]
-            if srun.program
-            else None,
+            entry_point=["python3", srun.program] if srun.program else None,
             # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
             config={
                 "overrides": {
@@ -223,7 +228,7 @@ class OptunaScheduler(Scheduler):
 
     def _get_run_history(self, run_id):
         queued_run: QueuedRun = self._runs[run_id].queued_run
-        if queued_run.state == 'pending':
+        if queued_run.state == "pending":
             return [], False
 
         launched_run = queued_run.wait_until_running()
@@ -246,7 +251,9 @@ class OptunaScheduler(Scheduler):
             metrics, run_finished = self._get_run_history(run_id)
             last_metric_idx = self._metric_history[run_id]
             for i, metric in enumerate(metrics[last_metric_idx:]):
-                wandb.termlog(f"{LOG_PREFIX}Run: {run_id} | logging new {metric=} (step: {i+last_metric_idx})")
+                wandb.termlog(
+                    f"{LOG_PREFIX}Run: {run_id} | logging new {metric=} (step: {i+last_metric_idx})"
+                )
                 trial = self._run_trials[run_id]
                 trial.report(metric, last_metric_idx + i)
                 self._metric_history[run_id] = len(metrics) - 1
@@ -290,7 +297,9 @@ class OptunaScheduler(Scheduler):
         wandb.termlog(f"{LOG_PREFIX}Making trial params from objective func")
         import random
 
-        sampler = optuna.samplers.TPESampler(seed=random.randint(0, 100000))  # Make the sampler random.
+        sampler = optuna.samplers.TPESampler(
+            seed=random.randint(0, 100000)
+        )  # Make the sampler random.
         study_copy = optuna.create_study(sampler=sampler)
         study_copy.add_trials(self.study.trials)
         try:
@@ -309,7 +318,9 @@ class OptunaScheduler(Scheduler):
     def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int] = 100):
         type_ = pruner_args.get("type")
         if not type_:
-            wandb.termwarn(f"{LOG_PREFIX}No pruner selected, using Optuna default median pruner")
+            wandb.termwarn(
+                f"{LOG_PREFIX}No pruner selected, using Optuna default median pruner"
+            )
             return None
         elif type_ == "HyperbandPruner":
             wandb.termlog(f"{LOG_PREFIX}Using the optuna HyperbandPruner")
