@@ -45,31 +45,30 @@ class OpenMetricsMetric:
     def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
         assert prometheus_client_parser is not None
         response = self.session.get(self.url)
+        text = response.text
         measurement = {}
-        for family in prometheus_client_parser.text_string_to_metric_families(
-            response.text
-        ):
+        for family in prometheus_client_parser.text_string_to_metric_families(text):
             if family.type not in ("counter", "gauge"):
                 # todo: add support for other metric types?
                 # todo: log warning about that?
                 continue
-
             for sample in family.samples:
+                name, labels, value = sample.name, sample.labels, sample.value
                 # md5 hash of the labels
-                label_hash = md5(str(sample.labels).encode("utf-8")).hexdigest()
-                if label_hash not in self.label_map[sample.name]:
-                    self.label_map[sample.name][label_hash] = len(
-                        self.label_map[sample.name]
-                    )
-                    self.label_hashes[label_hash] = sample.labels
-                index = self.label_map[sample.name][label_hash]
-                measurement[f"{sample.name}.{index}"] = sample.value
+                label_hash = md5(str(labels).encode("utf-8")).hexdigest()
+                if label_hash not in self.label_map[name]:
+                    # store the index of the label hash in the label map
+                    self.label_map[name][label_hash] = len(self.label_map[name])
+                    # store the labels themselves
+                    self.label_hashes[label_hash] = labels
+                index = self.label_map[name][label_hash]
+                measurement[f"{name}.{index}"] = value
 
         return measurement
 
     def sample(self) -> None:
-        sample = self.parse_open_metrics_endpoint()
-        self.samples.append(sample)
+        s = self.parse_open_metrics_endpoint()
+        self.samples.append(s)
         # print(self.label_map)
         # print(self.samples)
         # print(self.label_hashes)
@@ -84,11 +83,12 @@ class OpenMetricsMetric:
         stats = {}
         for key in self.samples[0].keys():
             samples = [s[key] for s in self.samples if key in s]
-            if key == "DCGM_FI_DEV_GPU_UTIL.0":
-                print("DCGM_FI_DEV_GPU_UTIL.0")
-                print([type(s) for s in samples])
-                print(samples, aggregate_mean(samples), aggregate_last(samples))
-                print()
+            # fixme: remove this debug code
+            # if key == "DCGM_FI_DEV_GPU_UTIL.0":
+            #     print("DCGM_FI_DEV_GPU_UTIL.0")
+            #     print([type(s) for s in samples])
+            #     print(samples, aggregate_mean(samples), aggregate_last(samples))
+            #     print()
             if samples and all(isinstance(s, (int, float)) for s in samples):
                 stats[f"{self.name}.{key}"] = aggregate_mean(samples)
             else:
