@@ -1,5 +1,4 @@
 from unittest import mock
-from typing import Optional
 
 import pytest
 
