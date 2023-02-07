@@ -2,8 +2,10 @@ __all__ = [
     "Error",
     "UsageError",
     "CommError",
+    "LogError",
     "DockerError",
-    "UnsupportedError",
+    "LogMultiprocessError",
+    "MultiprocessError",
     "RequireError",
     "ExecutionError",
     "LaunchError",
@@ -15,11 +17,7 @@ __all__ = [
     "ServiceStartPortError",
 ]
 
-
 from typing import List, Optional
-
-
-### Errors caused by the Server ###
 
 
 class Error(Exception):
@@ -28,6 +26,10 @@ class Error(Exception):
     def __init__(self, message) -> None:
         super().__init__(message)
         self.message = message
+
+    # For python 2 support
+    def encode(self, encoding):
+        return self.message
 
 
 class CommError(Error):
@@ -39,121 +41,50 @@ class CommError(Error):
         self.exc = exc
 
 
-class ServerError(CommError):
-    """Raised when the backend returns an error."""
+class TimeoutError(Error):
+    """Raised when a connection times out"""
+
+class PermissionError(Error):
+    """Raised trying to access a resource that the does not have permission to access"""
+
+class AuthenticationError(Error):
+    """Raised when fails to provide valid authentication credentials"""
+
+class AuthorizationError(Error):
+    """Raised when not authorized to access a particular resource"""
+
+class RateLimitError(Error):
+    """Raised when there is a rate limit error"""
+
+
+class UsageError(Error):
+    """API Usage Error"""
 
     pass
 
 
-class ServerTransientError(ServerError):
-    """Raised when the backend returns an error that can be retried."""
+class LogError(Error):
+    """Raised when wandb.log() fails"""
 
     pass
 
 
-class ServerUnavailableError(ServerTransientError):
-    """Raised when the backend returns a server unavailable error."""
+class LogMultiprocessError(LogError):
+    """Raised when wandb.log() fails because of multiprocessing"""
 
     pass
 
 
-class ServerTimeoutError(ServerTransientError):
-    """Raised when the backend returns a timeout error."""
-
-    pass
-
-
-class ServerRateLimitError(ServerTransientError):
-    """Raised when the backend returns a rate limit error."""
-
-    pass
-
-
-class ServerPermanentError(ServerError):
-    """Raised when the backend returns an error that cannot be retried."""
-
-    pass
-
-
-### Errors caused by the Internal SDK logic ###
-
-
-class InternalError(Error):
-    """Raised when an internal error occurs."""
-
-    pass
-
-
-class UnsupportedError(Error):
+class MultiprocessError(Error):
     """Raised when fails because of multiprocessing"""
 
     pass
 
 
-class Abort(InternalError):
-    """Raised when critical errors occur."""
-
-    pass
-
-
-class RequireError(InternalError):
+class RequireError(Error):
     """Raised when wandb.require() fails"""
 
     pass
-
-
-class MailboxError(InternalError):
-    """Generic Mailbox Exception"""
-
-    pass
-
-
-class ContextCancelledError(MailboxError):
-    """Context cancelled Exception"""
-
-    pass
-
-
-class ServiceError(InternalError):
-    """Generic Service Exception"""
-
-    pass
-
-
-class ServiceStartProcessError(ServiceError):
-    """Raised when a known error occurs when launching wandb service"""
-
-    pass
-
-
-class ServiceStartTimeoutError(ServiceError):
-    """Raised when service start times out"""
-
-    pass
-
-
-class ServiceStartPortError(ServiceError):
-    """Raised when service start fails to find a port"""
-
-    pass
-
-
-### Errors caused by the user ###
-
-
-class UserError(Error):
-    """Raised when a user error occurs."""
-
-    pass
-
-
-class UsageError(UserError):
-    """Raised when a usage error occurs."""
-
-    pass
-
-
-### Errors requires owner review ###
 
 
 class ExecutionError(Error):
@@ -208,5 +139,35 @@ class SweepError(Error):
 
 class WaitTimeoutError(Error):
     """Raised when wait() timeout occurs before process is finished"""
+
+    pass
+
+
+class MailboxError(Error):
+    """Generic Mailbox Exception"""
+
+    pass
+
+
+class ContextCancelledError(Error):
+    """Context cancelled Exception"""
+
+    pass
+
+
+class ServiceStartProcessError(Error):
+    """Raised when a known error occurs when launching wandb service"""
+
+    pass
+
+
+class ServiceStartTimeoutError(Error):
+    """Raised when service start times out"""
+
+    pass
+
+
+class ServiceStartPortError(Error):
+    """Raised when service start fails to find a port"""
 
     pass

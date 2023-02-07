@@ -447,6 +447,10 @@ class ErrorInfo(google.protobuf.message.Message):
         PERMISSION: ErrorInfo._ErrorCode.ValueType  # 2
         NETWORK: ErrorInfo._ErrorCode.ValueType  # 3
         INTERNAL: ErrorInfo._ErrorCode.ValueType  # 4
+        TIMEOUT: ErrorInfo._ErrorCode.ValueType  # 5
+        AUTHENTICATION: ErrorInfo._ErrorCode.ValueType  # 6
+        AUTHORIZATION: ErrorInfo._ErrorCode.ValueType  # 7
+        RATELIMIT: ErrorInfo._ErrorCode.ValueType  # 8
 
     class ErrorCode(_ErrorCode, metaclass=_ErrorCodeEnumTypeWrapper): ...
     UNKNOWN: ErrorInfo.ErrorCode.ValueType  # 0
@@ -454,6 +458,10 @@ class ErrorInfo(google.protobuf.message.Message):
     PERMISSION: ErrorInfo.ErrorCode.ValueType  # 2
     NETWORK: ErrorInfo.ErrorCode.ValueType  # 3
     INTERNAL: ErrorInfo.ErrorCode.ValueType  # 4
+    TIMEOUT: ErrorInfo.ErrorCode.ValueType  # 5
+    AUTHENTICATION: ErrorInfo.ErrorCode.ValueType  # 6
+    AUTHORIZATION: ErrorInfo.ErrorCode.ValueType  # 7
+    RATELIMIT: ErrorInfo.ErrorCode.ValueType  # 8
 
     MESSAGE_FIELD_NUMBER: builtins.int
     CODE_FIELD_NUMBER: builtins.int

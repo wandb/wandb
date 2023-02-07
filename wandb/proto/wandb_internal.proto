@@ -149,6 +149,10 @@ message ErrorInfo {
     PERMISSION = 2;
     NETWORK = 3;
     INTERNAL = 4;
+    TIMEOUT = 5;
+    AUTHENTICATION = 6;
+    AUTHORIZATION = 7;
+    RATELIMIT = 8;
   }
   string  message = 1;
   ErrorCode code = 2;
