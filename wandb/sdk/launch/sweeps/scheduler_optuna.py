@@ -51,7 +51,7 @@ class OptunaScheduler(Scheduler):
         self._num_workers: int = num_workers
 
         self._public_api = PublicApi()
-        self._internal_api = InternalApi()
+        self._api = InternalApi()
 
         self.study: optuna.study.Study = None
         self._trial_func = None
@@ -69,12 +69,11 @@ class OptunaScheduler(Scheduler):
 
     def _load_objective_function(self):
         if self._sweep_config.get("objective_func"):
-            wandb.termlog("Attempting to use objective func artifact")
             artifact = self._wandb_run.use_artifact(
                 self._sweep_config.get("objective_func"), type="objective-func"
             )
             if artifact:
-                wandb.termlog(f"{LOG_PREFIX}Downloaded objective: {artifact}")
+                wandb.termlog(f"{LOG_PREFIX}Downloading objective artifact: {artifact}")
                 path = artifact.download()
 
                 objective_path = f"{path}/objective.py"
@@ -120,11 +119,16 @@ class OptunaScheduler(Scheduler):
         else:
             self._storage_name = f"{self._study_name}.db"
 
+        wandb.termlog(
+            f"{LOG_PREFIX}Creating optuna study with direction: {self._sweep_config.get('metric', {}).get('goal')}"
+        )
         self.study = optuna.create_study(
             study_name=self._study_name,
             storage=f"sqlite:///{self._storage_name}",
             pruner=pruner,
+            sampler=None,
             load_if_exists=True,
+            direction=self._sweep_config.get("metric", {}).get("goal"),
         )
 
     def _save_scheduler_state(self) -> None:
@@ -155,10 +159,11 @@ class OptunaScheduler(Scheduler):
             self._job_queue.empty() and len(self._runs) < self._num_workers
         ):  # add another run!
             # upsert run
-            run = self._internal_api.upsert_run(
+            run = self._api.upsert_run(
                 sweep_name=self._sweep_id,
-                state="pending",
             )[0]
+
+            print(f">>>>>{self._sweep_id}>>>>>> {run}")
 
             run_id = (
                 base64.b64decode(bytes(run["id"].encode("utf-8")))
@@ -186,10 +191,11 @@ class OptunaScheduler(Scheduler):
         create new runs if necessary from optuna suggestions
         launch new runs
         """
-        pruned = self._poll_running_runs()
+        to_kill = self._poll_running_runs()
         time.sleep(1)
-        for run in pruned:
-            self._stop_run(run.id)
+        for run_id in to_kill:
+            del self._run_trials[run_id]
+            self._stop_run(run_id)
 
         for worker_id in self._workers:
             self._heartbeat(worker_id)
@@ -227,25 +233,30 @@ class OptunaScheduler(Scheduler):
         )
 
     def _get_run_history(self, run_id):
-        queued_run: QueuedRun = self._runs[run_id].queued_run
-        if queued_run.state == "pending":
-            return [], False
+        launched_run_path = f"{self._entity}/{self._project}/{run_id}"
+        if run_id in self._runs:
+            # run was killed upstream
+            queued_run: QueuedRun = self._runs[run_id].queued_run
+            if queued_run.state == "pending":
+                return [], False
+            else:
+                queued_run.wait_until_running()
 
-        launched_run = queued_run.wait_until_running()
-        launched_run_path = "/".join(launched_run.path)
+        try:
+            api_run: Run = self._public_api.run(launched_run_path)
+            finished = False
+        except Exception:
+            finished = True
 
-        api_run: Run = self._public_api.run(launched_run_path)
         metric_name = self._sweep_config["metric"]["name"]
         history = api_run.scan_history(keys=["_step", metric_name])
-
-        finished = api_run.state == "finished"
+        finished = finished or api_run.state == "finished"
 
         return [x[metric_name] for x in history], finished
 
     def _poll_running_runs(self):
         wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
-        pruned = []
-
+        to_kill = []
         for run_id, trial in self._run_trials.items():
             # poll metrics, feed into optuna
             metrics, run_finished = self._get_run_history(run_id)
@@ -256,20 +267,22 @@ class OptunaScheduler(Scheduler):
                 )
                 trial = self._run_trials[run_id]
                 trial.report(metric, last_metric_idx + i)
-                self._metric_history[run_id] = len(metrics) - 1
+                self._metric_history[run_id] = len(metrics)
 
                 # ask optuna if we should prune the run
                 if trial.should_prune():
                     wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {run_id}")
-                    self._stop_run(run_id)
-                    del self._run_trials[run_id]
                     self.study.tell(trial, state=optuna.trial.TrialState.PRUNED)
-                    pruned += [run_id]
+                    to_kill += [run_id]
                     break
 
             if run_finished:
-                self.study.tell(trial, metrics[-1])
-        return pruned
+                self.study.tell(trial, state=optuna.trial.TrialState.COMPLETE)
+                wandb.termlog(
+                    f"{LOG_PREFIX}Run finished. Currenty study state: {self.study.trials}"
+                )
+                to_kill += [run_id]
+        return to_kill
 
     def _make_trial(self):
         trial = self.study.ask()
@@ -295,12 +308,7 @@ class OptunaScheduler(Scheduler):
 
     def _make_trial_from_objective(self):
         wandb.termlog(f"{LOG_PREFIX}Making trial params from objective func")
-        import random
-
-        sampler = optuna.samplers.TPESampler(
-            seed=random.randint(0, 100000)
-        )  # Make the sampler random.
-        study_copy = optuna.create_study(sampler=sampler)
+        study_copy = optuna.create_study()
         study_copy.add_trials(self.study.trials)
         try:
             study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
@@ -309,11 +317,14 @@ class OptunaScheduler(Scheduler):
                 "Passed optuna objective functions cannot actually train. Must execute in 2 seconds. See docs."
             )
 
+        temp_trial = study_copy.trials[-1]
         config = defaultdict(dict)
-        for param, value in study_copy.trials[-1].params.items():
+        for param, value in temp_trial.params.items():
             config[param]["value"] = value
 
-        return config, study_copy.trials[-1]
+        new_trial = self.study.ask(fixed_distributions=temp_trial.distributions)
+
+        return config, new_trial
 
     def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int] = 100):
         type_ = pruner_args.get("type")
@@ -332,7 +343,7 @@ class OptunaScheduler(Scheduler):
         elif type_ == "SuccessiveHalvingPruner":
             wandb.termlog(f"{LOG_PREFIX}Using the optuna SuccessiveHalvingPruner")
             return optuna.pruners.SuccessiveHalvingPruner(
-                min_resource=pruner_args.get("min_resource", 3),
+                min_resource=pruner_args.get("min_resource", 1),
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
         else:

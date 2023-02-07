@@ -191,9 +191,11 @@ class Scheduler(ABC):
                 f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
             ).decode("utf-8")
 
-            print(f"{encoded_run_id=}")
-
-            success = self._api.stop_run(run_id)
+            success = self._api.upsert_run(
+                id=encoded_run_id,
+                state="finished",
+            )
+            wandb.termlog(f"----- {success}")
             if success:
                 wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
             else:
@@ -233,7 +235,7 @@ class Scheduler(ABC):
         with self._threading_lock:
             for run_id in _runs_to_remove:
                 wandb.termlog(f"{LOG_PREFIX}Cleaning up dead run {run_id}.")
-                del self._runs[run_id]
+                self._stop_run(run_id)
 
     def _add_to_launch_queue(
         self,
