@@ -12,7 +12,6 @@ these values in many cases.
 
 import json
 import os
-import resource
 import sys
 from distutils.util import strtobool
 from typing import List, MutableMapping, Optional, Union
@@ -404,8 +403,13 @@ def get_async_upload_concurrency_limit(
 
     if file_limit is None:
         try:
+            import resource  # not always available on Windows
+
             file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
         except Exception:  # getrlimit is very platform-specific
+            # Couldn't get the open-file-limit for some reason,
+            # probably very platform-specific. Not a problem,
+            # we just won't use it to cap the concurrency.
             pass
 
     if file_limit and file_limit > 0 and val > file_limit:
