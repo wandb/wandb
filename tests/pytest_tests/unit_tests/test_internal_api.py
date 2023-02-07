@@ -24,13 +24,12 @@ import requests
 import responses
 import respx
 import wandb.errors
+import wandb.sdk.internal.progress
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.sdk.lib import retry
-import wandb.sdk.internal.progress
 
 from .test_retry import MockTime, mock_time  # noqa: F401
-
 
 _T = TypeVar("_T")
 

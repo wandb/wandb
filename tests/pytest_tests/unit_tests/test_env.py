@@ -1,7 +1,6 @@
 from unittest import mock
 
 import pytest
-
 from wandb.env import get_async_upload_concurrency_limit
 
 

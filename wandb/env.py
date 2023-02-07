@@ -12,9 +12,9 @@ these values in many cases.
 
 import json
 import os
+import resource
 import sys
 from distutils.util import strtobool
-import resource
 from typing import List, MutableMapping, Optional, Union
 
 import appdirs
