@@ -125,12 +125,18 @@ def finish_and_wait(command_queue: queue.Queue):
 class UploadBlockingMockApi(Mock):
     def __init__(self, *args, **kwargs):
 
+        kwargs = {
+            **dict(
+                upload_urls=Mock(wraps=mock_upload_urls),
+                upload_file_retry=Mock(wraps=self._mock_upload),
+                upload_file_retry_async=Mock(wraps=self._mock_upload_async),
+            ),
+            **kwargs,
+        }
+
         super().__init__(
             *args,
             **kwargs,
-            upload_urls=Mock(wraps=mock_upload_urls),
-            upload_file_retry=Mock(wraps=self._mock_upload),
-            upload_file_retry_async=Mock(wraps=self._mock_upload_async),
         )
 
         self.mock_upload_file_waiters: MutableSequence[Callable[[], None]] = []
@@ -810,7 +816,11 @@ def test_enforces_max_jobs_async(
 
     q = queue.Queue()
 
-    api = UploadBlockingMockApi()
+    api = UploadBlockingMockApi(
+        upload_file_retry=Mock(
+            side_effect=Exception("sync upload should not be called in async test")
+        )
+    )
 
     async def save_fn_async(path: Path, *args, **kwargs):
         await api.upload_file_retry_async(f"http://dst/{path}", path.open("rb"))
