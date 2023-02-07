@@ -1,0 +1,5 @@
+[default]
+entity = griffin
+project = optuna
+base_url = https://api.wandb.test
+

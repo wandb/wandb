@@ -22,7 +22,9 @@ def push_to_queue(
     api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
 ) -> Any:
     try:
+        print(f"{queue_name} {launch_spec} {project_queue}")
         res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
+        print(f"{res=}")
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -162,6 +164,10 @@ def _launch_add(
         run_id,
         repository,
     )
+
+    from pprint import pprint
+
+    pprint(launch_spec)
 
     if build:
         if resource == "local-process":

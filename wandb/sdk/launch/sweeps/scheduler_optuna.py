@@ -7,6 +7,9 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import types
+import importlib.machinery
+
 import optuna
 
 import wandb
@@ -22,7 +25,7 @@ from wandb.wandb_agent import Agent as LegacySweepAgent
 
 from wandb.apis.public import QueuedRun, Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb_run import Run
+from wandb.sdk.wandb_run import Run
 
 logger = logging.getLogger(__name__)
 
@@ -51,43 +54,57 @@ class OptunaScheduler(Scheduler):
         self._trial_func = None
         self._storage_name = ""
         self._artifact_name = "optuna-scheduler"
+        self._study_name = None
+        self._run_trials = {}
+        self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
 
-        wandb.log("Creating scheduler wandb run")
+        wandb.termlog("Creating optuna scheduler wandb run")
         self._wandb_run: Run = wandb.init(name=f"sweep-scheduler-{self._sweep_id}")
         self._load_db()
+        self._objective_func = self._load_objective_function()
+
+    def _load_objective_function(self):
+        if self._sweep_config.get("objective_func"):
+            wandb.termlog("Attempting to use objective func artifact")
+            artifact = self._wandb_run.use_artifact(
+                self._sweep_config.get("objective_func"), type="objective-func"
+            )
+            if artifact:
+                wandb.termlog(f"{LOG_PREFIX}Downloaded objective: {artifact}")
+                path = artifact.download()
+
+                objective_path = f"{path}/objective.py"
+                try:
+                    loader = importlib.machinery.SourceFileLoader(
+                        "objective", objective_path
+                    )
+                    mod = types.ModuleType(loader.name)
+                    loader.exec_module(mod)
+
+                    self._trial_func = self._make_trial_from_objective
+
+                    return mod.objective
+                except Exception as e:
+                    wandb.termwarn(f"failed to load objective function: {str(e)}")
+                    raise e
+
+            else:
+                wandb.termlog(
+                    f"{LOG_PREFIX}Failed to load objective: {self._sweep_config.get('objective_func')}"
+                )
+
+                self._trial_func = self._make_trial
+        return None
 
     def _load_db(self):
         """
         Create an optuna study with a sqlite backened for loose state management
         """
-        # TODO(gst): add to validate function to confirm this exists, warn user
-        if not self._study_name:
-            self._study_name = f"optuna-study-{self._sweep_id}"
-
         params = self._sweep_config.get("parameters", {})
-        if params.get("objective_func"):
-            artifact = self._wandb_run.use_artifact("optuna-objective")
-            if artifact:
-                wandb.termlog(f"{LOG_PREFIX}Downloaded objective: {artifact}")
-                path = artifact.get_path("objective.py")
-                path.download()
 
-                try:
-                    from objective import objective
-                except Exception as e:
-                    wandb.termwarn(f"failed to load objective function: {str(e)}")
-                    raise e
-
-                self._objective = objective
-
-            else:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Failed to load objective: {params.get('objective_func')}"
-                )
-
-            self._trial_func = self._make_trial_from_objective
-        else:
-            self._trial_func = self._make_trial
+        # TODO(gst): add to validate function to confirm this exists, warn user
+        if not params.get("optuna_study_name"):
+            self._study_name = f"optuna-study-{self._sweep_id}"
 
         pruner_args = params.get("pruner", {})
         pruner = self._make_optuna_pruner(pruner_args)
@@ -130,16 +147,16 @@ class OptunaScheduler(Scheduler):
         # Make sure Scheduler is alive
         if not self.is_alive():
             return
-        
-        if len(self._job_queue) == 0:  # add another run!
+
+        if self._job_queue.empty():  # add another run!
             # upsert run
             run = self._internal_api.upsert_run(
-                sweep_name=self._sweep_name,
+                sweep_name=self._sweep_id,
             )[0]
 
             config, trial = self._trial_func()
             run = SweepRun(
-                id=run['id'],
+                id=run["id"],
                 args=config,
                 program=self._sweep_config.get("program"),
                 worker_id=worker_id,
@@ -212,6 +229,7 @@ class OptunaScheduler(Scheduler):
         return [x[metric_name] for x in history], finished
 
     def _poll_running_runs(self):
+        pruned = []
         for run, trial in self._run_trials.items():
             # poll metrics, feed into optuna
             metrics, run_finished = self.api.get_run_metric_history(run.id)
@@ -226,12 +244,14 @@ class OptunaScheduler(Scheduler):
                     print(f"{LOG_PREFIX}Optuna decided to PRUNE!")
                     self._stop_run(run.id)
                     self.study.tell(trial, state=optuna.trial.TrialState.PRUNED)
+                    pruned += [run.id]
                     break
 
             if run_finished:
                 self.study.tell(trial, metrics[-1])
+        return pruned
 
-    def _make_trial(self, *args):
+    def _make_trial(self):
         trial = self.study.ask()
         config = defaultdict(dict)
         for param, extras in self._sweep_config["parameters"].items():
@@ -253,19 +273,27 @@ class OptunaScheduler(Scheduler):
                 print(f"{LOG_PREFIX} Unknown parameter type, help! {param=}, {extras=}")
         return config, trial
 
-    def _make_trial_from_objective(self, objective_func):
+    def _make_trial_from_objective(self):
         print("attempting to make trial params from objective func")
-        study_copy = self.study.copy()
+        import copy
+
+        study_copy = copy.deepcopy(self.study)
         try:
-            study_copy.optimize(objective_func, n_trials=1, timeout=2)
+            study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
         except TimeoutError:
             raise Exception(
                 "Passed optuna objective functions cannot actually train. Must execute in 2 seconds. See docs."
             )
 
-        return study_copy.last_trial.params, study_copy.last_trial
+        assert len(study_copy.trials) == 1
 
-    def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int]):
+        config = defaultdict(dict)
+        for param, value in study_copy.trials[0].params.items():
+            config[param]["value"] = value
+
+        return config, study_copy.trials[0]
+
+    def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int] = 100):
         type_ = pruner_args.get("type")
         if not type_:
             wandb.termwarn("No pruner selected, using Optuna default median pruner")
@@ -273,8 +301,11 @@ class OptunaScheduler(Scheduler):
         elif type_ == "HyperbandPruner":
             return optuna.pruners.HyperbandPruner(
                 min_resource=pruner_args.get("min_resource", 1),
-                max_resource=epochs or 100,
+                max_resource=epochs,
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
         else:
             wandb.termwarn(f"Pruner: {type_} not yet supported.")
+
+    def _exit(self):
+        pass

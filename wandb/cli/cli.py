@@ -905,6 +905,8 @@ def sweep(
                 wandb.termlog("No job found in launch config, using placeholder.")
                 _job = "placeholder-job"
 
+        sweep_type = "sweep" if config["method"] != "optuna" else "optuna"
+
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
@@ -934,6 +936,8 @@ def sweep(
                             project,
                             "--job",
                             _job,
+                            "--sweep_type",
+                            sweep_type
                             # TODO(hupo): Add num-workers as option in launch config
                             # "--num_workers",
                             # launch_config.get("scheduler", {}).get("num_workers", 1),
@@ -1410,7 +1414,8 @@ def scheduler(
             _key = _arg[2:].replace("-", "_")
             kwargs[_key] = ctx.args[i + 1]
 
-    _scheduler = load_scheduler("sweep")(
+    sweep_type = kwargs.get("sweep_type", "sweep")
+    _scheduler = load_scheduler(sweep_type)(
         api,
         sweep_id=sweep_id,
         **kwargs,

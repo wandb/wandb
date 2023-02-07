@@ -1170,6 +1170,8 @@ class Api:
             entity, project_queue, queue_name, run_spec
         )
 
+        print(f"{push_result=}")
+
         if push_result:
             return push_result
 
