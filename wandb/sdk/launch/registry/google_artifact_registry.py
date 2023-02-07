@@ -1,5 +1,6 @@
 """Implementation of Google Artifact Registry for wandb launch."""
 import re
+from typing import Tuple
 
 from wandb.errors import LaunchError
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
@@ -100,7 +101,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
                 f"The Google Artifact Registry repository {self.repository} does not exist."
             )
 
-    def get_username_password(self) -> tuple[str, str]:
+    def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:
