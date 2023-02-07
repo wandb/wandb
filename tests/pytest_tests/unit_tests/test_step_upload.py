@@ -72,7 +72,9 @@ def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
         save_fn = kwargs["save_fn"]
 
         async def save_fn_async(*args, **kwargs):
-            return save_fn(*args, **kwargs)
+            return await asyncio.get_event_loop().run_in_executor(
+                None, lambda: save_fn(*args, **kwargs)
+            )
 
         kwargs["save_fn_async"] = save_fn_async
 
