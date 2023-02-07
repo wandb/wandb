@@ -85,7 +85,7 @@ class StepUpload:
         api: "internal_api.Api",
         stats: "stats.Stats",
         event_queue: "queue.Queue[Event]",
-        max_jobs: int,  # TODO: rename to `max_threads`?
+        max_threads: int,
         file_stream: "file_stream.FileStreamApi",
         silent: bool = False,
     ) -> None:
@@ -99,7 +99,7 @@ class StepUpload:
 
         self._pool = concurrent.futures.ThreadPoolExecutor(
             thread_name_prefix="wandb-upload",
-            max_workers=max_jobs,
+            max_workers=max_threads,
         )
 
         self._loop = asyncio.new_event_loop()

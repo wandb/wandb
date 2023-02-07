@@ -59,7 +59,7 @@ def make_step_upload(
             "api": make_api(),
             "stats": Mock(spec=stats.Stats),
             "event_queue": queue.Queue(),
-            "max_jobs": 10,
+            "max_threads": 10,
             "file_stream": Mock(spec=file_stream.FileStreamApi),
             **kwargs,
         }
@@ -370,7 +370,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
-                max_jobs=1,
+                max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
@@ -389,7 +389,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
-                max_jobs=1,
+                max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
@@ -408,7 +408,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
-                max_jobs=1,
+                max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
@@ -425,7 +425,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
-                max_jobs=1,
+                max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
@@ -767,10 +767,10 @@ class TestArtifactCommit:
             assert future.done() and future.exception() == exc
 
 
-def test_enforces_max_jobs(
+def test_enforces_max_threads(
     tmp_path: Path,
 ):
-    max_jobs = 3
+    max_threads = 3
 
     q = queue.Queue()
 
@@ -779,13 +779,13 @@ def test_enforces_max_jobs(
     def add_job():
         q.put(make_request_upload(make_tmp_file(tmp_path)))
 
-    step_upload = make_step_upload(api=api, event_queue=q, max_jobs=max_jobs)
+    step_upload = make_step_upload(api=api, event_queue=q, max_threads=max_threads)
     step_upload.start()
 
     waiters = []
 
     # first few jobs should start without blocking
-    for _ in range(max_jobs):
+    for _ in range(max_threads):
         add_job()
         waiters.append(api.wait_for_upload(0.1))
 
@@ -804,7 +804,7 @@ def test_enforces_max_jobs(
     finish_and_wait(q)
 
 
-def test_enforces_max_jobs_async(
+def test_enforces_max_threads_async(
     monkeypatch,
     tmp_path: Path,
 ):
