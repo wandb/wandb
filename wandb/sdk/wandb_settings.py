@@ -412,7 +412,6 @@ class Settings:
     anonymous: str
     api_key: str
     base_url: str  # The base url for the wandb api
-    cache_dir: str  # The directory to use for artifacts cache: <cache_dir>/artifacts
     code_dir: str
     config_paths: Sequence[str]
     console: str
@@ -420,6 +419,7 @@ class Settings:
     disable_code: bool
     disable_git: bool
     disable_hints: bool
+    disable_job_creation: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
@@ -570,6 +570,7 @@ class Settings:
             disable_code={"preprocessor": _str_as_bool},
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
+            disable_job_creation={"value": False, "preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",

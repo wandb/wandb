@@ -1,9 +1,7 @@
 import base64
 import os
-import platform
 import random
 from multiprocessing import Pool
-from unittest import mock
 
 import pytest
 import wandb
@@ -337,23 +335,3 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
 
     local_path = handler.load_path(manifest_entry, local=True)
     assert local_path == path
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="backend crashes on Windows in CI"
-)
-def test_artifacts_cache_location_env_var(tmp_path):
-    with mock.patch.dict("os.environ", WANDB_CACHE_DIR=str(tmp_path)):
-        with mock.patch("wandb.sdk.interface.artifacts._artifacts_cache", None):
-            cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
-            assert cache._cache_dir == os.path.join(tmp_path, "artifacts")
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="backend crashes on Windows in CI"
-)
-def test_artifacts_cache_location_init(tmp_path, wandb_init, test_settings):
-    with wandb_init(settings=test_settings({"cache_dir": str(tmp_path)})):
-        with mock.patch("wandb.sdk.interface.artifacts._artifacts_cache", None):
-            cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
-            assert cache._cache_dir == os.path.join(tmp_path, "artifacts")
