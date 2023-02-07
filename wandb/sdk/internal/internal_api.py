@@ -100,6 +100,23 @@ if TYPE_CHECKING:
 #     def __getitem__(self, name: str) -> Any: ...
 
 
+def check_httpx_exc_retriable(exc: Exception) -> bool:
+    retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
+    return (
+        isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
+        or (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response.status_code in retriable_codes
+        )
+        or (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response.status_code == 400
+            and "x-amz-meta-md5" in exc.request.headers
+            and "RequestTimeout" in str(exc.response.content)
+        )
+    )
+
+
 class _ThreadLocalData(threading.local):
     context: Optional[context.Context]
 
@@ -2034,16 +2051,29 @@ class Api:
 
         return response
 
-    async def upload_file_retry_async(
+    async def upload_file_async(
         self,
         url: str,
         file: IO[bytes],
         callback: Optional["ProgressFn"] = None,
         extra_headers: Optional[Dict[str, str]] = None,
-        num_retries: int = 100,
     ) -> None:
+        """An async not-quite-equivalent version of `upload_file`.
+
+        Differences from `upload_file`:
+            - This method doesn't implement Azure uploads. (The Azure SDK supports
+              async, but it's nontrivial to use it here.) If the upload looks like
+              it's destined for Azure, this method will delegate to the sync impl.
+            - Consequently, this method doesn't return the response object.
+              (Because it might fall back to the sync impl, it would sometimes
+               return a `requests.Response` and sometimes an `httpx.Response`.)
+            - This method doesn't wrap retryable errors in `TransientError`.
+              It leaves that determination to the caller.
+        """
+        # Unlike `upload_file`, this doesn't return the response object,
+        # because this method might need to delegate to the sync implementation,
+        # which would return a `requests.Response` instead of an `httpx.Response`.
         if extra_headers is not None and "x-ms-blob-type" in extra_headers:
-            print("SRP: delegating", url, extra_headers)
             await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: self.upload_file_retry(
@@ -2057,37 +2087,35 @@ class Api:
 
         progress = AsyncProgress(Progress(file, callback=callback))
 
-        def check_exc_retriable(exc: Exception) -> bool:
-            progress.rewind()
-
-            logger.error(f"upload_file_retry_async exception {url}: {exc}")
-            if isinstance(exc, httpx.RequestError) and exc.request is not None:
-                logger.error(
-                    f"upload_file_retry_async request headers: {exc.request.headers}"
-                )
-            if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
-                logger.error(
-                    f"upload_file_retry_async response body: {exc.response.content!r}"
-                )
-
-            retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
-            return (
-                isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
-                or (
-                    isinstance(exc, httpx.HTTPStatusError)
-                    and exc.response.status_code in retriable_codes
-                )
-                or (
-                    isinstance(exc, httpx.HTTPStatusError)
-                    and exc.response.status_code == 400
-                    and extra_headers is not None
-                    and "x-amz-meta-md5" in extra_headers
-                    and "RequestTimeout" in str(exc.response.content)
-                )
+        try:
+            response = await self._async_httpx_client.put(
+                url=url,
+                content=progress,
+                headers=extra_headers,
             )
+            response.raise_for_status()
+        except Exception as e:
+            progress.rewind()
+            if isinstance(e, httpx.RequestError):
+                logger.error(f"upload_file_async exception {url}: {e}")
+                logger.error(f"upload_file_async request headers: {e.request.headers}")
+                if isinstance(e, httpx.HTTPStatusError):
+                    logger.error(
+                        f"upload_file_async response body: {e.response.content!r}"
+                    )
+            raise
+
+    async def upload_file_retry_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        num_retries: int = 100,
+    ) -> None:
 
         backoff = retry.FilteredBackoff(
-            filter=check_exc_retriable,
+            filter=check_httpx_exc_retriable,
             wrapped=retry.ExponentialBackoff(
                 initial_sleep=datetime.timedelta(seconds=1),
                 max_sleep=datetime.timedelta(seconds=60),
@@ -2096,17 +2124,13 @@ class Api:
             ),
         )
 
-        async def put_and_raise_for_status(client, *args: Any, **kwargs: Any) -> None:
-            response = await client.put(*args, **kwargs)
-            response.raise_for_status()
-
         await retry.retry_async(
             backoff=backoff,
-            fn=put_and_raise_for_status,
-            client=self._async_httpx_client,
+            fn=self.upload_file_async,
             url=url,
-            content=progress,
-            headers=extra_headers,
+            file=file,
+            callback=callback,
+            extra_headers=extra_headers,
         )
 
     @normalize_exceptions

@@ -8,7 +8,6 @@ from typing import Any, Callable, Generator, Union
 
 import git
 import pytest
-import respx
 import wandb
 import wandb.old.settings
 import wandb.util
@@ -21,12 +20,6 @@ from wandb.sdk.lib.git import GitRepo
 # --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
-
-
-@pytest.fixture
-def mock_respx():
-    with respx.MockRouter() as router:
-        yield router
 
 
 @pytest.fixture(scope="session")
