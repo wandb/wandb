@@ -136,12 +136,6 @@ class UploadBlockingMockApi(Mock):
         self.mock_upload_file_waiters: MutableSequence[Callable[[], None]] = []
         self.mock_upload_started = threading.Condition()
 
-    @property
-    def mock_upload_started_async(self) -> asyncio.Condition:
-        if self._mock_upload_started_async is None:
-            self._mock_upload_started_async = asyncio.Condition()
-        return self._mock_upload_started_async
-
     def wait_for_upload(self, timeout: float) -> Optional[Callable[[], None]]:
         with self.mock_upload_started:
             if not self.mock_upload_started.wait_for(
