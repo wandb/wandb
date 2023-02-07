@@ -59,6 +59,7 @@ class OptunaScheduler(Scheduler):
         self._study_name = None
         self._run_trials = {}
         self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
+        self._metric_history = defaultdict(int)
 
         wandb.termlog("Creating optuna scheduler wandb run")
         self._wandb_run: Run = wandb.init(name=f"sweep-scheduler-{self._sweep_id}")
@@ -102,13 +103,12 @@ class OptunaScheduler(Scheduler):
         """
         Create an optuna study with a sqlite backened for loose state management
         """
-        params = self._sweep_config.get("parameters", {})
 
         # TODO(gst): add to validate function to confirm this exists, warn user
-        if not params.get("optuna_study_name"):
+        if not self._sweep_config.get("optuna_study_name"):
             self._study_name = f"optuna-study-{self._sweep_id}"
 
-        pruner_args = params.get("pruner", {})
+        pruner_args = self._sweep_config.get("pruner", {})
         pruner = self._make_optuna_pruner(pruner_args)
 
         if self._wandb_run.resumed:
@@ -180,6 +180,7 @@ class OptunaScheduler(Scheduler):
         launch new runs
         """
         pruned = self._poll_running_runs()
+        time.sleep(1)
         for run in pruned:
             self._stop_run(run.id)
 
@@ -221,13 +222,12 @@ class OptunaScheduler(Scheduler):
         )
 
     def _get_run_history(self, run_id):
-        # wait for launch to actually create a run object
-        queued_run = self._runs[run_id].queued_run
-        print(f"{queued_run}")
+        queued_run: QueuedRun = self._runs[run_id].queued_run
+        if queued_run.state == 'pending':
+            return [], False
+
         launched_run = queued_run.wait_until_running()
         launched_run_path = "/".join(launched_run.path)
-
-        print(f"{launched_run_path=}")
 
         api_run: Run = self._public_api.run(launched_run_path)
         metric_name = self._sweep_config["metric"]["name"]
@@ -243,22 +243,19 @@ class OptunaScheduler(Scheduler):
 
         for run_id, trial in self._run_trials.items():
             # poll metrics, feed into optuna
-            try:
-                metrics, run_finished = self._get_run_history(run_id)
-            except Exception as e:
-                wandb.termwarn(f"{LOG_PREFIX}Couldn't get metrics for run: {self._entity}/{self._project}/{run_id}. " + str(e))
-                continue
-
-            last_metric__idx = self._metric_history[run_id]
-            for i, metric in enumerate(metrics[last_metric__idx:]):
+            metrics, run_finished = self._get_run_history(run_id)
+            last_metric_idx = self._metric_history[run_id]
+            for i, metric in enumerate(metrics[last_metric_idx:]):
+                wandb.termlog(f"{LOG_PREFIX}Run: {run_id} | logging new {metric=} (step: {i+last_metric_idx})")
                 trial = self._run_trials[run_id]
-                trial.report(metric, last_metric__idx + i)
+                trial.report(metric, last_metric_idx + i)
                 self._metric_history[run_id] = len(metrics) - 1
 
                 # ask optuna if we should prune the run
                 if trial.should_prune():
                     wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {run_id}")
                     self._stop_run(run_id)
+                    del self._run_trials[run_id]
                     self.study.tell(trial, state=optuna.trial.TrialState.PRUNED)
                     pruned += [run_id]
                     break
@@ -297,7 +294,6 @@ class OptunaScheduler(Scheduler):
         study_copy = optuna.create_study(sampler=sampler)
         study_copy.add_trials(self.study.trials)
         try:
-            
             study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
         except TimeoutError:
             raise Exception(
@@ -313,12 +309,19 @@ class OptunaScheduler(Scheduler):
     def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int] = 100):
         type_ = pruner_args.get("type")
         if not type_:
-            wandb.termwarn("No pruner selected, using Optuna default median pruner")
+            wandb.termwarn(f"{LOG_PREFIX}No pruner selected, using Optuna default median pruner")
             return None
         elif type_ == "HyperbandPruner":
+            wandb.termlog(f"{LOG_PREFIX}Using the optuna HyperbandPruner")
             return optuna.pruners.HyperbandPruner(
                 min_resource=pruner_args.get("min_resource", 1),
                 max_resource=epochs,
+                reduction_factor=pruner_args.get("reduction_factor", 3),
+            )
+        elif type_ == "SuccessiveHalvingPruner":
+            wandb.termlog(f"{LOG_PREFIX}Using the optuna SuccessiveHalvingPruner")
+            return optuna.pruners.SuccessiveHalvingPruner(
+                min_resource=pruner_args.get("min_resource", 3),
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
         else:

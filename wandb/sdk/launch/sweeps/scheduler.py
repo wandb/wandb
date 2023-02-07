@@ -90,7 +90,7 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
-        self._project_queue = project_queue or self._project
+        self._project_queue = project_queue
         # Queue args
         self._queue_sleep = 1.0
         self._queue_timeout = 1.0
@@ -203,8 +203,7 @@ class Scheduler(ABC):
 
     def _update_run_states(self) -> None:
         _runs_to_remove: List[str] = []
-        for run_id, run in self._yield_runs():
-            print(">", run_id, run.id)
+        for run_id, run in self._yield_runs():                
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
                 if _state is None or _state in [
@@ -223,7 +222,7 @@ class Scheduler(ABC):
                 ]:
                     run.state = SimpleRunState.ALIVE
             except CommError as e:
-                wandb.termlog(
+                logging.debug(
                     f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
                 )
                 run.state = SimpleRunState.UNKNOWN
