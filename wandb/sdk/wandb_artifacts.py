@@ -1018,12 +1018,7 @@ class WandbStoragePolicy(StoragePolicy):
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
-        """Upload a file to the artifact store.
-
-        Returns:
-            True if the file was a duplicate (did not need to be uploaded),
-            False if it needed to be uploaded or was a reference (nothing to dedupe).
-        """
+        """Async equivalent to `store_file_sync`."""
 
         resp = await preparer.prepare_async(
             {

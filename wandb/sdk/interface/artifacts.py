@@ -800,6 +800,7 @@ class StoragePolicy:
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
+        """Async equivalent to `store_file_sync`."""
         raise NotImplementedError
 
     def store_reference(
