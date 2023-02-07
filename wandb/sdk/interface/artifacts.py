@@ -588,7 +588,7 @@ class Artifact:
             # Run using the artifact
             with wandb.init() as r:
                 artifact = r.use_artifact('my_dataset:latest')
-                table = r.get('my_table')
+                table = artifact.get('my_table')
             ```
         """
         raise NotImplementedError
