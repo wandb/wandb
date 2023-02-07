@@ -716,7 +716,7 @@ class TestUploadFileRetry:
                 num_retries=num_retries,
             )
 
-        assert handler.ca
+        assert handler.call_count == num_retries + 1
 
     def test_async_stops_after_retry_limit_exceeded(
         self,
