@@ -84,6 +84,11 @@ class OpenMetricsMetric:
         stats = {}
         for key in self.samples[0].keys():
             samples = [s[key] for s in self.samples if key in s]
+            if key == "DCGM.DCGM_FI_DEV_GPU_UTIL.0":
+                print("DCGM.DCGM_FI_DEV_GPU_UTIL.0")
+                print([type(s) for s in samples])
+                print(samples, aggregate_mean(samples), aggregate_last(samples))
+                print()
             if samples and all(isinstance(s, (int, float)) for s in samples):
                 stats[f"{self.name}.{key}"] = aggregate_mean(samples)
             else:
