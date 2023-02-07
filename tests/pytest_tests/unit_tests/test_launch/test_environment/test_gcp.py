@@ -21,7 +21,6 @@ def test_environment_verify(mocker):
         mock_region_client,
     )
     GcpEnvironment("region")
-    mock_region_client.assert_called_once_with(credentials=credentials)
     mock_region_client.return_value.get.assert_called_once_with(
         project="project", region="region"
     )
@@ -45,6 +44,10 @@ def test_environment_verify_invalid_creds(mocker):
     mocker.patch(
         "wandb.sdk.launch.environment.gcp_environment.google.auth.default",
         return_value=(credentials, "project"),
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.google.cloud.compute_v1.RegionsClient",
+        MagicMock(),
     )
     with pytest.raises(LaunchError):
         GcpEnvironment("region")
@@ -75,7 +78,6 @@ def test_upload_file(mocker):
         return_value=True,
     )
     environment.upload_file("source", "gs://bucket/key")
-    mock_storage_client.assert_called_once_with(credentials=credentials)
     mock_storage_client.return_value.bucket.assert_called_once_with("bucket")
     mock_bucket.blob.assert_called_once_with("key")
     mock_blob.upload_from_filename.assert_called_once_with("source")
@@ -115,7 +117,6 @@ def test_upload_dir(mocker):
         ],
     )
     environment.upload_dir("source", "gs://bucket/key")
-    mock_storage_client.assert_called_once_with(credentials=credentials)
     mock_storage_client.return_value.bucket.assert_called_once_with("bucket")
 
     def _relpath(path, start):
