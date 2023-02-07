@@ -40,23 +40,6 @@ class CommError(Error):
         self.message = msg
         self.exc = exc
 
-
-class TimeoutError(Error):
-    """Raised when a connection times out"""
-
-class PermissionError(Error):
-    """Raised trying to access a resource that the does not have permission to access"""
-
-class AuthenticationError(Error):
-    """Raised when fails to provide valid authentication credentials"""
-
-class AuthorizationError(Error):
-    """Raised when not authorized to access a particular resource"""
-
-class RateLimitError(Error):
-    """Raised when there is a rate limit error"""
-
-
 class UsageError(Error):
     """API Usage Error"""
 

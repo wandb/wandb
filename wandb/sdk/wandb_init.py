@@ -22,6 +22,7 @@ import wandb
 import wandb.env
 from wandb import trigger
 from wandb.errors import CommError, UsageError
+from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
@@ -745,10 +746,10 @@ class _WandbInit:
                 error = CommError(error_message)
                 run_init_handle._cancel()
             elif run_result and run_result.error:
-                error_message = run_result.error.message
-                if error_message:
-                    logger.error(f"encountered error: {error_message}")
-                    error = UsageError(error_message)
+                error = ProtobufErrorHandler.to_exception(run_result.error)
+                # if error_message:
+                #     logger.error(f"encountered error: {error_message}")
+                    # error = UsageError(error_message)
 
             if error is not None:
                 if not manager:

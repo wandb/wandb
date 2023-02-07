@@ -1006,11 +1006,11 @@ def no_retry_auth(e: Any) -> bool:
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError("Invalid or missing api_key. Run `wandb login`")
+        raise CommError("Invalid or missing api_key. Run `wandb login`", exc=e)
     elif wandb.run:
-        raise CommError(f"Permission denied to access {wandb.run.path}")
+        raise CommError(f"Permission denied to access {wandb.run.path}", exc=e)
     else:
-        raise CommError("Permission denied, ask the project owner to grant you access")
+        raise CommError("Permission denied, ask the project owner to grant you access", exc=e)
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:
@@ -1071,7 +1071,6 @@ def make_check_retry_fn(
         return True
 
     return check_retry_fn
-
 
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
