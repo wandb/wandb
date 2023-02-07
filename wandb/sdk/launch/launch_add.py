@@ -22,9 +22,7 @@ def push_to_queue(
     api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
 ) -> Any:
     try:
-        print(f"{queue_name} {launch_spec} {project_queue}")
         res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
-        print(f"{res=}")
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -50,6 +48,7 @@ def launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    sweep_id: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -122,6 +121,7 @@ def launch_add(
         run_id=run_id,
         build=build,
         repository=repository,
+        sweep_id=sweep_id,
     )
 
 
@@ -145,6 +145,7 @@ def _launch_add(
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
+    sweep_id: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -163,11 +164,8 @@ def _launch_add(
         cuda,
         run_id,
         repository,
+        sweep_id,
     )
-
-    from pprint import pprint
-
-    pprint(launch_spec)
 
     if build:
         if resource == "local-process":

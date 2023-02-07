@@ -18,6 +18,7 @@ from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -181,21 +182,29 @@ class Scheduler(ABC):
             run: SweepRun = self._runs[run_id]
             run.state = SimpleRunState.DEAD
 
+            if not run.queued_run:
+                logging.debug(f"tried to _stop_run but run not queued yet (run_id:{run.id})")
+
             encoded_run_id = base64.standard_b64encode(
-                f"Run:v1:{run.queued_run.id}:{self._project}:{self._entity}".encode()
+                f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
             ).decode("utf-8")
 
-            success = self.api.stop_run(encoded_run_id)
+            print(f"{encoded_run_id=}")
+
+            success = self._api.stop_run(run_id)
             if success:
                 wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
             else:
                 wandb.termlog(f"{LOG_PREFIX} Failed while stopping run {run_id}.")
+
+            del self._runs[run_id]
 
             return success
 
     def _update_run_states(self) -> None:
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
+            print(">", run_id, run.id)
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
                 if _state is None or _state in [
@@ -233,19 +242,19 @@ class Scheduler(ABC):
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
-        # One of Job and URI is required
+        # One of Job is required
         _job = self._kwargs.get("job", None)
-        _uri = self._kwargs.get("uri", None)
-        if _job is None and _uri is None:
-            # If no Job is specified, use a placeholder URI to prevent Launch failure
-            _uri = "placeholder-uri-queuedrun-from-scheduler"
+        if _job is None:
+            wandb.termwarn("A launch sweep config must contain a job to execute")
+            self.exit()
+
         # Queue is required
         _queue = self._kwargs.get("queue", "default")
+
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,
             config=config,
-            uri=_uri,
             job=_job,
             project=self._project,
             entity=self._entity,
@@ -253,6 +262,7 @@ class Scheduler(ABC):
             project_queue=self._project_queue,
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
+            sweep_id=self._sweep_id,
         )
         self._runs[run_id].queued_run = queued_run
         wandb.termlog(

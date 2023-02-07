@@ -235,6 +235,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         env_vars["WANDB_NAME"] = launch_project.name
     if "author" in launch_project.launch_spec:
         env_vars["WANDB_USERNAME"] = launch_project.launch_spec["author"]
+    if launch_project.sweep_id:
+        env_vars["WANDB_SWEEP_ID"] = launch_project.sweep_id
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)

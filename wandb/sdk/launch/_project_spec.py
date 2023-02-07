@@ -62,6 +62,7 @@ class LaunchProject:
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
         run_id: Optional[str],
+        sweep_id: Optional[str],
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -77,6 +78,7 @@ class LaunchProject:
         self.name = name  # TODO: replace with run_id
         self.resource = resource
         self.resource_args = resource_args
+        self.sweep_id = sweep_id
         self.python_version: Optional[str] = launch_spec.get("python_version")
         self.cuda_version: Optional[str] = launch_spec.get("cuda_version")
         self._base_image: Optional[str] = launch_spec.get("base_image")
@@ -109,6 +111,9 @@ class LaunchProject:
             self.override_entrypoint = self.add_entry_point(
                 overrides.get("entry_point")  # type: ignore
             )
+        if overrides.get("sweep_id") is not None:
+            _logger.info("Adding override sweep id")
+            self.sweep_id = overrides.get["sweep_id"]
         if self.docker_image is not None:
             self.source = LaunchSource.DOCKER
             self.project_dir = None
@@ -453,6 +458,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource_args", {}),
         launch_spec.get("cuda", None),
         launch_spec.get("run_id", None),
+        launch_spec.get("sweep_id", {})
     )
 
 

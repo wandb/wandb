@@ -905,8 +905,7 @@ def sweep(
             wandb.termlog("No job found in sweep config, looking in launch config.")
             _job = launch_config.get("job", None)
             if _job is None:
-                wandb.termlog("No job found in launch config, using placeholder.")
-                _job = "placeholder-job"
+                raise LaunchError("A launch sweep config must contain a job to execute")
 
         sweep_type = "sweep" if config["method"] != "optuna" else "optuna"
 

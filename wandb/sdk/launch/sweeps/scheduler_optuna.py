@@ -1,3 +1,4 @@
+import base64
 from collections import defaultdict
 import logging
 import pprint
@@ -29,6 +30,7 @@ from wandb.sdk.wandb_run import Run
 
 logger = logging.getLogger(__name__)
 
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 @dataclass
 class _Worker:
@@ -40,7 +42,7 @@ class OptunaScheduler(Scheduler):
     def __init__(
         self,
         *args: Any,
-        num_workers: int = 8,
+        num_workers: int = 2,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
@@ -131,7 +133,7 @@ class OptunaScheduler(Scheduler):
 
     def _start(self) -> None:
         for worker_id in range(self._num_workers):
-            logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
+            wandb.termlog(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
             agent_config = self._api.register_agent(
                 f"{socket.gethostname()}-{worker_id}",  # host
                 sweep_id=self._sweep_id,
@@ -148,15 +150,18 @@ class OptunaScheduler(Scheduler):
         if not self.is_alive():
             return
 
-        if self._job_queue.empty():  # add another run!
+        if self._job_queue.empty() and len(self._runs) < self._num_workers:  # add another run!
             # upsert run
             run = self._internal_api.upsert_run(
                 sweep_name=self._sweep_id,
+                state='pending',
             )[0]
+            
+            run_id = base64.b64decode(bytes(run['id'].encode('utf-8'))).decode('utf-8').split(":")[2]
 
             config, trial = self._trial_func()
             run = SweepRun(
-                id=run["id"],
+                id=run_id,
                 args=config,
                 program=self._sweep_config.get("program"),
                 worker_id=worker_id,
@@ -180,6 +185,7 @@ class OptunaScheduler(Scheduler):
 
         for worker_id in self._workers:
             self._heartbeat(worker_id)
+
         try:
             srun: SweepRun = self._job_queue.get(timeout=self._queue_timeout)
         except queue.Empty:
@@ -201,7 +207,7 @@ class OptunaScheduler(Scheduler):
         # send to launch
         self._add_to_launch_queue(
             run_id=srun.id,
-            entry_point=[f"WANDB_SWEEP_ID={self._sweep_id} python3", srun.program]
+            entry_point=["python3", srun.program]
             if srun.program
             else None,
             # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
@@ -217,8 +223,11 @@ class OptunaScheduler(Scheduler):
     def _get_run_history(self, run_id):
         # wait for launch to actually create a run object
         queued_run = self._runs[run_id].queued_run
+        print(f"{queued_run}")
         launched_run = queued_run.wait_until_running()
         launched_run_path = "/".join(launched_run.path)
+
+        print(f"{launched_run_path=}")
 
         api_run: Run = self._public_api.run(launched_run_path)
         metric_name = self._sweep_config["metric"]["name"]
@@ -229,22 +238,29 @@ class OptunaScheduler(Scheduler):
         return [x[metric_name] for x in history], finished
 
     def _poll_running_runs(self):
+        wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
         pruned = []
-        for run, trial in self._run_trials.items():
+
+        for run_id, trial in self._run_trials.items():
             # poll metrics, feed into optuna
-            metrics, run_finished = self.api.get_run_metric_history(run.id)
-            last_metric__idx = self._metric_history[run.id]
+            try:
+                metrics, run_finished = self._get_run_history(run_id)
+            except Exception as e:
+                wandb.termwarn(f"{LOG_PREFIX}Couldn't get metrics for run: {self._entity}/{self._project}/{run_id}. " + str(e))
+                continue
+
+            last_metric__idx = self._metric_history[run_id]
             for i, metric in enumerate(metrics[last_metric__idx:]):
-                trial = self._run_trials[run.id]
+                trial = self._run_trials[run_id]
                 trial.report(metric, last_metric__idx + i)
-                self._metric_history[run.id] = len(metrics) - 1
+                self._metric_history[run_id] = len(metrics) - 1
 
                 # ask optuna if we should prune the run
                 if trial.should_prune():
-                    print(f"{LOG_PREFIX}Optuna decided to PRUNE!")
-                    self._stop_run(run.id)
+                    wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {run_id}")
+                    self._stop_run(run_id)
                     self.study.tell(trial, state=optuna.trial.TrialState.PRUNED)
-                    pruned += [run.id]
+                    pruned += [run_id]
                     break
 
             if run_finished:
@@ -274,24 +290,25 @@ class OptunaScheduler(Scheduler):
         return config, trial
 
     def _make_trial_from_objective(self):
-        print("attempting to make trial params from objective func")
-        import copy
+        wandb.termlog(f"{LOG_PREFIX}Making trial params from objective func")
+        import random
 
-        study_copy = copy.deepcopy(self.study)
+        sampler = optuna.samplers.TPESampler(seed=random.randint(0, 100000))  # Make the sampler random.
+        study_copy = optuna.create_study(sampler=sampler)
+        study_copy.add_trials(self.study.trials)
         try:
+            
             study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
         except TimeoutError:
             raise Exception(
                 "Passed optuna objective functions cannot actually train. Must execute in 2 seconds. See docs."
             )
 
-        assert len(study_copy.trials) == 1
-
         config = defaultdict(dict)
-        for param, value in study_copy.trials[0].params.items():
+        for param, value in study_copy.trials[-1].params.items():
             config[param]["value"] = value
 
-        return config, study_copy.trials[0]
+        return config, study_copy.trials[-1]
 
     def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int] = 100):
         type_ = pruner_args.get("type")

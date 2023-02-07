@@ -41,6 +41,7 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
+
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
@@ -1170,13 +1171,14 @@ class Api:
             entity, project_queue, queue_name, run_spec
         )
 
-        print(f"{push_result=}")
-
         if push_result:
             return push_result
 
         """ Legacy Method """
-        queues_found = self.get_project_run_queues(entity, project_queue)
+        project_queues = self.get_project_run_queues(entity, project_queue)
+        entity_queues = self.get_project_run_queues(entity, "model-registry")
+        queues_found = project_queues + entity_queues
+
         matching_queues = [
             q
             for q in queues_found
@@ -3201,7 +3203,7 @@ class Api:
         """Return an array from the nested graphql relay structure"""
         return [node["node"] for node in response["edges"]]
 
-    def _stop_run(
+    def stop_run(
         self,
         run_id,
     ) -> None:
