@@ -56,8 +56,6 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import Literal, TypedDict
 
-    import httpx as _httpx_type
-
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict, total=False):
@@ -95,7 +93,12 @@ if TYPE_CHECKING:
     Number = Union[int, float]
 
 
-httpx: "_httpx_type" = util.get_module("httpx")
+# This funny construction is the simplest thing I've found that
+# works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
+if TYPE_CHECKING:
+    import httpx
+else:
+    httpx = util.get_module("httpx")
 
 # class _MappingSupportsCopy(Protocol):
 #     def copy(self) -> "_MappingSupportsCopy": ...
@@ -206,7 +209,11 @@ class Api:
                 url=f"{self.settings('base_url')}/graphql",
             )
         )
-        self._async_httpx_client = httpx.AsyncClient()
+
+        # httpx is an optional dependency, so we lazily instantiate the client
+        # only when we need it
+        self._async_httpx_client: Optional["httpx.AsyncClient"] = None
+
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
             self.execute,
@@ -2073,10 +2080,24 @@ class Api:
             - This method doesn't wrap retryable errors in `TransientError`.
               It leaves that determination to the caller.
         """
-        # Unlike `upload_file`, this doesn't return the response object,
-        # because this method might need to delegate to the sync implementation,
-        # which would return a `requests.Response` instead of an `httpx.Response`.
+
+        must_delegate = False
+
+        if httpx is None:
+            wandb.termwarn(  # type: ignore[unreachable]
+                "async file-uploads require `pip install wandb[async]`; falling back to sync implementation",
+                repeat=False,
+            )
+            must_delegate = True
+
         if extra_headers is not None and "x-ms-blob-type" in extra_headers:
+            wandb.termwarn(
+                "async file-uploads don't support Azure; falling back to sync implementation",
+                repeat=False,
+            )
+            must_delegate = True
+
+        if must_delegate:
             await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: self.upload_file_retry(
@@ -2087,6 +2108,9 @@ class Api:
                 ),
             )
             return
+
+        if self._async_httpx_client is None:
+            self._async_httpx_client = httpx.AsyncClient()
 
         progress = AsyncProgress(Progress(file, callback=callback))
 
