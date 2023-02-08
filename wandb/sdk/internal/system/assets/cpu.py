@@ -86,6 +86,30 @@ class CpuPercent:
         return cpu_metrics
 
 
+class CpuPercentAverage:
+    """
+    CPU usage of the system in percent averaged over all cores.
+    """
+
+    name = "cpu.cpu_percent"
+
+    def __init__(self, interval: Optional[float] = None) -> None:
+        self.samples: "Deque[float]" = deque([])
+        self.interval = interval
+
+    def sample(self) -> None:
+        self.samples.append(psutil.cpu_percent(interval=self.interval))
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        if not self.samples:
+            return {}
+        aggregate = aggregate_mean(self.samples)
+        return {self.name: aggregate}
+
+
 class ProcessCpuThreads:
     """
     Number of threads used by the process.
@@ -124,7 +148,8 @@ class CPU:
         self.name: str = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
             ProcessCpuPercent(settings._stats_pid),
-            CpuPercent(),
+            # CpuPercent(),  # todo: this could generate too much data
+            CpuPercentAverage(),
             ProcessCpuThreads(settings._stats_pid),
         ]
         self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
@@ -144,22 +169,22 @@ class CPU:
             "cpu_count": psutil.cpu_count(logical=False),
             "cpu_count_logical": psutil.cpu_count(logical=True),
         }
-        try:
-            asset_info["cpu_freq"] = {
-                "current": psutil.cpu_freq().current,
-                "min": psutil.cpu_freq().min,
-                "max": psutil.cpu_freq().max,
-            }
-            asset_info["cpu_freq_per_core"] = [
-                {
-                    "current": freq.current,
-                    "min": freq.min,
-                    "max": freq.max,
-                }
-                for freq in psutil.cpu_freq(percpu=True)
-            ]
-        except Exception:
-            pass
+        # try:
+        #     asset_info["cpu_freq"] = {
+        #         "current": psutil.cpu_freq().current,
+        #         "min": psutil.cpu_freq().min,
+        #         "max": psutil.cpu_freq().max,
+        #     }
+        #     asset_info["cpu_freq_per_core"] = [
+        #         {
+        #             "current": freq.current,
+        #             "min": freq.min,
+        #             "max": freq.max,
+        #         }
+        #         for freq in psutil.cpu_freq(percpu=True)
+        #     ]
+        # except Exception:
+        #     pass
         return asset_info
 
     def start(self) -> None:
