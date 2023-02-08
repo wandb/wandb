@@ -49,8 +49,6 @@ SaveFnAsync = Callable[["progress.ProgressFn"], Awaitable[bool]]
 
 logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
-
 
 class RequestUpload(NamedTuple):
     path: str
