@@ -1,12 +1,13 @@
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.apis.internal import Api
 from wandb.sdk.launch._project_spec import EntryPoint, compute_command_args
 from wandb.sdk.launch.builder.loader import load_builder
 from wandb.sdk.launch.runner.loader import load_backend
 
 
-def test_local_container_entrypoint(relay_server, monkeypatch):
+def test_local_container_entrypoint(relay_server, mock_run_local_container):
     with relay_server():
         api = Api()
         runner = load_backend(
@@ -14,7 +15,6 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
             api=api,
             backend_config={"SYNCHRONOUS": False},
         )
-        setup_mock_run_local_container(monkeypatch)
         entity_name = "test_entity"
         project_name = "test_project"
         entrypoint = ["python", "test.py"]
@@ -46,12 +46,13 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         assert f"WANDB_ARGS={string_args}" in command
 
 
-def setup_mock_run_local_container(monkeypatch):
+@pytest.fixture
+def mock_run_local_container(mocker):
     def mock_run_entrypoint(*args, **kwargs):
         # return first arg, which is command
         return args[0]
 
-    monkeypatch.setattr(
+    mocker.patch(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         mock_run_entrypoint,
     )
