@@ -302,6 +302,7 @@ class Trainium:
         # on some systems that do not have the hardware
         try:
             # redirect stderr to null to avoid printing errors to the console
+            # todo: alternative: check /dev/neuron0 ? sysfs support coming soon in neuron tools
             output = subprocess.check_output(
                 NEURON_LS_COMMAND,
                 universal_newlines=True,
