@@ -113,7 +113,13 @@ class LocalContainerRunner(AbstractRunner):
                 entry_point, launch_project.override_args
             )
             command_str = " ".join(
-                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+                get_docker_command(
+                    image_uri,
+                    env_vars,
+                    entry_cmd.command,
+                    docker_args,
+                    launch_project.override_args,
+                )
             ).strip()
         else:
             assert entry_point is not None
@@ -123,11 +129,16 @@ class LocalContainerRunner(AbstractRunner):
                 repository,
                 entry_point,
             )
-            # entry_cmd is empty here because if we built the container
-            # we've accounted for the entrypoint in the dockerfile
+            # entry_cmd and additional_args are empty here because
+            # if launch built the container they've been accounted
+            # in the dockerfile and env vars respectively
             command_str = " ".join(
                 get_docker_command(
-                    image_uri, env_vars, entry_cmd=[], docker_args=docker_args
+                    image_uri,
+                    env_vars,
+                    entry_cmd=[],
+                    docker_args=docker_args,
+                    additional_args=[],
                 )
             ).strip()
 
@@ -176,6 +187,7 @@ def get_docker_command(
     env_vars: Dict[str, str],
     entry_cmd: List[str],
     docker_args: Optional[Dict[str, Any]] = None,
+    additional_args: Optional[List[str]] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
@@ -208,6 +220,8 @@ def get_docker_command(
     if entry_cmd:
         cmd += ["--entrypoint"] + entry_cmd
     cmd += [shlex.quote(image)]
+    if additional_args:
+        cmd += additional_args
     return cmd
 
 

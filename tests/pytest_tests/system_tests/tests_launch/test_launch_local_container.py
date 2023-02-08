@@ -26,21 +26,24 @@ def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
         project.target_project = project_name
         project.override_config = {}
         project.override_entrypoint = EntryPoint("blah", entrypoint)
+        project.override_args = ["a1", "a2"]
         project.docker_image = "testimage"
         project.job = "testjob"
-
+        string_args = project.override_args.join(" ")
         builder = load_builder({"type": "noop"})
 
         command = runner.run(
             launch_project=project, builder=builder, registry_config={}
         )
         assert f"--entrypoint {entrypoint.join(' ')}" in command
+        assert f"{project.docker_image} {string_args}" in command
         # test with our image
         project.docker_image = None
         command = runner.run(
             launch_project=project, builder=builder, registry_config={}
         )
         assert "--entrypoint" not in command
+        assert f"WANDB_ARGS={string_args}" in command
 
 
 def setup_mock_run_local_container(monkeypatch):
