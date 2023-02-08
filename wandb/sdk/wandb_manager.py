@@ -14,6 +14,7 @@ from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
+from wandb.errors import Error
 from wandb.util import sentry_reraise
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
 
 
-class ManagerConnectionError(Exception):
+class ManagerConnectionError(Error):
     """Raised when service process is not running"""
 
     pass
