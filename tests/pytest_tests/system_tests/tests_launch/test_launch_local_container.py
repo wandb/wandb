@@ -23,7 +23,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         lambda x: None,
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.builder.docker.DockerBuilder.build_image",
+        "wandb.sdk.launch.builder.noop.NoOpBuilder.build_image",
         lambda *args, **kwargs: "testimage",
     )
 
@@ -54,7 +54,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         string_args = " ".join(compute_command_args(project.override_args))
-        builder = load_builder({"type": "docker"})
+        builder = load_builder({"type": "noop"})
 
         command = runner.run(
             launch_project=project, builder=builder, registry_config={}
