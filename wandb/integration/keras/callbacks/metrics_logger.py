@@ -103,56 +103,56 @@ class WandbMetricsLogger(callbacks.Callback):
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
         if self.backward_compatible:
-            wandb_logs = dict() if logs is None else logs
+            logs = dict() if logs is None else logs
         else:
-            wandb_logs = (
+            logs = (
                 dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
             )
 
         if self.backward_compatible:
-            wandb_logs["epoch"] = epoch
+            logs["epoch"] = epoch
         else:
-            wandb_logs["epoch/epoch"] = epoch
+            logs["epoch/epoch"] = epoch
 
         lr = self._get_lr()
         if lr is not None:
             if self.backward_compatible:
-                wandb_logs["learning_rate"] = lr
+                logs["learning_rate"] = lr
             else:
-                wandb_logs["epoch/learning_rate"] = lr
+                logs["epoch/learning_rate"] = lr
 
         if self.backward_compatible:
             if not self.logging_batch_wise:
-                wandb.log(wandb_logs)
+                wandb.log(logs)
         else:
-            wandb.log(wandb_logs)
+            wandb.log(logs)
 
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         self.global_step += 1
         """An alias for `on_train_batch_end` for backwards compatibility."""
         if self.logging_batch_wise and batch % self.log_freq == 0:
             if self.backward_compatible:
-                wandb_logs = dict() if logs is None else logs
+                logs = dict() if logs is None else logs
             else:
-                wandb_logs = (
+                logs = (
                     dict()
                     if logs is None
                     else {f"batch/{k}": v for k, v in logs.items()}
                 )
 
             if self.backward_compatible:
-                wandb_logs["batch_step"] = self.global_batch
+                logs["batch_step"] = self.global_batch
             else:
-                wandb_logs["batch/batch_step"] = self.global_batch
+                logs["batch/batch_step"] = self.global_batch
 
             lr = self._get_lr()
             if lr is not None:
                 if self.backward_compatible:
-                    wandb_logs["learning_rate"] = lr
+                    logs["learning_rate"] = lr
                 else:
-                    wandb_logs["batch/learning_rate"] = lr
+                    logs["batch/learning_rate"] = lr
 
-            wandb.log(wandb_logs)
+            wandb.log(logs)
 
             self.global_batch += self.log_freq
 
