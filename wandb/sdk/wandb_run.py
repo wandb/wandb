@@ -1968,6 +1968,13 @@ class Run:
                 console = SettingsConsole.WRAP_EMU
         logger.info("redirect: %s", console)
 
+        # redirect is handled by the service manager
+        if console == SettingsConsole.REDIRECT:
+            manager = self._wl and self._wl._get_manager()
+            if manager:
+                manager._inform_console_start(run_id=self._settings.run_id)
+                return
+
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
 
@@ -2123,6 +2130,15 @@ class Run:
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
+        # redirect is handled by the service manager
+        console = self._settings._console
+        if console == SettingsConsole.REDIRECT:
+            manager = self._wl and self._wl._get_manager()
+            if manager:
+                run_id = self._settings.run_id
+                manager._inform_console_stop(run_id=run_id)
+                return
+
         self._restore()
         if self._output_writer:
             self._output_writer.close()

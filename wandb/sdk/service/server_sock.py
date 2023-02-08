@@ -2,8 +2,9 @@ import queue
 import socket
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Set
 
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 
 from ..lib import tracelog
@@ -81,6 +82,7 @@ class SockServerReadThread(threading.Thread):
     _mux: StreamMux
     _stopped: "Event"
     _clients: ClientDict
+    _console_run_ids: Set[str]
 
     def __init__(
         self, conn: socket.socket, mux: StreamMux, clients: ClientDict
@@ -93,6 +95,7 @@ class SockServerReadThread(threading.Thread):
         self._sock_client = sock_client
         self._stopped = mux._get_stopped_event()
         self._clients = clients
+        self._console_run_ids = set()
 
     def run(self) -> None:
         while not self._stopped.is_set():
@@ -140,6 +143,49 @@ class SockServerReadThread(threading.Thread):
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
         self._mux.start_stream(stream_id)
+
+    def _make_output_record(
+        self, console_req: "spb.ServerInformConsoleDataRequest"
+    ) -> "pb.OutputRecord":
+        name = console_req.output_type
+        data = console_req.output_data
+        if name == "stdout":
+            otype = pb.OutputRecord.OutputType.STDOUT
+        elif name == "stderr":
+            otype = pb.OutputRecord.OutputType.STDERR
+        else:
+            raise Exception(f"Invalid console name: {name}")
+
+        output_record = pb.OutputRecord(output_type=otype, line=data)
+        output_record.timestamp.GetCurrentTime()
+        return output_record
+
+    def server_inform_console_data(self, sreq: "spb.ServerRequest") -> None:
+        if not self._console_run_ids:
+            return
+        request = sreq.inform_console_data
+        output_record = self._make_output_record(request)
+        for stream_id in self._console_run_ids:
+            record = pb.Record()
+            record.output.CopyFrom(output_record)
+
+            try:
+                iface = self._mux.get_stream(stream_id).interface
+            except Exception:
+                # TODO this might happen at shutdown, handle this better
+                continue
+            assert iface.record_q
+            iface.record_q.put(record)
+
+    def server_inform_console_start(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_console_start
+        stream_id = request.run_id
+        self._console_run_ids.add(stream_id)
+
+    def server_inform_console_stop(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_console_stop
+        stream_id = request.run_id
+        self._console_run_ids.discard(stream_id)
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach
