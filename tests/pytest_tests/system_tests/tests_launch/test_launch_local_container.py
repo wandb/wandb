@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.loader import load_builder
 from wandb.sdk.launch.runner.loader import load_backend
+from wandb.sdk.launch._project_spec import EntryPoint
 
 
 def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
@@ -24,7 +25,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
         project.target_entity = entity_name
         project.target_project = project_name
         project.override_config = {}
-        project.override_entrypoint = entrypoint
+        project.override_entrypoint = EntryPoint("blah", entrypoint)
         project.docker_image = "testimage"
         project.job = "testjob"
 
