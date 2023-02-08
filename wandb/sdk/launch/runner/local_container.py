@@ -108,15 +108,12 @@ class LocalContainerRunner(AbstractRunner):
             if not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
-            # if they've given an override to the entrypoint
-            entry_cmd = get_entry_point_command(
-                entry_point, launch_project.override_args
-            )
+
             command_str = " ".join(
                 get_docker_command(
                     image_uri,
                     env_vars,
-                    entry_cmd.command,
+                    entry_point.command,
                     docker_args,
                     launch_project.override_args,
                 )

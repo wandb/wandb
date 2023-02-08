@@ -29,7 +29,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
         project.override_args = ["a1", "a2"]
         project.docker_image = "testimage"
         project.job = "testjob"
-        string_args = project.override_args.join(" ")
+        string_args = " ".join(project.override_args)
         builder = load_builder({"type": "noop"})
 
         command = runner.run(
