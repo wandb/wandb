@@ -1,6 +1,5 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 from wandb.apis.internal import Api
 from wandb.sdk.launch._project_spec import EntryPoint, compute_command_args
 from wandb.sdk.launch.builder.loader import load_builder
@@ -10,7 +9,6 @@ from wandb.sdk.launch.runner.loader import load_backend
 def test_local_container_entrypoint(relay_server, monkeypatch):
     def mock_run_entrypoint(*args, **kwargs):
         # return first arg, which is command
-        print("ARGS: ", args)
         return args[0]
 
     monkeypatch.setattr(
