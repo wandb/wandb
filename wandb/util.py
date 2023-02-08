@@ -1872,7 +1872,11 @@ def ensure_text(
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
-    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    cleaned = re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    if len(cleaned) <= 128:
+        return cleaned
+    # truncate with dots in the middle using regex
+    return re.sub(r"(^.{63}).*(.{63}$)", r"\g<1>..\g<2>", cleaned)
 
 
 def make_docker_image_name_safe(name: str) -> str:
