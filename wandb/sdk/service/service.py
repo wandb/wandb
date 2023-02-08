@@ -23,19 +23,19 @@ if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
 
 
-class ServiceStartProcessError(Exception):
+class ServiceStartProcessError(Error):
     """Raised when a known error occurs when launching wandb service"""
 
     pass
 
 
-class ServiceStartTimeoutError(Exception):
+class ServiceStartTimeoutError(Error):
     """Raised when service start times out"""
 
     pass
 
 
-class ServiceStartPortError(Exception):
+class ServiceStartPortError(Error):
     """Raised when service start fails to find a port"""
 
     pass
