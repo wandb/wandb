@@ -102,14 +102,24 @@ class _Service:
             if proc and proc.poll():
                 # process finished
                 # define these variables for sentry context grab:
-                command = proc.args  # noqa: F841
-                sys_executable = sys.executable  # noqa: F841
-                which_python = shutil.which("python3")  # noqa: F841
+                # command = proc.args  # noqa: F841
+                # sys_executable = sys.executable  # noqa: F841
+                # which_python = shutil.which("python3")  # noqa: F841
+                # proc_out = proc.stdout.read()  # noqa: F841
+                # proc_err = proc.stderr.read()  # noqa: F841
+                context = dict(
+                    command=proc.args,
+                    sys_executable=sys.executable,
+                    which_python=shutil.which("python3"),
+                    proc_out=proc.stdout.read() if proc.stdout else "",
+                    proc_err=proc.stderr.read() if proc.stderr else "",
+                )
                 raise ServiceStartProcessError(
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    "or with the `WANDB__EXECUTABLE` environment variable.",
+                    context=context,
                 )
             if not os.path.isfile(fname):
                 time.sleep(0.2)
