@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.loader import load_builder
 from wandb.sdk.launch.runner.loader import load_backend
-from wandb.sdk.launch._project_spec import EntryPoint
+from wandb.sdk.launch._project_spec import EntryPoint, compute_command_args
 
 
 def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
@@ -26,10 +26,10 @@ def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
         project.target_project = project_name
         project.override_config = {}
         project.override_entrypoint = EntryPoint("blah", entrypoint)
-        project.override_args = ["a1", "a2"]
+        project.override_args = {"a1": 20, "a2": 10}
         project.docker_image = "testimage"
         project.job = "testjob"
-        string_args = " ".join(project.override_args)
+        string_args = compute_command_args(project.override_args)
         builder = load_builder({"type": "noop"})
 
         command = runner.run(

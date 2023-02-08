@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
-from .._project_spec import LaunchProject, get_entry_point_command
+from .._project_spec import LaunchProject, compute_command_args
 from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
 from ..utils import (
     LOG_PREFIX,
@@ -108,14 +108,14 @@ class LocalContainerRunner(AbstractRunner):
             if not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
-
+            override_args = compute_command_args(launch_project.override_args)
             command_str = " ".join(
                 get_docker_command(
                     image_uri,
                     env_vars,
                     entry_point.command,
                     docker_args,
-                    launch_project.override_args,
+                    override_args,
                 )
             ).strip()
         else:
