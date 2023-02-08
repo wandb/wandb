@@ -108,12 +108,15 @@ class LocalContainerRunner(AbstractRunner):
             if not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
+            entry_cmd = []
+            if entry_point is not None:
+                entry_cmd = entry_point.command
             override_args = compute_command_args(launch_project.override_args)
             command_str = " ".join(
                 get_docker_command(
                     image_uri,
                     env_vars,
-                    entry_point.command,
+                    entry_cmd,
                     docker_args,
                     override_args,
                 )
@@ -133,9 +136,7 @@ class LocalContainerRunner(AbstractRunner):
                 get_docker_command(
                     image_uri,
                     env_vars,
-                    entry_cmd=[],
                     docker_args=docker_args,
-                    additional_args=[],
                 )
             ).strip()
 
@@ -182,7 +183,7 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
 def get_docker_command(
     image: str,
     env_vars: Dict[str, str],
-    entry_cmd: List[str],
+    entry_cmd: Optional[List[str]] = None,
     docker_args: Optional[Dict[str, Any]] = None,
     additional_args: Optional[List[str]] = None,
 ) -> List[str]:

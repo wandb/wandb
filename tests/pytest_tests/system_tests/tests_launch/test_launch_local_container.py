@@ -1,12 +1,12 @@
 from unittest.mock import MagicMock
 
 from wandb.apis.internal import Api
+from wandb.sdk.launch._project_spec import EntryPoint, compute_command_args
 from wandb.sdk.launch.builder.loader import load_builder
 from wandb.sdk.launch.runner.loader import load_backend
-from wandb.sdk.launch._project_spec import EntryPoint, compute_command_args
 
 
-def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
+def test_local_container_entrypoint(relay_server, monkeypatch):
     with relay_server():
         api = Api()
         runner = load_backend(
@@ -14,7 +14,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch, assets_path):
             api=api,
             backend_config={"SYNCHRONOUS": False},
         )
-
+        setup_mock_run_local_container(monkeypatch)
         entity_name = "test_entity"
         project_name = "test_project"
         entrypoint = ["python", "test.py"]
@@ -52,6 +52,6 @@ def setup_mock_run_local_container(monkeypatch):
         return args[0]
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local_container._run_entrypoint",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         mock_run_entrypoint,
     )
