@@ -44,6 +44,10 @@ launch_requirements = [
 
 models_requirements = ["cloudpickle"]
 
+async_requirements = [
+    "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
+]
+
 
 setup(
     name="wandb",
@@ -98,6 +102,7 @@ setup(
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
         "models": models_requirements,
+        "async": async_requirements,
     },
 )
 

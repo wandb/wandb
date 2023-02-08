@@ -28,7 +28,6 @@ from typing import (
 )
 
 import click
-import httpx
 import requests
 import yaml
 from wandb_gql import Client, gql  # type: ignore
@@ -56,6 +55,8 @@ if TYPE_CHECKING:
         from typing import Literal, TypedDict
     else:
         from typing_extensions import Literal, TypedDict
+
+    import httpx as _httpx_type
 
     from .progress import ProgressFn
 
@@ -93,6 +94,8 @@ if TYPE_CHECKING:
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
+
+httpx: "_httpx_type" = util.get_module("httpx")
 
 # class _MappingSupportsCopy(Protocol):
 #     def copy(self) -> "_MappingSupportsCopy": ...
