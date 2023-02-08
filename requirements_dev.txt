@@ -25,9 +25,7 @@ plotly
 bokeh
 tqdm
 docker
-stable_baselines3
 tensorboard
-gym
 jax[cpu]; sys_platform == 'darwin' or sys_platform == 'linux'
 fastcore; python_version > '3.6'
 fastcore==1.3.29; python_version == '3.6'
@@ -37,9 +35,34 @@ xgboost
 lightgbm
 rdkit-pypi; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
-.[launch]
-.[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-.[azure]
+
+# TODO: fix extra dependencies
+#   We need to improve how we do requirements_dev as specifying .[extra] creates
+#   dependencies which are not resolveable by pip when dealing with yea-wandb which also requires wandb.
+#   These issues might be temporary as we transition to a released version of wandb which has
+#   the necessary support for yea-wandb (namely the relay server).
+#   Writing out explicit dependencies here is undesireable as it can get out of sync with setup.py deps.
+# .[launch]
+# vvvvvvvvvv - below are for extra launch
+nbconvert
+nbformat
+chardet
+iso8601
+typing_extensions
+boto3
+botocore
+google-cloud-storage
+kubernetes
+# ^^^^^^^^^^ - above are for extra launch
+# .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
+# vvvvvvvvvv - below are for extra sweeps
+sweeps>=0.2.0; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
+# ^^^^^^^^^^ - above are for extra sweeps
+# .[azure]
+# vvvvvvvvvv - below are for extra azure
+azure-storage-blob
+# ^^^^^^^^^^ - above are for extra azure
+
 cloudpickle
 responses
 kfp

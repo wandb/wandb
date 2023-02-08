@@ -1,12 +1,11 @@
 import logging
 import os
-import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
+import wandb.util
 
 if TYPE_CHECKING:
-    import queue
 
     from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
@@ -14,16 +13,15 @@ if TYPE_CHECKING:
 
 class EventJobDone(NamedTuple):
     job: "UploadJob"
-    success: bool
+    exc: Optional[BaseException]
 
 
 logger = logging.getLogger(__name__)
 
 
-class UploadJob(threading.Thread):
+class UploadJob:
     def __init__(
         self,
-        done_queue: "queue.Queue[step_upload.Event]",
         stats: "stats.Stats",
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
@@ -36,18 +34,15 @@ class UploadJob(threading.Thread):
         save_fn: Optional["step_upload.SaveFn"],
         digest: Optional[str],
     ) -> None:
-        """A file upload thread.
+        """A file uploader.
 
         Arguments:
-            done_queue: queue.Queue in which to put an EventJobDone event when
-                the upload finishes.
             push_function: function(save_name, actual_path) which actually uploads
                 the file.
             save_name: string logical location of the file relative to the run
                 directory.
             path: actual string path of the file to upload on the filesystem.
         """
-        self._done_queue = done_queue
         self._stats = stats
         self._api = api
         self._file_stream = file_stream
@@ -64,15 +59,15 @@ class UploadJob(threading.Thread):
     def run(self) -> None:
         success = False
         try:
-            success = self.push()
+            self.push()
+            success = True
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            self._done_queue.put(EventJobDone(self, success))
             if success:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
-    def push(self) -> bool:
+    def push(self) -> None:
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
@@ -92,14 +87,14 @@ class UploadJob(threading.Thread):
                         self.save_path, type(e).__name__, message
                     )
                 )
-                return False
+                raise
 
             if deduped:
                 logger.info("Skipped uploading %s", self.save_path)
                 self._stats.set_file_deduped(self.save_path)
             else:
                 logger.info("Uploaded file %s", self.save_path)
-            return True
+            return
 
         if self.md5:
             # This is the new artifact manifest upload flow, in which we create the
@@ -151,8 +146,7 @@ class UploadJob(threading.Thread):
                             self.save_name, type(e).__name__, e
                         )
                     )
-                return False
-        return True
+                raise
 
     def progress(self, total_bytes: int) -> None:
         self._stats.update_uploaded_file(self.save_name, total_bytes)

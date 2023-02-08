@@ -32,6 +32,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Iterable,
     List,
     Mapping,
     NewType,
@@ -199,15 +200,15 @@ def sentry_exc(
     return None
 
 
-def sentry_reraise(exc: Any) -> None:
+def sentry_reraise(exc: Any, delay: bool = False) -> None:
     """Re-raise an exception after logging it to Sentry
 
     Use this for top-level exceptions when you want the user to see the traceback.
 
     Must be called from within an exception handler.
     """
-    sentry_exc(exc)
-    # this will messily add this "reraise" function to the stack trace
+    sentry_exc(exc, delay=delay)
+    # this will messily add this "reraise" function to the stack trace,
     # but hopefully it's not too bad
     raise exc.with_traceback(sys.exc_info()[2])
 
@@ -1522,7 +1523,7 @@ def _parse_entity_project_item(path: str) -> tuple:
     return tuple(reversed(padded_words))
 
 
-def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
     """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
     Ensures that "latest" is always present in the returned list.
 
@@ -1540,19 +1541,15 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
         assert aliases == ["boom", "latest"]
 
     """
-    if aliases is None:
-        aliases = []
-
-    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
-        raise ValueError("`aliases` must either be None or of type str or list")
+    aliases = aliases or ["latest"]
 
     if isinstance(aliases, str):
         aliases = [aliases]
 
-    if "latest" not in aliases:
-        aliases.append("latest")
-
-    return aliases
+    try:
+        return list(set(aliases) | {"latest"})
+    except TypeError as exc:
+        raise ValueError("`aliases` must be Iterable or None") from exc
 
 
 def _is_artifact_object(v: Any) -> bool:
@@ -1628,7 +1625,11 @@ def ensure_text(
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
-    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    cleaned = re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    if len(cleaned) <= 128:
+        return cleaned
+    # truncate with dots in the middle using regex
+    return re.sub(r"(^.{63}).*(.{63}$)", r"\g<1>..\g<2>", cleaned)
 
 
 def make_docker_image_name_safe(name: str) -> str:
