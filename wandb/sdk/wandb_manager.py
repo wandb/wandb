@@ -120,7 +120,6 @@ class _Manager:
                 message = (
                     "Connection to wandb service failed "
                     "since the process is not available. "
-                    # "See [TODO] for more details"
                 )
             else:
                 message = f"Connection to wandb service failed: {e}. "
