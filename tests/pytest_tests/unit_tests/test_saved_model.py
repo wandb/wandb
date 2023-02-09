@@ -6,6 +6,7 @@ import pytest
 import wandb
 from wandb.apis.public import Artifact, _DownloadedArtifactEntry
 from wandb.sdk.data_types import saved_model
+from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 
 from . import saved_model_constructors
@@ -75,7 +76,8 @@ def test_tensorflow_keras_saved_model():
 class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
-        return self.copy(self.local_path, os.path.join(root, self.name))
+        dest = os.path.join(root, self.name)
+        return copy_or_overwrite_changed(self.local_path, dest)
 
 
 class ArtifactManifestEntryPatch(ArtifactManifestEntry):
