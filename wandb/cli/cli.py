@@ -910,7 +910,7 @@ def sweep(
                     "No job found in sweep or launch config for launch-sweep."
                 )
 
-        launch_queue = queue or launch_config.get('queue')
+        launch_queue = queue or launch_config.get("queue")
         if not launch_queue:
             raise LaunchError(
                 "No queue passed from CLI or in launch config for launch-sweep."
