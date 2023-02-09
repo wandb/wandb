@@ -5,7 +5,6 @@ settings test.
 import datetime
 import os
 import platform
-from unittest import mock
 
 import pytest  # type: ignore
 from wandb.sdk import wandb_settings
@@ -37,7 +36,6 @@ def test_sync_dir(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-# @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_sync_file(wandb_init):
     run = wandb_init(mode="offline")
     assert run._settings.sync_file == os.path.realpath(
@@ -49,7 +47,6 @@ def test_sync_file(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-# @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_files_dir(wandb_init):
     run = wandb_init(mode="offline")
     assert run._settings.files_dir == os.path.realpath(
@@ -61,7 +58,6 @@ def test_files_dir(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-# @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_tmp_dir(wandb_init):
     run = wandb_init(mode="offline")
     assert run._settings.tmp_dir == os.path.realpath(
@@ -73,7 +69,6 @@ def test_tmp_dir(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-# @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_tmp_code_dir(wandb_init):
     run = wandb_init(mode="offline")
     assert run._settings._tmp_code_dir == os.path.realpath(
@@ -85,7 +80,6 @@ def test_tmp_code_dir(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-# @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_log_symlink_user(wandb_init):
     run = wandb_init(settings=dict(mode="offline"))
     assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(
@@ -97,7 +91,6 @@ def test_log_symlink_user(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-# @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_log_symlink_internal(wandb_init):
     run = wandb_init(mode="offline")
     assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(
@@ -109,7 +102,6 @@ def test_log_symlink_internal(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-# @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_sync_symlink_latest(wandb_init):
     run = wandb_init(mode="offline")
     time_tag = datetime.datetime.strftime(
