@@ -82,7 +82,7 @@ class CRDedupedFile(WriteSerializingFile):
         super().close()
 
 
-def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> PathLike:
+def copy_or_overwrite_changed(source_path: AnyPath, target_path: AnyPath) -> AnyPath:
     """Copy source_path to target_path, unless it already exists with the same mtime.
 
     We liberally add write permissions to deal with the case of multiple users needing
@@ -94,6 +94,7 @@ def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> P
     Returns:
         The path to the copied file (which may be different from target_path).
     """
+    output_type = type(target_path)
 
     if platform.system() == "Windows":
         head, tail = os.path.splitdrive(str(target_path))
@@ -106,7 +107,7 @@ def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> P
         or os.stat(source_path).st_mtime != os.stat(target_path).st_mtime
     )
 
-    permissions_plus_write = source_path.stat().st_mode | WRITE_PERMISSIONS
+    permissions_plus_write = os.stat(source_path).st_mode | WRITE_PERMISSIONS
     if need_copy:
         mkdir_exists_ok(os.path.dirname(target_path))
         try:
@@ -120,4 +121,4 @@ def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> P
         # Prevent future permissions issues by universal write permissions now.
         os.chmod(target_path, permissions_plus_write)
 
-    return target_path
+    return output_type(target_path)

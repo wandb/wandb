@@ -2,11 +2,12 @@ import os
 import platform
 import shutil
 import stat
+import time
 from unittest.mock import patch
 from pathlib import Path
 
 import pytest
-from wandb.sdk.lib.filesystem import mkdir_exists_ok, copy_or_overwrite_changed
+from wandb.sdk.lib.filesystem import copy_or_overwrite_changed, mkdir_exists_ok
 
 
 @pytest.mark.parametrize("pathtype", [Path, str, bytes])
@@ -49,22 +50,22 @@ def test_mkdir_exists_ok_not_writable(tmp_path):
 
 
 def test_copy_or_overwrite_changed_windows_colon(tmp_path):
-    source_path = tmp_path / "original_file"
-    target_path = tmp_path / "file:with:colon"
+    source_path = tmp_path / "new_file.txt"
+    target_path = tmp_path / "file:with:colon.txt"
 
     source_path.write_text("original")
     final_path = copy_or_overwrite_changed(source_path, target_path)
 
     if platform.system() == "Windows":
-        assert final_path == tmp_path / "file-with-colon"
+        assert final_path == tmp_path / "file-with-colon.txt"
     else:
         assert final_path == target_path
     assert final_path.read_text() == "original"
 
 
 def test_copy_or_overwrite_changed_no_copy(tmp_path):
-    source_path = tmp_path / "original_file"
-    target_path = tmp_path / "target_file"
+    source_path = tmp_path / "new_file.txt"
+    target_path = tmp_path / "target_file.txt"
 
     source_path.write_text("original")
     shutil.copy2(source_path, target_path)
@@ -75,13 +76,16 @@ def test_copy_or_overwrite_changed_no_copy(tmp_path):
 
 
 def test_copy_or_overwrite_changed_overwite_different_mtime(tmp_path):
-    source_path = tmp_path / "original_file"
-    target1_path = tmp_path / "target1"
-    target2_path = tmp_path / "target2"
+    source_path = tmp_path / "new_file.txt"
+    target1_path = tmp_path / "target1.txt"
+    target2_path = tmp_path / "target2.txt"
 
-    target1_path.write_text("text")
-    source_path.write_text("text")
-    target2_path.write_text("text")
+    for path in [source_path, target1_path, target2_path]:
+        with path.open("w") as f:
+            f.write(path.name)
+            f.flush()
+            os.fsync(f.fileno())
+        time.sleep(0.1)
 
     with patch("shutil.copy2") as copy2_mock:
         copy_or_overwrite_changed(source_path, target1_path)
@@ -92,8 +96,8 @@ def test_copy_or_overwrite_changed_overwite_different_mtime(tmp_path):
 
 @pytest.mark.parametrize("permissions", [0o666, 0o644, 0o444, 0o600, 0o400])
 def test_copy_or_overwrite_changed_bad_permissions(tmp_path, permissions):
-    source_path = tmp_path / "new_file"
-    target_path = tmp_path / "old_file"
+    source_path = tmp_path / "new_file.txt"
+    target_path = tmp_path / "old_file.txt"
 
     source_path.write_text("replacement_text")
     target_path.write_text("original_text")
