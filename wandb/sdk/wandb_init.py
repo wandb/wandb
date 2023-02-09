@@ -171,6 +171,7 @@ class _WandbInit:
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             # don't allow users to pass in a settings object with service disabled
+            settings_param = dict(settings_param)
             settings_param.pop("_disable_service", None)
             settings.update(settings_param, source=Source.INIT)
 
