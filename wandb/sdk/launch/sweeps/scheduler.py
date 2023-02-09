@@ -126,9 +126,9 @@ class Scheduler(ABC):
     def _try_load_job(self) -> bool:
         _public_api = public.Api()
         try:
-            job = _public_api.job(self._sweep_config["job"])
+            _job_artifact = _public_api.artifact(self._sweep_config["job"], type="job")
             wandb.termlog(
-                f"{LOG_PREFIX}Successfully loaded job: {job.name} in scheduler"
+                f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
             )
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}{str(e)}")
