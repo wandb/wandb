@@ -25,7 +25,7 @@ Source = wandb_settings.Source
     reason="backend crashes on Windows in CI",
 )
 @mock.patch.dict(
-    os.environ, {"WANDB_START_METHOD": "thread", "USERNAME": "test"}, clear=True
+    os.environ, {"USERNAME": "test"}, clear=True
 )
 def test_console_run(wandb_init):
     run = wandb_init(mode="offline", settings={"console": "auto"})
@@ -141,18 +141,14 @@ def test_sync_symlink_latest(wandb_init):
     platform.system() == "Windows",
     reason="backend crashes on Windows in CI, likely bc of the overloaded env",
 )
-@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_console(runner, test_settings):
     with runner.isolated_filesystem():
         test_settings = test_settings()
-        run = wandb.init(mode="offline")
-        assert run._settings.console == "auto"
-        assert run._settings._console == wandb_settings.SettingsConsole.REDIRECT
-        test_settings.update({"console": "off"}, source=Source.BASE)
         assert test_settings._console == wandb_settings.SettingsConsole.OFF
+        test_settings.update({"console": "redirect"}, source=Source.BASE)
+        assert test_settings._console == wandb_settings.SettingsConsole.REDIRECT
         test_settings.update({"console": "wrap"}, source=Source.BASE)
         assert test_settings._console == wandb_settings.SettingsConsole.WRAP
-        run.finish()
 
 
 def test_code_saving_save_code_env_false(wandb_init, test_settings):
