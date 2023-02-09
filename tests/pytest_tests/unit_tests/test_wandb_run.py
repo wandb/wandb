@@ -176,7 +176,7 @@ def test_deprecated_run_log_sync(mock_run, capsys):
 
 
 def test_run_log_mp_warn(mock_run, capsys):
-    run = mock_run()
+    run = mock_run(settings={"_disable_service": True})
     run._init_pid += 1
     run.log(dict(this=1))
     _, stderr = capsys.readouterr()

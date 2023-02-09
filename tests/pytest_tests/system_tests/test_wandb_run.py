@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import MultiprocessError, UsageError
+from wandb.errors import UsageError
 
 
 def test_log_code(wandb_init):

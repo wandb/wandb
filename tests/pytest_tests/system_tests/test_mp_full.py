@@ -2,9 +2,6 @@
 multiproc full tests.
 """
 import importlib
-import multiprocessing
-import os
-import platform
 import sys
 import time
 
