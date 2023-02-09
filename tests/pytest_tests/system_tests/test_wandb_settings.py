@@ -24,9 +24,7 @@ Source = wandb_settings.Source
     platform.system() == "Windows",
     reason="backend crashes on Windows in CI",
 )
-@mock.patch.dict(
-    os.environ, {"USERNAME": "test"}, clear=True
-)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_console_run(wandb_init):
     run = wandb_init(mode="offline", settings={"console": "auto"})
     assert run._settings.console == "auto"
