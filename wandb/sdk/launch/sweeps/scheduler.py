@@ -6,9 +6,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
-import yaml
 
 import click
+import yaml
 
 import wandb
 import wandb.apis.public as public
