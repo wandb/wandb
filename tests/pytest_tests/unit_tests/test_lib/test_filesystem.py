@@ -11,7 +11,7 @@ from wandb.sdk.lib.filesystem import copy_or_overwrite_changed, mkdir_exists_ok
 
 
 def write_pause(path, content):
-    """Append `content` to the file at path, flush the write, and wait 1ms.
+    """Append `content` to the file at path, flush the write, and wait 10ms.
 
     This ensures that file modification times are different for successive writes.
     """
@@ -22,7 +22,7 @@ def write_pause(path, content):
         f.write(content)
         f.flush()
         os.fsync(f.fileno())
-    time.sleep(0.001)
+    time.sleep(0.01)
 
 
 @pytest.mark.parametrize("pathtype", [Path, str, bytes])
