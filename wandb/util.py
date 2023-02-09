@@ -1009,7 +1009,7 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError(
             "The API key is either invalid or missing, or the host is incorrect. "
             "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
-            "The host defaults to 'https://wandb.ai' if not specified. "
+            "The host defaults to 'https://api.wandb.ai' if not specified. "
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
     elif wandb.run:
