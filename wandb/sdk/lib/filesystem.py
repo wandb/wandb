@@ -7,7 +7,7 @@ import stat
 import threading
 from typing import BinaryIO, Union
 
-StrPath = Union[str, os.PathLike[str]]
+StrPath = Union[str, "os.PathLike[str]"]
 
 logger = logging.getLogger(__name__)
 
