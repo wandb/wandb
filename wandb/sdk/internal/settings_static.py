@@ -1,7 +1,7 @@
 """
 static settings.
 """
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
@@ -20,7 +20,7 @@ class SettingsStatic:
     _stats_samples_to_average: int
     _stats_join_assets: bool
     _stats_neuron_monitor_config_path: Optional[str]
-    _stats_open_metrics_endpoints: Sequence[Tuple[str, str]]
+    _stats_open_metrics_endpoints: Mapping[str, str]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str

@@ -105,7 +105,7 @@ class SystemMonitor:
             return []
 
         assets = []
-        for name, endpoint in open_metrics_endpoints:
+        for name, endpoint in open_metrics_endpoints.items():
             if not OpenMetrics.is_available(url=endpoint):
                 continue
             logger.debug(f"Monitoring OpenMetrics endpoint: {endpoint}")

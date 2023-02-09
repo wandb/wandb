@@ -404,10 +404,7 @@ class Settings:
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
-    # todo: tuple -> Tuple[str, str]
-    _stats_open_metrics_endpoints: Sequence[
-        tuple
-    ]  # list of open metrics endpoints names/urls
+    _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -552,9 +549,9 @@ class Settings:
                 "hook": lambda x: self._path_convert(x),
             },
             _stats_open_metrics_endpoints={
-                "value": [
-                    ("DCGM", "http://localhost:9400/metrics"),  # NVIDIA DCGM Exporter
-                ],
+                "value": {
+                    "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
+                },
             },
             _tmp_code_dir={
                 "value": "code",
