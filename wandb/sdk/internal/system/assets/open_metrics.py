@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Dict, List, Union
 
 import requests
 import wandb
+from wandb.sdk.lib import telemetry
 from .aggregators import aggregate_last, aggregate_mean
 from .interfaces import (
     Interface,
@@ -124,6 +125,10 @@ class OpenMetrics:
             settings=settings,
             shutdown_event=shutdown_event,
         )
+
+        telemetry_record = telemetry.TelemetryRecord()
+        telemetry_record.feature.open_metrics = True
+        interface._publish_telemetry(telemetry_record)
 
     @staticmethod
     def is_available(url: str) -> bool:
