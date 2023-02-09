@@ -917,7 +917,7 @@ def sweep(
             )
         else:
             # multi-word queues must be quoted for scheduler command
-            if launch_queue.count(' ') > 1:
+            if launch_queue.count(" ") > 1:
                 launch_queue = f"{launch_queue!r}"
 
         # Launch job spec for the Scheduler
