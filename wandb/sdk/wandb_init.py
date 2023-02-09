@@ -161,16 +161,16 @@ class _WandbInit:
                 )
                 self.printer.display(line, level="warn")
 
-        settings_param = kwargs.pop("settings", None)
-        self._wl = wandb_setup.setup(settings=settings_param)
+        self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
-        # if settings_param is not None and isinstance(settings_param, (Settings, dict)):
-        #     settings.update(settings_param, source=Source.INIT)
+        settings_param = kwargs.pop("settings", None)
+        if settings_param is not None and isinstance(settings_param, (Settings, dict)):
+            settings.update(settings_param, source=Source.INIT)
 
         self._setup_printer(settings)
         self._reporter = reporting.setup_reporter(settings=settings)
