@@ -156,6 +156,7 @@ message Feature {
   bool flow_control_disabled = 43; // Flow control disabled by user
   bool flow_control_custom = 44; // Flow control customized by user
   bool service_disabled = 45; // Service disabled by user
+  bool open_metrics = 46; // Consuming metrics from an OpenMetrics endpoint
 }
 
 message Env {
