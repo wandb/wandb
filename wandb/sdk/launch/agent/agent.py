@@ -108,6 +108,16 @@ class LaunchAgent:
             wandb.termlog(
                 f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
             )
+        if self._running == 0:
+            _logger.info("No jobs currently running.")
+        elif self._running < self._max_jobs:
+            _logger.info(
+                f"Currently polling while running {self._running} out of {self._max_jobs} jobs: {','.join(self._jobs.keys())}"
+            )
+        else:
+            _logger.info(
+                f"Currently running maximum number of jobs ({self._max_jobs}): {','.join(self._jobs.keys())}"
+            )
 
     def update_status(self, status: str) -> None:
         update_ret = self._api.update_launch_agent_status(
@@ -131,6 +141,11 @@ class LaunchAgent:
             if self._jobs[job_id].get_status().state in ["failed", "finished"]:
                 self.finish_job_id(job_id)
         except Exception:
+            _logger.info("---")
+            _logger.info("Caught exception while getting status.")
+            _logger.info(f"Job ID: {job_id}")
+            _logger.info(traceback.format_exc())
+            _logger.info("---")
             self.finish_job_id(job_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
@@ -213,11 +228,8 @@ class LaunchAgent:
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
-                    if self._running == 0:
-                        self.update_status(AGENT_POLLING)
-                        self.print_status()
-                    else:
-                        self.update_status(AGENT_RUNNING)
+                    self.update_status(AGENT_POLLING)
+                self.print_status()
                 time.sleep(AGENT_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
