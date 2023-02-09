@@ -7,7 +7,7 @@ import wandb
 from wandb.sdk.lib import telemetry
 
 
-class WandbEvalCallback(Callback, abc.ABC):
+class WandbTablesBuilder(Callback, abc.ABC):
     """Abstract base class to build Keras callbacks for model prediction visualization.
 
     You can build callbacks for visualizing model predictions `on_epoch_end`
