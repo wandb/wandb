@@ -1,12 +1,9 @@
-import itertools
-import json
 import random
 import threading
 import time
 from typing import Union
 from unittest import mock
 
-import pytest
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import OpenMetrics
