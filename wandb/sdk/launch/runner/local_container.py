@@ -116,9 +116,9 @@ class LocalContainerRunner(AbstractRunner):
                 get_docker_command(
                     image_uri,
                     env_vars,
-                    entry_cmd,
-                    docker_args,
-                    override_args,
+                    entry_cmd=entry_cmd,
+                    docker_args=docker_args,
+                    additional_args=override_args,
                 )
             ).strip()
         else:
