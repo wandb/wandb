@@ -207,6 +207,8 @@ class _Manager:
         self._console_teardown()
         unregister_all_post_import_hooks()
 
+        # redirect flush?
+
         if self._atexit_lambda:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None

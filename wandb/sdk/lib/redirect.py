@@ -793,11 +793,20 @@ class RedirectRaw(RedirectBase):
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
-                self._queue.put(data)
+                # self._queue.put(data)
+                self._sendit(data)
                 if brk:
                     return
             except OSError:
                 return
+
+    def _sendit(self, data):
+        if data:
+            for cb in self.cbs:
+                try:
+                    cb(data)
+                except Exception:
+                    pass  # TODO(frz)
 
     def emulator_flush(self) -> bool:
         return True
