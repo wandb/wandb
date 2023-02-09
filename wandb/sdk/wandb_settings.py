@@ -106,6 +106,18 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
+def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Parse a string as a dict.
+    """
+    if isinstance(val, dict):
+        return val
+    try:
+        return json.loads(val)
+    except (AttributeError, ValueError):
+        pass
+
+
 def _redact_dict(
     d: Dict[str, Any],
     unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
@@ -552,6 +564,7 @@ class Settings:
                 "value": {
                     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
                 },
+                "preprocessor": _str_as_dict,
             },
             _tmp_code_dir={
                 "value": "code",

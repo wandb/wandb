@@ -697,6 +697,19 @@ def test_preprocess_bool_settings(setting: str):
         assert s[setting] is True
 
 
+@pytest.mark.parametrize(
+    "setting, value",
+    [
+        ("_stats_open_metrics_endpoints", '{"DCGM":"http://localhvost"}'),
+    ],
+)
+def test_preprocess_dict_settings(setting: str, value: str):
+    with mock.patch.dict(os.environ, {"WANDB_" + setting.upper(): value}):
+        s = Settings()
+        s._apply_env_vars(environ=os.environ)
+        assert s[setting] == json.loads(value)
+
+
 def test_redact():
     # normal redact case
     redacted = wandb_settings._redact_dict({"this": 2, "that": 9, "api_key": "secret"})
