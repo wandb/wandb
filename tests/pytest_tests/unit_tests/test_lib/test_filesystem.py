@@ -90,14 +90,16 @@ def test_copy_or_overwrite_changed_overwite_different_mtime(tmp_path):
         assert copy2_mock.call_count == 2
 
 
-def test_copy_or_overwrite_changed_bad_permissions(tmp_path):
-    source_path = tmp_path / "original_file"
-    target_path = tmp_path / "target_file"
+@pytest.mark.parametrize("permissions", [0o666, 0o644, 0o444, 0o600, 0o400])
+def test_copy_or_overwrite_changed_bad_permissions(tmp_path, permissions):
+    source_path = tmp_path / "new_file"
+    target_path = tmp_path / "old_file"
 
-    source_path.write_text("original")
-    target_path.write_text("altered")
-    os.chmod(target_path, 0o600)
+    source_path.write_text("replacement_text")
+    target_path.write_text("original_text")
+    os.chmod(target_path, permissions)
 
     dest_path = copy_or_overwrite_changed(source_path, target_path)
+    assert dest_path == target_path
+    assert dest_path.read_text() == "replacement_text"
     assert dest_path.stat().st_mode & stat.S_IWOTH == stat.S_IWOTH
-    assert dest_path.read_text() == "original", dest_path.stat().st_mode

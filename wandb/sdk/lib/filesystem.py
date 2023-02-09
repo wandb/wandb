@@ -95,10 +95,11 @@ def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> P
         The path to the copied file (which may be different from target_path).
     """
 
-    if platform.system() == "Windows" and ":" in str(target_path):
-        logger.warning(f"Replacing ':' in {target_path} with '-'")
-        head, tail = os.path.splitdrive(target_path)
-        target_path = head + tail.replace(":", "-")
+    if platform.system() == "Windows":
+        head, tail = os.path.splitdrive(str(target_path))
+        if ":" in tail:
+            logger.warning("Replacing ':' in %s with '-'", tail)
+            target_path = os.path.join(head, tail.replace(":", "-"))
 
     need_copy = (
         not os.path.isfile(target_path)
