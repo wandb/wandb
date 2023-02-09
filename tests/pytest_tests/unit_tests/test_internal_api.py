@@ -16,7 +16,7 @@ from typing import (
     TypeVar,
     Union,
 )
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 import httpx
 import pytest
@@ -112,6 +112,12 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             assert response is not None
         else:
             assert response is None
+
+
+def test_internal_api_with_no_write_global_config_dir(tmp_path):
+    with patch.dict("os.environ", WANDB_CONFIG_DIR=str(tmp_path)):
+        os.chmod(tmp_path, 0o444)
+        internal.InternalApi()
 
 
 @pytest.fixture
