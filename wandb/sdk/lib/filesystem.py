@@ -13,9 +13,12 @@ def mkdir_exists_ok(dir_name: AnyPath) -> None:
         FileExistsError: if `dir_name` exists and is not a directory.
         PermissionError: if `dir_name` is not writable.
     """
-    os.makedirs(dir_name, exist_ok=True)
-    if not os.access(dir_name, os.W_OK):
-        raise PermissionError(f"{dir_name!s} is not writable")
+    try:
+        os.makedirs(dir_name, exist_ok=True)
+    except FileExistsError as e:
+        raise FileExistsError(f"{dir_name!s} exists and is not a directory") from e
+    except PermissionError as e:
+        raise PermissionError(f"{dir_name!s} is not writable") from e
 
 
 class WriteSerializingFile:
