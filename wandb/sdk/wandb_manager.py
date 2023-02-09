@@ -146,14 +146,14 @@ class _Manager:
             pass
 
     def _redirect_install(self) -> None:
-        out_redir = redirect.Redirect(
+        out_redir = redirect.RedirectRaw(
             src="stdout",
             cbs=[
                 lambda data: self._redirect_cb("stdout", data),  # type: ignore
                 # self._output_writer.write,  # type: ignore
             ],
         )
-        err_redir = redirect.Redirect(
+        err_redir = redirect.RedirectRaw(
             src="stderr",
             cbs=[
                 lambda data: self._redirect_cb("stderr", data),  # type: ignore

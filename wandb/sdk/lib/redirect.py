@@ -709,6 +709,100 @@ class _WindowSizeChangeHandler:
 _WSCH = _WindowSizeChangeHandler()
 
 
+class RedirectRaw(RedirectBase):
+    """
+    Redirects low level file descriptors without an emulator.
+    """
+
+    def __init__(self, src, cbs=()):
+        super().__init__(src=src, cbs=cbs)
+        self._installed = False
+
+    def _pipe(self):
+        if pty:
+            r, w = pty.openpty()
+        else:
+            r, w = os.pipe()
+        return r, w
+
+    def install(self):
+        super().install()
+        if self._installed:
+            return
+
+        self._pipe_read_fd, self._pipe_write_fd = self._pipe()
+        if os.isatty(self._pipe_read_fd):
+            _WSCH.add_fd(self._pipe_read_fd)
+
+        self._orig_src_fd = os.dup(self.src_fd)
+        self._orig_src = os.fdopen(self._orig_src_fd, "wb", 0)
+        os.dup2(self._pipe_write_fd, self.src_fd)
+        self._installed = True
+
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+
+        self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
+        self._pipe_relay_thread.daemon = True
+        self._pipe_relay_thread.start()
+
+    def uninstall(self):
+        if not self._installed:
+            return
+        self._installed = False
+
+        self._stopped.set()
+        os.dup2(self._orig_src_fd, self.src_fd)
+        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
+        self._pipe_relay_thread.join()
+        os.close(self._pipe_read_fd)
+        os.close(self._pipe_write_fd)
+
+        # t = threading.Thread(
+        #     target=self.src_wrapped_stream.flush
+        # )  # Calling flush() from the current thread does not flush the buffer instantly.
+        # t.start()
+        # t.join(timeout=10)
+        self.flush()
+
+        _WSCH.remove_fd(self._pipe_read_fd)
+        super().uninstall()
+
+    def flush(self, data=None):
+        pass
+
+    def _pipe_relay(self):
+        while True:
+            try:
+                brk = False
+                data = os.read(self._pipe_read_fd, 4096)
+                if self._stopped.is_set():
+                    if _LAST_WRITE_TOKEN not in data:
+                        # _LAST_WRITE_TOKEN could have gotten split up at the 4096 border
+                        n = len(_LAST_WRITE_TOKEN)
+                        while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
+                            n -= 1
+                        if n:
+                            data += os.read(
+                                self._pipe_read_fd, len(_LAST_WRITE_TOKEN) - n
+                            )
+                    if _LAST_WRITE_TOKEN in data:
+                        data = data.replace(_LAST_WRITE_TOKEN, b"")
+                        brk = True
+                i = self._orig_src.write(data)
+                if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
+                    while i < len(data):
+                        i += self._orig_src.write(data[i:])
+                self._queue.put(data)
+                if brk:
+                    return
+            except OSError:
+                return
+
+    def emulator_flush(self) -> bool:
+        return True
+
+
 class Redirect(RedirectBase):
     """
     Redirects low level file descriptors.
