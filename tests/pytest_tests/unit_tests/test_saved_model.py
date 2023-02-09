@@ -6,8 +6,8 @@ import pytest
 import wandb
 from wandb.apis.public import Artifact, _DownloadedArtifactEntry
 from wandb.sdk.data_types import saved_model
-from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
+from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
 
 from . import saved_model_constructors
 
