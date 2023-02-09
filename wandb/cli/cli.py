@@ -905,8 +905,9 @@ def sweep(
             wandb.termlog("No job found in sweep config, looking in launch config.")
             _job = launch_config.get("job", None)
             if _job is None:
-                wandb.termlog("No job found in launch config, using placeholder.")
-                _job = "placeholder-job"
+                raise LaunchError(
+                    "No job found in sweep or launch config for launch-sweep."
+                )
 
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
