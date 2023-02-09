@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Union
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
+from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.lib import runid
 
@@ -110,13 +111,20 @@ class LaunchAgent:
             )
         if self._running == 0:
             _logger.info("No jobs currently running.")
+            wandb.termlog(f"{LOG_PREFIX}No jobs currently running.")
         elif self._running < self._max_jobs:
             _logger.info(
-                f"Currently polling while running {self._running} out of {self._max_jobs} jobs: {','.join(self._jobs.keys())}"
+                f"Currently polling while running {self._running} out of {self._max_jobs} jobs: {','.join([str(key) for key in self._jobs.keys()])}"
+            )
+            wandb.termlog(
+                f"{LOG_PREFIX}Currently polling while running {self._running} out of {self._max_jobs} jobs"
             )
         else:
             _logger.info(
-                f"Currently running maximum number of jobs ({self._max_jobs}): {','.join(self._jobs.keys())}"
+                f"Currently running maximum number of jobs ({self._max_jobs}): {','.join([str(key) for key in self._jobs.keys()])}"
+            )
+            wandb.termlog(
+                f"{LOG_PREFIX}Currently running maximum number of jobs ({self._max_jobs})"
             )
 
     def update_status(self, status: str) -> None:
@@ -140,7 +148,10 @@ class LaunchAgent:
         try:
             if self._jobs[job_id].get_status().state in ["failed", "finished"]:
                 self.finish_job_id(job_id)
-        except Exception:
+        except Exception as e:
+            if isinstance(e, LaunchError):
+                wandb.termerror(f"Terminating job {job_id} because it failed to start:")
+                wandb.termerror(str(e))
             _logger.info("---")
             _logger.info("Caught exception while getting status.")
             _logger.info(f"Job ID: {job_id}")
@@ -228,8 +239,11 @@ class LaunchAgent:
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
-                    self.update_status(AGENT_POLLING)
-                self.print_status()
+                    if self._running == 0:
+                        self.update_status(AGENT_POLLING)
+                    else:
+                        self.update_status(AGENT_RUNNING)
+                    self.print_status()
                 time.sleep(AGENT_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
