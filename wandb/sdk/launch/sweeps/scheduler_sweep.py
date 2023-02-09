@@ -94,7 +94,7 @@ class SweepScheduler(Scheduler):
                 # The command "type" can be one of "run", "resume", "stop", "exit"
                 _type = command.get("type", None)
                 if _type in ["exit", "stop"]:
-                    if command.get('run_cap'):
+                    if command.get("run_cap"):
                         # Don't immidiately stop, let runs launch
                         continue
 
