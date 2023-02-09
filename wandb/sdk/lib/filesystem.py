@@ -107,7 +107,7 @@ def copy_or_overwrite_changed(source_path: PathLike, target_path: PathLike) -> P
 
     permissions_plus_write = source_path.stat().st_mode | WRITE_PERMISSIONS
     if need_copy:
-        _safe_makedirs(os.path.dirname(target_path))
+        mkdir_exists_ok(os.path.dirname(target_path))
         try:
             # Use copy2 to preserve file metadata (including modified time).
             shutil.copy2(source_path, target_path)
