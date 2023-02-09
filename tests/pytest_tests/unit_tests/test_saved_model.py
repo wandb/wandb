@@ -7,6 +7,7 @@ import wandb
 from wandb.apis.public import Artifact, _DownloadedArtifactEntry
 from wandb.sdk.data_types import saved_model
 from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
+from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 
 from . import saved_model_constructors
 
@@ -76,8 +77,7 @@ class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
         dest = os.path.join(root, self.name)
-        shutil.copyfile(self.local_path, os.path.join(root, self.name))
-        return dest
+        return copy_or_overwrite_changed(self.local_path, dest)
 
 
 class ArtifactManifestEntryPatch(ArtifactManifestEntry):
