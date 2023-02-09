@@ -5,17 +5,16 @@ from hashlib import md5
 from typing import TYPE_CHECKING, Dict, List, Union
 
 import requests
+
 import wandb
 from wandb.sdk.lib import telemetry
+
 from .aggregators import aggregate_last, aggregate_mean
-from .interfaces import (
-    Interface,
-    Metric,
-    MetricsMonitor,
-)
+from .interfaces import Interface, Metric, MetricsMonitor
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
