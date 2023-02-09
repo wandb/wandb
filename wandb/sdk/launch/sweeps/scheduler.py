@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
+import yaml
 
 import click
 
@@ -75,7 +76,8 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            resp = self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
         self._sweep_id: str = sweep_id or "empty-sweep-id"
@@ -119,9 +121,22 @@ class Scheduler(ABC):
             return False
         return True
 
+    def _try_load_job(self) -> bool:
+        _public_api = public.Api()
+        try:
+            job = _public_api.job(self._sweep_config['job'])
+            wandb.termlog(f"{LOG_PREFIX}Successfully loaded job: {job.name} in scheduler")
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}{str(e)}")
+            return False
+        return True
+
     def start(self) -> None:
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
+        if not self._try_load_job():
+            self.exit()
+            return
         self._start()
         self.run()
 
