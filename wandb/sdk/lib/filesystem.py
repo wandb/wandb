@@ -5,17 +5,16 @@ import re
 import shutil
 import stat
 import threading
-from os import PathLike
 from typing import BinaryIO, Union
 
-AnyPath = Union[str, bytes, os.PathLike]
+StrPath = Union[str, os.PathLike[str]]
 
 logger = logging.getLogger(__name__)
 
 WRITE_PERMISSIONS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IWRITE
 
 
-def mkdir_exists_ok(dir_name: AnyPath) -> None:
+def mkdir_exists_ok(dir_name: StrPath) -> None:
     """Create `dir_name` and any parent directories if they don't exist.
 
     Raises:
@@ -82,7 +81,7 @@ class CRDedupedFile(WriteSerializingFile):
         super().close()
 
 
-def copy_or_overwrite_changed(source_path: AnyPath, target_path: AnyPath) -> AnyPath:
+def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> StrPath:
     """Copy source_path to target_path, unless it already exists with the same mtime.
 
     We liberally add write permissions to deal with the case of multiple users needing
@@ -94,7 +93,7 @@ def copy_or_overwrite_changed(source_path: AnyPath, target_path: AnyPath) -> Any
     Returns:
         The path to the copied file (which may be different from target_path).
     """
-    output_type = type(target_path)
+    return_type = type(target_path)
 
     if platform.system() == "Windows":
         head, tail = os.path.splitdrive(str(target_path))
@@ -127,4 +126,4 @@ def copy_or_overwrite_changed(source_path: AnyPath, target_path: AnyPath) -> Any
         # Prevent future permissions issues by universal write permissions now.
         os.chmod(target_path, permissions_plus_write)
 
-    return output_type(target_path)
+    return return_type(target_path)
