@@ -1,5 +1,0 @@
-[default]
-entity = griffin_wb
-project = sweep-123
-base_url = https://api.wandb.ai
-
