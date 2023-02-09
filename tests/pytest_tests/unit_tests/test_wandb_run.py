@@ -1,3 +1,4 @@
+import copy
 import os
 import platform
 
@@ -213,3 +214,11 @@ def test_run_sweep_overlap():
     sw = dict(param2=8, param3=9)
     run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=8, param3=9)
+
+
+def test_run_deepcopy():
+    s = wandb.Settings()
+    c = dict(param1=2, param2=4)
+    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run2 = copy.deepcopy(run)
+    assert id(run) == id(run2)
