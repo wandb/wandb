@@ -105,12 +105,6 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
         not os.path.isfile(target_path)
         or os.stat(source_path).st_mtime != os.stat(target_path).st_mtime
     )
-    print(
-        need_copy,
-        os.path.isfile(target_path),
-        os.stat(source_path).st_mtime,
-        os.path.isfile(target_path) and os.stat(target_path).st_mtime,
-    )
 
     permissions_plus_write = os.stat(source_path).st_mode | WRITE_PERMISSIONS
     if need_copy:
@@ -118,8 +112,13 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
         try:
             # Use copy2 to preserve file metadata (including modified time).
             shutil.copy2(source_path, target_path)
-        except PermissionError as e:
-            raise PermissionError("Unable to overwrite '{target_path!s}'") from e
+        except PermissionError:
+            # If the file is read-only try to make it writable.
+            try:
+                os.chmod(target_path, permissions_plus_write)
+                shutil.copy2(source_path, target_path)
+            except PermissionError as e:
+                raise PermissionError("Unable to overwrite '{target_path!s}'") from e
         # Prevent future permissions issues by universal write permissions now.
         os.chmod(target_path, permissions_plus_write)
 
