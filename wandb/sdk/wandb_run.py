@@ -643,7 +643,7 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if self._settings._require_service:
+        if not self._settings._disable_service:
             self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
@@ -777,7 +777,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Custom pickler."""
         # We only pickle in service mode
-        if not self._settings or not self._settings._require_service:
+        if not self._settings or self._settings._disable_service:
             return
 
         _attach_id = self._attach_id
@@ -1962,7 +1962,7 @@ class Run:
             console = self._settings._console
         # only use raw for service to minimize potential changes
         if console == SettingsConsole.WRAP:
-            if self._settings._require_service:
+            if not self._settings._disable_service:
                 console = SettingsConsole.WRAP_RAW
             else:
                 console = SettingsConsole.WRAP_EMU

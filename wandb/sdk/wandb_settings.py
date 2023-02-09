@@ -369,9 +369,9 @@ class Settings:
     _console: SettingsConsole
     _cuda: str
     _disable_meta: bool
+    _disable_service: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
-    _disable_service: bool
     _except_exit: bool
     _executable: str
     _flow_control_custom: bool
@@ -393,7 +393,6 @@ class Settings:
     _os: str
     _platform: str
     _python: str
-    _require_service: str
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
@@ -506,9 +505,9 @@ class Settings:
         """
         return dict(
             _disable_meta={"preprocessor": _str_as_bool},
+            _disable_service={"preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
-            _disable_service={"preprocessor": _str_as_bool},
             _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
@@ -980,7 +979,7 @@ class Settings:
             if (
                 self._jupyter
                 or (self.start_method == "thread")
-                or self._require_service
+                or not self._disable_service
                 or self._windows
             ):
                 console = "wrap"
@@ -1361,8 +1360,7 @@ class Settings:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
             "WANDB_TRACELOG": "_tracelog",
-            "WANDB_REQUIRE_SERVICE": "_require_service",
-            "WANDB_DISABE_SERVICE": "_disable_service",
+            "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
