@@ -486,9 +486,11 @@ def test_no_retry_auth():
         e.response.status_code = status_code
         assert not util.no_retry_auth(e)
     e.response.status_code = 401
+    e.response.reason = "Unauthorized"
     with pytest.raises(wandb.CommError):
         util.no_retry_auth(e)
     e.response.status_code = 403
+    e.response.reason = "Forbidden"
     with mock.patch("wandb.run", mock.MagicMock()):
         with pytest.raises(wandb.CommError):
             util.no_retry_auth(e)
@@ -673,15 +675,21 @@ def test_parse_entity_project_item():
     assert entity == ""
 
 
-def test_resolve_aliases():
+def test_resolve_aliases_requires_iterable():
     with pytest.raises(ValueError):
         util._resolve_aliases(5)
 
-    aliases = util._resolve_aliases(["best", "dev"])
-    assert aliases == ["best", "dev", "latest"]
 
-    aliases = util._resolve_aliases("boom")
-    assert aliases == ["boom", "latest"]
+@pytest.mark.parametrize(
+    "aliases", [["best", "dev"], "boom", None, ("latest"), ["boom", "boom"]]
+)
+def test_resolve_aliases(aliases):
+    result = util._resolve_aliases(aliases)
+    assert isinstance(result, list)
+    assert "latest" in result
+    assert len(set(result)) == len(result)
+    if aliases and not isinstance(aliases, str):
+        assert set(aliases) <= set(result)
 
 
 # Compute recursive dicts for tests

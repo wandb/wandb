@@ -20,9 +20,12 @@ from typing import List, Optional
 class Error(Exception):
     """Base W&B Error"""
 
-    def __init__(self, message) -> None:
+    def __init__(self, message, context: Optional[dict] = None) -> None:
         super().__init__(message)
         self.message = message
+        # sentry context capture
+        if context:
+            self.context = context
 
     # For python 2 support
     def encode(self, encoding):
