@@ -915,6 +915,10 @@ def sweep(
             raise LaunchError(
                 "No queue passed from CLI or in launch config for launch-sweep."
             )
+        else:
+            # multi-word queues must be quoted for scheduler command
+            if launch_queue.count(' ') > 1:
+                launch_queue = f"{launch_queue!r}"
 
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
@@ -940,7 +944,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            f"{launch_queue!r}",
+                            launch_queue,
                             "--project",
                             project,
                             "--job",
