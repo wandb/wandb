@@ -76,7 +76,9 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            resp = self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            resp = self._api.sweep(
+                sweep_id, "{}", entity=self._entity, project=self._project
+            )
             self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
@@ -124,8 +126,10 @@ class Scheduler(ABC):
     def _try_load_job(self) -> bool:
         _public_api = public.Api()
         try:
-            job = _public_api.job(self._sweep_config['job'])
-            wandb.termlog(f"{LOG_PREFIX}Successfully loaded job: {job.name} in scheduler")
+            job = _public_api.job(self._sweep_config["job"])
+            wandb.termlog(
+                f"{LOG_PREFIX}Successfully loaded job: {job.name} in scheduler"
+            )
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}{str(e)}")
             return False
