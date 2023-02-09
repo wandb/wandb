@@ -3,8 +3,8 @@ import platform
 import shutil
 import stat
 import time
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed, mkdir_exists_ok
@@ -99,11 +99,15 @@ def test_copy_or_overwrite_changed_bad_permissions(tmp_path, permissions):
     source_path = tmp_path / "new_file.txt"
     target_path = tmp_path / "old_file.txt"
 
-    source_path.write_text("replacement_text")
-    target_path.write_text("original_text")
+    for path in [source_path, target_path]:
+        with path.open("w") as f:
+            f.write("replacement" if path == source_path else "original")
+            f.flush()
+            os.fsync(f.fileno())
+        time.sleep(0.1)
     os.chmod(target_path, permissions)
 
     dest_path = copy_or_overwrite_changed(source_path, target_path)
     assert dest_path == target_path
-    assert dest_path.read_text() == "replacement_text"
+    assert dest_path.read_text() == "replacement"
     assert dest_path.stat().st_mode & stat.S_IWOTH == stat.S_IWOTH
