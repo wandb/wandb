@@ -505,7 +505,7 @@ class Settings:
         """
         return dict(
             _disable_meta={"preprocessor": _str_as_bool},
-            _disable_service={"preprocessor": _str_as_bool},
+            _disable_service={"value": False, "preprocessor": _str_as_bool},
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _network_buffer={"preprocessor": int},
