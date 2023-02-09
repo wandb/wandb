@@ -126,4 +126,4 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
         # Prevent future permissions issues by universal write permissions now.
         os.chmod(target_path, permissions_plus_write)
 
-    return return_type(target_path)
+    return return_type(target_path)  # type: ignore  # 'os.PathLike' is abstract.
