@@ -1,4 +1,3 @@
-import errno
 import logging
 import os
 import platform
@@ -7,23 +6,28 @@ import shutil
 import stat
 import threading
 from os import PathLike
-from typing import BinaryIO
+from typing import BinaryIO, Union
+
+AnyPath = Union[str, bytes, os.PathLike]
 
 logger = logging.getLogger(__name__)
 
 WRITE_PERMISSIONS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IWRITE
 
 
-def _safe_makedirs(dir_name: str) -> None:
+def mkdir_exists_ok(dir_name: AnyPath) -> None:
+    """Create `dir_name` and any parent directories if they don't exist.
+
+    Raises:
+        FileExistsError: if `dir_name` exists and is not a directory.
+        PermissionError: if `dir_name` is not writable.
+    """
     try:
-        os.makedirs(dir_name)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-    if not os.path.isdir(dir_name):
-        raise Exception("not dir")
-    if not os.access(dir_name, os.W_OK):
-        raise Exception(f"cant write: {dir_name}")
+        os.makedirs(dir_name, exist_ok=True)
+    except FileExistsError as e:
+        raise FileExistsError(f"{dir_name!s} exists and is not a directory") from e
+    except PermissionError as e:
+        raise PermissionError(f"{dir_name!s} is not writable") from e
 
 
 class WriteSerializingFile:

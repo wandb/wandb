@@ -68,7 +68,8 @@ class LaunchProject:
             _logger.info(f"{LOG_PREFIX}Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
-        wandb.termlog(f"{LOG_PREFIX}Launch project got job {job}")
+        if job is not None:
+            wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
         self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
@@ -77,10 +78,12 @@ class LaunchProject:
         self.name = name  # TODO: replace with run_id
         self.resource = resource
         self.resource_args = resource_args
-        self.python_version: Optional[str] = docker_config.get("python_version")
-        self.cuda_version: Optional[str] = docker_config.get("cuda_version")
-        self._base_image: Optional[str] = docker_config.get("base_image")
-        self.docker_image: Optional[str] = docker_config.get("docker_image")
+        self.python_version: Optional[str] = launch_spec.get("python_version")
+        self.cuda_version: Optional[str] = launch_spec.get("cuda_version")
+        self._base_image: Optional[str] = launch_spec.get("base_image")
+        self.docker_image: Optional[str] = docker_config.get(
+            "docker_image"
+        ) or launch_spec.get("image_uri")
         uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
@@ -279,7 +282,6 @@ class LaunchProject:
                     wandb.termlog(
                         f"{LOG_PREFIX}Specified cuda version {self.cuda_version} differs from original cuda version {original_cuda_version}. Running with specified version {self.cuda_version}"
                     )
-            # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -500,7 +502,6 @@ def create_metadata_file(
     launch_project: LaunchProject,
     image_uri: str,
     sanitized_entrypoint_str: str,
-    docker_args: Dict[str, Any],
     sanitized_dockerfile_contents: str,
 ) -> None:
     assert launch_project.project_dir is not None
@@ -513,7 +514,6 @@ def create_metadata_file(
                 **launch_project.launch_spec,
                 "image_uri": image_uri,
                 "command": sanitized_entrypoint_str,
-                "docker_args": docker_args,
                 "dockerfile_contents": sanitized_dockerfile_contents,
             },
             f,

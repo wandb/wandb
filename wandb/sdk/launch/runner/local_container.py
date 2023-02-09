@@ -13,7 +13,6 @@ from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
 from ..utils import (
     LOG_PREFIX,
-    PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
@@ -74,7 +73,11 @@ class LocalContainerRunner(AbstractRunner):
         registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        docker_args: Dict[str, Any] = launch_project.resource_args.get(
+            "local-container", {}
+        )
+        # TODO: leaving this here because of existing CLI command
+        # we should likely just tell users to specify the gpus arg directly
         if launch_project.cuda:
             docker_args["gpus"] = "all"
 
@@ -104,7 +107,6 @@ class LocalContainerRunner(AbstractRunner):
             image_uri = launch_project.image_name
             if not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
-            env_vars.pop("WANDB_RUN_ID")
             # if they've given an override to the entrypoint
             entry_cmd = get_entry_point_command(
                 entry_point, launch_project.override_args
@@ -119,7 +121,6 @@ class LocalContainerRunner(AbstractRunner):
                 launch_project,
                 repository,
                 entry_point,
-                docker_args,
             )
             command_str = " ".join(
                 get_docker_command(image_uri, env_vars, [""], docker_args)
@@ -188,18 +189,17 @@ def get_docker_command(
 
     if docker_args:
         for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name)]
-                else:
-                    cmd += ["--" + shlex.quote(name)]
+            if len(name) == 1:
+                prefix = "-" + shlex.quote(name)
             else:
-                # Passed name=value
-                if len(name) == 1:
-                    cmd += ["-" + shlex.quote(name), shlex.quote(str(value))]
-                else:
-                    cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
+                prefix = "--" + shlex.quote(name)
+            if isinstance(value, list):
+                for v in value:
+                    cmd += [prefix, shlex.quote(str(v))]
+            elif isinstance(value, bool) and value:
+                cmd += [prefix]
+            else:
+                cmd += [prefix, shlex.quote(str(value))]
 
     cmd += [shlex.quote(image)]
     cmd += entry_cmd

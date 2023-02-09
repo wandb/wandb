@@ -1,3 +1,4 @@
+import concurrent.futures
 import logging
 import os
 import queue
@@ -113,11 +114,7 @@ class FilePusher:
         self,
         save_name: dir_watcher.SaveName,
         path: str,
-        artifact_id: Optional[str] = None,
         copy: bool = True,
-        use_prepare_flow: bool = False,
-        save_fn: Optional[step_upload.SaveFn] = None,
-        digest: Optional[str] = None,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
         Arguments:
@@ -135,11 +132,7 @@ class FilePusher:
         event = step_checksum.RequestUpload(
             path,
             dir_watcher.SaveName(save_name),
-            artifact_id,
             copy,
-            use_prepare_flow,
-            save_fn,
-            digest,
         )
         self._incoming_queue.put(event)
 
@@ -155,12 +148,13 @@ class FilePusher:
     def commit_artifact(
         self,
         artifact_id: str,
+        *,
         finalize: bool = True,
-        before_commit: Optional[step_upload.PreCommitFn] = None,
-        on_commit: Optional[step_upload.PostCommitFn] = None,
+        before_commit: step_upload.PreCommitFn,
+        result_future: "concurrent.futures.Future[None]",
     ):
         event = step_checksum.RequestCommitArtifact(
-            artifact_id, finalize, before_commit, on_commit
+            artifact_id, finalize, before_commit, result_future
         )
         self._incoming_queue.put(event)
 
