@@ -106,6 +106,12 @@ def copy_or_overwrite_changed(source_path: AnyPath, target_path: AnyPath) -> Any
         not os.path.isfile(target_path)
         or os.stat(source_path).st_mtime != os.stat(target_path).st_mtime
     )
+    print(
+        need_copy,
+        os.path.isfile(target_path),
+        os.stat(source_path).st_mtime,
+        os.path.isfile(target_path) and os.stat(target_path).st_mtime,
+    )
 
     permissions_plus_write = os.stat(source_path).st_mode | WRITE_PERMISSIONS
     if need_copy:
