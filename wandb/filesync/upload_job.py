@@ -177,7 +177,7 @@ class UploadJobAsync:
         self._request = request
         self._save_fn_async = save_fn_async
 
-    async def run(self):
+    async def run(self) -> None:
         try:
             deduped = await self._save_fn_async(
                 lambda _, t: self._stats.update_uploaded_file(self._request.path, t)

@@ -3,7 +3,6 @@
 import asyncio
 import concurrent.futures
 import logging
-import os
 import queue
 import sys
 import threading
@@ -19,8 +18,6 @@ from typing import (
     Union,
 )
 
-import wandb
-import wandb.util
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
 
@@ -133,7 +130,7 @@ class StepUpload:
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
-        self.silent = settings.silent if settings else False
+        self.silent = bool(settings.silent) if settings else False
 
     def _thread_body(self) -> None:
         event: Optional[Event]

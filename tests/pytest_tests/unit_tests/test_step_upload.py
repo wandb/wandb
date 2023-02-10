@@ -19,8 +19,8 @@ from wandb.filesync.step_upload import (
     StepUpload,
 )
 from wandb.sdk.internal import file_stream, internal_api
-from wandb.sdk.wandb_settings import Settings
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.wandb_settings import Settings
 
 
 def mock_upload_urls(

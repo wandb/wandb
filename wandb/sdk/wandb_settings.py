@@ -964,9 +964,6 @@ class Settings:
 
     @staticmethod
     def _validate_async_upload_concurrency_limit(value: int) -> bool:
-        if value is None:
-            return True
-
         if not isinstance(value, int):
             raise UsageError("async_upload_concurrency_limit must be an int")
 
