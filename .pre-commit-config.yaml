@@ -25,3 +25,7 @@ repos:
     rev: v1.12.1
     hooks:
       - id: blacken-docs
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: 'v0.0.244'
+    hooks:
+      - id: ruff

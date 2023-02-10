@@ -1022,7 +1022,7 @@ class WandbStoragePolicy(StoragePolicy):
 
 
 # Don't use this yet!
-class __S3BucketPolicy(StoragePolicy):
+class __S3BucketPolicy(StoragePolicy):  # noqa: N801
     @classmethod
     def name(cls) -> str:
         return "wandb-s3-bucket-policy-v1"
