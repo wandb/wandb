@@ -41,8 +41,16 @@ def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_confi
             )
 
 
-def test_sweep_scheduler_sweep_id_no_job(user, relay_server):
+def test_sweep_scheduler_sweep_id_no_job(user, relay_server, monkeypatch):
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
+
+    def mock_run_complete_scheduler(self, *args, **kwargs):
+        self.state = SchedulerState.COMPLETED
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_complete_scheduler,
+    )
     with relay_server():
         _entity = user
         _project = "test-project"
