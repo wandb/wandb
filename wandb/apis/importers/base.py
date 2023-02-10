@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Iterable, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 from tqdm.auto import tqdm
 
@@ -274,12 +272,12 @@ class Importer(ABC):
     def get_all_runs(self) -> Iterable[Run]:
         ...
 
-    def send_everything(self, overrides: dict[str, Any] | None = None) -> None:
+    def send_everything(self, overrides: Optional[Dict[str, Any]] = None) -> None:
         for run in tqdm(self.get_all_runs(), desc="Sending runs"):
             self.send(run, overrides)
 
     def send_everything_parallel(
-        self, overrides: dict[str, Any] | None = None, **pool_kwargs: Any
+        self, overrides: Optional[Dict[str, Any]] = None, **pool_kwargs: Any
     ) -> None:
         runs = list(self.get_all_runs())
         with tqdm(total=len(runs)) as pbar:
@@ -293,7 +291,7 @@ class Importer(ABC):
     def send(
         self,
         run: Run,
-        overrides: dict[str, Any] | None = None,
+        overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         # does this need to be here for pmap?
         import mlflow
