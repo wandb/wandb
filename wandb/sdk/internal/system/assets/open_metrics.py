@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-prometheus_client_parser: Optional["ModuleType"] = None
+prometheus_client_parser: "Optional[ModuleType]" = None
 try:
     import prometheus_client.parser
 
