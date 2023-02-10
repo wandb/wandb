@@ -20,7 +20,6 @@ def test_from_default(mocker) -> None:
     """Test creating an AWS environment from the default credentials."""
     boto3 = MagicMock()
     session = MagicMock()
-    session.region_name = "us-west-2"
     credentials = MagicMock()
     credentials.access_key = "access_key"
     credentials.secret_key = "secret_key"
@@ -32,7 +31,7 @@ def test_from_default(mocker) -> None:
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.AwsEnvironment", MagicMock()
     )
-    default_environment = AwsEnvironment.from_default(verify=False)
+    default_environment = AwsEnvironment.from_default(region="use-west-2", verify=False)
     assert default_environment._region == "us-west-2"
     assert default_environment._access_key == "access_key"
     assert default_environment._secret_key == "secret_key"
