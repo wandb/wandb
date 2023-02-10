@@ -11,7 +11,7 @@ def test_loop_capture_stack_trace(mocker):
     }
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent.run_job = MagicMock()
-    agent.run_job.side_effect = Exception("test exception")
+    agent.run_job.side_effect = [None, None, Exception("test exception")]
     agent.pop_from_queue = MagicMock(return_value=MagicMock())
 
     agent.loop()

@@ -101,31 +101,20 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        if self._project == LAUNCH_DEFAULT_PROJECT:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on queues {','.join(self._queues)} for jobs"
-            )
+        if self._running < self._max_jobs:
+            output_str = f"agent {self._name} polling on "
+            if self._project != LAUNCH_DEFAULT_PROJECT:
+                output_str += "project {self._project}, "
+            output_str += f"queues {','.join(self._queues)} while running {self._running} out of {self._max_jobs} jobs"
         else:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
+            output_str = (
+                f"agent {self._name} running maximum number of jobs ({self._max_jobs})"
             )
-        if self._running == 0:
-            _logger.info("No jobs currently running.")
-            wandb.termlog(f"{LOG_PREFIX}No jobs currently running.")
-        elif self._running < self._max_jobs:
-            _logger.info(
-                f"Currently polling while running {self._running} out of {self._max_jobs} jobs: {','.join([str(key) for key in self._jobs.keys()])}"
-            )
-            wandb.termlog(
-                f"{LOG_PREFIX}Currently polling while running {self._running} out of {self._max_jobs} jobs"
-            )
-        else:
-            _logger.info(
-                f"Currently running maximum number of jobs ({self._max_jobs}): {','.join([str(key) for key in self._jobs.keys()])}"
-            )
-            wandb.termlog(
-                f"{LOG_PREFIX}Currently running maximum number of jobs ({self._max_jobs})"
-            )
+
+        wandb.termlog(f"{LOG_PREFIX}{output_str}")
+        if self._running > 0:
+            output_str += f": {','.join([str(key) for key in self._jobs.keys()])}"
+        _logger.info(output_str)
 
     def update_status(self, status: str) -> None:
         update_ret = self._api.update_launch_agent_status(
