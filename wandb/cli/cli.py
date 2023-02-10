@@ -24,12 +24,14 @@ from click.exceptions import ClickException
 from dockerpycreds.utils import find_executable
 
 import wandb
+import wandb.env
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
+
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.utils import (
@@ -2218,11 +2220,19 @@ def status(settings):
 
 
 @cli.command("disabled", help="Disable W&B.")
-def disabled():
+@click.option(
+    "--service",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Disable W&B service",
+)
+def disabled(service):
     api = InternalApi()
     try:
         api.set_setting("mode", "disabled", persist=True)
         click.echo("W&B disabled.")
+        os.environ[wandb.env._DISABLE_SERVICE] = str(service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
@@ -2230,11 +2240,19 @@ def disabled():
 
 
 @cli.command("enabled", help="Enable W&B.")
-def enabled():
+@click.option(
+    "--service",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Enable W&B service",
+)
+def enabled(service):
     api = InternalApi()
     try:
         api.set_setting("mode", "online", persist=True)
         click.echo("W&B enabled.")
+        os.environ[wandb.env._DISABLE_SERVICE] = str(not service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
