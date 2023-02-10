@@ -82,13 +82,15 @@ class OpenMetricsMetric:
         if not self.samples:
             return {}
 
+        prefix = f"openmetrics.{self.name}."
+
         stats = {}
         for key in self.samples[0].keys():
             samples = [s[key] for s in self.samples if key in s]
             if samples and all(isinstance(s, (int, float)) for s in samples):
-                stats[f"{self.name}.{key}"] = aggregate_mean(samples)
+                stats[f"{prefix}{key}"] = aggregate_mean(samples)
             else:
-                stats[f"{self.name}.{key}"] = aggregate_last(samples)
+                stats[f"{prefix}{key}"] = aggregate_last(samples)
         return stats
 
 
