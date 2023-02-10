@@ -9,11 +9,9 @@ Example:
     wandb.require("incremental-artifacts@beta")
 """
 
-import os
 from typing import Optional, Sequence, Union
 
 import wandb
-from wandb.env import _DISABLE_SERVICE, REQUIRE_SERVICE
 from wandb.errors import RequireError
 from wandb.sdk import wandb_run
 from wandb.sdk.lib.wburls import wburls
@@ -33,18 +31,11 @@ class _Requires:
         pass
 
     def _require_service(self) -> None:
-        os.environ[REQUIRE_SERVICE] = "True"
         wandb.teardown = wandb._teardown  # type: ignore
         wandb.attach = wandb._attach  # type: ignore
         wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
 
     def require_service(self) -> None:
-        disable_service = os.environ.get(_DISABLE_SERVICE)
-        if disable_service:
-            if REQUIRE_SERVICE in os.environ:
-                del os.environ[REQUIRE_SERVICE]
-            return
-
         self._require_service()
 
     def apply(self) -> None:
@@ -93,6 +84,4 @@ def _import_module_hook() -> None:
     """On wandb import, setup anything needed based on parent process require calls."""
     # TODO: optimize by caching which pids this has been done for or use real import hooks
     # TODO: make this more generic, but for now this works
-    req_service = os.environ.get(REQUIRE_SERVICE)
-    if req_service:
-        require("service")
+    require("service")
