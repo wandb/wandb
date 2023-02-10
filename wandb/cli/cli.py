@@ -702,6 +702,7 @@ def sync(
 )
 @click.option(
     "--queue",
+    "-q",
     default=None,
     help="The name of a launch queue (configured with a resource), available in the current user or team.",
 )
@@ -905,13 +906,24 @@ def sweep(
             wandb.termlog("No job found in sweep config, looking in launch config.")
             _job = launch_config.get("job", None)
             if _job is None:
-                wandb.termlog("No job found in launch config, using placeholder.")
-                _job = "placeholder-job"
+                raise LaunchError(
+                    "No job found in sweep or launch config for launch-sweep."
+                )
+
+        launch_queue = queue or launch_config.get("queue")
+        if not launch_queue:
+            raise LaunchError(
+                "No queue passed from CLI or in launch config for launch-sweep."
+            )
+        else:
+            # multi-word queues must be quoted for scheduler command
+            if launch_queue.count(" ") > 1:
+                launch_queue = f"{launch_queue!r}"
 
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": queue or launch_config.get("queue", "default"),
+                "queue": launch_queue,
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
@@ -932,7 +944,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            f"{(queue or launch_config.get('queue', 'default'))!r}",
+                            launch_queue,
                             "--project",
                             project,
                             "--job",

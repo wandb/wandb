@@ -967,6 +967,7 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
                 "t": True,
             }
         },
+        "run_id": "p5leu4a7",
     }
     expected_command = [
         "docker",
@@ -982,6 +983,8 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "WANDB_ENTITY=mock_server_entity",
         "-e",
         "WANDB_LAUNCH=True",
+        "-e",
+        "WANDB_RUN_ID=p5leu4a7",
         "-e",
         f"WANDB_DOCKER={image_name}",
         "-e",
