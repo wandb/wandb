@@ -74,7 +74,7 @@ def test_fetching_artifact_files(user, wandb_init):
         name=f"{user}/{project}/test-artifact:v0", type="test-type"
     )
     boom = artifact.files()[0]
-    assert boom.name == "boom.txt"
+    assert boom.name == "test-name"
 
 
 def test_save_aliases_after_logging_artifact(user, wandb_init):
