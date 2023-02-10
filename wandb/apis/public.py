@@ -1026,12 +1026,8 @@ class Paginator:
         return self
 
     def __len__(self):
-        print("Calling len() on object...")
-        print(f"Length, type(length) is {self.length}, {type(self.length)}")
         if self.length is None:
-            print("Loading page")
             self._load_page()
-        print(f"Length, type(length) is {self.length}, {type(self.length)}")
         if self.length is None:
             raise ValueError("Object doesn't provide length")
         return self.length
