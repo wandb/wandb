@@ -1,4 +1,4 @@
-from typing import Any, Iterable
+from typing import Any, Dict, Iterable
 
 from tqdm.auto import tqdm
 
@@ -27,10 +27,10 @@ class MlflowRun(Run):
     # def project(self):
     #     return MISSING_PROJECT
 
-    def config(self) -> dict[str, Any]:
+    def config(self) -> Dict[str, Any]:
         return self.run.data.params
 
-    def summary(self) -> dict[str, float]:
+    def summary(self) -> Dict[str, float]:
         return self.run.data.metrics
 
     def metrics(self):

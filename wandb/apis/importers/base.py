@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from tqdm.auto import tqdm
 
@@ -78,13 +78,13 @@ class Run:
             )
         return self._project
 
-    def config(self) -> dict[str, Any]:
+    def config(self) -> Dict[str, Any]:
         return {}
 
-    def summary(self) -> dict[str, float]:
+    def summary(self) -> Dict[str, float]:
         return {}
 
-    def metrics(self) -> list[dict[str, float]]:
+    def metrics(self) -> List[Dict[str, float]]:
         """
         We expect metrics in this shape:
         [
@@ -117,7 +117,7 @@ class Run:
     def notes(self) -> str:
         ...
 
-    def tags(self) -> list[str]:
+    def tags(self) -> List[str]:
         ...
 
     def settings(self):  # not sure what this is
@@ -147,7 +147,7 @@ class Run:
     def executable(self) -> str:
         ...
 
-    def gpus_used(self) -> list[GPU]:
+    def gpus_used(self) -> List[GPU]:
         ...
 
     def cpus_used(self) -> int:  # can we get the model?
