@@ -58,6 +58,25 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
         assert len(uploaded_files) == 17
 
 
+def test_fetching_artifact_files(user, wandb_init):
+    project = "test"
+    run = wandb_init(entity=user, project=project)
+    artifact = wandb.Artifact("test-artifact", "test-type")
+    with open("boom.txt", "w") as f:
+        f.write("testing")
+    artifact.add_file("boom.txt", "test-name")
+    run.log_artifact(artifact, aliases=["sequence"])
+    artifact.wait()
+    run.finish()
+
+    # fetch artifact and its file successfully
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    boom = artifact.files()[0]
+    assert boom.name == "boom.txt"
+
+
 def test_save_aliases_after_logging_artifact(user, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
