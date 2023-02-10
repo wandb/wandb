@@ -107,7 +107,6 @@ class LocalContainerRunner(AbstractRunner):
             image_uri = launch_project.image_name
             if not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
-            env_vars.pop("WANDB_RUN_ID")
             entry_cmd = []
             if entry_point is not None:
                 entry_cmd = entry_point.command
