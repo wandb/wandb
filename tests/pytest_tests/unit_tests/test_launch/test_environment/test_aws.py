@@ -1,3 +1,4 @@
+import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -93,9 +94,9 @@ def test_upload_directory(mocker):
     source_dir = "source_dir"
     walk_output = [
         (f"{source_dir}", None, ["Dockerfile", "main.py", "requirements.txt"]),
-        (f"{source_dir}/module", "", ["dataset.py", "eval.py", "model.py"]),
+        (os.path.join(source_dir, "module"), "", ["dataset.py", "eval.py", "model.py"]),
         (
-            f"{source_dir}/module/submodule",
+            os.path.join(source_dir, "module", "submodule"),
             "",
             [
                 "that.py",
@@ -131,42 +132,43 @@ def test_upload_directory(mocker):
     assert client.upload_file.has_calls(
         [
             mocker.call(
+                os.path.join(source_dir, "Dockerfile"),
                 f"{source_dir}/Dockerfile",
                 "bucket",
                 "key/Dockerfile",
             ),
             mocker.call(
-                f"{source_dir}/main.py",
+                os.path.join(source_dir, "main.py"),
                 "bucket",
                 "key/main.py",
             ),
             mocker.call(
-                f"{source_dir}/requirements.txt",
+                os.path.join(source_dir, "requirements.txt"),
                 "bucket",
                 "key/requirements.txt",
             ),
             mocker.call(
-                f"{source_dir}/module/dataset.py",
+                os.path.join(source_dir, "module", "dataset.py"),
                 "bucket",
                 "key/module/dataset.py",
             ),
             mocker.call(
-                f"{source_dir}/module/eval.py",
+                os.path.join(source_dir, "module", "eval.py"),
                 "bucket",
                 "key/module/eval.py",
             ),
             mocker.call(
-                f"{source_dir}/module/model.py",
+                os.path.join(source_dir, "module", "model.py"),
                 "bucket",
                 "key/module/model.py",
             ),
             mocker.call(
-                f"{source_dir}/module/submodule/that.py",
+                os.path.join(source_dir, "module", "submodule", "that.py"),
                 "bucket",
                 "key/module/submodule/that.py",
             ),
             mocker.call(
-                f"{source_dir}/module/submodule/this.py",
+                os.path.join(source_dir, "module", "submodule", "this.py"),
                 "bucket",
                 "key/module/submodule/this.py",
             ),

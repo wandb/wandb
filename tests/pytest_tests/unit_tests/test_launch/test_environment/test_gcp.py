@@ -115,7 +115,7 @@ def test_upload_dir(mocker):
         "wandb.sdk.launch.environment.gcp_environment.os.walk",
         return_value=[
             ("source", ["subdir"], ["file1", "file2"]),
-            ("source/subdir", [], ["file3"]),
+            (os.path.join("source", "subdir"), [], ["file3"]),
         ],
     )
     environment.upload_dir("source", "gs://bucket/key")
