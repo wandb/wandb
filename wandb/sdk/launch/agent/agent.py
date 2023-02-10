@@ -17,7 +17,11 @@ from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
-from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from .._project_spec import (
+    EntryPoint,
+    create_project_from_spec,
+    fetch_and_validate_project,
+)
 from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
@@ -28,6 +32,7 @@ from ..utils import (
     LaunchError,
     resolve_build_and_registry_config,
 )
+from .util import builder_from_config, environment_from_config, registry_from_config
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -96,7 +101,33 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
+    _entity: str
+    _project: str
+    _api: Api
+    _base_url: str
+    _jobs: Dict[Union[int, str], AbstractRun]
+    _ticks: int
+    _running: int
+    _cwd: str
+    _namespace: str
+    _access: str
+    _max_jobs: int
+    default_config: Dict[str, Any]
+    gorilla_supports_agents: bool
+    _queues: List[str]
+    _id: str
+    _name: str
+
     def __init__(self, api: Api, config: Dict[str, Any]):
+        """Initialize a launch agent.
+
+        Args:
+            api: Api object to use for making requests to the backend.
+            config: Config dictionary for the agent.
+
+        Raises:
+            AssertionError: if config is missing the "entity" or "project" key.
+        """
         self._entity = config.get("entity")
         self._project = config.get("project")
         self._api = api
@@ -151,7 +182,17 @@ class LaunchAgent:
             return len([x for x in self._jobs if not self._jobs[x].is_scheduler])
 
     def pop_from_queue(self, queue: str) -> Any:
-        """Pops an item off the runqueue to run as a job."""
+        """Pops an item off the runqueue to run as a job.
+
+        Args:
+            queue: Queue to pop from.
+
+        Returns:
+            Item popped off the queue.
+
+        Raises:
+            Exception: if there is an error popping from the queue.
+        """
         try:
             ups = self._api.pop_from_run_queue(
                 queue,
@@ -185,6 +226,11 @@ class LaunchAgent:
         _logger.info(output_str)
 
     def update_status(self, status: str) -> None:
+        """Update the status of the agent.
+
+        Args:
+            status: Status to update the agent to.
+        """
         update_ret = self._api.update_launch_agent_status(
             self._id, status, self.gorilla_supports_agents
         )
@@ -208,7 +254,11 @@ class LaunchAgent:
             self.finish_thread_id(thread_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
-        """Sets up project and runs the job."""
+        """Set up project and run the job.
+
+        Args:
+            job: Job to run.
+        """
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
         wandb.termlog(_msg)
         _logger.info(_msg)
@@ -236,7 +286,11 @@ class LaunchAgent:
         )
 
     def loop(self) -> None:
-        """Main loop function for agent."""
+        """Loop infinitely to poll for jobs and run them.
+
+        Raises:
+            KeyboardInterrupt: if the agent is requested to stop.
+        """
         self.print_status()
         try:
             while True:
@@ -311,7 +365,6 @@ class LaunchAgent:
         default_config: Dict[str, Any],
         api: Api,
     ) -> None:
-
         try:
             self._thread_run_job(launch_spec, job, default_config, api)
         except Exception:

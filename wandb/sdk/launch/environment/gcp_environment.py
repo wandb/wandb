@@ -73,6 +73,29 @@ class GcpEnvironment(AbstractEnvironment):
         if verify:
             self.verify()
 
+    @classmethod
+    def from_config(cls, config: dict) -> "GcpEnvironment":
+        """Create a GcpEnvironment from a config dictionary.
+
+        Args:
+            config: The config dictionary.
+
+        Returns:
+            GcpEnvironment: The GcpEnvironment.
+        """
+        if config.get("type") != "gcp":
+            raise LaunchError(
+                f"Could not create GcpEnvironment from config. Expected type 'gcp' "
+                f"but got '{config.get('type')}'."
+            )
+        region = config.get("region", None)
+        if not region:
+            raise LaunchError(
+                "Could not create GcpEnvironment from config. Missing 'region' "
+                "field."
+            )
+        return cls(region=region)
+
     @property
     def project(self) -> str:
         """Get the name of the gcp project.
