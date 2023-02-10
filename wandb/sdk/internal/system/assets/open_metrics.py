@@ -2,6 +2,7 @@ import logging
 import multiprocessing as mp
 from collections import defaultdict, deque
 from hashlib import md5
+from types import ModuleType
 from typing import TYPE_CHECKING, Dict, List, Union
 
 import requests
@@ -13,7 +14,7 @@ from .aggregators import aggregate_last, aggregate_mean
 from .interfaces import Interface, Metric, MetricsMonitor
 
 if TYPE_CHECKING:
-    from typing import Deque
+    from typing import Deque, Optional
 
     from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -21,10 +22,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+prometheus_client_parser: Optional["ModuleType"] = None
 try:
-    import prometheus_client.parser as prometheus_client_parser  # type: ignore
+    import prometheus_client.parser
+
+    prometheus_client_parser = prometheus_client.parser
 except ImportError:
-    prometheus_client_parser = None
+    pass
 
 
 class OpenMetricsMetric:
@@ -40,6 +44,7 @@ class OpenMetricsMetric:
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
         self.label_map: "Dict[str, Dict[str, int]]" = defaultdict(dict)
+        # {"<labels hash>": <labels>}
         self.label_hashes: "Dict[str, dict]" = {}
 
     def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
@@ -69,9 +74,6 @@ class OpenMetricsMetric:
     def sample(self) -> None:
         s = self.parse_open_metrics_endpoint()
         self.samples.append(s)
-        # print(self.label_map)
-        # print(self.samples)
-        # print(self.label_hashes)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -83,17 +85,10 @@ class OpenMetricsMetric:
         stats = {}
         for key in self.samples[0].keys():
             samples = [s[key] for s in self.samples if key in s]
-            # fixme: remove this debug code
-            # if key == "DCGM_FI_DEV_GPU_UTIL.0":
-            #     print("DCGM_FI_DEV_GPU_UTIL.0")
-            #     print([type(s) for s in samples])
-            #     print(samples, aggregate_mean(samples), aggregate_last(samples))
-            #     print()
             if samples and all(isinstance(s, (int, float)) for s in samples):
                 stats[f"{self.name}.{key}"] = aggregate_mean(samples)
             else:
                 stats[f"{self.name}.{key}"] = aggregate_last(samples)
-        # print(stats)
         return stats
 
 
@@ -129,18 +124,19 @@ class OpenMetrics:
         telemetry_record.feature.open_metrics = True
         interface._publish_telemetry(telemetry_record)
 
-    @staticmethod
-    def is_available(url: str) -> bool:
+    @classmethod
+    def is_available(cls, url: str) -> bool:
         ret = prometheus_client_parser is not None
         if not ret:
             wandb.termwarn(
                 "Monitoring OpenMetrics endpoints requires the `prometheus_client` package. "
-                "To get it, run `pip install prometheus_client`.",
+                "To install it, run `pip install prometheus_client`.",
                 repeat=False,
             )
             return False
         # check if the endpoint is available and is a valid OpenMetrics endpoint
         try:
+            assert prometheus_client_parser is not None
             response = requests.get(url)
             if (
                 response.status_code == 200

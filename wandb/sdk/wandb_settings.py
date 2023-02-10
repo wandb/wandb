@@ -113,9 +113,16 @@ def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
     if isinstance(val, dict):
         return val
     try:
-        return json.loads(val)
+        return dict(json.loads(val))
     except (AttributeError, ValueError):
         pass
+
+    # todo: remove this and only raise error once we are confident.
+    wandb.termwarn(
+        f"Could not parse value {val} as a dict. ",
+        repeat=False,
+    )
+    raise UsageError(f"Could not parse value {val} as a dict.")
 
 
 def _redact_dict(

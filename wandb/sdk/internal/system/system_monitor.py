@@ -104,7 +104,7 @@ class SystemMonitor:
         if not open_metrics_endpoints:
             return []
 
-        assets = []
+        assets: List[Asset] = []
         for name, endpoint in open_metrics_endpoints.items():
             if not OpenMetrics.is_available(url=endpoint):
                 continue
@@ -116,8 +116,7 @@ class SystemMonitor:
                 name=name,
                 url=endpoint,
             )
-            assert isinstance(open_metrics, Asset)
-            assets.append(open_metrics)
+            assets.append(open_metrics)  # type: ignore
 
         return assets
 

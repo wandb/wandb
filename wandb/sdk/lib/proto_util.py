@@ -72,7 +72,8 @@ def settings_dict_from_pbmap(
     for k in pbmap:
         v_obj = pbmap[k]
         v_type = v_obj.WhichOneof("value_type")
-        v: Union[int, str, float, None, tuple, datetime] = None
+
+        v: Union[int, str, float, None, tuple, dict, datetime] = None
         if v_type == "int_value":
             v = v_obj.int_value
         elif v_type == "string_value":
