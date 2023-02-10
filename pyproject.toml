@@ -14,6 +14,12 @@ wandb/vendor/
 | .tox/
 '''
 
+[tool.isort]
+profile = "black"
+skip = ["wandb/__init__.py"]
+extend_skip_glob = ["wandb/vendor/**", "wandb/proto/**"]
+skip_gitignore = "True"
+
 [tool.ruff]
 select = ["F", "E", "W", "B", "I", "N", "C90"]
 ignore = ["B904", "E501"]

@@ -6,7 +6,7 @@ This is a very internal test client, it is only for testing to verify base funct
 """
 
 
-import datetime
+import datetime  # noqa: I001
 import enum
 import json
 import logging
@@ -16,10 +16,8 @@ from typing import TYPE_CHECKING, Any, Dict
 
 import grpc
 import wandb
-from wandb.proto import (
-    wandb_internal_pb2,  # type: ignore
-    wandb_server_pb2_grpc,  # type: ignore
-)
+from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.proto import wandb_server_pb2_grpc  # type: ignore
 from wandb.proto import wandb_server_pb2 as spb  # type: ignore
 
 if TYPE_CHECKING:
