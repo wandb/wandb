@@ -82,7 +82,7 @@ def log_to_mlflow(
     n_experiments: int = 2,
     n_runs_per_experiment: int = 3,
     n_steps: int = 1000,
-    mlflow_batch_size: int = 50,
+    mlflow_batch_size: int = 25,
 ):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
