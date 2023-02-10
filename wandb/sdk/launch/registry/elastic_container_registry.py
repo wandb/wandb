@@ -1,7 +1,7 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
 import base64
 import logging
-from typing import Tuple
+from typing import Tuple, Dict
 
 from wandb.errors import LaunchError
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
@@ -48,6 +48,31 @@ class ElasticContainerRegistry(AbstractRegistry):
         self.repo_name = repo_name
         self.environment = environment
         self.verify()
+
+    @classmethod
+    def from_config(
+        self, config: Dict, environment: AwsEnvironment
+    ) -> "ElasticContainerRegistry":
+        """Create an Elastic Container Registry from a config.
+
+        Args:
+            config (dict): The config.
+            environment (AwsEnvironment): The AWS environment.
+
+        Returns:
+            ElasticContainerRegistry: The Elastic Container Registry.
+        """
+        if config.get("type") != "ecr":
+            raise LaunchError(
+                f"Could not create ElasticContainerRegistry from config. Expected type 'ecr' "
+                f"but got '{config.get('type')}'."
+            )
+        repository = config.get("repository")
+        if not repository:
+            raise LaunchError(
+                "Could not create ElasticContainerRegistry from config. 'repository' is required."
+            )
+        return ElasticContainerRegistry(repository, environment)
 
     def verify(self) -> None:
         """Verify that the registry is accessible and the configured repo exists.

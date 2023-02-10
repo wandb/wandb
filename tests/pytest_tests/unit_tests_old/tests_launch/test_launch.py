@@ -14,7 +14,7 @@ from wandb.apis import PublicApi
 from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
-from wandb.sdk.launch.builder.docker import DockerBuilder
+from wandb.sdk.launch.builder.docker_builder import DockerBuilder
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, PROJECT_SYNCHRONOUS
 from wandb.sdk.lib import runid
 
@@ -295,7 +295,6 @@ def test_launch_base_case(
     mock_load_backend,
     monkeypatch,
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -332,7 +331,6 @@ def test_launch_base_case(
 def test_launch_resource_args(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -560,7 +558,6 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
 def test_launch_code_artifact(
     runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
 ):
-
     run_with_artifacts = mock.MagicMock()
     code_artifact = mock.MagicMock()
     code_artifact.type = "code"
@@ -902,7 +899,6 @@ def test_fail_pull_docker_image():
 def test_bare_wandb_uri(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )

@@ -31,7 +31,21 @@ def resolve_agent_config(
     project: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],
+    config: Optional[str],
 ) -> Tuple[Dict[str, Any], Api]:
+    """ "Resolve the agent config.
+
+    Args:
+        api (Api): The api.
+        entity (str): The entity.
+        project (str): The project.
+        max_jobs (int): The max number of jobs.
+        queues (Tuple[str]): The queues.
+        config (str): The config.
+
+    Returns:
+        Tuple[Dict[str, Any], Api]: The resolved config and api.
+    """
     defaults = {
         "entity": api.default_entity,
         "project": LAUNCH_DEFAULT_PROJECT,
@@ -45,9 +59,10 @@ def resolve_agent_config(
     }
     user_set_project = False
     resolved_config: Dict[str, Any] = defaults
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+    config_path = config or os.path.expanduser(LAUNCH_CONFIG_FILE)
+    if os.path.isfile(config_path):
         config = {}
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+        with open(config_path) as f:
             try:
                 config = yaml.safe_load(f)
                 print(config)
@@ -56,6 +71,8 @@ def resolve_agent_config(
         if config.get("project") is not None:
             user_set_project = True
         resolved_config.update(dict(config))
+    elif config:
+        raise LaunchError(f"Could not find config file: {config_path}")
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
         user_set_project = True

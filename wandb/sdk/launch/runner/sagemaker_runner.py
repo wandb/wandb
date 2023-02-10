@@ -78,6 +78,19 @@ class AWSSagemakerRunner(AbstractRunner):
         builder: AbstractBuilder,
         registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
+        """Run a project on AWS Sagemaker.
+
+        Args:
+            launch_project (LaunchProject): The project to run.
+            builder (AbstractBuilder): The builder to use.
+            registry_config (Dict[str, Any]): The registry config.
+
+        Returns:
+            Optional[AbstractRun]: The run instance.
+
+        Raises:
+            LaunchError: If the launch is unsuccessful.
+        """
         _logger.info("using AWSSagemakerRunner")
 
         boto3 = get_module(
@@ -94,7 +107,6 @@ class AWSSagemakerRunner(AbstractRunner):
             raise LaunchError(
                 "No sagemaker args specified. Specify sagemaker args in resource_args"
             )
-        validate_sagemaker_requirements(given_sagemaker_args, registry_config)
 
         default_output_path = self.backend_config.get("runner", {}).get(
             "s3_output_path"
@@ -152,32 +164,6 @@ class AWSSagemakerRunner(AbstractRunner):
                 run.wait()
             return run
 
-        _logger.info("Connecting to AWS ECR Client")
-        if instance_role:
-            ecr_client = boto3.client("ecr", region_name=region)
-        else:
-            ecr_client = boto3.client(
-                "ecr",
-                region_name=region,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-            )
-        repository = get_ecr_repository_url(
-            ecr_client, given_sagemaker_args, registry_config
-        )
-        # TODO: handle login credentials gracefully
-        login_credentials = registry_config.get("credentials")
-        if login_credentials is not None:
-            wandb.termwarn(
-                "Ignoring registry credentials for ECR, using those found on the system"
-            )
-
-        if builder.type != "kaniko":
-            _logger.info("Logging in to AWS ECR")
-            login_resp = aws_ecr_login(region, repository)
-            if login_resp is None or "Login Succeeded" not in login_resp:
-                raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
-
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
@@ -185,7 +171,6 @@ class AWSSagemakerRunner(AbstractRunner):
             # build our own image
             image = builder.build_image(
                 launch_project,
-                repository,
                 entry_point,
             )
 
@@ -437,29 +422,6 @@ def get_role_arn(
         return role_arn
 
     return f"arn:aws:iam::{account_id}:role/{role_arn}"
-
-
-def validate_sagemaker_requirements(
-    given_sagemaker_args: Dict[str, Any], registry_config: Dict[str, Any]
-) -> None:
-    if (
-        given_sagemaker_args.get(
-            "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
-        )
-        is None
-        and registry_config.get("url") is None
-    ):
-        raise LaunchError(
-            "AWS sagemaker requires an ECR Repository to push the container to "
-            "set this by adding a `EcrRepoName` key to the sagemaker"
-            "field of resource_args or through the url key in the registry section "
-            "of the launch agent config."
-        )
-
-    if registry_config.get("ecr-repo-provider", "aws").lower() != "aws":
-        raise LaunchError(
-            "Sagemaker jobs requires an AWS ECR Repo to push the container to"
-        )
 
 
 def get_ecr_repository_url(

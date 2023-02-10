@@ -1,11 +1,14 @@
+"""Implementation of the docker builder."""
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import wandb
 import wandb.docker as docker
 from wandb.errors import DockerError, LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
+
 
 from .._project_spec import (
     EntryPoint,
@@ -25,26 +28,86 @@ _logger = logging.getLogger(__name__)
 
 
 class DockerBuilder(AbstractBuilder):
-    type = "docker"
+    """Builds a docker image for a project.
 
-    def __init__(self, builder_config: Dict[str, Any]):
-        super().__init__(builder_config)
+    Attributes:
+        builder_config (Dict[str, Any]): The builder config.
+
+    """
+
+    builder_type = "docker"
+    base_image = "python:3.8"
+    target_platform = "linux/amd64"
+
+    def __init__(
+        self,
+        registry: AbstractRegistry,
+        verify=True,
+        login=True,
+    ):
+        """Initialize a DockerBuilder.
+
+        Args:
+            registry (AbstractRegistry): The registry to use.
+            verify (bool, optional): Whether to verify the functionality of the builder.
+            login (bool, optional): Whether to login to the registry.
+
+        Raises:
+            LaunchError: If docker is not installed
+        """
+        self.registry = registry
+        if verify:
+            self.verify()
+        if login:
+            self.login()
+
+    @classmethod
+    def from_config(
+        cls, config: Dict[str, Any], registry: AbstractRegistry
+    ) -> "DockerBuilder":
+        """Create a DockerBuilder from a config.
+
+        Args:
+            config (Dict[str, Any]): The config.
+            registry (AbstractRegistry): The registry to use.
+            verify (bool, optional): Whether to verify the functionality of the builder.
+            login (bool, optional): Whether to login to the registry.
+
+        Returns:
+            DockerBuilder: The DockerBuilder.
+        """
+        # TODO the config for the docker builder as of yet is empty
+        # but ultimately we should add things like target platform, base image, etc.
+        return cls(registry)
+
+    def verify(self):
+        """Verify the builder."""
         validate_docker_installation()
+
+    def login(self):
+        """Login to the registry."""
+        username, password = self.registry.get_username_password()
+        docker.login(username, password, self.registry.uri)
 
     def build_image(
         self,
         launch_project: LaunchProject,
-        repository: Optional[str],
         entrypoint: EntryPoint,
     ) -> str:
+        """Build the image for the given project.
 
+        Args:
+            launch_project (LaunchProject): The project to build.
+            entrypoint (EntryPoint): The entrypoint to use.
+        """
+        repository = self.registry.get_repo_uri()
         if repository:
             image_uri = f"{repository}:{launch_project.image_tag}"
         else:
             image_uri = launch_project.image_uri
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
         dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, "docker"
         )
         create_metadata_file(
             launch_project,

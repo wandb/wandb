@@ -9,3 +9,8 @@ class AbstractRegistry(ABC):
     def verify(self) -> None:
         """Verify that the registry is configured correctly."""
         raise NotImplementedError
+
+    @abstractmethod
+    def get_repo_uri(self, repo_name: str) -> str:
+        """Get the uri of the given repository."""
+        raise NotImplementedError

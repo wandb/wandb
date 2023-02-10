@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import traceback
 
 from wandb.errors import LaunchError
 from wandb.util import get_module
@@ -67,11 +68,14 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.info("Creating AWS environment from default credentials.")
         try:
             session = boto3.Session()
+            region = region or session.region_name
             credentials = session.get_credentials()
             access_key = credentials.access_key
             secret_key = credentials.secret_key
             session_token = credentials.token
         except botocore.client.ClientError as e:
+            traceback.format_exc()
+            _logger.error()
             raise LaunchError(
                 f"Could not create AWS environment from default environment. Please verify that your AWS credentials are configured correctly. {e}"
             )
@@ -80,6 +84,28 @@ class AwsEnvironment(AbstractEnvironment):
             access_key=access_key,
             secret_key=secret_key,
             session_token=session_token,
+            verify=verify,
+        )
+
+    @classmethod
+    def from_config(cls, config: dict, verify: bool = True) -> "AwsEnvironment":
+        """Create an AWS environment from a config.
+
+        Args:
+            config (dict): The config.
+            verify (bool): Whether to verify that the AWS environment is configured correctly.
+
+        Returns:
+            AwsEnvironment: The AWS environment.
+        """
+        if config.get("type") != "aws":
+            raise LaunchError(
+                f"Could not create AWS environment from config. Expected type 'aws' "
+                f"but got '{config.get('type')}'."
+            )
+        region = config.get("region")
+        return cls.from_default(
+            region=region,
             verify=verify,
         )
 

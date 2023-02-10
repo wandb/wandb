@@ -18,7 +18,7 @@ def load_builder(builder_config: Dict[str, Any]) -> AbstractBuilder:
 
         return KanikoBuilder(builder_config)
     elif builder_name == "docker":
-        from .docker import DockerBuilder
+        from .docker_builder import DockerBuilder
 
         return DockerBuilder(builder_config)
     elif builder_name == "noop":

@@ -1,6 +1,4 @@
-"""
-Implementation of launch agent.
-"""
+"""Implementation of launch agent."""
 
 import logging
 import os
@@ -16,7 +14,16 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.lib import runid
 
-from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from .util import (
+    environment_from_config,
+    registry_from_config,
+    builder_from_config,
+)
+from .._project_spec import (
+    create_project_from_spec,
+    fetch_and_validate_project,
+    EntryPoint,
+)
 from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
@@ -37,7 +44,17 @@ _logger = logging.getLogger(__name__)
 
 
 def _convert_access(access: str) -> str:
-    """Converts access string to a value accepted by wandb."""
+    """Convert access string to a value accepted by wandb.
+
+    Args:
+        access: access string to convert.
+
+    Returns:
+        access string converted to a value accepted by wandb.
+
+    Raises:
+        AssertionError: if access is not either "project" or "user".
+    """
     access = access.upper()
     assert (
         access == "PROJECT" or access == "USER"
@@ -48,7 +65,33 @@ def _convert_access(access: str) -> str:
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
+    _entity: str
+    _project: str
+    _api: Api
+    _base_url: str
+    _jobs: Dict[Union[int, str], AbstractRun]
+    _ticks: int
+    _running: int
+    _cwd: str
+    _namespace: str
+    _access: str
+    _max_jobs: int
+    default_config: Dict[str, Any]
+    gorilla_supports_agents: bool
+    _queues: List[str]
+    _id: str
+    _name: str
+
     def __init__(self, api: Api, config: Dict[str, Any]):
+        """Initialize a launch agent.
+
+        Args:
+            api: Api object to use for making requests to the backend.
+            config: Config dictionary for the agent.
+
+        Raises:
+            AssertionError: if config is missing the "entity" or "project" key.
+        """
         self._entity = config.get("entity")
         self._project = config.get("project")
         self._api = api
@@ -82,11 +125,25 @@ class LaunchAgent:
 
     @property
     def job_ids(self) -> List[Union[int, str]]:
-        """Returns a list of keys running job ids for the agent."""
+        """Returns a list of keys running job ids for the agent.
+
+        Returns:
+            List of running job ids.
+        """
         return list(self._jobs.keys())
 
     def pop_from_queue(self, queue: str) -> Any:
-        """Pops an item off the runqueue to run as a job."""
+        """Pops an item off the runqueue to run as a job.
+
+        Args:
+            queue: Queue to pop from.
+
+        Returns:
+            Item popped off the queue.
+
+        Raises:
+            Exception: if there is an error popping from the queue.
+        """
         try:
             ups = self._api.pop_from_run_queue(
                 queue,
@@ -117,6 +174,11 @@ class LaunchAgent:
         _logger.info(output_str)
 
     def update_status(self, status: str) -> None:
+        """Update the status of the agent.
+
+        Args:
+            status: Status to update the agent to.
+        """
         update_ret = self._api.update_launch_agent_status(
             self._id, status, self.gorilla_supports_agents
         )
@@ -124,7 +186,11 @@ class LaunchAgent:
             wandb.termerror(f"Failed to update agent status to {status}")
 
     def finish_job_id(self, job_id: Union[str, int]) -> None:
-        """Removes the job from our list for now."""
+        """Remove the job from our list for now.
+
+        Args:
+            job_id: Id of the job to remove.
+        """
         # TODO:  keep logs or something for the finished jobs
         del self._jobs[job_id]
         self._running -= 1
@@ -133,7 +199,11 @@ class LaunchAgent:
             self.update_status(AGENT_POLLING)
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
-        """Check our status enum."""
+        """Check our status enum.
+
+        Args:
+            job_id: Id of the job to update.
+        """
         try:
             if self._jobs[job_id].get_status().state in ["failed", "finished"]:
                 self.finish_job_id(job_id)
@@ -149,7 +219,11 @@ class LaunchAgent:
             self.finish_job_id(job_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
-        """Sets up project and runs the job."""
+        """Set up project and run the job.
+
+        Args:
+            job: Job to run.
+        """
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
         wandb.termlog(_msg)
         _logger.info(_msg)
@@ -171,19 +245,35 @@ class LaunchAgent:
         project = fetch_and_validate_project(project, self._api)
         _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
+
+        env_config = self.default_config.get("environment", {})
+        print("hello", self.default_config)
+        # print(env_config)
+        environment = environment_from_config(env_config)
+
+        registry_config = self.default_config.get("registry", {})
+        registry = registry_from_config(registry_config, environment)
+
+        builder_config = self.default_config.get("builder", {})
+        builder = builder_from_config(builder_config, registry)
+        # builder.build_image(project, EntryPoint("name", "main.py"))
+
+        # print(builder)
+
         backend_config: Dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        override_build_config = launch_spec.get("build")
-        override_registry_config = launch_spec.get("registry")
 
-        build_config, registry_config = resolve_build_and_registry_config(
-            self.default_config, override_build_config, override_registry_config
-        )
-        builder = load_builder(build_config)
+        # # override_build_config = launch_spec.get("build")
+        # # override_registry_config = launch_spec.get("registry")
+
+        # # build_config, registry_config = resolve_build_and_registry_config(
+        # #     self.default_config, override_build_config, override_registry_config
+        # # )
+        # # builder = load_builder(build_config)
 
         default_runner = self.default_config.get("runner", {}).get("type")
         if default_runner == resource:
@@ -197,7 +287,11 @@ class LaunchAgent:
             self._running += 1
 
     def loop(self) -> None:
-        """Main loop function for agent."""
+        """Loop infinitely to poll for jobs and run them.
+
+        Raises:
+            KeyboardInterrupt: if the agent is requested to stop.
+        """
         self.print_status()
         try:
             while True:

@@ -1357,7 +1357,7 @@ def launch_agent(
     )
     api = _get_cling_api()
     agent_config, api = wandb_launch.resolve_agent_config(
-        api, entity, project, max_jobs, queues
+        api, entity, project, max_jobs, queues, config
     )
     if agent_config.get("project") is None:
         raise LaunchError(

@@ -122,10 +122,8 @@ class LocalContainerRunner(AbstractRunner):
             ).strip()
         else:
             assert entry_point is not None
-            repository: Optional[str] = registry_config.get("url")
             image_uri = builder.build_image(
                 launch_project,
-                repository,
                 entry_point,
             )
             # entry_cmd and additional_args are empty here because
