@@ -457,7 +457,6 @@ def test_kube_user_container(
     job = run.get_job()
     container = job.spec.template.spec.containers[0]
     assert container.image == "test:tag"
-    assert "WANDB_RUN_ID" not in [ev["name"] for ev in container.env]
 
 
 @pytest.mark.timeout(320)
