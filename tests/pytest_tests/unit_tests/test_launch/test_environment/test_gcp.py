@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
-
 from wandb.errors import LaunchError
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 
