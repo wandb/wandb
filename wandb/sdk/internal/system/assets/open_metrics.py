@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 prometheus_client_parser: "Optional[ModuleType]" = None
 try:
-    import prometheus_client.parser
+    import prometheus_client.parser  # type: ignore
 
     prometheus_client_parser = prometheus_client.parser
 except ImportError:
