@@ -1,4 +1,5 @@
 """Implementation of Google Artifact Registry for wandb launch."""
+import logging
 import re
 from typing import Tuple
 
@@ -25,6 +26,8 @@ google.auth.credentials = get_module(
     required="Google Cloud Platform support requires google-auth. "
     "Please install it with `pip install wandb[launch]`.",
 )
+
+_logger = logging.getLogger(__name__)
 
 
 class GoogleArtifactRegistry(AbstractRegistry):
@@ -58,6 +61,10 @@ class GoogleArtifactRegistry(AbstractRegistry):
             LaunchError: If verify is True and the container registry or its
                 environment have not been properly configured.
         """
+        _logger.info(
+            f"Initializing Google Artifact Registry with repository {repository} "
+            f"and image name {image_name}"
+        )
         self.repository = repository
         self.image_name = image_name
         if not re.match(r"^\w[\w.-]+$", image_name):
