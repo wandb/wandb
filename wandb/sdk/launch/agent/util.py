@@ -120,10 +120,10 @@ def create_runner(
     """
     if runner_name == "local-container":
         module = get_module("wandb.sdk.launch.runner.local_container")
-        return module.LocalRunner(api, runer_config, environment)
+        return module.LocalContainerRunner(api, runer_config, environment)
     if runner_name == "local-process":
         module = get_module("wandb.sdk.launch.runner.local_process")
-        return module.LocalRunner(api, runer_config, environment)
+        return module.LocalProcessRunner(api, runer_config, environment)
     if runner_name == "sagemaker":
         module = get_module("wandb.sdk.launch.runner.sagemaker_runner")
         return module.SagemakerRunner(api, runer_config, environment)

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
 from .._project_spec import LaunchProject, compute_command_args
 from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
@@ -66,11 +67,19 @@ class LocalSubmittedRun(AbstractRun):
 class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
+    def __init__(
+        self,
+        api: wandb.apis.public.Api,
+        backend_config: Dict[str, Any],
+        environment: AbstractEnvironment,
+    ) -> None:
+        super().__init__(api, backend_config)
+        self.environment = environment
+
     def run(
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
