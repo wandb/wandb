@@ -11,19 +11,19 @@ from .abstract import AbstractRegistry
 google = get_module(
     "google",
     required="Google Cloud Platform support requires the google package. Please"
-    " install it with `pip install google`.",
+    " install it with `pip install wandb[launch]`.",
 )
 
 google.cloud.artifactregistry = get_module(
     "google.cloud.artifactregistry",
     required="Google Cloud Platform support requires the google-cloud-artifact-registry package. "
-    "Please install it with `pip install google-cloud-artifact-registry`.",
+    "Please install it with `pip install wandb[launch]`.",
 )
 
 google.auth.credentials = get_module(
     "google.auth.credentials",
     required="Google Cloud Platform support requires google-auth. "
-    "Please install it with `pip install google-auth`.",
+    "Please install it with `pip install wandb[launch]`.",
 )
 
 

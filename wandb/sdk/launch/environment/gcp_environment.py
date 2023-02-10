@@ -11,32 +11,32 @@ from .abstract import AbstractEnvironment
 google = get_module(
     "google",
     required="Google Cloud Platform support requires the google package. Please"
-    " install it with `pip install google`.",
+    " install it with `pip install wandb[launch]`.",
 )
 google.cloud.compute_v1 = get_module(
     "google.cloud.compute_v1",
     required="Google Cloud Platform support requires the google-cloud-compute package. "
-    "Please install it with `pip install google-cloud-compute`.",
+    "Please install it with `pip install wandb[launch]`.",
 )
 google.auth.credentials = get_module(
     "google.auth.credentials",
     required="Google Cloud Platform support requires google-auth. "
-    "Please install it with `pip install google-auth`.",
+    "Please install it with `pip install wandb[launch]`.",
 )
 google.auth.transport.requests = get_module(
     "google.auth.transport.requests",
     required="Google Cloud Platform support requires google-auth. "
-    "Please install it with `pip install google-auth`.",
+    "Please install it with `pip install wandb[launch]`.",
 )
 google.api_core.exceptions = get_module(
     "google.api_core.exceptions",
     required="Google Cloud Platform support requires google-api-core. "
-    "Please install it with `pip install google-api-core`.",
+    "Please install it with `pip install wandb[launch]`.",
 )
 google.cloud.storage = get_module(
     "google.cloud.storage",
     required="Google Cloud Platform support requires google-cloud-storage. "
-    "Please install it with `pip install google-cloud-storage.",
+    "Please install it with `pip install wandb[launch].",
 )
 
 
