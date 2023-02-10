@@ -41,7 +41,8 @@ def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_confi
             )
 
 
-def test_sweep_scheduler_sweep_id_no_job(user, relay_server, sweep_config):
+def test_sweep_scheduler_sweep_id_no_job(user, relay_server):
+    sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
     with relay_server():
         _entity = user
         _project = "test-project"
@@ -79,7 +80,7 @@ def test_sweep_scheduler_base_scheduler_states(
 
         monkeypatch.setattr(
             "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
-            lambda: True,
+            lambda _: True,
         )
 
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
@@ -216,7 +217,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
 
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
-        lambda: True,
+        lambda _: True,
     )
 
     _scheduler = Scheduler(
@@ -252,7 +253,7 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
-        lambda: True,
+        lambda _: True,
     )
 
     api = internal.Api()
@@ -278,7 +279,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
-        lambda: True,
+        lambda _: True,
     )
 
     api = internal.Api()
@@ -331,7 +332,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
-        lambda: True,
+        lambda _: True,
     )
 
     api = internal.Api()
