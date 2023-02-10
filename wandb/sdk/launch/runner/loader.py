@@ -36,9 +36,9 @@ def load_backend(
 
         return VertexRunner(api, backend_config)
     elif backend_name == "sagemaker":
-        from .sagemaker_runner import AWSSagemakerRunner
+        from .sagemaker_runner import SagemakerRunner
 
-        return AWSSagemakerRunner(api, backend_config)
+        return SagemakerRunner(api, backend_config)
     elif backend_name == "kubernetes":
         from .kubernetes import KubernetesRunner
 
