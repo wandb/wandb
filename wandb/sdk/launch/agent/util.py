@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 from wandb.errors import LaunchError
 from wandb.util import get_module
+from wandb.apis.internal import Api
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -91,3 +92,45 @@ def builder_from_config(
         module = get_module("wandb.sdk.launch.builder.kaniko_builder")
         return module.KanikoBuilder.from_config(config, registry)
     raise LaunchError("Could not create builder from config.")
+
+
+def create_runner(
+    runner_name: str,
+    api: Api,
+    runer_config: Dict[str, Any],
+    environment: AbstractEnvironment,
+):
+    """Create a runner from a config.
+
+    This helper function is used to create a runner from a config. The
+    config should have a "type" key that specifies the type of runner to import
+    and create. The remaining keys are passed to the runner's from_config
+    method.
+
+    Args:
+        runner_name (str): The name of the backend.
+        api (Api): The API.
+        runner_config (Dict[str, Any]): The backend config.
+
+    Returns:
+        The runner.
+
+    Raises:
+        LaunchError: If the runner is not configured correctly.
+    """
+    if runner_name == "local-container":
+        module = get_module("wandb.sdk.launch.runner.local_container")
+        return module.LocalRunner(api, runer_config, environment)
+    if runner_name == "local-process":
+        module = get_module("wandb.sdk.launch.runner.local_process")
+        return module.LocalRunner(api, runer_config, environment)
+    if runner_name == "sagemaker":
+        module = get_module("wandb.sdk.launch.runner.sagemaker_runner")
+        return module.SagemakerRunner(api, runer_config, environment)
+    if runner_name == "vertex":
+        module = get_module("wandb.sdk.launch.runner.vertex_runner")
+        return module.GcpRunner(api, runer_config, environment)
+    if runner_name == "kubernetes":
+        module = get_module("wandb.sdk.launch.runner.kubernetes_runner")
+        return module.KubernetesRunner(api, runer_config, environment)
+    raise LaunchError("Could not create runner from config.")
