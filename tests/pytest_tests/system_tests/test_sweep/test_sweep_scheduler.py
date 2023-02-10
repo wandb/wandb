@@ -57,10 +57,9 @@ def test_sweep_scheduler_sweep_id_no_job(user, relay_server, monkeypatch):
         api = internal.Api()
         # Entity, project, and sweep
         sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        _ = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         # No job
         with pytest.raises(SchedulerError):
-            scheduler = Scheduler(
+            scheduler = SweepScheduler(
                 api, sweep_id=sweep_id, entity=_entity, project=_project
             )
             scheduler.start()  # should raise no job found
