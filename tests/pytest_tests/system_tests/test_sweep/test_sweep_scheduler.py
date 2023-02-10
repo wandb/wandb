@@ -193,7 +193,9 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         mock_run_add_to_launch_queue,
     )
 
-    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=user, project=_project)
+    _scheduler = Scheduler(
+        api, sweep_id=sweep_id, entity=user, project=_project, project_queue=_project
+    )
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
     assert _scheduler._project_queue == _project

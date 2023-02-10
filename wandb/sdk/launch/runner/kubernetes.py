@@ -332,16 +332,10 @@ class KubernetesRunner(AbstractRunner):
                     "Multiple container configurations should be specified in a yaml file supplied via job_spec."
                 )
             # dont specify run id if user provided image, could have multiple runs
-            env_vars.pop("WANDB_RUN_ID")
             containers[0]["image"] = launch_project.docker_image
             image_uri = launch_project.docker_image
             # TODO: handle secret pulling image from registry
-        elif any(["image" in cont for cont in containers]):
-            # user specified image configurations via kubernetes yaml, could have multiple images
-            # dont specify run id if user provided image, could have multiple runs
-            env_vars.pop("WANDB_RUN_ID")
-            # TODO: handle secret pulling image from registries?
-        else:
+        elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
