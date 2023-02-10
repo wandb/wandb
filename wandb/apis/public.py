@@ -3195,15 +3195,15 @@ class PythonMongoishQueryGenerator:
 
     def _replace_numeric_dots(self, s):
         numeric_dots = []
-        for i, (l, m, r) in enumerate(zip(s, s[1:], s[2:]), 1):
-            if m == ".":
+        for i, (left, mid, right) in enumerate(zip(s, s[1:], s[2:]), 1):
+            if mid == ".":
                 if (
-                    l.isdigit()
-                    and r.isdigit()  # 1.2
-                    or l.isdigit()
-                    and r == " "  # 1.
-                    or l == " "
-                    and r.isdigit()  # .2
+                    left.isdigit()
+                    and right.isdigit()  # 1.2
+                    or left.isdigit()
+                    and right == " "  # 1.
+                    or left == " "
+                    and right.isdigit()  # .2
                 ):
                     numeric_dots.append(i)
         # Edge: Catch number ending in dot at end of string
