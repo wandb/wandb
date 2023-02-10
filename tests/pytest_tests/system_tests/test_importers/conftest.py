@@ -184,10 +184,12 @@ def mlflow_server():
         yield MLFLOW_BASE_URL
     else:
         raise Exception("MLflow server is not healthy")
-    try:
-        os.killpg(os.getpgid(process.pid), signal.SIGINT)
-    except KeyboardInterrupt:
-        print("SIGINT for MLflow Server")
+    if os.environ.get("CI") != "true":
+        # only do this on local machine; causes problems in CI
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGINT)
+        except KeyboardInterrupt:
+            print("SIGINT for MLflow Server")
 
     cwd = os.getcwd()
     stop_cmd = ["rm", "-rf", f"{cwd}/mlflow"]
