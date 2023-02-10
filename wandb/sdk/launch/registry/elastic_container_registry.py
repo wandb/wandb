@@ -9,7 +9,9 @@ from wandb.util import get_module
 from .abstract import AbstractRegistry
 
 botocore = get_module(
-    "botocore", required="AWS environment requires botocore to be installed."
+    "botocore",
+    required="AWS environment requires botocore to be installed. Please install "
+    "it with `pip install wandb[launch]`.",
 )
 
 

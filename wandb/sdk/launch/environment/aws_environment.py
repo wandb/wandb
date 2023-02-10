@@ -8,9 +8,15 @@ from wandb.util import get_module
 
 from .abstract import AbstractEnvironment
 
-boto3 = get_module("boto3", required="AWS environment requires boto3 to be installed.")
+boto3 = get_module(
+    "boto3",
+    required="AWS environment requires boto3 to be installed. Please install "
+    "it with `pip install wandb[launch]`.",
+)
 botocore = get_module(
-    "botocore", required="AWS environment requires botocore to be installed."
+    "botocore",
+    required="AWS environment requires botocore to be installed. Please install "
+    "it with `pip install wandb[launch]`.",
 )
 
 s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
@@ -44,15 +50,18 @@ class AwsEnvironment(AbstractEnvironment):
             self.verify()
 
     @classmethod
-    def from_default(cls, verify: bool = True) -> "AwsEnvironment":
+    def from_default(cls, region: str, verify: bool = True) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
+
+        Args:
+            region (str): The AWS region.
+            verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
 
         Returns:
             AwsEnvironment: The AWS environment.
         """
         try:
             session = boto3.Session()
-            region = session.region_name
             credentials = session.get_credentials()
             access_key = credentials.access_key
             secret_key = credentials.secret_key
