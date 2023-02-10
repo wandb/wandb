@@ -1,5 +1,6 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
 import base64
+import logging
 from typing import Tuple
 
 from wandb.errors import LaunchError
@@ -13,6 +14,8 @@ botocore = get_module(
     required="AWS environment requires botocore to be installed. Please install "
     "it with `pip install wandb[launch]`.",
 )
+
+_logger = logging.getLogger(__name__)
 
 
 class ElasticContainerRegistry(AbstractRegistry):
@@ -39,6 +42,9 @@ class ElasticContainerRegistry(AbstractRegistry):
             LaunchError: If there is an error verifying the registry.
         """
         super().__init__()
+        _logger.info(
+            f"Initializing Elastic Container Registry with repotisory {repo_name}."
+        )
         self.repo_name = repo_name
         self.environment = environment
         self.verify()
@@ -49,6 +55,7 @@ class ElasticContainerRegistry(AbstractRegistry):
         Raises:
             RegistryError: If there is an error verifying the registry.
         """
+        _logger.debug("Verifying Elastic Container Registry.")
         try:
             session = self.environment.get_session()
             client = session.client("ecr")
@@ -73,6 +80,7 @@ class ElasticContainerRegistry(AbstractRegistry):
         Raises:
             RegistryError: If there is an error getting the username and password.
         """
+        _logger.debug("Getting username and password for Elastic Container Registry.")
         try:
             session = self.environment.get_session()
             client = session.client("ecr")
@@ -108,6 +116,9 @@ class ElasticContainerRegistry(AbstractRegistry):
         Raises:
             RegistryError: If there is an error checking if the image exists.
         """
+        _logger.debug(
+            f"Checking if image {image_uri} exists in ElasticContainerRegistry."
+        )
         session = self.environment.get_session()
         client = session.client("ecr")
         tag = image_uri.split(":")[1]

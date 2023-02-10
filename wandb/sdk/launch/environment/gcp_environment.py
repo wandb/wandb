@@ -67,6 +67,7 @@ class GcpEnvironment(AbstractEnvironment):
                 configured.
         """
         super().__init__()
+        _logger.info(f"Initializing GcpEnvironment in region {region}")
         self.region: str = region
         self._project = ""
         if verify:
@@ -105,6 +106,7 @@ class GcpEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the GCP credentials are invalid.
         """
+        _logger.debug("Getting GCP credentials")
         try:
             creds, project = google.auth.default()
             if not self._project:
@@ -122,7 +124,7 @@ class GcpEnvironment(AbstractEnvironment):
                 "service account key file."
             )
         if not creds.valid:
-            _logger.log(logging.INFO, "Refreshing GCP credentials")
+            _logger.debug("Refreshing GCP credentials")
             try:
                 creds.refresh(google.auth.transport.requests.Request())
             except google.auth.exceptions.RefreshError:
@@ -153,6 +155,7 @@ class GcpEnvironment(AbstractEnvironment):
         Returns:
             None
         """
+        _logger.debug("Verifying GCP environment")
         creds = self.get_credentials()
         try:
             # Check if the region is available using the compute API.
@@ -173,6 +176,7 @@ class GcpEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the file cannot be uploaded.
         """
+        _logger.debug(f"Uploading file {source} to {destination}")
         if not os.path.isfile(source):
             raise LaunchError(f"File {source} does not exist.")
         match = gcs_uri_re.match(destination)
@@ -200,6 +204,7 @@ class GcpEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the directory cannot be uploaded.
         """
+        _logger.debug(f"Uploading directory {source} to {destination}")
         if not os.path.isdir(source):
             raise LaunchError(f"Directory {source} does not exist.")
         match = gcs_uri_re.match(destination)

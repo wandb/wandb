@@ -1,5 +1,6 @@
 """Implements the AWS environment."""
 
+import logging
 import os
 import re
 
@@ -20,6 +21,8 @@ botocore = get_module(
 )
 
 s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
+
+_logger = logging.getLogger(__name__)
 
 
 class AwsEnvironment(AbstractEnvironment):
@@ -42,6 +45,7 @@ class AwsEnvironment(AbstractEnvironment):
             LaunchError: If the AWS environment is not configured correctly.
         """
         super().__init__()
+        _logger.info(f"Initializing AWS environment in region {region}.")
         self._region = region
         self._access_key = access_key
         self._secret_key = secret_key
@@ -60,6 +64,7 @@ class AwsEnvironment(AbstractEnvironment):
         Returns:
             AwsEnvironment: The AWS environment.
         """
+        _logger.info("Creating AWS environment from default credentials.")
         try:
             session = boto3.Session()
             credentials = session.get_credentials()
@@ -84,6 +89,7 @@ class AwsEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the AWS environment is not configured correctly.
         """
+        _logger.debug("Verifying AWS environment.")
         try:
             session = self.get_session()
             client = session.client("sts")
@@ -103,6 +109,7 @@ class AwsEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the AWS session could not be created.
         """
+        _logger.debug(f"Creating AWS session in region {self._region}")
         try:
             return boto3.Session(
                 aws_access_key_id=self._access_key,
@@ -131,6 +138,7 @@ class AwsEnvironment(AbstractEnvironment):
             LaunchError: If the copy fails, the source path does not exist, or the
                 destination is not a valid s3 URI, or the upload fails.
         """
+        _logger.debug(f"Uploading {source} to {destination}")
         if not os.path.isfile(source):
             raise LaunchError(f"Source {source} does not exist.")
         match = s3_uri_re.match(destination)
@@ -166,6 +174,7 @@ class AwsEnvironment(AbstractEnvironment):
             LaunchError: If the copy fails, the source path does not exist, or the
                 destination is not a valid s3 URI.
         """
+        _logger.debug(f"Uploading {source} to {destination}")
         if not os.path.isdir(source):
             raise LaunchError(f"Source {source} does not exist.")
         match = s3_uri_re.match(destination)
@@ -211,6 +220,7 @@ class AwsEnvironment(AbstractEnvironment):
         Returns:
             None
         """
+        _logger.debug(f"Verifying storage {uri}")
         match = s3_uri_re.match(uri)
         if not match:
             raise LaunchError(f"Destination {uri} is not a valid s3 URI.")
