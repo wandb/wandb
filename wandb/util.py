@@ -1,13 +1,9 @@
-import base64
-import binascii
-import codecs
 import colorsys
 import contextlib
-import errno
 import functools
 import gzip
-import hashlib
 import importlib
+import importlib.util
 import json
 import logging
 import math
@@ -38,6 +34,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Iterable,
     List,
     Mapping,
     NewType,
@@ -53,12 +50,12 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-import shortuuid  # type: ignore
 import yaml
 
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
+from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -67,11 +64,6 @@ if TYPE_CHECKING:
     import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
-
-ETag = NewType("ETag", str)
-RawMD5 = NewType("RawMD5", bytes)
-HexMD5 = NewType("HexMD5", str)
-B64MD5 = NewType("B64MD5", str)
 
 # `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
 # It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
@@ -209,15 +201,15 @@ def sentry_exc(
     return None
 
 
-def sentry_reraise(exc: Any) -> None:
+def sentry_reraise(exc: Any, delay: bool = False) -> None:
     """Re-raise an exception after logging it to Sentry
 
     Use this for top-level exceptions when you want the user to see the traceback.
 
     Must be called from within an exception handler.
     """
-    sentry_exc(exc)
-    # this will messily add this "reraise" function to the stack trace
+    sentry_exc(exc, delay=delay)
+    # this will messily add this "reraise" function to the stack trace,
     # but hopefully it's not too bad
     raise exc.with_traceback(sys.exc_info()[2])
 
@@ -246,7 +238,7 @@ def sentry_set_scope(
         "sweep_url",
         "sweep_id",
         "deployment",
-        "_require_service",
+        "_disable_service",
     ]
 
     s = settings_dict
@@ -315,7 +307,12 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", "watchdog_0_9_0")
+    vendor_packages = (
+        "gql-0.2.0",
+        "graphql-core-1.1",
+        "watchdog_0_9_0",
+        "promise-2.3.0",
+    )
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -331,16 +328,48 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def get_module(name: str, required: Optional[Union[str, bool]] = None) -> Any:
+def import_module_lazy(name: str) -> Any:
+    """
+    Import a module lazily, only when it is used.
+
+    :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
+    """
+    try:
+        return sys.modules[name]
+    except KeyError:
+        module_spec = importlib.util.find_spec(name)
+        if not module_spec:
+            raise ModuleNotFoundError
+
+        module = importlib.util.module_from_spec(module_spec)
+        sys.modules[name] = module
+
+        assert module_spec.loader is not None
+        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
+        lazy_loader.exec_module(module)
+
+        return module
+
+
+def get_module(
+    name: str,
+    required: Optional[Union[str, bool]] = None,
+    lazy: bool = True,
+) -> Any:
     """
     Return module or None. Absolute import is required.
+
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     :param (str) required: A string to raise a ValueError if missing
+    :param (bool) lazy: If True, return a lazy loader for the module.
     :return: (module|None) If import succeeds, the module will be returned.
     """
     if name not in _not_importable:
         try:
-            return import_module(name)
+            if not lazy:
+                return import_module(name)
+            else:
+                return import_module_lazy(name)
         except Exception:
             _not_importable.add(name)
             msg = f"Error importing optional module {name}"
@@ -479,7 +508,7 @@ def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
             value = split[1]
             i += 1
         if name in user_dict:
-            wandb.termerror(f"Repeated parameter: '{name}'")
+            wandb.termerror(f"Repeated parameter: {name!r}")
             sys.exit(1)
         user_dict[name] = value
     return user_dict
@@ -514,7 +543,7 @@ def is_pytorch_tensor_typename(typename: str) -> bool:
 
 
 def is_jax_tensor_typename(typename: str) -> bool:
-    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+    return typename.startswith("jaxlib.") and "Array" in typename
 
 
 def get_jax_tensor(obj: Any) -> Optional[Any]:
@@ -632,7 +661,7 @@ def _numpy_generic_convert(obj: Any) -> Any:
 def _find_all_matching_keys(
     d: Dict,
     match_fn: Callable[[Any], bool],
-    visited: Set[int] = None,
+    visited: Optional[Set[int]] = None,
     key_path: Tuple[Any, ...] = (),
 ) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
     """Recursively find all keys that satisfies a match function.
@@ -765,6 +794,10 @@ def json_friendly_val(val: Any) -> Any:
         return val
 
 
+def alias_is_version_index(alias: str) -> bool:
+    return len(alias) >= 2 and alias[0] == "v" and alias[1:].isnumeric()
+
+
 def convert_plots(obj: Any) -> Any:
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
@@ -834,9 +867,9 @@ def launch_browser(attempt_launch_browser: bool = True) -> bool:
 
 
 def generate_id(length: int = 8) -> str:
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return str(run_gen.random(length))
+    # Do not use this; use wandb.sdk.lib.runid.generate_id instead.
+    # This is kept only for legacy code.
+    return runid.generate_id(length)
 
 
 def parse_tfjob_config() -> Any:
@@ -930,8 +963,7 @@ def make_json_if_not_number(
 
 
 def make_safe_for_json(obj: Any) -> Any:
-    """Replace invalid json floats with strings. Converts to lists, slices, and dicts.
-    Converts numpy array to list. Used for artifact metadata"""
+    """Replace invalid json floats with strings. Also converts to lists and dicts."""
     if isinstance(obj, Mapping):
         return {k: make_safe_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, str):
@@ -947,22 +979,7 @@ def make_safe_for_json(obj: Any) -> Any:
             return "Infinity"
         elif obj == float("-inf"):
             return "-Infinity"
-    elif is_numpy_array(obj):
-        return [make_safe_for_json(v) for v in obj.tolist()]
-    elif isinstance(obj, slice):
-        return dict(slice_start=obj.start, slice_step=obj.step, slice_stop=obj.stop)
     return obj
-
-
-def mkdir_exists_ok(path: str) -> bool:
-    try:
-        os.makedirs(path)
-        return True
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            return False
-        else:
-            raise
 
 
 def no_retry_4xx(e: Exception) -> bool:
@@ -989,11 +1006,21 @@ def no_retry_auth(e: Any) -> bool:
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError("Invalid or missing api_key. Run `wandb login`")
+        raise CommError(
+            "The API key is either invalid or missing, or the host is incorrect. "
+            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
+            "The host defaults to 'https://api.wandb.ai' if not specified. "
+            f"(Error {e.response.status_code}: {e.response.reason})"
+        )
     elif wandb.run:
         raise CommError(f"Permission denied to access {wandb.run.path}")
     else:
-        raise CommError("Permission denied, ask the project owner to grant you access")
+        raise CommError(
+            "It appears that you do not have permission to access the requested resource. "
+            "Please reach out to the project owner to grant you access. "
+            "If you have the correct permissions, verify that there are no issues with your networking setup."
+            f"(Error {e.response.status_code}: {e.response.reason})"
+        )
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:
@@ -1013,7 +1040,7 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
 
 
 def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
-    """Check if the exception is a conflict or gone type so it can be retried or not.
+    """Check if the exception is a conflict or gone type, so it can be retried or not.
 
     Returns:
         True - Should retry this operation
@@ -1099,14 +1126,6 @@ def downsample(values: Sequence, target_length: int) -> list:
 
 def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
-
-
-def md5_file(path: str) -> B64MD5:
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
 
 
 def get_log_file_path() -> str:
@@ -1293,7 +1312,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1317,7 +1336,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: int = None,
+    input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
@@ -1337,7 +1356,7 @@ def prompt_choices(
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
     result = choices[idx]
-    wandb.termlog(f"You chose '{result}'")
+    wandb.termlog(f"You chose {result!r}")
     return result
 
 
@@ -1372,7 +1391,7 @@ def download_file_from_url(
     response.raise_for_status()
 
     if os.sep in dest_path:
-        mkdir_exists_ok(os.path.dirname(dest_path))
+        filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
     with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)
@@ -1476,10 +1495,6 @@ def to_native_slash_path(path: str) -> FilePathStr:
     return FilePathStr(path.replace("/", os.sep))
 
 
-def bytes_to_hex(bytestr: Union[str, bytes]) -> str:
-    return codecs.getencoder("hex")(bytestr)[0].decode("ascii")  # type: ignore
-
-
 def check_and_warn_old(files: List[str]) -> bool:
     if "wandb-metadata.json" in files:
         wandb.termwarn("These runs were logged with a previous version of wandb.")
@@ -1538,14 +1553,6 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
         _import_hook = ImportMetaHook()
         _import_hook.install()
     _import_hook.add(fullname, on_import)
-
-
-def b64_to_hex_id(id_string: Any) -> str:
-    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
-
-
-def hex_to_b64_id(encoded_string: Union[str, bytes]) -> str:
-    return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
 
 
 def host_from_path(path: Optional[str]) -> str:
@@ -1688,7 +1695,7 @@ def _log_thread_stacks() -> None:
             f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
         )
         for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f'  File: "{filename}", line {lineno}, in {name}')
+            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
             if line:
                 logger.info(f"  Line: {line}")
 
@@ -1703,7 +1710,7 @@ def artifact_to_json(
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
     if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name  # type: ignore
+        sequence_name = artifact._sequence_name
     else:
         sequence_name = artifact.name.split(":")[0]
 
@@ -1711,7 +1718,7 @@ def artifact_to_json(
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
-        "version": artifact.version,
+        "version": artifact.source_version,
         "sequenceName": sequence_name,
         "usedAs": artifact._use_as,
     }
@@ -1773,7 +1780,7 @@ def _parse_entity_project_item(path: str) -> tuple:
     return tuple(reversed(padded_words))
 
 
-def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
     """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
     Ensures that "latest" is always present in the returned list.
 
@@ -1791,19 +1798,15 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
         assert aliases == ["boom", "latest"]
 
     """
-    if aliases is None:
-        aliases = []
-
-    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
-        raise ValueError("`aliases` must either be None or of type str or list")
+    aliases = aliases or ["latest"]
 
     if isinstance(aliases, str):
         aliases = [aliases]
 
-    if "latest" not in aliases:
-        aliases.append("latest")
-
-    return aliases
+    try:
+        return list(set(aliases) | {"latest"})
+    except TypeError as exc:
+        raise ValueError("`aliases` must be Iterable or None") from exc
 
 
 def _is_artifact_object(v: Any) -> bool:
@@ -1873,13 +1876,17 @@ def ensure_text(
     elif isinstance(string, str):
         return string
     else:
-        raise TypeError(f"not expecting type '{type(string)}'")
+        raise TypeError(f"not expecting type {type(string)!r}")
 
 
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
-    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    cleaned = re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    if len(cleaned) <= 128:
+        return cleaned
+    # truncate with dots in the middle using regex
+    return re.sub(r"(^.{63}).*(.{63}$)", r"\g<1>..\g<2>", cleaned)
 
 
 def make_docker_image_name_safe(name: str) -> str:

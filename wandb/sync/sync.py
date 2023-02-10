@@ -15,8 +15,9 @@ from urllib.parse import quote as url_quote
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import datastore, handler, sender, tb_watcher
-from wandb.util import check_and_warn_old, mkdir_exists_ok
+from wandb.sdk.internal import context, datastore, handler, sender, tb_watcher
+from wandb.sdk.lib import filesystem
+from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
@@ -50,6 +51,7 @@ class SyncThread(threading.Thread):
         app_url=None,
         sync_tensorboard=None,
         log_path=None,
+        append=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -64,6 +66,7 @@ class SyncThread(threading.Thread):
         self._app_url = app_url
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
+        self._append = append
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -156,8 +159,13 @@ class SyncThread(threading.Thread):
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
         new_interface = InterfaceQueue(record_q)
+        context_keeper = context.ContextKeeper()
         send_manager = sender.SendManager(
-            send_manager._settings, sender_record_q, queue.Queue(), new_interface
+            settings=send_manager._settings,
+            record_q=sender_record_q,
+            result_q=queue.Queue(),
+            interface=new_interface,
+            context_keeper=context_keeper,
         )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
@@ -168,10 +176,16 @@ class SyncThread(threading.Thread):
         )
 
         handle_manager = handler.HandleManager(
-            settings, record_q, None, False, sender_record_q, None, new_interface
+            settings=settings,
+            record_q=record_q,
+            result_q=None,
+            stopped=False,
+            writer_q=sender_record_q,
+            interface=new_interface,
+            context_keeper=context_keeper,
         )
 
-        mkdir_exists_ok(settings.files_dir)
+        filesystem.mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
         watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
 
@@ -238,7 +252,12 @@ class SyncThread(threading.Thread):
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
             root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
-            sm = sender.SendManager.setup(root_dir)
+
+            # When appending we are allowing a possible resume, ie the run
+            # doesnt have to exist already
+            resume = "allow" if self._append else None
+
+            sm = sender.SendManager.setup(root_dir, resume=resume)
             if sync_tb:
                 self._send_tensorboard(tb_root, tb_logdirs, sm)
                 continue
@@ -305,6 +324,7 @@ class SyncManager:
         verbose=None,
         sync_tensorboard=None,
         log_path=None,
+        append=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -317,6 +337,7 @@ class SyncManager:
         self._verbose = verbose
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
+        self._append = append
 
     def status(self):
         pass
@@ -337,6 +358,7 @@ class SyncManager:
             app_url=self._app_url,
             sync_tensorboard=self._sync_tensorboard,
             log_path=self._log_path,
+            append=self._append,
         )
         self._thread.start()
 

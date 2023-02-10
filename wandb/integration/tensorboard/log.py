@@ -104,7 +104,7 @@ def tf_summary_to_dict(  # noqa: C901
 
     def encode_images(_img_strs: List[bytes], _value: Any) -> None:
         try:
-            from PIL import Image  # type: ignore
+            from PIL import Image
         except ImportError:
             wandb.termwarn(
                 "Install pillow if you are logging images with Tensorboard. "
@@ -241,14 +241,14 @@ def tf_summary_to_dict(  # noqa: C901
                     values[tag] = wandb.Histogram(np_histogram=np_histogram)
                 except ValueError:
                     wandb.termwarn(
-                        f'Not logging key "{tag}". '
+                        f"Not logging key {tag!r}. "
                         f"Histograms must have fewer than {wandb.Histogram.MAX_LENGTH} bins",
                         repeat=False,
                     )
             else:
                 # TODO: is there a case where we can render this?
                 wandb.termwarn(
-                    f'Not logging key "{tag}". Found a histogram with only 2 bins.',
+                    f"Not logging key {tag!r}. Found a histogram with only 2 bins.",
                     repeat=False,
                 )
         # TODO(jhr): figure out how to share this between userspace and internal process or dont

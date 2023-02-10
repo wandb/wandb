@@ -13,11 +13,11 @@ else:
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
     from wandb.sdk.interface.interface import FilesDict
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-import wandb
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 
@@ -126,7 +126,7 @@ class MetricsMonitor:
                     try:
                         metric.sample()
                     except Exception as e:
-                        wandb.termerror(f"Failed to sample metric: {e}", repeat=False)
+                        logger.error(f"Failed to sample metric: {e}")
                 self._shutdown_event.wait(self.sampling_interval)
                 if self._shutdown_event.is_set():
                     break
@@ -143,7 +143,7 @@ class MetricsMonitor:
                 #     aggregated_metrics, metric.serialize()
                 # )
             except Exception as e:
-                wandb.termerror(f"Failed to serialize metric: {e}", repeat=False)
+                logger.error(f"Failed to serialize metric: {e}")
         return aggregated_metrics
 
     def publish(self) -> None:
@@ -155,7 +155,7 @@ class MetricsMonitor:
             for metric in self.metrics:
                 metric.clear()
         except Exception as e:
-            wandb.termerror(f"Failed to publish metrics: {e}", repeat=False)
+            logger.error(f"Failed to publish metrics: {e}")
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
@@ -168,7 +168,11 @@ class MetricsMonitor:
             logger.info(f"Started {self._process.name}")
 
     def finish(self) -> None:
-        if self._process is not None:
+        if self._process is None:
+            return None
+        try:
             self._process.join()
             logger.info(f"Joined {self._process.name}")
-            self._process = None
+        except Exception as e:
+            logger.warning(f"Failed to join {self._process.name}: {e}")
+        self._process = None
