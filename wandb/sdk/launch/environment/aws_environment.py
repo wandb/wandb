@@ -89,12 +89,15 @@ class AwsEnvironment(AbstractEnvironment):
     def from_default(cls, verify=True):
         """Create an AWS environment from the default AWS environment.
 
+        Args:
+            region (str): The AWS region.
+            verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
+
         Returns:
             AwsEnvironment: The AWS environment.
         """
         try:
             session = boto3.Session()
-            region = session.region_name
             credentials = session.get_credentials()
             access_key = credentials.access_key
             secret_key = credentials.secret_key
