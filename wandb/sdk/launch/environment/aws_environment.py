@@ -190,10 +190,13 @@ class AwsEnvironment(AbstractEnvironment):
             for path, _, files in os.walk(source):
                 for file in files:
                     abs_path = os.path.join(path, file)
+                    key_path = (
+                        abs_path.replace(source, "").replace("\\", "/").lstrip("/")
+                    )
                     client.upload_file(
                         abs_path,
                         bucket,
-                        f"{key}/{abs_path.replace(source, '').lstrip('/')}",
+                        key_path,
                     )
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
