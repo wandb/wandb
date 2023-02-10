@@ -220,7 +220,9 @@ class GcpEnvironment(AbstractEnvironment):
             for root, _, files in os.walk(source):
                 for file in files:
                     local_path = os.path.join(root, file)
-                    gcs_path = os.path.join(key, os.path.relpath(local_path, source))
+                    gcs_path = os.path.join(
+                        key, os.path.relpath(local_path, source)
+                    ).replace("\\", "/")
                     blob = bucket.blob(gcs_path)
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
