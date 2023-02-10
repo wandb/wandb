@@ -1,7 +1,9 @@
+import os
 from unittest.mock import MagicMock
 
 import pytest
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
+
 from wandb.errors import LaunchError
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 
@@ -130,10 +132,12 @@ def test_upload_dir(mocker):
     mock_bucket.blob.assert_has_calls(
         [
             mocker.call("key/file1"),
-            mocker.call().upload_from_filename("source/file1"),
+            mocker.call().upload_from_filename(os.path.join("source", "file1")),
             mocker.call("key/file2"),
-            mocker.call().upload_from_filename("source/file2"),
+            mocker.call().upload_from_filename(os.path.join("source", "file2")),
             mocker.call("key/subdir/file3"),
-            mocker.call().upload_from_filename("source/subdir/file3"),
+            mocker.call().upload_from_filename(
+                os.path.join("source", "subdir", "file3")
+            ),
         ],
     )
