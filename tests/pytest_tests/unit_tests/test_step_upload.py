@@ -10,7 +10,6 @@ from typing import Any, Callable, Iterable, MutableSequence, Optional
 from unittest.mock import DEFAULT, Mock, patch
 
 import pytest
-import wandb.env
 from wandb.filesync import stats
 from wandb.filesync.step_upload import (
     Event,
@@ -20,6 +19,8 @@ from wandb.filesync.step_upload import (
     StepUpload,
 )
 from wandb.sdk.internal import file_stream, internal_api
+from wandb.sdk.wandb_settings import Settings
+from wandb.sdk.internal.settings_static import SettingsStatic
 
 
 def mock_upload_urls(
@@ -113,6 +114,12 @@ def make_api(**kwargs: Any) -> Mock:
             "upload_file_retry": Mock(wraps=mock_upload_file_retry),
             **kwargs,
         },
+    )
+
+
+def make_async_settings(concurrency_limit: Optional[int]) -> SettingsStatic:
+    return SettingsStatic(
+        Settings(async_upload_concurrency_limit=concurrency_limit).make_static()
     )
 
 
@@ -277,16 +284,14 @@ class TestFinish:
 
 
 class TestUpload:
-    @pytest.fixture(autouse=True, params=[None, 100])
-    def async_upload_concurrency_limit(self, request):
-        with patch(
-            "wandb.env.get_async_upload_concurrency_limit", return_value=request.param
-        ):
-            yield request.param
+    @pytest.fixture(params=[None, 100])
+    def async_settings(self, request) -> SettingsStatic:
+        return make_async_settings(request.param)
 
     def test_upload(
         self,
         tmp_path: Path,
+        async_settings: SettingsStatic,
     ):
         api = make_api()
         cmd = make_request_upload(make_tmp_file(tmp_path))
@@ -294,6 +299,7 @@ class TestUpload:
         run_step_upload(
             [cmd],
             api=api,
+            settings=async_settings,
         )
 
         api.upload_file_retry.assert_called_once()
@@ -302,6 +308,7 @@ class TestUpload:
     def test_reuploads_if_event_during_upload(
         self,
         tmp_path: Path,
+        async_settings: SettingsStatic,
     ):
         f = make_tmp_file(tmp_path)
 
@@ -310,7 +317,7 @@ class TestUpload:
         q = queue.Queue()
         q.put(make_request_upload(f))
 
-        step_upload = make_step_upload(api=api, event_queue=q)
+        step_upload = make_step_upload(api=api, event_queue=q, settings=async_settings)
         step_upload.start()
 
         unblock = api.wait_for_upload(2)
@@ -336,6 +343,7 @@ class TestUpload:
         self,
         tmp_path: Path,
         copied: bool,
+        async_settings: SettingsStatic,
     ):
 
         f = make_tmp_file(tmp_path)
@@ -345,7 +353,7 @@ class TestUpload:
         q = queue.Queue()
         q.put(make_request_upload(f, copied=copied))
 
-        step_upload = make_step_upload(api=api, event_queue=q)
+        step_upload = make_step_upload(api=api, event_queue=q, settings=async_settings)
         step_upload.start()
 
         unblock = api.wait_for_upload(2)
@@ -361,7 +369,11 @@ class TestUpload:
             assert f.exists()
 
     class TestErrorDoesntStopFutureUploads:
-        def test_nonexistent_file_upload(self, tmp_path: Path):
+        def test_nonexistent_file_upload(
+            self,
+            tmp_path: Path,
+            async_settings: SettingsStatic,
+        ):
             api = make_api()
             good_cmd = make_request_upload(make_tmp_file(tmp_path))
             run_step_upload(
@@ -370,12 +382,17 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
+                settings=async_settings,
                 max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
 
-        def test_upload_urls_err(self, tmp_path: Path):
+        def test_upload_urls_err(
+            self,
+            tmp_path: Path,
+            async_settings: SettingsStatic,
+        ):
             api = make_api(
                 upload_urls=Mock(
                     wraps=mock_upload_urls,
@@ -389,12 +406,17 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
+                settings=async_settings,
                 max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
 
-        def test_upload_file_retry_err(self, tmp_path: Path):
+        def test_upload_file_retry_err(
+            self,
+            tmp_path: Path,
+            async_settings: SettingsStatic,
+        ):
             api = make_api(
                 upload_file_retry=Mock(
                     wraps=mock_upload_file_retry,
@@ -408,12 +430,17 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
+                settings=async_settings,
                 max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
             assert api.upload_file_retry.call_args[0][0] == good_url
 
-        def test_save_fn_err(self, tmp_path: Path):
+        def test_save_fn_err(
+            self,
+            tmp_path: Path,
+            async_settings: SettingsStatic,
+        ):
             api = make_api()
             good_cmd = make_request_upload(make_tmp_file(tmp_path))
             run_step_upload(
@@ -425,6 +452,7 @@ class TestUpload:
                     good_cmd,
                 ],
                 api=api,
+                settings=async_settings,
                 max_threads=1,
             )
             good_url = get_upload_url(good_cmd.save_name)
@@ -434,17 +462,21 @@ class TestUpload:
         def test_updates_on_read_without_save_fn(
             self,
             tmp_path: Path,
+            async_settings: SettingsStatic,
         ):
             f = make_tmp_file(tmp_path)
             mock_stats = Mock(spec=stats.Stats)
 
-            run_step_upload([make_request_upload(f)], stats=mock_stats)
+            run_step_upload(
+                [make_request_upload(f)], settings=async_settings, stats=mock_stats
+            )
 
             mock_stats.update_uploaded_file.assert_called_with(str(f), f.stat().st_size)
 
         def test_updates_on_read_with_save_fn(
             self,
             tmp_path: Path,
+            async_settings: SettingsStatic,
         ):
             f = make_tmp_file(tmp_path)
             size = f.stat().st_size
@@ -452,6 +484,7 @@ class TestUpload:
 
             run_step_upload(
                 [make_request_upload(f, save_fn=lambda progress: progress(size, size))],
+                settings=async_settings,
                 stats=mock_stats,
             )
 
@@ -468,6 +501,7 @@ class TestUpload:
             self,
             tmp_path: Path,
             save_fn: Optional[Callable[[int, int], None]],
+            async_settings: SettingsStatic,
         ):
             f = make_tmp_file(tmp_path)
 
@@ -479,7 +513,10 @@ class TestUpload:
 
             mock_stats = Mock(spec=stats.Stats)
             run_step_upload(
-                [make_request_upload(f, save_fn=save_fn)], api=api, stats=mock_stats
+                [make_request_upload(f, save_fn=save_fn)],
+                api=api,
+                settings=async_settings,
+                stats=mock_stats,
             )
 
             mock_stats.update_failed_file.assert_called_once_with(str(f))
@@ -489,12 +526,14 @@ class TestUpload:
             self,
             tmp_path: Path,
             deduped: bool,
+            async_settings: SettingsStatic,
         ):
             f = make_tmp_file(tmp_path)
             mock_stats = Mock(spec=stats.Stats)
 
             run_step_upload(
                 [make_request_upload(f, save_fn=Mock(return_value=deduped))],
+                settings=async_settings,
                 stats=mock_stats,
             )
 
@@ -505,33 +544,60 @@ class TestUpload:
 
     class TestNotifiesFileStreamOnSuccess:
         class TestWithoutSaveFn:
-            def test_notifies_on_success(self, tmp_path: Path):
+            def test_notifies_on_success(
+                self,
+                tmp_path: Path,
+                async_settings: SettingsStatic,
+            ):
                 api = make_api()
                 cmd = make_request_upload(make_tmp_file(tmp_path))
                 mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-                run_step_upload([cmd], api=api, file_stream=mock_file_stream)
+                run_step_upload(
+                    [cmd],
+                    api=api,
+                    settings=async_settings,
+                    file_stream=mock_file_stream,
+                )
 
                 mock_file_stream.push_success.assert_called_once_with(
                     cmd.artifact_id, cmd.save_name
                 )
 
-            def test_no_notify_on_upload_urls_err(self, tmp_path: Path):
+            def test_no_notify_on_upload_urls_err(
+                self,
+                tmp_path: Path,
+                async_settings: SettingsStatic,
+            ):
                 api = make_api(upload_urls=Mock(side_effect=Exception()))
                 cmd = make_request_upload(make_tmp_file(tmp_path))
                 mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-                run_step_upload([cmd], api=api, file_stream=mock_file_stream)
+                run_step_upload(
+                    [cmd],
+                    api=api,
+                    settings=async_settings,
+                    file_stream=mock_file_stream,
+                )
 
                 api.upload_urls.assert_called_once()
                 mock_file_stream.push_success.assert_not_called()
 
-            def test_no_notify_on_upload_file_err(self, tmp_path: Path):
+            def test_no_notify_on_upload_file_err(
+                self,
+                tmp_path: Path,
+                async_settings: SettingsStatic,
+            ):
                 api = make_api(upload_file_retry=Mock(side_effect=Exception()))
                 cmd = make_request_upload(make_tmp_file(tmp_path))
                 mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-                run_step_upload([cmd], api=api, file_stream=mock_file_stream)
+                run_step_upload(
+                    [cmd],
+                    api=api,
+                    settings=async_settings,
+                    file_stream=mock_file_stream,
+                )
 
                 api.upload_file_retry.assert_called_once()
                 mock_file_stream.push_success.assert_not_called()
@@ -541,30 +607,45 @@ class TestUpload:
                 "deduped",
                 [True, False],
             )
-            def test_notifies_on_success(self, tmp_path: Path, deduped: bool):
+            def test_notifies_on_success(
+                self,
+                tmp_path: Path,
+                deduped: bool,
+                async_settings: SettingsStatic,
+            ):
                 cmd = make_request_upload(
                     make_tmp_file(tmp_path), save_fn=Mock(return_value=deduped)
                 )
                 mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-                run_step_upload([cmd], file_stream=mock_file_stream)
+                run_step_upload(
+                    [cmd], settings=async_settings, file_stream=mock_file_stream
+                )
 
                 mock_file_stream.push_success.assert_called_once_with(
                     cmd.artifact_id, cmd.save_name
                 )
 
-            def test_no_notify_on_err(self, tmp_path: Path):
+            def test_no_notify_on_err(
+                self,
+                tmp_path: Path,
+                async_settings: SettingsStatic,
+            ):
                 cmd = make_request_upload(
                     make_tmp_file(tmp_path), save_fn=Mock(side_effect=Exception())
                 )
                 mock_file_stream = Mock(spec=file_stream.FileStreamApi)
 
-                run_step_upload([cmd], file_stream=mock_file_stream)
+                run_step_upload(
+                    [cmd], settings=async_settings, file_stream=mock_file_stream
+                )
 
                 mock_file_stream.push_success.assert_not_called()
 
     def test_uses_save_fn_async_iff_env_says_to(
-        self, tmp_path: Path, async_upload_concurrency_limit: Optional[int]
+        self,
+        tmp_path: Path,
+        async_settings: SettingsStatic,
     ):
         save_fn_sync = Mock(return_value=False)
 
@@ -580,10 +661,11 @@ class TestUpload:
                     save_fn=save_fn_sync,
                     save_fn_async=save_fn_async,
                 )
-            ]
+            ],
+            settings=async_settings,
         )
 
-        if async_upload_concurrency_limit:
+        if async_settings.async_upload_concurrency_limit:
             save_fn_async.assert_called_once()
             save_fn_sync.assert_not_called()
         else:
@@ -591,7 +673,6 @@ class TestUpload:
             save_fn_async.assert_not_called()
 
 
-@patch("wandb.env.get_async_upload_concurrency_limit", return_value=10)
 class TestAsyncUpload:
     def test_falls_back_to_sync_on_error(self, tmp_path: Path):
         save_fn_sync = Mock(return_value=False)
@@ -609,6 +690,7 @@ class TestAsyncUpload:
                     save_fn_async=save_fn_async,
                 )
             ],
+            settings=make_async_settings(10),
         )
 
         save_fn_async.assert_called_once()
@@ -629,6 +711,7 @@ class TestAsyncUpload:
                     save_fn_async=save_fn_async,
                 )
             ],
+            settings=make_async_settings(10),
         )
 
         sentry_exc.assert_called_once_with(exc)
@@ -804,15 +887,8 @@ def test_enforces_max_threads(
     finish_and_wait(q)
 
 
-def test_enforces_max_threads_async(
-    monkeypatch,
-    tmp_path: Path,
-):
-    monkeypatch.setattr(
-        wandb.env,
-        "get_async_upload_concurrency_limit",
-        Mock(return_value=3),
-    )
+def test_enforces_max_threads_async(tmp_path: Path):
+    concurrency_limit = 3
 
     q = queue.Queue()
 
@@ -833,13 +909,17 @@ def test_enforces_max_threads_async(
             )
         )
 
-    step_upload = make_step_upload(api=api, event_queue=q)
+    step_upload = make_step_upload(
+        api=api,
+        event_queue=q,
+        settings=make_async_settings(concurrency_limit),
+    )
     step_upload.start()
 
     waiters = []
 
     # first few jobs should start without blocking
-    for _ in range(wandb.env.get_async_upload_concurrency_limit()):
+    for _ in range(concurrency_limit):
         add_job()
         waiters.append(api.wait_for_upload(0.1))
 

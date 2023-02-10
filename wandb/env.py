@@ -18,8 +18,6 @@ from typing import List, MutableMapping, Optional, Union
 
 import appdirs
 
-import wandb.errors.term
-
 Env = Optional[MutableMapping]
 
 CONFIG_PATHS = "WANDB_CONFIG_PATHS"
@@ -371,54 +369,6 @@ def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:
     if env is None:
         env = os.environ
     val = bool(env.get(USE_V1_ARTIFACTS, False))
-    return val
-
-
-def get_async_upload_concurrency_limit(
-    env: Optional[Env] = None,
-    file_limit: Optional[int] = None,
-) -> Optional[int]:
-    if env is None:
-        env = os.environ
-
-    val_str: str = env.get(ASYNC_UPLOAD_CONCURRENCY_LIMIT, "")
-    if not val_str:
-        return None
-
-    try:
-        val = int(val_str)
-    except ValueError:
-        wandb.errors.term.termwarn(
-            f"Ignoring non-integer value {val_str!r} for {ASYNC_UPLOAD_CONCURRENCY_LIMIT} environment variable.",
-            repeat=False,
-        )
-        return None
-
-    if val <= 0:
-        wandb.errors.term.termwarn(
-            f"{ASYNC_UPLOAD_CONCURRENCY_LIMIT} must be positive; got {val}. Ignoring it.",
-            repeat=False,
-        )
-        return None
-
-    if file_limit is None:
-        try:
-            import resource  # not always available on Windows
-
-            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
-        except Exception:  # getrlimit is very platform-specific
-            # Couldn't get the open-file-limit for some reason,
-            # probably very platform-specific. Not a problem,
-            # we just won't use it to cap the concurrency.
-            pass
-
-    if file_limit and file_limit > 0 and val > file_limit:
-        wandb.errors.term.termwarn(
-            f"{ASYNC_UPLOAD_CONCURRENCY_LIMIT} exceeds this process's limit on open files ({file_limit}); reducing to {file_limit}/2.",
-            repeat=False,
-        )
-        val = file_limit // 2
-
     return val
 
 

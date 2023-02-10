@@ -496,6 +496,7 @@ class Settings:
     username: str
     wandb_dir: str
     table_raise_on_max_row_limit_exceeded: bool
+    async_upload_concurrency_limit: int
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -704,6 +705,10 @@ class Settings:
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
+            },
+            async_upload_concurrency_limit={
+                "preprocessor": int,
+                "validator": self._validate_async_upload_concurrency_limit,
             },
             timespec={
                 "hook": (
@@ -955,6 +960,39 @@ class Settings:
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
+        return True
+
+    @staticmethod
+    def _validate_async_upload_concurrency_limit(value: int) -> bool:
+        if value is None:
+            return True
+
+        if not isinstance(value, int):
+            raise UsageError("async_upload_concurrency_limit must be an int")
+
+        if value <= 0:
+            raise UsageError("async_upload_concurrency_limit must be positive")
+
+        try:
+            import resource  # not always available on Windows
+
+            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+        except Exception:
+            # Couldn't get the open-file-limit for some reason,
+            # probably very platform-specific. Not a problem,
+            # we just won't use it to cap the concurrency.
+            pass
+        else:
+            wandb.termwarn(
+                (
+                    "async_upload_concurrency_limit setting exceeds this process's limit"
+                    + f" on open files ({file_limit}); may cause file-upload failures."
+                    + " Try decreasing async_upload_concurrency_limit,"
+                    + " or increasing your file limit with `ulimit -n`."
+                ),
+                repeat=False,
+            )
+
         return True
 
     # other helper methods

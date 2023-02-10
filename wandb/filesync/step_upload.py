@@ -20,7 +20,6 @@ from typing import (
 )
 
 import wandb
-import wandb.env
 import wandb.util
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
@@ -28,6 +27,7 @@ from wandb.filesync import upload_job
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats
     from wandb.sdk.internal import file_stream, internal_api, progress
+    from wandb.sdk.internal.settings_static import SettingsStatic
 
     if sys.version_info >= (3, 8):
         from typing import TypedDict
@@ -85,7 +85,7 @@ class StepUpload:
         event_queue: "queue.Queue[Event]",
         max_threads: int,
         file_stream: "file_stream.FileStreamApi",
-        silent: bool = False,
+        settings: Optional["SettingsStatic"] = None,
     ) -> None:
         self._api = api
         self._stats = stats
@@ -107,9 +107,17 @@ class StepUpload:
             daemon=True,
             name="wandb-upload-async",
         )
-        async_limit = wandb.env.get_async_upload_concurrency_limit()
+
+        self._async_enabled = (
+            settings is not None and settings.async_upload_concurrency_limit is not None
+        )
+        # TODO(spencerpearson): this class should have an instance variable
+        # for whether async is enabled
         self._async_concurrency_limiter = asyncio.Semaphore(
-            async_limit if async_limit is not None else 256,
+            settings.async_upload_concurrency_limit
+            if settings is not None
+            and settings.async_upload_concurrency_limit is not None
+            else 256,
             # Before Python 3.10: if we don't set `loop=self._loop`,
             #   then the Semaphore will bind to the wrong event loop,
             #   causing errors when a coroutine tries to wait for it;
@@ -125,7 +133,7 @@ class StepUpload:
 
         self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
-        self.silent = silent
+        self.silent = settings.silent if settings else False
 
     def _thread_body(self) -> None:
         event: Optional[Event]
@@ -210,10 +218,10 @@ class StepUpload:
             self._pending_jobs.append(event)
             return
 
-        if (
-            event.save_fn_async is not None
-            and wandb.env.get_async_upload_concurrency_limit() is not None
-        ):
+        if self._async_enabled and event.save_fn_async is not None:
+            # TODO(spencerpearson): leave a comment explaining that even if the
+            # user wants async, we sometimes need to fall back to sync anyway,
+            # because the async code path just doesn't support all uploads yet
             self._spawn_upload_async(event, event.save_fn_async)
         else:
             self._spawn_upload_sync(event)
