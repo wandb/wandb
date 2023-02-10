@@ -1,5 +1,4 @@
 import pytest
-
 import wandb
 from wandb.apis.importers import MlflowImporter
 
@@ -24,9 +23,10 @@ def test_mlflow(prelogged_mlflow_server, user):
     assert len(runs) == exps * runs_per_exp
 
     for run in runs:
-        i = 0
-        for i, _ in enumerate(run.scan_history(), start=1):
+        _i = 0
+        for _i, _ in enumerate(run.scan_history(), start=1):
             pass
 
-        length = i
+        length = _i
+        assert length == steps
         assert length == steps

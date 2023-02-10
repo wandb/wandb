@@ -44,10 +44,10 @@ def send_manager(root_dir):
         sm.finish()
 
 
-class Run(ABC):
+class Run:
     def __init__(self) -> None:
-        self.MISSING_ENTITY = "megatruong"
-        self.MISSING_PROJECT = "importer-testing"
+        self.MISSING_ENTITY = "default"
+        self.MISSING_PROJECT = "default"
         self.MISSING_RUN_ID = wandb.util.generate_id()  # type: ignore
         self.interface = InterfaceQueue()
         # self._autogen_run_id = wandb.util.generate_id()
@@ -191,7 +191,7 @@ class Run(ABC):
         return self.interface._make_record(summary=summary)
 
     def make_history_records(self) -> Iterable[pb.Record]:
-        for step, metrics in enumerate(self.metrics()):
+        for _, metrics in enumerate(self.metrics()):
             history = pb.HistoryRecord()
             for k, v in metrics.items():
                 item = history.item.add()
@@ -231,23 +231,23 @@ class Run(ABC):
         return self.interface._make_record(artifact=proto)
 
     def _make_metadata_file(self, run_dir: str) -> None:
-        MISSING_TEXT = "MLFlow did not capture this info."
+        missing_text = "MLFlow did not capture this info."
 
         d = {}
         if self.os_version():
             d["os"] = self.os_version()
         else:
-            d["os"] = MISSING_TEXT
+            d["os"] = missing_text
 
         if self.python_version():
             d["python"] = self.python_version()
         else:
-            d["python"] = MISSING_TEXT
+            d["python"] = missing_text
 
         if self.program():
             d["program"] = self.program()
         else:
-            d["program"] = MISSING_TEXT
+            d["program"] = missing_text
 
         if self.cuda_version():
             d["cuda"] = self.cuda_version()
