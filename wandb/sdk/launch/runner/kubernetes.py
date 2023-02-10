@@ -85,7 +85,7 @@ class KubernetesSubmittedRun(AbstractRun):
             now = time.time()
             if self._fail_count == 0:
                 self._fail_first_msg_time = now
-                self._fail_last_msg_time = 0
+                self._fail_last_msg_time = 0.0
             self._fail_count += 1
             if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
                 wandb.termlog(
