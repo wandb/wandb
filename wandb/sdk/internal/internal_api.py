@@ -93,7 +93,7 @@ if TYPE_CHECKING:
     Number = Union[int, float]
 
 
-# This funny construction is the simplest thing I've found that
+# This funny if/else construction is the simplest thing I've found that
 # works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
 if TYPE_CHECKING:
     import httpx
