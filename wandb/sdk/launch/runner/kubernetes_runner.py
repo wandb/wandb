@@ -98,8 +98,8 @@ class KubernetesSubmittedRun(AbstractRun):
                     f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
                 )
                 self._fail_last_msg_time = now
-        if self._fail_count > MAX_KUBERNETES_RETRIES:
-            raise LaunchError(f"Failed to start job {self.name}")
+            if self._fail_count > MAX_KUBERNETES_RETRIES:
+                raise LaunchError(f"Failed to start job {self.name}")
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         return_status = None
         if status.succeeded == 1:
