@@ -1,13 +1,11 @@
 import logging
 import os
-import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
 import wandb.util
 
 if TYPE_CHECKING:
-    import queue
 
     from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
@@ -15,16 +13,15 @@ if TYPE_CHECKING:
 
 class EventJobDone(NamedTuple):
     job: "UploadJob"
-    exc: Optional[Exception]
+    exc: Optional[BaseException]
 
 
 logger = logging.getLogger(__name__)
 
 
-class UploadJob(threading.Thread):
+class UploadJob:
     def __init__(
         self,
-        done_queue: "queue.Queue[step_upload.Event]",
         stats: "stats.Stats",
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
@@ -37,18 +34,15 @@ class UploadJob(threading.Thread):
         save_fn: Optional["step_upload.SaveFn"],
         digest: Optional[str],
     ) -> None:
-        """A file upload thread.
+        """A file uploader.
 
         Arguments:
-            done_queue: queue.Queue in which to put an EventJobDone event when
-                the upload finishes.
             push_function: function(save_name, actual_path) which actually uploads
                 the file.
             save_name: string logical location of the file relative to the run
                 directory.
             path: actual string path of the file to upload on the filesystem.
         """
-        self._done_queue = done_queue
         self._stats = stats
         self._api = api
         self._file_stream = file_stream
@@ -63,19 +57,14 @@ class UploadJob(threading.Thread):
         super().__init__()
 
     def run(self) -> None:
-        exc = None
+        success = False
         try:
             self.push()
-        except Exception as e:
-            exc = e
-            # Don't reraise the exception; that will print out a noisy stack trace
-            # to stderr. Instead, we'll just send the exc back to the StepUpload,
-            # which will log it as appropriate.
+            success = True
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            self._done_queue.put(EventJobDone(job=self, exc=exc))
-            if exc is None:
+            if success:
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> None:

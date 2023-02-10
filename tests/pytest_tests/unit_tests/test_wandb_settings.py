@@ -11,6 +11,7 @@ import pytest
 import wandb
 from click.testing import CliRunner
 from wandb.errors import UsageError
+from wandb.sdk import wandb_login
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
@@ -800,3 +801,148 @@ def test_settings_static():
     static_settings = SettingsStatic(Settings().make_static())
     assert "base_url" in static_settings
     assert static_settings.get("base_url") == "https://api.wandb.ai"
+
+
+# --------------------------
+# test run settings
+# --------------------------
+
+
+def test_silent_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"silent": "true"}, source=Source.SETTINGS)
+    assert test_settings.silent is True
+    run = mock_run(settings=test_settings)
+    assert run._settings.silent is True
+
+
+def test_strict_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"strict": "true"}, source=Source.SETTINGS)
+    assert test_settings.strict is True
+    run = mock_run(settings=test_settings)
+    assert run._settings.strict is True
+
+
+def test_show_info_run(mock_run):
+    run = mock_run()
+    assert run._settings.show_info is True
+
+
+def test_show_info_false_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_info": "false"}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_info is False
+
+
+def test_show_warnings_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_warnings is True
+
+
+def test_show_warnings_false_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_warnings is False
+
+
+def test_show_errors_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_errors": True}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_errors is True
+
+
+def test_show_errors_false_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_errors": False}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_errors is False
+
+
+def test_not_jupyter(mock_run):
+    run = mock_run()
+    assert run._settings._jupyter is False
+
+
+def test_resume_fname_run(mock_run):
+    run = mock_run()
+    assert run._settings.resume_fname == os.path.join(
+        run._settings.root_dir, "wandb", "wandb-resume.json"
+    )
+
+
+def test_wandb_dir_run(mock_run):
+    run = mock_run()
+    assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(
+        os.path.join(run._settings.root_dir, "wandb")
+    )
+
+
+def test_console_run(mock_run):
+    run = mock_run(settings={"console": "auto", "mode": "offline"})
+    assert run._settings.console == "auto"
+    assert run._settings._console == wandb_settings.SettingsConsole.WRAP
+
+
+def test_console(test_settings):
+    test_settings = test_settings()
+    assert test_settings._console == wandb_settings.SettingsConsole.OFF
+    test_settings.update({"console": "redirect"}, source=Source.BASE)
+    assert test_settings._console == wandb_settings.SettingsConsole.REDIRECT
+    test_settings.update({"console": "wrap"}, source=Source.BASE)
+    assert test_settings._console == wandb_settings.SettingsConsole.WRAP
+
+
+def test_code_saving_save_code_env_false(mock_run, test_settings):
+    settings = test_settings()
+    settings.update({"save_code": None}, source=Source.BASE)
+    with mock.patch.dict("os.environ", WANDB_SAVE_CODE="false"):
+        settings._infer_settings_from_environment()
+        run = mock_run(settings=settings)
+        assert run._settings.save_code is False
+
+
+def test_code_saving_disable_code(mock_run, test_settings):
+    settings = test_settings()
+    settings.update({"save_code": None}, source=Source.BASE)
+    with mock.patch.dict("os.environ", WANDB_DISABLE_CODE="true"):
+        settings._infer_settings_from_environment()
+        run = mock_run(settings=settings)
+        assert run.settings.save_code is False
+
+
+def test_override_login_settings(test_settings):
+    wlogin = wandb_login._WandbLogin()
+    login_settings = test_settings().copy()
+    login_settings.update(show_emoji=True)
+    wlogin.setup({"_settings": login_settings})
+    assert wlogin._settings.show_emoji is True
+
+
+def test_override_login_settings_with_dict():
+    wlogin = wandb_login._WandbLogin()
+    login_settings = dict(show_emoji=True)
+    wlogin.setup({"_settings": login_settings})
+    assert wlogin._settings.show_emoji is True
+
+
+def test_setup_offline(test_settings):
+    # this is to increase coverage
+    login_settings = test_settings().copy()
+    login_settings.update(mode="offline")
+    assert wandb.setup(settings=login_settings)._instance._get_entity() is None
+    assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
+
+
+@pytest.mark.skip(reason="causes other tests that depend on capsys to fail")
+def test_silent_env_run(mock_run, test_settings):
+    settings = test_settings()
+    with mock.patch.dict("os.environ", WANDB_SILENT="true"):
+        settings._apply_env_vars(os.environ)
+        run = mock_run(settings=settings)
+        assert run._settings.silent is True

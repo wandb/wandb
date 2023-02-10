@@ -7,22 +7,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import MultiprocessError, UsageError
-
-
-@pytest.mark.skipif(
-    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
-)
-def test_run_log_mp_error(wandb_init, test_settings):
-    test_settings = test_settings({"strict": True})
-    run = wandb_init(settings=test_settings)
-    _init_pid = run._init_pid
-    run._init_pid = _init_pid + 1
-    with pytest.raises(MultiprocessError) as excinfo:
-        run.log(dict(this=1))
-        assert "`log` does not support multiprocessing" in str(excinfo.value)
-    run._init_pid = _init_pid
-    run.finish()
+from wandb.errors import UsageError
 
 
 def test_log_code(wandb_init):
@@ -105,12 +90,11 @@ def test_init_with_settings(wandb_init, test_settings):
 
 
 def test_attach_same_process(user, test_settings):
-    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
-        with pytest.raises(RuntimeError) as excinfo:
-            run = wandb.init(settings=test_settings())
-            new_run = pickle.loads(pickle.dumps(run))
-            new_run.log({"a": 2})
-        run.finish()
+    with pytest.raises(RuntimeError) as excinfo:
+        run = wandb.init(settings=test_settings())
+        new_run = pickle.loads(pickle.dumps(run))
+        new_run.log({"a": 2})
+    run.finish()
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 

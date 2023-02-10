@@ -32,7 +32,7 @@ class SettingsStatic:
     _jupyter_name: Optional[str]
     _jupyter_root: Optional[str]
     _network_buffer: Optional[int]
-    _require_service: Optional[str]
+    _disable_service: Optional[bool]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
     program: Optional[str]
@@ -60,6 +60,7 @@ class SettingsStatic:
     sync_file: str
     _flow_control_disabled: bool
     _flow_control_custom: bool
+    disable_job_creation: bool
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int
