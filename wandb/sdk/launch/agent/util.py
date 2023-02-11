@@ -59,8 +59,8 @@ def registry_from_config(
         module = get_module("wandb.sdk.launch.registry.elastic_container_registry")
         return module.ElasticContainerRegistry.from_config(config, environment)
     if registry_type == "gcr":
-        module = get_module("wandb.sdk.launch.registry.gcr_registry")
-        return module.GcrRegistry.from_config(config, environment)
+        module = get_module("wandb.sdk.launch.registry.google_artifact_registry")
+        return module.GoogleArtifactRegistry.from_config(config, environment)
     raise LaunchError("Could not create registry from config.")
 
 
