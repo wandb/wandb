@@ -595,8 +595,9 @@ def get_kube_context_and_api_client(
             raise LaunchError(f"Specified context {context_name} was not found.")
         else:
             context = active_context
-
-        kubernetes.config.load_kube_config(config_file, context["name"])
+        kubernetes.config.load_kube_config(
+            config_file, context["name"]
+        )  # TODO: AWSCLI is a dependency for this to work with eks - we should pass them explicitly using environment
         api_client = kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
         )
