@@ -300,6 +300,7 @@ class SendManager:
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
             disable_job_creation=False,
+            async_upload_concurrency_limit=None,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
