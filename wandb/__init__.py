@@ -16,6 +16,12 @@ __version__ = "0.13.11.dev1"
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
 
+import os
+if os.environ.get("_WANDB_STARTUP_DEBUG"):
+    import time
+    time_now = time.time()
+    print("WANDB_STARTUP_DEBUG", time_now, "wandb")
+
 from typing import Optional
 
 from wandb.errors import Error

@@ -130,6 +130,7 @@ class WandbServer:
         _startup_debug.print_message(message)
 
     def serve(self) -> None:
+        self._startup_debug_print("serve")
         self._setup_tracelog()
         mux = StreamMux()
         self._startup_debug_print("before_network")
