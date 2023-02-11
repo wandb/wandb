@@ -51,18 +51,15 @@ def test_sweep_scheduler_sweep_id_no_job(user, relay_server, monkeypatch):
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
         mock_run_complete_scheduler,
     )
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        # Entity, project, and sweep
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        # No job
-        with pytest.raises(SchedulerError):
-            scheduler = SweepScheduler(
-                api, sweep_id=sweep_id, entity=_entity, project=_project
-            )
-            scheduler.start()  # should raise no job found
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    # Entity, project, and sweep
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    # No job
+    scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    scheduler._start()  # should raise no job found
+    assert scheduler.state == SchedulerState.FAILED
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
