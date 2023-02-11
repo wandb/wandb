@@ -161,7 +161,14 @@ class _WandbInit:
                 )
                 self.printer.display(line, level="warn")
 
-        self._wl = wandb_setup.setup()
+        # we add this logic to be backward compatible with the old behavior of disable
+        # where it would disable the service if the mode was set to disabled
+        mode = kwargs.get("mode")
+        settings_mode = (kwargs.get("settings") or {}).get("mode")
+        _disable_service = mode == "disabled" or settings_mode == "disabled"
+        setup_settings = {"_disable_service": _disable_service}
+
+        self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
         assert self._wl is not None
         _set_logger(self._wl._get_logger())

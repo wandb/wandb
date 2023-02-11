@@ -28,6 +28,7 @@ TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
     60  # default 10 second loop time on the agent, this is 10 minutes
 )
+FAIL_MESSAGE_INTERVAL = 60
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -81,11 +82,16 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.pod_names[0], namespace=self.namespace
             )
         except Exception as e:
-            if self._fail_count == 1:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to 10 minutes for job to start."
-                )
+            now = time.time()
+            if self._fail_count == 0:
+                self._fail_first_msg_time = now
+                self._fail_last_msg_time = 0.0
             self._fail_count += 1
+            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
+                wandb.termlog(
+                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes for job to start."
+                )
+                self._fail_last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 raise LaunchError(
                     f"Failed to start job {self.name}, because of error {str(e)}"

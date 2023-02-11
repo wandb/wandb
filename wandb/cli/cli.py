@@ -24,6 +24,7 @@ from click.exceptions import ClickException
 from dockerpycreds.utils import find_executable
 
 import wandb
+import wandb.env
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -702,6 +703,7 @@ def sync(
 )
 @click.option(
     "--queue",
+    "-q",
     default=None,
     help="The name of a launch queue (configured with a resource), available in the current user or team.",
 )
@@ -909,10 +911,20 @@ def sweep(
                     "No job found in sweep or launch config for launch-sweep."
                 )
 
+        launch_queue = queue or launch_config.get("queue")
+        if not launch_queue:
+            raise LaunchError(
+                "No queue passed from CLI or in launch config for launch-sweep."
+            )
+        else:
+            # multi-word queues must be quoted for scheduler command
+            if launch_queue.count(" ") > 1:
+                launch_queue = f"{launch_queue!r}"
+
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": queue or launch_config.get("queue", "default"),
+                "queue": launch_queue,
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
@@ -933,7 +945,7 @@ def sweep(
                             "scheduler",
                             "WANDB_SWEEP_ID",
                             "--queue",
-                            f"{(queue or launch_config.get('queue', 'default'))!r}",
+                            launch_queue,
                             "--project",
                             project,
                             "--job",
@@ -2207,11 +2219,19 @@ def status(settings):
 
 
 @cli.command("disabled", help="Disable W&B.")
-def disabled():
+@click.option(
+    "--service",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Disable W&B service",
+)
+def disabled(service):
     api = InternalApi()
     try:
         api.set_setting("mode", "disabled", persist=True)
         click.echo("W&B disabled.")
+        os.environ[wandb.env._DISABLE_SERVICE] = str(service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
@@ -2219,11 +2239,19 @@ def disabled():
 
 
 @cli.command("enabled", help="Enable W&B.")
-def enabled():
+@click.option(
+    "--service",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Enable W&B service",
+)
+def enabled(service):
     api = InternalApi()
     try:
         api.set_setting("mode", "online", persist=True)
         click.echo("W&B enabled.")
+        os.environ[wandb.env._DISABLE_SERVICE] = str(not service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
