@@ -55,6 +55,7 @@ google-cloud-storage
 google-cloud-compute
 google-cloud-artifact-registry
 kubernetes
+awscli
 # ^^^^^^^^^^ - above are for extra launch
 # .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 # vvvvvvvvvv - below are for extra sweeps

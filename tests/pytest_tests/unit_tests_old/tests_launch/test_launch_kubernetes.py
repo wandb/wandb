@@ -8,7 +8,7 @@ import pytest
 import wandb
 import wandb.sdk.launch.launch as launch
 from wandb.errors import LaunchError
-from wandb.sdk.launch.runner.kubernetes import (
+from wandb.sdk.launch.runner.kubernetes_runner import (
     MAX_KUBERNETES_RETRIES,
     maybe_create_imagepull_secret,
 )

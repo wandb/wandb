@@ -31,6 +31,7 @@ media_requirements = [
     "rdkit-pypi",
 ]
 launch_requirements = [
+    "awscli",
     "nbconvert",
     "nbformat",
     "chardet",
