@@ -106,3 +106,4 @@ setup(
 #     if legacy_env_var not in os.environ:
 #         if os.system("setx " + legacy_env_var + " 1") != 0:
 #             raise Exception("Error setting environment variable " + legacy_env_var)
+# spencerpearson test change
