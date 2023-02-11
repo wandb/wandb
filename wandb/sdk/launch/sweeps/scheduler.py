@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 
 
+@dataclass
+class _Worker:
+    agent_config: Dict[str, Any]
+    agent_id: str
+
+
 class SchedulerState(Enum):
     PENDING = 0
     STARTING = 1
@@ -85,6 +91,12 @@ class Scheduler(ABC):
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
         self._project_queue = project_queue
+        # Optionally run multiple workers in (pseudo-)parallel. Workers do not
+        # actually run training workloads, they simply send heartbeat messages
+        # (emulating a real agent) and add new runs to the launch queue. The
+        # launch agent is the one that actually runs the training workloads.
+        self._workers: Dict[int, _Worker] = {}
+
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
@@ -116,6 +128,10 @@ class Scheduler(ABC):
             SchedulerState.FAILED,
             SchedulerState.STOPPED,
         ]:
+            return False
+        elif len(self._workers) == 0:
+            print(">>>>>>")
+            self.state(SchedulerState.STOPPED)
             return False
         return True
 
