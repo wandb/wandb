@@ -4,31 +4,25 @@ run-name: cut sdk release triggered by ${{ github.actor }}
 on:
   workflow_dispatch:
     inputs:
-      bump-version-kind:
+      bump-kind:
         type: choice
         required: true
         description: How to bump the current version
-        default: devkind
+        default: "PATCH"
         options:
-          - "major"
-          - "minor"
-          - "patch"
-          - "devkind"
-          - "prekind"
-          - "pre"
+          - "MAJOR"
+          - "MINOR"
+          - "PATCH"
+#      ref:
+#        type: string
+#        required: false
+#        description: The git ref to use for the release
+#        default: main
 
 jobs:
-  freeze:
-    name: Freeze main branch
-    runs-on: ubuntu-latest
-    steps:
-      - name: Freeze main branch
-        run: |
-          curl -d "frozen=true&user_name=${{ github.actor }}&note=prep for release" -X POST https://www.mergefreeze.com/api/branches/${{ github.repository }}/main/?access_token=${{ secrets.COLDBEAR_TOKEN }}
 
   test-nightly:
     name: Run nightly tests
-    needs: freeze
     runs-on: ubuntu-latest
     steps:
       - name: Checkout wandb/wandb
@@ -36,7 +30,7 @@ jobs:
         with:
           repository: wandb/wandb
           path: wandb
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.9
       - name: Run nightly tests
@@ -46,97 +40,133 @@ jobs:
           CIRCLECI_TOKEN=${{ secrets.MUMBOJUMBO_TOKEN }} python tools/circleci-tool.py --dryrun trigger-nightly
           # CIRCLECI_TOKEN=${{ secrets.MUMBOJUMBO_TOKEN }} python tools/circleci-tool.py trigger-nightly --wait
 
-  test-regression:
-    name: Run regression tests
-    needs: freeze
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout wandb/wandb-testing
-        uses: actions/checkout@v3
-        with:
-          repository: wandb/wandb-testing
-          path: wandb-testing
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - name: Run regression tests
-        run: |
-          cd wandb-testing
-          pip install git+https://github.com/wandb/wandb@main#egg=wandb
-          python --version
-          
-  make-release:
-    name: Release
+  prepare-release:
+    name: Prepare Release
     environment: "release"
+    if: always()
     needs:
       - test-nightly
-      - test-regression
     runs-on: ubuntu-latest
     outputs:
-      output1: ${{ steps.bump-version.outputs.release_version }}
-      output2: ${{ steps.create-pr.outputs.pull-request-head-sha }}
+      release-version: ${{ steps.cz.outputs.release_version }}
+      release-branch: ${{ steps.cz.outputs.release_branch }}
     steps:
       - name: Checkout main for current release
         uses: actions/checkout@v3
-        with:
-          ref: main
+#        with:
+#          ref: ${{ github.event.inputs.ref }}
       - name: Setup python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
-      - name: Bump version
-        id: bump-version
+          python-version: '3.9'
+      - name: Install python dependencies
+        id: install-python-deps
         run: |
           python -m pip install --upgrade pip
-          pip install bump2version
-          
-          new_version="$(bump2version ${{ github.event.inputs.bump-version-kind }} --list | grep new_version | cut -d'=' -f2)"
-
+          pip install commitizen -U
+      - name: Setup git
+        id: setup-git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git fetch --tags
+      - name: Bump version and generate changelog entry with Commitizen (cz)
+        id: cz
+        run: |
+          new_version="$(cz bump --increment ${{ github.event.inputs.bump-kind }} --yes --dry-run | grep bump | awk '{print $NF}')"
           echo "release_version=${new_version}" >> $GITHUB_OUTPUT
-          echo "release_branch=release-${new_version}" >> $GITHUB_ENV
-          echo "release_tag=v${new_version}" >> $GITHUB_ENV
+          echo "release_branch=release-${new_version}" >> $GITHUB_OUTPUT
+          echo "release_tag=v${new_version}" >> $GITHUB_OUTPUT
+          cz bump --increment ${{ github.event.inputs.bump-kind }} -ch --yes
       - name: Create release PR
         id: create-pr
         uses: peter-evans/create-pull-request@v4
         with:
           committer: GitHub <noreply@github.com>
-          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
-          branch: ${{ env.release_branch }}
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          branch: ${{ steps.cz.outputs.release_branch }}
           delete-branch: true
-          title: "chore(sdk): release ${{ steps.bump-version.outputs.release_version }} version"
-          draft: true
+          title: "chore(sdk): release ${{ steps.cz.outputs.release_version }} version"
           commit-message: "[create-pull-request] automated change of workflow ${{ github.run_id }} attempt ${{ github.run_number }}"
       - name: Create release notes
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
-          draft: true
-          name: ${{ env.release_tag }}
+          draft: false
+          name: ${{ steps.cz.outputs.release_tag }}
           generateReleaseNotes: true
-          tag: ${{ env.release_tag }}
+          tag: ${{ steps.cz.outputs.release_tag }}
           prerelease: false
-          updateOnlyUnreleased: true
-          commit: ${{ env.release_branch }}
-    
+          updateOnlyUnreleased: false
+          commit: ${{ steps.cz.outputs.release_branch }}
+
   build-and-publish:
       name: Build and Publish
+      environment: "release"
       runs-on: ubuntu-latest
-      needs: make-release
+      if: always()
+      needs: prepare-release
       steps:
+      - name: Checkout ${{ needs.prepare-release.outputs.release-branch }} for current release
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.prepare-release.outputs.release-branch }}
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
       - name: Build
         run: |
-          echo ${{ needs.make-release.outputs.output1 }}
+          pip install wheel
+          rm -rf dist build
+          python setup.py sdist bdist_wheel
+          ls -l dist
       - name: Publish
         run: |
-          # TODO use github actions to do the release
-          # echo ${{ steps.create-pr.outputs.pull-request-operation }}
-          echo ${{ needs.make-release.outputs.output2 }}
-
-  unfreeze:
-    name: Unfreeze main branch
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    steps:
-      - name: Unfreeze main branch
+          pip install twine
+          twine upload --username=__token__ --password=${{ secrets.TEST_PYPI_TOKEN }} --repository testpypi dist/*
+      - name: Test install
         run: |
-          curl -d "frozen=false&user_name=${{ github.actor }}&note=prep for release" -X POST https://www.mergefreeze.com/api/branches/${{ github.repository }}/main/?access_token=${{ secrets.COLDBEAR_TOKEN }}
+          pip install --index-url https://test.pypi.org/simple/ --no-deps mumbojumbo
+          version=`python -c "import mumbojumbo as mj; print(mj.__version__)"`
+          if [ $version != ${{ needs.prepare-release.outputs.release-version }} ]; then
+            echo "Version mismatch: $version != ${{ needs.prepare-release.outputs.release-version }}"
+            exit 1
+          fi
+
+  post-release:
+    name: Post Release Actions
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-publish
+      - prepare-release
+    if: always()
+    steps:
+      - name: Checkout ${{ needs.prepare-release.outputs.release-branch }} for current release
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.prepare-release.outputs.release-branch }}
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install python dependencies
+        id: install-python-deps
+        run: |
+          echo ${{ needs.prepare-release.outputs.release-branch }}
+          python -m pip install --upgrade pip
+          pip install bump2version -U
+      - name: Setup git
+        id: setup-git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git fetch --tags
+      - name: Bump version
+        run: |
+          bump2version patch --no-tag
+          bump2version devkind --no-tag
+          git push origin ${{ needs.prepare-release.outputs.release-branch }}
+      - name: Nudge to merge the Release PR to main and unfreeze the release branch
+        run: |
+          echo "Please check and merge the release PR to main and unfreeze the main branch"
