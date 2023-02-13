@@ -286,6 +286,10 @@ class TestFinish:
 class TestUpload:
     @pytest.fixture(params=[None, 100])
     def async_settings(self, request) -> SettingsStatic:
+        """Tests that use this fixture run twice: with async uploads enabled/disabled.
+
+        Most tests in this class should use this fixture.
+        """
         return make_async_settings(request.param)
 
     def test_upload(
@@ -642,7 +646,7 @@ class TestUpload:
 
                 mock_file_stream.push_success.assert_not_called()
 
-    def test_uses_save_fn_async_iff_env_says_to(
+    def test_uses_save_fn_async_iff_settings_say_to(
         self,
         tmp_path: Path,
         async_settings: SettingsStatic,

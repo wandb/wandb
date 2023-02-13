@@ -35,6 +35,7 @@ _T = TypeVar("_T")
 
 
 def asyncio_run(coro: Awaitable[_T]) -> _T:
+    """Approximately the same as `asyncio.run`, which isn't available in Python 3.6."""
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
