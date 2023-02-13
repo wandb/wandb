@@ -421,8 +421,7 @@ def maybe_create_imagepull_secret(
     creds_info = {
         "auths": {
             registry.uri: {
-                "username": uname,
-                "password": token,
+                "auth": base64.b64encode(f"{uname}:{token}".encode()).decode(),
                 # need an email but the use is deprecated
                 "email": "deprecated@wandblaunch.com",
             }
@@ -438,6 +437,6 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        core_api.create_namespaced_secret(namespace, secret)
+        return core_api.create_namespaced_secret(namespace, secret)
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
