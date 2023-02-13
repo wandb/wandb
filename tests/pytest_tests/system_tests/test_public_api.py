@@ -1,9 +1,9 @@
 """Tests for the `wandb.apis.PublicApi` module."""
 
 
+import os
 from unittest import mock
 
-import os
 import pytest
 import wandb
 import wandb.apis.public
