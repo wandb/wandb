@@ -54,6 +54,7 @@ class LaunchAgent:
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[Union[int, str], AbstractRun] = {}
+        self._scheduler_jobs: set = set()
         self._ticks = 0
         self._running = 0
         self._cwd = os.getcwd()
@@ -64,7 +65,6 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = max_jobs_from_config
-        self._running_sweep_schedulers: int = 0
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
@@ -128,7 +128,12 @@ class LaunchAgent:
         """Removes the job from our list for now."""
         # TODO:  keep logs or something for the finished jobs
         del self._jobs[job_id]
-        self._running -= 1
+
+        # dont track _running when a sweep scheduler
+        if job_id in self._scheduler_jobs:
+            self._scheduler_jobs.remove(job_id)
+        else:
+            self._running -= 1
         # update status back to polling if no jobs are running
         if self._running == 0:
             self.update_status(AGENT_POLLING)
@@ -195,10 +200,11 @@ class LaunchAgent:
         run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
-            if launch_spec['uri'] == "placeholder-uri-scheduler":
-                # track running schedulers, used to account for _running job count
-                self._running_sweep_schedulers += 1
-            self._running += 1
+            if launch_spec["uri"] == "placeholder-uri-scheduler":
+                # also track running schedulers, used to account for _running job count
+                self._scheduler_jobs.add(run.id)
+            else:  # don't track schedulers in running count
+                self._running += 1
 
     def loop(self) -> None:
         """Main loop function for agent."""
@@ -217,7 +223,7 @@ class LaunchAgent:
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
-                if self._running - self._running_sweep_schedulers < self._max_jobs:
+                if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
