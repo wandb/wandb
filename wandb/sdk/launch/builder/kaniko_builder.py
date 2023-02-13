@@ -187,7 +187,6 @@ class KanikoBuilder(AbstractBuilder):
 
     def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
-        print("Uploading build context...")
         context_file = tempfile.NamedTemporaryFile(delete=False)
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
