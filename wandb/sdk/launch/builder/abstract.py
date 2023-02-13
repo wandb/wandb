@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from .._project_spec import EntryPoint, LaunchProject
 
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
 
 class AbstractBuilder(ABC):
@@ -17,7 +18,7 @@ class AbstractBuilder(ABC):
     @abstractmethod
     def __init__(
         self,
-        builder_config: Dict[str, Any],
+        environment: AbstractEnvironment,
         registry: AbstractRegistry,
         verify=True,
     ) -> None:

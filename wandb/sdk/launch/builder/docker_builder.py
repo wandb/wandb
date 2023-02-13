@@ -7,6 +7,7 @@ import wandb
 import wandb.docker as docker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
 
 from .._project_spec import (
@@ -40,6 +41,7 @@ class DockerBuilder(AbstractBuilder):
 
     def __init__(
         self,
+        environment: AbstractEnvironment,
         registry: AbstractRegistry,
         verify=True,
         login=True,
@@ -47,6 +49,7 @@ class DockerBuilder(AbstractBuilder):
         """Initialize a DockerBuilder.
 
         Args:
+            environment (AbstractEnvironment): The environment to use.
             registry (AbstractRegistry): The registry to use.
             verify (bool, optional): Whether to verify the functionality of the builder.
             login (bool, optional): Whether to login to the registry.
@@ -54,6 +57,7 @@ class DockerBuilder(AbstractBuilder):
         Raises:
             LaunchError: If docker is not installed
         """
+        self.environment = environment  # Docker builder doesn't actually use this.
         self.registry = registry
         if verify:
             self.verify()
@@ -62,7 +66,10 @@ class DockerBuilder(AbstractBuilder):
 
     @classmethod
     def from_config(
-        cls, config: Dict[str, Any], registry: AbstractRegistry
+        cls,
+        config: Dict[str, Any],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> "DockerBuilder":
         """Create a DockerBuilder from a config.
 
@@ -77,7 +84,7 @@ class DockerBuilder(AbstractBuilder):
         """
         # TODO the config for the docker builder as of yet is empty
         # but ultimately we should add things like target platform, base image, etc.
-        return cls(registry)
+        return cls(environment, registry)
 
     def verify(self):
         """Verify the builder."""

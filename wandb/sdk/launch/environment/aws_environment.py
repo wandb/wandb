@@ -89,6 +89,11 @@ class AwsEnvironment(AbstractEnvironment):
             verify=verify,
         )
 
+    @property
+    def region(self) -> str:
+        """The AWS region."""
+        return self._region
+
     @classmethod
     def from_default(cls, region: str, verify=True):
         """Create an AWS environment from the default AWS environment.
