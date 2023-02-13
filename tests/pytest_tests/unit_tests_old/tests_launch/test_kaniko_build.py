@@ -12,7 +12,7 @@ import wandb
 from google.cloud import storage
 from wandb.errors import LaunchError
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
-from wandb.sdk.launch.builder.kaniko import (
+from wandb.sdk.launch.builder.kaniko_builder import (
     KanikoBuilder,
     _create_dockerfile_configmap,
     _wait_for_completion,
@@ -120,7 +120,6 @@ def test_create_dockerfile_configmap(
 def test_create_docker_ecr_config_map_non_instance(
     monkeypatch, runner, mock_V1ConfigMap, mock_V1ObjectMeta
 ):
-
     build_config = {
         "cloud-provider": "AWS",
         "build-context-store": "s3",
@@ -382,7 +381,6 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
 def test_build_image_success(
     monkeypatch, mock_kubernetes_client, runner, mock_boto3, test_settings, capsys
 ):
-
     build_config = {
         "cloud-provider": "AWS",
         "build-context-store": "s3",

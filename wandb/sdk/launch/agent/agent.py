@@ -256,7 +256,7 @@ class LaunchAgent:
         registry = registry_from_config(registry_config, environment)
 
         builder_config = self.default_config.get("builder", {})
-        builder = builder_from_config(builder_config, registry)
+        builder = builder_from_config(builder_config, environment, registry)
         # builder.build_image(project, EntryPoint("name", "main.py"))
 
         # print(builder)

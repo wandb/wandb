@@ -65,7 +65,9 @@ def registry_from_config(
 
 
 def builder_from_config(
-    config: Optional[Dict[str, Any]], registry: AbstractRegistry
+    config: Optional[Dict[str, Any]],
+    environment: AbstractEnvironment,
+    registry: AbstractRegistry,
 ) -> AbstractBuilder:
     """Create a builder from a config.
 
@@ -87,10 +89,10 @@ def builder_from_config(
     builder_type = config.get("type")
     if builder_type == "docker":
         module = get_module("wandb.sdk.launch.builder.docker_builder")
-        return module.DockerBuilder.from_config(config, registry)
+        return module.DockerBuilder.from_config(config, environment, registry)
     if builder_type == "kaniko":
         module = get_module("wandb.sdk.launch.builder.kaniko_builder")
-        return module.KanikoBuilder.from_config(config, registry)
+        return module.KanikoBuilder.from_config(config, environment, registry)
     raise LaunchError("Could not create builder from config.")
 
 

@@ -250,3 +250,26 @@ class GcpEnvironment(AbstractEnvironment):
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
             raise LaunchError(f"Could not upload directory to GCS: {e}")
+
+    def verify_storage_uri(self, uri: str) -> None:
+        """Verify that a gcs storage URI is valid.
+
+        Args:
+            uri: The storage URI to verify.
+
+        Raises:
+            LaunchError: If the storage URI is invalid.
+        """
+        match = gcs_uri_re.match(uri)
+        if not match:
+            raise LaunchError(f"Invalid GCS URI: {uri}")
+        bucket = match.group(1)
+        key = match.group(2).lstrip("/")
+        try:
+            storage_client = google.cloud.storage.Client(
+                credentials=self.get_credentials()
+            )
+            bucket = storage_client.bucket(bucket)
+            bucket.blob(key)
+        except google.api_core.exceptions.GoogleAPICallError as e:
+            raise LaunchError(f"Could not verify GCS URI: {e}")

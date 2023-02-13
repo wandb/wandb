@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 class AbstractEnvironment(ABC):
     """Abstract base class for environments."""
 
+    region: str
+
     @abstractmethod
     def verify(self) -> None:
         """Verify that the environment is configured correctly."""
@@ -18,4 +20,9 @@ class AbstractEnvironment(ABC):
     @abstractmethod
     def upload_dir(self, source: str, destination: str) -> None:
         """Upload the contents of a directory from the local filesystem to the environment."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def verify_storage_uri(self, uri: str) -> None:
+        """Verify that the storage URI is configured correctly."""
         raise NotImplementedError
