@@ -301,6 +301,12 @@ class KanikoBuilder(AbstractBuilder):
             if isinstance(self.registry, ElasticContainerRegistry):
                 mount_path = "/root/.aws"
                 key = "credentials"
+                env += [
+                    client.V1EnvVar(
+                        name="AWS_REGION",
+                        value=self.registry.environment.region,
+                    )
+                ]
             elif isinstance(self.registry, GoogleArtifactRegistry):
                 mount_path = "/kaniko/.config/gcloud"
                 key = "config.json"

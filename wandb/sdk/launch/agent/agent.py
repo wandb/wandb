@@ -248,8 +248,6 @@ class LaunchAgent:
         resource = launch_spec.get("resource") or "local-container"
 
         env_config = self.default_config.get("environment", {})
-        print("hello", self.default_config)
-        # print(env_config)
         environment = environment_from_config(env_config)
 
         registry_config = self.default_config.get("registry", {})
@@ -257,9 +255,6 @@ class LaunchAgent:
 
         builder_config = self.default_config.get("builder", {})
         builder = builder_from_config(builder_config, environment, registry)
-        # builder.build_image(project, EntryPoint("name", "main.py"))
-
-        # print(builder)
 
         backend_config: Dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
@@ -268,20 +263,11 @@ class LaunchAgent:
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
 
-        # # override_build_config = launch_spec.get("build")
-        # # override_registry_config = launch_spec.get("registry")
-
-        # # build_config, registry_config = resolve_build_and_registry_config(
-        # #     self.default_config, override_build_config, override_registry_config
-        # # )
-        # # builder = load_builder(build_config)
-
         default_runner = self.default_config.get("runner", {}).get("type")
         if default_runner == resource:
             backend_config["runner"] = self.default_config.get("runner")
 
         backend = create_runner(resource, self._api, backend_config, environment)
-        # backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")
         run = backend.run(project, builder)
