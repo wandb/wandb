@@ -1,9 +1,10 @@
 import os
 from typing import Optional
+import hashlib
 
-import requests
-from authlib.common.encoding import json_loads, urlsafe_b64decode
-from authlib.integrations.requests_client import OAuth2Auth
+from authlib.integrations.requests_client import OAuth2Auth, OAuth2Session
+from authlib.jose.util import extract_header
+from authlib.oauth2.rfc7523 import JWTBearerGrant
 
 import wandb
 from wandb import env
@@ -12,36 +13,67 @@ from wandb import env
 class OIDCAuth(OAuth2Auth):
     def __init__(self, token_endpoint: str, access_token: Optional[str] = None):
         self._token_endpoint = token_endpoint
+        self._introspect_endpoint = token_endpoint.replace("token", "introspect")
         self._access_token = access_token
-        self._expires_at = None
+        self._expires_at = 0
         if access_token:
-            claim_bytes = urlsafe_b64decode(access_token.split(".")[1].encode("utf-8"))
-            claims = json_loads(claim_bytes.decode("utf-8"))
-            self._expires_at = claims["exp"]
-        elif os.getenv(env.OIDC_TOKEN_PATH):
-            try:
-                with open(os.environ[env.OIDC_TOKEN_PATH], "r") as f:
-                    token = f.read()
-                self.exchange_token(token)
-            except Exception as e:
-                wandb.termwarn("Failed to federate identity: %s" % e)
-        # TODO: once we have more complex oauth we'll need to pass in a client
-        self._client = None
+            # TODO: this currently doesn't work
+            res = self.introspect_token(access_token)
+            if res.get("expires_at"):
+                self._expires_at = res["expires_at"]
+        self._client = OAuth2Session(
+            client_id="wandb-federated",
+            token_endpoint=self._token_endpoint,
+        )
         super(OIDCAuth, self).__init__(
             {"access_token": access_token, "expires_at": self._expires_at},
             client=self._client,
         )
 
-    def exchange_token(self, token: str):
-        res = requests.post(
-            self._token_endpoint + "?client_id=wandb-sdk-federated",
-            data={
-                "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
-                "subject_token": token,
-                "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-            },
+    def load_federation_token(self) -> Optional[str]:
+        if os.getenv(env.OIDC_TOKEN_PATH):
+            try:
+                with open(os.environ[env.OIDC_TOKEN_PATH], "r") as f:
+                    token = f.read()
+                self.exchange_token(token)
+                return token
+            except Exception as e:
+                wandb.termwarn("Failed to federate identity: %s" % e)
+        return None
+
+    def id_from_jwt(self, token: str) -> str:
+        parts = token.encode("utf-8").split(b".")
+        payload = extract_header(parts[1], ValueError)
+        iss = payload.get("iss")
+        sub = payload.get("sub")
+        if iss is None or sub is None:
+            raise ValueError("Invalid token")
+        return "ft." + hashlib.md5(f"{iss}|{sub}".encode("utf-8")).hexdigest()
+
+    def introspect_token(self, token: str) -> dict:
+        return self._client.introspect_token(self._introspect_endpoint, token=token)
+
+    # We can likely override this for jwt_bearer
+    def ensure_active_token(self, token) -> bool:
+        refreshed = self._client.ensure_active_token(token) is True
+        if not refreshed:
+            refreshed = self.load_federation_token() is not None
+        return refreshed
+
+    # We may want to support this for AWS or SAML tokens
+    def exchange_token(self, token: str) -> bool:
+        id = self.id_from_jwt(token)
+        self._client.client_id = id
+        new_token = self._client.fetch_token(
+            self._token_endpoint,
+            assertion=token,
+            grant_type=JWTBearerGrant.GRANT_TYPE,
         )
-        res.raise_for_status()
-        tokens = res.json()
-        self._expires_at = tokens["expires_at"]
-        self._access_token = tokens["access_token"]
+        print(new_token)
+        if new_token.get("access_token"):
+            if self._client.update_token:
+                self._client.update_token(new_token, access_token=token)
+            self._expires_at = new_token["expires_at"]
+            self._access_token = new_token["access_token"]
+            return True
+        return False

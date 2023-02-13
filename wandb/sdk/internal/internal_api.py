@@ -28,8 +28,8 @@ from typing import (
 
 import click
 import requests
-from requests.auth import AuthBase
 import yaml
+from requests.auth import AuthBase
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -41,8 +41,8 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
-from wandb.sdk.lib.jwks import JWKS
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.jwks import JWKS
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -213,7 +213,6 @@ class Api:
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
 
-<<<<<<< HEAD
     @property
     def auth(self) -> AuthBase | Tuple[str, str]:
         if os.getenv(env.ACCESS_TOKEN):
@@ -232,8 +231,6 @@ class Api:
         jwks = JWKS(self.api_url + "/oidc/token")
         return jwks.fetch_token(subject, expires_in)["access_token"]
 
-||||||| bf68a19e6
-=======
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
             *args,
@@ -252,7 +249,6 @@ class Api:
     def context(self) -> context.Context:
         return self._local_data.context or self._global_context
 
->>>>>>> main
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = self.auth

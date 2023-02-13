@@ -1,23 +1,28 @@
 import hashlib
-import os
 import json
-from typing import Optional
+import os
 import time
+from typing import Optional
 
-from authlib.jose import JsonWebKey, KeySet, RSAKey, OKPKey, JsonWebToken
-from authlib.oauth2.rfc7523 import PrivateKeyJWT
 from authlib.common import encoding
+from authlib.jose import JsonWebKey, JsonWebToken, KeySet, OKPKey, RSAKey
+from authlib.oauth2.rfc7523 import PrivateKeyJWT
+
 from wandb import util
+
+from . import filesystem
 
 
 class JWKS:
     # TODO: support multiple hosts
     PATH = os.path.join(os.path.expanduser("~"), ".config", "wandb", "wandb-sdk.jwks")
 
-    def __init__(self, token_endpoint: str, alg: str = "OKP"):
+    def __init__(self, token_endpoint: str, alg: str = "RSA"):
         self.token_endpoint = token_endpoint
         self.jwt = JsonWebToken(["EdDSA", "RS256"])
-        util.mkdir_exists_ok(os.path.join(os.path.expanduser("~"), ".config", "wandb"))
+        filesystem.mkdir_exists_ok(
+            os.path.join(os.path.expanduser("~"), ".config", "wandb")
+        )
         # TODO: support multiple entities
         if alg == "RSA":
             self.alg = "RS256"
@@ -30,9 +35,7 @@ class JWKS:
             # JsonWebKey.generate_key("EC", "P-256", is_private=True)
             # JsonWebKey.generate_key("RSA", 3072, is_private=True)
             if alg == "RSA":
-                key = JsonWebKey.generate_key(
-                    alg, 3072, options={"kid": util.generate_id(12)}, is_private=True
-                )
+                key = JsonWebKey.generate_key(alg, 2048, is_private=True)
             else:
                 key = JsonWebKey.generate_key(
                     alg,
@@ -72,11 +75,15 @@ class JWKS:
         self,
         subject: str,
         expires_in: Optional[int] = None,
-        claims: Optional[dict] = None,
+        scope: Optional[str] = None,
     ) -> dict[str, str]:
-        session = self.delegating_session(claims=claims)
+        session = self.delegating_session()
+        # TODO: wire up audience
         return session.fetch_token(
-            grant_type="client_credentials", acts_as=subject, expires_in=expires_in
+            grant_type="client_credentials",
+            acts_as=subject,
+            scope=scope or "runs.write",
+            expires_in=expires_in,
         )
 
     def link(self, token: str):
@@ -95,22 +102,18 @@ class JWKS:
 
     def delegating_session(
         self,
-        claims: Optional[dict] = None,
-        headers: Optional[dict] = None,
     ):
         from authlib.integrations.requests_client import OAuth2Session
 
         sess = OAuth2Session(
             client_id=self.client_id,
             client_secret=self.key,
-            scope="openid",
+            scope="runs.write",
             token_endpoint=self.token_endpoint,
             token_endpoint_auth_method="private_key_jwt",
         )
         sess.register_client_auth_method(
-            PrivateKeyJWT(
-                self.token_endpoint, claims=claims, headers=headers, alg=self.alg
-            )
+            PrivateKeyJWT(self.token_endpoint, alg=self.alg)
         )
         return sess
 
