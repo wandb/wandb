@@ -646,11 +646,13 @@ class TestUpload:
 
                 mock_file_stream.push_success.assert_not_called()
 
+    @pytest.mark.parametrize("concurrency_limit", [None, 100])
     def test_uses_save_fn_async_iff_settings_say_to(
         self,
         tmp_path: Path,
-        async_settings: SettingsStatic,
+        concurrency_limit: Optional[int],
     ):
+        async_settings = make_async_settings(concurrency_limit=concurrency_limit)
         save_fn_sync = Mock(return_value=False)
 
         async def _save_fn_async(*args, **kwargs):
