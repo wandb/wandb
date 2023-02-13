@@ -74,6 +74,48 @@ Event = Union[
 ]
 
 
+class AsyncExecutor:
+    """Runs async file uploads in a background thread."""
+
+    def __init__(
+        self,
+        pool: concurrent.futures.ThreadPoolExecutor,
+        concurrency_limit: Optional[int],
+    ) -> None:
+
+        self.loop = asyncio.new_event_loop()
+        self.loop.set_default_executor(pool)
+        self.loop_thread = threading.Thread(
+            target=self.loop.run_forever,
+            daemon=True,
+            name="wandb-upload-async",
+        )
+
+        self.concurrency_limiter = asyncio.Semaphore(
+            value=concurrency_limit if concurrency_limit is not None else 128,
+            # Before Python 3.10: if we don't set `loop=loop`,
+            #   then the Semaphore will bind to the wrong event loop,
+            #   causing errors when a coroutine tries to wait for it;
+            #   see https://pastebin.com/XcrS9suX .
+            # After 3.10: the `loop` argument doesn't exist.
+            # So we need to only conditionally pass in `loop`.
+            **({} if sys.version_info >= (3, 10) else {"loop": self.loop}),
+        )
+
+    def start(self) -> None:
+        self.loop_thread.start()
+
+    def stop(self) -> None:
+        self.loop.call_soon_threadsafe(self.loop.stop)
+
+    def submit(self, coro: Awaitable[None]) -> None:
+        async def run_with_limiter() -> None:
+            async with self.concurrency_limiter:
+                await coro
+
+        asyncio.run_coroutine_threadsafe(run_with_limiter(), self.loop)
+
+
 class StepUpload:
     def __init__(
         self,
@@ -97,31 +139,13 @@ class StepUpload:
             max_workers=max_threads,
         )
 
-        self._loop = asyncio.new_event_loop()
-        self._loop.set_default_executor(self._pool)
-        self._loop_thread = threading.Thread(
-            target=self._loop.run_forever,
-            daemon=True,
-            name="wandb-upload-async",
-        )
-
-        self._async_enabled = (
-            settings is not None and settings.async_upload_concurrency_limit is not None
-        )
-        # TODO(spencerpearson): this class should have an instance variable
-        # for whether async is enabled
-        self._async_concurrency_limiter = asyncio.Semaphore(
-            settings.async_upload_concurrency_limit
-            if settings is not None
-            and settings.async_upload_concurrency_limit is not None
-            else 256,
-            # Before Python 3.10: if we don't set `loop=self._loop`,
-            #   then the Semaphore will bind to the wrong event loop,
-            #   causing errors when a coroutine tries to wait for it;
-            #   see https://pastebin.com/XcrS9suX .
-            # After 3.10: the `loop` argument doesn't exist.
-            # So we need to only conditionally pass in `loop`.
-            **({} if sys.version_info >= (3, 10) else {"loop": self._loop}),
+        self._async_executor = (
+            AsyncExecutor(
+                pool=self._pool,
+                concurrency_limit=settings.async_upload_concurrency_limit,
+            )
+            if settings is not None and settings.async_upload_concurrency_limit
+            else None
         )
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
@@ -158,6 +182,9 @@ class StepUpload:
                 self._handle_event(event)
             elif not self._running_jobs:
                 # Queue was empty and no jobs left.
+                self._pool.shutdown(wait=False)
+                if self._async_executor:
+                    self._async_executor.stop()
                 if finish_callback:
                     finish_callback()
                 break
@@ -215,11 +242,15 @@ class StepUpload:
             self._pending_jobs.append(event)
             return
 
-        if self._async_enabled and event.save_fn_async is not None:
+        if self._async_executor and event.save_fn_async is not None:
             # TODO(spencerpearson): leave a comment explaining that even if the
             # user wants async, we sometimes need to fall back to sync anyway,
             # because the async code path just doesn't support all uploads yet
-            self._spawn_upload_async(event, event.save_fn_async)
+            self._spawn_upload_async(
+                event,
+                save_fn_async=event.save_fn_async,
+                async_executor=self._async_executor,
+            )
         else:
             self._spawn_upload_sync(event)
 
@@ -262,9 +293,18 @@ class StepUpload:
         self._pool.submit(run_and_notify)
 
     def _spawn_upload_async(
-        self, event: RequestUpload, save_fn_async: SaveFnAsync
+        self,
+        event: RequestUpload,
+        save_fn_async: SaveFnAsync,
+        async_executor: AsyncExecutor,
     ) -> None:
-        """Equivalent to _spawn_upload_sync, but uses the async event loop instead of a thread."""
+        """Equivalent to _spawn_upload_sync, but uses the async event loop instead of a thread.
+
+        "Why does this method take `save_fn_async` even though it's a field on `event`?"
+        Because `event.save_fn_async` is Optional. This method should only be called if
+        `event.save_fn_async` is not None, but it's hard to tell that to Mypy.
+        Likewise for why this method takes `async_executor` instead of `self._async_executor`.
+        """
 
         self._running_jobs[event.save_name] = event
 
@@ -276,10 +316,7 @@ class StepUpload:
                     upload_job.EventJobDone(event, exc=sys.exc_info()[1])
                 )
 
-        self._loop.call_soon_threadsafe(
-            self._loop.create_task,
-            run_and_notify(),
-        )
+        async_executor.submit(run_and_notify())
 
     def _do_upload_sync(self, event: RequestUpload) -> None:
         job = upload_job.UploadJob(
@@ -308,8 +345,7 @@ class StepUpload:
             request=event,
             save_fn_async=save_fn_async,
         )
-        async with self._async_concurrency_limiter:
-            await job.run()
+        await job.run()
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
@@ -354,7 +390,8 @@ class StepUpload:
 
     def start(self) -> None:
         self._thread.start()
-        self._loop_thread.start()
+        if self._async_executor:
+            self._async_executor.loop_thread.start()
 
     def is_alive(self) -> bool:
         return self._thread.is_alive()
