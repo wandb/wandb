@@ -3,7 +3,6 @@
 import asyncio
 import functools
 import queue
-import sys
 import threading
 import time
 from typing import (
@@ -19,20 +18,6 @@ from typing import (
 
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
-
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
-
-    class OnPrepareFn(Protocol):
-        def __call__(
-            self,
-            upload_url: Optional[str],  # GraphQL type File.uploadUrl
-            upload_headers: Sequence[str],  # GraphQL type File.uploadHeaders
-            artifact_id: str,  # GraphQL type File.artifact.id
-        ) -> None:
-            pass
 
 
 # Request for a file to be prepared.
