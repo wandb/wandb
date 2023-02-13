@@ -243,9 +243,9 @@ class StepUpload:
             return
 
         if self._async_executor and event.save_fn_async is not None:
-            # TODO(spencerpearson): leave a comment explaining that even if the
-            # user wants async, we sometimes need to fall back to sync anyway,
-            # because the async code path just doesn't support all uploads yet
+            # (The `and save_fn_async is not None` is because the async code path
+            # doesn't support all uploads yet: even if the user has requested async,
+            # we sometimes need to use the sync method instead.)
             self._spawn_upload_async(
                 event,
                 save_fn_async=event.save_fn_async,
