@@ -496,7 +496,7 @@ class Settings:
     username: str
     wandb_dir: str
     table_raise_on_max_row_limit_exceeded: bool
-    async_upload_concurrency_limit: int
+    async_upload_concurrency_limit: Optional[int]
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -968,7 +968,10 @@ class Settings:
         return True
 
     @staticmethod
-    def _validate_async_upload_concurrency_limit(value: int) -> bool:
+    def _validate_async_upload_concurrency_limit(value: Optional[int]) -> bool:
+        if value is None:
+            return True
+
         if not isinstance(value, int):
             raise UsageError("async_upload_concurrency_limit must be an int")
 

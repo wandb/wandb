@@ -61,7 +61,7 @@ class SettingsStatic:
     _flow_control_disabled: bool
     _flow_control_custom: bool
     disable_job_creation: bool
-    async_upload_concurrency_limit: int
+    async_upload_concurrency_limit: Optional[int]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int
