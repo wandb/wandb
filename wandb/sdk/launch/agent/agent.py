@@ -64,6 +64,7 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = max_jobs_from_config
+        self._running_sweep_schedulers: int = 0
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
@@ -194,6 +195,9 @@ class LaunchAgent:
         run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
+            if launch_spec['uri'] == "placeholder-uri-scheduler":
+                # track running schedulers, used to account for _running job count
+                self._running_sweep_schedulers += 1
             self._running += 1
 
     def loop(self) -> None:
@@ -213,7 +217,7 @@ class LaunchAgent:
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
-                if self._running < self._max_jobs:
+                if self._running - self._running_sweep_schedulers < self._max_jobs:
                     # only check for new jobs if we're not at max
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
