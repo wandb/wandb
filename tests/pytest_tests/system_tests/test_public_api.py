@@ -3,6 +3,7 @@
 
 from unittest import mock
 
+import os
 import pytest
 import wandb
 import wandb.apis.public
@@ -60,14 +61,22 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
 
 def test_fetching_artifact_files(user, wandb_init):
     project = "test"
-    run = wandb_init(entity=user, project=project)
-    artifact = wandb.Artifact("test-artifact", "test-type")
-    with open("boom.txt", "w") as f:
-        f.write("testing")
-    artifact.add_file("boom.txt", "test-name")
-    run.log_artifact(artifact, aliases=["sequence"])
-    artifact.wait()
-    run.finish()
+
+    with wandb_init(entity=user, project=project) as run:
+        artifact = wandb.Artifact("test-artifact", "test-type")
+        with open("boom.txt", "w") as f:
+            f.write("testing")
+        artifact.add_file("boom.txt", "test-name")
+        run.log_artifact(artifact, aliases=["sequence"])
+
+    # run = wandb_init(entity=user, project=project)
+    # artifact = wandb.Artifact("test-artifact", "test-type")
+    # with open("boom.txt", "w") as f:
+    #     f.write("testing")
+    # artifact.add_file("boom.txt", "test-name")
+    # run.log_artifact(artifact, aliases=["sequence"])
+    # artifact.wait()
+    # run.finish()
 
     # fetch artifact and its file successfully
     artifact = Api().artifact(
@@ -75,6 +84,10 @@ def test_fetching_artifact_files(user, wandb_init):
     )
     boom = artifact.files()[0]
     assert boom.name == "test-name"
+    artifact_path = artifact.download()
+    file_path = os.path.join(artifact_path, boom.name)
+    assert os.path.exists(file_path)
+    assert open(file_path).read() == "testing"
 
 
 def test_save_aliases_after_logging_artifact(user, wandb_init):
