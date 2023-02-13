@@ -89,8 +89,9 @@ class WandbObserver(RunObserver):
                 else:
                     warnings.warn(
                         "logging results does not support type '{}' results. Ignoring this result".format(
-                            type(r)
-                        )
+                            type(r),
+                        ),
+                        stacklevel=2,
                     )
 
     def artifact_event(self, name, filename, metadata=None, content_type=None):
