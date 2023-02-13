@@ -96,7 +96,7 @@ def builder_from_config(
     raise LaunchError("Could not create builder from config.")
 
 
-def create_runner(
+def runner_from_config(
     runner_name: str,
     api: Api,
     runer_config: Dict[str, Any],

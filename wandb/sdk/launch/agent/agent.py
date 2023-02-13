@@ -18,7 +18,7 @@ from .util import (
     environment_from_config,
     registry_from_config,
     builder_from_config,
-    create_runner,
+    runner_from_config,
 )
 from .._project_spec import (
     create_project_from_spec,
@@ -267,7 +267,7 @@ class LaunchAgent:
         if default_runner == resource:
             backend_config["runner"] = self.default_config.get("runner")
 
-        backend = create_runner(resource, self._api, backend_config, environment)
+        backend = runner_from_config(resource, self._api, backend_config, environment)
         backend.verify()
         _logger.info("Backend loaded...")
         run = backend.run(project, builder)
