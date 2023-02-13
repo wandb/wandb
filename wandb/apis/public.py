@@ -4353,6 +4353,19 @@ class Artifact(artifacts.Artifact):
         self._attrs = attrs
         if self._attrs is None:
             self._load()
+
+        # The entity and project above are taken from the passed-in artifact version path
+        # so if the user is pulling an artifact version from an artifact portfolio, the entity/project
+        # of that portfolio may be different than the birth entity/project of the artifact version.
+        self._birth_project = (
+            self._attrs.get("artifactType", {}).get("project", {}).get("name")
+        )
+        self._birth_entity = (
+            self._attrs.get("artifactType", {})
+            .get("project", {})
+            .get("entity", {})
+            .get("name")
+        )
         self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
@@ -5406,8 +5419,8 @@ class ArtifactFiles(Paginator):
     ):
         self.artifact = artifact
         variables = {
-            "entityName": artifact.entity,
-            "projectName": artifact.project,
+            "entityName": artifact._birth_entity,
+            "projectName": artifact._birth_project,
             "artifactTypeName": artifact.type,
             "artifactName": artifact.name,
             "fileNames": names,
