@@ -93,6 +93,9 @@ class DockerBuilder(AbstractBuilder):
 
     def login(self):
         """Login to the registry."""
+        if not self.registry:
+            _logger.info(f"{LOG_PREFIX} No registry configured, skipping login.")
+            return
         username, password = self.registry.get_username_password()
         docker.login(username, password, self.registry.uri)
 
@@ -107,7 +110,7 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
-        repository = self.registry.get_repo_uri()
+        repository = None if not self.registry else self.registry.get_repo_uri()
         if repository:
             image_uri = f"{repository}:{launch_project.image_tag}"
         else:

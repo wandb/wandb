@@ -137,7 +137,9 @@ def mock_load_backend():
         mock_props.kwargs = kwargs
         return mock_props
 
-    with mock.patch("wandb.sdk.launch.launch.loader.load_backend") as mock_load_backend:
+    with mock.patch(
+        "wandb.sdk.launch.agent.util.runner_from_config"
+    ) as mock_load_backend:
         m = mock.Mock(side_effect=side_effect)
         m.run = mock.Mock(side_effect=side_effect)
         mock_load_backend.return_value = m
@@ -1314,10 +1316,8 @@ def test_launch_build_config_file(
             "config": {"cuda": False},
         }
         args, _ = launch.run(**kwargs)
-        _, _, builder, registry_config = args
-        assert builder.builder_config == {"type": "docker"}
+        _, _, builder = args
         assert isinstance(builder, DockerBuilder)
-        assert registry_config == {"url": "test"}
 
 
 def test_resolve_agent_config(test_settings, monkeypatch, runner):
@@ -1341,7 +1341,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
                 f,
             )
         config, returned_api = launch.resolve_agent_config(
-            api, None, None, -1, ["diff-queue"]
+            api, None, None, -1, ["diff-queue"], None
         )
 
         assert config["registry"] == {"url": "test"}

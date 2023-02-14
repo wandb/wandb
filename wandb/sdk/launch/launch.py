@@ -7,6 +7,7 @@ import yaml
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError, LaunchError
+from wandb.sdk.launch.agent import util
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
@@ -191,10 +192,12 @@ def _run(
         launch_config,
     )
 
-    builder = builder_loader.load_builder(build_config)
-    backend = loader.load_backend(resource, api, runner_config)
+    environment = util.environment_from_config(launch_config.get("environment", {}))
+    registry = util.registry_from_config(registry_config, environment)
+    builder = util.builder_from_config(build_config, environment, registry)
+    backend = util.runner_from_config(resource, api, runner_config, environment)
     if backend:
-        submitted_run = backend.run(launch_project, builder, registry_config)
+        submitted_run = backend.run(launch_project, builder)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config
         assert submitted_run
