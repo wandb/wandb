@@ -41,7 +41,7 @@ def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_confi
             )
 
 
-def test_sweep_scheduler_sweep_id_no_job(user, relay_server, monkeypatch):
+def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
 
     def mock_run_complete_scheduler(self, *args, **kwargs):
@@ -57,6 +57,35 @@ def test_sweep_scheduler_sweep_id_no_job(user, relay_server, monkeypatch):
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
     # No job
+    scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    scheduler.start()  # should raise no job found
+    assert scheduler.state == SchedulerState.FAILED
+
+
+def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
+    sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
+
+    # make a job
+    run = wandb_init()
+    job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr", args=[])
+    job_name = job_artifact.wait().name
+    sweep_config["job"] = job_name
+    run.finish()
+
+    def mock_run_complete_scheduler(self, *args, **kwargs):
+        self.state = SchedulerState.COMPLETED
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_complete_scheduler,
+    )
+
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    # Entity, project, and sweep
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    # Yes job
     scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
     scheduler.start()  # should raise no job found
     assert scheduler.state == SchedulerState.FAILED
