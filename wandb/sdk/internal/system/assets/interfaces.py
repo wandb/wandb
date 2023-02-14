@@ -34,19 +34,31 @@ class Metric(Protocol):
     # samples: Sequence[Tuple[TimeStamp, Sample]]
     samples: "Deque[Any]"
 
-    def setup(self) -> None:
-        ...  # pragma: no cover
-
     def sample(self) -> None:
+        """Sample the metric"""
         ...  # pragma: no cover
 
     def clear(self) -> None:
+        """Clear the samples"""
         ...  # pragma: no cover
 
     def aggregate(self) -> dict:
+        """Aggregate the samples"""
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class SetupTeardown(Protocol):
+    """
+    Protocol for classes that require setup and teardown
+    """
+
+    def setup(self) -> None:
+        """Extra setup required for the metric beyond __init__"""
         ...  # pragma: no cover
 
     def teardown(self) -> None:
+        """Extra teardown required for the metric"""
         ...  # pragma: no cover
 
 
@@ -164,25 +176,35 @@ class MetricsMonitor:
             logger.error(f"Failed to publish metrics: {e}")
 
     def start(self) -> None:
-        if self._process is None and not self._shutdown_event.is_set():
+        if (self._process is not None) or self._shutdown_event.is_set():
+            return None
+
+        try:
             for metric in self.metrics:
-                metric.setup()
+                if isinstance(metric, SetupTeardown):
+                    metric.setup()
             self._process = threading.Thread(
                 target=self.monitor,
                 daemon=True,
-                name=f"{self.asset_name}",
+                name=self.asset_name,
             )
             self._process.start()
-            logger.info(f"Started {self._process.name}")
+            logger.info(f"Started {self.asset_name} monitoring")
+        except Exception as e:
+            logger.warning(f"Failed to start {self.asset_name} monitoring: {e}")
+            self._process = None
 
     def finish(self) -> None:
         if self._process is None:
             return None
+
         try:
             self._process.join()
-            logger.info(f"Joined {self._process.name}")
+            logger.info(f"Joined {self.asset_name} monitor")
             for metric in self.metrics:
-                metric.teardown()
+                if isinstance(metric, SetupTeardown):
+                    metric.teardown()
         except Exception as e:
-            logger.warning(f"Failed to join {self._process.name}: {e}")
-        self._process = None
+            logger.warning(f"Failed to finish {self.asset_name} monitoring: {e}")
+        finally:
+            self._process = None
