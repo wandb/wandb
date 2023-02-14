@@ -12,10 +12,6 @@ import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.runner.sagemaker_runner import (
     SagemakerSubmittedRun,
-    get_aws_credentials,
-    get_ecr_repository_url,
-    get_region,
-    validate_sagemaker_requirements,
 )
 
 from tests.pytest_tests.unit_tests_old.utils import fixture_open
@@ -405,24 +401,6 @@ def test_aws_submitted_run_cancel():
 def test_aws_submitted_run_id():
     run = SagemakerSubmittedRun("test-job-1", None)
     assert run.id == "sagemaker-test-job-1"
-
-
-def test_aws_get_aws_credentials_file_success(runner, monkeypatch):
-    def mock_get_creds(self, section, key):
-        if key == "aws_access_key_id":
-            return "test-key"
-        elif key == "aws_secret_access_key":
-            return "test-secret"
-        else:
-            return None
-
-    monkeypatch.setattr(configparser.ConfigParser, "read", lambda x, y: {})
-    monkeypatch.setattr(configparser.ConfigParser, "get", mock_get_creds)
-
-    with runner.isolated_filesystem():
-        key, secret = get_aws_credentials({})
-        assert key == "test-key"
-        assert secret == "test-secret"
 
 
 def test_failed_aws_cred_login(
