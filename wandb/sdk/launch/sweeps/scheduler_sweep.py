@@ -123,6 +123,14 @@ class SweepScheduler(Scheduler):
                 run: SweepRun = self._heartbeat_queue.get(
                     timeout=self._heartbeat_queue_timeout
                 )
+
+                # If run is already stopped just ignore the request
+                if run.state in [
+                    SimpleRunState.Dead,
+                    SimpleRunState.Unknown,
+                ]:
+                    wandb.termwarn(f"Launch run {run.id} that is already stopped.")
+
                 wandb.termlog(
                     f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
                 )
