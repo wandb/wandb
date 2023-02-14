@@ -172,6 +172,7 @@ class NeuronCoreStats:
         logger.debug("Stopping neuron-monitor thread")
         try:
             self.shutdown_event.set()
+            assert self.neuron_monitor_thread is not None
             self.neuron_monitor_thread.join()
         except Exception as e:
             logger.error("neuron-monitor thread failed to stop: %s" % e)
