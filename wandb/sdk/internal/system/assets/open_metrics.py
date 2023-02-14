@@ -40,15 +40,26 @@ class OpenMetricsMetric:
     def __init__(self, name: str, url: str) -> None:
         self.name = name
         self.url = url
-        self.session = requests.Session()
+        self.session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
         self.label_map: "Dict[str, Dict[str, int]]" = defaultdict(dict)
         # {"<labels hash>": <labels>}
         self.label_hashes: "Dict[str, dict]" = {}
 
+    def setup(self) -> None:
+        if self.session is None:
+            self.session = requests.Session()
+
+    def teardown(self) -> None:
+        if self.session is not None:
+            self.session.close()
+            self.session = None
+
     def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
         assert prometheus_client_parser is not None
+        assert self.session is not None
+
         response = self.session.get(self.url)
         text = response.text
         measurement = {}
