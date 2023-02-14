@@ -1,12 +1,12 @@
 """Utilities for the agent."""
 from typing import Any, Dict, Optional
 
-from wandb.errors import LaunchError
-from wandb.util import get_module
 from wandb.apis.internal import Api
+from wandb.errors import LaunchError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.util import get_module
 
 
 def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnvironment:

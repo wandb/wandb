@@ -2,10 +2,10 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
-from .._project_spec import EntryPoint, LaunchProject
-
-from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
+
+from .._project_spec import EntryPoint, LaunchProject
 
 
 class AbstractBuilder(ABC):

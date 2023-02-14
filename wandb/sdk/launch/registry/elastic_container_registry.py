@@ -1,7 +1,7 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
 import base64
 import logging
-from typing import Tuple, Dict
+from typing import Dict, Tuple
 
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.utils import LaunchError

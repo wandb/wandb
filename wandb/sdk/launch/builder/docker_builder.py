@@ -6,9 +6,8 @@ from typing import Any, Dict
 import wandb
 import wandb.docker as docker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
-from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
-
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import (
     EntryPoint,

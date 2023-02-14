@@ -5,16 +5,13 @@ from unittest.mock import MagicMock
 import boto3
 import kubernetes
 import pytest
-import wandb
 from google.cloud import storage
-from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
-from wandb.sdk.launch.builder.kaniko_builder import (
-    KanikoBuilder,
-    _wait_for_completion,
-)
-from wandb.sdk.launch.utils import LaunchError
 
+import wandb
 from tests.pytest_tests.unit_tests_old.utils import fixture_open
+from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
+from wandb.sdk.launch.builder.kaniko_builder import KanikoBuilder, _wait_for_completion
+from wandb.sdk.launch.utils import LaunchError
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 
