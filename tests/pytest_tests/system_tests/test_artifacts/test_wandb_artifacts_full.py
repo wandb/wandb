@@ -2,12 +2,14 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import WaitTimeoutError
+from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -265,4 +267,20 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact = wandb.Artifact("art", type="image")
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
+    run.finish()
+
+
+@pytest.mark.parametrize("async_upload_concurrency_limit", [None, 1, 10])
+def test_artifact_upload_succeeds_with_async(
+    wandb_init: Callable[..., Run],
+    async_upload_concurrency_limit: Optional[int],
+    tmp_path: Path,
+):
+    run = wandb_init(
+        settings=dict(async_upload_concurrency_limit=async_upload_concurrency_limit)
+    )
+    artifact = wandb.Artifact("art", type="dataset")
+    (tmp_path / "my-file.txt").write_text("my contents")
+    artifact.add_dir(str(tmp_path))
+    run.log_artifact(artifact).wait(timeout=5)
     run.finish()

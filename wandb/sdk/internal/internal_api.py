@@ -2118,7 +2118,10 @@ class Api:
             response = await self._async_httpx_client.put(
                 url=url,
                 content=progress,
-                headers=extra_headers,
+                headers={
+                    "Content-Length": str(len(progress)),
+                    **extra_headers,
+                },
             )
             response.raise_for_status()
         except Exception as e:
