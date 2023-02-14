@@ -1,4 +1,5 @@
 import pytest
+
 import wandb
 from wandb.apis.importers import MlflowImporter
 
@@ -15,18 +16,8 @@ def test_mlflow(prelogged_mlflow_server, user):
     importer = MlflowImporter(mlflow_tracking_uri=mlflow_server)
     importer.send_everything_parallel(overrides=overrides)
 
-    api = wandb.Api()
-    # this assumes knowledge of the prelogged_mlflow_server
-    # we could move "logging data to mlflow" out of the fixture and into this test
-
-    runs = list(api.runs(f"{user}/{project}"))
+    runs = list(wandb.Api().runs(f"{user}/{project}"))
     assert len(runs) == exps * runs_per_exp
-
     for run in runs:
-        _i = 0
-        for _i, _ in enumerate(run.scan_history(), start=1):
-            pass
-
-        length = _i
-        assert length == steps
-        assert length == steps
+        # https://stackoverflow.com/a/50645935
+        assert len(list(run.scan_history())) == steps
