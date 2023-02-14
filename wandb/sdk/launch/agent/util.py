@@ -65,7 +65,9 @@ def registry_from_config(
     if registry_type == "gcr":
         module = get_module("wandb.sdk.launch.registry.google_artifact_registry")
         return module.GoogleArtifactRegistry.from_config(config, environment)
-    raise LaunchError("Could not create registry from config.")
+    raise LaunchError(
+        f"Could not create registry from config. Invalid registry type: {registry_type}"
+    )
 
 
 def builder_from_config(
@@ -100,7 +102,9 @@ def builder_from_config(
     if builder_type == "noop":
         module = get_module("wandb.sdk.launch.builder.noop")
         return module.NoOpBuilder.from_config(config, environment, registry)
-    raise LaunchError("Could not create builder from config.")
+    raise LaunchError(
+        f"Could not create builder from config. Invalid builder type: {builder_type}"
+    )
 
 
 def runner_from_config(
@@ -142,4 +146,6 @@ def runner_from_config(
     if runner_name == "kubernetes":
         module = get_module("wandb.sdk.launch.runner.kubernetes_runner")
         return module.KubernetesRunner(api, runer_config, environment)
-    raise LaunchError("Could not create runner from config.")
+    raise LaunchError(
+        f"Could not create runner from config. Invalid runner name: {runner_name}"
+    )
