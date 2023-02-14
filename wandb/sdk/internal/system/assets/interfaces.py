@@ -34,6 +34,9 @@ class Metric(Protocol):
     # samples: Sequence[Tuple[TimeStamp, Sample]]
     samples: "Deque[Any]"
 
+    def setup(self) -> None:
+        ...  # pragma: no cover
+
     def sample(self) -> None:
         ...  # pragma: no cover
 
@@ -41,6 +44,9 @@ class Metric(Protocol):
         ...  # pragma: no cover
 
     def aggregate(self) -> dict:
+        ...  # pragma: no cover
+
+    def teardown(self) -> None:
         ...  # pragma: no cover
 
 
@@ -159,6 +165,8 @@ class MetricsMonitor:
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
+            for metric in self.metrics:
+                metric.setup()
             self._process = threading.Thread(
                 target=self.monitor,
                 daemon=True,
@@ -173,6 +181,8 @@ class MetricsMonitor:
         try:
             self._process.join()
             logger.info(f"Joined {self._process.name}")
+            for metric in self.metrics:
+                metric.teardown()
         except Exception as e:
             logger.warning(f"Failed to join {self._process.name}: {e}")
         self._process = None
