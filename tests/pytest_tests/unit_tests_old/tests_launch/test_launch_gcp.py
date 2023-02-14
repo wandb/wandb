@@ -1,11 +1,11 @@
 import subprocess
-
+from unittest.mock import MagicMock
 import pytest
 import wandb
 import wandb.sdk.launch.launch as launch
 from google.cloud import aiplatform
 from wandb.errors import LaunchError
-from wandb.sdk.launch.runner.gcp_vertex import get_gcp_config, run_shell
+from wandb.sdk.launch.runner.vertex_runner import get_gcp_config, run_shell
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -95,16 +95,12 @@ def setup_mock_aiplatform(status, monkeypatch):
             display_name, worker_pool_specs, job_dict
         ),
     )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.gcp_vertex.get_gcp_config",
-        lambda config: patched_get_gcp_config(config),
-    )
     return job_dict
 
 
 @pytest.mark.timeout(320)
 def test_launch_gcp_vertex(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+    mocker, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
@@ -121,16 +117,22 @@ def test_launch_gcp_vertex(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "gcp-vertex",
+        "resource": "vertex",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
-            "gcp_vertex": {
+            "vertex": {
                 "staging_bucket": "test-bucket",
                 "artifact_repo": "test_repo",
             },
         },
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "dummy"
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.environment_from_config", return_value=environment
+    )
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]
@@ -144,7 +146,7 @@ def test_launch_gcp_vertex(
 
 @pytest.mark.timeout(320)
 def test_launch_gcp_vertex_failed(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+    mocker, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     job_dict = setup_mock_aiplatform(FAILED, monkeypatch)
 
@@ -161,23 +163,29 @@ def test_launch_gcp_vertex_failed(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "gcp-vertex",
+        "resource": "vertex",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
-            "gcp_vertex": {
+            "vertex": {
                 "staging_bucket": "test-bucket",
                 "artifact_repo": "test_repo",
             },
         },
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "dummy"
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.environment_from_config", return_value=environment
+    )
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]
     assert run.get_status().state == "failed"
 
 
-def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
+def test_vertex_options(test_settings, mocker, monkeypatch, mocked_fetchable_git_repo):
     job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
     api = wandb.sdk.internal.internal_api.Api(
@@ -187,17 +195,23 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "gcp-vertex",
+        "resource": "vertex",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {"gcp_vertex": {}},
+        "resource_args": {"vertex": {}},
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "dummy"
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.environment_from_config", return_value=environment
+    )
     try:
         launch.run(**kwargs)
     except LaunchError as e:
         assert "No Vertex resource args specified" in str(e)
 
-    kwargs["resource_args"]["gcp_vertex"]["region"] = "us-east1"
+    kwargs["resource_args"]["vertex"]["region"] = "us-east1"
     try:
         launch.run(**kwargs)
     except LaunchError as e:
@@ -206,7 +220,7 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
             in str(e)
         )
 
-    kwargs["resource_args"]["gcp_vertex"]["staging_bucket"] = "test-bucket"
+    kwargs["resource_args"]["vertex"]["staging_bucket"] = "test-bucket"
     try:
         launch.run(**kwargs)
     except LaunchError as e:
@@ -214,7 +228,7 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
 
 
 def test_vertex_supplied_docker_image(
-    test_settings, monkeypatch, mocked_fetchable_git_repo
+    mocker, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
@@ -223,17 +237,21 @@ def test_vertex_supplied_docker_image(
     )
     kwargs = {
         "api": api,
-        "resource": "gcp-vertex",
+        "resource": "vertex",
         "entity": "mock_server_entity",
         "project": "test",
         "docker_image": "test:tag",
         "resource_args": {
-            "gcp_vertex": {
+            "vertex": {
                 "staging_bucket": "test-bucket",
                 "artifact_repo": "test_repo",
             },
         },
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "test"
+    mocker.patch("wandb.sdk.launch.agent.util.environment_from_config", environment)
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]
@@ -244,29 +262,3 @@ def test_vertex_supplied_docker_image(
 
 def test_run_shell():
     assert run_shell(["echo", "hello"])[0] == "hello"
-
-
-def test_get_gcp_config(monkeypatch):
-    def mock_gcp_config(args, stdout, stderr):
-        config_str = """
-is_active: true
-name: default
-properties:
-  compute:
-    zone: us-east1-b
-  core:
-    account: test-account
-    project: test-project
-"""
-        return MockDict(
-            {"stdout": bytes(config_str, "utf-8"), "stderr": bytes("", "utf-8")}
-        )
-
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda args, stdout, stderr: mock_gcp_config(args, stdout, stderr),
-    )
-    result = get_gcp_config()
-    assert result["properties"]["compute"]["zone"] == "us-east1-b"
-    assert result["properties"]["core"]["project"] == "test-project"
