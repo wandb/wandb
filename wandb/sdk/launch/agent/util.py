@@ -25,6 +25,8 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
         LaunchError: If the environment is not configured correctly.
     """
     env_type = config.get("type")
+    if env_type is None:
+        return None
     if env_type == "aws":
         module = get_module("wandb.sdk.launch.environment.aws_environment")
         return module.AwsEnvironment.from_config(config)
@@ -55,6 +57,8 @@ def registry_from_config(
         LaunchError: If the registry is not configured correctly.
     """
     registry_type = config.get("type")
+    if registry_type is None:
+        return None
     if registry_type == "ecr":
         module = get_module("wandb.sdk.launch.registry.elastic_container_registry")
         return module.ElasticContainerRegistry.from_config(config, environment)
@@ -87,12 +91,15 @@ def builder_from_config(
         LaunchError: If the builder is not configured correctly.
     """
     builder_type = config.get("type")
-    if builder_type == "docker":
+    if builder_type == "docker" or not builder_type:
         module = get_module("wandb.sdk.launch.builder.docker_builder")
         return module.DockerBuilder.from_config(config, environment, registry)
     if builder_type == "kaniko":
         module = get_module("wandb.sdk.launch.builder.kaniko_builder")
         return module.KanikoBuilder.from_config(config, environment, registry)
+    if builder_type == "noop":
+        module = get_module("wandb.sdk.launch.builder.noop")
+        return module.NoOpBuilder.from_config(config, environment, registry)
     raise LaunchError("Could not create builder from config.")
 
 
@@ -120,7 +127,7 @@ def runner_from_config(
     Raises:
         LaunchError: If the runner is not configured correctly.
     """
-    if runner_name == "local-container":
+    if runner_name == "local-container" or not runner_name:
         module = get_module("wandb.sdk.launch.runner.local_container")
         return module.LocalContainerRunner(api, runer_config, environment)
     if runner_name == "local-process":
