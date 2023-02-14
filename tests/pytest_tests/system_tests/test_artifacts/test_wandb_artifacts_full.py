@@ -10,6 +10,7 @@ import wandb
 from wandb import wandb_sdk
 from wandb.errors import WaitTimeoutError
 from wandb.sdk.wandb_run import Run
+from wandb.sdk.wandb_artifacts import Artifact
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -276,11 +277,16 @@ def test_artifact_upload_succeeds_with_async(
     async_upload_concurrency_limit: Optional[int],
     tmp_path: Path,
 ):
-    run = wandb_init(
+    with wandb_init(
         settings=dict(async_upload_concurrency_limit=async_upload_concurrency_limit)
-    )
-    artifact = wandb.Artifact("art", type="dataset")
-    (tmp_path / "my-file.txt").write_text("my contents")
-    artifact.add_dir(str(tmp_path))
-    run.log_artifact(artifact).wait(timeout=5)
-    run.finish()
+    ) as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        (tmp_path / "my-file.txt").write_text("my contents")
+        artifact.add_dir(str(tmp_path))
+        run.log_artifact(artifact).wait(timeout=5)
+
+    # re-download the artifact
+    with wandb.init() as using_run:
+        using_artifact: Artifact = using_run.use_artifact("art:latest")
+        using_artifact.download(root=str(tmp_path / "downloaded"))
+        assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
