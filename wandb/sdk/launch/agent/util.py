@@ -142,7 +142,7 @@ def runner_from_config(
         return module.SagemakerRunner(api, runer_config, environment)
     if runner_name == "vertex":
         module = get_module("wandb.sdk.launch.runner.vertex_runner")
-        return module.GcpRunner(api, runer_config, environment)
+        return module.VertexRunner(api, runer_config, environment)
     if runner_name == "kubernetes":
         module = get_module("wandb.sdk.launch.runner.kubernetes_runner")
         return module.KubernetesRunner(api, runer_config, environment)
