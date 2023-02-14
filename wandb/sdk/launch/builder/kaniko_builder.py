@@ -41,9 +41,6 @@ def _wait_for_completion(
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
-            import code
-
-            code.interact(local=locals())
             wandb.termerror(f"{LOG_PREFIX}Build job {job.status.failed} failed {job}")
             return False
         wandb.termlog(f"{LOG_PREFIX}Waiting for build job to complete...")
