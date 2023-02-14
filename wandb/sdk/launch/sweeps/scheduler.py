@@ -130,8 +130,7 @@ class Scheduler(ABC):
         ]:
             return False
         elif len(self._workers) == 0:
-            print(">>>>>>")
-            self.state(SchedulerState.STOPPED)
+            self.state = SchedulerState.STOPPED
             return False
         return True
 
