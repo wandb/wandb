@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
+import yaml
 
 import wandb
 import wandb.apis.public as public
@@ -43,7 +44,6 @@ class SweepRun:
     queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
-    program: Optional[str] = None
     # Threading can be used to run multiple workers in parallel
     worker_id: Optional[int] = None
 
@@ -75,7 +75,10 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            resp = self._api.sweep(
+                sweep_id, "{}", entity=self._entity, project=self._project
+            )
+            self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
         self._sweep_id: str = sweep_id or "empty-sweep-id"
