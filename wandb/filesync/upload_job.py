@@ -208,8 +208,12 @@ class UploadJobAsync:
             await loop.run_in_executor(None, sync_job.run)
         else:
             self._file_stream.push_success(self._request.artifact_id, self._request.save_name)  # type: ignore
+
             if deduped:
+                logger.info("Skipped uploading %s", self._request.path)
                 self._stats.set_file_deduped(self._request.path)
+            else:
+                logger.info("Uploaded file %s", self._request.path)
         finally:
             # Note: whereas UploadJob removes the file in a finally block,
             # here we only remove it if the upload was successful
