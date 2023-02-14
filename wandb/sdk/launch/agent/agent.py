@@ -200,7 +200,7 @@ class LaunchAgent:
         run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
-            if launch_spec["uri"] == "placeholder-uri-scheduler":
+            if launch_spec.get("uri") == "placeholder-uri-scheduler":
                 # also track running schedulers, used to account for _running job count
                 self._scheduler_jobs.add(run.id)
             else:  # don't track schedulers in running count
