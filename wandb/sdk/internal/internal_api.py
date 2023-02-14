@@ -2120,7 +2120,7 @@ class Api:
                 content=progress,
                 headers={
                     "Content-Length": str(len(progress)),
-                    **extra_headers,
+                    **(extra_headers if extra_headers is not None else {}),
                 },
             )
             response.raise_for_status()
