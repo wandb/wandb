@@ -816,13 +816,25 @@ class TestAsyncUploadConcurrency:
             with pytest.raises(UsageError):
                 test_settings({"async_upload_concurrency_limit": value})
 
+    @pytest.mark.parametrize(
+        ["value", "warn"], [(None, False), (1, False), (9999999, True)]
+    )
     @mock.patch("wandb.termwarn")
-    def test_warns_if_exceeds_filelimit(self, termwarn: mock.Mock, test_settings):
+    def test_warns_if_exceeds_filelimit(
+        self,
+        termwarn: mock.Mock,
+        test_settings,
+        value: Optional[int],
+        warn: bool,
+    ):
         pytest.importorskip("resource")
-        test_settings({"async_upload_concurrency_limit": 999999999999})
+        test_settings({"async_upload_concurrency_limit": value})
 
-        termwarn.assert_called_once()
-        assert "exceeds this process's limit" in termwarn.call_args[0][0]
+        if warn:
+            termwarn.assert_called_once()
+            assert "exceeds this process's limit" in termwarn.call_args[0][0]
+        else:
+            termwarn.assert_not_called()
 
 
 # --------------------------

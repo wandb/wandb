@@ -988,15 +988,17 @@ class Settings:
             # we just won't use it to cap the concurrency.
             pass
         else:
-            wandb.termwarn(
-                (
-                    "async_upload_concurrency_limit setting exceeds this process's limit"
-                    + f" on open files ({file_limit}); may cause file-upload failures."
-                    + " Try decreasing async_upload_concurrency_limit,"
-                    + " or increasing your file limit with `ulimit -n`."
-                ),
-                repeat=False,
-            )
+            if value > file_limit:
+                wandb.termwarn(
+                    (
+                        "async_upload_concurrency_limit setting of"
+                        + f"{value} exceeds this process's limit"
+                        + f" on open files ({file_limit}); may cause file-upload failures."
+                        + " Try decreasing async_upload_concurrency_limit,"
+                        + " or increasing your file limit with `ulimit -n`."
+                    ),
+                    repeat=False,
+                )
 
         return True
 
