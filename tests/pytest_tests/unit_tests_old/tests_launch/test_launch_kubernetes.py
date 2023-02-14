@@ -189,8 +189,13 @@ def pods(job_name):
 
 
 @pytest.mark.timeout(320)
-def test_launch_kube(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+def test_launch_kube_works(
+    mocker,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
+    capsys,
 ):
     jobs = {}
     status = MockDict(
@@ -272,6 +277,17 @@ def test_launch_kube(
         },
     }
 
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        return_value=None,
+    )
+
     with pytest.raises(LaunchError) as e:
         run = launch.run(**kwargs)
         assert "Launch only builds one container at a time" in str(e.value)
@@ -297,7 +313,6 @@ def test_launch_kube(
     assert args["env"][0] in job.spec.template.spec.containers[0].env
     assert job.spec.template.spec.node_selector == args["node_selector"]
     container = job.spec.template.spec.containers[0]
-    assert "test.registry/repo_name" in container.image
     assert container["volumeMounts"] == args["volume_mounts"]
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
@@ -305,7 +320,7 @@ def test_launch_kube(
 
 @pytest.mark.timeout(320)
 def test_launch_kube_suspend_cancel(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+    mocker, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     jobs = {}
     status = MockDict(
@@ -342,6 +357,16 @@ def test_launch_kube_suspend_cancel(
         },
         "synchronous": False,
     }
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        return_value=None,
+    )
     run = launch.run(**kwargs)
     assert run.get_status().state == "running"
     run.suspend()
@@ -359,7 +384,12 @@ def test_launch_kube_suspend_cancel(
 
 @pytest.mark.timeout(320)
 def test_launch_kube_failed(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+    mocker,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
+    capsys,
 ):
     jobs = {}
     status = MockDict(
@@ -389,6 +419,16 @@ def test_launch_kube_failed(
         "project": project,
         "resource_args": {},
     }
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        return_value=None,
+    )
     run = launch.run(**kwargs)
 
     assert run.id == pod_name
@@ -547,7 +587,12 @@ def test_kube_multi_container(
 
 @pytest.mark.timeout(320)
 def test_get_status_failed(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+    mocker,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
+    capsys,
 ):
     def read_namespaced_pod_log_error(c, name, namespace):
         raise Exception("test read_namespaced_pod_log_error")
@@ -586,7 +631,16 @@ def test_get_status_failed(
         "resource_args": {"kubernetes": {}},
         "synchronous": False,
     }
-
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        return_value=None,
+    )
     run = launch.run(**kwargs)
     run.get_status()  # fail count => 0
     run.get_status()  # fail count =>
@@ -599,67 +653,29 @@ def test_get_status_failed(
         assert "Failed to start job" in str(e.value)
 
 
-def test_maybe_create_imagepull_secret_none():
-    secret = maybe_create_imagepull_secret(MagicMock(), {}, "12345678", "wandb")
-    assert secret is None
-
-
 def test_maybe_create_imagepull_secret_given_creds(runner, monkeypatch):
-    mock_client = MagicMock()
-    mock_client().get_authorization_token.return_value = {
-        "authorizationData": [
-            {"authorizationToken": base64.b64encode(b"AWS:faketesttoken").decode()}
-        ]
-    }
-    monkeypatch.setattr(boto3, "client", mock_client)
-    creds = {"secret-name": "aws-secret", "secret-mount-path": "./test"}
-    url = "12345678.dkr.ecr.us-east-1.amazonaws.com:test-repo"
-    secret = maybe_create_imagepull_secret(
-        MagicMock(),
-        {
-            "ecr-provider": "AWS",
-            "url": url,
-            "credentials": creds,
-        },
+    mock_registry = MagicMock()
+    mock_registry.get_username_password.return_value = ("testuser", "testpass")
+    mock_registry.uri = "test.com"
+    api = MagicMock()
+    maybe_create_imagepull_secret(
+        api,
+        mock_registry,
         "12345678",
         "wandb",
     )
-    # assert secret is None
-    assert (
-        base64.b64decode(secret.data[".dockerconfigjson"])
-        == json.dumps(
+    namespace, secret = api.create_namespaced_secret.call_args[0]
+    assert namespace == "wandb"
+    assert secret.metadata.name == "regcred-12345678"
+    assert secret.data[".dockerconfigjson"] == base64.b64encode(
+        json.dumps(
             {
                 "auths": {
-                    url: {
-                        "username": "AWS",
-                        "password": "faketesttoken",
+                    "test.com": {
+                        "auth": "dGVzdHVzZXI6dGVzdHBhc3M=",  # testuser:testpass
                         "email": "deprecated@wandblaunch.com",
-                        "auth": base64.b64encode(b"AWS:faketesttoken").decode(),
                     }
                 }
             }
-        ).encode()
-    )
-
-
-def test_maybe_create_imagepull_secret_invalid_provider(runner, monkeypatch):
-    mock_client = MagicMock()
-    mock_client().get_authorization_token.return_value = {
-        "authorizationData": [
-            {"authorizationToken": base64.b64encode(b"AWS:faketesttoken").decode()}
-        ]
-    }
-    monkeypatch.setattr(boto3, "client", mock_client)
-    creds = {"secret-name": "aws-secret", "secret-mount-path": "./test"}
-    url = "12345678.dkr.ecr.us-east-1.amazonaws.com:test-repo"
-    with pytest.raises(LaunchError):
-        maybe_create_imagepull_secret(
-            MagicMock(),
-            {
-                "ecr-provider": "GCP",
-                "url": url,
-                "credentials": creds,
-            },
-            "12345678",
-            "wandb",
-        )
+        ).encode("utf-8")
+    ).decode("utf-8")
