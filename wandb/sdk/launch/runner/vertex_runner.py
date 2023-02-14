@@ -11,6 +11,8 @@ import yaml
 
 import wandb
 from wandb.errors import LaunchError
+from wandb.apis.internal import Api
+from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
@@ -70,15 +72,21 @@ class VertexSubmittedRun(AbstractRun):
 
 
 class VertexRunner(AbstractRunner):
-    """Runner class, uses a project to create a VertexSubmittedRun"""
+    """Runner class, uses a project to create a VertexSubmittedRun."""
+
+    def __init__(
+        self, api: Api, backend_config: Dict[str, Any], environment: GcpEnvironment
+    ) -> None:
+        """Initialize a VertexRunner instance."""
+        super().__init__(api, backend_config)
+        self.environment = environment
 
     def run(
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
-
+        """Run a Vertex job."""
         aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
@@ -89,28 +97,11 @@ class VertexRunner(AbstractRunner):
             raise LaunchError(
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
             )
-        gcp_config = get_gcp_config(resource_args.get("gcp_config") or "default")
-        gcp_project = (
-            resource_args.get("gcp_project")
-            or gcp_config["properties"]["core"]["project"]
-        )
-        gcp_zone = resource_args.get("gcp_region") or gcp_config["properties"].get(
-            "compute", {}
-        ).get("zone")
-        gcp_region = "-".join(gcp_zone.split("-")[:2])
         gcp_staging_bucket = resource_args.get("staging_bucket")
         if not gcp_staging_bucket:
             raise LaunchError(
                 "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
             )
-        gcp_artifact_repo = resource_args.get("artifact_repo")
-        if not gcp_artifact_repo:
-            raise LaunchError(
-                "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key artifact_repo."
-            )
-        gcp_docker_host = (
-            resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
-        )
         gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
         gcp_accelerator_type = (
             resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
@@ -126,7 +117,9 @@ class VertexRunner(AbstractRunner):
         tensorboard = resource_args.get("tensorboard")
 
         aiplatform.init(
-            project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
+            project=self.environment.project,
+            location=self.environment.region,
+            staging_bucket=gcp_staging_bucket,
         )
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
@@ -135,16 +128,9 @@ class VertexRunner(AbstractRunner):
         if launch_project.docker_image:
             image_uri = launch_project.docker_image
         else:
-
-            repository = construct_gcp_registry_uri(
-                gcp_artifact_repo,
-                gcp_project,
-                gcp_docker_host,
-            )
             assert entry_point is not None
             image_uri = builder.build_image(
                 launch_project,
-                repository,
                 entry_point,
             )
 

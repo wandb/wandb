@@ -32,7 +32,7 @@ def load_backend(
 
         return LocalProcessRunner(api, backend_config)
     elif backend_name == "gcp-vertex":
-        from .gcp_vertex import VertexRunner
+        from .vertex_runner import VertexRunner
 
         return VertexRunner(api, backend_config)
     elif backend_name == "sagemaker":
