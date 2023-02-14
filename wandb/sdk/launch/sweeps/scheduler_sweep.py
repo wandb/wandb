@@ -126,10 +126,17 @@ class SweepScheduler(Scheduler):
 
                 # If run is already stopped just ignore the request
                 if run.state in [
-                    SimpleRunState.Dead,
-                    SimpleRunState.Unknown,
+                    SimpleRunState.DEAD,
+                    SimpleRunState.UNKNOWN,
                 ]:
-                    wandb.termwarn(f"Launch run {run.id} that is already stopped.")
+                    if self.state == SchedulerState.STOPPED:
+                        # Scheduler hit the run_cap, let it launch runs then it will stop
+                        pass
+                    else:
+                        logging.debug(
+                            f"{LOG_PREFIX}Tring to launch [{run.id}] but it is already stopped"
+                        )
+                        return
 
                 wandb.termlog(
                     f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
