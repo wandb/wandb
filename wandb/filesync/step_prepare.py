@@ -96,7 +96,7 @@ class StepPrepare:
                     block=True,
                     timeout=_clamp(
                         x=batch_end_time - time.time(),
-                        low=1e-12,
+                        low=1e-12,  # 0 = "block forever", so just use something tiny
                         high=self._inter_event_time,
                     ),
                 )
