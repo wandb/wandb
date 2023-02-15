@@ -144,6 +144,7 @@ class SweepScheduler(Scheduler):
         )
         _ = self._add_to_launch_queue(
             run_id=run.id,
+            entry_point=["python3", run.program] if run.program else None,
             # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
             config={
                 "overrides": {
