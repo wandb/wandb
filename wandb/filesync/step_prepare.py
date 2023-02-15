@@ -88,16 +88,16 @@ class StepPrepare:
         self, first_request: RequestPrepare
     ) -> Tuple[bool, Sequence[RequestPrepare]]:
         batch_start_time = time.time()
-        batch_end_time = batch_start_time + self._batch_time
+        remaining_time = self._batch_time
         batch: List[RequestPrepare] = [first_request]
         while True:
             try:
                 request = self._request_queue.get(
                     block=True,
                     timeout=_clamp(
-                        x=batch_end_time - time.time(),
+                        x=self._inter_event_time,
                         low=1e-12,  # 0 = "block forever", so just use something tiny
-                        high=self._inter_event_time,
+                        high=remaining_time,
                     ),
                 )
                 if isinstance(request, RequestFinish):
