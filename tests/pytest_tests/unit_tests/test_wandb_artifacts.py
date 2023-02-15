@@ -27,20 +27,6 @@ def some_file(tmp_path: Path) -> Path:
     return f
 
 
-def mock_upload_urls(
-    project: str,
-    files,
-    run=None,
-    entity=None,
-    description=None,
-):
-    return (
-        "some-bucket",
-        [],
-        {file: {"url": f"http://wandb-test/{file}"} for file in files},
-    )
-
-
 def is_cache_hit(cache: ArtifactsCache, digest: str, size: int) -> bool:
     _, hit, _ = cache.check_md5_obj_path(digest, size)
     return hit
