@@ -3,7 +3,6 @@
 import asyncio
 import functools
 import queue
-import sys
 import threading
 import time
 from typing import (
@@ -20,29 +19,9 @@ from typing import (
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
 
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
-
-    class DoPrepareFn(Protocol):
-        def __call__(self) -> "internal_api.CreateArtifactFileSpecInput":
-            pass
-
-    class OnPrepareFn(Protocol):
-        def __call__(
-            self,
-            upload_url: Optional[str],  # GraphQL type File.uploadUrl
-            upload_headers: Sequence[str],  # GraphQL type File.uploadHeaders
-            artifact_id: str,  # GraphQL type File.artifact.id
-        ) -> None:
-            pass
-
-
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
-    prepare_fn: "DoPrepareFn"
-    on_prepare: Optional["OnPrepareFn"]
+    file_spec: "internal_api.CreateArtifactFileSpecInput"
     response_channel: Union[
         "queue.Queue[ResponsePrepare]",
         Tuple["asyncio.AbstractEventLoop", "asyncio.Future[ResponsePrepare]"],
@@ -60,6 +39,10 @@ class ResponsePrepare(NamedTuple):
 
 
 Event = Union[RequestPrepare, RequestFinish, ResponsePrepare]
+
+
+def _clamp(x: float, low: float, high: float) -> float:
+    return max(low, min(x, high))
 
 
 class StepPrepare:
@@ -95,16 +78,11 @@ class StepPrepare:
             prepare_response = self._prepare_batch(batch)
             # send responses
             for prepare_request in batch:
-                name = prepare_request.prepare_fn()["name"]
+                name = prepare_request.file_spec["name"]
                 response_file = prepare_response[name]
                 upload_url = response_file["uploadUrl"]
                 upload_headers = response_file["uploadHeaders"]
                 birth_artifact_id = response_file["artifact"]["id"]
-
-                if prepare_request.on_prepare:
-                    prepare_request.on_prepare(
-                        upload_url, upload_headers, birth_artifact_id
-                    )
 
                 response = ResponsePrepare(
                     upload_url, upload_headers, birth_artifact_id
@@ -121,11 +99,17 @@ class StepPrepare:
         self, first_request: RequestPrepare
     ) -> Tuple[bool, Sequence[RequestPrepare]]:
         batch_start_time = time.time()
+        remaining_time = self._batch_time
         batch: List[RequestPrepare] = [first_request]
         while True:
             try:
                 request = self._request_queue.get(
-                    block=True, timeout=self._inter_event_time
+                    block=True,
+                    timeout=_clamp(
+                        x=self._inter_event_time,
+                        low=1e-12,  # 0 = "block forever", so just use something tiny
+                        high=remaining_time,
+                    ),
                 )
                 if isinstance(request, RequestFinish):
                     return True, batch
@@ -149,28 +133,24 @@ class StepPrepare:
                 an uploadUrl key. The value of the uploadUrl key is None if the file
                 already exists, or a url string if the file should be uploaded.
         """
-        file_specs: List["internal_api.CreateArtifactFileSpecInput"] = []
-        for prepare_request in batch:
-            file_spec = prepare_request.prepare_fn()
-            file_specs.append(file_spec)
-        return self._api.create_artifact_files(file_specs)
+        return self._api.create_artifact_files([req.file_spec for req in batch])
 
     async def prepare_async(
-        self, prepare_fn: "DoPrepareFn", on_prepare: Optional["OnPrepareFn"] = None
+        self, file_spec: "internal_api.CreateArtifactFileSpecInput"
     ) -> ResponsePrepare:
         """Request the backend to prepare a file for upload."""
         response: "asyncio.Future[ResponsePrepare]" = asyncio.Future()
         self._request_queue.put(
-            RequestPrepare(prepare_fn, on_prepare, (asyncio.get_event_loop(), response))
+            RequestPrepare(file_spec, (asyncio.get_event_loop(), response))
         )
         return await response
 
     @functools.wraps(prepare_async)
     def prepare_sync(
-        self, prepare_fn: "DoPrepareFn", on_prepare: Optional["OnPrepareFn"] = None
+        self, file_spec: "internal_api.CreateArtifactFileSpecInput"
     ) -> ResponsePrepare:
         response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
-        self._request_queue.put(RequestPrepare(prepare_fn, on_prepare, response_queue))
+        self._request_queue.put(RequestPrepare(file_spec, response_queue))
         return response_queue.get()
 
     def start(self) -> None:
