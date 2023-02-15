@@ -44,7 +44,7 @@ jobs:
           token: "${{ secrets.GITHUB_API_TOKEN }}"
       - id: cz
         name: Create bump and changelog
-        uses: commitizen-tools/commitizen-action@master
+        uses: commitizen-tools/commitizen-action@0.16.3
         with:
           github_token: ${{ secrets.GITHUB_API_TOKEN }}
           branch: "bump-version-test"
