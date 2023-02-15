@@ -17,15 +17,16 @@ on:
       tag:
         value: ${{ jobs.bump-version.outputs.tag }}
   workflow_dispatch:
-    bump-kind:
-      type: choice
-      required: true
-      description: How to bump the current version
-      default: "PATCH"
-      options:
-        - "MAJOR"
-        - "MINOR"
-        - "PATCH"
+    inputs:
+      bump-kind:
+        type: choice
+        required: true
+        description: How to bump the current version
+        default: "PATCH"
+        options:
+          - "MAJOR"
+          - "MINOR"
+          - "PATCH"
 
 jobs:
   bump-version:
@@ -42,7 +43,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: "3.9"
       - name: Setup git
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
