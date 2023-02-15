@@ -19,6 +19,7 @@ from typing import (
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
 
+
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
     file_spec: "internal_api.CreateArtifactFileSpecInput"

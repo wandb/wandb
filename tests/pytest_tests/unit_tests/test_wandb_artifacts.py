@@ -1,22 +1,21 @@
 import asyncio
 import functools
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 from unittest.mock import Mock
-from typing import Any, Mapping, Optional, TYPE_CHECKING
 
 import pytest
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
-
 from wandb.sdk.wandb_artifacts import (
+    ArtifactManifestEntry,
     ArtifactsCache,
     WandbStoragePolicy,
-    ArtifactManifestEntry,
 )
 
 if TYPE_CHECKING:
-    from wandb.sdk.internal.internal_api import CreateArtifactFileSpecInput
-
     import sys
+
+    from wandb.sdk.internal.internal_api import CreateArtifactFileSpecInput
 
     if sys.version_info >= (3, 8):
         from typing import Protocol

@@ -1,21 +1,20 @@
 import asyncio
 import concurrent.futures
-from unittest.mock import Mock
-from typing import TYPE_CHECKING, Iterable, Mapping
 import threading
 import time
+from typing import TYPE_CHECKING, Iterable, Mapping
+from unittest.mock import Mock
 
 import pytest
-
-from wandb.filesync.step_prepare import StepPrepare, ResponsePrepare
+from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 
 if TYPE_CHECKING:
+    import sys
+
     from wandb.sdk.internal.internal_api import (
         CreateArtifactFileSpecInput,
         CreateArtifactFilesResponseFile,
     )
-
-    import sys
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
