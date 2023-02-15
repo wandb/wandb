@@ -44,8 +44,8 @@ class ExitHooks:
     ) -> None:
         self.exit_code = 1
         self.exception = exc
-        if issubclass(exc_type, Error):
-            wandb.termerror(str(exc), repeat=False)
+        # if issubclass(exc_type, Error):
+        #     wandb.termerror(str(exc), repeat=False)
 
         if self.was_ctrl_c():
             self.exit_code = 255

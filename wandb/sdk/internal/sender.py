@@ -30,6 +30,7 @@ import requests
 import wandb
 from wandb import util
 from wandb.errors import CommError, ContextCancelledError
+from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
@@ -933,8 +934,7 @@ class SendManager:
             if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
-                error = wandb_internal_pb2.ErrorInfo()
-                error.message = str(e)
+                error = ProtobufErrorHandler.from_exception(e)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
             return

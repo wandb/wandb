@@ -260,7 +260,7 @@ class Api:
                     err = {"message": err}
                 if not err.get("message"):
                     continue
-                wandb.termerror(
+                logger.error(
                     "Error while calling W&B API: {} ({})".format(err["message"], res)
                 )
 

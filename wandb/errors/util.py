@@ -1,25 +1,12 @@
 from wandb.proto import wandb_internal_pb2 as pb
-from . import Error, CommError
+from . import Error, AuthenticationError, AuthorizationError, RateLimitError, PermissionsError
 
-class TimeoutError(CommError):
-    """Raised when a connection times out"""
 
-class PermissionError(CommError):
-    """Raised when tries to access a resource that without sufficient permissions"""
-
-class AuthenticationError(CommError):
-    """Raised when fails to provide valid authentication credentials"""
-
-class AuthorizationError(CommError):
-    """Raised when not authorized to access a particular resource"""
-
-class RateLimitError(CommError):
-    """Raised when there is a rate limit error"""
 
 
 to_exception_map = {
     pb.ErrorInfo.UNKNOWN: Error,
-    pb.ErrorInfo.PERMISSION: PermissionError,
+    pb.ErrorInfo.PERMISSION: PermissionsError,
     pb.ErrorInfo.AUTHENTICATION: AuthenticationError,
     pb.ErrorInfo.AUTHORIZATION: AuthorizationError,
     pb.ErrorInfo.RATELIMIT: RateLimitError,
@@ -58,6 +45,6 @@ class ProtobufErrorHandler:
             The corresponding protobuf error.
         """
 
-        code = from_exception_map.get(exc, pb.ErrorInfo.UNKNOWN)
+        code = from_exception_map.get(type(exc), pb.ErrorInfo.UNKNOWN)
         return pb.ErrorInfo(code=code, message=str(exc))
     

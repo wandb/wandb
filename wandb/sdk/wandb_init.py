@@ -837,7 +837,7 @@ def getcaller() -> None:
     if not logger:
         return None
     src, line, func, stack = logger.findCaller(stack_info=True)
-    print("Problem at:", src, line, func)
+    # print("Problem at:", src, line, func)
 
 
 def _attach(
@@ -1161,13 +1161,19 @@ def init(
                 pass
             # TODO(jhr): figure out how to make this RunDummy
             run = None
-    except UsageError as e:
-        wandb.termerror(str(e), repeat=False)
-        raise
     except KeyboardInterrupt as e:
         assert logger
         logger.warning("interrupted", exc_info=e)
         raise e
+    except UsageError as e:
+        # wandb.termerror(str(e), repeat=False)
+        assert logger
+        logger.exception(str(e))
+        raise
+    except CommError as e:
+        assert logger
+        logger.exception(str(e))
+        raise
     except Exception as e:
         error_seen = e
         traceback.print_exc()
@@ -1179,8 +1185,8 @@ def init(
         # reraise(*sys.exc_info())
     finally:
         if error_seen:
-            wandb.termerror("Abnormal program exit")
+            # wandb.termerror("Abnormal program exit")
             if except_exit:
                 os._exit(1)
-            raise Exception("problem") from error_seen
+            raise Exception("Abnormal program exit") from error_seen
     return run
