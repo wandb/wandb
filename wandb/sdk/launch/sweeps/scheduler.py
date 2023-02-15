@@ -128,9 +128,7 @@ class Scheduler(ABC):
         if self._kwargs.get("job"):
             _public_api = public.Api()
             try:
-                _job_artifact = _public_api.artifact(
-                    self._kwargs['job'], type="job"
-                )
+                _job_artifact = _public_api.artifact(self._kwargs["job"], type="job")
                 wandb.termlog(
                     f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
                 )

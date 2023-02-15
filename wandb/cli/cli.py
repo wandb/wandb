@@ -905,8 +905,10 @@ def sweep(
         _job = config.get("job")
         _docker_uri = config.get("docker_image_uri")
         if _job is None and _docker_uri is None:
-            wandb.termlog("No job or docker uri in sweep config, looking for job in launch config.")
-            _job = launch_config.get("job", '')
+            wandb.termlog(
+                "No job or docker uri in sweep config, looking for job in launch config."
+            )
+            _job = launch_config.get("job")
             if _job is None:
                 raise LaunchError(
                     "No job found in sweep or launch config for launch-sweep."
@@ -932,11 +934,14 @@ def sweep(
             "--project",
             project,
             "--num_workers",
-            config.get("launch", {}).get("num_workers", '2'),
+            config.get("launch", {}).get("num_workers", "2"),
         ]
 
         if _job:
-            scheduler_entrypoint += ["--job", _job,]
+            scheduler_entrypoint += [
+                "--job",
+                _job,
+            ]
         elif _docker_uri:
             scheduler_entrypoint += ["--docker_image_uri", _docker_uri]
 
