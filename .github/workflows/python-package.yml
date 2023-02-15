@@ -1,0 +1,51 @@
+name: Package wandb Python
+
+on:
+    workflow_call:
+      inputs:
+        branch:
+          required: true
+          type: string
+      outputs:
+        version:
+          value: ${{ jobs.package.outputs.version }}
+
+    workflow_dispatch:
+
+jobs:
+  package:
+    outputs:
+      version: ${{ steps.test.outputs.version }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout out
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.branch || github.ref }}
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+         python-version: '3.9'
+
+    - name: Build
+      run: |
+        pip install wheel
+        rm -rf dist build
+        python setup.py sdist bdist_wheel
+        ls -l dist
+
+#    - name: Publish package
+#      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+#      with:
+#        user: __token__
+#        password: ${{ secrets.TEST_PYPI_TOKEN }}
+#        repository_url: https://test.pypi.org/legacy/
+
+    - name: Test Publish
+      id: test
+      run: |
+        pip install --index-url https://test.pypi.org/simple/ --no-deps wandb
+        version=`python -c 'import wandb; print(wandb.__version__)'`
+        echo "version=${version}" >> $GITHUB_OUTPUT
