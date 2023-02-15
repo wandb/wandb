@@ -1,6 +1,6 @@
 from wandb.proto import wandb_internal_pb2 as pb
 from . import Error, AuthenticationError, AuthorizationError, RateLimitError, PermissionsError
-
+from typing import Optional
 
 
 
@@ -18,7 +18,7 @@ class ProtobufErrorHandler:
     """Converts protobuf errors to exceptions and vice versa."""
 
     @staticmethod
-    def to_exception(error: pb.ErrorInfo) -> Exception:
+    def to_exception(error: pb.ErrorInfo) -> Optional[Exception]:
         """Convert a protobuf error to an exception.
         
         Args:
@@ -28,6 +28,10 @@ class ProtobufErrorHandler:
             The corresponding exception.
         
         """
+        try:
+            error.HasField("code")
+        except ValueError:
+            return None
 
         if error.code in to_exception_map:
             return to_exception_map[error.code](error.message)
