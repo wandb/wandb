@@ -124,7 +124,7 @@ class NeuronCoreStats:
             ) as process:
                 while not self.shutdown_event.is_set():
                     if process.stdout is None:
-                        time.sleep(0.1)
+                        self.shutdown_event.wait(0.1)
                         continue
 
                     raw_data = process.stdout.readline()
@@ -151,12 +151,33 @@ class NeuronCoreStats:
         self.samples: "Deque[_Stats]" = deque()
         self.shutdown_event = threading.Event()
 
+        self.neuron_monitor_thread: Optional[threading.Thread] = None
+
+    def setup(self) -> None:
+        """Start the neuron-monitor thread for collecting raw data"""
+        if self.neuron_monitor_thread is not None:
+            return
+
+        logger.debug("Starting neuron-monitor thread")
+        self.shutdown_event.clear()
         self.neuron_monitor_thread = threading.Thread(
             name="NeuronCoreMntr",
             target=self.neuron_monitor,
             daemon=True,
         )
         self.neuron_monitor_thread.start()
+
+    def teardown(self) -> None:
+        """Stop the neuron-monitor thread"""
+        logger.debug("Stopping neuron-monitor thread")
+        try:
+            self.shutdown_event.set()
+            assert self.neuron_monitor_thread is not None
+            self.neuron_monitor_thread.join()
+        except Exception as e:
+            logger.error("neuron-monitor thread failed to stop: %s" % e)
+        finally:
+            self.neuron_monitor_thread = None
 
     def _is_matching_entry(self, entry: dict) -> bool:
         """
@@ -320,11 +341,6 @@ class Trainium:
 
     def finish(self) -> None:
         self.metrics_monitor.finish()
-        # stop the raw data acquisition threads
-        for metric in self.metrics:
-            if hasattr(metric, "shutdown_event"):
-                logger.debug("Stopping neuron-monitor thread")
-                metric.shutdown_event.set()
 
     def probe(self) -> dict:
         try:

@@ -1,0 +1,37 @@
+name: Bump dev version
+on:
+  workflow_call:
+    inputs:
+      branch:
+        required: true
+        type: string
+  workflow_dispatch:
+
+jobs:
+  bump-dev-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ${{ inputs.branch }}
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.branch  }}
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Setup git
+        id: setup-git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+      - name: Install python dependencies
+        id: install-python-deps
+        run: |
+          echo ${{ inputs.branch }}
+          python -m pip install --upgrade pip
+          pip install bump2version -U
+      - name: Bump version
+        run: |
+          bump2version patch --no-tag
+          bump2version devkind --no-tag
+          git push origin ${{ inputs.branch  }}
