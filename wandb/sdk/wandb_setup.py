@@ -257,7 +257,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._teardown_manager(exit_code=exit_code)
 
     def _setup_manager(self) -> None:
-        if not self._settings._require_service:
+        if self._settings._disable_service:
             return
         self._manager = wandb_manager._Manager(settings=self._settings)
 

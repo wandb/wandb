@@ -162,13 +162,27 @@ class _WandbInit:
                 )
                 self.printer.display(line, level="warn")
 
-        self._wl = wandb_setup.setup()
+        # we add this logic to be backward compatible with the old behavior of disable
+        # where it would disable the service if the mode was set to disabled
+        mode = kwargs.get("mode")
+        settings_mode = (kwargs.get("settings") or {}).get("mode")
+        _disable_service = mode == "disabled" or settings_mode == "disabled"
+        setup_settings = {"_disable_service": _disable_service}
+
+        self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
+
+        # when using launch, we don't want to reuse the same run id from the singleton
+        # since users might launch multiple runs in the same process
+        # TODO(kdg): allow users to control this via launch settings
+        if settings.launch and singleton is not None:
+            settings.update({"run_id": None}, source=Source.INIT)
+
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)

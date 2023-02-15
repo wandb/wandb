@@ -28,6 +28,7 @@ TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
     60  # default 10 second loop time on the agent, this is 10 minutes
 )
+FAIL_MESSAGE_INTERVAL = 60
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -81,11 +82,16 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.pod_names[0], namespace=self.namespace
             )
         except Exception as e:
-            if self._fail_count == 1:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to 10 minutes for job to start."
-                )
+            now = time.time()
+            if self._fail_count == 0:
+                self._fail_first_msg_time = now
+                self._fail_last_msg_time = 0.0
             self._fail_count += 1
+            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
+                wandb.termlog(
+                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes for job to start."
+                )
+                self._fail_last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 raise LaunchError(
                     f"Failed to start job {self.name}, because of error {str(e)}"
@@ -332,16 +338,10 @@ class KubernetesRunner(AbstractRunner):
                     "Multiple container configurations should be specified in a yaml file supplied via job_spec."
                 )
             # dont specify run id if user provided image, could have multiple runs
-            env_vars.pop("WANDB_RUN_ID")
             containers[0]["image"] = launch_project.docker_image
             image_uri = launch_project.docker_image
             # TODO: handle secret pulling image from registry
-        elif any(["image" in cont for cont in containers]):
-            # user specified image configurations via kubernetes yaml, could have multiple images
-            # dont specify run id if user provided image, could have multiple runs
-            env_vars.pop("WANDB_RUN_ID")
-            # TODO: handle secret pulling image from registries?
-        else:
+        elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."

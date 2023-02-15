@@ -12,9 +12,6 @@ __all__ = [
     "SweepError",
     "WaitTimeoutError",
     "ContextCancelledError",
-    "ServiceStartProcessError",
-    "ServiceStartTimeoutError",
-    "ServiceStartPortError",
 ]
 
 from typing import List, Optional
@@ -23,9 +20,12 @@ from typing import List, Optional
 class Error(Exception):
     """Base W&B Error"""
 
-    def __init__(self, message) -> None:
+    def __init__(self, message, context: Optional[dict] = None) -> None:
         super().__init__(message)
         self.message = message
+        # sentry context capture
+        if context:
+            self.context = context
 
     # For python 2 support
     def encode(self, encoding):
@@ -134,23 +134,5 @@ class MailboxError(Error):
 
 class ContextCancelledError(Error):
     """Context cancelled Exception"""
-
-    pass
-
-
-class ServiceStartProcessError(Error):
-    """Raised when a known error occurs when launching wandb service"""
-
-    pass
-
-
-class ServiceStartTimeoutError(Error):
-    """Raised when service start times out"""
-
-    pass
-
-
-class ServiceStartPortError(Error):
-    """Raised when service start fails to find a port"""
 
     pass

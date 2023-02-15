@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
-from .._project_spec import LaunchProject, get_entry_point_command
+from .._project_spec import LaunchProject, compute_command_args
 from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
 from ..utils import (
     LOG_PREFIX,
@@ -107,13 +107,18 @@ class LocalContainerRunner(AbstractRunner):
             image_uri = launch_project.image_name
             if not docker_image_exists(image_uri):
                 pull_docker_image(image_uri)
-            env_vars.pop("WANDB_RUN_ID")
-            # if they've given an override to the entrypoint
-            entry_cmd = get_entry_point_command(
-                entry_point, launch_project.override_args
-            )
+            entry_cmd = []
+            if entry_point is not None:
+                entry_cmd = entry_point.command
+            override_args = compute_command_args(launch_project.override_args)
             command_str = " ".join(
-                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+                get_docker_command(
+                    image_uri,
+                    env_vars,
+                    entry_cmd=entry_cmd,
+                    docker_args=docker_args,
+                    additional_args=override_args,
+                )
             ).strip()
         else:
             assert entry_point is not None
@@ -123,8 +128,15 @@ class LocalContainerRunner(AbstractRunner):
                 repository,
                 entry_point,
             )
+            # entry_cmd and additional_args are empty here because
+            # if launch built the container they've been accounted
+            # in the dockerfile and env vars respectively
             command_str = " ".join(
-                get_docker_command(image_uri, env_vars, [""], docker_args)
+                get_docker_command(
+                    image_uri,
+                    env_vars,
+                    docker_args=docker_args,
+                )
             ).strip()
 
         if not self.ack_run_queue_item(launch_project):
@@ -170,8 +182,9 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
 def get_docker_command(
     image: str,
     env_vars: Dict[str, str],
-    entry_cmd: List[str],
+    entry_cmd: Optional[List[str]] = None,
     docker_args: Optional[Dict[str, Any]] = None,
+    additional_args: Optional[List[str]] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
@@ -201,9 +214,11 @@ def get_docker_command(
                 cmd += [prefix]
             else:
                 cmd += [prefix, shlex.quote(str(value))]
-
+    if entry_cmd:
+        cmd += ["--entrypoint"] + entry_cmd
     cmd += [shlex.quote(image)]
-    cmd += entry_cmd
+    if additional_args:
+        cmd += additional_args
     return cmd
 
 
