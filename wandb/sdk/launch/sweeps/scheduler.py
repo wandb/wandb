@@ -5,6 +5,7 @@ import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+import traceback
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
@@ -132,23 +133,23 @@ class Scheduler(ABC):
                 wandb.termlog(
                     f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
                 )
-            except Exception as e:
-                wandb.termerror(f"{LOG_PREFIX}{str(e)}")
+            except Exception:
+                wandb.termerror(f"{LOG_PREFIX}{traceback.format_exc()}")
                 return False
             return True
-        elif self._kwargs.get("docker_image_uri"):
+        elif self._kwargs.get("image_uri"):
             # TODO(gst): check docker existance? Maybe confirm NOT wandb run uri?
             return True
         else:
-            wandb.termerror(
-                f"{LOG_PREFIX}No job or docker_image_uri detected in sweep config."
-            )
             return False
 
     def start(self) -> None:
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
+            wandb.termerror(
+                f"{LOG_PREFIX}No job or image_uri loaded from sweep config."
+            )
             self.exit()
             return
         self._start()
@@ -245,13 +246,14 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue."""
         # One of Job and docker URI is required
         _job = self._kwargs.get("job")
-        _uri = self._kwargs.get("docker_image_uri")
+        _uri = self._kwargs.get("image_uri")
         if _job is None and _uri is None:
-            wandb.termerror(f"{LOG_PREFIX}Found neither 'job' nor 'docker_image_uri'")
+            wandb.termerror(f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})")
             return
         elif _job is not None and _uri is not None:
+            # TODO(gst): @ben default to what?
             wandb.termwarn(
-                f"{LOG_PREFIX}Found both 'job' and 'docker_image_uri', defaulting to 'job'"
+                f"{LOG_PREFIX}Found both 'job' and 'image_uri', defaulting to 'job'"
             )
             _uri = None
 
@@ -260,7 +262,7 @@ class Scheduler(ABC):
             run_id=run_id,
             entry_point=entry_point,
             config=config,
-            docker_image=_uri,
+            docker_image=_uri,  # TODO(gst): make agnostic (github? run uri?)
             job=_job,
             project=self._project,
             entity=self._entity,

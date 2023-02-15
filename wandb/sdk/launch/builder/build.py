@@ -512,7 +512,7 @@ def _create_docker_build_ctx(
 
 def join(split_command: List[str]) -> str:
     """Return a shell-escaped string from *split_command*."""
-    return " ".join(shlex.quote(arg) for arg in split_command)
+    return " ".join(shlex.quote(arg.replace("'", "")) for arg in split_command)
 
 
 def construct_builder_args(

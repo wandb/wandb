@@ -470,6 +470,7 @@ def fetch_and_validate_project(
         A validated `LaunchProject` object.
 
     """
+    print(f"LAUNCHSOURCE: {launch_project.source}")
     if launch_project.source == LaunchSource.DOCKER:
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
