@@ -46,7 +46,7 @@ class SweepScheduler(Scheduler):
         # (emulating a real agent) and add new runs to the launch queue. The
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
-        self._num_workers: int = num_workers
+        self._num_workers: int = int(num_workers)
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue

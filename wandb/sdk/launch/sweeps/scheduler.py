@@ -125,11 +125,11 @@ class Scheduler(ABC):
         return True
 
     def _try_load_executable(self) -> bool:
-        if self._sweep_config.get("job"):
+        if self._kwargs.get("job"):
             _public_api = public.Api()
             try:
                 _job_artifact = _public_api.artifact(
-                    self._sweep_config["job"], type="job"
+                    self._kwargs['job'], type="job"
                 )
                 wandb.termlog(
                     f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
@@ -138,7 +138,7 @@ class Scheduler(ABC):
                 wandb.termerror(f"{LOG_PREFIX}{str(e)}")
                 return False
             return True
-        elif self._sweep_config.get("docker_image_uri"):
+        elif self._kwargs.get("docker_image_uri"):
             # TODO(gst): check docker existance? Maybe confirm NOT wandb run uri?
             return True
         else:
@@ -246,8 +246,8 @@ class Scheduler(ABC):
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         # One of Job and docker URI is required
-        _job = self._sweep_config.get("job")
-        _uri = self._sweep_config.get("docker_image_uri")
+        _job = self._kwargs.get("job")
+        _uri = self._kwargs.get("docker_image_uri")
         if _job is None and _uri is None:
             wandb.termerror(f"{LOG_PREFIX}Found neither 'job' nor 'docker_image_uri'")
             return
@@ -262,7 +262,7 @@ class Scheduler(ABC):
             run_id=run_id,
             entry_point=entry_point,
             config=config,
-            uri=_uri,
+            docker_image=_uri,
             job=_job,
             project=self._project,
             entity=self._entity,
