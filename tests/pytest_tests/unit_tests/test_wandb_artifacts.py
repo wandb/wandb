@@ -102,10 +102,10 @@ class TestStoreFile:
         }
 
     @pytest.mark.parametrize(
-        ["upload_url", "expect_upload"],
+        ["upload_url", "expect_upload", "expect_deduped"],
         [
-            ("http://wandb-test/dst", True),
-            (None, False),
+            ("http://wandb-test/dst", True, False),
+            (None, False, True),
         ],
     )
     def test_skips_upload_if_no_prepared_url(
@@ -113,13 +113,18 @@ class TestStoreFile:
         tmp_path: Path,
         upload_url: Optional[str],
         expect_upload: bool,
+        expect_deduped: bool,
     ):
         api = Mock()
         preparer = Mock(
             prepare=lambda spec: mock_prepare(spec)._replace(upload_url=upload_url)
         )
         policy = WandbStoragePolicy(api=api)
-        store_file(policy, entry_local_path=some_file(tmp_path), preparer=preparer)
+
+        deduped = store_file(
+            policy, entry_local_path=some_file(tmp_path), preparer=preparer
+        )
+        assert deduped == expect_deduped
 
         if expect_upload:
             api.upload_file_retry.assert_called_once()
@@ -141,10 +146,12 @@ class TestStoreFile:
     ):
         api = Mock()
         policy = WandbStoragePolicy(api=api)
-        store_file(
+
+        deduped = store_file(
             policy,
             entry_local_path=some_file(tmp_path) if has_local_path else None,
         )
+        assert not deduped
 
         if expect_upload:
             api.upload_file_retry.assert_called_once()
