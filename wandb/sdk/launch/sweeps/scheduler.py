@@ -133,9 +133,6 @@ class Scheduler(ABC):
             SchedulerState.STOPPED,
         ]:
             return False
-        elif len(self._workers) == 0:
-            self.state = SchedulerState.STOPPED
-            return False
         return True
 
     def _try_load_job(self) -> bool:
