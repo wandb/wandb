@@ -52,9 +52,9 @@ def test_smoke():
     res = step_prepare.prepare(simple_file_spec(name="foo"))
 
     assert res == ResponsePrepare(
-        upload_url="http://wandb-test/upload-url-foo",
-        upload_headers=["x-my-header-key:my-header-val"],
-        birth_artifact_id="artifact-id-foo",
+        upload_url=caf_result["foo"]["uploadUrl"],
+        upload_headers=caf_result["foo"]["uploadHeaders"],
+        birth_artifact_id=caf_result["foo"]["artifact"]["id"],
     )
 
 
