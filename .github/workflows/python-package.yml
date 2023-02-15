@@ -36,12 +36,12 @@ jobs:
         python setup.py sdist bdist_wheel
         ls -l dist
 
-    - name: Publish package
-      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
-      with:
-        user: __token__
-        password: ${{ secrets.TEST_PYPI_TOKEN }}
-        repository_url: https://test.pypi.org/legacy/
+#    - name: Publish package
+#      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+#      with:
+#        user: __token__
+#        password: ${{ secrets.TEST_PYPI_TOKEN }}
+#        repository_url: https://test.pypi.org/legacy/
 
     - name: Test Publish
       id: test
