@@ -1,0 +1,136 @@
+import queue
+from unittest.mock import Mock
+from typing import TYPE_CHECKING, Iterable, Mapping
+import time
+
+import pytest
+
+from wandb.filesync.step_prepare import StepPrepare, ResponsePrepare
+
+if TYPE_CHECKING:
+    from wandb.sdk.internal.internal_api import (
+        CreateArtifactFileSpecInput,
+        CreateArtifactFilesResponseFile,
+    )
+
+
+def simple_file_spec(name: str) -> "CreateArtifactFileSpecInput":
+    return {
+        "name": name,
+        "artifactID": "some-artifact-id",
+        "md5": "some-md5",
+    }
+
+
+def mock_create_artifact_files_result(
+    names: Iterable[str],
+) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
+    return {
+        name: {
+            "id": f"file-id-{name}",
+            "name": name,
+            "displayName": f"file-displayname-{name}",
+            "uploadUrl": f"http://wandb-test/upload-url-{name}",
+            "uploadHeaders": ["x-my-header-key:my-header-val"],
+            "artifact": {
+                "id": f"artifact-id-{name}",
+            },
+        }
+        for name in names
+    }
+
+
+def test_smoke():
+    caf_result = mock_create_artifact_files_result(["foo"])
+    api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+    step_prepare = StepPrepare(
+        api=api, batch_time=1e-12, inter_event_time=1e-12, max_batch_size=1
+    )
+    step_prepare.start()
+
+    res = step_prepare.prepare(simple_file_spec(name="foo"))
+
+    assert res == ResponsePrepare(
+        upload_url="http://wandb-test/upload-url-foo",
+        upload_headers=["x-my-header-key:my-header-val"],
+        birth_artifact_id="artifact-id-foo",
+    )
+
+
+def test_respects_max_batch_size():
+    caf_result = mock_create_artifact_files_result(["a", "b", "c"])
+    api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+    step_prepare = StepPrepare(
+        api=api, batch_time=0.1, inter_event_time=0.1, max_batch_size=2
+    )
+    step_prepare.start()
+
+    queues = []
+    for name in ["a", "b", "c"]:
+        queues.append(step_prepare.prepare_async(simple_file_spec(name=name)))
+
+    [q.get() for q in queues]
+
+    assert api.create_artifact_files.call_count == 2
+    assert [f["name"] for f in api.create_artifact_files.call_args_list[0][0][0]] == [
+        "a",
+        "b",
+    ]
+    assert [f["name"] for f in api.create_artifact_files.call_args_list[1][0][0]] == [
+        "c"
+    ]
+
+
+def test_respects_max_batch_time():
+    caf_result = mock_create_artifact_files_result(["a", "b"])
+    api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+    step_prepare = StepPrepare(
+        api=api, batch_time=0.1, inter_event_time=100, max_batch_size=100
+    )
+    step_prepare.start()
+
+    q = step_prepare.prepare_async(simple_file_spec(name="a"))
+
+    with pytest.raises(queue.Empty):
+        q.get(block=False)
+
+    time.sleep(0.15)
+
+    q.get(block=False)
+
+    api.create_artifact_files.assert_called_once()
+
+
+def test_respects_inter_event_time():
+    caf_result = mock_create_artifact_files_result(["a", "b", "c", "d"])
+    api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+    step_prepare = StepPrepare(
+        api=api, batch_time=100, inter_event_time=0.1, max_batch_size=100
+    )
+    step_prepare.start()
+
+    queues = []
+    # t=0
+    queues.append(step_prepare.prepare_async(simple_file_spec(name="a")))
+    time.sleep(0.07)
+    # t=0.07
+    queues.append(step_prepare.prepare_async(simple_file_spec(name="b")))
+    time.sleep(0.07)
+    # t=0.14
+    queues.append(step_prepare.prepare_async(simple_file_spec(name="c")))
+
+    time.sleep(0.15)  # exceeds inter_event_time; batch should fire
+
+    for q in queues:
+        q.get()
+
+    api.create_artifact_files.assert_called_once()
+    assert [f["name"] for f in api.create_artifact_files.call_args[0][0]] == [
+        "a",
+        "b",
+        "c",
+    ]
