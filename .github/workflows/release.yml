@@ -1,0 +1,145 @@
+name: Cut Release
+run-name: cut sdk release triggered by ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump-kind:
+        type: choice
+        required: true
+        description: How to bump the current version
+        default: "PATCH"
+        options:
+          - "MAJOR"
+          - "MINOR"
+          - "PATCH"
+
+jobs:
+  test-nightly:
+    name: Run nightly tests
+    runs-on: ubuntu-latest
+    outputs:
+      circleci_workflow_number: ${{ steps.nightly_tests.outputs.circleci_workflow_number }}
+    steps:
+      - name: Checkout wandb/wandb
+        uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - name: Run nightly tests
+        id: nightly_tests
+        run: |
+          pip install -e .
+          OUTPUT=$(CIRCLECI_TOKEN=${{ secrets.CIRCLECI_TOKEN }} python tools/circleci-tool.py --dryrun trigger-nightly)
+          # OUTPUT=$(CIRCLECI_TOKEN=${{ secrets.CIRCLECI_TOKEN }} python tools/circleci-tool.py trigger-nightly --wait)
+          # UUID=$(echo "$OUTPUT" | grep UUID | awk '{print $2}')
+          # NUMBER=$(echo "$OUTPUT" | grep Number | awk '{print $2}')
+          # echo "circleci_workflow_uuid=$UUID" >> $GITHUB_OUTPUT
+          # echo "circleci_workflow_number=$NUMBER" >> $GITHUB_OUTPUT
+          # todo: remove this line
+          echo "circleci_workflow_number=19249" >> $GITHUB_OUTPUT
+        continue-on-error: true
+      - name: Post notification to the sdk-release Slack channel
+        id: slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+          payload: |
+            {
+              "text": "Nightly tests finished. Proceed with release?",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "<https://app.circleci.com/pipelines/github/wandb/wandb/${{ steps.nightly_tests.outputs.circleci_workflow_number }}|:test_tube: Nightly tests finished>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":rocket: @sdk-team: <https://github.com/wandb/wandb/actions/runs/${{github.run_id}}|Proceed with the release?>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  verify-deploy:
+    runs-on: ubuntu-latest
+    environment: "release"
+    needs:
+      - test-nightly
+    steps:
+        - name: Verify nightly tests passed
+          run: |
+            echo "Nightly tests finished. Proceed?"
+
+  call-bump-version-workflow:
+    name: Call bump-version workflow
+    needs:
+      - verify-deploy
+    uses: ./.github/workflows/bump-version.yml
+    with:
+      branch: ${{ github.ref }}
+      bump-kind: ${{ github.event.inputs.bump-kind }}
+
+  call-python-package-workflow:
+    name: Call python-package workflow
+    uses: ./.github/workflows/python-package.yml
+    secrets: inherit
+    needs:
+      - call-bump-version-workflow
+    with:
+      branch: ${{ needs.call-bump-version-workflow.outputs.branch }}
+
+  create-release-notes:
+    runs-on: ubuntu-latest
+    needs:
+      - call-bump-version-workflow
+      - call-python-package-workflow
+    steps:
+      - uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          draft: true  # todo: change to false
+          name: ${{ needs.call-bump-version-workflow.outputs.tag }}
+          generateReleaseNotes: true
+          tag: ${{ needs.call-bump-version-workflow.outputs.tag }}
+          prerelease: false
+          updateOnlyUnreleased: false
+          commit: ${{ needs.call-bump-version-workflow.outputs.branch }}
+
+  verify-package:
+    runs-on: ubuntu-latest
+    needs:
+      - call-python-package-workflow
+      - call-bump-version-workflow
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+           python-version: '3.9'
+      - name: verify version is latest
+        run: |
+          bump_verions=${{ needs.call-bump-version-workflow.outputs.version }}
+          package_version=${{ needs.call-python-package-workflow.outputs.version }}
+          if [ "$bump_verions" != "$package_version" ]; then
+              echo "The value of bumped version ($bump_verions) is different from the value of packaged version ($package_version)"
+              exit 1
+          fi
+
+  call-bump-dev-version-workflow:
+    name: Call bump-dev-version workflow
+    uses: ./.github/workflows/bump-dev-version.yml
+    needs:
+      - call-bump-version-workflow
+      - create-release-notes
+      - call-python-package-workflow
+      - verify-package
+    with:
+      branch: ${{needs.call-bump-version-workflow.outputs.branch}}
+      # - name: Nudge to merge the Release PR to main and unfreeze the release branch
+      #   run: |
+      #     echo "Please check and merge the release PR to main and unfreeze the main branch"

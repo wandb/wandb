@@ -1,0 +1,75 @@
+name: Bump version and generate changelog
+on:
+  workflow_call:
+    inputs:
+      branch:
+        required: true
+        type: string
+      bump-kind:
+        required: true
+        type: string
+        default: "PATCH"
+    outputs:
+      version:
+        value: ${{ jobs.bump-version.outputs.version }}
+      branch:
+        value: ${{ jobs.bump-version.outputs.branch }}
+      tag:
+        value: ${{ jobs.bump-version.outputs.tag }}
+  workflow_dispatch:
+    inputs:
+      bump-kind:
+        type: choice
+        required: true
+        description: How to bump the current version
+        default: "PATCH"
+        options:
+          - "MAJOR"
+          - "MINOR"
+          - "PATCH"
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.cz.outputs.version }}
+      branch: ${{ steps.cz.outputs.branch }}
+      tag: ${{ steps.cz.outputs.tag }}
+    steps:
+      - name: Checkout out
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - name: Setup git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git fetch --tags
+      - name: Install python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install commitizen -U
+
+      - name: Bump version and generate changelog entry with Commitizen (cz)
+        id: cz
+        run: |
+          output=$(cz bump --increment ${{ github.event.inputs.bump-kind }} -ch --yes)
+          new_version=$(echo "$output" | grep bump | tail -1 | awk '{print $NF}')
+          echo "version=${new_version}" >> $GITHUB_OUTPUT
+          echo "branch=release-${new_version}" >> $GITHUB_OUTPUT
+          echo "tag=v${new_version}" >> $GITHUB_OUTPUT
+
+      - name: Create release PR
+        id: create-pr
+        uses: peter-evans/create-pull-request@v4
+        with:
+          committer: GitHub <noreply@github.com>
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          branch: ${{ steps.cz.outputs.branch }}
+          delete-branch: true
+          title: "chore(sdk): release ${{ steps.cz.outputs.version }} version"
+          commit-message: "chore(sdk): automated change of workflow ${{ github.run_id }} attempt ${{ github.run_number }}"
