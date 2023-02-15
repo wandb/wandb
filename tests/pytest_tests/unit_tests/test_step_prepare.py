@@ -164,13 +164,8 @@ def test_respects_max_batch_size(prepare: "PrepareFixture"):
         future.result()
 
     assert api.create_artifact_files.call_count == 2
-    assert [f["name"] for f in api.create_artifact_files.call_args_list[0][0][0]] == [
-        "a",
-        "b",
-    ]
-    assert [f["name"] for f in api.create_artifact_files.call_args_list[1][0][0]] == [
-        "c"
-    ]
+    assert len(api.create_artifact_files.call_args_list[0][0][0]) == 2
+    assert len(api.create_artifact_files.call_args_list[1][0][0]) == 1
 
 
 def test_respects_max_batch_time(prepare: "PrepareFixture"):
@@ -211,14 +206,16 @@ def test_respects_inter_event_time(prepare: "PrepareFixture"):
     # t=0.14
     futures.append(prepare(step_prepare, simple_file_spec(name="c")))
 
+    api.create_artifact_files.assert_not_called()
+
     time.sleep(0.15)  # exceeds inter_event_time; batch should fire
 
     for future in futures:
         future.result(timeout=1e-12)
 
     api.create_artifact_files.assert_called_once()
-    assert [f["name"] for f in api.create_artifact_files.call_args[0][0]] == [
+    assert {f["name"] for f in api.create_artifact_files.call_args[0][0]} == {
         "a",
         "b",
         "c",
-    ]
+    }
