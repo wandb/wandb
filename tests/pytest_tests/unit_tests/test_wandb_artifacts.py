@@ -59,7 +59,7 @@ def store_file(
             path=entry_path,
             digest=entry_digest,
             local_path=str(entry_local_path) if entry_local_path else None,
-            size=entry_local_path.stat().st_size if entry_local_path else 0,
+            size=entry_local_path.stat().st_size if entry_local_path else None,
         ),
         preparer=preparer if preparer else Mock(prepare=Mock(wraps=mock_prepare)),
     )
