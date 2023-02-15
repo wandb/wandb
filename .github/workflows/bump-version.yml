@@ -56,11 +56,11 @@ jobs:
       - name: Bump version and generate changelog entry with Commitizen (cz)
         id: cz
         run: |
-            new_version="$(cz bump --increment ${{ github.event.inputs.bump-kind }} --yes --dry-run | grep bump | awk '{print $NF}')"
-            cz bump --increment ${{ github.event.inputs.bump-kind }} -ch --yes
-            echo "version=${new_version}" >> $GITHUB_OUTPUT
-            echo "branch=release-${new_version}" >> $GITHUB_OUTPUT
-            echo "tag=v${new_version}" >> $GITHUB_OUTPUT
+          output=$(cz bump --increment ${{ github.event.inputs.bump-kind }} -ch --yes)
+          new_version=$(echo "$output" | grep bump | tail -1 | awk '{print $NF}')
+          echo "version=${new_version}" >> $GITHUB_OUTPUT
+          echo "branch=release-${new_version}" >> $GITHUB_OUTPUT
+          echo "tag=v${new_version}" >> $GITHUB_OUTPUT
 
       - name: Create release PR
         id: create-pr
