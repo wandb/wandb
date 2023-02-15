@@ -10,11 +10,11 @@ import wandb
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
-    _Worker,
     Scheduler,
     SchedulerState,
     SimpleRunState,
     SweepRun,
+    _Worker,
 )
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
