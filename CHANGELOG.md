@@ -1,3 +1,5 @@
+## v0.13.11 (2023-02-15)
+
 ## 0.13.10 (February 7, 2023)
 
 ### :magic_wand: Enhancements
