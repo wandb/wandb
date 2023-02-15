@@ -82,6 +82,7 @@ class Scheduler(ABC):
             self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
+
         self._sweep_id: str = sweep_id or "empty-sweep-id"
         self._state: SchedulerState = SchedulerState.PENDING
         # Dictionary of the runs being managed by the scheduler
@@ -123,22 +124,33 @@ class Scheduler(ABC):
             return False
         return True
 
-    def _try_load_job(self) -> bool:
-        _public_api = public.Api()
-        try:
-            _job_artifact = _public_api.artifact(self._sweep_config["job"], type="job")
-            wandb.termlog(
-                f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
+    def _try_load_executable(self) -> bool:
+        if self._sweep_config.get("job"):
+            _public_api = public.Api()
+            try:
+                _job_artifact = _public_api.artifact(
+                    self._sweep_config["job"], type="job"
+                )
+                wandb.termlog(
+                    f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
+                )
+            except Exception as e:
+                wandb.termerror(f"{LOG_PREFIX}{str(e)}")
+                return False
+            return True
+        elif self._sweep_config.get("docker_image_uri"):
+            # TODO(gst): check docker existance? Maybe confirm NOT wandb run uri?
+            return True
+        else:
+            wandb.termerror(
+                f"{LOG_PREFIX}No job or docker_image_uri detected in sweep config."
             )
-        except Exception as e:
-            wandb.termerror(f"{LOG_PREFIX}{str(e)}")
             return False
-        return True
 
     def start(self) -> None:
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
-        if not self._try_load_job():
+        if not self._try_load_executable():
             self.exit()
             return
         self._start()
@@ -233,15 +245,19 @@ class Scheduler(ABC):
         config: Optional[Dict[str, Any]] = None,
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
-        run_id = run_id or generate_id()
-        # One of Job and URI is required
-        _job = self._kwargs.get("job", None)
-        _uri = self._kwargs.get("uri", None)
+        # One of Job and docker URI is required
+        _job = self._sweep_config.get("job")
+        _uri = self._sweep_config.get("docker_image_uri")
         if _job is None and _uri is None:
-            # If no Job is specified, use a placeholder URI to prevent Launch failure
-            _uri = "placeholder-uri-queuedrun-from-scheduler"
-        # Queue is required
-        _queue = self._kwargs.get("queue", "default")
+            wandb.termerror(f"{LOG_PREFIX}Found neither 'job' nor 'docker_image_uri'")
+            return
+        elif _job is not None and _uri is not None:
+            wandb.termwarn(
+                f"{LOG_PREFIX}Found both 'job' and 'docker_image_uri', defaulting to 'job'"
+            )
+            _uri = None
+
+        run_id = run_id or generate_id()
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,
@@ -250,13 +266,13 @@ class Scheduler(ABC):
             job=_job,
             project=self._project,
             entity=self._entity,
-            queue_name=_queue,
+            queue_name=self._kwargs.get("queue"),
             project_queue=self._project_queue,
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
         )
         self._runs[run_id].queued_run = queued_run
         wandb.termlog(
-            f"{LOG_PREFIX}Added run to Launch RunQueue: {_queue} RunID:{run_id}."
+            f"{LOG_PREFIX}Added run to Launch queue: {self._kwargs.get('queue')} RunID:{run_id}."
         )
         return queued_run
