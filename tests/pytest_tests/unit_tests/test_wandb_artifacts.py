@@ -43,6 +43,9 @@ def artifacts_cache(tmp_path: Path) -> ArtifactsCache:
 
 
 def asyncify(f):
+    """Convert a sync function to an async function. Useful for building mock async wrappers."""
+
+    @functools.wraps(f)
     async def async_f(*args, **kwargs):
         return f(*args, **kwargs)
 
@@ -71,77 +74,6 @@ def mock_prepare_sync(
     )
 
 
-def _store_file_fixture_kwargs_to_store_file_kwargs(
-    artifact_id: str = "my-artifact-id",
-    artifact_manifest_id: str = "my-artifact-manifest-id",
-    entry_path: str = "my-path",
-    entry_digest: str = "my-digest",
-    entry_local_path: Optional[Path] = None,
-    preparer: Optional[StepPrepare] = None,
-) -> Mapping[str, Any]:
-    return dict(
-        artifact_id=artifact_id,
-        artifact_manifest_id=artifact_manifest_id,
-        entry=ArtifactManifestEntry(
-            path=entry_path,
-            digest=entry_digest,
-            local_path=str(entry_local_path) if entry_local_path else None,
-            size=entry_local_path.stat().st_size if entry_local_path else None,
-        ),
-        preparer=preparer
-        if preparer
-        else Mock(
-            prepare_sync=Mock(wraps=mock_prepare_sync),
-            prepare_async=Mock(wraps=asyncify(mock_prepare_sync)),
-        ),
-    )
-
-
-def _store_file_sync(policy: WandbStoragePolicy, **kwargs) -> bool:
-    return policy.store_file_sync(
-        **_store_file_fixture_kwargs_to_store_file_kwargs(**kwargs)
-    )
-
-
-def _store_file_async(policy: WandbStoragePolicy, **kwargs) -> bool:
-    return asyncio.new_event_loop().run_until_complete(
-        policy.store_file_async(
-            **_store_file_fixture_kwargs_to_store_file_kwargs(**kwargs)
-        )
-    )
-
-
-@pytest.fixture(params=["sync", "async"])
-def store_file_mode(request) -> str:
-    return request.param
-
-
-@pytest.fixture
-def store_file(store_file_mode: str) -> "StoreFileFixture":
-    if store_file_mode == "sync":
-        return _store_file_sync
-    elif store_file_mode == "async":
-        return _store_file_async
-    else:
-        raise ValueError(f"Unknown store_file mode: {store_file_mode}")
-
-
-@pytest.fixture
-def api(store_file_mode):
-    upload_file_retry = Mock()
-    upload_file_retry_async = Mock(wraps=asyncify(Mock()))
-    upload_methods = {
-        "sync": upload_file_retry,
-        "async": upload_file_retry_async,
-    }
-
-    return Mock(
-        upload_file_retry=upload_file_retry,
-        upload_file_retry_async=upload_file_retry_async,
-        upload_method=upload_methods[store_file_mode],
-    )
-
-
 def mock_preparer(**kwargs):
     prepare_sync = kwargs.get("prepare_sync")
     if prepare_sync is not None:
@@ -151,6 +83,107 @@ def mock_preparer(**kwargs):
 
 
 class TestStoreFile:
+    @staticmethod
+    def _fixture_kwargs_to_kwargs(
+        artifact_id: str = "my-artifact-id",
+        artifact_manifest_id: str = "my-artifact-manifest-id",
+        entry_path: str = "my-path",
+        entry_digest: str = "my-digest",
+        entry_local_path: Optional[Path] = None,
+        preparer: Optional[StepPrepare] = None,
+    ) -> Mapping[str, Any]:
+        return dict(
+            artifact_id=artifact_id,
+            artifact_manifest_id=artifact_manifest_id,
+            entry=ArtifactManifestEntry(
+                path=entry_path,
+                digest=entry_digest,
+                local_path=str(entry_local_path) if entry_local_path else None,
+                size=entry_local_path.stat().st_size if entry_local_path else None,
+            ),
+            preparer=preparer
+            if preparer
+            else Mock(
+                prepare_sync=Mock(wraps=mock_prepare_sync),
+                prepare_async=Mock(wraps=asyncify(mock_prepare_sync)),
+            ),
+        )
+
+    @staticmethod
+    def _store_file_sync(policy: WandbStoragePolicy, **kwargs) -> bool:
+        """Starts store_file_sync running in the background.
+
+        Don't call this directly; use the `store_file` fixture instead, to ensure that
+        whatever logic you're testing works with both sync and async impls.
+
+        If you're writing a test that only cares about the sync impl, you should
+        probably just call `policy.store_file_sync` directly.
+        """
+        return policy.store_file_sync(
+            **TestStoreFile._fixture_kwargs_to_kwargs(**kwargs)
+        )
+
+    @staticmethod
+    def _store_file_async(policy: WandbStoragePolicy, **kwargs) -> bool:
+        """Starts store_file_sync running in the background.
+
+        Don't call this directly; use the `store_file` fixture instead, to ensure that
+        whatever logic you're testing works with both sync and async impls.
+
+        If you're writing a test that only cares about the sync impl, you should
+        probably just call `policy.store_file_async` directly.
+        """
+        return asyncio.new_event_loop().run_until_complete(
+            policy.store_file_async(**TestStoreFile._fixture_kwargs_to_kwargs(**kwargs))
+        )
+
+    @pytest.fixture(params=["sync", "async"])
+    def store_file_mode(self, request) -> str:
+        return request.param
+
+    @pytest.fixture
+    def store_file(self, store_file_mode: str) -> "StoreFileFixture":
+        """Fixture to run either prepare_sync or prepare_async and return the result.
+
+        Tests that use this fixture will run twice: once where it uses the sync impl,
+        and once where it uses the async impl. This ensures that whatever logic you're
+        testing works with both sync and async impls.
+
+        Example usage:
+
+            def test_smoke(store_file: "StoreFileFixture", api):
+                store_file(WandbStoragePolicy(api=api), entry_local_path=some_file(tmp_path))
+                api.upload_method.assert_called_once()
+        """
+        if store_file_mode == "sync":
+            return TestStoreFile._store_file_sync
+        elif store_file_mode == "async":
+            return TestStoreFile._store_file_async
+        else:
+            raise ValueError(f"Unknown store_file mode: {store_file_mode}")
+
+    @pytest.fixture
+    def api(self, store_file_mode):
+        """Fixture to give a mock `internal_api.Api` object, with properly-functioning sync/async upload methods.
+
+        Also adds an `upload_method` field, which points to either `upload_file_retry`
+        or `upload_file_retry_async`, depending on which `store_file_mode` is being used.
+        This is useful for making assertions about what files `store_file` uploaded,
+        without needing to know whether it used the sync or async impl.
+        """
+        upload_file_retry = Mock()
+        upload_file_retry_async = Mock(wraps=asyncify(Mock()))
+        upload_methods = {
+            "sync": upload_file_retry,
+            "async": upload_file_retry_async,
+        }
+
+        return Mock(
+            upload_file_retry=upload_file_retry,
+            upload_file_retry_async=upload_file_retry_async,
+            upload_method=upload_methods[store_file_mode],
+        )
+
     def test_smoke(self, store_file: "StoreFileFixture", api, tmp_path: Path):
         store_file(WandbStoragePolicy(api=api), entry_local_path=some_file(tmp_path))
         api.upload_method.assert_called_once()

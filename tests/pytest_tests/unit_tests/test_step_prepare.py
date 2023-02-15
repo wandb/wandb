@@ -60,6 +60,14 @@ def mock_create_artifact_files_result(
 def _bg_prepare_sync(
     step_prepare: StepPrepare, *args, **kwargs
 ) -> "concurrent.futures.Future[ResponsePrepare]":
+    """Starts prepare_sync running in the background.
+
+    Don't call this directly; use the `prepare` fixture instead, to ensure that
+    whatever logic you're testing works with both sync and async impls.
+
+    If you're writing a test that only cares about the sync impl, you should
+    probably just call `step_prepare.prepare_sync` directly.
+    """
 
     future = concurrent.futures.Future()
 
@@ -78,6 +86,14 @@ def _bg_prepare_sync(
 def _bg_prepare_async(
     step_prepare: StepPrepare, *args, **kwargs
 ) -> "concurrent.futures.Future[ResponsePrepare]":
+    """Starts prepare_async running in the background.
+
+    Don't call this directly; use the `prepare` fixture instead, to ensure that
+    whatever logic you're testing works with both sync and async impls.
+
+    If you're writing a test that only cares about the async impl, you should
+    probably just call `step_prepare.prepare_sync` directly.
+    """
 
     future = concurrent.futures.Future()
 
@@ -96,6 +112,16 @@ def _bg_prepare_async(
 
 @pytest.fixture(params=["sync", "async"])
 def prepare(request) -> "PrepareFixture":
+    """Fixture to kick off prepare_sync or prepare_async in the background.
+
+    Example usage:
+
+        def test_smoke(prepare: "PrepareFixture"):
+            step_prepare = StepPrepare(...)
+            step_prepare.start()
+            res = prepare(step_prepare, simple_file_spec(name="foo")).result()
+            assert res.birth_artifact_id == ...
+    """
     if request.param == "sync":
         return _bg_prepare_sync
     elif request.param == "async":
