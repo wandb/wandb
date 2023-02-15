@@ -1024,9 +1024,9 @@ def sweep(
 
 
 @cli.command(
-    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
-    "or a git uri pointing to a remote repository, or path to a local directory.",
+    help="""Launch or queue a job from a uri (Experimental). A uri can be either a wandb uri
+            of the form https://wandb.ai/entity/project/runs/run_id, or a git uri pointing to a
+            remote repository, or path to a local directory.""",
 )
 @click.argument("uri", nargs=1, required=False)
 @click.option(
@@ -1042,9 +1042,9 @@ def sweep(
     metavar="NAME",
     default=None,
     help="""Entry point within project. [default: main]. If the entry point is not found attempts to run
-     the project file with the specified name as a script using 'python' to run .py files and
-      the default shell (specified by environment variable $SHELL) to run .sh files.
-       If passed in, will override the entrypoint value passed in using a config file.""",
+            the project file with the specified name as a script using 'python' to run .py files and
+            the default shell (specified by environment variable $SHELL) to run .sh files.
+            If passed in, will override the entrypoint value passed in using a config file.""",
 )
 @click.option(
     "--git-version",
@@ -1057,23 +1057,25 @@ def sweep(
     "-a",
     metavar="NAME=VALUE",
     multiple=True,
-    help="""An argument for the run, of the form -a name=value. Provided arguments that are not in the list of arguments for
-     an entry point will be passed to the corresponding entry point as command-line arguments in the form `--name value`.""",
+    help="""An argument for the run, of the form -a name=value. Provided arguments that are not in the
+            list of arguments for an entry point will be passed to the corresponding entry point as
+            command-line arguments in the form `--name value`.""",
 )
 @click.option(
     "--name",
     envvar="WANDB_NAME",
     help="""Name of the run under which to launch the run. If not
-             specified, a random run name will be used to launch run.
-             If passed in, will override the name passed in using a config file.""",
+            specified, a random run name will be used to launch run.
+            If passed in, will override the name passed in using a config file.""",
 )
 @click.option(
     "--entity",
     "-e",
     metavar="(str)",
     default=None,
-    help="""Name of the target entity which the new run will be sent to. Defaults to using the entity set
-             by local wandb/settings folder. If passed in, will override the entity value passed in using a config file.""",
+    help="""Name of the target entity which the new run will be sent to. Defaults
+            to using the entity set by local wandb/settings folder. If passed in,
+            will override the entity value passed in using a config file.""",
 )
 @click.option(
     "--project",
@@ -1081,8 +1083,8 @@ def sweep(
     metavar="(str)",
     default=None,
     help="""Name of the target project which the new run will be sent to. Defaults to using the project name
-             given by the source uri or for github runs, the git repo name. If passed in, will override the
-             project value passed in using a config file.""",
+            given by the source uri or for github runs, the git repo name. If passed in, will override the
+            project value passed in using a config file.""",
 )
 @click.option(
     "--resource",
@@ -1090,9 +1092,9 @@ def sweep(
     metavar="BACKEND",
     default=None,
     help="""Execution resource to use for run. Supported values: 'local-process', 'local-container',
-             'kubernetes', 'sagemaker', 'gcp-vertex'. This is now a required parameter if pushing
-              to a queue with no resource configuration. If passed in, will override the resource
-              value passed in using a config file.""",
+            'kubernetes', 'sagemaker', 'gcp-vertex'. This is now a required parameter if pushing
+            to a queue with no resource configuration. If passed in, will override the resource
+            value passed in using a config file.""",
 )
 @click.option(
     "--docker-image",
@@ -1100,7 +1102,7 @@ def sweep(
     default=None,
     metavar="DOCKER IMAGE",
     help="""Specific docker image you'd like to use. In the form name:tag. If passed in,
-             will override the docker image value passed in using a config file.""",
+            will override the docker image value passed in using a config file.""",
 )
 @click.option(
     "--config",
@@ -1124,16 +1126,16 @@ def sweep(
     "run_async",
     is_flag=True,
     help="""Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set,
-     wandb launch will wait for the job to finish. This option is incompatible with --queue;
-      asynchronous options when running with an agent should be set on wandb launch-agent.""",
+            wandb launch will wait for the job to finish. This option is incompatible with --queue;
+            asynchronous options when running with an agent should be set on wandb launch-agent.""",
 )
 @click.option(
     "--resource-args",
     "-R",
     metavar="FILE",
     help="""Path to JSON file (must end in '.json') or JSON string which will be passed
-     as resource args to the compute resource. The exact content which should be provided
-      is different for each execution backend. See documentation for layout of this file.""",
+            as resource args to the compute resource. The exact content which should be provided
+            is different for each execution backend. See documentation for layout of this file.""",
 )
 @click.option(
     "--cuda",
@@ -1141,8 +1143,8 @@ def sweep(
     flag_value=True,
     default=None,
     help="""Flag to build an image with CUDA enabled. If reproducing a previous wandb run that
-     ran on GPU, a CUDA-enabled image will be built by default and you must set --cuda=False
-      to build a CPU-only image.""",
+            ran on GPU, a CUDA-enabled image will be built by default and you must set --cuda=False
+            to build a CPU-only image.""",
 )
 @click.option(
     "--build",
