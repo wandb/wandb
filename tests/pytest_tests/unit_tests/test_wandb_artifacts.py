@@ -52,7 +52,7 @@ def store_file(
     entry_local_path: Optional[Path] = None,
     preparer: Optional[StepPrepare] = None,
 ) -> bool:
-    policy.store_file(
+    return policy.store_file(
         artifact_id=artifact_id,
         artifact_manifest_id=artifact_manifest_id,
         entry=ArtifactManifestEntry(
