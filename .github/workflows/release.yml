@@ -29,7 +29,6 @@ jobs:
       - name: Run nightly tests
         id: nightly_tests
         run: |
-          cd wandb
           pip install -e .
           OUTPUT=$(CIRCLECI_TOKEN=${{ secrets.CIRCLECI_TOKEN }} python tools/circleci-tool.py --dryrun trigger-nightly)
           # OUTPUT=$(CIRCLECI_TOKEN=${{ secrets.CIRCLECI_TOKEN }} python tools/circleci-tool.py trigger-nightly --wait)
