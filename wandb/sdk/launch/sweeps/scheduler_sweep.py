@@ -85,7 +85,7 @@ class SweepScheduler(Scheduler):
                 if _type in ["exit", "stop"]:
                     if command.get("run_cap", 0) > 0:
                         # over runcap: no new runs, but finish existing
-                        self.state = SchedulerState.FINISHING
+                        self.state = SchedulerState.FLUSH_RUNS
                         return False
                     # Tell (virtual) agent to stop running
                     self.state = SchedulerState.STOPPED
@@ -132,10 +132,7 @@ class SweepScheduler(Scheduler):
                     SimpleRunState.DEAD,
                     SimpleRunState.UNKNOWN,
                 ]:
-                    if self.state == SchedulerState.FINISHING:
-                        # Scheduler hit the run_cap, let it launch runs then it will stop
-                        pass
-                    else:
+                    if self.state != SchedulerState.FLUSH_RUNS:
                         logging.debug(
                             f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}"
                         )

@@ -32,7 +32,7 @@ class SchedulerState(Enum):
     PENDING = 0
     STARTING = 1
     RUNNING = 2
-    FINISHING = 3
+    FLUSH_RUNS = 3
     COMPLETED = 4
     FAILED = 5
     STOPPED = 6
@@ -167,7 +167,7 @@ class Scheduler(ABC):
                 self._update_run_states()
                 self._run()
                 # if we hit the run_cap, now set to stopped after launching runs
-                if self.state == SchedulerState.FINISHING:
+                if self.state == SchedulerState.FLUSH_RUNS:
                     wandb.termlog(f"{LOG_PREFIX}Sweep reached run_cap, stopping.")
                     self.state = SchedulerState.STOPPED
         except KeyboardInterrupt:
