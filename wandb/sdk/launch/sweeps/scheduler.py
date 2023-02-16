@@ -137,7 +137,7 @@ class Scheduler(ABC):
                 wandb.termerror(f"{LOG_PREFIX}{traceback.format_exc()}")
                 return False
             return True
-        elif self._kwargs.get("image_uri"):
+        elif self._kwargs.get("launch", {}).get("image_uri"):
             # TODO(gst): check docker existance? Maybe confirm NOT wandb run uri?
             return True
         else:
@@ -246,7 +246,7 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue."""
         # One of Job and docker URI is required
         _job = self._kwargs.get("job")
-        _uri = self._kwargs.get("image_uri")
+        _uri = self._kwargs.get("launch", {}).get("image_uri")
         if _job is None and _uri is None:
             raise SchedulerError(
                 f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"

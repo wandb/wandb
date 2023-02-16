@@ -903,7 +903,7 @@ def sweep(
 
         # Try and get job from sweep config
         _job = config.get("job")
-        _image_uri = config.get("_image_uri")
+        _image_uri = config.get("image_uri")
         if _job is None and _image_uri is None:
             raise LaunchError("No 'job' or 'image_uri' found in sweep config")
 
@@ -923,7 +923,7 @@ def sweep(
             project,
             "--num_workers",
             # TODO(gst): allow launch specification in sweep config
-            str(config.get("launch", {}).get("num_workers", "")),
+            str(config.get("launch", {}).get("num_workers", 8)),
         ]
 
         if _job:
