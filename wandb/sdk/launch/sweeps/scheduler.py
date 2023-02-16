@@ -2,10 +2,10 @@
 import logging
 import os
 import threading
+import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-import traceback
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click

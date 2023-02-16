@@ -908,9 +908,12 @@ def sweep(
             raise LaunchError("No 'job' or 'image_uri' found in sweep config")
 
         if not queue:
-            raise LaunchError(
-                "No queue passed from CLI or in launch config for launch-sweep."
-            )
+            if launch_config.get("queue"):
+                queue = launch_config["queue"]
+            else:
+                raise LaunchError(
+                    "No queue passed from CLI or in launch config for launch-sweep."
+                )
 
         scheduler_config = launch_config.get("scheduler", {})
         scheduler_entrypoint = [
