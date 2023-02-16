@@ -9,7 +9,7 @@ from wandb import util
 from wandb.apis import InternalApi
 
 if TYPE_CHECKING:
-    Settings = Union["wandb_settings.Settings", Dict[str, Any]]
+    Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
 
 
 class ServerError(Exception):
