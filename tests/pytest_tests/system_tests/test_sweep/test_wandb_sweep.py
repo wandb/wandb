@@ -40,6 +40,7 @@ SWEEP_CONFIG_BAYES: Dict[str, Any] = {
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
+    "commands": ["echo", "hello world"],
 }
 SWEEP_CONFIG_BAYES_PROBABILITIES: Dict[str, Any] = {
     "name": "mock-sweep-bayes",
