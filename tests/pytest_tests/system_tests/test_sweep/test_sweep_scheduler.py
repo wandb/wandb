@@ -112,7 +112,7 @@ def test_sweep_scheduler_base_scheduler_states(
         )
 
         monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+            "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
             lambda _: True,
         )
 
@@ -249,7 +249,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     )
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
@@ -285,7 +285,7 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
@@ -311,7 +311,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
@@ -364,7 +364,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
