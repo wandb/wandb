@@ -27,7 +27,7 @@ class ProtobufErrorHandler:
     """Converts protobuf errors to exceptions and vice versa."""
 
     @staticmethod
-    def to_exception(error: pb.ErrorInfo) -> Optional[Exception]:
+    def to_exception(error: pb.ErrorInfo) -> Optional[Error]:
         """Convert a protobuf error to an exception.
 
         Args:

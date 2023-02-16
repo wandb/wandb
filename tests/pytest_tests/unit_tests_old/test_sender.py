@@ -73,9 +73,7 @@ def test_resume_error_never(mocked_run, test_settings, mock_server, backend_inte
     with backend_interface(initial_run=False) as interface:
         run_result = interface.communicate_run(mocked_run)
         assert run_result.HasField("error")
-        assert (
-            run_result.error.code == pb.ErrorInfo.ErrorCode.INVALID
-        )
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.INVALID
 
 
 def test_resume_error_must(mocked_run, test_settings, mock_server, backend_interface):
@@ -84,9 +82,7 @@ def test_resume_error_must(mocked_run, test_settings, mock_server, backend_inter
     with backend_interface(initial_run=False) as interface:
         run_result = interface.communicate_run(mocked_run)
         assert run_result.HasField("error")
-        assert (
-            run_result.error.code == pb.ErrorInfo.ErrorCode.INVALID
-        )
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.INVALID
 
 
 def test_output(mocked_run, mock_server, backend_interface):

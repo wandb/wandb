@@ -4,8 +4,7 @@ __all__ = [
     "CommError",
     "LogError",
     "DockerError",
-    "LogMultiprocessError",
-    "MultiprocessError",
+    "UnsupportedError",
     "RequireError",
     "ExecutionError",
     "LaunchError",
@@ -73,20 +72,14 @@ class InvalidError(UsageError):
     pass
 
 
-class LogError(Error):
-    """Raised when wandb.log() fails"""
-
-    pass
-
-
-class LogMultiprocessError(LogError):
-    """Raised when wandb.log() fails because of multiprocessing"""
-
-    pass
-
-
-class MultiprocessError(Error):
+class UnsupportedError(Error):
     """Raised when fails because of multiprocessing"""
+
+    pass
+
+
+class InternalError(Error):
+    """Raised when an internal error occurs"""
 
     pass
 
