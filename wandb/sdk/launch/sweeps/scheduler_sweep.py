@@ -136,7 +136,9 @@ class SweepScheduler(Scheduler):
                         # Scheduler hit the run_cap, let it launch runs then it will stop
                         pass
                     else:
-                        logging.debug(f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}")
+                        logging.debug(
+                            f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}"
+                        )
                         continue
 
                 wandb.termlog(
