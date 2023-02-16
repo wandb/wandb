@@ -199,7 +199,7 @@ def notebook_metadata(silent) -> Dict[str, str]:
         # Colab:
         # request the most recent contents
         ipynb = attempt_colab_load_ipynb()
-        if ipynb and jupyter_metadata:
+        if ipynb is not None and jupyter_metadata is not None:
             return {
                 "root": "/content",
                 "path": jupyter_metadata["path"],
