@@ -102,15 +102,17 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
+        output_str = "agent "
+        if self._name:
+            output_str += f"{self._name} "
         if self._running < self._max_jobs:
-            output_str = f"agent {self._name} polling on "
+            output_str += "polling on "
             if self._project != LAUNCH_DEFAULT_PROJECT:
-                output_str += "project {self._project}, "
-            output_str += f"queues {','.join(self._queues)} while running {self._running} out of {self._max_jobs} jobs"
-        else:
-            output_str = (
-                f"agent {self._name} running maximum number of jobs ({self._max_jobs})"
-            )
+                output_str += f"project {self._project}, "
+            output_str += f"queues {','.join(self._queues)}, "
+        output_str += (
+            f"running {self._running} out of a maximum of {self._max_jobs} jobs"
+        )
 
         wandb.termlog(f"{LOG_PREFIX}{output_str}")
         if self._running > 0:
