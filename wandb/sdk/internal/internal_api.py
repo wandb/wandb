@@ -2126,13 +2126,11 @@ class Api:
             response.raise_for_status()
         except Exception as e:
             progress.rewind()
+            logger.error(f"upload_file_async exception {url}: {e}")
             if isinstance(e, httpx.RequestError):
-                logger.error(f"upload_file_async exception {url}: {e}")
                 logger.error(f"upload_file_async request headers: {e.request.headers}")
-                if isinstance(e, httpx.HTTPStatusError):
-                    logger.error(
-                        f"upload_file_async response body: {e.response.content!r}"
-                    )
+            if isinstance(e, httpx.HTTPStatusError):
+                logger.error(f"upload_file_async response body: {e.response.content!r}")
             raise
 
     async def upload_file_retry_async(
