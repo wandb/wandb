@@ -922,7 +922,6 @@ def sweep(
             "--project",
             project,
             "--num_workers",
-            # TODO(gst): allow launch specification in sweep config
             str(config.get("launch", {}).get("num_workers", 8)),
         ]
 
