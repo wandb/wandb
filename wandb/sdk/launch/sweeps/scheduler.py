@@ -122,9 +122,24 @@ class Scheduler(ABC):
             return False
         return True
 
+    def _try_load_job(self) -> bool:
+        _public_api = public.Api()
+        try:
+            _job_artifact = _public_api.artifact(self._sweep_config["job"], type="job")
+            wandb.termlog(
+                f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
+            )
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}{str(e)}")
+            return False
+        return True
+
     def start(self) -> None:
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
+        if not self._try_load_job():
+            self.exit()
+            return
         self._start()
         self.run()
 
