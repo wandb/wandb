@@ -225,6 +225,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     api = internal.Api()
 
     _project = "test-project"
+    _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
     def mock_launch_add(*args, **kwargs):
@@ -254,7 +255,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     )
 
     _scheduler = Scheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, project_queue=_project
+        api, sweep_id=sweep_id, entity=user, project=_project, project_queue=_project, job=_job
     )
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
@@ -274,6 +275,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         entity=user,
         project=_project,
         project_queue=_project_queue,
+        job=_job,
     )
     _scheduler2.start()
     assert _scheduler2._runs["foo_run"].queued_run.args()[-3] == _project_queue
@@ -297,9 +299,10 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
     api.agent_heartbeat = mock_agent_heartbeat
 
     _project = "test-project"
+    _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
     scheduler = SweepScheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers
+        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers, job=_job
     )
     scheduler.start()
     assert scheduler.state == SchedulerState.STOPPED
