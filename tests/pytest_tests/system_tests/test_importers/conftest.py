@@ -20,10 +20,10 @@ from mlflow.tracking import MlflowClient
 
 MLFLOW_BASE_URL = "http://localhost:4040"
 MLFLOW_HEALTH_ENDPOINT = "health"
-EXPERIMENTS = 2
-RUNS_PER_EXPERIMENT = 3
-N_ARTIFACTS_PER_RUN = 1000
-STEPS = 100_000
+EXPERIMENTS = 1
+RUNS_PER_EXPERIMENT = 1
+N_ARTIFACTS_PER_RUN = 0
+STEPS = 10
 
 SECONDS_FROM_2023_01_01 = 1672549200
 
@@ -197,6 +197,8 @@ def mlflow_server():
         yield MLFLOW_BASE_URL
     else:
         raise Exception("MLflow server is not healthy")
+
+    # # https://github.com/pytest-dev/pytest/issues/9141
     # if os.environ.get("CI") != "true":
     #     # only do this on local machine; causes problems in CI
     #     try:
@@ -204,9 +206,9 @@ def mlflow_server():
     #     except KeyboardInterrupt:
     #         print("SIGINT for MLflow Server")
 
-    cwd = os.getcwd()
-    stop_cmd = ["rm", "-rf", f"{cwd}/mlruns", f"{cwd}/mlartifacts"]
-    subprocess.run(stop_cmd)
+    # cwd = os.getcwd()
+    # stop_cmd = ["rm", "-rf", f"{cwd}/mlruns", f"{cwd}/mlartifacts"]
+    # subprocess.run(stop_cmd)
 
 
 @pytest.fixture(scope="session")
