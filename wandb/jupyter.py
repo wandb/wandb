@@ -392,12 +392,14 @@ class Notebook:
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
-            nb_name = (
-                colab_ipynb.get("metadata", {})
-                .get("colab", {})
-                .get("name", "colab.ipynb")
-            )
-            if ".ipynb" not in nb_name:
+            try:
+                jupyter_metadata = (
+                    notebook_metadata_from_jupyter_servers_and_kernel_id()
+                )
+                nb_name = jupyter_metadata["name"]
+            except Exception:
+                nb_name = "colab.ipynb"
+            if not nb_name.endswith(".ipynb"):
                 nb_name += ".ipynb"
             with open(
                 os.path.join(
