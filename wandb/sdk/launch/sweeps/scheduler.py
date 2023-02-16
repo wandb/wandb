@@ -125,25 +125,10 @@ class Scheduler(ABC):
             return False
         return True
 
-    def _try_load_executable(self) -> bool:
-        if self._kwargs.get("job"):
-            _public_api = public.Api()
-            try:
-                _job_artifact = _public_api.artifact(self._kwargs["job"], type="job")
-                wandb.termlog(
-                    f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
-                )
-            except Exception:
-                wandb.termerror(f"{LOG_PREFIX}{traceback.format_exc()}")
-                return False
-            return True
-        elif self._kwargs.get("launch", {}).get("image_uri"):
-            # TODO(gst): check docker existance? Maybe confirm NOT wandb run uri?
-            return True
-        else:
-            return False
-
     def start(self) -> None:
+        """
+        Starts a scheduler, confirms prerequisites, begins execution loop
+        """
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
@@ -156,6 +141,9 @@ class Scheduler(ABC):
         self.run()
 
     def run(self) -> None:
+        """
+        Main run function for all external schedulers.
+        """
         wandb.termlog(f"{LOG_PREFIX}Scheduler Running.")
         self.state = SchedulerState.RUNNING
         try:
@@ -187,6 +175,29 @@ class Scheduler(ABC):
             self.state = SchedulerState.FAILED
         self._stop_runs()
 
+    def _try_load_executable(self) -> bool:
+        """
+        Check existance of valid executable for a run
+
+        logs and returns False when job is unreachable
+        """
+        if self._kwargs.get("job"):
+            _public_api = public.Api()
+            try:
+                _job_artifact = _public_api.artifact(self._kwargs["job"], type="job")
+                wandb.termlog(
+                    f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
+                )
+            except Exception:
+                wandb.termerror(f"{LOG_PREFIX}{traceback.format_exc()}")
+                return False
+            return True
+        elif self._kwargs.get("image_uri"):
+            # TODO(gst): check docker existance? Use registry in launch config?
+            return True
+        else:
+            return False
+
     def _yield_runs(self) -> Iterator[Tuple[str, SweepRun]]:
         """Thread-safe way to iterate over the runs."""
         with self._threading_lock:
@@ -206,6 +217,10 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
 
     def _update_run_states(self) -> None:
+        """
+        Thread-safe iteration through runs, get state from backend 
+        Deletes runs if not in running state
+        """
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
             try:
@@ -243,10 +258,15 @@ class Scheduler(ABC):
         entry_point: Optional[List[str]] = None,
         config: Optional[Dict[str, Any]] = None,
     ) -> "public.QueuedRun":
-        """Add a launch job to the Launch RunQueue."""
-        # One of Job and docker URI is required
-        _job = self._kwargs.get("job")
-        _uri = self._kwargs.get("launch", {}).get("image_uri")
+        """
+        Add a launch job to the Launch RunQueue.
+
+        run_id: supplied by gorilla from agentHeartbeat
+        config: launch config
+        """
+        # job and image first from CLI args, then from sweep config
+        _job = self._kwargs.get("job") or self._sweep_config.get("job")
+        _uri = self._kwargs.get("image_uri") or self._sweep_config.get("launch", {}).get("image_uri")
         if _job is None and _uri is None:
             raise SchedulerError(
                 f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"
