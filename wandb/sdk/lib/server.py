@@ -3,9 +3,13 @@ module server
 """
 
 import json
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 from wandb import util
 from wandb.apis import InternalApi
+
+if TYPE_CHECKING:
+    Settings = Union["wandb_settings.Settings", Dict[str, Any]]
 
 
 class ServerError(Exception):
@@ -13,14 +17,18 @@ class ServerError(Exception):
 
 
 class Server:
-    def __init__(self, api=None, settings=None):
+    def __init__(
+        self,
+        api: Optional[InternalApi] = None,
+        settings: Optional["Settings"] = None,
+    ) -> None:
         self._api = api or InternalApi(default_settings=settings)
         self._error_network = None
         self._viewer = {}
         self._flags = {}
         self._settings = settings
 
-    def query_with_timeout(self, timeout=None):
+    def query_with_timeout(self, timeout: Union[int, float, None] = None) -> None:
         if self._settings and self._settings._disable_viewer:
             return
         timeout = timeout or 5

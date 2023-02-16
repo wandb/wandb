@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -93,7 +94,9 @@ def save_config_file_from_dict(config_filename, config_dict):
         conf_file.write(data)
 
 
-def dict_from_config_file(filename, must_exist=False):
+def dict_from_config_file(
+    filename: str, must_exist: bool = False
+) -> Optional[Dict[str, Any]]:
     if not os.path.exists(filename):
         if must_exist:
             raise ConfigError("config file %s doesn't exist" % filename)
