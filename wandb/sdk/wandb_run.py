@@ -1217,7 +1217,7 @@ class Run:
     @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Displays this run in jupyter."""
-        if self._settings._jupyter and ipython.in_jupyter():
+        if self._settings._jupyter:
             ipython.display_html(self.to_html(height, hidden))
             return True
         else:
@@ -2092,10 +2092,10 @@ class Run:
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if not self._settings._jupyter:
+            if not self._settings._notebook:
                 os._exit(-1)
         except Exception as e:
-            if not self._settings._jupyter:
+            if not self._settings._notebook:
                 report_failure = True
             self._console_stop()
             self._backend.cleanup()
@@ -3027,7 +3027,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        # printer = printer or get_printer(settings._jupyter)
         Run._header_version_check_info(
             check_version, settings=settings, printer=printer
         )
@@ -3045,7 +3044,6 @@ class Run:
         if not check_version or settings._offline:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
             printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
@@ -3064,7 +3062,6 @@ class Run:
         if settings.quiet or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         # TODO: add this to a higher verbosity level
         printer.display(
             f"Tracking run with wandb version {wandb.__version__}", off=False
@@ -3076,7 +3073,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        # printer = printer or get_printer(settings._jupyter)
         if settings._offline:
             printer.display(
                 [
@@ -3111,7 +3107,6 @@ class Run:
         if not run_name:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if printer._html:
             if not wandb.jupyter.maybe_display():
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
@@ -3367,8 +3362,6 @@ class Run:
         if settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
-
         if settings._offline:
             printer.display(
                 [
@@ -3421,7 +3414,6 @@ class Run:
         if (quiet or settings.quiet) or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         panel = []
 
         # Render history if available
@@ -3502,7 +3494,6 @@ class Run:
             local_info = server_info_response.local_info
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
-                # printer = printer or get_printer(settings._jupyter)
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
                     f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
@@ -3549,7 +3540,6 @@ class Run:
         if (quiet or settings.quiet) or settings.silent:
             return
 
-        # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
             printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
@@ -3573,8 +3563,6 @@ class Run:
 
         if not reporter:
             return
-
-        # printer = printer or get_printer(settings._jupyter)
 
         warning_lines = reporter.warning_lines
         if warning_lines:

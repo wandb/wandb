@@ -185,7 +185,7 @@ class _Manager:
         try:
             self._inform_teardown(exit_code)
             result = self._service.join()
-            if result and not self._settings._jupyter:
+            if result and not self._settings._notebook:
                 os._exit(result)
         except Exception as e:
             wandb.termlog(

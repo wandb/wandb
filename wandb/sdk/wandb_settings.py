@@ -378,6 +378,7 @@ class Settings:
     _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
+    _ipython: bool
     _jupyter: bool
     _jupyter_name: str
     _jupyter_path: str
@@ -388,6 +389,7 @@ class Settings:
     _log_level: int
     _network_buffer: int
     _noop: bool
+    _notebook: bool
     _offline: bool
     _sync: bool
     _os: str
@@ -520,12 +522,23 @@ class Settings:
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
+            _ipython={
+                "hook": lambda _: _get_python_type() == "ipython",
+                "auto_hook": True,
+            },
             _jupyter={
-                "hook": lambda _: str(_get_python_type()) != "python",
+                "hook": lambda _: _get_python_type() == "jupyter",
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
+            _notebook={
+                "hook": lambda _: self._ipython
+                or self._jupyter
+                or self._colab
+                or self._kaggle,
+                "auto_hook": True,
+            },
             _offline={
                 "hook": (
                     lambda _: True

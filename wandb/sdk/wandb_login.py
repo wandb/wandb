@@ -166,7 +166,7 @@ class _WandbLogin:
         )
 
     def configure_api_key(self, key):
-        if self._settings._jupyter and not self._settings.silent:
+        if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
                 "If you're specifying your api key in code, ensure this "
                 "code is not shared publicly.\nConsider setting the "

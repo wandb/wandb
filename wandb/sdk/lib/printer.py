@@ -300,7 +300,7 @@ class PrinterJupyter(_Printer):
 Printer = Union[PrinterTerm, PrinterJupyter]
 
 
-def get_printer(_jupyter: Optional[bool] = None) -> Printer:
-    if _jupyter and ipython.in_jupyter():
+def get_printer(_jupyter: bool) -> Printer:
+    if _jupyter:
         return PrinterJupyter()
     return PrinterTerm()
