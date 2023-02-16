@@ -88,7 +88,7 @@ class ApiKeyStatus(enum.Enum):
 class _WandbLogin:
     def __init__(self):
         self.kwargs: Optional[Dict] = None
-        self._settings: Union[Settings, Dict[str, Any], None] = None
+        self._settings: Optional[Settings] = None
         self._backend = None
         self._silent = None
         self._entity = None
