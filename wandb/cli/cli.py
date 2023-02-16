@@ -33,6 +33,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     check_logged_in,
@@ -928,7 +929,7 @@ def sweep(
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        "placeholder-uri-scheduler",  # uri
+                        SCHEDULER_URI,  # uri
                         None,  # job
                         api,
                         "Scheduler.WANDB_SWEEP_ID",  # name,

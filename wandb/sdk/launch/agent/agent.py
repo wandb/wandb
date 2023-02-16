@@ -14,6 +14,7 @@ import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
@@ -202,7 +203,7 @@ class LaunchAgent:
         run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
-            if launch_spec.get("uri") == "placeholder-uri-scheduler":
+            if launch_spec.get("uri") == SCHEDULER_URI:
                 # also track running schedulers, used to account for _running job count
                 self._scheduler_jobs.add(run.id)
             else:  # don't track schedulers in running count

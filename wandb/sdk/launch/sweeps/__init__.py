@@ -3,6 +3,8 @@ from typing import Any, Callable, Dict
 
 log = logging.getLogger(__name__)
 
+SCHEDULER_URI = "placeholder-uri-scheduler"
+
 
 class SchedulerError(Exception):
     """Raised when a known error occurs with wandb sweep scheduler"""
