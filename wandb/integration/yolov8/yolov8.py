@@ -11,7 +11,7 @@ class WandbLogger:
     A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
     Usage:
     ```python
-    from wandb.integration.yolov8 import WandbLogger
+    from wandb.yolov8 import WandbLogger
     model = YOLO("yolov8n.pt")
     with WandbLogger(model,) as wb_model:
         wb_model.train(data="coco128.yaml", epochs=3, imgsz=640,)
@@ -25,6 +25,7 @@ class WandbLogger:
         project: str = None,
         tags: List[str] = None,
         resume: str = "allow",
+        **kwargs,
     ):
         """
         A callback that logs metrics to Weights & Biases.
