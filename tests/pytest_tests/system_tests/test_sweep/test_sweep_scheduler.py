@@ -255,7 +255,12 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     )
 
     _scheduler = Scheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, project_queue=_project, job=_job
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        project_queue=_project,
+        job=_job,
     )
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
@@ -302,7 +307,12 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
     _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
     scheduler = SweepScheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers, job=_job
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=num_workers,
+        job=_job,
     )
     scheduler.start()
     assert scheduler.state == SchedulerState.STOPPED
