@@ -248,7 +248,9 @@ class Scheduler(ABC):
         _job = self._kwargs.get("job")
         _uri = self._kwargs.get("image_uri")
         if _job is None and _uri is None:
-            raise SchedulerError(f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})")
+            raise SchedulerError(
+                f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"
+            )
         elif _job is not None and _uri is not None:
             # TODO(gst): @ben default to what?
             wandb.termwarn(
