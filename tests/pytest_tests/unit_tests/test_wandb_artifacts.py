@@ -74,10 +74,8 @@ def mock_prepare_sync(
 
 
 def mock_preparer(**kwargs):
-    prepare_sync = kwargs.get("prepare_sync")
-    if prepare_sync is not None:
-        kwargs.setdefault("prepare_async", asyncify(prepare_sync))
-
+    kwargs.setdefault("prepare_sync", Mock(wraps=mock_prepare_sync))
+    kwargs.setdefault("prepare_async", Mock(wraps=asyncify(kwargs["prepare_sync"])))
     return Mock(**kwargs)
 
 
@@ -91,6 +89,8 @@ class TestStoreFile:
         entry_local_path: Optional[Path] = None,
         preparer: Optional[StepPrepare] = None,
     ) -> Mapping[str, Any]:
+        if preparer is None:
+            preparer = mock_preparer()
         return dict(
             artifact_id=artifact_id,
             artifact_manifest_id=artifact_manifest_id,
@@ -100,12 +100,7 @@ class TestStoreFile:
                 local_path=str(entry_local_path) if entry_local_path else None,
                 size=entry_local_path.stat().st_size if entry_local_path else None,
             ),
-            preparer=preparer
-            if preparer
-            else Mock(
-                prepare_sync=Mock(wraps=mock_prepare_sync),
-                prepare_async=Mock(wraps=asyncify(mock_prepare_sync)),
-            ),
+            preparer=preparer if preparer else mock_preparer(),
         )
 
     @staticmethod
