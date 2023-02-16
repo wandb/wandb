@@ -218,7 +218,7 @@ class Scheduler(ABC):
 
     def _update_run_states(self) -> None:
         """
-        Thread-safe iteration through runs, get state from backend 
+        Thread-safe iteration through runs, get state from backend
         Deletes runs if not in running state
         """
         _runs_to_remove: List[str] = []
@@ -266,7 +266,9 @@ class Scheduler(ABC):
         """
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
-        _uri = self._kwargs.get("image_uri") or self._sweep_config.get("launch", {}).get("image_uri")
+        _uri = self._kwargs.get("image_uri") or self._sweep_config.get(
+            "launch", {}
+        ).get("image_uri")
         if _job is None and _uri is None:
             raise SchedulerError(
                 f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"
