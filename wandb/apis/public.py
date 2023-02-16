@@ -2050,15 +2050,15 @@ class Run(Attrs):
         the history records being sampled.
 
         Arguments:
-            samples (int, optional): The number of samples to return
-            pandas (bool, optional): Return a pandas dataframe
-            keys (list, optional): Only return metrics for specific keys
-            x_axis (str, optional): Use this metric as the xAxis defaults to _step
-            stream (str, optional): "default" for metrics, "system" for machine metrics
+            samples : (int, optional) The number of samples to return
+            pandas : (bool, optional) Return a pandas dataframe
+            keys : (list, optional) Only return metrics for specific keys
+            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
+            stream : (str, optional) "default" for metrics, "system" for machine metrics
 
         Returns:
-            If pandas=True returns a `pandas.DataFrame` of history metrics.
-            If pandas=False returns a list of dicts of history metrics.
+            pandas.DataFrame: If pandas=True returns a `pandas.DataFrame` of history metrics.
+            list of dicts: If pandas=False returns a list of dicts of history metrics.
         """
         if keys is not None and not isinstance(keys, list):
             wandb.termerror("keys must be specified in a list")
@@ -4137,21 +4137,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         return self._parent_artifact
 
     def copy(self, cache_path, target_path):
-        # can't have colons in Windows
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(target_path)
-            target_path = head + tail.replace(":", "-")
-
-        need_copy = (
-            not os.path.isfile(target_path)
-            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
-        )
-        if need_copy:
-            filesystem.mkdir_exists_ok(os.path.dirname(target_path))
-            # We use copy2, which preserves file metadata including modified
-            # time (which we use above to check whether we should do the copy).
-            shutil.copy2(cache_path, target_path)
-        return target_path
+        raise NotImplementedError()
 
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
@@ -4167,7 +4153,8 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
                 self._parent_artifact, manifest.entries[self.name]
             )
 
-        return self.copy(cache_path, os.path.join(root, self.name))
+        dest_path = os.path.join(root, self.name)
+        return filesystem.copy_or_overwrite_changed(cache_path, dest_path)
 
     def ref_target(self):
         manifest = self._parent_artifact._load_manifest()
@@ -4366,6 +4353,19 @@ class Artifact(artifacts.Artifact):
         self._attrs = attrs
         if self._attrs is None:
             self._load()
+
+        # The entity and project above are taken from the passed-in artifact version path
+        # so if the user is pulling an artifact version from an artifact portfolio, the entity/project
+        # of that portfolio may be different than the birth entity/project of the artifact version.
+        self._birth_project = (
+            self._attrs.get("artifactType", {}).get("project", {}).get("name")
+        )
+        self._birth_entity = (
+            self._attrs.get("artifactType", {})
+            .get("project", {})
+            .get("entity", {})
+            .get("name")
+        )
         self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
@@ -5419,8 +5419,8 @@ class ArtifactFiles(Paginator):
     ):
         self.artifact = artifact
         variables = {
-            "entityName": artifact.entity,
-            "projectName": artifact.project,
+            "entityName": artifact._birth_entity,
+            "projectName": artifact._birth_project,
             "artifactTypeName": artifact.type,
             "artifactName": artifact.name,
             "fileNames": names,

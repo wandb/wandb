@@ -6,11 +6,13 @@ import logging
 import os
 import pprint
 import time
+import traceback
 from typing import Any, Dict, List, Union
 
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
+from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.lib import runid
 
@@ -99,14 +101,20 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        if self._project == LAUNCH_DEFAULT_PROJECT:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on queues {','.join(self._queues)} for jobs"
-            )
+        if self._running < self._max_jobs:
+            output_str = f"agent {self._name} polling on "
+            if self._project != LAUNCH_DEFAULT_PROJECT:
+                output_str += "project {self._project}, "
+            output_str += f"queues {','.join(self._queues)} while running {self._running} out of {self._max_jobs} jobs"
         else:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
+            output_str = (
+                f"agent {self._name} running maximum number of jobs ({self._max_jobs})"
             )
+
+        wandb.termlog(f"{LOG_PREFIX}{output_str}")
+        if self._running > 0:
+            output_str += f": {','.join([str(key) for key in self._jobs.keys()])}"
+        _logger.info(output_str)
 
     def update_status(self, status: str) -> None:
         update_ret = self._api.update_launch_agent_status(
@@ -129,7 +137,15 @@ class LaunchAgent:
         try:
             if self._jobs[job_id].get_status().state in ["failed", "finished"]:
                 self.finish_job_id(job_id)
-        except Exception:
+        except Exception as e:
+            if isinstance(e, LaunchError):
+                wandb.termerror(f"Terminating job {job_id} because it failed to start:")
+                wandb.termerror(str(e))
+            _logger.info("---")
+            _logger.info("Caught exception while getting status.")
+            _logger.info(f"Job ID: {job_id}")
+            _logger.info(traceback.format_exc())
+            _logger.info("---")
             self.finish_job_id(job_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
@@ -204,17 +220,19 @@ class LaunchAgent:
                         if job:
                             try:
                                 self.run_job(job)
-                            except Exception as e:
-                                wandb.termerror(f"Error running job: {e}")
+                            except Exception:
+                                wandb.termerror(
+                                    f"Error running job: {traceback.format_exc()}"
+                                )
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
                     if self._running == 0:
                         self.update_status(AGENT_POLLING)
-                        self.print_status()
                     else:
                         self.update_status(AGENT_RUNNING)
+                    self.print_status()
                 time.sleep(AGENT_POLLING_INTERVAL)
 
         except KeyboardInterrupt:

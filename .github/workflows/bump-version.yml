@@ -1,0 +1,56 @@
+name: Bump version and generate changelog
+on:
+  workflow_call:
+    inputs:
+      branch:
+        required: true
+        type: string
+      bump-kind:
+        required: true
+        type: string
+        default: "PATCH"
+    outputs:
+      version:
+        value: ${{ jobs.bump-version.outputs.version }}
+      branch:
+        value: ${{ jobs.bump-version.outputs.branch }}
+      tag:
+        value: ${{ jobs.bump-version.outputs.tag }}
+  workflow_dispatch:
+    inputs:
+      bump-kind:
+        type: choice
+        required: true
+        description: How to bump the current version
+        default: "PATCH"
+        options:
+          - "MAJOR"
+          - "MINOR"
+          - "PATCH"
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.cz.outputs.version }}
+      branch: ${{ steps.cz.outputs.branch }}
+      tag: ${{ steps.cz.outputs.tag }}
+    steps:
+      - name: Checkout out
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          token: "${{ secrets.GITHUB_API_TOKEN }}"
+      - id: cz
+        name: Create bump and changelog
+        uses: commitizen-tools/commitizen-action@0.16.3
+        with:
+          github_token: ${{ secrets.GITHUB_API_TOKEN }}
+          branch: "bump-version-test"
+          increment: ${{ github.event.inputs.bump-kind }}
+      - name: Print Version
+        run: |
+          echo "version=${{ steps.cz.outputs.version }}" >> $GITHUB_OUTPUT
+          echo "branch=release-${{ steps.cz.outputs.version }}" >> $GITHUB_OUTPUT
+          echo "tag=v${{ steps.cz.outputs.version }}" >> $GITHUB_OUTPUT

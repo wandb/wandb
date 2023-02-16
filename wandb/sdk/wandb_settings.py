@@ -378,6 +378,7 @@ class Settings:
     _console: SettingsConsole
     _cuda: str
     _disable_meta: bool
+    _disable_service: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
@@ -401,11 +402,10 @@ class Settings:
     _os: str
     _platform: str
     _python: str
-    _require_service: str
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
-    _service_wait: int
+    _service_wait: float
     _start_datetime: datetime
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
@@ -421,7 +421,6 @@ class Settings:
     anonymous: str
     api_key: str
     base_url: str  # The base url for the wandb api
-    cache_dir: str  # The directory to use for artifacts cache: <cache_dir>/artifacts
     code_dir: str
     config_paths: Sequence[str]
     console: str
@@ -429,6 +428,7 @@ class Settings:
     disable_code: bool
     disable_git: bool
     disable_hints: bool
+    disable_job_creation: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
@@ -514,6 +514,11 @@ class Settings:
         """
         return dict(
             _disable_meta={"preprocessor": _str_as_bool},
+            _disable_service={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "is_policy": True,
+            },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _network_buffer={"preprocessor": int},
@@ -549,9 +554,21 @@ class Settings:
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
-            _service_wait={"value": 30, "preprocessor": int},
-            _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
-            _stats_samples_to_average={"value": 15},
+            _service_wait={
+                "value": 30,
+                "preprocessor": float,
+                "validator": self._validate__service_wait,
+            },
+            _stats_sample_rate_seconds={
+                "value": 2.0,
+                "preprocessor": float,
+                "validator": self._validate__stats_sample_rate_seconds,
+            },
+            _stats_samples_to_average={
+                "value": 15,
+                "preprocessor": int,
+                "validator": self._validate__stats_samples_to_average,
+            },
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
             _stats_neuron_monitor_config_path={
                 "hook": lambda x: self._path_convert(x),
@@ -580,6 +597,7 @@ class Settings:
             disable_code={"preprocessor": _str_as_bool},
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
+            disable_job_creation={"value": False, "preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -936,6 +954,24 @@ class Settings:
 
         return True
 
+    @staticmethod
+    def _validate__service_wait(value: float) -> bool:
+        if value <= 0:
+            raise UsageError("_service_wait must be a positive number")
+        return True
+
+    @staticmethod
+    def _validate__stats_sample_rate_seconds(value: float) -> bool:
+        if value < 0.1:
+            raise UsageError("_stats_sample_rate_seconds must be >= 0.1")
+        return True
+
+    @staticmethod
+    def _validate__stats_samples_to_average(value: int) -> bool:
+        if value < 1 or value > 30:
+            raise UsageError("_stats_samples_to_average must be between 1 and 30")
+        return True
+
     # other helper methods
     @staticmethod
     def _path_convert(*args: str) -> str:
@@ -957,7 +993,7 @@ class Settings:
             if (
                 self._jupyter
                 or (self.start_method == "thread")
-                or self._require_service
+                or not self._disable_service
                 or self._windows
             ):
                 console = "wrap"
@@ -1338,7 +1374,7 @@ class Settings:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
             "WANDB_TRACELOG": "_tracelog",
-            "WANDB_REQUIRE_SERVICE": "_require_service",
+            "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
@@ -1428,12 +1464,12 @@ class Settings:
                 settings["username"] = str(os.getuid())
 
         _executable = (
-            os.environ.get(wandb.env._EXECUTABLE, self._executable)
+            self._executable
+            or os.environ.get(wandb.env._EXECUTABLE)
             or sys.executable
-            or shutil.which("python")
+            or shutil.which("python3")
+            or "python3"
         )
-        if _executable is None or _executable == "":
-            _executable = "python3"
         settings["_executable"] = _executable
 
         settings["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())

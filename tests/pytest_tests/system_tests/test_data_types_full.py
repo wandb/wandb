@@ -134,12 +134,11 @@ def test_image_array_old_wandb(relay_server, wandb_init, monkeypatch, capsys):
 
 def test_image_array_old_wandb_mp_warning(wandb_init, capsys, monkeypatch):
     monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
-    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="true"):
-        run = wandb_init()
-        wb_image = [wandb.Image(np.zeros((28, 28))) for _ in range(5)]
-        run._init_pid += 1
-        run.log({"logged_images": wb_image})
-        run.finish()
+    run = wandb_init()
+    wb_image = [wandb.Image(np.zeros((28, 28))) for _ in range(5)]
+    run._init_pid += 1
+    run.log({"logged_images": wb_image})
+    run.finish()
     outerr = capsys.readouterr()
     assert (
         "Attempting to log a sequence of Image objects from multiple processes might result in data loss. Please upgrade your wandb server"

@@ -2,9 +2,6 @@
 multiproc full tests.
 """
 import importlib
-import multiprocessing
-import os
-import platform
 import sys
 import time
 
@@ -27,86 +24,6 @@ def test_multiproc_default(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
         train(run, 0)
-        run.finish()
-
-    summary = relay.context.get_run_summary(run.id)
-    assert summary["val"] == 3
-    assert summary["val2"] == 1
-    assert summary["mystep"] == 3
-
-
-@pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="flaky?")
-@pytest.mark.skipif(
-    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
-)
-def test_multiproc_ignore(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-
-        train(run, 0)
-
-        procs = []
-        for _ in range(2):
-            procs.append(
-                multiprocessing.Process(
-                    target=train,
-                    kwargs=dict(
-                        run=run,
-                        add_val=100,
-                    ),
-                )
-            )
-
-        try:
-            for p in procs:
-                p.start()
-        finally:
-            for p in procs:
-                p.join()
-                assert p.exitcode == 0
-
-        run.finish()
-
-    summary = relay.context.get_run_summary(run.id)
-    assert summary["val"] == 3
-    assert summary["val2"] == 1
-    assert summary["mystep"] == 3
-
-
-@pytest.mark.flaky
-@pytest.mark.xfail(platform.system() == "Darwin", reason="console parse_ctx issues")
-@pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
-@pytest.mark.skipif(
-    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
-)
-def test_multiproc_strict(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings={"strict": "true"})
-
-        train(run, 0)
-
-        procs = []
-        for _ in range(2):
-            procs.append(
-                multiprocessing.Process(
-                    target=train,
-                    kwargs=dict(
-                        run=run,
-                        add_val=100,
-                    ),
-                )
-            )
-
-        try:
-            for p in procs:
-                p.start()
-        finally:
-            for p in procs:
-                p.join()
-                # expect fail
-                assert p.exitcode != 0
-
         run.finish()
 
     summary = relay.context.get_run_summary(run.id)
