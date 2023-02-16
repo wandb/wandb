@@ -110,10 +110,10 @@ class SweepScheduler(Scheduler):
                         )
                         self._runs[run.id] = run
                         self._heartbeat_queue.put(run)
-                        return True
                 else:
                     self.state = SchedulerState.FAILED
                     raise SchedulerError(f"AgentHeartbeat unknown command type {_type}")
+        return True
 
     def _run(self) -> None:
         # Go through all workers and heartbeat
