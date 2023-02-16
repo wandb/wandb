@@ -105,15 +105,14 @@ class SweepScheduler(Scheduler):
                         raise SchedulerError(
                             f"AgentHeartbeat command {command} missing run_id"
                         )
-
-                    if self._sweep_config.get("command"):
-                        wandb.termwarn(
-                            f"Commands set in sweep config ({self._sweep_config.get('command')}) will be overridden by the job"
-                        )
-
                     if _run_id in self._runs:
                         wandb.termlog(f"{LOG_PREFIX} Skipping duplicate run {run_id}")
                     else:
+                        if self._sweep_config.get("command"):
+                            wandb.termwarn(
+                                f"Commands set in sweep config ({self._sweep_config.get('command')}) will be overridden"
+                            )
+
                         run = SweepRun(
                             id=_run_id,
                             args=command.get("args", {}),
