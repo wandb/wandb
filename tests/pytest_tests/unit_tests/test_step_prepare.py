@@ -91,7 +91,7 @@ def _bg_prepare_async(
     whatever logic you're testing works with both sync and async impls.
 
     If you're writing a test that only cares about the async impl, you should
-    probably just call `step_prepare.prepare_sync` directly.
+    probably just call `step_prepare.prepare_async` directly.
     """
 
     future = concurrent.futures.Future()

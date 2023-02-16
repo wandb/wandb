@@ -110,7 +110,7 @@ class TestStoreFile:
 
     @staticmethod
     def _store_file_sync(policy: WandbStoragePolicy, **kwargs) -> bool:
-        """Starts store_file_sync running in the background.
+        """Runs store_file_sync to completion.
 
         Don't call this directly; use the `store_file` fixture instead, to ensure that
         whatever logic you're testing works with both sync and async impls.
@@ -124,12 +124,12 @@ class TestStoreFile:
 
     @staticmethod
     def _store_file_async(policy: WandbStoragePolicy, **kwargs) -> bool:
-        """Starts store_file_sync running in the background.
+        """Runs store_file_async to completion.
 
         Don't call this directly; use the `store_file` fixture instead, to ensure that
         whatever logic you're testing works with both sync and async impls.
 
-        If you're writing a test that only cares about the sync impl, you should
+        If you're writing a test that only cares about the async impl, you should
         probably just call `policy.store_file_async` directly.
         """
         return asyncio.new_event_loop().run_until_complete(
