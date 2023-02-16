@@ -555,9 +555,7 @@ class _WandbInit:
         )
         if self.settings._noop:
             return self._make_run_disabled()
-        if self.settings.reinit or (
-            self.settings._jupyter and self.settings.reinit is not False
-        ):
+        if self.settings.reinit or self.settings._jupyter:
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
@@ -720,7 +718,6 @@ class _WandbInit:
             run._populate_git_info()
 
         run_proto = backend.interface._make_run(run)
-        run_init_handle: Optional[MailboxHandle] = None
         run_result: Optional["pb.RunUpdateResult"] = None
 
         if self.settings._offline:
@@ -750,21 +747,18 @@ class _WandbInit:
             if result:
                 run_result = result.run_result
 
-            if not run_result:
-                error_message = "Error communicating with wandb process, exiting..."
-                error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
-                logger.error(
-                    "backend process timed out, exiting...\n"
-                    f"encountered error: {error_message}"
+            if run_result is None:
+                error_message = (
+                    f"Communication with the internal wandb process failed. Communication has timed out after {timeout} sec. "
+                    f"\nPlease refer to the documentation for additional information: {wburls.get('doc_start_err')}"
                 )
                 error = CommError(error_message)
                 run_init_handle._cancel()
-            elif run_result and run_result.error:
+            elif run_result.error:
                 error = ProtobufErrorHandler.to_exception(run_result.error)
-                if error:
-                    logger.error(f"encountered error: {error}")
 
             if error is not None:
+                logger.error(f"encountered error: {error}")
                 if not manager:
                     # Shutdown the backend and get rid of the logger
                     # we don't need to do console cleanup at this point
@@ -772,18 +766,15 @@ class _WandbInit:
                     self.teardown()
                 raise error
 
-            if run_result is not None:
-                assert run_result.run
+            # if run_result is not None:
+            assert run_result and run_result.run
 
-                if run_result.run.resumed:
-                    logger.info("run resumed")
-                    with telemetry.context(run=run) as tel:
-                        tel.feature.resumed = run_result.run.resumed
+            if run_result.run.resumed:
+                logger.info("run resumed")
+                with telemetry.context(run=run) as tel:
+                    tel.feature.resumed = run_result.run.resumed
 
-                run_proto = run_result.run
-                run_init_handle = None
-
-            run._set_run_obj(run_proto)
+            run._set_run_obj(run_result.run)
             run._on_init()
 
         logger.info("starting run threads in backend")
