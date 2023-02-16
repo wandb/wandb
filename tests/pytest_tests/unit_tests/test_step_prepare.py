@@ -1,11 +1,10 @@
 import queue
-from unittest.mock import Mock
-from typing import TYPE_CHECKING, Iterable, Mapping
 import time
+from typing import TYPE_CHECKING, Iterable, Mapping
+from unittest.mock import Mock
 
 import pytest
-
-from wandb.filesync.step_prepare import StepPrepare, ResponsePrepare
+from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import (
