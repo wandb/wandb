@@ -2050,15 +2050,15 @@ class Run(Attrs):
         the history records being sampled.
 
         Arguments:
-            samples (int, optional): The number of samples to return
-            pandas (bool, optional): Return a pandas dataframe
-            keys (list, optional): Only return metrics for specific keys
-            x_axis (str, optional): Use this metric as the xAxis defaults to _step
-            stream (str, optional): "default" for metrics, "system" for machine metrics
+            samples : (int, optional) The number of samples to return
+            pandas : (bool, optional) Return a pandas dataframe
+            keys : (list, optional) Only return metrics for specific keys
+            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
+            stream : (str, optional) "default" for metrics, "system" for machine metrics
 
         Returns:
-            If pandas=True returns a `pandas.DataFrame` of history metrics.
-            If pandas=False returns a list of dicts of history metrics.
+            pandas.DataFrame: If pandas=True returns a `pandas.DataFrame` of history metrics.
+            list of dicts: If pandas=False returns a list of dicts of history metrics.
         """
         if keys is not None and not isinstance(keys, list):
             wandb.termerror("keys must be specified in a list")

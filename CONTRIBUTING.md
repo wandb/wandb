@@ -71,7 +71,7 @@ Please make sure to update the ToC when you update this page!
       git remote add upstream https://github.com/wandb/wandb.git
       ```
 
-3.  Develop you contribution.
+3.  Develop your contribution.
     - Make sure your fork is in sync with the main repository:
     ```shell
     git checkout main
