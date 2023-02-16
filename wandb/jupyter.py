@@ -194,6 +194,7 @@ def notebook_metadata(silent) -> Dict[str, str]:
         "the WANDB_NOTEBOOK_NAME environment variable to enable code saving."
     )
     try:
+        print("notebook_metadata")
         jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
         print(jupyter_metadata)
         # Colab:
