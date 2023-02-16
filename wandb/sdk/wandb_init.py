@@ -40,7 +40,7 @@ from .lib import (
     telemetry,
 )
 from .lib.deprecate import Deprecated, deprecate
-from .lib.mailbox import Mailbox, MailboxHandle, MailboxProgress
+from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.printer import Printer, get_printer
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
@@ -547,8 +547,9 @@ class _WandbInit:
         logger.info("calling init triggers")
         trigger.call("on_init", **self.kwargs)  # type: ignore
 
-        assert self.settings
-        assert self._wl
+        assert self.settings is not None
+        assert self._wl is not None
+        assert self._reporter is not None
 
         logger.info(
             f"wandb.init called with sweep_config: {self.sweep_config}\nconfig: {self.config}"
@@ -563,36 +564,27 @@ class _WandbInit:
                         "you should use multi-processing not threads"  # noqa: E501
                     )
 
-                last_id = self._wl._global_run_stack[-1]._run_id
+                latest_run = self._wl._global_run_stack[-1]
+
                 logger.info(
-                    f"re-initializing run, found existing run on stack: {last_id}"
+                    f"re-initializing run, found existing run on stack: {latest_run._run_id}"
                 )
-                jupyter = (
-                    self.settings._jupyter
-                    and not self.settings.silent
-                    and ipython.in_jupyter()
-                )
-                if jupyter:
+                jupyter = self.settings._jupyter and ipython.in_jupyter()
+                if jupyter and not self.settings.silent:
                     ipython.display_html(
-                        f"Finishing last run (ID:{last_id}) before initializing another..."
+                        f"Finishing last run (ID:{latest_run._run_id}) before initializing another..."
                     )
 
-                self._wl._global_run_stack[-1].finish()
+                latest_run.finish()
 
-                if jupyter:
+                if jupyter and not self.settings.silent:
                     ipython.display_html(
-                        f"Successfully finished last run (ID:{last_id}). Initializing new run:<br/>"
+                        f"Successfully finished last run (ID:{latest_run._run_id}). Initializing new run:<br/>"
                     )
         elif isinstance(wandb.run, Run):
-            allow_return_run = True
             manager = self._wl._get_manager()
-            if manager:
-                current_pid = os.getpid()
-                if current_pid != wandb.run._init_pid:
-                    # We shouldn't return a stale global run if we are in a new pid
-                    allow_return_run = False
-
-            if allow_return_run:
+            # We shouldn't return a stale global run if we are in a new pid
+            if not manager or os.getpid() == wandb.run._init_pid:
                 logger.info("wandb.init() called when a run is still active")
                 with telemetry.context() as tel:
                     tel.feature.init_return_run = True
@@ -608,28 +600,17 @@ class _WandbInit:
         mailbox = Mailbox()
         backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
         backend.ensure_launched()
-        backend.server_connect()
         logger.info("backend started and connected")
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
-        assert self.settings is not None
         run = Run(
             config=self.config,
             settings=self.settings,
             sweep_config=self.sweep_config,
             launch_config=self.launch_config,
         )
-
-        # probe the active start method
-        active_start_method: Optional[str] = None
-        if self.settings.start_method == "thread":
-            active_start_method = self.settings.start_method
-        else:
-            active_start_method = getattr(
-                backend._multiprocessing, "get_start_method", lambda: None
-            )()
 
         # Populate initial telemetry
         with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
@@ -650,6 +631,15 @@ class _WandbInit:
 
             for module_name in telemetry.list_telemetry_imports(only_imported=True):
                 setattr(tel.imports_init, module_name, True)
+
+            # probe the active start method
+            active_start_method: Optional[str] = None
+            if self.settings.start_method == "thread":
+                active_start_method = self.settings.start_method
+            else:
+                active_start_method = getattr(
+                    backend._multiprocessing, "get_start_method", lambda: None
+                )()
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -701,10 +691,8 @@ class _WandbInit:
 
         run._set_library(self._wl)
         run._set_backend(backend)
-        run._set_reporter(self._reporter)  # type: ignore
+        run._set_reporter(self._reporter)
         run._set_teardown_hooks(self._teardown_hooks)
-        # TODO: pass mode to backend
-        # run_synced = None
 
         backend._hack_set_run(run)
         assert backend.interface
