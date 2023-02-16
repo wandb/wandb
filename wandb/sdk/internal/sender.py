@@ -732,7 +732,12 @@ class SendManager:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-                error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
+                error.message = (
+                    "You provided an invalid value for the `resume` argument."
+                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                    " Please check your inputs and try again with a valid run ID."
+                    " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
+                )
                 return error
             return None
 
@@ -742,7 +747,11 @@ class SendManager:
         if self._settings.resume == "never":
             error = wandb_internal_pb2.ErrorInfo()
             error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-            error.message = "resume='never' but run (%s) exists" % run.run_id
+            error.message = (
+                "You provided an invalid value for the `resume` argument."
+                f" The value 'never' is not a valid option for resuming a run ({run.run_id}) that already exists."
+                " Please check your inputs and try again with a valid value for the `resume` argument."
+            )
             return error
 
         history = {}

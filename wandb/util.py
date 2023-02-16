@@ -54,7 +54,7 @@ import yaml
 
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
-from wandb.errors import CommError, UsageError, term, AuthorizationError
+from wandb.errors import AuthorizationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
@@ -1081,6 +1081,7 @@ def make_check_retry_fn(
         return True
 
     return check_retry_fn
+
 
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.

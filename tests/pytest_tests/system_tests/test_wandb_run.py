@@ -55,6 +55,11 @@ def test_invalid_project_name(user, project_name):
         assert 'Invalid project name "{project_name}"' in str(e.value)
 
 
+def test_resume_must_failure(wandb_init):
+    with pytest.raises(wandb.UsageError):
+        wandb_init(reinit=True, resume="must")
+
+
 def test_unlogged_artifact_in_config(user, test_settings):
     run = wandb.init(settings=test_settings())
     artifact = wandb.Artifact("my-arti", type="dataset")

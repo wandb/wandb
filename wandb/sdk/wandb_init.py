@@ -761,9 +761,8 @@ class _WandbInit:
                 run_init_handle._cancel()
             elif run_result and run_result.error:
                 error = ProtobufErrorHandler.to_exception(run_result.error)
-                # if error_message:
-                #     logger.error(f"encountered error: {error_message}")
-                    # error = UsageError(error_message)
+                if error:
+                    logger.error(f"encountered error: {error}")
 
             if error is not None:
                 if not manager:
@@ -1165,15 +1164,11 @@ def init(
         assert logger
         logger.warning("interrupted", exc_info=e)
         raise e
-    except UsageError as e:
+    except (UsageError, CommError) as e:
         # wandb.termerror(str(e), repeat=False)
-        assert logger
-        logger.exception(str(e))
-        raise
-    except CommError as e:
-        assert logger
-        logger.exception(str(e))
-        raise
+        # assert logger
+        # logger.exception(str(e))
+        raise e
     except Exception as e:
         error_seen = e
         traceback.print_exc()
