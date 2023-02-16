@@ -57,10 +57,10 @@ class SweepScheduler(Scheduler):
                 agent_id=agent_config["id"],
             )
 
-    def _heartbeat(self, worker_id: int) -> None:
+    def _heartbeat(self, worker_id: int) -> bool:
         # Make sure Scheduler is alive
         if not self.is_alive():
-            return
+            return False
         # AgentHeartbeat wants a Dict of runs which are running or queued
         _run_states: Dict[str, bool] = {}
         for run_id, run in self._yield_runs():
@@ -84,12 +84,13 @@ class SweepScheduler(Scheduler):
                 _type = command.get("type", None)
                 if _type in ["exit", "stop"]:
                     if command.get("run_cap", 0) > 0:
-                        # over runcap: dont stop scheduler yet
-                        continue
+                        # over runcap: no new runs, but finish existing
+                        self.state = SchedulerState.FINISHING
+                        return False
                     # Tell (virtual) agent to stop running
                     self.state = SchedulerState.STOPPED
                     self.exit()
-                    return
+                    return False
                 elif _type in ["run", "resume"]:
                     _run_id = command.get("run_id", None)
                     if _run_id is None:
@@ -109,6 +110,7 @@ class SweepScheduler(Scheduler):
                         )
                         self._runs[run.id] = run
                         self._heartbeat_queue.put(run)
+                        return True
                 else:
                     self.state = SchedulerState.FAILED
                     raise SchedulerError(f"AgentHeartbeat unknown command type {_type}")
@@ -116,7 +118,8 @@ class SweepScheduler(Scheduler):
     def _run(self) -> None:
         # Go through all workers and heartbeat
         for worker_id in self._workers:
-            self._heartbeat(worker_id)
+            if not self._heartbeat(worker_id):
+                break
 
         for _worker_id in self._workers:
             try:
@@ -129,14 +132,12 @@ class SweepScheduler(Scheduler):
                     SimpleRunState.DEAD,
                     SimpleRunState.UNKNOWN,
                 ]:
-                    if self.state == SchedulerState.STOPPED:
+                    if self.state == SchedulerState.FINISHING:
                         # Scheduler hit the run_cap, let it launch runs then it will stop
                         pass
                     else:
-                        logging.debug(
-                            f"{LOG_PREFIX}Tring to launch [{run.id}] but it is already stopped"
-                        )
-                        return
+                        logging.debug(f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}")
+                        continue
 
                 wandb.termlog(
                     f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"

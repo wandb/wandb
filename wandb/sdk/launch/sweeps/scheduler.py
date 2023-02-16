@@ -32,9 +32,10 @@ class SchedulerState(Enum):
     PENDING = 0
     STARTING = 1
     RUNNING = 2
-    COMPLETED = 3
-    FAILED = 4
-    STOPPED = 5
+    FINISHING = 3
+    COMPLETED = 4
+    FAILED = 5
+    STOPPED = 6
 
 
 class SimpleRunState(Enum):
@@ -165,6 +166,10 @@ class Scheduler(ABC):
                     break
                 self._update_run_states()
                 self._run()
+                # if we hit the run_cap, now set to stopped after launching runs
+                if self.state == SchedulerState.FINISHING:
+                    wandb.termlog(f"{LOG_PREFIX}Sweep reached run_cap, stopping.")
+                    self.state = SchedulerState.STOPPED
         except KeyboardInterrupt:
             wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
             self.state = SchedulerState.STOPPED
