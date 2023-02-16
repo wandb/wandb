@@ -202,7 +202,10 @@ def trigger_nightly(args):
     assert r.status_code == 201, "Error making api request"
     d = r.json()
     uuid = d["id"]
-    print("CircleCI workflow started:", uuid)
+    number = d["number"]
+    print("CircleCI workflow started.")
+    print(f"UUID: {uuid}")
+    print(f"Number: {number}")
     if args.wait:
         poll(args, pipeline_id=uuid)
 
