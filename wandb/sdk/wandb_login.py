@@ -6,7 +6,7 @@ account.
 import enum
 import os
 import sys
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 if sys.version_info >= (3, 8):
     from typing import Literal
