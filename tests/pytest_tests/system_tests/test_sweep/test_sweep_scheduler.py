@@ -412,10 +412,16 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     api.get_run_state = mock_get_run_state
 
     _project = "test-project"
+    _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
     _scheduler = SweepScheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=num_workers,
+        job=_job,
     )
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
