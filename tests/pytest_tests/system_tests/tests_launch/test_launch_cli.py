@@ -3,6 +3,9 @@ import json
 import pytest
 import wandb
 from wandb.cli import cli
+from wandb.apis.internal import InternalApi
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
+
 
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
@@ -285,13 +288,15 @@ def test_launch_build_with_local(
     ],
     ids=["none", "empty", "basic", "int num workers", "str num workers"],
 )
-def test_launch_sweep_launch_params(user, runner, launch_params, monkeypatch):
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "validate_docker_installation",
-        lambda: None,
-    )
+def test_launch_sweep_launch_params(user, wandb_init, test_settings, runner, launch_params, monkeypatch):
+    project = LAUNCH_DEFAULT_PROJECT
+    queue = "testing3421"
     with runner.isolated_filesystem():
+        settings = test_settings({"project": project})
+        api = InternalApi()
+        run = wandb_init(settings=settings)
+        run.finish()
+
         with open("sweep-config.yaml", "w") as f:
             json.dump(
                 {
@@ -302,14 +307,20 @@ def test_launch_sweep_launch_params(user, runner, launch_params, monkeypatch):
                 },
                 f,
             )
-
-        result = runner.invoke(
-            cli.sweep, ["sweep-config.yaml", "-e", user, "-q", "another-one"]
+        api.create_run_queue(
+            entity=user,
+            project=project,
+            queue_name=queue,
+            access="PROJECT",
         )
 
-        raise Exception(result.output)
+        result = runner.invoke(
+            cli.sweep, ["sweep-config.yaml", "-e", user, "-p", project, "-q", queue]
+        )
+
         if not launch_params.get("image_uri"):
             assert result.exit_code == 1
             assert "No 'job' or 'image_uri' found in sweep config" in result.output
         else:
-            assert result.exit_code == 0
+            if result.exit_code != 0:
+                raise Exception(result.output)
