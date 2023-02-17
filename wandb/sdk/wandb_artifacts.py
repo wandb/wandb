@@ -865,7 +865,7 @@ class WandbStoragePolicy(StoragePolicy):
         cache: Optional[ArtifactsCache] = None,
         api: Optional[InternalApi] = None,
     ) -> None:
-        self._cache = cache if cache is not None else get_artifacts_cache()
+        self._cache = cache or get_artifacts_cache()
         self._config = config or {}
         self._session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
@@ -884,7 +884,7 @@ class WandbStoragePolicy(StoragePolicy):
         local_artifact = WBLocalArtifactHandler()
         file_handler = LocalFileHandler()
 
-        self._api = api if api is not None else InternalApi()
+        self._api = api or InternalApi()
         self._handler = MultiHandler(
             handlers=[
                 s3,
