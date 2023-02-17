@@ -11,7 +11,8 @@ import requests
 from wandb_gql.client import RetryError
 
 from wandb import env
-from wandb.errors import CommError, ContextCancelledError
+from wandb.errors import CommError
+from wandb.sdk.lib.mailbox import ContextCancelledError
 
 _F = TypeVar("_F", bound=Callable)
 

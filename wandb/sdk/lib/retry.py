@@ -23,13 +23,9 @@ from typing import (
 from requests import HTTPError
 
 import wandb
-from wandb.errors import (
-    AuthorizationError,
-    CommError,
-    ContextCancelledError,
-    PermissionsError,
-    UsageError,
-)
+from wandb.errors import AuthorizationError, CommError, PermissionsError, UsageError
+
+from .mailbox import ContextCancelledError
 
 CheckRetryFnType = Callable[[Exception], Union[bool, datetime.timedelta]]
 

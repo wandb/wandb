@@ -11,11 +11,14 @@ import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
 import yaml
 from wandb.apis import PublicApi
-from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, PROJECT_SYNCHRONOUS
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    PROJECT_SYNCHRONOUS,
+    LaunchError,
+)
 from wandb.sdk.lib import runid
 
 from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path

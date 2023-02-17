@@ -8,7 +8,6 @@ from . import (
     Error,
     InvalidError,
     PermissionsError,
-    RateLimitError,
 )
 
 to_exception_map = {
@@ -17,7 +16,6 @@ to_exception_map = {
     pb.ErrorInfo.PERMISSION: PermissionsError,
     pb.ErrorInfo.AUTHENTICATION: AuthenticationError,
     pb.ErrorInfo.AUTHORIZATION: AuthorizationError,
-    pb.ErrorInfo.RATELIMIT: RateLimitError,
 }
 
 from_exception_map = {v: k for k, v in to_exception_map.items()}
