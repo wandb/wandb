@@ -285,8 +285,8 @@ def test_launch_build_with_local(
     ],
     ids=["none", "empty", "basic", "int num workers", "str num workers"],
 )
-def test_launch_sweep_launch_params(relay_server, user, runner, launch_params):
-    with runner.isolated_filesystem(), relay_server():
+def test_launch_sweep_launch_params(user, runner, launch_params):
+    with runner.isolated_filesystem():
         with open("sweep-config.yaml", "w") as f:
             json.dump(
                 {
