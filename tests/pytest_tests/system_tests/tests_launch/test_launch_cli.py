@@ -1,11 +1,12 @@
 import json
-import time 
+import time
 
 import pytest
 import wandb
 from wandb.cli import cli
 from wandb.apis.internal import InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
+from wandb.wandb_run import Run
 
 
 REPO_CONST = "test-repo"
@@ -278,26 +279,145 @@ def test_launch_build_with_local(
         )
 
 
-@pytest.mark.parametrize(
-    "launch_params",
-    [
-        {},
-        {"image_uri": ""},
-        {"image_uri": "testing111"},
-        {"image_uri": "testing222", "num_workers": 5},
-        {"image_uri": "testing222", "num_workers": "5"},
-    ],
-    ids=["none", "empty", "basic", "int num workers", "str num workers"],
-)
-def test_launch_sweep_launch_params(
-    user, wandb_init, test_settings, runner, launch_params, monkeypatch
+def test_launch_sweep_launch_empty(
+    user, wandb_init, test_settings, runner, monkeypatch
 ):
+    launch_params = {"image_uri": ""}
     project = LAUNCH_DEFAULT_PROJECT
     queue = "testing3421"
     with runner.isolated_filesystem():
         settings = test_settings({"project": project})
         api = InternalApi()
-        run = wandb_init(settings=settings)
+        run: Run = wandb_init(settings=settings)
+        run.finish()
+        time.sleep(2)
+
+        with open("sweep-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "name": "My Sweep",
+                    "method": "grid",
+                    "launch": launch_params,
+                    "parameters": {"parameter1": {"values": [1, 2, 3]}},
+                },
+                f,
+            )
+        api.create_run_queue(
+            entity=user,
+            project=project,
+            queue_name=queue,
+            access="PROJECT",
+        )
+        time.sleep(2)
+
+        result = runner.invoke(
+            cli.sweep, ["sweep-config.yaml", "-e", user, "-p", project, "-q", queue]
+        )
+
+        if not launch_params.get("image_uri"):
+            assert result.exit_code == 1
+            assert "No 'job' or 'image_uri' found in sweep config" in result.output
+        else:
+            if result.exit_code != 0:
+                raise Exception(result.output)
+
+
+def test_launch_sweep_launch_works(
+    user, wandb_init, test_settings, runner, monkeypatch
+):
+    launch_params = {"image_uri": "testing123"}
+    project = LAUNCH_DEFAULT_PROJECT
+    queue = "testing3421"
+    with runner.isolated_filesystem():
+        settings = test_settings({"project": project})
+        api = InternalApi()
+        run: Run = wandb_init(settings=settings)
+        run.finish()
+        time.sleep(2)
+
+        with open("sweep-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "name": "My Sweep",
+                    "method": "grid",
+                    "launch": launch_params,
+                    "parameters": {"parameter1": {"values": [1, 2, 3]}},
+                },
+                f,
+            )
+        api.create_run_queue(
+            entity=user,
+            project=project,
+            queue_name=queue,
+            access="PROJECT",
+        )
+        time.sleep(2)
+
+        result = runner.invoke(
+            cli.sweep, ["sweep-config.yaml", "-e", user, "-p", project, "-q", queue]
+        )
+
+        if not launch_params.get("image_uri"):
+            assert result.exit_code == 1
+            assert "No 'job' or 'image_uri' found in sweep config" in result.output
+        else:
+            if result.exit_code != 0:
+                raise Exception(result.output)
+
+
+def test_launch_sweep_launch_number_str(
+    user, wandb_init, test_settings, runner, monkeypatch
+):
+    launch_params = {"image_uri": "awd", "num_workers": "4"}
+    project = LAUNCH_DEFAULT_PROJECT
+    queue = "testing3421"
+    with runner.isolated_filesystem():
+        settings = test_settings({"project": project})
+        api = InternalApi()
+        run: Run = wandb_init(settings=settings)
+        run.finish()
+        time.sleep(2)
+
+        with open("sweep-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "name": "My Sweep",
+                    "method": "grid",
+                    "launch": launch_params,
+                    "parameters": {"parameter1": {"values": [1, 2, 3]}},
+                },
+                f,
+            )
+        api.create_run_queue(
+            entity=user,
+            project=project,
+            queue_name=queue,
+            access="PROJECT",
+        )
+        time.sleep(2)
+
+        result = runner.invoke(
+            cli.sweep, ["sweep-config.yaml", "-e", user, "-p", project, "-q", queue]
+        )
+
+        if not launch_params.get("image_uri"):
+            assert result.exit_code == 1
+            assert "No 'job' or 'image_uri' found in sweep config" in result.output
+        else:
+            if result.exit_code != 0:
+                raise Exception(result.output)
+
+
+def test_launch_sweep_launch_number_int(
+    user, wandb_init, test_settings, runner, monkeypatch
+):
+    launch_params = {"image_uri": "awd", "num_workers": 4}
+    project = LAUNCH_DEFAULT_PROJECT
+    queue = "testing3421"
+    with runner.isolated_filesystem():
+        settings = test_settings({"project": project})
+        api = InternalApi()
+        run: Run = wandb_init(settings=settings)
         run.finish()
         time.sleep(2)
 
