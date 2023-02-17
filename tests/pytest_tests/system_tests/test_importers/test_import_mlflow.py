@@ -1,10 +1,9 @@
 import pytest
-
 import wandb
 from wandb.apis.importers import MlflowImporter
 
 
-@pytest.mark.timeout(300)
+@pytest.mark.timeout(60)
 def test_mlflow(prelogged_mlflow_server, user):
     mlflow_server, exps, runs_per_exp, steps = prelogged_mlflow_server
 

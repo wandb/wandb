@@ -1,4 +1,3 @@
-import os
 import signal
 import subprocess
 import tempfile
@@ -6,10 +5,9 @@ import time
 import urllib.parse
 import uuid
 import warnings
-from concurrent.futures import ProcessPoolExecutor
 from itertools import islice
 from typing import Any, Callable, Dict, Iterable, List, Optional
-
+import psutil
 import hypothesis.strategies as st
 import mlflow
 import pytest
@@ -20,10 +18,10 @@ from mlflow.tracking import MlflowClient
 
 MLFLOW_BASE_URL = "http://localhost:4040"
 MLFLOW_HEALTH_ENDPOINT = "health"
-EXPERIMENTS = 1
-RUNS_PER_EXPERIMENT = 1
-N_ARTIFACTS_PER_RUN = 0
-STEPS = 10
+EXPERIMENTS = 2
+RUNS_PER_EXPERIMENT = 3
+N_ARTIFACTS_PER_RUN = 10
+STEPS = 1000
 
 SECONDS_FROM_2023_01_01 = 1672549200
 
@@ -145,9 +143,10 @@ def make_run(n_steps, mlflow_batch_size):
 def make_exp(n_runs, n_steps, mlflow_batch_size):
     name = "Experiment " + str(uuid.uuid4())
     mlflow.set_experiment(name)
-    with ProcessPoolExecutor() as exc:
-        for _ in range(n_runs):
-            exc.submit(make_run, n_steps, mlflow_batch_size)
+
+    # Can't use ProcessPoolExecutor -- it seems to always fail in tests!
+    for _ in range(n_runs):
+        make_run(n_steps, mlflow_batch_size)
 
 
 def log_to_mlflow(
@@ -161,9 +160,9 @@ def log_to_mlflow(
         warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
         mlflow.set_tracking_uri(mlflow_tracking_uri)
 
-        with ProcessPoolExecutor() as exc:
-            for _ in range(n_exps):
-                exc.submit(make_exp, n_runs_per_exp, n_steps, mlflow_batch_size)
+        # Can't use ProcessPoolExecutor -- it seems to always fail in tests!
+        for _ in range(n_exps):
+            make_exp(n_runs_per_exp, n_steps, mlflow_batch_size)
 
 
 def check_mlflow_server_health(
@@ -180,13 +179,29 @@ def check_mlflow_server_health(
     return False
 
 
-@pytest.fixture(scope="session")
-def mlflow_server():
+def kill_child_processes(parent_pid, sig=signal.SIGTERM):
+    try:
+        parent = psutil.Process(parent_pid)
+    except psutil.NoSuchProcess:
+        return
+    children = parent.children(recursive=True)
+    for process in children:
+        process.send_signal(sig)
+
+
+@pytest.fixture
+def mlflow_server(tmp_path):
+    backend_store_uri = tmp_path / "mlruns"
+    artifacts_destination = tmp_path / "mlartifacts"
     start_cmd = [
         "mlflow",
         "server",
         "-p",
         "4040",
+        "--backend-store-uri",
+        backend_store_uri,
+        "--artifacts-destination",
+        artifacts_destination,
     ]
     process = subprocess.Popen(start_cmd)  # process
     healthy = check_mlflow_server_health(
@@ -198,20 +213,10 @@ def mlflow_server():
     else:
         raise Exception("MLflow server is not healthy")
 
-    # # https://github.com/pytest-dev/pytest/issues/9141
-    # if os.environ.get("CI") != "true":
-    #     # only do this on local machine; causes problems in CI
-    #     try:
-    #         os.killpg(os.getpgid(process.pid), signal.SIGINT)
-    #     except KeyboardInterrupt:
-    #         print("SIGINT for MLflow Server")
-
-    # cwd = os.getcwd()
-    # stop_cmd = ["rm", "-rf", f"{cwd}/mlruns", f"{cwd}/mlartifacts"]
-    # subprocess.run(stop_cmd)
+    kill_child_processes(process.pid)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def prelogged_mlflow_server(mlflow_server):
     log_to_mlflow(mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS)
     yield mlflow_server, EXPERIMENTS, RUNS_PER_EXPERIMENT, STEPS
