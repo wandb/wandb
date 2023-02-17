@@ -1268,7 +1268,7 @@ class LocalFileHandler(StorageHandler):
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
-                    if i >= max_objects:
+                    if i > max_objects:
                         raise ValueError(
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
@@ -1487,7 +1487,7 @@ class S3Handler(StorageHandler):
         ]
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        if len(entries) >= max_objects:
+        if len(entries) > max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
                 % max_objects
@@ -1716,7 +1716,7 @@ class GCSHandler(StorageHandler):
         ]
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        if len(entries) >= max_objects:
+        if len(entries) > max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
                 % max_objects
