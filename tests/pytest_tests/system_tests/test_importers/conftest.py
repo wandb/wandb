@@ -7,9 +7,10 @@ import uuid
 import warnings
 from itertools import islice
 from typing import Any, Callable, Dict, Iterable, List, Optional
-import psutil
+
 import hypothesis.strategies as st
 import mlflow
+import psutil
 import pytest
 import requests
 from hypothesis.errors import NonInteractiveExampleWarning
