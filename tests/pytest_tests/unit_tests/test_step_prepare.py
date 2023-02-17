@@ -173,16 +173,20 @@ def test_respects_max_batch_time(prepare: "PrepareFixture"):
     api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
     step_prepare = StepPrepare(
-        api=api, batch_time=0.1, inter_event_time=100, max_batch_size=100
+        api=api, batch_time=0.2, inter_event_time=100, max_batch_size=100
     )
     step_prepare.start()
 
     future = prepare(step_prepare, simple_file_spec(name="a"))
 
     with pytest.raises(concurrent.futures.TimeoutError):
-        future.result(timeout=0.05)
+        future.result(timeout=0.1)
 
-    future.result(timeout=0.1)
+    # I hate having sleeps in tests, but I can't think of a good way to mock out
+    # the time mechanism in StepPrepare: it doesn't sleep(), it calls
+    # `Queue.get(timeout=...)`, which doesn't provide a way to mock the sleep.
+    # We could mock out the Queue, but... that seems fiddly.
+    future.result(timeout=0.2)
 
     api.create_artifact_files.assert_called_once()
 
@@ -192,23 +196,23 @@ def test_respects_inter_event_time(prepare: "PrepareFixture"):
     api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
     step_prepare = StepPrepare(
-        api=api, batch_time=100, inter_event_time=0.1, max_batch_size=100
+        api=api, batch_time=100, inter_event_time=0.2, max_batch_size=100
     )
     step_prepare.start()
 
     futures = []
     # t=0
     futures.append(prepare(step_prepare, simple_file_spec(name="a")))
-    time.sleep(0.07)
-    # t=0.07
+    time.sleep(0.13)  # as above, I hate having sleeps in tests, but...
+    # t=0.13
     futures.append(prepare(step_prepare, simple_file_spec(name="b")))
-    time.sleep(0.07)
-    # t=0.14
+    time.sleep(0.13)
+    # t=0.26
     futures.append(prepare(step_prepare, simple_file_spec(name="c")))
 
     api.create_artifact_files.assert_not_called()
 
-    time.sleep(0.15)  # exceeds inter_event_time; batch should fire
+    time.sleep(0.3)  # exceeds inter_event_time; batch should fire
 
     for future in futures:
         future.result(timeout=1e-12)

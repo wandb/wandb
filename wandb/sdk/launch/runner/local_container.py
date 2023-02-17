@@ -123,11 +123,13 @@ class LocalContainerRunner(AbstractRunner):
         else:
             assert entry_point is not None
             repository: Optional[str] = registry_config.get("url")
+            _logger.info("Building docker image...")
             image_uri = builder.build_image(
                 launch_project,
                 repository,
                 entry_point,
             )
+            _logger.info(f"Docker image built with uri {image_uri}")
             # entry_cmd and additional_args are empty here because
             # if launch built the container they've been accounted
             # in the dockerfile and env vars respectively

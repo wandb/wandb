@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import time
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +30,8 @@ MAX_KUBERNETES_RETRIES = (
     60  # default 10 second loop time on the agent, this is 10 minutes
 )
 FAIL_MESSAGE_INTERVAL = 60
+
+_logger = logging.getLogger(__name__)
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -275,6 +278,7 @@ class KubernetesRunner(AbstractRunner):
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
+        _logger.info(f"Running Kubernetes job with resource args: {resource_args}")
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
@@ -370,6 +374,9 @@ class KubernetesRunner(AbstractRunner):
         kubernetes_style_env_vars = [
             {"name": k, "value": v} for k, v in env_vars.items()
         ]
+        _logger.info(
+            f"Using environment variables: {given_env_vars + kubernetes_style_env_vars}"
+        )
         for cont in containers:
             cont["env"] = given_env_vars + kubernetes_style_env_vars
         pod_spec["containers"] = containers
@@ -388,6 +395,7 @@ class KubernetesRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
+        _logger.info(f"Creating Kubernetes job from: {job_dict}")
         job_response = kubernetes.utils.create_from_yaml(
             api_client, yaml_objects=[job_dict], namespace=namespace
         )[0][
