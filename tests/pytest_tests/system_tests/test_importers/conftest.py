@@ -191,26 +191,94 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
 
 
 @pytest.fixture
-def mlflow_server(tmp_path):
-    backend_store_uri = tmp_path / "mlruns"
-    artifacts_destination = tmp_path / "mlartifacts"
+def mssql_backend():
+    ...
+
+
+@pytest.fixture
+def mysql_backend():
+    ...
+
+
+@pytest.fixture
+def postgres_backend():
+    ...
+
+
+@pytest.fixture
+def file_backend(tmp_path):
+    yield tmp_path / "mlruns"
+
+
+@pytest.fixture
+def sqlite_backend():
+    yield "sqlite:///mlflow.db"
+
+
+# https://github.com/pytest-dev/pytest/issues/349
+@pytest.fixture(
+    params=[
+        # "mssql_backend",
+        # "mysql_backend",
+        # "postgres_backend",
+        "file_backend",
+        "sqlite_backend",
+    ]
+)
+def mlflow_backend(request):
+    yield request.getfixturevalue(request.param)
+
+
+@pytest.fixture
+def file_artifacts(tmp_path):
+    yield tmp_path / "mlartifacts"
+
+
+@pytest.fixture
+def s3_artifacts():
+    yield ...
+
+
+@pytest.fixture(
+    params=[
+        "file_artifacts",
+        # "s3_artifacts",
+    ]
+)
+def mlflow_artifacts_destination(request):
+    yield request.getfixturevalue(request.param)
+
+
+def get_free_port():
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("", 0))
+    return str(sock.getsockname()[1])
+
+
+@pytest.fixture()
+def mlflow_server(mlflow_backend, mlflow_artifacts_destination):
+    new_port = get_free_port()
+    modified_base_url = MLFLOW_BASE_URL.replace("4040", new_port)
+
     start_cmd = [
         "mlflow",
         "server",
         "-p",
-        "4040",
+        new_port,
         "--backend-store-uri",
-        backend_store_uri,
+        mlflow_backend,
         "--artifacts-destination",
-        artifacts_destination,
+        mlflow_artifacts_destination,
     ]
     process = subprocess.Popen(start_cmd)  # process
     healthy = check_mlflow_server_health(
-        MLFLOW_BASE_URL, MLFLOW_HEALTH_ENDPOINT, num_retries=30
+        modified_base_url, MLFLOW_HEALTH_ENDPOINT, num_retries=30
     )
 
     if healthy:
-        yield MLFLOW_BASE_URL
+        yield modified_base_url
     else:
         raise Exception("MLflow server is not healthy")
 

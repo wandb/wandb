@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, Optional
 
 from tqdm.auto import tqdm
 
@@ -100,10 +100,16 @@ class MlflowImporter(Importer):
         self, mlflow_tracking_uri, mlflow_registry_uri=None, wandb_base_url=None
     ) -> None:
         super().__init__()
-        mlflow.set_tracking_uri(mlflow_tracking_uri)
+        self.mlflow_tracking_uri = mlflow_tracking_uri
+
+        mlflow.set_tracking_uri(self.mlflow_tracking_uri)
         if mlflow_registry_uri:
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
+
+    def send(self, run: MlflowRun, overrides: Optional[Dict[str, Any]] = None) -> None:
+        mlflow.set_tracking_uri(self.mlflow_tracking_uri)
+        super().send(run, overrides)
 
     def get_all_runs(self) -> Iterable[MlflowRun]:
         with tqdm(self.mlflow_client.search_experiments()) as exps:

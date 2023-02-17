@@ -294,9 +294,6 @@ class Importer(ABC):
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         # does this need to be here for pmap?
-        import mlflow
-
-        mlflow.set_tracking_uri("http://localhost:4040")
         if overrides:
             for k, v in overrides.items():
                 # `lambda: v` won't work!
