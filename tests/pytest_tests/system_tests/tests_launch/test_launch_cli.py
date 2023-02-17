@@ -1,4 +1,5 @@
 import json
+import time 
 
 import pytest
 import wandb
@@ -288,7 +289,9 @@ def test_launch_build_with_local(
     ],
     ids=["none", "empty", "basic", "int num workers", "str num workers"],
 )
-def test_launch_sweep_launch_params(user, wandb_init, test_settings, runner, launch_params, monkeypatch):
+def test_launch_sweep_launch_params(
+    user, wandb_init, test_settings, runner, launch_params, monkeypatch
+):
     project = LAUNCH_DEFAULT_PROJECT
     queue = "testing3421"
     with runner.isolated_filesystem():
@@ -296,6 +299,7 @@ def test_launch_sweep_launch_params(user, wandb_init, test_settings, runner, lau
         api = InternalApi()
         run = wandb_init(settings=settings)
         run.finish()
+        time.sleep(2)
 
         with open("sweep-config.yaml", "w") as f:
             json.dump(
@@ -313,6 +317,7 @@ def test_launch_sweep_launch_params(user, wandb_init, test_settings, runner, lau
             queue_name=queue,
             access="PROJECT",
         )
+        time.sleep(2)
 
         result = runner.invoke(
             cli.sweep, ["sweep-config.yaml", "-e", user, "-p", project, "-q", queue]
