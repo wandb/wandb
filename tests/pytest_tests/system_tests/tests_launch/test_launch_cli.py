@@ -272,3 +272,39 @@ def test_launch_build_with_local(
             "Cannot build a docker image for the resource: local-process"
             in result.output
         )
+
+
+@pytest.mark.parametrize(
+    "launch_params",
+    [
+        {},
+        {"image_uri": ""},
+        {"image_uri": "testing111"},
+        {"image_uri": "testing222", "num_workers": 5},
+        {"image_uri": "testing222", "num_workers": "5"},
+    ],
+    ids=["none", "empty", "basic", "int num workers", "str num workers"],
+)
+def test_launch_sweep_launch_params(relay_server, user, runner, launch_params):
+    with runner.isolated_filesystem(), relay_server():
+        with open("sweep-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "name": "My Sweep",
+                    "method": "grid",
+                    "launch": launch_params,
+                    "parameters": {"parameter1": {"values": [1, 2, 3]}},
+                },
+                f,
+            )
+
+        result = runner.invoke(
+            cli.sweep, ["sweep-config.yaml", "-e", user, "-q", "another-one"]
+        )
+
+        print(result.output)
+        if not launch_params.get("image_uri"):
+            assert result.exit_code == 1
+            assert "No 'job' or 'image_uri' found in sweep config" in result.output
+        else:
+            assert result.exit_code == 0

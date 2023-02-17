@@ -903,8 +903,8 @@ def sweep(
 
         # Try and get job from sweep config
         _job = config.get("job")
-        _image_uri = config.get("image_uri")
-        if _job is None and _image_uri is None:
+        _image_uri = config.get("launch", {}).get("image_uri")
+        if not _job and not _image_uri:  # don't allow empty string
             raise LaunchError("No 'job' or 'image_uri' found in sweep config")
 
         if not queue:
@@ -925,7 +925,7 @@ def sweep(
             "--project",
             project,
             "--num_workers",
-            str(config.get("launch", {}).get("num_workers", 8)),
+            config.get("launch", {}).get("num_workers", 8),
         ]
 
         if _job:
@@ -935,9 +935,6 @@ def sweep(
             ]
         elif _image_uri:
             scheduler_entrypoint += ["--image_uri", _image_uri]
-        else:
-            # can never happen, checked above
-            pass
 
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(

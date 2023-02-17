@@ -427,3 +427,52 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     assert _scheduler.is_alive() is True
     _scheduler.start()
     assert _scheduler._runs["mock-run-id-1"].state == SimpleRunState.DEAD
+
+
+def test_launch_sweep_scheduler_try_executable_works(
+    user, wandb_init, monkeypatch, test_settings
+):
+    _project = "test-project"
+    settings = test_settings({"project": _project})
+    run = wandb_init(settings=settings)
+    job_artifact = run._log_job_artifact_with_image("lala-docker-123", args=[])
+    job_name = job_artifact.wait().name
+
+    run.finish()
+    sweep_id = wandb.sweep(
+        VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
+    )
+
+    _scheduler = SweepScheduler(
+        internal.Api(),
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=4,
+        job=job_name,
+    )
+
+    assert _scheduler._try_load_executable()
+
+
+def test_launch_sweep_scheduler_try_executable_fails(
+    user, wandb_init, monkeypatch, test_settings
+):
+    _project = "test-project"
+    job_name = "nonexistent"
+    sweep_id = wandb.sweep(
+        VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
+    )
+
+    _scheduler = SweepScheduler(
+        internal.Api(),
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=4,
+        job=job_name,
+    )
+
+    _scheduler.start()
+
+    assert _scheduler.state == SchedulerState.FAILED
