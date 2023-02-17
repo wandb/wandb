@@ -156,12 +156,17 @@ def test_notebook_metadata_kaggle(mocker, mocked_module):
         "source": json.dumps({"metadata": {}, "cells": []})
     }
     kaggle.UserSessionClient.return_value = kaggle_client
-    meta = wandb.jupyter.notebook_metadata(False)
-    assert meta == {
-        "root": "/kaggle/working",
-        "path": "kaggle.ipynb",
-        "name": "kaggle.ipynb",
-    }
+    with mock.patch.object(
+        wandb.jupyter,
+        "notebook_metadata_from_jupyter_servers_and_kernel_id",
+        lambda *args, **kwargs: {},
+    ):
+        meta = wandb.jupyter.notebook_metadata(False)
+        assert meta == {
+            "root": "/kaggle/working",
+            "path": "kaggle.ipynb",
+            "name": "kaggle.ipynb",
+        }
 
 
 def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):

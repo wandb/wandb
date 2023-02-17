@@ -11,6 +11,7 @@ import requests
 from requests.compat import urljoin
 
 import wandb
+import wandb.util
 from wandb.sdk.lib import filesystem
 
 try:
