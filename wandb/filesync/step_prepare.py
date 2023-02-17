@@ -92,7 +92,7 @@ class StepPrepare:
     def _gather_batch(
         self, first_request: RequestPrepare
     ) -> Tuple[bool, Sequence[RequestPrepare]]:
-        batch_start_time = time.time()
+        batch_start_time = time.monotonic()
         remaining_time = self._batch_time
         batch: List[RequestPrepare] = [first_request]
         while True:
@@ -108,7 +108,9 @@ class StepPrepare:
                 if isinstance(request, RequestFinish):
                     return True, batch
                 batch.append(request)
-                remaining_time = self._batch_time - (time.time() - batch_start_time)
+                remaining_time = self._batch_time - (
+                    time.monotonic() - batch_start_time
+                )
                 if remaining_time < 0 or len(batch) >= self._max_batch_size:
                     break
             except queue.Empty:
