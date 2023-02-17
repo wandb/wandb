@@ -476,3 +476,24 @@ def test_launch_sweep_scheduler_try_executable_fails(
     _scheduler.start()
 
     assert _scheduler.state == SchedulerState.FAILED
+
+
+def test_launch_sweep_scheduler_try_executable_image(
+    user, wandb_init, monkeypatch, test_settings
+):
+    _project = "test-project"
+    _image_uri = "some-image-wow"
+    sweep_id = wandb.sweep(
+        VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
+    )
+
+    _scheduler = SweepScheduler(
+        internal.Api(),
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=4,
+        image_uri=_image_uri,
+    )
+
+    assert _scheduler._try_load_executable()
