@@ -1,15 +1,14 @@
 import functools
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 from unittest.mock import Mock
-from typing import Optional, TYPE_CHECKING
 
 import pytest
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
-
 from wandb.sdk.wandb_artifacts import (
+    ArtifactManifestEntry,
     ArtifactsCache,
     WandbStoragePolicy,
-    ArtifactManifestEntry,
 )
 
 if TYPE_CHECKING:
