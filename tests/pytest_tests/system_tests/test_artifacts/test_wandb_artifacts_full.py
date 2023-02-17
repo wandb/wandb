@@ -274,7 +274,7 @@ def test_artifact_wait_failure(wandb_init, timeout):
 # @pytest.mark.skip(
 #     reason="often makes tests time out on CI (despite only taking 3x10 seconds locally)"
 # )
-@pytest.mark.parametrize("async_upload_concurrency_limit", [1, 10])
+@pytest.mark.parametrize("async_upload_concurrency_limit", [None, 1, 10])
 def test_artifact_upload_succeeds_with_async(
     wandb_init: Callable[..., Run],
     async_upload_concurrency_limit: Optional[int],
