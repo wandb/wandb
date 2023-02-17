@@ -285,7 +285,12 @@ def test_launch_build_with_local(
     ],
     ids=["none", "empty", "basic", "int num workers", "str num workers"],
 )
-def test_launch_sweep_launch_params(user, runner, launch_params):
+def test_launch_sweep_launch_params(user, runner, launch_params, monkeypatch):
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: None,
+    )
     with runner.isolated_filesystem():
         with open("sweep-config.yaml", "w") as f:
             json.dump(
@@ -302,7 +307,7 @@ def test_launch_sweep_launch_params(user, runner, launch_params):
             cli.sweep, ["sweep-config.yaml", "-e", user, "-q", "another-one"]
         )
 
-        print(result.output)
+        raise Exception(result.output)
         if not launch_params.get("image_uri"):
             assert result.exit_code == 1
             assert "No 'job' or 'image_uri' found in sweep config" in result.output
