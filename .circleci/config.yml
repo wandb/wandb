@@ -1103,7 +1103,7 @@ workflows:
             - equal:
                 - << pipeline.schedule.name >>
                 - "nightly"
-        - << pipeline.parameters.manual_nightly >>  # this is a manual trigger
+        - << pipeline.parameters.manual_nightly >> # this is a manual trigger
     jobs:
       #
       # "And now my watch begins"
@@ -1120,8 +1120,8 @@ workflows:
       - regression:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - yolov5
                 - huggingface
@@ -1321,7 +1321,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          tox_args: "tests/pytest_tests/system_tests --ignore=tests/pytest_tests/system_tests/tests_launch"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
@@ -1452,6 +1452,30 @@ workflows:
           tox_args: "tests/pytest_tests/system_tests/tests_launch"
 
       #
+      # wandb sweep tests
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "system-sweep-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/system_tests/test_sweep"
+
+      #
+      # wandb artifacts tests
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "system-artifacts-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/system_tests/test_artifacts"
+
+      #
       # sharded unit tests
       #
       # s_nb: notebook tests
@@ -1486,8 +1510,8 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
               toxenv:
                 - "executor-uwsgi"
                 - "executor-gunicorn"
