@@ -3,9 +3,12 @@ import os
 import platform
 import subprocess
 import sys
+from unittest import mock
 
 import pytest
 import wandb
+import wandb.jupyter
+import wandb.util
 from wandb.errors import UsageError
 
 from tests.pytest_tests.unit_tests_old import utils
@@ -126,14 +129,23 @@ def test_notebook_metadata_no_servers(mocker, mocked_module):
 def test_notebook_metadata_colab(mocked_module):
     colab = mocked_module("google.colab")
     colab._message.blocking_request.return_value = {
-        "ipynb": {"metadata": {"colab": {"name": "colab.ipynb"}}}
+        "ipynb": {"metadata": {"colab": {"name": "koalab.ipynb"}}}
     }
-    meta = wandb.jupyter.notebook_metadata(False)
-    assert meta == {
-        "root": "/content",
-        "path": "colab.ipynb",
-        "name": "colab.ipynb",
-    }
+    with mock.patch.object(
+        wandb.jupyter,
+        "notebook_metadata_from_jupyter_servers_and_kernel_id",
+        lambda *args, **kwargs: {
+            "path": "colab.ipynb",
+            "root": "/consent",
+            "name": "colab.ipynb",
+        },
+    ):
+        meta = wandb.jupyter.notebook_metadata(False)
+        assert meta == {
+            "root": "/content",
+            "path": "colab.ipynb",
+            "name": "colab.ipynb",
+        }
 
 
 def test_notebook_metadata_kaggle(mocker, mocked_module):
@@ -144,12 +156,17 @@ def test_notebook_metadata_kaggle(mocker, mocked_module):
         "source": json.dumps({"metadata": {}, "cells": []})
     }
     kaggle.UserSessionClient.return_value = kaggle_client
-    meta = wandb.jupyter.notebook_metadata(False)
-    assert meta == {
-        "root": "/kaggle/working",
-        "path": "kaggle.ipynb",
-        "name": "kaggle.ipynb",
-    }
+    with mock.patch.object(
+        wandb.jupyter,
+        "notebook_metadata_from_jupyter_servers_and_kernel_id",
+        lambda *args, **kwargs: {},
+    ):
+        meta = wandb.jupyter.notebook_metadata(False)
+        assert meta == {
+            "root": "/kaggle/working",
+            "path": "kaggle.ipynb",
+            "name": "kaggle.ipynb",
+        }
 
 
 def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):

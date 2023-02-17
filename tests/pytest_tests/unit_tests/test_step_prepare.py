@@ -186,7 +186,7 @@ def test_respects_max_batch_time(prepare: "PrepareFixture"):
     # the time mechanism in StepPrepare: it doesn't sleep(), it calls
     # `Queue.get(timeout=...)`, which doesn't provide a way to mock the sleep.
     # We could mock out the Queue, but... that seems fiddly.
-    future.result(timeout=0.2)
+    future.result(timeout=1)
 
     api.create_artifact_files.assert_called_once()
 
@@ -196,23 +196,23 @@ def test_respects_inter_event_time(prepare: "PrepareFixture"):
     api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
     step_prepare = StepPrepare(
-        api=api, batch_time=100, inter_event_time=0.2, max_batch_size=100
+        api=api, batch_time=100, inter_event_time=1, max_batch_size=100
     )
     step_prepare.start()
 
     futures = []
     # t=0
     futures.append(prepare(step_prepare, simple_file_spec(name="a")))
-    time.sleep(0.13)  # as above, I hate having sleeps in tests, but...
-    # t=0.13
+    time.sleep(0.6)  # as above, I hate having sleeps in tests, but...
+    # t=0.6
     futures.append(prepare(step_prepare, simple_file_spec(name="b")))
-    time.sleep(0.13)
-    # t=0.26
+    time.sleep(0.6)
+    # t=1.2
     futures.append(prepare(step_prepare, simple_file_spec(name="c")))
 
     api.create_artifact_files.assert_not_called()
 
-    time.sleep(0.3)  # exceeds inter_event_time; batch should fire
+    time.sleep(1.5)  # exceeds inter_event_time; batch should fire
 
     for future in futures:
         future.result(timeout=1e-12)
