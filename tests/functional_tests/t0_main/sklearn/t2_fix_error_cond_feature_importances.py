@@ -11,7 +11,7 @@ plugin:
   - wandb
 depend:
   requirements:
-    - sklearn
+    - scikit-learn
     - numpy
 assert:
   - :wandb:runs_len: 1

@@ -13,11 +13,11 @@ else:
 
 if TYPE_CHECKING:
     from typing import Deque
+
     from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
     from wandb.sdk.interface.interface import FilesDict
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-import wandb
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 
@@ -35,12 +35,30 @@ class Metric(Protocol):
     samples: "Deque[Any]"
 
     def sample(self) -> None:
+        """Sample the metric"""
         ...  # pragma: no cover
 
     def clear(self) -> None:
+        """Clear the samples"""
         ...  # pragma: no cover
 
     def aggregate(self) -> dict:
+        """Aggregate the samples"""
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class SetupTeardown(Protocol):
+    """
+    Protocol for classes that require setup and teardown
+    """
+
+    def setup(self) -> None:
+        """Extra setup required for the metric beyond __init__"""
+        ...  # pragma: no cover
+
+    def teardown(self) -> None:
+        """Extra teardown required for the metric"""
         ...  # pragma: no cover
 
 
@@ -126,7 +144,7 @@ class MetricsMonitor:
                     try:
                         metric.sample()
                     except Exception as e:
-                        wandb.termerror(f"Failed to sample metric: {e}", repeat=False)
+                        logger.error(f"Failed to sample metric: {e}")
                 self._shutdown_event.wait(self.sampling_interval)
                 if self._shutdown_event.is_set():
                     break
@@ -143,7 +161,7 @@ class MetricsMonitor:
                 #     aggregated_metrics, metric.serialize()
                 # )
             except Exception as e:
-                wandb.termerror(f"Failed to serialize metric: {e}", repeat=False)
+                logger.error(f"Failed to serialize metric: {e}")
         return aggregated_metrics
 
     def publish(self) -> None:
@@ -155,20 +173,38 @@ class MetricsMonitor:
             for metric in self.metrics:
                 metric.clear()
         except Exception as e:
-            wandb.termerror(f"Failed to publish metrics: {e}", repeat=False)
+            logger.error(f"Failed to publish metrics: {e}")
 
     def start(self) -> None:
-        if self._process is None and not self._shutdown_event.is_set():
+        if (self._process is not None) or self._shutdown_event.is_set():
+            return None
+
+        try:
+            for metric in self.metrics:
+                if isinstance(metric, SetupTeardown):
+                    metric.setup()
             self._process = threading.Thread(
                 target=self.monitor,
                 daemon=True,
-                name=f"{self.asset_name}",
+                name=self.asset_name,
             )
             self._process.start()
-            logger.info(f"Started {self._process.name}")
+            logger.info(f"Started {self.asset_name} monitoring")
+        except Exception as e:
+            logger.warning(f"Failed to start {self.asset_name} monitoring: {e}")
+            self._process = None
 
     def finish(self) -> None:
-        if self._process is not None:
+        if self._process is None:
+            return None
+
+        try:
             self._process.join()
-            logger.info(f"Joined {self._process.name}")
+            logger.info(f"Joined {self.asset_name} monitor")
+            for metric in self.metrics:
+                if isinstance(metric, SetupTeardown):
+                    metric.teardown()
+        except Exception as e:
+            logger.warning(f"Failed to finish {self.asset_name} monitoring: {e}")
+        finally:
             self._process = None

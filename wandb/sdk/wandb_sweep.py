@@ -30,8 +30,8 @@ def _get_sweep_url(api, sweep_id):
 
 def sweep(
     sweep: Union[dict, Callable],
-    entity: str = None,
-    project: str = None,
+    entity: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -53,7 +53,7 @@ def sweep(
         team in the UI before starting to log runs.  If you don't
         specify an entity, the run will be sent to your default
         entity, which is usually your username. Change your default
-        entity in [Settings](wandb.ai/settings) under "default
+        entity in [Settings](https://wandb.ai/settings) under "default
         location to create new projects".
       project: str (optional). The name of the project where you're
         sending the new run. If the project is not specified, the

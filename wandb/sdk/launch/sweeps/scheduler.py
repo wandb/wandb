@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
+import yaml
 
 import wandb
 import wandb.apis.public as public
@@ -57,9 +58,10 @@ class Scheduler(ABC):
         self,
         api: Api,
         *args: Optional[Any],
-        sweep_id: str = None,
+        sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
+        project_queue: Optional[str] = None,
         **kwargs: Optional[Any],
     ):
         self._api = api
@@ -74,7 +76,10 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            resp = self._api.sweep(
+                sweep_id, "{}", entity=self._entity, project=self._project
+            )
+            self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
         self._sweep_id: str = sweep_id or "empty-sweep-id"
@@ -83,6 +88,7 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
+        self._project_queue = project_queue
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
@@ -117,9 +123,24 @@ class Scheduler(ABC):
             return False
         return True
 
+    def _try_load_job(self) -> bool:
+        _public_api = public.Api()
+        try:
+            _job_artifact = _public_api.artifact(self._sweep_config["job"], type="job")
+            wandb.termlog(
+                f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
+            )
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}{str(e)}")
+            return False
+        return True
+
     def start(self) -> None:
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
+        if not self._try_load_job():
+            self.exit()
+            return
         self._start()
         self.run()
 
@@ -230,6 +251,7 @@ class Scheduler(ABC):
             project=self._project,
             entity=self._entity,
             queue_name=_queue,
+            project_queue=self._project_queue,
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
         )

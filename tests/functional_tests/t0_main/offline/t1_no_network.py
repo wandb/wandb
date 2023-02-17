@@ -16,7 +16,7 @@ assert:
 
 import wandb
 
-wandb.init(mode="offline")
-wandb.log(dict(m1=1))
-wandb.log(dict(m2=2))
-wandb.finish()
+run = wandb.init(mode="offline")
+run.log(dict(m1=1))
+run.log(dict(m2=2))
+run.finish()
