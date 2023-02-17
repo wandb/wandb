@@ -238,7 +238,7 @@ class RetryingClient:
 
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
-        check_retry_fn=util.no_retry_auth,
+        check_retry_fn=retry.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def execute(self, *args, **kwargs):
@@ -2794,7 +2794,7 @@ class File(Attrs):
     @normalize_exceptions
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
-        check_retry_fn=util.no_retry_auth,
+        check_retry_fn=retry.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def download(
@@ -3515,7 +3515,7 @@ class HistoryScan:
 
     @normalize_exceptions
     @retry.retriable(
-        check_retry_fn=util.no_retry_auth,
+        check_retry_fn=retry.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def _load_next(self):
@@ -3582,7 +3582,7 @@ class SampledHistoryScan:
 
     @normalize_exceptions
     @retry.retriable(
-        check_retry_fn=util.no_retry_auth,
+        check_retry_fn=retry.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def _load_next(self):

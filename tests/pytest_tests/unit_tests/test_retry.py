@@ -8,6 +8,8 @@ from typing import Iterator
 from unittest import mock
 
 import pytest
+import requests
+from wandb.errors import CommError
 from wandb.sdk.lib import retry
 
 if sys.version_info >= (3, 10):
@@ -285,3 +287,149 @@ class TestRetryAsync:
                 mock.call(excs[1]),
             ]
         )
+
+
+###############################################################################
+# Test retry utilities
+###############################################################################
+
+
+def test_no_retry_auth():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+    for status_code in (400, 409):
+        e.response.status_code = status_code
+        assert not retry.no_retry_auth(e)
+    e.response.status_code = 401
+    e.response.reason = "Unauthorized"
+    with pytest.raises(CommError):
+        retry.no_retry_auth(e)
+    e.response.status_code = 403
+    e.response.reason = "Forbidden"
+    with mock.patch("wandb.run", mock.MagicMock()):
+        with pytest.raises(CommError):
+            retry.no_retry_auth(e)
+    e.response.status_code = 404
+    with pytest.raises(CommError):
+        retry.no_retry_auth(e)
+
+    e.response = None
+    assert retry.no_retry_auth(e)
+    e = ValueError("foo")
+    assert retry.no_retry_auth(e)
+
+
+def test_check_retry_conflict():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    e.response.status_code = 400
+    assert retry.check_retry_conflict(e) is None
+
+    e.response.status_code = 500
+    assert retry.check_retry_conflict(e) is None
+
+    e.response.status_code = 409
+    assert retry.check_retry_conflict(e) is True
+
+
+def test_check_retry_conflict_or_gone():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    e.response.status_code = 400
+    assert retry.check_retry_conflict_or_gone(e) is None
+
+    e.response.status_code = 410
+    assert retry.check_retry_conflict_or_gone(e) is False
+
+    e.response.status_code = 500
+    assert retry.check_retry_conflict_or_gone(e) is None
+
+    e.response.status_code = 409
+    assert retry.check_retry_conflict_or_gone(e) is True
+
+
+def test_make_check_reply_fn_timeout():
+    """Verify case where secondary check returns a new timeout."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    check_retry_fn = retry.make_check_retry_fn(
+        check_fn=retry.check_retry_conflict_or_gone,
+        check_timedelta=datetime.timedelta(minutes=3),
+        fallback_retry_fn=retry.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 410
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check
+    assert check == datetime.timedelta(minutes=3)
+
+
+def test_make_check_reply_fn_false():
+    """Verify case where secondary check forces no retry."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    def is_special(e):
+        if e.response.status_code == 500:
+            return False
+        return None
+
+    check_retry_fn = retry.make_check_retry_fn(
+        check_fn=is_special,
+        fallback_retry_fn=retry.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check is False
+
+
+def test_make_check_reply_fn_true():
+    """Verify case where secondary check allows retry."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    def is_special(e):
+        if e.response.status_code == 400:
+            return True
+        return None
+
+    check_retry_fn = retry.make_check_retry_fn(
+        check_fn=is_special,
+        fallback_retry_fn=retry.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check is False

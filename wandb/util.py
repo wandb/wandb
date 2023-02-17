@@ -23,7 +23,7 @@ import threading
 import time
 import traceback
 import urllib
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from importlib import import_module
 from sys import getsizeof
 from types import ModuleType, TracebackType
@@ -54,7 +54,7 @@ import yaml
 
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
-from wandb.errors import AuthorizationError, CommError, UsageError, term
+from wandb.errors import UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
@@ -63,7 +63,6 @@ if TYPE_CHECKING:
     import wandb.sdk.wandb_artifacts
     import wandb.sdk.wandb_settings
 
-CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 # `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
 # It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
@@ -980,107 +979,6 @@ def make_safe_for_json(obj: Any) -> Any:
         elif obj == float("-inf"):
             return "-Infinity"
     return obj
-
-
-def no_retry_4xx(e: Exception) -> bool:
-    if not isinstance(e, requests.HTTPError):
-        return True
-    if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
-        return True
-    body = json.loads(e.response.content)
-    raise UsageError(body["errors"][0]["message"])
-
-
-def no_retry_auth(e: Any) -> bool:
-    if hasattr(e, "exception"):
-        e = e.exception
-    if not isinstance(e, requests.HTTPError):
-        return True
-    if e.response is None:
-        return True
-    # Don't retry bad request errors; raise immediately
-    if e.response.status_code in (400, 409):
-        return False
-    # Retry all non-forbidden/unauthorized/not-found errors.
-    if e.response.status_code not in (401, 403, 404):
-        return True
-    # Crash w/message on forbidden/unauthorized errors.
-    if e.response.status_code == 401:
-        raise AuthorizationError(
-            "The API key is either invalid or missing, or the host is incorrect. "
-            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
-            "The host defaults to 'https://api.wandb.ai' if not specified. "
-            f"(Error {e.response.status_code}: {e.response.reason})"
-        )
-    elif wandb.run:
-        raise CommError(f"Permission denied to access {wandb.run.path}", exc=e)
-    else:
-        raise CommError(
-            "It appears that you do not have permission to access the requested resource. "
-            "Please reach out to the project owner to grant you access. "
-            "If you have the correct permissions, verify that there are no issues with your networking setup."
-            f"(Error {e.response.status_code}: {e.response.reason})"
-        )
-
-
-def check_retry_conflict(e: Any) -> Optional[bool]:
-    """Check if the exception is a conflict type so it can be retried.
-
-    Returns:
-        True - Should retry this operation
-        False - Should not retry this operation
-        None - No decision, let someone else decide
-    """
-    if hasattr(e, "exception"):
-        e = e.exception
-    if isinstance(e, requests.HTTPError) and e.response is not None:
-        if e.response.status_code == 409:
-            return True
-    return None
-
-
-def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
-    """Check if the exception is a conflict or gone type, so it can be retried or not.
-
-    Returns:
-        True - Should retry this operation
-        False - Should not retry this operation
-        None - No decision, let someone else decide
-    """
-    if hasattr(e, "exception"):
-        e = e.exception
-    if isinstance(e, requests.HTTPError) and e.response is not None:
-        if e.response.status_code == 409:
-            return True
-        if e.response.status_code == 410:
-            return False
-    return None
-
-
-def make_check_retry_fn(
-    fallback_retry_fn: CheckRetryFnType,
-    check_fn: Callable[[Exception], Optional[bool]],
-    check_timedelta: Optional[timedelta] = None,
-) -> CheckRetryFnType:
-    """Return a check_retry_fn which can be used by lib.Retry().
-
-    Arguments:
-        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
-        check_fn: Function which returns bool if retry should happen or None if unsure.
-        check_timedelta: Optional retry timeout if we check_fn matches the exception
-    """
-
-    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
-        check = check_fn(e)
-        if check is None:
-            return fallback_retry_fn(e)
-        if check is False:
-            return False
-        if check_timedelta:
-            return check_timedelta
-        return True
-
-    return check_retry_fn
 
 
 def find_runner(program: str) -> Union[None, list, List[str]]:

@@ -61,7 +61,7 @@ class RateLimitError(CommError):
 
 
 class UsageError(Error):
-    """API Usage Error"""
+    """Raised when an invalid usage of the API is detected"""
 
     pass
 
@@ -72,9 +72,17 @@ class InvalidError(UsageError):
     pass
 
 
-class UnsupportedError(Error):
-    """Raised when fails because of multiprocessing"""
+class UnsupportedError(UsageError):
+    """Raised when trying to use a feature that is not supported"""
 
+    pass
+
+class ConfigurationError(UsageError):
+    """Raised when something is misconfigured"""
+    pass
+
+class DependencyError(UsageError):
+    """Raised when there is a missing or invalid dependency"""
     pass
 
 
