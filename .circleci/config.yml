@@ -1321,7 +1321,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          tox_args: "tests/pytest_tests/system_tests --ignore=tests/pytest_tests/system_tests/tests_launch --ignore=tests/pytest_tests/system_tests/test_importers"
+          tox_args: "tests/pytest_tests/system_tests --ignore=tests/pytest_tests/system_tests/tests_launch"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
@@ -1451,14 +1451,6 @@ workflows:
           toxenv: "pylaunch,covercircle"
           tox_args: "tests/pytest_tests/system_tests/tests_launch"
 
-      # 
-      # Test Importers
-      #
-      - pytest:
-          name: "importer-linux-py39"
-          toxenv: "pyimporter,covercircle"
-          tox_args: "tests/pytest_tests/system_tests/test_importers"
-          
       #
       # sharded unit tests
       #
