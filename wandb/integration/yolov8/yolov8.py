@@ -4,6 +4,8 @@ from ultralytics.yolo.engine.trainer import BaseTrainer
 from ultralytics.yolo.utils.torch_utils import get_flops, get_num_params
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.utils import RANK
+from wandb.sdk.lib import telemetry
+
 import wandb
 
 
@@ -47,8 +49,6 @@ class WandbLogger:
         self.resume = resume
         self.kwargs = kwargs
 
-        # [TODO]: ADD telemetry to track usage of this integration
-
     def on_pretrain_routine_start(self, trainer: BaseTrainer):
         """
         Starts a new wandb run to track the training process and log to Weights & Biases.
@@ -87,6 +87,9 @@ class WandbLogger:
             self.run.define_metric(
                 "lr/*", step_metric="epoch", step_sync=True, summary="last"
             )
+
+            with telemetry.context(run=wandb.run) as tel:
+                tel.feature.ultralytics_yolov8 = True
 
     def on_pretrain_routine_end(self, trainer: BaseTrainer):
         """ """
