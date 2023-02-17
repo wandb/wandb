@@ -856,7 +856,7 @@ def test_launch_no_server_info(
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             project="new-test",
         )
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
@@ -894,7 +894,7 @@ def patched_pop_from_queue(self, queue):
 def test_fail_pull_docker_image():
     try:
         pull_docker_image("not an image")
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Docker server returned error" in str(e)
 
 
@@ -1368,7 +1368,7 @@ def test_launch_url_and_job(
     api.get_run_info = MagicMock(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
-    with pytest.raises(wandb.errors.LaunchError) as e_info:
+    with pytest.raises(LaunchError) as e_info:
         launch.run(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
@@ -1396,7 +1396,7 @@ def test_launch_no_url_job_or_docker_image(
             job=None,
             project="new-test",
         )
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Must specify a uri, job or docker image" in str(e)
 
 
