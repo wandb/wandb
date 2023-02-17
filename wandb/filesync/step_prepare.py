@@ -15,12 +15,16 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from wandb.sdk.internal import internal_api
+    from wandb.sdk.internal.internal_api import (
+        Api,
+        CreateArtifactFileSpecInput,
+        CreateArtifactFilesResponseFile,
+    )
 
 
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
-    file_spec: "internal_api.CreateArtifactFileSpecInput"
+    file_spec: "CreateArtifactFileSpecInput"
     response_queue: "queue.Queue[ResponsePrepare]"
 
 
@@ -50,7 +54,7 @@ class StepPrepare:
 
     def __init__(
         self,
-        api: "internal_api.Api",
+        api: "Api",
         batch_time: float,
         inter_event_time: float,
         max_batch_size: int,
@@ -113,7 +117,7 @@ class StepPrepare:
 
     def _prepare_batch(
         self, batch: Sequence[RequestPrepare]
-    ) -> Mapping[str, "internal_api.CreateArtifactFilesResponseFile"]:
+    ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
         """Execute the prepareFiles API call.
 
         Arguments:
@@ -126,7 +130,7 @@ class StepPrepare:
         return self._api.create_artifact_files([req.file_spec for req in batch])
 
     def prepare_async(
-        self, file_spec: "internal_api.CreateArtifactFileSpecInput"
+        self, file_spec: "CreateArtifactFileSpecInput"
     ) -> "queue.Queue[ResponsePrepare]":
         """Request the backend to prepare a file for upload.
 
@@ -138,9 +142,7 @@ class StepPrepare:
         self._request_queue.put(RequestPrepare(file_spec, response_queue))
         return response_queue
 
-    def prepare(
-        self, file_spec: "internal_api.CreateArtifactFileSpecInput"
-    ) -> ResponsePrepare:
+    def prepare(self, file_spec: "CreateArtifactFileSpecInput") -> ResponsePrepare:
         return self.prepare_async(file_spec).get()
 
     def start(self) -> None:
