@@ -1,8 +1,9 @@
-from typing import List
+from typing import List, Optional
 from ultralytics.yolo.v8.classify.train import ClassificationTrainer
 from ultralytics.yolo.engine.trainer import BaseTrainer
 from ultralytics.yolo.utils.torch_utils import get_flops, get_num_params
 from ultralytics.yolo.engine.model import YOLO
+from ultralytics.yolo.utils import RANK
 import wandb
 
 
@@ -21,23 +22,30 @@ class WandbLogger:
     def __init__(
         self,
         yolo: YOLO,
-        run_name: str = None,
-        project: str = None,
-        tags: List[str] = None,
-        resume: str = "allow",
+        run_name: Optional[str] = None,
+        project: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        resume: Optional[str] = "allow",
         **kwargs,
     ):
         """
-        A callback that logs metrics to Weights & Biases.
+        A unitly class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
         Args:
             yolo: A YOLOv8 model that's inherited from `:class:ultralytics.yolo.engine.model.YOLO`
+            run_name: The name of the run to be created on Weights & Biases.
+            project: The name of the project to be created on Weights & Biases.
+            tags: A list of tags to be added to the run on Weights & Biases.
+            resume: Whether to resume a previous run on Weights & Biases.
+            **kwargs: Additional arguments to be passed to `wandb.init()`.
         """
+        # TODO: Add a healthwarning to inform the user that this is in beta
         self.yolo = yolo
         self.run = None
         self.run_name = run_name
         self.project = project
         self.tags = tags
         self.resume = resume
+        self.kwargs = kwargs
 
         # [TODO]: ADD telemetry to track usage of this integration
 
@@ -53,11 +61,14 @@ class WandbLogger:
         if self.run is None:
             if wandb.run is None:
                 self.run = wandb.init(
-                    name=trainer.args.name or self.run_name,
-                    project=trainer.args.project or self.project or "YOLOv8",
-                    tags=["YOLOv8"] or self.tags,
+                    name=self.run_name if self.run_name else trainer.args.name,
+                    project=self.project
+                    if self.project
+                    else trainer.args.project or "YOLOv8",
+                    tags=self.tags if self.tags else ["YOLOv8"],
                     config=vars(trainer.args),
                     resume="allow" or self.resume,
+                    **self.kwargs,
                 )
             else:
                 self.run = wandb.run
@@ -76,6 +87,15 @@ class WandbLogger:
             self.run.define_metric(
                 "lr/*", step_metric="epoch", step_sync=True, summary="last"
             )
+
+    def on_pretrain_routine_end(self, trainer: BaseTrainer):
+        """ """
+        self.run.summary.update(
+            {
+                "model/parameters": get_num_params(trainer.model),
+                "model/GFLOPs": round(get_flops(trainer.model), 3),
+            }
+        )
 
     def on_train_epoch_start(self, trainer: BaseTrainer):
         """
@@ -112,8 +132,6 @@ class WandbLogger:
         if trainer.epoch == 0:
             self.run.summary.update(
                 {
-                    "model/parameters": get_num_params(trainer.model),
-                    "model/GFLOPs": round(get_flops(trainer.model), 3),
                     "model/speed(ms/img)": round(trainer.validator.speed[1], 3),
                 }
             )
@@ -144,12 +162,13 @@ class WandbLogger:
                 },
             )
 
+        # TODO: consider getting additional metadata from the user
         if trainer.best.exists():
             self.run.log_artifact(
                 str(trainer.best),
                 type="model",
-                name=f"{self.run.name}_model_best.pt",
-                aliases=["best_model"],
+                name=f"{self.run.name}_{trainer.args.task}.pt",
+                aliases=["best", f"epoch_{trainer.epoch + 1}"],
             )
 
     def on_model_save(self, trainer: BaseTrainer):
@@ -159,8 +178,8 @@ class WandbLogger:
         self.run.log_artifact(
             str(trainer.last),
             type="model",
-            name=f"{self.run.name}_model_last.pt",
-            aliases=["last_model"],
+            name=f"{self.run.name}_{trainer.args.task}.pt",
+            aliases=["last", f"epoch_{trainer.epoch + 1}"],
         )
 
     def teardown(self, _trainer: BaseTrainer):
@@ -179,24 +198,52 @@ class WandbLogger:
         """
         return {
             "on_pretrain_routine_start": self.on_pretrain_routine_start,
+            "on_pretrain_routine_end": self.on_pretrain_routine_end,
             "on_train_epoch_start": self.on_train_epoch_start,
             "on_train_epoch_end": self.on_train_epoch_end,
             "on_fit_epoch_end": self.on_fit_epoch_end,
             "on_train_end": self.on_train_end,
+            "on_model_save": self.on_model_save,
             "teardown": self.teardown,
         }
 
-    def __enter__(self):
-        """
-        On enter we add all the callbacks to the YOLO model and return it.
-        """
-        for event, fn in self.callbacks.items():
-            self.yolo.add_callback(event, fn)
-        return self.yolo
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """
-        On exit, we check if the run is still active and close it if necessary.
-        """
-        if self.run is not None:
-            self.run.finish()
+def add_callbacks(
+    yolo: YOLO,
+    run_name: Optional[str] = None,
+    project: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    resume: Optional[str] = "allow",
+    **kwargs,
+) -> YOLO:
+    """
+    A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+    Args:
+        yolo: A YOLO inherited from `:class:ultralytics.yolo.engine.model.YOLO` to add the callbacks to.
+        run_name: The name of the Weights & Biases run.
+        project: The name of the Weights & Biases project.
+        tags: A list of tags to add to the Weights & Biases run.
+        resume: Whether to resume the Weights & Biases run if it exists.
+        **kwargs: Additional arguments to pass to the `wandb.init()` method.
+
+    Usage:
+    ```python
+    from wandb.yolov8 import add_callbacks
+    model = YOLO("yolov8n.pt")
+    model = add_callbacks(model,)
+    model.train(data="coco128.yaml", epochs=3, imgsz=640,)
+    ```
+    """
+    if RANK in [-1, 0]:
+        wandb_logger = WandbLogger(
+            yolo, run_name=run_name, project=project, tags=tags, resume=resume, **kwargs
+        )
+        for event, callback_fn in wandb_logger.callbacks.items():
+            yolo.add_callback(event, callback_fn)
+        return yolo
+    else:
+        wandb.termwarn(
+            "Weights & Biases callbacks were not added to this instance of the "
+            "model since the RANK of the process to add the callbacks was neither 0 or -1."
+        )
+    return yolo
