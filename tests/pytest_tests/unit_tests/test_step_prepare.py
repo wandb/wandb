@@ -87,7 +87,7 @@ def test_respects_max_batch_time():
     api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
     step_prepare = StepPrepare(
-        api=api, batch_time=0.1, inter_event_time=100, max_batch_size=100
+        api=api, batch_time=0.2, inter_event_time=100, max_batch_size=100
     )
     step_prepare.start()
 
@@ -96,7 +96,11 @@ def test_respects_max_batch_time():
     with pytest.raises(queue.Empty):
         q.get(block=False)
 
-    time.sleep(0.15)
+    # I hate having sleeps in tests, but I can't think of a good way to mock out
+    # the time mechanism in StepPrepare: it doesn't sleep(), it calls
+    # `Queue.get(timeout=...)`, which doesn't provide a way to mock the sleep.
+    # We could mock out the Queue, but... that seems fiddly.
+    time.sleep(0.3)
 
     q.get(block=False)
 
@@ -108,21 +112,21 @@ def test_respects_inter_event_time():
     api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
     step_prepare = StepPrepare(
-        api=api, batch_time=100, inter_event_time=0.1, max_batch_size=100
+        api=api, batch_time=100, inter_event_time=0.2, max_batch_size=100
     )
     step_prepare.start()
 
     queues = []
     # t=0
     queues.append(step_prepare.prepare_async(simple_file_spec(name="a")))
-    time.sleep(0.07)
-    # t=0.07
+    time.sleep(0.13)  # as above, I hate having sleeps in tests, but...
+    # t=0.13
     queues.append(step_prepare.prepare_async(simple_file_spec(name="b")))
-    time.sleep(0.07)
-    # t=0.14
+    time.sleep(0.13)
+    # t=0.26
     queues.append(step_prepare.prepare_async(simple_file_spec(name="c")))
 
-    time.sleep(0.15)  # exceeds inter_event_time; batch should fire
+    time.sleep(0.3)  # exceeds inter_event_time; batch should fire
 
     for q in queues:
         q.get()
