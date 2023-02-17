@@ -429,9 +429,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     assert _scheduler._runs["mock-run-id-1"].state == SimpleRunState.DEAD
 
 
-def test_launch_sweep_scheduler_try_executable_works(
-    user, wandb_init, monkeypatch, test_settings
-):
+def test_launch_sweep_scheduler_try_executable_works(user, wandb_init, test_settings):
     _project = "test-project"
     settings = test_settings({"project": _project})
     run = wandb_init(settings=settings)
@@ -455,9 +453,7 @@ def test_launch_sweep_scheduler_try_executable_works(
     assert _scheduler._try_load_executable()
 
 
-def test_launch_sweep_scheduler_try_executable_fails(
-    user, wandb_init, monkeypatch, test_settings
-):
+def test_launch_sweep_scheduler_try_executable_fails(user):
     _project = "test-project"
     job_name = "nonexistent"
     sweep_id = wandb.sweep(
@@ -478,9 +474,7 @@ def test_launch_sweep_scheduler_try_executable_fails(
     assert _scheduler.state == SchedulerState.FAILED
 
 
-def test_launch_sweep_scheduler_try_executable_image(
-    user, wandb_init, monkeypatch, test_settings
-):
+def test_launch_sweep_scheduler_try_executable_image(user):
     _project = "test-project"
     _image_uri = "some-image-wow"
     sweep_id = wandb.sweep(
