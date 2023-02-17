@@ -77,12 +77,16 @@ class UnsupportedError(UsageError):
 
     pass
 
+
 class ConfigurationError(UsageError):
     """Raised when something is misconfigured"""
+
     pass
+
 
 class DependencyError(UsageError):
     """Raised when there is a missing or invalid dependency"""
+
     pass
 
 
