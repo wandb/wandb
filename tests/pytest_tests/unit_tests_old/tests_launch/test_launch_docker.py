@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.errors import DockerError
+from wandb.docker import DockerError
 from wandb.sdk.launch._project_spec import (
     EntryPoint,
     create_project_from_spec,
