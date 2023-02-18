@@ -188,7 +188,7 @@ class Api:
         self._retry_gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
-            check_retry_fn=util.no_retry_auth,
+            check_retry_fn=retry.no_retry_auth,
             retryable_exceptions=(RetryError, requests.RequestException),
             retry_callback=retry_callback,
         )
@@ -260,7 +260,7 @@ class Api:
                     err = {"message": err}
                 if not err.get("message"):
                     continue
-                wandb.termerror(
+                logger.error(
                     "Error while calling W&B API: {} ({})".format(err["message"], res)
                 )
 
@@ -1107,7 +1107,7 @@ class Api:
         }
         try:
             result: Optional[Dict[str, Any]] = self.gql(
-                mutation, variables, check_retry_fn=util.no_retry_4xx
+                mutation, variables, check_retry_fn=retry.no_retry_4xx
             ).get("pushToRunQueueByName")
 
             if not result:
@@ -1149,7 +1149,7 @@ class Api:
 
         try:
             result = self.gql(
-                mutation_no_runspec, variables, check_retry_fn=util.no_retry_4xx
+                mutation_no_runspec, variables, check_retry_fn=retry.no_retry_4xx
             ).get("pushToRunQueueByName")
         except Exception:
             result = None
@@ -1584,10 +1584,10 @@ class Api:
         }
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
-        check_retry_fn = util.make_check_retry_fn(
-            check_fn=util.check_retry_conflict_or_gone,
+        check_retry_fn = retry.make_check_retry_fn(
+            check_fn=retry.check_retry_conflict_or_gone,
             check_timedelta=datetime.timedelta(minutes=2),
-            fallback_retry_fn=util.no_retry_auth,
+            fallback_retry_fn=retry.no_retry_auth,
         )
 
         response = self.gql(
@@ -2081,7 +2081,7 @@ class Api:
                 "projectName": project_name,
                 "sweep": sweep_id,
             },
-            check_retry_fn=util.no_retry_4xx,
+            check_retry_fn=retry.no_retry_4xx,
         )
         result: dict = response["createAgent"]["agent"]
         return result
@@ -2292,7 +2292,7 @@ class Api:
                         "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
-                    check_retry_fn=util.no_retry_4xx,
+                    check_retry_fn=retry.no_retry_4xx,
                 )
             except UsageError as e:
                 raise e
