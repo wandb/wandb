@@ -11,7 +11,6 @@ from kubernetes.client.models.v1_job import V1Job  # type: ignore
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
 
 import wandb
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module, load_json_yaml_dict
 
@@ -20,6 +19,7 @@ from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
+    LaunchError,
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
