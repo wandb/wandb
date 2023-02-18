@@ -1452,14 +1452,14 @@ workflows:
           tox_args: "tests/pytest_tests/system_tests/tests_launch"
 
       #
-      # wandb sweep tests
+      # wandb sweeps tests
       #
       - pytest:
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [8]
-          name: "system-sweep-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "system-sweeps-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           tox_args: "tests/pytest_tests/system_tests/test_sweep"
 
