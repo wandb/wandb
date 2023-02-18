@@ -61,6 +61,9 @@ class SweepScheduler(Scheduler):
         # Make sure Scheduler is alive
         if not self.is_alive():
             return False
+        elif self.state == SchedulerState.FLUSH_RUNS:
+            # already hit run_cap, just no-op
+            return False
         # AgentHeartbeat wants a Dict of runs which are running or queued
         _run_states: Dict[str, bool] = {}
         for run_id, run in self._yield_runs():
@@ -83,14 +86,17 @@ class SweepScheduler(Scheduler):
                 # The command "type" can be one of "run", "resume", "stop", "exit"
                 _type = command.get("type", None)
                 if _type in ["exit", "stop"]:
-                    if command.get("run_cap", 0) > 0:
-                        # over runcap: no new runs, but finish existing
+                    if command.get("run_cap", 0) > 0:  # hit runcap
                         self.state = SchedulerState.FLUSH_RUNS
+                        wandb.termlog(
+                            f"{LOG_PREFIX}Sweep hit user set run_cap, stopping..."
+                        )
                         return False
-                    # Tell (virtual) agent to stop running
-                    self.state = SchedulerState.STOPPED
-                    self.exit()
-                    return False
+                    else:
+                        # Tell (virtual) agent to stop running
+                        self.state = SchedulerState.STOPPED
+                        self.exit()
+                        return False
                 elif _type in ["run", "resume"]:
                     _run_id = command.get("run_id", None)
                     if _run_id is None:
@@ -154,7 +160,12 @@ class SweepScheduler(Scheduler):
                     },
                 )
             except queue.Empty:
-                wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
+                if self.state == SchedulerState.FLUSH_RUNS:
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Sweep stopped, waiting on existing runs..."
+                    )
+                else:
+                    wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
                 time.sleep(self._heartbeat_queue_sleep)
                 return
 

@@ -168,8 +168,9 @@ class Scheduler(ABC):
                 self._run()
                 # if we hit the run_cap, now set to stopped after launching runs
                 if self.state == SchedulerState.FLUSH_RUNS:
-                    wandb.termlog(f"{LOG_PREFIX}Sweep reached run_cap, stopping.")
-                    self.state = SchedulerState.STOPPED
+                    if len(self._runs.keys()) == 0:
+                        wandb.termlog(f"{LOG_PREFIX}Done polling on runs, exiting.")
+                        self.state = SchedulerState.STOPPED
         except KeyboardInterrupt:
             wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
             self.state = SchedulerState.STOPPED
