@@ -26,6 +26,7 @@ import respx
 import wandb.errors
 import wandb.sdk.internal.progress
 from wandb.apis import internal
+import wandb.sdk.internal.internal_api
 from wandb.errors import CommError
 from wandb.sdk.lib import retry
 
@@ -609,6 +610,44 @@ class TestUploadFile:
         )
 
         if expect_delegate:
+            api.upload_file_retry.assert_called_once()
+            executor.submit.assert_called_once()
+        else:
+            api.upload_file_retry.assert_not_called()
+            executor.submit.assert_not_called()
+
+    @pytest.mark.parametrize("hide_httpx", [True, False])
+    def test_async_delegates_to_sync_upload_if_no_httpx(
+        self,
+        some_file: Path,
+        mock_respx: respx.MockRouter,
+        hide_httpx: bool,
+        monkeypatch,
+    ):
+        if hide_httpx:
+            monkeypatch.setattr(wandb.sdk.internal.internal_api, "httpx", None)
+
+        if not hide_httpx:
+            mock_respx.put("http://example.com/upload-dst").mock(
+                return_value=httpx.Response(200)
+            )
+
+        executor = concurrent.futures.ThreadPoolExecutor()
+        executor.submit = Mock(wraps=executor.submit)
+
+        api = internal.InternalApi()
+        api.upload_file_retry = Mock()
+
+        loop = asyncio.new_event_loop()
+        loop.set_default_executor(executor)
+        loop.run_until_complete(
+            api.upload_file_async(
+                "http://example.com/upload-dst",
+                some_file.open("rb"),
+            )
+        )
+
+        if hide_httpx:
             api.upload_file_retry.assert_called_once()
             executor.submit.assert_called_once()
         else:

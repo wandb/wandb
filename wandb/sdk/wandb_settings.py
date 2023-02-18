@@ -214,6 +214,7 @@ class Property:
         "show_errors",
         "base_url",
         "login_timeout",
+        "async_upload_concurrency_limit",
     }
 
     def __init__(  # pylint: disable=unused-argument
@@ -968,10 +969,7 @@ class Settings:
         return True
 
     @staticmethod
-    def _validate_async_upload_concurrency_limit(value: Optional[int]) -> bool:
-        if value is None:
-            return True
-
+    def _validate_async_upload_concurrency_limit(value: int) -> bool:
         if not isinstance(value, int):
             raise UsageError("async_upload_concurrency_limit must be an int")
 

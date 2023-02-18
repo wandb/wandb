@@ -391,7 +391,7 @@ class StepUpload:
     def start(self) -> None:
         self._thread.start()
         if self._async_executor:
-            self._async_executor.loop_thread.start()
+            self._async_executor.start()
 
     def is_alive(self) -> bool:
         return self._thread.is_alive()

@@ -806,6 +806,7 @@ class TestAsyncUploadConcurrency:
             (100, True),
             (99999999, True),
             (-10, False),
+            ("not an int", False),
         ],
     )
     def test_err_iff_bad_value(self, value: Optional[int], ok: bool, test_settings):
@@ -813,7 +814,7 @@ class TestAsyncUploadConcurrency:
             settings = test_settings({"async_upload_concurrency_limit": value})
             assert settings.async_upload_concurrency_limit == value
         else:
-            with pytest.raises(UsageError):
+            with pytest.raises((UsageError, ValueError)):
                 test_settings({"async_upload_concurrency_limit": value})
 
     @pytest.mark.parametrize(
