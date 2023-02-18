@@ -1,8 +1,10 @@
+from unittest import mock
+
 import pytest
 import wandb
-from wandb.errors import LaunchError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run
+from wandb.sdk.launch.utils import LaunchError
 
 
 def test_launch_repository(
@@ -96,3 +98,33 @@ def test_launch_incorrect_backend(
 
         assert "Resource name not among available resources" in str(e_info)
         r.finish()
+
+
+def test_launch_multi_run(relay_server, runner, user, wandb_init, test_settings):
+    with runner.isolated_filesystem(), mock.patch.dict(
+        "os.environ", {"WANDB_RUN_ID": "test", "WANDB_LAUNCH": "true"}
+    ):
+        run1 = wandb_init()
+        run1.finish()
+
+        run2 = wandb_init()
+        run2.finish()
+
+        assert run1.id == "test"
+        assert run2.id != "test"
+
+
+def test_launch_multi_run_context(
+    relay_server, runner, user, wandb_init, test_settings
+):
+    with runner.isolated_filesystem(), mock.patch.dict(
+        "os.environ", {"WANDB_RUN_ID": "test", "WANDB_LAUNCH": "true"}
+    ):
+        with wandb_init() as run1:
+            run1.log({"test": 1})
+
+        with wandb_init() as run2:
+            run2.log({"test": 2})
+
+        assert run1.id == "test"
+        assert run2.id != "test"
