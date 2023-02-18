@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import json
 import logging
 import os
@@ -596,3 +598,13 @@ def build_image_from_project(
         raise LaunchError("Error building image uri")
     else:
         return image_uri
+
+
+def image_tag_from_dockerfile_and_source(
+    launch_project: LaunchProject, dockerfile_contents: str
+):
+    """Converts the source and dockerfile contents into a docker image tag"""
+    image_source_string = launch_project.get_image_source_string()
+    unique_id_string = image_source_string + dockerfile_contents
+    image_id = hashlib.sha256(unique_id_string.encode("utf-8")).hexdigest()[:8]
+    return image_id

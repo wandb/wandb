@@ -21,7 +21,11 @@ from .._project_spec import (
     get_entry_point_command,
 )
 from ..utils import LOG_PREFIX, get_kube_context_and_api_client, sanitize_wandb_api_key
-from .build import _create_docker_build_ctx, generate_dockerfile
+from .build import (
+    _create_docker_build_ctx,
+    generate_dockerfile,
+    image_tag_from_dockerfile_and_source,
+)
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
@@ -222,8 +226,12 @@ class KanikoBuilder(AbstractBuilder):
 
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
+        dockerfile_str = generate_dockerfile(
+            launch_project, entrypoint, launch_project.resource, self.type
+        )
 
-        image_uri = f"{repository}:{launch_project.image_tag}"
+        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
+        image_uri = f"{repository}:{image_tag}"
         wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
         if not self.check_build_required(repository, launch_project):
             return image_uri
@@ -232,9 +240,6 @@ class KanikoBuilder(AbstractBuilder):
         )
 
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
-        dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, self.type
-        )
         create_metadata_file(
             launch_project,
             image_uri,

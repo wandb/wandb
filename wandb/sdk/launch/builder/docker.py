@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from typing import Any, Dict, Optional
 
 import wandb
@@ -17,6 +18,7 @@ from ..utils import LOG_PREFIX, sanitize_wandb_api_key
 from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
+    image_tag_from_dockerfile_and_source,
     validate_docker_installation,
 )
 
@@ -37,15 +39,20 @@ class DockerBuilder(AbstractBuilder):
         repository: Optional[str],
         entrypoint: EntryPoint,
     ) -> str:
-
-        if repository:
-            image_uri = f"{repository}:{launch_project.image_tag}"
-        else:
-            image_uri = launch_project.image_uri
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+        now = time.time()
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, self.type
         )
+        print(f"Generated dockerfile in {time.time() - now} seconds")
+
+        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
+
+        if repository:
+            image_uri = f"{repository}:{image_tag}"
+        else:
+            image_uri = f"{launch_project.image_name}:{image_tag}"
+        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+
         create_metadata_file(
             launch_project,
             image_uri,
