@@ -66,6 +66,7 @@ class RequireError(Error):
 
     pass
 
+
 class WaitTimeoutError(Error):
     """Raised when wait() timeout occurs before process is finished"""
 
