@@ -1,10 +1,17 @@
+import dataclasses
 import queue
-import time
-from typing import TYPE_CHECKING, Iterable, Mapping
-from unittest.mock import Mock
+from typing import TYPE_CHECKING, Iterable, Mapping, Tuple
+from unittest.mock import Mock, call
 
 import pytest
-from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from wandb.filesync.step_prepare import (
+    Event,
+    RequestFinish,
+    RequestPrepare,
+    ResponsePrepare,
+    StepPrepare,
+    gather_batch,
+)
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import (
@@ -19,6 +26,10 @@ def simple_file_spec(name: str) -> "CreateArtifactFileSpecInput":
         "artifactID": "some-artifact-id",
         "md5": "some-md5",
     }
+
+
+def simple_request_prepare(name: str) -> RequestPrepare:
+    return RequestPrepare(simple_file_spec(name=name), queue.Queue())
 
 
 def mock_create_artifact_files_result(
@@ -39,101 +50,264 @@ def mock_create_artifact_files_result(
     }
 
 
-def test_smoke():
-    caf_result = mock_create_artifact_files_result(["foo"])
-    api = Mock(create_artifact_files=Mock(return_value=caf_result))
+@dataclasses.dataclass
+class MockClock:
+    now: float = 0
 
-    step_prepare = StepPrepare(
-        api=api, batch_time=1e-12, inter_event_time=1e-12, max_batch_size=1
-    )
-    step_prepare.start()
+    def __call__(self) -> float:
+        return self.now
 
-    res = step_prepare.prepare(simple_file_spec(name="foo"))
-
-    assert res == ResponsePrepare(
-        upload_url=caf_result["foo"]["uploadUrl"],
-        upload_headers=caf_result["foo"]["uploadHeaders"],
-        birth_artifact_id=caf_result["foo"]["artifact"]["id"],
-    )
+    def sleep(self, duration: float) -> None:
+        self.now += duration
 
 
-def test_respects_max_batch_size():
-    caf_result = mock_create_artifact_files_result(["a", "b", "c"])
-    api = Mock(create_artifact_files=Mock(return_value=caf_result))
+class MockRequestQueue(Mock):
+    def __init__(
+        self,
+        clock: MockClock,
+        schedule: Iterable[Tuple[float, Event]],
+    ):
+        super().__init__(
+            get=Mock(wraps=self._get),
+        )
+        self._clock = clock
+        self._remaining_events = list(schedule)
 
-    step_prepare = StepPrepare(
-        api=api, batch_time=0.1, inter_event_time=0.1, max_batch_size=2
-    )
-    step_prepare.start()
+    def _get(self, timeout: float = 0) -> Event:
+        assert self._remaining_events, "ran out of events in mock queue"
 
-    queues = []
-    for name in ["a", "b", "c"]:
-        queues.append(step_prepare.prepare_async(simple_file_spec(name=name)))
+        next_event_time, next_event = self._remaining_events[0]
+        time_to_next_event = next_event_time - self._clock()
+        if 0 < timeout < time_to_next_event:
+            self._clock.sleep(timeout)
+            raise queue.Empty()
 
-    [q.get() for q in queues]
-
-    assert api.create_artifact_files.call_count == 2
-    assert [f["name"] for f in api.create_artifact_files.call_args_list[0][0][0]] == [
-        "a",
-        "b",
-    ]
-    assert [f["name"] for f in api.create_artifact_files.call_args_list[1][0][0]] == [
-        "c"
-    ]
-
-
-def test_respects_max_batch_time():
-    caf_result = mock_create_artifact_files_result(["a", "b"])
-    api = Mock(create_artifact_files=Mock(return_value=caf_result))
-
-    step_prepare = StepPrepare(
-        api=api, batch_time=0.2, inter_event_time=100, max_batch_size=100
-    )
-    step_prepare.start()
-
-    q = step_prepare.prepare_async(simple_file_spec(name="a"))
-
-    with pytest.raises(queue.Empty):
-        q.get(block=False)
-
-    # I hate having sleeps in tests, but I can't think of a good way to mock out
-    # the time mechanism in StepPrepare: it doesn't sleep(), it calls
-    # `Queue.get(timeout=...)`, which doesn't provide a way to mock the sleep.
-    # We could mock out the Queue, but... that seems fiddly.
-    time.sleep(1)
-
-    q.get(block=False)
-
-    api.create_artifact_files.assert_called_once()
+        self._remaining_events.pop(0)
+        if time_to_next_event > 0:
+            self._clock.sleep(time_to_next_event)
+        return next_event
 
 
-def test_respects_inter_event_time():
-    caf_result = mock_create_artifact_files_result(["a", "b", "c", "d"])
-    api = Mock(create_artifact_files=Mock(return_value=caf_result))
+class TestMockRequestQueue:
+    def test_smoke(self):
+        clock = MockClock()
+        q = MockRequestQueue(
+            clock,
+            [
+                (t, RequestPrepare(simple_file_spec(f"req-{t}"), queue.Queue()))
+                for t in [1, 3, 10, 30]
+            ],
+        )
+        assert q.get().file_spec["name"] == "req-1"
+        assert clock() == 1
+        assert q.get().file_spec["name"] == "req-3"
+        assert clock() == 3
+        assert q.get().file_spec["name"] == "req-10"
+        assert clock() == 10
+        assert q.get().file_spec["name"] == "req-30"
+        assert clock() == 30
 
-    step_prepare = StepPrepare(
-        api=api, batch_time=100, inter_event_time=1, max_batch_size=100
-    )
-    step_prepare.start()
-
-    queues = []
-    # t=0
-    queues.append(step_prepare.prepare_async(simple_file_spec(name="a")))
-    time.sleep(0.6)  # as above, I hate having sleeps in tests, but...
-    # t=0.6
-    queues.append(step_prepare.prepare_async(simple_file_spec(name="b")))
-    time.sleep(0.6)
-    # t=1.2
-    queues.append(step_prepare.prepare_async(simple_file_spec(name="c")))
-
-    time.sleep(1.5)  # exceeds inter_event_time; batch should fire
-
-    for q in queues:
+    def test_raises_assertion_error_if_out_of_events(self):
+        q = MockRequestQueue(MockClock(), [(1, RequestFinish())])
         q.get()
+        with pytest.raises(AssertionError):
+            q.get()
 
-    api.create_artifact_files.assert_called_once()
-    assert [f["name"] for f in api.create_artifact_files.call_args[0][0]] == [
-        "a",
-        "b",
-        "c",
-    ]
+    def test_ticks_clock_forward(self):
+        clock = MockClock()
+        q = MockRequestQueue(clock, [(123, RequestFinish())])
+        q.get()
+        assert clock() == 123
+
+    def test_does_not_tick_clock_backward(self):
+        clock = MockClock(now=99999)
+        q = MockRequestQueue(clock, [(123, RequestFinish())])
+        q.get()
+        assert clock() == 99999
+
+    def test_respects_timeout(self):
+        clock = MockClock()
+        q = MockRequestQueue(clock, [(123, RequestFinish())])
+        with pytest.raises(queue.Empty):
+            q.get(timeout=8)
+        assert clock() == 8
+        assert q.get() == RequestFinish()
+        assert clock() == 123
+
+
+class TestGatherBatch:
+    def test_smoke(self):
+        q = Mock(
+            get=Mock(
+                side_effect=[
+                    simple_request_prepare("a"),
+                    simple_request_prepare("b"),
+                    simple_request_prepare("c"),
+                    RequestFinish(),
+                ]
+            )
+        )
+        done, batch = gather_batch(q, 0.1, 0.1, 100)
+        assert done
+        assert [f.file_spec["name"] for f in batch] == ["a", "b", "c"]
+
+    def test_returns_empty_if_first_request_is_finish(self):
+        q = Mock(
+            get=Mock(
+                side_effect=[
+                    RequestFinish(),
+                ]
+            )
+        )
+        done, batch = gather_batch(q, 0.1, 0.1, 100)
+        assert done
+        assert len(batch) == 0
+
+    def test_respects_batch_size(self):
+        q = Mock(
+            get=Mock(
+                side_effect=[
+                    simple_request_prepare("a"),
+                    simple_request_prepare("b"),
+                    simple_request_prepare("c"),
+                ]
+            )
+        )
+        _, batch = gather_batch(q, 0.1, 0.1, 2)
+        assert len(batch) == 2
+        assert q.get.call_count == 2
+
+    def test_respects_batch_time(self):
+
+        clock = MockClock()
+        q = MockRequestQueue(
+            clock=clock,
+            schedule=[(t, simple_request_prepare(f"req-{t}")) for t in [5, 15, 25, 35]],
+        )
+
+        _, batch = gather_batch(
+            q,
+            batch_time=33,
+            inter_event_time=12,
+            max_batch_size=100,
+            clock=clock,
+        )
+
+        assert q.get.call_args_list == [
+            call(),  # finishes at t=5; 28s left in batch
+            call(timeout=12),  # finishes at t=15; 18s left in batch
+            call(timeout=12),  # finishes at t=25; 8s left in batch
+            call(timeout=8),
+        ]
+        assert len(batch) == 3
+
+    def test_respects_inter_event_time(self):
+
+        clock = MockClock()
+        q = MockRequestQueue(
+            clock=clock,
+            schedule=[
+                (t, simple_request_prepare(f"req-{t}"))
+                for t in [10, 30, 60, 100, 150, 210, 280]
+                # diffs:    20  30  40   50   60   70
+            ],
+        )
+
+        _, batch = gather_batch(
+            q,
+            batch_time=1000,
+            inter_event_time=33,
+            max_batch_size=100,
+            clock=clock,
+        )
+
+        assert q.get.call_args_list == [
+            call(),  # waited 10s, next wait is 20s
+            call(timeout=33),  # waited 20s, next wait is 30s
+            call(timeout=33),  # waited 30s, next wait is 40s
+            call(timeout=33),  # waited 33s, then raised Empty
+        ]
+        assert len(batch) == 3
+
+    def test_ends_early_if_request_finish(self):
+        q = Mock(
+            get=Mock(
+                side_effect=[
+                    simple_request_prepare("a"),
+                    RequestFinish(),
+                    simple_request_prepare("b"),
+                ]
+            )
+        )
+        done, batch = gather_batch(q, 0.1, 0.1, 100)
+        assert done
+        assert [f.file_spec["name"] for f in batch] == ["a"]
+        assert q.get.call_count == 2
+
+
+class TestStepPrepare:
+    def test_smoke(self):
+        caf_result = mock_create_artifact_files_result(["foo"])
+        api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+        step_prepare = StepPrepare(
+            api=api, batch_time=1e-12, inter_event_time=1e-12, max_batch_size=1
+        )
+        step_prepare.start()
+
+        res = step_prepare.prepare(simple_file_spec(name="foo"))
+        step_prepare.finish()
+
+        assert res == ResponsePrepare(
+            upload_url=caf_result["foo"]["uploadUrl"],
+            upload_headers=caf_result["foo"]["uploadHeaders"],
+            birth_artifact_id=caf_result["foo"]["artifact"]["id"],
+        )
+
+    def test_batches_requests(self):
+        caf_result = mock_create_artifact_files_result(["a", "b"])
+        api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+        step_prepare = StepPrepare(
+            api=api, batch_time=1, inter_event_time=1, max_batch_size=10
+        )
+        step_prepare.start()
+
+        queue_a = step_prepare.prepare_async(simple_file_spec(name="a"))
+        queue_b = step_prepare.prepare_async(simple_file_spec(name="b"))
+        step_prepare.finish()
+
+        res_a = queue_a.get()
+        res_b = queue_b.get()
+
+        assert res_a.upload_url == caf_result["a"]["uploadUrl"]
+        assert res_b.upload_url == caf_result["b"]["uploadUrl"]
+
+        # make sure the URLs are different, just in case the fixture returns a constant
+        assert res_a.upload_url != res_b.upload_url
+
+        api.create_artifact_files.assert_called_once()
+
+    def test_finish_waits_for_pending_requests(self):
+        caf_result = mock_create_artifact_files_result(["a", "b"])
+        api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+        step_prepare = StepPrepare(
+            api=api, batch_time=1, inter_event_time=1, max_batch_size=10
+        )
+        step_prepare.start()
+
+        res_q = step_prepare.prepare_async(simple_file_spec(name="a"))
+        step_prepare.finish()
+
+        with pytest.raises(queue.Empty):
+            res_q.get(timeout=1e-12)
+
+        assert step_prepare.is_alive()
+
+        res = res_q.get(timeout=5)
+
+        assert res.upload_url == caf_result["a"]["uploadUrl"]
+
+        step_prepare._thread.join()
+        assert not step_prepare.is_alive()
