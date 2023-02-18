@@ -46,6 +46,7 @@ class UsageError(Error):
 class UnsupportedError(UsageError):
     """Raised when trying to use a feature that is not supported"""
 
+
 class WaitTimeoutError(Error):
     """Raised when wait() timeout occurs before process is finished"""
 
