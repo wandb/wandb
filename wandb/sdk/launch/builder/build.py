@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import json
 import logging
@@ -462,24 +461,6 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                     continue
         requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
     return requirements_line
-
-
-def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> str:
-    """
-    Returns an appropriate Docker image URI for a project based on the git hash of the specified
-    working directory.
-    :param name: The URI of the Docker repository with which to tag the image. The
-                           repository URI is used as the prefix of the image URI.
-    :param work_dir: Path to the working directory in which to search for a git commit hash
-    """
-    name = name.replace(" ", "-") if name else "wandb-launch"
-    # Optionally include first 7 digits of git SHA in tag name, if available.
-
-    git_commit = GitRepo(work_dir).last_commit
-    version_string = (
-        ":" + str(git_commit[:7]) + image_id if git_commit else ":" + image_id
-    )
-    return name + version_string
 
 
 def _create_docker_build_ctx(

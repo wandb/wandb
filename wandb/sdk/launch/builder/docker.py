@@ -17,8 +17,10 @@ from .._project_spec import (
 from ..utils import LOG_PREFIX, sanitize_wandb_api_key
 from .build import (
     _create_docker_build_ctx,
+    docker_image_exists,
     generate_dockerfile,
     image_tag_from_dockerfile_and_source,
+    pull_docker_image,
     validate_docker_installation,
 )
 
@@ -51,6 +53,21 @@ class DockerBuilder(AbstractBuilder):
             image_uri = f"{repository}:{image_tag}"
         else:
             image_uri = f"{launch_project.image_name}:{image_tag}"
+
+        if not launch_project.build_required():
+            if not repository and docker_image_exists(image_uri):
+                _logger.info(
+                    f"Image {image_uri} already exists locally, skipping build."
+                )
+                return image_uri
+            elif repository:
+                try:
+                    pull_docker_image(image_uri)
+                    return image_uri
+                except DockerError:
+                    _logger.info(
+                        f"image {image_uri} does not already exist in repository, building."
+                    )
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
 
         create_metadata_file(

@@ -232,8 +232,11 @@ class KanikoBuilder(AbstractBuilder):
 
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
         image_uri = f"{repository}:{image_tag}"
-        wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
-        if not self.check_build_required(repository, launch_project):
+
+        if not launch_project.build_required() and not self.check_build_required(
+            repository, launch_project
+        ):
+            _logger.info(f"Using cached image: {image_uri}")
             return image_uri
         entry_cmd = " ".join(
             get_entry_point_command(entrypoint, launch_project.override_args)

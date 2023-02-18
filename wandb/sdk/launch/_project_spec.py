@@ -7,6 +7,7 @@ import enum
 import json
 import logging
 import os
+import re
 import tempfile
 from shlex import quote
 from typing import Any, Dict, List, Optional
@@ -174,6 +175,17 @@ class LaunchProject:
             # this will always pass since one of these 3 is required
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
+
+    def build_required(self) -> str:
+        """Checks the source to see if a build is required."""
+        if self.source == LaunchSource.JOB:
+            _, alias = self.job.split(":")
+            # a build is only not required if the user has specified
+            # a version index, since all other aliases can
+            # be moved from version to version
+            return re.match(r"v\d+", alias) is not None
+        else:
+            return False
 
     def _initialize_image_job_tag(self) -> Optional[str]:
         if self._job_artifact is not None:
