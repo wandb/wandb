@@ -12,8 +12,9 @@ from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, Typ
 from requests import HTTPError
 
 import wandb
-from wandb.errors import ContextCancelledError
 from wandb.util import CheckRetryFnType
+
+from .mailbox import ContextCancelledError
 
 logger = logging.getLogger(__name__)
 

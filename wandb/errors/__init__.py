@@ -7,7 +7,6 @@ __all__ = [
     "MultiprocessError",
     "RequireError",
     "WaitTimeoutError",
-    "ContextCancelledError",
 ]
 
 from typing import List, Optional
@@ -69,17 +68,5 @@ class RequireError(Error):
 
 class WaitTimeoutError(Error):
     """Raised when wait() timeout occurs before process is finished"""
-
-    pass
-
-
-class MailboxError(Error):
-    """Generic Mailbox Exception"""
-
-    pass
-
-
-class ContextCancelledError(Error):
-    """Context cancelled Exception"""
 
     pass
