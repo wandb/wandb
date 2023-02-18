@@ -2,15 +2,12 @@ __all__ = [
     "Error",
     "UsageError",
     "CommError",
-    "DockerError",
-    "ExecutionError",
-    "LaunchError",
-    "SweepError",
+    "UnsupportedError",
     "WaitTimeoutError",
     "ContextCancelledError",
 ]
 
-from typing import List, Optional
+from typing import Optional
 
 
 class Error(Exception):
