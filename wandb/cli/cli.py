@@ -30,11 +30,12 @@ import wandb.env
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
-from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
+    ExecutionError,
+    LaunchError,
     check_logged_in,
     construct_launch_spec,
 )
