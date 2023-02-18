@@ -1,18 +1,18 @@
 import asyncio
 import concurrent.futures
-import queue
 import dataclasses
+import queue
 import threading
 from typing import TYPE_CHECKING, Iterable, Mapping, Tuple
 from unittest.mock import Mock, call
 
 import pytest
 from wandb.filesync.step_prepare import (
+    Event,
     RequestFinish,
     RequestPrepare,
     ResponsePrepare,
     StepPrepare,
-    Event,
     gather_batch,
 )
 
