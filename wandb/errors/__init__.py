@@ -2,6 +2,8 @@ __all__ = [
     "Error",
     "UsageError",
     "CommError",
+    "AuthorizationError",
+    "PermissionsError",
     "LogError",
     "DockerError",
     "LogMultiprocessError",
@@ -41,10 +43,16 @@ class CommError(Error):
         self.exc = exc
 
 
+class AuthorizationError(CommError):
+    """Raised when not authorized to access a particular resource"""
+
+
+class PermissionsError(CommError):
+    """Raised when tries to access a resource that without sufficient permissions"""
+
+
 class UsageError(Error):
     """API Usage Error"""
-
-    pass
 
 
 class LogError(Error):

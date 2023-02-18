@@ -2,21 +2,38 @@ import abc
 import asyncio
 import datetime
 import functools
+import json
 import logging
 import os
 import random
 import threading
 import time
-from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Generic,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 from requests import HTTPError
 
 import wandb
-from wandb.errors import ContextCancelledError
-from wandb.util import CheckRetryFnType
+from wandb.errors import (
+    ContextCancelledError,
+    UsageError,
+    AuthorizationError,
+    CommError,
+    PermissionsError,
+)
 
 logger = logging.getLogger(__name__)
 
+CheckRetryFnType = Callable[[Exception], Union[bool, datetime.timedelta]]
 
 # To let tests mock out the retry logic's now()/sleep() funcs, this file
 # should only use these variables, not call the stdlib funcs directly.
@@ -287,3 +304,104 @@ async def retry_async(
             if on_exc is not None:
                 on_exc(e)
             await SLEEP_ASYNC_FN(backoff.next_sleep_or_reraise(e).total_seconds())
+
+
+def no_retry_4xx(e: Exception) -> bool:
+    if not isinstance(e, HTTPError):
+        return True
+    if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
+        return True
+    body = json.loads(e.response.content)
+    raise UsageError(body["errors"][0]["message"])
+
+
+def no_retry_auth(e: Any) -> bool:
+    if hasattr(e, "exception"):
+        e = e.exception
+    if not isinstance(e, HTTPError):
+        return True
+    if e.response is None:
+        return True
+    # Don't retry bad request errors; raise immediately
+    if e.response.status_code in (400, 409):
+        return False
+    # Retry all non-forbidden/unauthorized/not-found errors.
+    if e.response.status_code not in (401, 403, 404):
+        return True
+    # Crash w/message on forbidden/unauthorized errors.
+    if e.response.status_code == 401:
+        raise AuthorizationError(
+            "The API key is either invalid or missing, or the host is incorrect. "
+            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
+            "The host defaults to 'https://api.wandb.ai' if not specified. "
+            f"(Error {e.response.status_code}: {e.response.reason})"
+        )
+    elif wandb.run:
+        raise CommError(f"Permission denied to access {wandb.run.path}", exc=e)
+    else:
+        raise PermissionsError(
+            "It appears that you do not have permission to access the requested resource. "
+            "Please reach out to the project owner to grant you access. "
+            "If you have the correct permissions, verify that there are no issues with your networking setup."
+            f"(Error {e.response.status_code}: {e.response.reason})"
+        )
+
+
+def check_retry_conflict(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict type so it can be retried.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+    return None
+
+
+def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict or gone type, so it can be retried or not.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+        if e.response.status_code == 410:
+            return False
+    return None
+
+
+def make_check_retry_fn(
+    fallback_retry_fn: CheckRetryFnType,
+    check_fn: Callable[[Exception], Optional[bool]],
+    check_timedelta: Optional[datetime.timedelta] = None,
+) -> CheckRetryFnType:
+    """Return a check_retry_fn which can be used by lib.Retry().
+
+    Arguments:
+        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
+        check_fn: Function which returns bool if retry should happen or None if unsure.
+        check_timedelta: Optional retry timeout if we check_fn matches the exception
+    """
+
+    def check_retry_fn(e: Exception) -> Union[bool, datetime.timedelta]:
+        check = check_fn(e)
+        if check is None:
+            return fallback_retry_fn(e)
+        if check is False:
+            return False
+        if check_timedelta:
+            return check_timedelta
+        return True
+
+    return check_retry_fn
