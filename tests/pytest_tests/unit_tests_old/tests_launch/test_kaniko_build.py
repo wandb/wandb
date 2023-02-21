@@ -400,8 +400,7 @@ def test_build_image_success(
             f.write(b"docker file test contents")
         builder = KanikoBuilder(build_config)
         kwargs = {
-            "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-            "job": None,
+            "job": "mock_server_entity/test/job-artifact:v0",
             "api": api,
             "launch_spec": {},
             "target_entity": "mock_server_entity",

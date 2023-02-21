@@ -63,7 +63,7 @@ class DockerBuilder(AbstractBuilder):
                 try:
                     pull_docker_image(image_uri)
                     return image_uri
-                except DockerError:
+                except docker.DockerError:
                     _logger.info(
                         f"image {image_uri} does not already exist in repository, building."
                     )
