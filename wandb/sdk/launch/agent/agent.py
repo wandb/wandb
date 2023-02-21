@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Union
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
+from wandb.sdk.launch.launch_add import push_to_queue
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
@@ -66,6 +67,10 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = max_jobs_from_config
+        # Max sweep schedulers is `max_schedulers` or `max_jobs` or 1
+        # Unless explicitly specified, can't run more schedulers than jobs
+        # if max_jobs = 8, we can have 8 schedulers and 8 jobs simulataneously
+        self._max_scheduler_jobs = int(config.get("max_schedulers", self._max_jobs))
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
@@ -204,7 +209,7 @@ class LaunchAgent:
         if run:
             self._jobs[run.id] = run
             if launch_spec.get("uri") == SCHEDULER_URI:
-                # also track running schedulers, used to account for _running job count
+                # also track running schedulers, used to account for job counts
                 self._scheduler_jobs.add(run.id)
             else:  # don't track schedulers in running count
                 self._running += 1
@@ -231,6 +236,16 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
+                            if job.get("runSpec", {}).get("uri") == SCHEDULER_URI:
+                                # Should we run the scheduler job?
+                                if len(self._scheduler_jobs) >= self._max_schedulers:
+                                    # spit back out, can't run any more schedulers
+                                    push_to_queue(
+                                        self._api,
+                                        queue,
+                                        job.get["runSpec"],
+                                        # project_queue=job['runSpec'].get("project_queue")
+                                    )
                             try:
                                 self.run_job(job)
                             except Exception:
