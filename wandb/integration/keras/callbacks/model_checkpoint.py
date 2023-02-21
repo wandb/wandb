@@ -44,9 +44,15 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         - Save the model at the end of epoch or after a fixed number of training batches.
         - Save only model weights, or save the whole model.
         - Save the model either in SavedModel format or in `.h5` format.
+        - Optionally store additional metadata with the model checkpoint.
 
     Arguments:
         filepath (Union[str, os.PathLike]): path to save the model file.
+        metadata (Optional[Dict[str, Any]]): additional metadata to be stored with
+            the model checkpoint. This metadata is a dictionary of structured data
+            associated with the artifact, for example class distribution of a dataset.
+            This will eventually be queryable and plottable in the UI. There is a hard
+            limit of 100 total keys.
         monitor (str): The metric name to monitor.
         verbose (int): Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
             displays messages when the callback takes an action.
@@ -74,6 +80,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
     def __init__(
         self,
         filepath: Union[str, os.PathLike],
+        metadata: Optional[Dict[str, Any]] = None,
         monitor: str = "val_loss",
         verbose: int = 0,
         save_best_only: bool = False,
@@ -103,6 +110,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras_model_checkpoint = True
 
+        self.metadata = metadata
         self.save_weights_only = save_weights_only
 
         # User-friendly warning when trying to save the best model.
@@ -148,7 +156,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         """Log model checkpoint as  W&B Artifact."""
         try:
             assert wandb.run is not None
-            model_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", type="model")
+            model_artifact = wandb.Artifact(
+                f"run_{wandb.run.id}_model", type="model", metadata=self.metadata
+            )
             if os.path.isdir(filepath):
                 model_artifact.add_dir(filepath)
                 wandb.log_artifact(model_artifact, aliases=aliases or [])
