@@ -41,6 +41,56 @@ def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_confi
             )
 
 
+def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
+    sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
+
+    def mock_run_complete_scheduler(self, *args, **kwargs):
+        self.state = SchedulerState.COMPLETED
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_complete_scheduler,
+    )
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    # Entity, project, and sweep
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    # No job
+    scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    scheduler.start()  # should raise no job found
+    assert scheduler.state == SchedulerState.FAILED
+
+
+def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
+    sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
+
+    # make a job
+    run = wandb_init()
+    job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr", args=[])
+    job_name = job_artifact.wait().name
+    sweep_config["job"] = job_name
+    run.finish()
+
+    def mock_run_complete_scheduler(self, *args, **kwargs):
+        self.state = SchedulerState.COMPLETED
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_complete_scheduler,
+    )
+
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    # Entity, project, and sweep
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    # Yes job
+    scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    scheduler.start()  # should raise no job found
+    assert scheduler.state == SchedulerState.FAILED
+
+
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_base_scheduler_states(
@@ -59,6 +109,11 @@ def test_sweep_scheduler_base_scheduler_states(
         monkeypatch.setattr(
             "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
             mock_run_complete_scheduler,
+        )
+
+        monkeypatch.setattr(
+            "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+            lambda _: True,
         )
 
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
@@ -112,7 +167,7 @@ def test_sweep_scheduler_base_scheduler_states(
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config):
+def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monkeypatch):
     with relay_server():
         _entity = user
         _project = "test-project"
@@ -193,6 +248,11 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         mock_run_add_to_launch_queue,
     )
 
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        lambda _: True,
+    )
+
     _scheduler = Scheduler(
         api, sweep_id=sweep_id, entity=user, project=_project, project_queue=_project
     )
@@ -221,7 +281,14 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 @pytest.mark.parametrize("num_workers", [1, 8])
-def test_sweep_scheduler_sweeps_stop_agent_hearbeat(user, sweep_config, num_workers):
+def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
+    user, sweep_config, num_workers, monkeypatch
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        lambda _: True,
+    )
+
     api = internal.Api()
 
     def mock_agent_heartbeat(*args, **kwargs):
@@ -241,8 +308,13 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(user, sweep_config, num_work
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 @pytest.mark.parametrize("num_workers", [1, 8])
 def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
-    user, sweep_config, num_workers
+    user, sweep_config, num_workers, monkeypatch
 ):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        lambda _: True,
+    )
+
     api = internal.Api()
     _project = "test-project"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
@@ -291,6 +363,11 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
 def test_sweep_scheduler_sweeps_run_and_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        lambda _: True,
+    )
+
     api = internal.Api()
     # Mock agent heartbeat stops after 10 heartbeats
     api.agent_heartbeat = Mock(
