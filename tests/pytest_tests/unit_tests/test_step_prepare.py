@@ -369,6 +369,8 @@ class TestStepPrepare:
         res_a = future_a.result()
         res_b = future_b.result()
 
+        step_prepare.finish()
+
         assert res_a.upload_url == caf_result["a"]["uploadUrl"]
         assert res_b.upload_url == caf_result["b"]["uploadUrl"]
 
@@ -376,8 +378,6 @@ class TestStepPrepare:
         assert res_a.upload_url != res_b.upload_url
 
         api.create_artifact_files.assert_called_once()
-
-        step_prepare.finish()
 
     def test_finish_waits_for_pending_requests(self, prepare: "PrepareFixture"):
         caf_result = mock_create_artifact_files_result(["a", "b"])
