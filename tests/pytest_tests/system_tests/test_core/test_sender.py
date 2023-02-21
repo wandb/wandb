@@ -2,9 +2,13 @@ import os
 import shutil
 import time
 import unittest.mock
+from unittest.mock import patch
 
 import pytest
 import wandb
+from wandb.errors import CommError
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.lib import filesystem
 
 
@@ -387,3 +391,22 @@ def test_upgrade_removed(
         # We need a run to cleanly shutdown backend
         run_result = interface.communicate_run(run)
         assert run_result.HasField("error") is False
+
+
+def test_sender_upsert_run(internal_sm, test_settings, mock_run):
+
+    run = mock_run(use_magic_mock=True)
+    run_proto = InterfaceBase()._make_run(run)
+    record = pb.Record(run=run_proto)
+    record.control.mailbox_slot = "0"
+
+    send_manager = internal_sm(test_settings())
+    results = []
+    with patch.object(send_manager._api, "upsert_run", side_effect=CommError("test")):
+        with patch.object(
+            send_manager, "_respond_result", wraps=lambda x: results.append(x)
+        ):
+            send_manager.send_run(record)
+
+    assert len(results) == 1
+    assert results[0].run_result.error.message == "test"

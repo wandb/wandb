@@ -908,17 +908,16 @@ class ArtifactsCache:
         total_size: int = 0
         for root, _, files in os.walk(self._cache_dir):
             for file in files:
-                path = os.path.join(root, file)
-                stat = os.stat(path)
+                try:
+                    path = os.path.join(root, file)
+                    stat = os.stat(path)
 
-                if file.startswith(ArtifactsCache._TMP_PREFIX):
-                    try:
+                    if file.startswith(ArtifactsCache._TMP_PREFIX):
                         os.remove(path)
                         bytes_reclaimed += stat.st_size
-                    except OSError:
-                        pass
+                        continue
+                except OSError:
                     continue
-
                 paths[path] = stat
                 total_size += stat.st_size
 
@@ -985,15 +984,7 @@ _artifacts_cache = None
 def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
     if _artifacts_cache is None:
-        singleton = wandb.sdk.wandb_setup._WandbSetup._instance
-        cache_dir_base = (
-            wandb.run.settings.cache_dir
-            if wandb.run and wandb.run.settings.cache_dir
-            else singleton._settings.cache_dir
-            if singleton and singleton._settings.cache_dir
-            else env.get_cache_dir()
-        )
-        cache_dir = os.path.join(cache_dir_base, "artifacts")
+        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
         _artifacts_cache = ArtifactsCache(cache_dir)
     return _artifacts_cache
 
