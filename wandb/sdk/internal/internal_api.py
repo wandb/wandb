@@ -408,7 +408,7 @@ class Api:
             assert run, "run must be specified"
         return project, run
 
-    @normalize_exceptions
+    # @normalize_exceptions
     def server_info_introspection(self) -> Tuple[List[str], List[str]]:
         query_string = """
            query ProbeServerCapabilities {
@@ -428,7 +428,10 @@ class Api:
         """
         if self.query_types is None or self.server_info_types is None:
             query = gql(query_string)
-            res = self.gql(query)
+            try:
+                res = self.gql(query, check_retry_fn=lambda e: False)
+            except requests.ConnectionError as e:
+                res = {}
 
             self.query_types = [
                 field.get("name", "")
