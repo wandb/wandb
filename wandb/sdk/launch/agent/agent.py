@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Union
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
-from wandb.sdk.launch.launch_add import push_to_queue
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
@@ -47,6 +46,13 @@ def _convert_access(access: str) -> str:
     return access
 
 
+def _max_from_config(config: Dict[str, Any], key: str, default=1) -> Union[int, float]:
+    max_from_config = int(config.get(key, default))
+    if max_from_config == -1:
+        return float("inf")
+    return max_from_config
+
+
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
@@ -55,6 +61,7 @@ class LaunchAgent:
         self._project = config.get("project")
         self._api = api
         self._base_url = self._api.settings().get("base_url")
+        # _jobs includes scheduler jobs as well
         self._jobs: Dict[Union[int, str], AbstractRun] = {}
         self._scheduler_jobs: set = set()
         self._ticks = 0
@@ -62,19 +69,8 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = runid.generate_id()
         self._access = _convert_access("project")
-        max_jobs_from_config = int(config.get("max_jobs", 1))
-        if max_jobs_from_config == -1:
-            self._max_jobs = float("inf")
-        else:
-            self._max_jobs = max_jobs_from_config
-        # Max sweep schedulers is `max_schedulers` or `max_jobs` or 1
-        # Unless explicitly specified, can't run more schedulers than jobs
-        # if max_jobs = 8, we can have 8 schedulers and 8 jobs simulataneously
-        if config.get("max_schedulers"):
-            self._max_scheduler_jobs: Union[int, float] = int(config["max_schedulers"])
-        else:
-            self._max_scheduler_jobs = self._max_jobs
-        self.default_config: Dict[str, Any] = config
+        self._max_jobs = _max_from_config(config, "max_jobs")
+        self._max_schedulers = _max_from_config(config, "max_schedulers")
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -212,7 +208,6 @@ class LaunchAgent:
         if run:
             self._jobs[run.id] = run
             if launch_spec.get("uri") == SCHEDULER_URI:
-                # also track running schedulers, used to account for job counts
                 self._scheduler_jobs.add(run.id)
             else:  # don't track schedulers in running count
                 self._running += 1
@@ -240,21 +235,9 @@ class LaunchAgent:
                         job = self.pop_from_queue(queue)
                         if job:
                             if job.get("runSpec", {}).get("uri") == SCHEDULER_URI:
-                                # Should we run the scheduler job?
-                                if (
-                                    len(self._scheduler_jobs)
-                                    >= self._max_scheduler_jobs
-                                ):
-                                    # spit back out, can't run any more schedulers
-                                    push_to_queue(
-                                        self._api,
-                                        queue,
-                                        job.get["runSpec"],
-                                        project_queue=job["runSpec"].get(
-                                            "project_queue"
-                                        )
-                                        # always None? ^^
-                                    )
+                                if len(self._schedulers) >= self._max_schedulers:
+                                    # don't run more than max schedulers
+                                    continue
                             try:
                                 self.run_job(job)
                             except Exception:
