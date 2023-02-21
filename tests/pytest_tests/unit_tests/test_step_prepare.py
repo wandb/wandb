@@ -8,7 +8,7 @@ from unittest.mock import Mock, call
 
 import pytest
 from wandb.filesync.step_prepare import (
-    Event,
+    Request,
     RequestFinish,
     RequestPrepare,
     ResponsePrepare,
@@ -83,7 +83,7 @@ class MockRequestQueue(Mock):
     def __init__(
         self,
         clock: MockClock,
-        schedule: Iterable[Tuple[float, Event]],
+        schedule: Iterable[Tuple[float, Request]],
     ):
         super().__init__(
             get=Mock(wraps=self._get),
@@ -91,7 +91,7 @@ class MockRequestQueue(Mock):
         self._clock = clock
         self._remaining_events = list(schedule)
 
-    def _get(self, timeout: float = 0) -> Event:
+    def _get(self, timeout: float = 0) -> Request:
         assert self._remaining_events, "ran out of events in mock queue"
 
         next_event_time, next_event = self._remaining_events[0]
@@ -378,3 +378,28 @@ class TestStepPrepare:
         api.create_artifact_files.assert_called_once()
 
         step_prepare.finish()
+
+    def test_finish_waits_for_pending_requests(self, prepare: "PrepareFixture"):
+        caf_result = mock_create_artifact_files_result(["a", "b"])
+        api = Mock(create_artifact_files=Mock(return_value=caf_result))
+
+        step_prepare = StepPrepare(
+            api=api, batch_time=1, inter_event_time=1, max_batch_size=10
+        )
+        step_prepare.start()
+
+        res_future = prepare(step_prepare, simple_file_spec(name="a"))
+
+        with pytest.raises(concurrent.futures.TimeoutError):
+            res_future.result(timeout=0.2)
+
+        assert step_prepare.is_alive()
+
+        step_prepare.finish()
+
+        res = res_future.result(timeout=5)
+
+        assert res.upload_url == caf_result["a"]["uploadUrl"]
+
+        step_prepare._thread.join()
+        assert not step_prepare.is_alive()

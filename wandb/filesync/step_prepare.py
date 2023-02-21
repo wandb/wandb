@@ -44,7 +44,7 @@ class ResponsePrepare(NamedTuple):
     birth_artifact_id: str
 
 
-Event = Union[RequestPrepare, RequestFinish, ResponsePrepare]
+Request = Union[RequestPrepare, RequestFinish]
 
 
 def _clamp(x: float, low: float, high: float) -> float:
@@ -52,7 +52,7 @@ def _clamp(x: float, low: float, high: float) -> float:
 
 
 def gather_batch(
-    request_queue: "queue.Queue[Event]",
+    request_queue: "queue.Queue[Request]",
     batch_time: float,
     inter_event_time: float,
     max_batch_size: int,
@@ -70,7 +70,6 @@ def gather_batch(
 
     while remaining_time > 0 and len(batch) < max_batch_size:
         try:
-            print("getting")
             request = request_queue.get(
                 timeout=_clamp(
                     x=inter_event_time,
@@ -78,7 +77,6 @@ def gather_batch(
                     high=remaining_time,
                 ),
             )
-            print("got", request)
             if isinstance(request, RequestFinish):
                 return True, batch
 
@@ -88,7 +86,6 @@ def gather_batch(
         except queue.Empty:
             break
 
-    print("returning unterminated", batch)
     return False, batch
 
 
@@ -105,15 +102,13 @@ class StepPrepare:
         batch_time: float,
         inter_event_time: float,
         max_batch_size: int,
-        request_queue: Optional["queue.Queue[Event]"] = None,
+        request_queue: Optional["queue.Queue[Request]"] = None,
     ) -> None:
         self._api = api
         self._inter_event_time = inter_event_time
         self._batch_time = batch_time
         self._max_batch_size = max_batch_size
-        self._request_queue: "queue.Queue[RequestPrepare | RequestFinish]" = (
-            request_queue or queue.Queue()
-        )
+        self._request_queue: "queue.Queue[Request]" = request_queue or queue.Queue()
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 

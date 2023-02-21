@@ -8,7 +8,40 @@ import requests
 from dockerpycreds.utils import find_executable  # type: ignore
 
 from wandb.docker import auth, www_authenticate
-from wandb.errors import DockerError
+from wandb.errors import Error
+
+
+class DockerError(Error):
+    """Raised when attempting to execute a docker command"""
+
+    def __init__(
+        self,
+        command_launched: List[str],
+        return_code: int,
+        stdout: Optional[bytes] = None,
+        stderr: Optional[bytes] = None,
+    ) -> None:
+        command_launched_str = " ".join(command_launched)
+        error_msg = (
+            f"The docker command executed was `{command_launched_str}`.\n"
+            f"It returned with code {return_code}\n"
+        )
+        if stdout is not None:
+            error_msg += f"The content of stdout is '{stdout.decode()}'\n"
+        else:
+            error_msg += (
+                "The content of stdout can be found above the "
+                "stacktrace (it wasn't captured).\n"
+            )
+        if stderr is not None:
+            error_msg += f"The content of stderr is '{stderr.decode()}'\n"
+        else:
+            error_msg += (
+                "The content of stderr can be found above the "
+                "stacktrace (it wasn't captured)."
+            )
+        super().__init__(error_msg)
+
 
 entrypoint = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "wandb-entrypoint.sh"
