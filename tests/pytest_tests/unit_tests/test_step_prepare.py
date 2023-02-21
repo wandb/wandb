@@ -5,7 +5,7 @@ from unittest.mock import Mock, call
 
 import pytest
 from wandb.filesync.step_prepare import (
-    Event,
+    Request,
     RequestFinish,
     RequestPrepare,
     ResponsePrepare,
@@ -65,7 +65,7 @@ class MockRequestQueue(Mock):
     def __init__(
         self,
         clock: MockClock,
-        schedule: Iterable[Tuple[float, Event]],
+        schedule: Iterable[Tuple[float, Request]],
     ):
         super().__init__(
             get=Mock(wraps=self._get),
@@ -73,7 +73,7 @@ class MockRequestQueue(Mock):
         self._clock = clock
         self._remaining_events = list(schedule)
 
-    def _get(self, timeout: float = 0) -> Event:
+    def _get(self, timeout: float = 0) -> Request:
         assert self._remaining_events, "ran out of events in mock queue"
 
         next_event_time, next_event = self._remaining_events[0]
@@ -298,12 +298,13 @@ class TestStepPrepare:
         step_prepare.start()
 
         res_q = step_prepare.prepare_async(simple_file_spec(name="a"))
-        step_prepare.finish()
 
         with pytest.raises(queue.Empty):
             res_q.get(timeout=1e-12)
 
         assert step_prepare.is_alive()
+
+        step_prepare.finish()
 
         res = res_q.get(timeout=5)
 
