@@ -1,4 +1,4 @@
-The builder will build the docker image for execution of the run. 
-If you pass a prebuilt docker image, the builder does not need to do anything. 
+If necessary, the builder creates a docker image for execution of the run. 
+Prebuilt docker images can be used to skip this step. 
 However if provided another option such as a run that contains code or a github url, a build step occurs. 
 
