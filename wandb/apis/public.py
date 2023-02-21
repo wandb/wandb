@@ -47,11 +47,16 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    LaunchError,
+    _fetch_git_repo,
+    apply_patch,
+)
 from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 

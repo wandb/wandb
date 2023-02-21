@@ -75,7 +75,6 @@ if TYPE_CHECKING:
 
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
-    from wandb.sdk.internal import internal_api
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -860,8 +859,13 @@ class WandbStoragePolicy(StoragePolicy):
     def from_config(cls, config: Dict) -> "WandbStoragePolicy":
         return cls(config=config)
 
-    def __init__(self, config: Optional[Dict] = None) -> None:
-        self._cache = get_artifacts_cache()
+    def __init__(
+        self,
+        config: Optional[Dict] = None,
+        cache: Optional[ArtifactsCache] = None,
+        api: Optional[InternalApi] = None,
+    ) -> None:
+        self._cache = cache or get_artifacts_cache()
         self._config = config or {}
         self._session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
@@ -880,7 +884,7 @@ class WandbStoragePolicy(StoragePolicy):
         local_artifact = WBLocalArtifactHandler()
         file_handler = LocalFileHandler()
 
-        self._api = InternalApi()
+        self._api = api or InternalApi()
         self._handler = MultiHandler(
             handlers=[
                 s3,
@@ -981,15 +985,14 @@ class WandbStoragePolicy(StoragePolicy):
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
 
-        def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
-            return {
+        resp = preparer.prepare(
+            {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-
-        resp = preparer.prepare(_prepare_fn)
+        )
 
         entry.birth_artifact_id = resp.birth_artifact_id
         if resp.upload_url is None:
