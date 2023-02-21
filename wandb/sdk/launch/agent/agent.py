@@ -241,13 +241,19 @@ class LaunchAgent:
                         if job:
                             if job.get("runSpec", {}).get("uri") == SCHEDULER_URI:
                                 # Should we run the scheduler job?
-                                if len(self._scheduler_jobs) >= self._max_schedulers:
+                                if (
+                                    len(self._scheduler_jobs)
+                                    >= self._max_scheduler_jobs
+                                ):
                                     # spit back out, can't run any more schedulers
                                     push_to_queue(
                                         self._api,
                                         queue,
                                         job.get["runSpec"],
-                                        # project_queue=job['runSpec'].get("project_queue")
+                                        project_queue=job["runSpec"].get(
+                                            "project_queue"
+                                        )
+                                        # always None? ^^
                                     )
                             try:
                                 self.run_job(job)
