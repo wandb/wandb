@@ -14,8 +14,8 @@ class NoOpBuilder(AbstractBuilder):
     def __init__(
         self,
         builder_config: Dict[str, Any],
-        environment: AbstractEnvironment,
-        registry: AbstractRegistry,
+        environment: Optional[AbstractEnvironment],
+        registry: Optional[AbstractRegistry],
     ) -> None:
         """Initialize a NoOpBuilder."""
         pass

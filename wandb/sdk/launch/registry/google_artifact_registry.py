@@ -38,7 +38,6 @@ class GoogleArtifactRegistry(AbstractRegistry):
         environment: A GcpEnvironment configured for access to this registry.
     """
 
-    uri: str
     repository: str
     image_name: str
     environment: GcpEnvironment

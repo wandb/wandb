@@ -9,9 +9,7 @@ from wandb.apis.internal import Api
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
-from .builder import loader as builder_loader
 from .builder.build import construct_builder_args
-from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
@@ -62,17 +60,16 @@ def resolve_agent_config(
     resolved_config: Dict[str, Any] = defaults
     config_path = config or os.path.expanduser(LAUNCH_CONFIG_FILE)
     if os.path.isfile(config_path):
-        config = {}
+        launch_config = {}
         with open(config_path) as f:
             try:
-                config = yaml.safe_load(f)
-                print(config)
+                launch_config = yaml.safe_load(f)
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
-        if config.get("project") is not None:
+        if launch_config.get("project") is not None:
             user_set_project = True
-        resolved_config.update(dict(config))
-    elif config:
+        resolved_config.update(launch_config.items())
+    else:
         raise LaunchError(f"Could not find config file: {config_path}")
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
@@ -183,19 +180,17 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
     if repository:  # override existing registry with CLI arg
-        launch_config = launch_config or {}
-        registry = launch_config.get("registry", {})
+        config = launch_config or {}
+        registry = config.get("registry", {})
         registry["url"] = repository
         launch_config["registry"] = registry
 
-    build_config, registry_config = construct_builder_args(
-        launch_config,
-    )
+    build_config, registry_config = construct_builder_args(config)
 
-    environment = util.environment_from_config(launch_config.get("environment", {}))
-    registry = util.registry_from_config(registry_config, environment)
-    builder = util.builder_from_config(build_config, environment, registry)
-    backend = util.runner_from_config(resource, api, runner_config, environment)
+    environment = loader.environment_from_config(config.get("environment", {}))
+    registry = loader.registry_from_config(registry_config, environment)
+    builder = loader.builder_from_config(build_config, environment, registry)
+    backend = loader.runner_from_config(resource, api, runner_config, environment)
     if backend:
         submitted_run = backend.run(launch_project, builder)
         # this check will always pass, run is only optional in the agent case where

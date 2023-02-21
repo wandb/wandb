@@ -17,22 +17,15 @@ from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
-from .._project_spec import (
-    EntryPoint,
-    create_project_from_spec,
-    fetch_and_validate_project,
+from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from ..loader import (
+    builder_from_config,
+    environment_from_config,
+    registry_from_config,
+    runner_from_config,
 )
-from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
-from ..runner.loader import load_backend
-from ..utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
-    PROJECT_SYNCHRONOUS,
-    LaunchError,
-    resolve_build_and_registry_config,
-)
-from .util import builder_from_config, environment_from_config, registry_from_config
+from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs

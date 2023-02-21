@@ -20,7 +20,7 @@ class AbstractBuilder(ABC):
         self,
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
-        verify=True,
+        verify: bool = True,
     ) -> None:
         """Initialize a builder.
 

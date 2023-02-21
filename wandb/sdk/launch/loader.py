@@ -6,6 +6,7 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.runner.abstract import AbstractRunner
 from wandb.util import get_module
 
 
@@ -112,7 +113,7 @@ def runner_from_config(
     api: Api,
     runer_config: Dict[str, Any],
     environment: AbstractEnvironment,
-):
+) -> AbstractRunner:
     """Create a runner from a config.
 
     This helper function is used to create a runner from a config. The

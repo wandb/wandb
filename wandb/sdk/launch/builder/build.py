@@ -15,6 +15,11 @@ from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
+from wandb.sdk.launch.loader import (
+    builder_from_config,
+    environment_from_config,
+    registry_from_config,
+)
 
 from ...lib.git import GitRepo
 from .._project_spec import (
@@ -24,15 +29,8 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import (
-    LAUNCH_CONFIG_FILE,
-    LOG_PREFIX,
-    ExecutionError,
-    LaunchError,
-    resolve_build_and_registry_config,
-)
+from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
 from .abstract import AbstractBuilder
-from .loader import load_builder
 
 _logger = logging.getLogger(__name__)
 
@@ -551,14 +549,12 @@ def construct_builder_args(
 def build_image_with_builder(
     builder: AbstractBuilder,
     launch_project: LaunchProject,
-    repository: Optional[Any],
     entry_point: EntryPoint,
 ) -> Optional[str]:
     """Build image with testing and logging."""
     wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
     image_uri: Optional[str] = builder.build_image(
         launch_project,
-        repository,
         entry_point,
     )
     return image_uri
@@ -568,40 +564,39 @@ def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
     launch_config: Optional[Dict[str, Any]] = None,
-    default_builder_type: Optional[str] = "docker",
 ) -> str:
-    """Create a docker image uri based on the project, config, and api.
+    """Construct a docker image from a project and returns the URI of the image.
 
-    Accept a reference to the Api class and a pre-computed launch_spec object, with an
-    optional launch_config to set things like repository which is used in naming the
-    output docker image, and build_type defaulting to docker (but could be used to build
-    kube resource jobs w/ "kaniko").
+    Args:
+        launch_project: The project to build an image from.
+        api: The API object to use for fetching the project.
+        launch_config: The launch config to use for building the image.
 
-    Returns the uri after updating the launch_project with it.
+    Returns:
+        The URI of the built image.
+
+    Raises:
+        LaunchError: If the project is not valid or the image could not be built.
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
 
-    builder_config, registry_config = construct_builder_args(launch_config)
+    env_config = launch_config.get("environment", {})
+    environment = environment_from_config(env_config)
+
+    registry_config = launch_config.get("registry", {})
+    registry = registry_from_config(registry_config, environment)
+
+    builder_config = launch_config.get("builder", {})
+    builder = builder_from_config(builder_config, environment, registry)
+
     launch_project = fetch_and_validate_project(launch_project, api)
-    # Currently support either url or repository keywords in registry
-    repository = registry_config.get("url") or registry_config.get("repository")
 
-    if not builder_config.get("type"):
-        wandb.termlog(f"{LOG_PREFIX}No builder found, defaulting to docker")
-        builder_config["type"] = default_builder_type
-
-    builder = load_builder(builder_config)
     entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
         name=EntrypointDefaults.PYTHON[-1],
         command=EntrypointDefaults.PYTHON,
     )
-
-    image_uri = build_image_with_builder(
-        builder,
-        launch_project,
-        repository,
-        entry_point,
-    )
+    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
+    image_uri = builder.build_image(launch_project, entry_point)
     if not image_uri:
         raise LaunchError("Error building image uri")
     else:
