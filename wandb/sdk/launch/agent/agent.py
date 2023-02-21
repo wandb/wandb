@@ -70,7 +70,10 @@ class LaunchAgent:
         # Max sweep schedulers is `max_schedulers` or `max_jobs` or 1
         # Unless explicitly specified, can't run more schedulers than jobs
         # if max_jobs = 8, we can have 8 schedulers and 8 jobs simulataneously
-        self._max_scheduler_jobs = int(config.get("max_schedulers", self._max_jobs))
+        if config.get("max_schedulers"):
+            self._max_scheduler_jobs = int(config.get("max_schedulers"))
+        else:
+            self._max_scheduler_jobs = self._max_jobs
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
