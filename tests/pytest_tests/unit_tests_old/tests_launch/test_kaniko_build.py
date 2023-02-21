@@ -10,13 +10,13 @@ import kubernetes
 import pytest
 import wandb
 from google.cloud import storage
-from wandb.errors import LaunchError
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko import (
     KanikoBuilder,
     _create_dockerfile_configmap,
     _wait_for_completion,
 )
+from wandb.sdk.launch.utils import LaunchError
 
 from tests.pytest_tests.unit_tests_old.utils import fixture_open
 

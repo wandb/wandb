@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 
 import wandb
 import wandb.docker as docker
-from wandb.errors import DockerError, LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .._project_spec import (
@@ -14,7 +13,7 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
-from ..utils import LOG_PREFIX, sanitize_wandb_api_key
+from ..utils import LOG_PREFIX, LaunchError, sanitize_wandb_api_key
 from .build import (
     _create_docker_build_ctx,
     docker_image_exists,
@@ -80,7 +79,7 @@ class DockerBuilder(AbstractBuilder):
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
             docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
-        except DockerError as e:
+        except docker.DockerError as e:
             raise LaunchError(f"Error communicating with docker client: {e}")
 
         try:

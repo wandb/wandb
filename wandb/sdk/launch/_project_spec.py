@@ -16,11 +16,11 @@ import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
-from .utils import LOG_PREFIX
+from .utils import LOG_PREFIX, LaunchError
 
 _logger = logging.getLogger(__name__)
 
