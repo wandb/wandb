@@ -26,7 +26,7 @@ def monitor():
     """
     gym_lib: Optional[GymLib] = None
 
-    # gym is not supported anymore, gymnasium is the drop-in replacement - prefer it
+    # gym is not maintained anymore, gymnasium is the drop-in replacement - prefer it
     if wandb.util.get_module("gymnasium") is not None:
         gym_lib = "gymnasium"
     elif wandb.util.get_module("gym") is not None:
