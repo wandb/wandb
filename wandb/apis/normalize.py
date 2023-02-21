@@ -11,7 +11,8 @@ import requests
 from wandb_gql.client import RetryError
 
 from wandb import env
-from wandb.errors import CommError, ContextCancelledError
+from wandb.errors import CommError
+from wandb.sdk.lib.mailbox import ContextCancelledError
 
 _F = TypeVar("_F", bound=Callable)
 
@@ -48,6 +49,8 @@ def normalize_exceptions(func: _F) -> _F:
                 raise CommError(message, err.last_exception).with_traceback(
                     sys.exc_info()[2]
                 )
+        except CommError as err:
+            raise err
         except Exception as err:
             # gql raises server errors with dict's as strings...
             if len(err.args) > 0:

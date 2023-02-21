@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Union
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
@@ -25,6 +24,7 @@ from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
+    LaunchError,
     resolve_build_and_registry_config,
 )
 
