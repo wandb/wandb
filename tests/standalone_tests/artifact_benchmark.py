@@ -9,18 +9,8 @@ import numpy as np
 import pytest
 import wandb
 
-run_name_base = pathlib.Path(__file__).stem
-init_count = 1
 
-
-def get_init_count():
-    global init_count
-    current_count = init_count
-    init_count += 1
-    return current_count
-
-
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def teardown():
     yield
     wandb.finish()
