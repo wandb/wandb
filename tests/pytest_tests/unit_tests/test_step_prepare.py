@@ -298,12 +298,13 @@ class TestStepPrepare:
         step_prepare.start()
 
         res_q = step_prepare.prepare_async(simple_file_spec(name="a"))
-        step_prepare.finish()
 
         with pytest.raises(queue.Empty):
             res_q.get(timeout=1e-12)
 
         assert step_prepare.is_alive()
+
+        step_prepare.finish()
 
         res = res_q.get(timeout=5)
 
