@@ -400,6 +400,7 @@ def test_build_image_success(
             f.write(b"docker file test contents")
         builder = KanikoBuilder(build_config)
         kwargs = {
+            "uri": None,
             "job": "mock_server_entity/test/job-artifact:v0",
             "api": api,
             "launch_spec": {},
