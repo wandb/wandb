@@ -39,7 +39,7 @@ class ResponsePrepare(NamedTuple):
     birth_artifact_id: str
 
 
-Event = Union[RequestPrepare, RequestFinish, ResponsePrepare]
+Request = Union[RequestPrepare, RequestFinish]
 
 
 def _clamp(x: float, low: float, high: float) -> float:
@@ -47,7 +47,7 @@ def _clamp(x: float, low: float, high: float) -> float:
 
 
 def gather_batch(
-    request_queue: "queue.Queue[Event]",
+    request_queue: "queue.Queue[Request]",
     batch_time: float,
     inter_event_time: float,
     max_batch_size: int,
@@ -97,15 +97,13 @@ class StepPrepare:
         batch_time: float,
         inter_event_time: float,
         max_batch_size: int,
-        request_queue: Optional["queue.Queue[Event]"] = None,
+        request_queue: Optional["queue.Queue[Request]"] = None,
     ) -> None:
         self._api = api
         self._inter_event_time = inter_event_time
         self._batch_time = batch_time
         self._max_batch_size = max_batch_size
-        self._request_queue: "queue.Queue[RequestPrepare | RequestFinish]" = (
-            request_queue or queue.Queue()
-        )
+        self._request_queue: "queue.Queue[Request]" = request_queue or queue.Queue()
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
