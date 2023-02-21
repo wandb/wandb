@@ -176,16 +176,22 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
-    def build_required(self) -> str:
+    def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
         if self.source == LaunchSource.JOB:
-            _, alias = self.job.split(":")
+            assert isinstance(self.job, str)
+            job_info = self.job.split(":")
+            if len(job_info) != 2:
+                raise LaunchError(
+                    "Job must be in the format <entity>/<propject>/<collection>:<alias> or <entity>/<propject>/<collection>:v<version>"
+                )
+            alias = job_info[1]
             # a build is only not required if the user has specified
             # a version index, since all other aliases can
             # be moved from version to version
             return re.match(r"v\d+", alias) is not None
         else:
-            return False
+            return True
 
     def _initialize_image_job_tag(self) -> Optional[str]:
         if self._job_artifact is not None:
@@ -279,7 +285,7 @@ class LaunchProject:
         elif self.source == LaunchSource.WANDB:
             assert isinstance(self.uri, str)
             return self.uri
-        elif self.source == LaunchSource.DOCKER_IMAGE:
+        elif self.source == LaunchSource.DOCKER:
             raise LaunchError("Attempted to get image source string for docker image")
         else:
             raise LaunchError("Unknown source type when determing image source string")

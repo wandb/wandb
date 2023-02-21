@@ -18,7 +18,6 @@ import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from ...lib.git import GitRepo
 from .._project_spec import (
     EntryPoint,
     EntrypointDefaults,
@@ -583,7 +582,7 @@ def build_image_from_project(
 
 def image_tag_from_dockerfile_and_source(
     launch_project: LaunchProject, dockerfile_contents: str
-):
+) -> str:
     """Converts the source and dockerfile contents into a docker image tag"""
     image_source_string = launch_project.get_image_source_string()
     unique_id_string = image_source_string + dockerfile_contents

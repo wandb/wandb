@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import os
 import tarfile
 import tempfile
@@ -26,6 +27,8 @@ from .build import (
     generate_dockerfile,
     image_tag_from_dockerfile_and_source,
 )
+
+_logger = logging.getLogger(__name__)
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
