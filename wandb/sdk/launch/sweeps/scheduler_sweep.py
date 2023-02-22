@@ -125,8 +125,7 @@ class SweepScheduler(Scheduler):
     def _run(self) -> None:
         # Go through all workers and heartbeat
         for worker_id in self._workers:
-            if not self._heartbeat(worker_id):
-                break
+            self._heartbeat(worker_id)
 
         for _worker_id in self._workers:
             try:
@@ -161,7 +160,7 @@ class SweepScheduler(Scheduler):
                 )
             except queue.Empty:
                 if self.state == SchedulerState.FLUSH_RUNS:
-                    wandb.termlog(f"{LOG_PREFIX}Sweep paused, waiting on runs...")
+                    wandb.termlog(f"{LOG_PREFIX}Sweep stopped, waiting on runs...")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
                 time.sleep(self._heartbeat_queue_sleep)
