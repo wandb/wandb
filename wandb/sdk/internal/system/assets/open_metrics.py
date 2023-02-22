@@ -193,8 +193,12 @@ class OpenMetrics:
             _session = _setup_requests_session()
             response = _session.get(url)
             response.raise_for_status()
+
             # check if the response is a valid OpenMetrics response
-            if prometheus_client_parser.text_string_to_metric_families(response.text):
+            # text_string_to_metric_families returns a generator
+            if list(
+                prometheus_client_parser.text_string_to_metric_families(response.text)
+            ):
                 _is_available = True
         except Exception as e:
             logger.debug(
@@ -206,7 +210,6 @@ class OpenMetrics:
                 _session.close()
             except Exception:
                 pass
-
         return _is_available
 
     def start(self) -> None:

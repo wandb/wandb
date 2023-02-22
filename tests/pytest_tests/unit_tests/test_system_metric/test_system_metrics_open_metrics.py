@@ -4,6 +4,8 @@ import time
 from typing import Union
 from unittest import mock
 
+import pytest
+import requests
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import OpenMetrics
@@ -48,17 +50,61 @@ def mocked_requests_get(*args, **kwargs):
     )
 
 
+def mocked_requests_get_junk(*args, **kwargs):
+    return mock.Mock(
+        status_code=200,
+        text="CANNOTPARSETHISJUNK",
+    )
+
+
+def mocked_requests_get_retryable_error(*args, **kwargs):
+    # return a HTTPError
+    raise requests.exceptions.HTTPError(
+        "HTTP Error 429: Too Many Requests",
+        response=mock.Mock(
+            status_code=429,
+            text="",
+        ),
+    )
+
+
+def mocked_requests_get_non_retryable_error(*args, **kwargs):
+    # return a HTTPError
+    raise requests.exceptions.HTTPError(
+        "HTTP Error 404: Not Found",
+        response=mock.Mock(
+            status_code=404,
+            text="",
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "mocked_requests_get_method",
+    [
+        mocked_requests_get_junk,
+        mocked_requests_get_retryable_error,
+        mocked_requests_get_non_retryable_error,
+    ],
+)
+def test_dcgm_not_available(test_settings, mocked_requests_get_method):
+    with mock.patch.object(
+        wandb.sdk.internal.system.assets.open_metrics.requests.Session,
+        "get",
+        mocked_requests_get_method,
+    ):
+
+        url = "http://localhost:9400/metrics"
+
+        assert not OpenMetrics.is_available(url)
+
+
 def test_dcgm(test_settings):
     with mock.patch.object(
-        wandb.sdk.internal.system.assets.open_metrics.requests,
-        "get",
-        mocked_requests_get,
-    ), mock.patch.object(
         wandb.sdk.internal.system.assets.open_metrics.requests.Session,
         "get",
         mocked_requests_get,
     ):
-
         interface = AssetInterface()
         settings = SettingsStatic(
             test_settings(
