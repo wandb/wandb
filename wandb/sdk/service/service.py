@@ -12,18 +12,33 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from ...errors import (
-    ServiceStartPortError,
-    ServiceStartProcessError,
-    ServiceStartTimeoutError,
-)
-from ...util import sentry_reraise, sentry_set_scope
+from wandb.errors import Error
+from wandb.util import sentry_reraise, sentry_set_scope
+
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
+
+
+class ServiceStartProcessError(Error):
+    """Raised when a known error occurs when launching wandb service"""
+
+    pass
+
+
+class ServiceStartTimeoutError(Error):
+    """Raised when service start times out"""
+
+    pass
+
+
+class ServiceStartPortError(Error):
+    """Raised when service start fails to find a port"""
+
+    pass
 
 
 class _Service:
@@ -87,14 +102,24 @@ class _Service:
             if proc and proc.poll():
                 # process finished
                 # define these variables for sentry context grab:
-                command = proc.args  # noqa: F841
-                sys_executable = sys.executable  # noqa: F841
-                which_python = shutil.which("python3")  # noqa: F841
+                # command = proc.args  # noqa: F841
+                # sys_executable = sys.executable  # noqa: F841
+                # which_python = shutil.which("python3")  # noqa: F841
+                # proc_out = proc.stdout.read()  # noqa: F841
+                # proc_err = proc.stderr.read()  # noqa: F841
+                context = dict(
+                    command=proc.args,
+                    sys_executable=sys.executable,
+                    which_python=shutil.which("python3"),
+                    proc_out=proc.stdout.read() if proc.stdout else "",
+                    proc_err=proc.stderr.read() if proc.stderr else "",
+                )
                 raise ServiceStartProcessError(
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    "or with the `WANDB__EXECUTABLE` environment variable.",
+                    context=context,
                 )
             if not os.path.isfile(fname):
                 time.sleep(0.2)

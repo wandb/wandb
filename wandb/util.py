@@ -238,7 +238,7 @@ def sentry_set_scope(
         "sweep_url",
         "sweep_id",
         "deployment",
-        "_require_service",
+        "_disable_service",
     ]
 
     s = settings_dict
@@ -1006,11 +1006,21 @@ def no_retry_auth(e: Any) -> bool:
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError("Invalid or missing api_key. Run `wandb login`")
+        raise CommError(
+            "The API key is either invalid or missing, or the host is incorrect. "
+            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
+            "The host defaults to 'https://api.wandb.ai' if not specified. "
+            f"(Error {e.response.status_code}: {e.response.reason})"
+        )
     elif wandb.run:
         raise CommError(f"Permission denied to access {wandb.run.path}")
     else:
-        raise CommError("Permission denied, ask the project owner to grant you access")
+        raise CommError(
+            "It appears that you do not have permission to access the requested resource. "
+            "Please reach out to the project owner to grant you access. "
+            "If you have the correct permissions, verify that there are no issues with your networking setup."
+            f"(Error {e.response.status_code}: {e.response.reason})"
+        )
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:
@@ -1872,7 +1882,11 @@ def ensure_text(
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
-    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    cleaned = re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+    if len(cleaned) <= 128:
+        return cleaned
+    # truncate with dots in the middle using regex
+    return re.sub(r"(^.{63}).*(.{63}$)", r"\g<1>..\g<2>", cleaned)
 
 
 def make_docker_image_name_safe(name: str) -> str:

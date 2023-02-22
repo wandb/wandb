@@ -39,7 +39,6 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import MailboxError
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -82,7 +81,7 @@ from .lib import (
 )
 from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
-from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
+from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
@@ -295,7 +294,6 @@ class RunStatusChecker:
 
 
 class _run_decorator:  # noqa: N801
-
     _is_attaching: str = ""
 
     class Dummy:
@@ -305,7 +303,6 @@ class _run_decorator:  # noqa: N801
     def _attach(cls, func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
-
             # * `_attach_id` is only assigned in service hence for all non-service cases
             # it will be a passthrough.
             # * `_attach_pid` is only assigned in _init (using _attach_pid guarantees single attach):
@@ -315,7 +312,6 @@ class _run_decorator:  # noqa: N801
                 getattr(self, "_attach_id", None)
                 and getattr(self, "_attach_pid", None) != os.getpid()
             ):
-
                 if cls._is_attaching:
                     message = (
                         f"Trying to attach `{func.__name__}` "
@@ -362,7 +358,7 @@ class _run_decorator:  # noqa: N801
                     settings = getattr(self, "_settings", None)
                     if settings and settings["strict"]:
                         wandb.termerror(message, repeat=False)
-                        raise errors.MultiprocessError(
+                        raise errors.UnsupportedError(
                             f"`{func.__name__}` does not support multiprocessing"
                         )
                     wandb.termwarn(message, repeat=False)
@@ -528,7 +524,6 @@ class Run:
         sweep_config: Optional[Dict[str, Any]] = None,
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-
         self._settings = settings
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
@@ -643,7 +638,7 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if self._settings._require_service:
+        if not self._settings._disable_service:
             self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
@@ -774,10 +769,13 @@ class Run:
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
 
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "Run":
+        return self
+
     def __getstate__(self) -> Any:
         """Custom pickler."""
         # We only pickle in service mode
-        if not self._settings or not self._settings._require_service:
+        if not self._settings or self._settings._disable_service:
             return
 
         _attach_id = self._attach_id
@@ -1749,7 +1747,6 @@ class Run:
         base_path: Optional[str] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
-
         if policy not in ("live", "end", "now"):
             raise ValueError(
                 'Only "live" "end" and "now" policies are currently supported.'
@@ -1962,7 +1959,7 @@ class Run:
             console = self._settings._console
         # only use raw for service to minimize potential changes
         if console == SettingsConsole.WRAP:
-            if self._settings._require_service:
+            if not self._settings._disable_service:
                 console = SettingsConsole.WRAP_RAW
             else:
                 console = SettingsConsole.WRAP_EMU
@@ -2129,7 +2126,6 @@ class Run:
             self._output_writer = None
 
     def _on_init(self) -> None:
-
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
             version_handle = self._backend.interface.deliver_check_version(
@@ -3045,7 +3041,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if not check_version or settings._offline:
             return
 
@@ -3080,7 +3075,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         # printer = printer or get_printer(settings._jupyter)
         if settings._offline:
             printer.display(
@@ -3104,7 +3098,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if settings._offline or settings.silent:
             return
 
@@ -3120,13 +3113,11 @@ class Run:
         # printer = printer or get_printer(settings._jupyter)
         if printer._html:
             if not wandb.jupyter.maybe_display():
-
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
                 if not wandb.jupyter.quiet():
-
                     doc_html = printer.link(wburls.get("doc_run"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")
@@ -3224,7 +3215,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if settings.silent:
             return
 
@@ -3320,7 +3310,6 @@ class Run:
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         # todo: is this same as settings._offline?
         if not all(poll_exit_responses):
             return
@@ -3374,7 +3363,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if settings.silent:
             return
 
@@ -3410,7 +3398,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if (quiet or settings.quiet) or settings.silent:
             return
 
@@ -3430,7 +3417,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if (quiet or settings.quiet) or settings.silent:
             return
 
@@ -3502,7 +3488,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if (quiet or settings.quiet) or settings.silent:
             return
 
@@ -3531,7 +3516,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if (quiet or settings.quiet) or settings.silent:
             return
 
@@ -3555,7 +3539,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if not check_version:
             return
 
@@ -3584,7 +3567,6 @@ class Run:
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-
         if (quiet or settings.quiet) or settings.silent:
             return
 
@@ -3687,7 +3669,6 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
 
 
 class _LazyArtifact(ArtifactInterface):
-
     _api: PublicApi
     _instance: Optional[ArtifactInterface] = None
     _future: Any

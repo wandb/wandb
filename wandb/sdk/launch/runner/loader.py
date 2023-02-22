@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, List
 
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 
 from .abstract import AbstractRunner
 

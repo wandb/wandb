@@ -24,16 +24,18 @@ from click.exceptions import ClickException
 from dockerpycreds.utils import find_executable
 
 import wandb
+import wandb.env
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
-from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
+    ExecutionError,
+    LaunchError,
     check_logged_in,
     construct_launch_spec,
 )
@@ -482,6 +484,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Number of runs to show")
+@click.option("--append", is_flag=True, default=False, help="Append run")
 @display_error
 def sync(
     ctx,
@@ -504,6 +507,7 @@ def sync(
     clean=None,
     clean_old_hours=24,
     clean_force=None,
+    append=None,
 ):
     # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
     os.environ["WANDB_DIR"] = TMPDIR.name
@@ -572,6 +576,7 @@ def sync(
             verbose=verbose,
             sync_tensorboard=_sync_tensorboard,
             log_path=_wandb_log_path,
+            append=append,
         )
         for p in _path:
             sm.add(p)
@@ -699,6 +704,7 @@ def sync(
 )
 @click.option(
     "--queue",
+    "-q",
     default=None,
     help="The name of a launch queue (configured with a resource), available in the current user or team.",
 )
@@ -897,18 +903,46 @@ def sweep(
             raise LaunchError(_msg)
 
         # Try and get job from sweep config
-        _job = config.get("job", None)
-        if _job is None:
-            wandb.termlog("No job found in sweep config, looking in launch config.")
-            _job = launch_config.get("job", None)
-            if _job is None:
-                wandb.termlog("No job found in launch config, using placeholder.")
-                _job = "placeholder-job"
+        _job = config.get("job")
+        _image_uri = config.get("image_uri")
+        if not _job and not _image_uri:  # don't allow empty string
+            raise LaunchError("No 'job' or 'image_uri' found in sweep config")
+        elif _job and _image_uri:
+            raise LaunchError("Sweep has both 'job' and 'image_uri'")
+
+        if not queue:
+            if launch_config.get("queue"):
+                queue = launch_config["queue"]
+            else:
+                raise LaunchError(
+                    "No queue passed from CLI or in launch config for launch-sweep."
+                )
+
+        scheduler_config = launch_config.get("scheduler", {})
+        scheduler_entrypoint = [
+            "wandb",
+            "scheduler",
+            "WANDB_SWEEP_ID",
+            "--queue",
+            f"{queue!r}",
+            "--project",
+            project,
+            "--num_workers",
+            config.get("scheduler", {}).get("num_workers", 8),
+        ]
+
+        if _job:
+            scheduler_entrypoint += [
+                "--job",
+                _job,
+            ]
+        elif _image_uri:
+            scheduler_entrypoint += ["--image_uri", _image_uri]
 
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": queue or launch_config.get("queue", "default"),
+                "queue": queue,
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
@@ -918,31 +952,12 @@ def sweep(
                         "Scheduler.WANDB_SWEEP_ID",  # name,
                         project,
                         entity,
-                        launch_config.get("scheduler", {}).get(
-                            "docker_image", None
-                        ),  # docker_image,
-                        launch_config.get("scheduler", {}).get(
-                            "resource", "local-process"
-                        ),  # resource,
-                        [
-                            "wandb",
-                            "scheduler",
-                            "WANDB_SWEEP_ID",
-                            "--queue",
-                            f"{(queue or launch_config.get('queue', 'default'))!r}",
-                            "--project",
-                            project,
-                            "--job",
-                            _job,
-                            # TODO(hupo): Add num-workers as option in launch config
-                            # "--num_workers",
-                            # launch_config.get("scheduler", {}).get("num_workers", 1),
-                        ],  # entry_point,
+                        scheduler_config.get("docker_image"),  # docker_image,
+                        scheduler_config.get("resource", "local-process"),  # resource,
+                        scheduler_entrypoint,  # entrypoint
                         None,  # version,
                         None,  # parameters,
-                        launch_config.get("scheduler", {}).get(
-                            "resource_args", None
-                        ),  # resource_args,
+                        scheduler_config.get("resource_args"),  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
@@ -1228,8 +1243,8 @@ def launch(
 
     try:
         check_logged_in(api)
-    except Exception as e:
-        print(e)
+    except Exception:
+        wandb.termerror(f"Error running job: {traceback.format_exc()}")
 
     run_id = config.get("run_id")
 
@@ -1402,13 +1417,17 @@ def scheduler(
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
+    # TODO(gst): remove this monstrosity
     # Future-proofing hack to pull any kwargs that get passed in through the CLI
     kwargs = {}
     for i, _arg in enumerate(ctx.args):
         if isinstance(_arg, str) and _arg.startswith("--"):
             # convert input kwargs from hyphens to underscores
             _key = _arg[2:].replace("-", "_")
-            kwargs[_key] = ctx.args[i + 1]
+            _args = ctx.args[i + 1]
+            if str.isdigit(_args):
+                _args = int(_args)
+            kwargs[_key] = _args
 
     _scheduler = load_scheduler("sweep")(
         api,
@@ -2203,11 +2222,19 @@ def status(settings):
 
 
 @cli.command("disabled", help="Disable W&B.")
-def disabled():
+@click.option(
+    "--service",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Disable W&B service",
+)
+def disabled(service):
     api = InternalApi()
     try:
         api.set_setting("mode", "disabled", persist=True)
         click.echo("W&B disabled.")
+        os.environ[wandb.env._DISABLE_SERVICE] = str(service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
@@ -2215,11 +2242,19 @@ def disabled():
 
 
 @cli.command("enabled", help="Enable W&B.")
-def enabled():
+@click.option(
+    "--service",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Enable W&B service",
+)
+def enabled(service):
     api = InternalApi()
     try:
         api.set_setting("mode", "online", persist=True)
         click.echo("W&B enabled.")
+        os.environ[wandb.env._DISABLE_SERVICE] = str(not service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
