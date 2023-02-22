@@ -237,6 +237,11 @@ class LaunchAgent:
                             if job.get("runSpec", {}).get("uri") == SCHEDULER_URI:
                                 if len(self._schedulers) >= self._max_schedulers:
                                     # don't run more than max schedulers
+                                    wandb.termwarn(
+                                        f"{LOG_PREFIX}Agent already running the maximum number"
+                                        f"of sweep schedulers: {len(self._schedulers)}. To set"
+                                        " this value use the max_schedulers in the agent config"
+                                    )
                                     continue
                             try:
                                 self.run_job(job)
