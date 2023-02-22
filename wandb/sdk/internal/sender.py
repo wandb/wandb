@@ -30,6 +30,7 @@ import requests
 import wandb
 from wandb import util
 from wandb.errors import CommError
+from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
@@ -732,7 +733,12 @@ class SendManager:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-                error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
+                error.message = (
+                    "You provided an invalid value for the `resume` argument."
+                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                    " Please check your inputs and try again with a valid run ID."
+                    " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
+                )
                 return error
             return None
 
@@ -742,7 +748,11 @@ class SendManager:
         if self._settings.resume == "never":
             error = wandb_internal_pb2.ErrorInfo()
             error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-            error.message = "resume='never' but run (%s) exists" % run.run_id
+            error.message = (
+                "You provided an invalid value for the `resume` argument."
+                f" The value 'never' is not a valid option for resuming a run ({run.run_id}) that already exists."
+                " Please check your inputs and try again with a valid value for the `resume` argument."
+            )
             return error
 
         history = {}
@@ -934,8 +944,7 @@ class SendManager:
             if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
-                error = wandb_internal_pb2.ErrorInfo()
-                error.message = str(e)
+                error = ProtobufErrorHandler.from_exception(e)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
             return
