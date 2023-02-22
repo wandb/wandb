@@ -46,10 +46,7 @@ def test_artifact_download(runner, git_repo, mock_server):
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Downloading dataset artifact" in result.output
-    path = os.path.join(".", "artifacts", "mnist:v0")
-    if platform.system() == "Windows":
-        head, tail = os.path.splitdrive(path)
-        path = head + tail.replace(":", "-")
+    path = os.path.join(".", "artifacts", "mnist-v0")
     assert "Artifact downloaded to %s" % path in result.output
     assert os.path.exists(path)
 

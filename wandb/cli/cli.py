@@ -1861,7 +1861,7 @@ def get(path, root, type):
             artifact_name = artifact_parts[0]
         else:
             version = "latest"
-        full_path = "{entity}/{project}/{artifact}:{version}".format(
+        full_path = "{entity}/{project}/{artifact}-{version}".format(
             entity=entity, project=project, artifact=artifact_name, version=version
         )
         wandb.termlog(

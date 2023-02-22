@@ -2,8 +2,8 @@ import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from typing import Mapping, Optional
 from pathlib import Path
+from typing import Mapping, Optional
 
 import numpy as np
 import pytest
@@ -786,7 +786,7 @@ def test_add_obj_using_brackets(assets_path):
 
 def test_download_safe_pathname(wandb_init):
     test_file = Path("test_file.txt")
-    test_file.write("hello")
+    test_file.write_text("hello")
 
     with wandb_init() as run:
         artifact = wandb.Artifact(type="dataset", name="my-arty")
