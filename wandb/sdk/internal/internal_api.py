@@ -1029,10 +1029,19 @@ class Api:
 
         res = self.gql(query, variable_values)
         if res.get("project") is None:
-            raise Exception(
-                f"Error fetching run queues for {entity}/{project} "
-                "check that you have access to this entity and project"
-            )
+            # circular dependency: (LAUNCH_DEFAULT_PROJECT = model-registry)
+            if project == "model-registry":
+                msg = (
+                    f"Error fetching run queues for {entity} "
+                    "check that you have access to this entity and project"
+                )
+            else:
+                msg = (
+                    f"Error fetching run queues for {entity}/{project} "
+                    "check that you have access to this entity and project"
+                )
+
+            raise Exception(msg)
 
         project_run_queues: List[Dict[str, str]] = res["project"]["runQueues"]
         return project_run_queues
