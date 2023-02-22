@@ -857,53 +857,16 @@ class TestArtifactCommit:
             assert future.done() and future.exception() == exc
 
 
-def test_enforces_max_threads(
-    tmp_path: Path,
-):
-    max_threads = 3
+@pytest.mark.parametrize("is_async", [True, False])
+def test_enforces_concurrency_limit(tmp_path: Path, is_async: bool):
+    concurrency_limit = 3
 
     q = queue.Queue()
 
     api = UploadBlockingMockApi()
 
-    def add_job():
-        q.put(make_request_upload(make_tmp_file(tmp_path)))
-
-    step_upload = make_step_upload(api=api, event_queue=q, max_threads=max_threads)
-    step_upload.start()
-
-    waiters = []
-
-    # first few jobs should start without blocking
-    for _ in range(max_threads):
-        add_job()
-        waiters.append(api.wait_for_upload(0.1))
-
-    # next job should block...
-    add_job()
-    assert not api.wait_for_upload(0.1)
-
-    # ...until we release one of the first jobs
-    waiters.pop()()
-    waiters.append(api.wait_for_upload(0.1))
-
-    # let all jobs finish, to release the threads
-    for w in waiters:
-        w()
-
-    finish_and_wait(q)
-
-
-def test_enforces_max_threads_async(tmp_path: Path):
-    concurrency_limit = 3
-
-    q = queue.Queue()
-
-    api = UploadBlockingMockApi(
-        upload_file_retry=Mock(
-            side_effect=Exception("sync upload should not be called in async test")
-        )
-    )
+    def save_fn_sync(path: Path, *args, **kwargs):
+        api.upload_file_retry(f"http://dst/{path}", path.open("rb"))
 
     async def save_fn_async(path: Path, *args, **kwargs):
         await api.upload_file_retry_async(f"http://dst/{path}", path.open("rb"))
@@ -912,14 +875,35 @@ def test_enforces_max_threads_async(tmp_path: Path):
         path = make_tmp_file(tmp_path)
         q.put(
             make_request_upload(
-                path, save_fn_async=functools.partial(save_fn_async, path)
+                path,
+                save_fn=(
+                    Mock(
+                        side_effect=Exception(
+                            "save_fn should not be called in async test"
+                        )
+                    )
+                    if is_async
+                    else functools.partial(save_fn_sync, path)
+                ),
+                save_fn_async=(
+                    functools.partial(save_fn_async, path)
+                    if is_async
+                    else Mock(
+                        side_effect=Exception(
+                            "save_fn_async should not be called in sync test"
+                        )
+                    )
+                ),
             )
         )
 
     step_upload = make_step_upload(
         api=api,
         event_queue=q,
-        settings=make_async_settings(concurrency_limit),
+        max_threads=(concurrency_limit + 10) if is_async else concurrency_limit,
+        settings=make_async_settings(
+            concurrency_limit=concurrency_limit if is_async else None
+        ),
     )
     step_upload.start()
 
