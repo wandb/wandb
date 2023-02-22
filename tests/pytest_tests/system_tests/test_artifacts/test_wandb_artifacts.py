@@ -3,6 +3,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Mapping, Optional
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -163,6 +164,20 @@ def test_add_one_file():
     }
 
 
+def test_add_file_pathlib():
+    hello_file = Path("file1.txt")
+    hello_file.write_text("hello")
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_file(hello_file)
+
+    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["file1.txt"] == {
+        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+        "size": 5,
+    }
+
+
 def test_add_named_file():
     with open("file1.txt", "w") as f:
         f.write("hello")
@@ -217,6 +232,26 @@ def test_add_dir():
     # the .netrc file being picked by the artifact, see manifest
 
     assert artifact.digest == "c409156beb903b74fe9097bb249a26d2"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["file1.txt"] == {
+        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+        "size": 5,
+    }
+
+
+def test_add_dir_pathlib():
+    test_dir = Path("test_dir")
+    test_dir.mkdir()
+    hello_file = test_dir / "file1.txt"
+    hello_file.write_text("hello")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_dir(test_dir)
+
+    # note: we are auto-using local_netrc resulting in
+    # the .netrc file being picked by the artifact, see manifest
+
+    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
