@@ -7,7 +7,13 @@ __all__ = (
     "WandbMetricsLogger",
     "WandbModelCheckpoint",
     "WandbEvalCallback",
+    "WandbModelSurgeryCallback",
 )
 
-from .callbacks import WandbEvalCallback, WandbMetricsLogger, WandbModelCheckpoint
+from .callbacks import (
+    WandbEvalCallback,
+    WandbMetricsLogger,
+    WandbModelCheckpoint,
+    WandbModelSurgeryCallback,
+)
 from .keras import WandbCallback  # todo: legacy callback to be deprecated

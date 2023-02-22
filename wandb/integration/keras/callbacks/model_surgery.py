@@ -24,7 +24,7 @@ tf_logger = tf.get_logger()
 patch_tf_keras()
 
 
-class WandBModelSurgeryCallback(callbacks.Callback):
+class WandbModelSurgeryCallback(callbacks.Callback):
     def __init__(self, input_specs: Optional[List[Any]] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_specs = input_specs
