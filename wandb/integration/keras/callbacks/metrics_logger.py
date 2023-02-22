@@ -1,11 +1,15 @@
 import sys
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
-from wandb.integration.keras.keras import patch_tf_keras
+from wandb.integration.keras.keras import (
+    patch_tf_keras,
+    _CustomOptimizer,
+    _GradAccumulatorCallback,
+)
 from wandb.sdk.lib import telemetry
 
 if sys.version_info >= (3, 8):
@@ -17,6 +21,7 @@ else:
 LogStrategy = Literal["epoch", "batch"]
 
 
+tf_logger = tf.get_logger()
 patch_tf_keras()
 
 
@@ -54,6 +59,7 @@ class WandbMetricsLogger(callbacks.Callback):
         self,
         log_freq: Union[LogStrategy, int] = "epoch",
         initial_global_step: int = 0,
+        input_specs: Optional[List[Any]] = None,
         backward_compatible: bool = False,
         *args: Any,
         **kwargs: Any,
@@ -75,7 +81,10 @@ class WandbMetricsLogger(callbacks.Callback):
         self.log_freq: Any = log_freq if self.logging_batch_wise else None
         self.global_batch = 0
         self.global_step = initial_global_step
+        self.input_specs = input_specs
         self.backward_compatible = backward_compatible
+
+        self.gradient_logging_possibility = self._check_gradient_logging_possibility()
 
         if not self.backward_compatible:
             if self.logging_batch_wise:
@@ -89,6 +98,30 @@ class WandbMetricsLogger(callbacks.Callback):
                 # set all epoch-wise metrics to be logged against epoch.
                 wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
+    def _check_gradient_logging_possibility(self):
+        if self.input_specs is None:
+            self.input_specs = self.model.inputs
+            if self.input_specs in [None, []]:
+                raise ValueError(
+                    "Please provide the input specs to the WandGradientLogger callback."
+                )
+            else:
+                return True
+        else:
+            return True
+
+    def _build_grad_accumulator_model(self):
+        inputs = self.model.inputs
+        outputs = self.model(inputs)
+        grad_acc_model = tf.keras.models.Model(inputs, outputs)
+        grad_acc_model.compile(loss=self.model.loss, optimizer=_CustomOptimizer())
+
+        # make sure magic doesn't think this is a user model
+        grad_acc_model._wandb_internal_model = True
+
+        self._grad_accumulator_model = grad_acc_model
+        self._grad_accumulator_callback = _GradAccumulatorCallback()
+
     def _get_lr(self) -> Union[float, None]:
         if isinstance(self.model.optimizer.learning_rate, tf.Variable):
             return float(self.model.optimizer.learning_rate.numpy().item())
@@ -100,6 +133,31 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.termerror("Unable to log learning rate.", repeat=False)
             return None
 
+    def _get_gradient_logs(self):
+        # Suppress callback warnings grad accumulator
+        og_level = tf_logger.level
+        tf_logger.setLevel("ERROR")
+
+        self._grad_accumulator_model.fit(
+            self._training_data_x,
+            self._training_data_y,
+            verbose=0,
+            callbacks=[self._grad_accumulator_callback],
+        )
+        tf_logger.setLevel(og_level)
+        weights = self.model.trainable_weights
+        grads = self._grad_accumulator_callback.grads
+        metrics = {}
+        for weight, grad in zip(weights, grads):
+            metrics[
+                "gradients/" + weight.name.split(":")[0] + ".gradient"
+            ] = wandb.Histogram(grad)
+        return metrics
+
+    def set_model(self, model):
+        super().set_model(model)
+        self._build_grad_accumulator_model()
+
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
         if self.backward_compatible:
@@ -108,6 +166,10 @@ class WandbMetricsLogger(callbacks.Callback):
             logs = (
                 dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
             )
+
+        if self.gradient_logging_possibility:
+            gradient_logs = self._get_gradient_logs()
+            logs = dict(logs.items() + gradient_logs.items())
 
         if self.backward_compatible:
             logs["epoch"] = epoch
