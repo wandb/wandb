@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import concurrent.futures
+import enum
 import hashlib
 import os
 import tempfile
@@ -28,6 +29,7 @@ import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.sdk.internal.internal_api import check_httpx_exc_retriable
 from wandb.sdk.lib import retry
 
 from .test_retry import MockTime, mock_time  # noqa: F401
@@ -833,3 +835,89 @@ class TestUploadFileRetry:
             assert route.call_count == 2
         else:
             assert route.call_count == 1
+
+
+class TestCheckHttpxExcRetriable:
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            httpx.ConnectError("errmsg"),
+            httpx.ConnectTimeout("errmsg"),
+            httpx.ReadTimeout("errmsg"),
+            httpx.WriteTimeout("errmsg"),
+            httpx.TimeoutException("errmsg"),
+            httpx.NetworkError("errmsg"),
+        ],
+    )
+    def test_nonstatuscode_errs_are_retriable(self, exc: Exception):
+        assert check_httpx_exc_retriable(exc)
+
+    def test_normal_errs_are_not_retriable(self):
+        assert not check_httpx_exc_retriable(ValueError("errmsg"))
+
+    @pytest.mark.parametrize(
+        ["status_code", "retriable"],
+        [
+            (httpx.codes.BAD_REQUEST, False),
+            (httpx.codes.UNAUTHORIZED, False),
+            (httpx.codes.FORBIDDEN, False),
+            (httpx.codes.REQUEST_TIMEOUT, True),
+            # Conflicts should not be retriable!
+            # But we're keeping them retriable for now,
+            # to keep the sync/async retry behavior consistent.
+            (httpx.codes.CONFLICT, True),
+            (httpx.codes.TOO_MANY_REQUESTS, True),
+            (httpx.codes.INTERNAL_SERVER_ERROR, True),
+            (httpx.codes.BAD_GATEWAY, True),
+            (httpx.codes.SERVICE_UNAVAILABLE, True),
+        ],
+    )
+    def test_some_statuscode_errs_are_retriable(
+        self, status_code: enum.IntEnum, retriable: bool
+    ):
+        exc = httpx.HTTPStatusError(
+            "errmsg",
+            request=httpx.Request("PUT", "https://dst"),
+            response=httpx.Response(status_code.value),
+        )
+        assert check_httpx_exc_retriable(exc) == retriable
+
+    @pytest.mark.parametrize(
+        ["headers", "status_code", "body", "retriable"],
+        [
+            (
+                {"x-amz-meta-md5": "1234"},
+                httpx.codes.BAD_REQUEST,
+                "blah blah RequestTimeout blah blah",
+                True,
+            ),
+            ({"x-amz-meta-md5": "1234"}, httpx.codes.BAD_REQUEST, "blah blah", False),
+            (
+                {"x-amz-meta-md5": "1234"},
+                httpx.codes.INTERNAL_SERVER_ERROR,
+                "blah blah",
+                True,
+            ),
+            ({}, httpx.codes.BAD_REQUEST, "blah blah RequestTimeout blah blah", False),
+        ],
+    )
+    def test_special_amazon_request_timeout_logic(
+        self,
+        headers: Mapping[str, str],
+        status_code: enum.IntEnum,
+        body: str,
+        retriable: bool,
+    ):
+        exc = httpx.HTTPStatusError(
+            "errmsg",
+            request=httpx.Request(
+                "PUT",
+                "http://example.com/upload-dst",
+                headers=headers,
+            ),
+            response=httpx.Response(
+                status_code.value,
+                content=body,
+            ),
+        )
+        assert check_httpx_exc_retriable(exc) == retriable
