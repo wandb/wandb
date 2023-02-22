@@ -390,7 +390,6 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
                     "type": "run",
                     "run_id": "mock-run-id-1",
                     "args": {"foo_arg": {"value": 1}},
-                    "program": "train.py",
                 }
             ]
         ]
