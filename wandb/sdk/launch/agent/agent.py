@@ -212,10 +212,10 @@ class LaunchAgent:
         if run:
             self._jobs[run.id] = run
             if launch_spec.get("uri") == SCHEDULER_URI:
-                wandb.log(
-                    f"{LOG_PREFIX}Running sweep scheduler {len(self._scheduler_jobs)} (max: {self._max_schedulers})"
-                )
                 self._scheduler_jobs.add(run.id)
+                wandb.termlog(
+                    f"{LOG_PREFIX}Preparing to run sweep scheduler ({len(self._scheduler_jobs)}/{self._max_schedulers})"
+                )
             else:  # don't track schedulers in running count
                 self._running += 1
 
@@ -242,11 +242,10 @@ class LaunchAgent:
                         job = self.pop_from_queue(queue)
                         if job:
                             if job.get("runSpec", {}).get("uri") == SCHEDULER_URI:
-                                if len(self._schedulers) >= self._max_schedulers:
-                                    # don't run more than max schedulers
+                                if len(self._scheduler_jobs) >= self._max_schedulers:
                                     wandb.termwarn(
                                         f"{LOG_PREFIX}Agent already running the maximum number "
-                                        f"of sweep schedulers: {len(self._schedulers)}. To set "
+                                        f"of sweep schedulers: {len(self._scheduler_jobs)}. To set "
                                         "this value use `max_schedulers` key in the agent config"
                                     )
                                     continue
