@@ -300,8 +300,6 @@ def test_launch_sweep_launch(
     user, wandb_init, test_settings, runner, launch_params, monkeypatch, job
 ):
     queue = "testing-" + str(random.random()).replace(".", "")
-    user_project = "testing-proj-" + str(random.random()).replace(".", "")
-
     api = InternalApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
@@ -309,7 +307,7 @@ def test_launch_sweep_launch(
     # make launch project queue
     res = api.create_run_queue(
         entity=user,
-        project=user_project,
+        project=LAUNCH_DEFAULT_PROJECT,
         queue_name=queue,
         access="USER",
     )
@@ -338,10 +336,6 @@ def test_launch_sweep_launch(
             user,
             "-q",
             queue,
-            "-p",
-            user_project,
-            "--project-queue",
-            user_project,
         ]
     )
 
