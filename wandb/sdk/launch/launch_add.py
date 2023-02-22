@@ -207,7 +207,10 @@ def _launch_add(
         if updated_spec.get("resource"):
             launch_spec["resource"] = updated_spec.get("resource")
 
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
+    if project_queue == LAUNCH_DEFAULT_PROJECT:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+    else:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     container_job = False

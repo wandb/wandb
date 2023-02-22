@@ -29,6 +29,8 @@ from .mailbox import ContextCancelledError
 
 CheckRetryFnType = Callable[[Exception], Union[bool, datetime.timedelta]]
 
+from .mailbox import ContextCancelledError
+
 logger = logging.getLogger(__name__)
 
 
