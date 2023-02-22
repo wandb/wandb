@@ -2,8 +2,8 @@ import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from typing import Mapping, Optional
 from pathlib import Path
+from typing import Mapping, Optional
 
 import numpy as np
 import pytest
