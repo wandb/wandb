@@ -16,7 +16,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SweepRun,
     _Worker,
 )
-from wandb.wandb_agent import Agent as LegacySweepAgent
+from wandb.wandb_agent import _create_sweep_command_args
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,6 @@ class SweepScheduler(Scheduler):
                         id=_run_id,
                         args=command.get("args", {}),
                         logs=command.get("logs", []),
-                        program=command.get("program", None),
                         worker_id=worker_id,
                     )
                     self._runs[run.id] = run
@@ -139,25 +138,13 @@ class SweepScheduler(Scheduler):
                     SimpleRunState.UNKNOWN,
                 ]:
                     wandb.termwarn(
-                        f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}"
+                        f"{LOG_PREFIX}Ignoring: {run.id} in state {run.state}"
                     )
                     continue
 
-                wandb.termlog(
-                    f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
-                )
-                _ = self._add_to_launch_queue(
-                    run_id=run.id,
-                    entry_point=["python3", run.program] if run.program else None,
-                    # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
-                    config={
-                        "overrides": {
-                            "run_config": LegacySweepAgent._create_command_args(
-                                {"args": run.args}
-                            )["args_dict"]
-                        }
-                    },
-                )
+                sweep_args = _create_sweep_command_args({"args": run.args})["args_dict"]
+                launch_config = {"overrides": {"run_config": sweep_args}}
+                self._add_to_launch_queue(run_id=run.id, config=launch_config)
             except queue.Empty:
                 if self.state == SchedulerState.FLUSH_RUNS:
                     wandb.termlog(f"{LOG_PREFIX}Sweep stopped, waiting on runs...")

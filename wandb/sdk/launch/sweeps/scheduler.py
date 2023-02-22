@@ -52,7 +52,6 @@ class SweepRun:
     queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
-    program: Optional[str] = None
     # Threading can be used to run multiple workers in parallel
     worker_id: Optional[int] = None
 
