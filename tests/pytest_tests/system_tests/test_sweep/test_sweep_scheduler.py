@@ -9,7 +9,7 @@ from wandb.sdk.launch.sweeps import SchedulerError, load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import (
     Scheduler,
     SchedulerState,
-    SimpleRunState,
+    RunState,
     SweepRun,
 )
 from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
@@ -176,14 +176,14 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
 
         # Mock api.get_run_state() to return crashed and running runs
         mock_run_states = {
-            "run1": ("crashed", SimpleRunState.DEAD),
-            "run2": ("failed", SimpleRunState.DEAD),
-            "run3": ("killed", SimpleRunState.DEAD),
-            "run4": ("finished", SimpleRunState.DEAD),
-            "run5": ("running", SimpleRunState.ALIVE),
-            "run6": ("pending", SimpleRunState.ALIVE),
-            "run7": ("preempted", SimpleRunState.ALIVE),
-            "run8": ("preempting", SimpleRunState.ALIVE),
+            "run1": ("crashed", RunState.DEAD),
+            "run2": ("failed", RunState.DEAD),
+            "run3": ("killed", RunState.DEAD),
+            "run4": ("finished", RunState.DEAD),
+            "run5": ("running", RunState.ALIVE),
+            "run6": ("pending", RunState.ALIVE),
+            "run7": ("preempted", RunState.ALIVE),
+            "run8": ("preempting", RunState.ALIVE),
         }
 
         def mock_get_run_state(entity, project, run_id, *args, **kwargs):
@@ -193,10 +193,10 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         # Load up the runs into the Scheduler run dict
         for run_id in mock_run_states.keys():
-            _scheduler._runs[run_id] = SweepRun(id=run_id, state=SimpleRunState.ALIVE)
+            _scheduler._runs[run_id] = SweepRun(id=run_id, state=RunState.ALIVE)
         _scheduler._update_run_states()
         for run_id, _state in mock_run_states.items():
-            if _state[1] == SimpleRunState.DEAD:
+            if _state[1] == RunState.DEAD:
                 # Dead runs should be removed from the run dict
                 assert run_id not in _scheduler._runs.keys()
             else:
@@ -209,14 +209,14 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
         api.get_run_state = mock_get_run_state_raise_exception
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         _scheduler._runs["foo_run_1"] = SweepRun(
-            id="foo_run_1", state=SimpleRunState.ALIVE
+            id="foo_run_1", state=RunState.ALIVE
         )
         _scheduler._runs["foo_run_2"] = SweepRun(
-            id="foo_run_2", state=SimpleRunState.ALIVE
+            id="foo_run_2", state=RunState.ALIVE
         )
         _scheduler._update_run_states()
-        assert _scheduler._runs["foo_run_1"].state == SimpleRunState.UNKNOWN
-        assert _scheduler._runs["foo_run_2"].state == SimpleRunState.UNKNOWN
+        assert _scheduler._runs["foo_run_1"].state == RunState.UNKNOWN
+        assert _scheduler._runs["foo_run_2"].state == RunState.UNKNOWN
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
@@ -239,7 +239,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     )
 
     def mock_run_add_to_launch_queue(self, *args, **kwargs):
-        self._runs["foo_run"] = SweepRun(id="foo_run", state=SimpleRunState.ALIVE)
+        self._runs["foo_run"] = SweepRun(id="foo_run", state=RunState.ALIVE)
         self._add_to_launch_queue(run_id="foo_run")
         self.state = SchedulerState.COMPLETED
         self.exit()
@@ -270,7 +270,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     assert _scheduler.is_alive() is False
     assert len(_scheduler._runs) == 1
     assert isinstance(_scheduler._runs["foo_run"].queued_run, public.QueuedRun)
-    assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
+    assert _scheduler._runs["foo_run"].state == RunState.DEAD
     assert _scheduler._runs["foo_run"].queued_run.args()[-3] == _project
 
     _project_queue = "test-project-queue"
@@ -426,7 +426,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
     _scheduler.start()
-    assert _scheduler._runs["mock-run-id-1"].state == SimpleRunState.DEAD
+    assert _scheduler._runs["mock-run-id-1"].state == RunState.DEAD
 
 
 def test_launch_sweep_scheduler_try_executable_works(user, wandb_init, test_settings):
