@@ -155,21 +155,23 @@ class StepPrepare:
         """
         return self._api.create_artifact_files([req.file_spec for req in batch])
 
-    async def prepare_async(
+    def prepare_async(
         self, file_spec: "CreateArtifactFileSpecInput"
-    ) -> ResponsePrepare:
+    ) -> asyncio.Future[ResponsePrepare]:
         """Request the backend to prepare a file for upload."""
         response: "asyncio.Future[ResponsePrepare]" = asyncio.Future()
         self._request_queue.put(
             RequestPrepare(file_spec, (asyncio.get_event_loop(), response))
         )
-        return await response
+        return response
 
     @functools.wraps(prepare_async)
-    def prepare_sync(self, file_spec: "CreateArtifactFileSpecInput") -> ResponsePrepare:
+    def prepare_sync(
+        self, file_spec: "CreateArtifactFileSpecInput"
+    ) -> "queue.Queue[ResponsePrepare]":
         response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
         self._request_queue.put(RequestPrepare(file_spec, response_queue))
-        return response_queue.get()
+        return response_queue
 
     def start(self) -> None:
         self._thread.start()

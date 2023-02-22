@@ -992,7 +992,7 @@ class WandbStoragePolicy(StoragePolicy):
                 "name": entry.path,
                 "md5": entry.digest,
             }
-        )
+        ).get()
 
         entry.birth_artifact_id = resp.birth_artifact_id
         if resp.upload_url is None:

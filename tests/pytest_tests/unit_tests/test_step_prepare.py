@@ -277,10 +277,13 @@ class TestStepPrepare:
         probably just call `step_prepare.prepare_sync` directly.
         """
 
+        enqueued = threading.Event()
         future = concurrent.futures.Future()
 
         def prepare_and_resolve():
-            future.set_result(step_prepare.prepare_sync(*args, **kwargs))
+            q = step_prepare.prepare_sync(*args, **kwargs)
+            enqueued.set()
+            future.set_result(q.get())
 
         threading.Thread(
             name="prepare_and_resolve",
@@ -288,6 +291,7 @@ class TestStepPrepare:
             daemon=True,
         ).start()
 
+        enqueued.wait()
         return future
 
     @staticmethod
@@ -303,10 +307,14 @@ class TestStepPrepare:
         probably just call `step_prepare.prepare_async` directly.
         """
 
+        enqueued = threading.Event()
         future = concurrent.futures.Future()
 
         async def prepare_and_resolve():
-            future.set_result(await step_prepare.prepare_async(*args, **kwargs))
+            prepare_async_future = step_prepare.prepare_async(*args, **kwargs)
+            # Note: ^that's an asyncio.Future, not a concurrent.futures.Future
+            enqueued.set()
+            future.set_result(await prepare_async_future)
 
         threading.Thread(
             name="prepare_and_resolve",
@@ -315,11 +323,15 @@ class TestStepPrepare:
             daemon=True,
         ).start()
 
+        enqueued.wait()
         return future
 
     @pytest.fixture(params=["sync", "async"])
     def prepare(self, request) -> "PrepareFixture":
         """Fixture to kick off prepare_sync or prepare_async in the background.
+
+        Tests that use this fixture will be run twice: once using prepare_sync,
+        once using prepare_async.
 
         Example usage:
 
@@ -365,11 +377,10 @@ class TestStepPrepare:
 
         future_a = prepare(step_prepare, simple_file_spec(name="a"))
         future_b = prepare(step_prepare, simple_file_spec(name="b"))
+        step_prepare.finish()
 
         res_a = future_a.result()
         res_b = future_b.result()
-
-        step_prepare.finish()
 
         assert res_a.upload_url == caf_result["a"]["uploadUrl"]
         assert res_b.upload_url == caf_result["b"]["uploadUrl"]
