@@ -46,15 +46,20 @@ class WandbMetricsLogger(callbacks.Callback):
             learning rate when you resume training from some `initial_epoch`,
             and a learning rate scheduler is used. This can be computed as
             `step_size * initial_step`. Defaults to 0.
-        backward_compatible (bool): Make logging backward compatible with
-            `wandb.keras.WandbCallback`.
+        backward_compatibility Union[str, bool]: Make logging backward compatible
+            with older versions of the Keras callbacks for wandb. You can set
+            it to "v1" to emulate the logging behaviour of
+            `wandb.keras.WandbCallback`, i.e, log metrics either in an
+            epoch-wise or batch-wise manner without defining respective metric,
+            without creating seperate panels for metrics logged epoch-wise of
+            batch-wise.
     """
 
     def __init__(
         self,
         log_freq: Union[LogStrategy, int] = "epoch",
         initial_global_step: int = 0,
-        backward_compatible: bool = False,
+        backward_compatibility: Union[str, bool] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -75,9 +80,13 @@ class WandbMetricsLogger(callbacks.Callback):
         self.log_freq: Any = log_freq if self.logging_batch_wise else None
         self.global_batch = 0
         self.global_step = initial_global_step
-        self.backward_compatible = backward_compatible
 
-        if not self.backward_compatible:
+        if isinstance(backward_compatibility, str):
+            self.backward_compatibility = backward_compatibility
+        else:
+            self.backward_compatibility = "v1" if backward_compatibility else None
+
+        if self.backward_compatibility != "v1":
             if self.logging_batch_wise:
                 # define custom x-axis for batch logging.
                 wandb.define_metric("batch/batch_step")
@@ -102,26 +111,26 @@ class WandbMetricsLogger(callbacks.Callback):
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         """Called at the end of an epoch."""
-        if self.backward_compatible:
+        if self.backward_compatibility == "v1":
             logs = dict() if logs is None else logs
         else:
             logs = (
                 dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
             )
 
-        if self.backward_compatible:
+        if self.backward_compatibility == "v1":
             logs["epoch"] = epoch
         else:
             logs["epoch/epoch"] = epoch
 
         lr = self._get_lr()
         if lr is not None:
-            if self.backward_compatible:
+            if self.backward_compatibility == "v1":
                 logs["learning_rate"] = lr
             else:
                 logs["epoch/learning_rate"] = lr
 
-        if self.backward_compatible:
+        if self.backward_compatibility == "v1":
             if not self.logging_batch_wise:
                 wandb.log(logs)
         else:
@@ -131,7 +140,7 @@ class WandbMetricsLogger(callbacks.Callback):
         self.global_step += 1
         """An alias for `on_train_batch_end` for backwards compatibility."""
         if self.logging_batch_wise and batch % self.log_freq == 0:
-            if self.backward_compatible:
+            if self.backward_compatibility == "v1":
                 logs = dict() if logs is None else logs
             else:
                 logs = (
@@ -140,14 +149,14 @@ class WandbMetricsLogger(callbacks.Callback):
                     else {f"batch/{k}": v for k, v in logs.items()}
                 )
 
-            if self.backward_compatible:
+            if self.backward_compatibility == "v1":
                 logs["batch_step"] = self.global_batch
             else:
                 logs["batch/batch_step"] = self.global_batch
 
             lr = self._get_lr()
             if lr is not None:
-                if self.backward_compatible:
+                if self.backward_compatibility == "v1":
                     logs["learning_rate"] = lr
                 else:
                     logs["batch/learning_rate"] = lr
