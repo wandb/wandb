@@ -516,7 +516,14 @@ def _create_docker_build_ctx(
 
 
 def join(split_command: List[str]) -> str:
-    """Return a shell-escaped string from *split_command*."""
+    """
+    Return a shell-escaped string from *split_command*.
+    Also remove quotes from double quoted strings. Ex:
+
+    "'local container queue'" --> "local container queue"
+
+    """
+
     return " ".join(shlex.quote(arg.replace("'", "")) for arg in split_command)
 
 

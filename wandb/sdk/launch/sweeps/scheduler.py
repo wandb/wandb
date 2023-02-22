@@ -266,26 +266,24 @@ class Scheduler(ABC):
         """
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
-        _uri = self._kwargs.get("image_uri") or self._sweep_config.get(
-            "launch", {}
+        _image_uri = self._kwargs.get("image_uri") or self._sweep_config.get(
+            "scheduler", {}
         ).get("image_uri")
-        if _job is None and _uri is None:
+        if _job is None and _image_uri is None:
             raise SchedulerError(
                 f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"
             )
-        elif _job is not None and _uri is not None:
-            # TODO(gst): @ben default to what?
-            wandb.termwarn(
-                f"{LOG_PREFIX}Found both 'job' and 'image_uri', defaulting to 'job'"
+        elif _job is not None and _image_uri is not None:
+            raise SchedulerError(
+                f"{LOG_PREFIX}Sweep given has both 'job' and 'image_uri'"
             )
-            _uri = None
 
         run_id = run_id or generate_id()
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,
             config=config,
-            docker_image=_uri,  # TODO(gst): make agnostic (github? run uri?)
+            docker_image=_image_uri,  # TODO(gst): make agnostic (github? run uri?)
             job=_job,
             project=self._project,
             entity=self._entity,
