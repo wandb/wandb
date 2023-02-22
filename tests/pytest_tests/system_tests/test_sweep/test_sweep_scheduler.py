@@ -7,9 +7,9 @@ from wandb.apis import internal, public
 from wandb.errors import CommError
 from wandb.sdk.launch.sweeps import SchedulerError, load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import (
+    RunState,
     Scheduler,
     SchedulerState,
-    RunState,
     SweepRun,
 )
 from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
@@ -208,12 +208,8 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
 
         api.get_run_state = mock_get_run_state_raise_exception
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        _scheduler._runs["foo_run_1"] = SweepRun(
-            id="foo_run_1", state=RunState.ALIVE
-        )
-        _scheduler._runs["foo_run_2"] = SweepRun(
-            id="foo_run_2", state=RunState.ALIVE
-        )
+        _scheduler._runs["foo_run_1"] = SweepRun(id="foo_run_1", state=RunState.ALIVE)
+        _scheduler._runs["foo_run_2"] = SweepRun(id="foo_run_2", state=RunState.ALIVE)
         _scheduler._update_run_states()
         assert _scheduler._runs["foo_run_1"].state == RunState.UNKNOWN
         assert _scheduler._runs["foo_run_2"].state == RunState.UNKNOWN
