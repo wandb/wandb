@@ -904,29 +904,46 @@ def sweep(
             raise LaunchError(_msg)
 
         # Try and get job from sweep config
-        _job = config.get("job", None)
-        if _job is None:
-            wandb.termlog("No job found in sweep config, looking in launch config.")
-            _job = launch_config.get("job", None)
-            if _job is None:
+        _job = config.get("job")
+        _image_uri = config.get("image_uri")
+        if not _job and not _image_uri:  # don't allow empty string
+            raise LaunchError("No 'job' or 'image_uri' found in sweep config")
+        elif _job and _image_uri:
+            raise LaunchError("Sweep has both 'job' and 'image_uri'")
+
+        if not queue:
+            if launch_config.get("queue"):
+                queue = launch_config["queue"]
+            else:
                 raise LaunchError(
-                    "No job found in sweep or launch config for launch-sweep."
+                    "No queue passed from CLI or in launch config for launch-sweep."
                 )
 
-        launch_queue = queue or launch_config.get("queue")
-        if not launch_queue:
-            raise LaunchError(
-                "No queue passed from CLI or in launch config for launch-sweep."
-            )
-        else:
-            # multi-word queues must be quoted for scheduler command
-            if launch_queue.count(" ") > 1:
-                launch_queue = f"{launch_queue!r}"
+        scheduler_config = launch_config.get("scheduler", {})
+        scheduler_entrypoint = [
+            "wandb",
+            "scheduler",
+            "WANDB_SWEEP_ID",
+            "--queue",
+            f"{queue!r}",
+            "--project",
+            project,
+            "--num_workers",
+            config.get("scheduler", {}).get("num_workers", 8),
+        ]
+
+        if _job:
+            scheduler_entrypoint += [
+                "--job",
+                _job,
+            ]
+        elif _image_uri:
+            scheduler_entrypoint += ["--image_uri", _image_uri]
 
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": launch_queue,
+                "queue": queue,
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
@@ -936,31 +953,12 @@ def sweep(
                         "Scheduler.WANDB_SWEEP_ID",  # name,
                         project,
                         entity,
-                        launch_config.get("scheduler", {}).get(
-                            "docker_image", None
-                        ),  # docker_image,
-                        launch_config.get("scheduler", {}).get(
-                            "resource", "local-process"
-                        ),  # resource,
-                        [
-                            "wandb",
-                            "scheduler",
-                            "WANDB_SWEEP_ID",
-                            "--queue",
-                            launch_queue,
-                            "--project",
-                            project,
-                            "--job",
-                            _job,
-                            # TODO(hupo): Add num-workers as option in launch config
-                            # "--num_workers",
-                            # launch_config.get("scheduler", {}).get("num_workers", 1),
-                        ],  # entry_point,
+                        scheduler_config.get("docker_image"),  # docker_image,
+                        scheduler_config.get("resource", "local-process"),  # resource,
+                        scheduler_entrypoint,  # entrypoint
                         None,  # version,
                         None,  # parameters,
-                        launch_config.get("scheduler", {}).get(
-                            "resource_args", None
-                        ),  # resource_args,
+                        scheduler_config.get("resource_args"),  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
@@ -1246,8 +1244,8 @@ def launch(
 
     try:
         check_logged_in(api)
-    except Exception as e:
-        print(e)
+    except Exception:
+        wandb.termerror(f"Error running job: {traceback.format_exc()}")
 
     run_id = config.get("run_id")
 
@@ -1420,13 +1418,17 @@ def scheduler(
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
+    # TODO(gst): remove this monstrosity
     # Future-proofing hack to pull any kwargs that get passed in through the CLI
     kwargs = {}
     for i, _arg in enumerate(ctx.args):
         if isinstance(_arg, str) and _arg.startswith("--"):
             # convert input kwargs from hyphens to underscores
             _key = _arg[2:].replace("-", "_")
-            kwargs[_key] = ctx.args[i + 1]
+            _args = ctx.args[i + 1]
+            if str.isdigit(_args):
+                _args = int(_args)
+            kwargs[_key] = _args
 
     _scheduler = load_scheduler("sweep")(
         api,
