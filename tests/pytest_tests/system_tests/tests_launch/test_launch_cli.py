@@ -1,14 +1,12 @@
 import json
-import time
+import random
 
 import pytest
 import wandb
-from wandb.cli import cli
 from wandb.apis.internal import InternalApi
 from wandb.apis.public import Api
+from wandb.cli import cli
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.wandb_run import Run
-
 
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
@@ -295,38 +293,18 @@ def test_launch_build_with_local(
         "working",
         "num-workers-int",
         "num-workers-str",
-    ],  # 'none', 'empty',
+    ],
 )
-@pytest.mark.parametrize(
-    "job", ["actualJob:123"], ids=["working"]  # None, "",  # 'none', 'empty',
-)
-
-# launch/conftest --> fixtures for create launch project
-
-# maybe already a fixture for create project (general)
-# also for create_run_queue  (launch)
-#
+@pytest.mark.parametrize("job", [None, "actualJob:123"], ids=["none", "working"])
 def test_launch_sweep_launch(
     user, wandb_init, test_settings, runner, launch_params, monkeypatch, job
 ):
-    import random
-
     queue = "testing-" + str(random.random()).replace(".", "")
     user_project = "testing-proj-" + str(random.random()).replace(".", "")
 
-    print(f"{queue=} {user_project=}")
     api = InternalApi()
-    # public_api = Api()
-    # with runner.isolated_filesystem():
-    # monkeypatch.setenv("WANDB_ENTITY", user)
-    # public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
-    settings = test_settings({"project": user_project})
-    run: Run = wandb_init(settings=settings)
-    run.finish()
-
-    time.sleep(5)
-
-    # print(run)
+    public_api = Api()
+    public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
     # make launch project queue
     res = api.create_run_queue(
@@ -367,10 +345,7 @@ def test_launch_sweep_launch(
         ]
     )
 
-    wandb.termlog(str(result))
-    # if not launch_params.get("image_uri") and not job:
-    #     assert result.exit_code == 1
-    #     assert "No 'job' or 'image_uri' found in sweep config" in result.output
-    # else:
-    #     if result.exit_code != 0:
-    #         raise Exception(result.output)
+    if not launch_params.get("image_uri") and not job:
+        assert "No 'job' or 'image_uri' found in sweep config" in str(result)
+    else:
+        assert "No 'job' or 'image_uri' found in sweep config" in str(result)
