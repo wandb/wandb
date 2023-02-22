@@ -1,11 +1,12 @@
 import logging
 import multiprocessing as mp
 import sys
-import urllib3
 from collections import defaultdict, deque
 from hashlib import md5
 from types import ModuleType
 from typing import TYPE_CHECKING, Dict, List, Union
+
+import urllib3
 
 if sys.version_info >= (3, 8):
     from typing import Final
