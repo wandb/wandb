@@ -23,6 +23,18 @@ from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.wandb_settings import Settings
 
 
+def asyncify(f):
+    """Convert a sync function to an async function. Useful for building mock async wrappers."""
+
+    @functools.wraps(f)
+    async def async_f(*args, **kwargs):
+        return await asyncio.get_event_loop().run_in_executor(
+            None, lambda: f(*args, **kwargs)
+        )
+
+    return async_f
+
+
 def mock_upload_urls(
     project: str,
     files,
@@ -69,15 +81,12 @@ def make_step_upload(
 
 def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
 
-    if (kwargs.get("save_fn") is not None) and ("save_fn_async" not in kwargs):
-        save_fn = kwargs["save_fn"]
-
-        async def save_fn_async(*args, **kwargs):
-            return await asyncio.get_event_loop().run_in_executor(
-                None, lambda: save_fn(*args, **kwargs)
-            )
-
-        kwargs["save_fn_async"] = save_fn_async
+    if "save_fn" in kwargs:
+        # We want a lot of tests to run against both sync and async
+        # upload implementations. For convenience, we let tests
+        # specify only a sync save_fn, and we generate an equivalent
+        # save_fn_async, so they can run against both.
+        kwargs.setdefault("save_fn_async", asyncify(kwargs["save_fn"]))
 
     return RequestUpload(
         path=str(path),
@@ -654,11 +663,7 @@ class TestUpload:
     ):
         async_settings = make_async_settings(concurrency_limit=concurrency_limit)
         save_fn_sync = Mock(return_value=False)
-
-        async def _save_fn_async(*args, **kwargs):
-            return False
-
-        save_fn_async = Mock(wraps=_save_fn_async)
+        save_fn_async = Mock(wraps=asyncify(Mock(return_value=False)))
 
         run_step_upload(
             [
@@ -682,11 +687,9 @@ class TestUpload:
 class TestAsyncUpload:
     def test_falls_back_to_sync_on_error(self, tmp_path: Path):
         save_fn_sync = Mock(return_value=False)
-
-        async def _save_fn_async(*args, **kwargs):
-            raise Exception("Async upload failed")
-
-        save_fn_async = Mock(wraps=_save_fn_async)
+        save_fn_async = Mock(
+            wraps=asyncify(Mock(side_effect=Exception("Async upload failed")))
+        )
 
         run_step_upload(
             [
@@ -705,9 +708,7 @@ class TestAsyncUpload:
     @patch("wandb.util.sentry_exc")
     def test_reports_err_to_sentry(self, sentry_exc: Mock, tmp_path: Path):
         exc = Exception("Async upload failed")
-
-        async def save_fn_async(*args, **kwargs):
-            raise exc
+        save_fn_async = Mock(wraps=asyncify(Mock(side_effect=exc)))
 
         run_step_upload(
             [
