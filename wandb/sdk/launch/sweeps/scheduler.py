@@ -39,7 +39,7 @@ class SchedulerState(Enum):
     STOPPED = 6
 
 
-class SimpleRunState(Enum):
+class RunState(Enum):
     ALIVE = 0
     DEAD = 1
     UNKNOWN = 2
@@ -48,7 +48,7 @@ class SimpleRunState(Enum):
 @dataclass
 class SweepRun:
     id: str
-    state: SimpleRunState = SimpleRunState.ALIVE
+    state: RunState = RunState.ALIVE
     queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
@@ -145,7 +145,7 @@ class Scheduler(ABC):
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
             wandb.termerror(
-                f"{LOG_PREFIX}No job or image_uri loaded from sweep config."
+                f"{LOG_PREFIX}No 'job' or 'image_uri' loaded from sweep config."
             )
             self.exit()
             return
@@ -229,7 +229,7 @@ class Scheduler(ABC):
         """Stops a run and removes it from the scheduler"""
         if run_id in self._runs:
             run: SweepRun = self._runs[run_id]
-            run.state = SimpleRunState.DEAD
+            run.state = RunState.DEAD
             # TODO(hupo): Send command to backend to stop run
             wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
 
@@ -248,7 +248,8 @@ class Scheduler(ABC):
                     "killed",
                     "finished",
                 ]:
-                    run.state = SimpleRunState.DEAD
+                    logging.debug(f"Got runstate: {_state} for run: {run_id}")
+                    run.state = RunState.DEAD
                     _runs_to_remove.append(run_id)
                 elif _state in [
                     "running",
@@ -256,12 +257,12 @@ class Scheduler(ABC):
                     "preempted",
                     "preempting",
                 ]:
-                    run.state = SimpleRunState.ALIVE
+                    run.state = RunState.ALIVE
             except CommError as e:
                 wandb.termlog(
                     f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
                 )
-                run.state = SimpleRunState.UNKNOWN
+                run.state = RunState.UNKNOWN
                 continue
         # Remove any runs that are dead
         with self._threading_lock:
@@ -283,9 +284,9 @@ class Scheduler(ABC):
         """
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
-        _image_uri = self._kwargs.get("image_uri") or self._sweep_config.get(
-            "scheduler", {}
-        ).get("image_uri")
+
+        _sweep_config_uri = self._sweep_config.get("scheduler", {}).get("image_uri")
+        _image_uri = self._kwargs.get("image_uri") or _sweep_config_uri
         if _job is None and _image_uri is None:
             raise SchedulerError(
                 f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"
