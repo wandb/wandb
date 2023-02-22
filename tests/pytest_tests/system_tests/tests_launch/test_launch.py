@@ -2,9 +2,9 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.errors import LaunchError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run
+from wandb.sdk.launch.utils import LaunchError
 
 
 def test_launch_repository(
