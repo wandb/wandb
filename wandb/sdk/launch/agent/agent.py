@@ -46,7 +46,9 @@ def _convert_access(access: str) -> str:
     return access
 
 
-def _max_from_config(config: Dict[str, Any], key: str, default: int = 1) -> Union[int, float]:
+def _max_from_config(
+    config: Dict[str, Any], key: str, default: int = 1
+) -> Union[int, float]:
     max_from_config = int(config.get(key, default))
     if max_from_config == -1:
         return float("inf")
@@ -71,6 +73,8 @@ class LaunchAgent:
         self._access = _convert_access("project")
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
+
+        self.default_config: Dict[str, Any] = config
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -208,6 +212,9 @@ class LaunchAgent:
         if run:
             self._jobs[run.id] = run
             if launch_spec.get("uri") == SCHEDULER_URI:
+                wandb.log(
+                    f"{LOG_PREFIX}Running sweep scheduler {len(self._scheduler_jobs)} (max: {self._max_schedulers})"
+                )
                 self._scheduler_jobs.add(run.id)
             else:  # don't track schedulers in running count
                 self._running += 1
@@ -238,9 +245,9 @@ class LaunchAgent:
                                 if len(self._schedulers) >= self._max_schedulers:
                                     # don't run more than max schedulers
                                     wandb.termwarn(
-                                        f"{LOG_PREFIX}Agent already running the maximum number"
-                                        f"of sweep schedulers: {len(self._schedulers)}. To set"
-                                        " this value use the max_schedulers in the agent config"
+                                        f"{LOG_PREFIX}Agent already running the maximum number "
+                                        f"of sweep schedulers: {len(self._schedulers)}. To set "
+                                        "this value use `max_schedulers` key in the agent config"
                                     )
                                     continue
                             try:
