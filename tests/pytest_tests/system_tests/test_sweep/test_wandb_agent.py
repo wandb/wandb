@@ -43,7 +43,7 @@ def test_agent_create_command_args_bad_command():
 )
 def test_agent_create_sweep_command():
     # Given no command, function should return default
-    _command = Agent._create_sweep_command
+    _command = Agent._create_sweep_command()
     assert _command == Agent.DEFAULT_SWEEP_COMMAND
 
     # Environment variable macros should be replaced in mock command

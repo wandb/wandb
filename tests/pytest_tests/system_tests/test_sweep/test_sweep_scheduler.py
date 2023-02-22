@@ -362,7 +362,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
         )
         _scheduler.start()
 
-    assert "missing run_id" in str(e.value)
+    assert "No runId" in str(e.value)
     assert _scheduler.state == SchedulerState.FAILED
     assert _scheduler.is_alive() is False
 
