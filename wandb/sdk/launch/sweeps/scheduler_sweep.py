@@ -1,18 +1,18 @@
 """Scheduler for classic wandb Sweeps."""
 import logging
-from pprint import pprint as pf
 import queue
 import socket
 import time
+from pprint import pformat as pf
 from typing import Any, Dict, List
 
 import wandb
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
+    RunState,
     Scheduler,
     SchedulerState,
-    RunState,
     SweepRun,
     _Worker,
 )
@@ -83,7 +83,7 @@ class SweepScheduler(Scheduler):
             # already hit run_cap, just noop
             return False
 
-        commands: List[Dict[str, Any]] = self._get_sweep_command(worker_id)
+        commands: List[Dict[str, Any]] = self._get_sweep_commands(worker_id)
         for command in commands:
             # The command "type" can be one of "run", "resume", "stop", "exit"
             _type = command.get("type")
