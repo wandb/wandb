@@ -86,17 +86,14 @@ class SweepScheduler(Scheduler):
                 # The command "type" can be one of "run", "resume", "stop", "exit"
                 _type = command.get("type", None)
                 if _type in ["exit", "stop"]:
-                    if command.get("run_cap", 0) > 0:  # hit runcap
+                    if command.get("run_cap") is not None:
+                        # Sweep hit run_cap, go into flushing state
+                        wandb.termlog(f"{LOG_PREFIX}Sweep hit run_cap, pausing.")
                         self.state = SchedulerState.FLUSH_RUNS
-                        wandb.termlog(
-                            f"{LOG_PREFIX}Sweep hit user set run_cap, stopping..."
-                        )
-                        return False
                     else:
                         # Tell (virtual) agent to stop running
                         self.state = SchedulerState.STOPPED
-                        self.exit()
-                        return False
+                    return False
                 elif _type in ["run", "resume"]:
                     _run_id = command.get("run_id", None)
                     if _run_id is None:
@@ -138,8 +135,15 @@ class SweepScheduler(Scheduler):
                     SimpleRunState.DEAD,
                     SimpleRunState.UNKNOWN,
                 ]:
-                    if self.state != SchedulerState.FLUSH_RUNS:
+                    # If we are in a flush state, we have already marked the scheduler as stopping.
+                    # All runs are then marked dead in the backend (?) but we still need to launch
+                    # runs that have been pushed to our internal scheduler queue
+                    if self.state == SchedulerState.FLUSH_RUNS:
                         logging.debug(
+                            f"{LOG_PREFIX}Launching dead run: {run.id}, probably hit the run_cap."
+                        )
+                    else:
+                        wandb.termwarn(
                             f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}"
                         )
                         continue
@@ -162,7 +166,7 @@ class SweepScheduler(Scheduler):
             except queue.Empty:
                 if self.state == SchedulerState.FLUSH_RUNS:
                     wandb.termlog(
-                        f"{LOG_PREFIX}Sweep stopped, waiting on existing runs..."
+                        f"{LOG_PREFIX}Sweep stopped, waiting on running runs..."
                     )
                 else:
                     wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
