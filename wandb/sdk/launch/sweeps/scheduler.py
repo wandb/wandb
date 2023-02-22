@@ -22,13 +22,20 @@ logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 
 
+@dataclass
+class _Worker:
+    agent_config: Dict[str, Any]
+    agent_id: str
+
+
 class SchedulerState(Enum):
     PENDING = 0
     STARTING = 1
     RUNNING = 2
-    COMPLETED = 3
-    FAILED = 4
-    STOPPED = 5
+    FLUSH_RUNS = 3
+    COMPLETED = 4
+    FAILED = 5
+    STOPPED = 6
 
 
 class SimpleRunState(Enum):
@@ -89,6 +96,12 @@ class Scheduler(ABC):
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
         self._project_queue = project_queue
+        # Optionally run multiple workers in (pseudo-)parallel. Workers do not
+        # actually run training workloads, they simply send heartbeat messages
+        # (emulating a real agent) and add new runs to the launch queue. The
+        # launch agent is the one that actually runs the training workloads.
+        self._workers: Dict[int, _Worker] = {}
+
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
@@ -153,6 +166,11 @@ class Scheduler(ABC):
                     break
                 self._update_run_states()
                 self._run()
+                # if we hit the run_cap, now set to stopped after launching runs
+                if self.state == SchedulerState.FLUSH_RUNS:
+                    if len(self._runs.keys()) == 0:
+                        wandb.termlog(f"{LOG_PREFIX}Done polling on runs, exiting.")
+                        self.state = SchedulerState.STOPPED
         except KeyboardInterrupt:
             wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
             self.state = SchedulerState.STOPPED

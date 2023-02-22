@@ -4,7 +4,6 @@ __all__ = [
     "CommError",
     "UnsupportedError",
     "WaitTimeoutError",
-    "ContextCancelledError",
 ]
 
 from typing import Optional
@@ -46,17 +45,5 @@ class UnsupportedError(UsageError):
 
 class WaitTimeoutError(Error):
     """Raised when wait() timeout occurs before process is finished"""
-
-    pass
-
-
-class MailboxError(Error):
-    """Generic Mailbox Exception"""
-
-    pass
-
-
-class ContextCancelledError(Error):
-    """Context cancelled Exception"""
 
     pass
