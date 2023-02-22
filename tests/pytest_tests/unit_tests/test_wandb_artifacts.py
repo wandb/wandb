@@ -167,15 +167,15 @@ class TestStoreFile:
         """
         upload_file_retry = Mock()
         upload_file_retry_async = Mock(wraps=asyncify(Mock()))
-        upload_methods = {
+        upload_method = {
             "sync": upload_file_retry,
             "async": upload_file_retry_async,
-        }
+        }[store_file_mode]
 
         return Mock(
             upload_file_retry=upload_file_retry,
             upload_file_retry_async=upload_file_retry_async,
-            upload_method=upload_methods[store_file_mode],
+            upload_method=upload_method,
         )
 
     def test_smoke(self, store_file: "StoreFileFixture", api, tmp_path: Path):
