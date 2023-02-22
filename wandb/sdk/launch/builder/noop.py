@@ -1,3 +1,4 @@
+"""NoOp builder implementation."""
 from typing import Any, Dict, Optional
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -9,13 +10,15 @@ from .._project_spec import EntryPoint, LaunchProject
 
 
 class NoOpBuilder(AbstractBuilder):
+    """NoOp builder."""
+
     type = "noop"
 
     def __init__(
         self,
         builder_config: Dict[str, Any],
-        environment: Optional[AbstractEnvironment],
-        registry: Optional[AbstractRegistry],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
     ) -> None:
         """Initialize a NoOpBuilder."""
         pass

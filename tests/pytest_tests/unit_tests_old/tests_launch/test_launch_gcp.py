@@ -1,4 +1,5 @@
 import subprocess
+from unittest.mock import MagicMock
 
 import pytest
 from google.cloud import aiplatform
@@ -132,6 +133,12 @@ def test_launch_gcp_vertex(
             },
         },
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "dummy"
+    mocker.patch(
+        "wandb.sdk.launch.loader.environment_from_config", return_value=environment
+    )
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]
@@ -172,6 +179,12 @@ def test_launch_gcp_vertex_failed(
             },
         },
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "dummy"
+    mocker.patch(
+        "wandb.sdk.launch.loader.environment_from_config", return_value=environment
+    )
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]
@@ -193,6 +206,12 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
         "project": "test",
         "resource_args": {"gcp_vertex": {}},
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "dummy"
+    mocker.patch(
+        "wandb.sdk.launch.loader.environment_from_config", return_value=environment
+    )
     try:
         launch.run(**kwargs)
     except LaunchError as e:
@@ -235,6 +254,10 @@ def test_vertex_supplied_docker_image(
             },
         },
     }
+    environment = MagicMock()
+    environment.project = "dummy"
+    environment.location = "test"
+    mocker.patch("wandb.sdk.launch.loader.environment_from_config", environment)
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]

@@ -90,17 +90,17 @@ def test_launch_aws_sagemaker_no_instance(
     session.client.return_value = mock_sagemaker_client()
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "builder_from_config",
         lambda *args: MagicMock(),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
     )
@@ -135,17 +135,17 @@ def test_launch_aws_sagemaker(
     session.client.return_value = mock_sagemaker_client()
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "builder_from_config",
         lambda *args: MagicMock(),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
     )
@@ -212,22 +212,12 @@ def test_launch_aws_sagemaker_launch_fail(
 
     mock_env = MagicMock()
     session = MagicMock()
-    session.client.return_value = mock_sagemaker_client()
+    session.client = mock_client_launch_fail
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
-        "builder_from_config",
-        lambda *args: MagicMock(),
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
-        "registry_from_config",
-        lambda *args: None,
     )
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
@@ -258,17 +248,17 @@ def test_sagemaker_specified_image(
     session.client.return_value = mock_sagemaker_client()
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "builder_from_config",
         lambda *args: MagicMock(),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
     )
@@ -396,17 +386,17 @@ def test_no_OuputDataConfig(
     session.client.return_value = mock_sagemaker_client()
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "builder_from_config",
         lambda *args: MagicMock(),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
     )
@@ -441,17 +431,17 @@ def test_no_StoppingCondition(
     session.client.return_value = mock_sagemaker_client()
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "builder_from_config",
         lambda *args: MagicMock(),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
     )
@@ -485,17 +475,17 @@ def test_no_ResourceConfig(
     session.client.return_value = mock_sagemaker_client()
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "builder_from_config",
         lambda *args: MagicMock(),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
     )
@@ -525,17 +515,17 @@ def test_no_RoleARN(
     session.client.return_value = mock_sagemaker_client()
     mock_env.get_session.return_value = session
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "environment_from_config",
         lambda *args: mock_env,
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "builder_from_config",
         lambda *args: MagicMock(),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.agent.util,
+        wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
     )

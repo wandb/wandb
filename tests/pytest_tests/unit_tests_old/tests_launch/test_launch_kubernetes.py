@@ -278,10 +278,10 @@ def test_launch_kube_works(
     }
 
     mocker.patch(
-        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.registry_from_config", return_value=MagicMock()
     )
     mocker.patch(
-        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.builder_from_config", return_value=MagicMock()
     )
     mocker.patch(
         "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
@@ -358,10 +358,10 @@ def test_launch_kube_suspend_cancel(
         "synchronous": False,
     }
     mocker.patch(
-        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.registry_from_config", return_value=MagicMock()
     )
     mocker.patch(
-        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.builder_from_config", return_value=MagicMock()
     )
     mocker.patch(
         "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
@@ -420,10 +420,10 @@ def test_launch_kube_failed(
         "resource_args": {},
     }
     mocker.patch(
-        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.registry_from_config", return_value=MagicMock()
     )
     mocker.patch(
-        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.builder_from_config", return_value=MagicMock()
     )
     mocker.patch(
         "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
@@ -632,10 +632,10 @@ def test_get_status_failed(
         "synchronous": False,
     }
     mocker.patch(
-        "wandb.sdk.launch.agent.util.registry_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.registry_from_config", return_value=MagicMock()
     )
     mocker.patch(
-        "wandb.sdk.launch.agent.util.builder_from_config", return_value=MagicMock()
+        "wandb.sdk.launch.loader.builder_from_config", return_value=MagicMock()
     )
     mocker.patch(
         "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",

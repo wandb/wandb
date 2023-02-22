@@ -15,6 +15,7 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
+from ..registry.local_registry import LocalRegistry
 from ..utils import LOG_PREFIX, LaunchError, sanitize_wandb_api_key
 from .build import (
     _create_docker_build_ctx,
@@ -93,11 +94,11 @@ class DockerBuilder(AbstractBuilder):
 
     def login(self) -> None:
         """Login to the registry."""
-        if not self.registry:
+        if isinstance(self.registry, LocalRegistry):
             _logger.info(f"{LOG_PREFIX} No registry configured, skipping login.")
-            return
-        username, password = self.registry.get_username_password()
-        docker.login(username, password, self.registry.uri)
+        else:
+            username, password = self.registry.get_username_password()
+            docker.login(username, password, self.registry.uri)
 
     def build_image(
         self,

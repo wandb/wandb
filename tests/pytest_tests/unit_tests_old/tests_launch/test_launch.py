@@ -141,9 +141,7 @@ def mock_load_backend():
         mock_props.kwargs = kwargs
         return mock_props
 
-    with mock.patch(
-        "wandb.sdk.launch.agent.util.runner_from_config"
-    ) as mock_load_backend:
+    with mock.patch("wandb.sdk.launch.loader.runner_from_config") as mock_load_backend:
         m = mock.Mock(side_effect=side_effect)
         m.run = mock.Mock(side_effect=side_effect)
         mock_load_backend.return_value = m
@@ -1310,7 +1308,7 @@ def test_launch_build_config_file(
         "LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
-    launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
+    launch_config = {"build": {"type": "docker"}, "registry": {}}
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )

@@ -18,14 +18,13 @@ from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from ..environment.local_environment import LocalEnvironment
 from ..loader import (
     builder_from_config,
     environment_from_config,
     registry_from_config,
     runner_from_config,
 )
-from ..runner.abstract import AbstractRun
-from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs

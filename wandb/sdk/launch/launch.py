@@ -7,6 +7,7 @@ import yaml
 import wandb
 from wandb.apis.internal import Api
 
+from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder.build import construct_builder_args
@@ -69,7 +70,7 @@ def resolve_agent_config(
         if launch_config.get("project") is not None:
             user_set_project = True
         resolved_config.update(launch_config.items())
-    else:
+    elif config is not None:
         raise LaunchError(f"Could not find config file: {config_path}")
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
