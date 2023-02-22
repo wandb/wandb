@@ -36,19 +36,15 @@ def test_sweeps_on_launch(
     proj = "test_project2"
     queue = "existing-queue"
     settings = test_settings({"project": proj})
-    docker_image = "testing321"
 
     with relay_server():
-        run = wandb_init(settings=settings)
-        # log fake job to use in scheduler
-        job_artifact = run._log_job_artifact_with_image(docker_image, args=[])
-        job_name = job_artifact.wait().name
+        wandb_init(settings=settings).finish()
 
         api = wandb.sdk.internal.internal_api.Api()
         api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
 
         sweep_config = {
-            "job": job_name,
+            "job": "fake-job:v1",
             "method": "bayes",
             "metric": {
                 "name": "loss_metric",
@@ -83,7 +79,7 @@ def test_sweeps_on_launch(
                             "--project",
                             proj,
                             "--job",  # necessary?
-                            job_name,
+                            sweep_config["job"],
                             "--resource",
                             resource,
                         ],  # entry_point,
@@ -129,14 +125,11 @@ def test_sweeps_on_launch(
             assert res["runSpec"]
             assert res["runSpec"]["resource"] == resource
 
-        run.finish()
 
-
-@pytest.mark.parametrize(
-    "max_schedulers",
-    [None, 0, -1, 2.0, "2"]
-)
-def test_launch_agent_scheduler(user, wandb_init, test_settings, max_schedulers):
+@pytest.mark.parametrize("max_schedulers", [None, 0, -1, 2.0, "2"])
+def test_launch_agent_scheduler(
+    monkeypatch, user, wandb_init, test_settings, max_schedulers
+):
     proj = "123"
     queue = "queue"
     settings = test_settings({"project": proj})
@@ -209,14 +202,34 @@ def test_launch_agent_scheduler(user, wandb_init, test_settings, max_schedulers)
     assert len(warnings) == 0
     assert sweep_id
 
+    def _check_job(_, job):
+        print(job)
+        return
+
+    def _raise(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        LaunchAgent,
+        "run_job",
+        _check_job,
+    )
+
+    api.ack_run_queue_item = _raise
+
     launch_agent = LaunchAgent(
         api=api,
         config={
-            "entity":user,
-            "project": LAUNCH_DEFAULT_PROJECT,
-            "max_schedulers": max_schedulers
-        }
+            "entity": user,
+            "project": proj,
+            "queues": [queue],
+            "max_schedulers": max_schedulers,
+        },
     )
 
-    launch_agent.loop()
-
+    if max_schedulers is None:
+        assert launch_agent._max_schedulers == 1
+    elif max_schedulers is -1:
+        assert launch_agent._max_schedulers == float("inf")
+    else:
+        assert launch_agent._max_schedulers == int(max_schedulers)

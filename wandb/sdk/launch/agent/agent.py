@@ -57,7 +57,10 @@ def _max_from_config(
     returns parsed value as int or infinity
     """
     try:
-        max_from_config = int(config.get(key, default))
+        val = config.get(key)
+        if val is None:
+            val = default
+        max_from_config = int(val)
     except ValueError as e:
         raise Exception(
             f"Error when parsing LaunchAgent config key: ['{key}': "
