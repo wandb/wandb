@@ -46,7 +46,7 @@ class WandbMetricsLogger(callbacks.Callback):
             learning rate when you resume training from some `initial_epoch`,
             and a learning rate scheduler is used. This can be computed as
             `step_size * initial_step`. Defaults to 0.
-        backward_compatibility Union[str, bool]: Make logging backward compatible
+        backward_compatibility Union[str, None]: Make logging backward compatible
             with older versions of the Keras callbacks for wandb. You can set
             it to "v1" to emulate the logging behaviour of
             `wandb.keras.WandbCallback`, i.e, log metrics either in an
@@ -59,7 +59,7 @@ class WandbMetricsLogger(callbacks.Callback):
         self,
         log_freq: Union[LogStrategy, int] = "epoch",
         initial_global_step: int = 0,
-        backward_compatibility: Union[str, bool] = None,
+        backward_compatibility: Union[str, None] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -81,12 +81,9 @@ class WandbMetricsLogger(callbacks.Callback):
         self.global_batch = 0
         self.global_step = initial_global_step
 
-        if isinstance(backward_compatibility, str):
-            self.backward_compatibility = backward_compatibility
-        else:
-            self.backward_compatibility = "v1" if backward_compatibility else None
+        self.backward_compatibility = backward_compatibility
 
-        if self.backward_compatibility != "v1":
+        if self.backward_compatibility is None:
             if self.logging_batch_wise:
                 # define custom x-axis for batch logging.
                 wandb.define_metric("batch/batch_step")
