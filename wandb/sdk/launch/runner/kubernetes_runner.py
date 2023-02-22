@@ -271,7 +271,7 @@ class KubernetesRunner(AbstractRunner):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
+        builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:  # noqa: C901
         kubernetes = get_module(  # noqa: F811
             "kubernetes", "KubernetesRunner requires kubernetes to be installed"
@@ -354,10 +354,15 @@ class KubernetesRunner(AbstractRunner):
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
                 )
             assert entry_point is not None
+            assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
             # TODO: Issue a warning if we are building on the local registry.
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
+            if builder.registry is None:
+                raise LaunchError(
+                    "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
+                )
             secret = maybe_create_imagepull_secret(
                 core_api, builder.registry, launch_project.run_id, namespace
             )

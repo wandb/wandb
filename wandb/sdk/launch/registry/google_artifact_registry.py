@@ -81,6 +81,13 @@ class GoogleArtifactRegistry(AbstractRegistry):
         """The uri of the registry."""
         return f"{self.environment.region}-docker.pkg.dev/{self.environment.project}/{self.repository}/{self.image_name}"
 
+    @uri.setter
+    def uri(self, uri: str) -> None:
+        """Set the uri of the registry."""
+        raise NotImplementedError(
+            "The uri of the Google Artifact Registry cannot be set."
+        )
+
     @classmethod
     def from_config(
         cls, config: dict, environment: GcpEnvironment, verify: bool = True

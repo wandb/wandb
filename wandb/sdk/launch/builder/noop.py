@@ -22,7 +22,12 @@ class NoOpBuilder(AbstractBuilder):
 
     @classmethod
     def from_config(
-        cls, config: dict, registry: AbstractRegistry, verify: bool = True
+        cls,
+        config: dict,
+        environment: Optional[AbstractEnvironment],
+        registry: Optional[AbstractRegistry],
+        verify: bool = True,
+        login: bool = True,
     ) -> "AbstractBuilder":
         """Create a noop builder from a config."""
         return cls(config, None, None)

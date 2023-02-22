@@ -12,7 +12,7 @@ class AbstractBuilder(ABC):
     """Abstract plugin class defining the interface needed to build container images for W&B Launch."""
 
     builder_type: str
-    registry: AbstractRegistry
+    registry: Optional[AbstractRegistry]
     builder_config: Dict[str, Any]
 
     @abstractmethod
@@ -37,14 +37,21 @@ class AbstractBuilder(ABC):
     @classmethod
     @abstractmethod
     def from_config(
-        cls, config: dict, registry: AbstractRegistry, verify: bool = True
+        cls,
+        config: dict,
+        environment: Optional[AbstractEnvironment],
+        registry: Optional[AbstractRegistry],
+        verify: bool = True,
+        login: bool = True,
     ) -> "AbstractBuilder":
         """Create a builder from a config dictionary.
 
         Args:
             config: The config dictionary.
+            environment: The environment to use.
             registry: The registry to use.
             verify: Whether to verify the functionality of the builder.
+            login: Whether to login to the registry immediately.
 
         Returns:
             The builder.

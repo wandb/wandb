@@ -179,12 +179,7 @@ def _run(
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
-    if repository:  # override existing registry with CLI arg
-        config = launch_config or {}
-        registry = config.get("registry", {})
-        registry["url"] = repository
-        launch_config["registry"] = registry
-
+    config = launch_config or {}
     build_config, registry_config = construct_builder_args(config)
 
     environment = loader.environment_from_config(config.get("environment", {}))

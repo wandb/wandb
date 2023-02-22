@@ -9,8 +9,12 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 from wandb.util import get_module
 
+WANDB_RUNNERS = {"local-proces", "local-container", "vertex", "sagemaker", "kubernetes"}
 
-def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnvironment:
+
+def environment_from_config(
+    config: Optional[Dict[str, Any]]
+) -> Optional[AbstractEnvironment]:
     """Create an environment from a config.
 
     This helper function is used to create an environment from a config. The
@@ -25,21 +29,21 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
     Raises:
         LaunchError: If the environment is not configured correctly.
     """
-    env_type = config.get("type")
-    if env_type is None:
+    if config is None:
         return None
+    env_type = config.get("type")
     if env_type == "aws":
         module = get_module("wandb.sdk.launch.environment.aws_environment")
-        return module.AwsEnvironment.from_config(config)
+        return module.AwsEnvironment.from_config(config)  # type: ignore
     if env_type == "gcp":
         module = get_module("wandb.sdk.launch.environment.gcp_environment")
-        return module.GcpEnvironment.from_config(config)
+        return module.GcpEnvironment.from_config(config)  # type: ignore
     raise LaunchError("Could not create environment from config.")
 
 
 def registry_from_config(
-    config: Optional[Dict[str, Any]], environment: AbstractEnvironment
-) -> AbstractRegistry:
+    config: Optional[Dict[str, Any]], environment: Optional[AbstractEnvironment]
+) -> Optional[AbstractRegistry]:
     """Create a registry from a config.
 
     This helper function is used to create a registry from a config. The
@@ -52,20 +56,20 @@ def registry_from_config(
         environment (Environment): The environment of the registry.
 
     Returns:
-        The registry.
+        The registry if config is not None, otherwise None.
 
     Raises:
         LaunchError: If the registry is not configured correctly.
     """
-    registry_type = config.get("type")
-    if registry_type is None:
+    if config is None:
         return None
+    registry_type = config.get("type")
     if registry_type == "ecr":
         module = get_module("wandb.sdk.launch.registry.elastic_container_registry")
-        return module.ElasticContainerRegistry.from_config(config, environment)
+        return module.ElasticContainerRegistry.from_config(config, environment)  # type: ignore
     if registry_type == "gcr":
         module = get_module("wandb.sdk.launch.registry.google_artifact_registry")
-        return module.GoogleArtifactRegistry.from_config(config, environment)
+        return module.GoogleArtifactRegistry.from_config(config, environment)  # type: ignore
     raise LaunchError(
         f"Could not create registry from config. Invalid registry type: {registry_type}"
     )
@@ -73,9 +77,9 @@ def registry_from_config(
 
 def builder_from_config(
     config: Optional[Dict[str, Any]],
-    environment: AbstractEnvironment,
-    registry: AbstractRegistry,
-) -> AbstractBuilder:
+    environment: Optional[AbstractEnvironment],
+    registry: Optional[AbstractRegistry],
+) -> Optional[AbstractBuilder]:
     """Create a builder from a config.
 
     This helper function is used to create a builder from a config. The
@@ -93,16 +97,18 @@ def builder_from_config(
     Raises:
         LaunchError: If the builder is not configured correctly.
     """
+    if config is None:
+        return None
     builder_type = config.get("type")
     if builder_type == "docker" or not builder_type:
         module = get_module("wandb.sdk.launch.builder.docker_builder")
-        return module.DockerBuilder.from_config(config, environment, registry)
+        return module.DockerBuilder.from_config(config, environment, registry)  # type: ignore
     if builder_type == "kaniko":
         module = get_module("wandb.sdk.launch.builder.kaniko_builder")
-        return module.KanikoBuilder.from_config(config, environment, registry)
+        return module.KanikoBuilder.from_config(config, environment, registry)  # type: ignore
     if builder_type == "noop":
         module = get_module("wandb.sdk.launch.builder.noop")
-        return module.NoOpBuilder.from_config(config, environment, registry)
+        return module.NoOpBuilder.from_config(config, environment, registry)  # type: ignore
     raise LaunchError(
         f"Could not create builder from config. Invalid builder type: {builder_type}"
     )
@@ -112,7 +118,7 @@ def runner_from_config(
     runner_name: str,
     api: Api,
     runer_config: Dict[str, Any],
-    environment: AbstractEnvironment,
+    environment: Optional[AbstractEnvironment],
 ) -> AbstractRunner:
     """Create a runner from a config.
 
@@ -134,19 +140,19 @@ def runner_from_config(
     """
     if runner_name == "local-container" or not runner_name:
         module = get_module("wandb.sdk.launch.runner.local_container")
-        return module.LocalContainerRunner(api, runer_config, environment)
+        return module.LocalContainerRunner(api, runer_config, environment)  # type: ignore
     if runner_name == "local-process":
         module = get_module("wandb.sdk.launch.runner.local_process")
-        return module.LocalProcessRunner(api, runer_config, environment)
+        return module.LocalProcessRunner(api, runer_config, environment)  # type: ignore
     if runner_name == "sagemaker":
         module = get_module("wandb.sdk.launch.runner.sagemaker_runner")
-        return module.SagemakerRunner(api, runer_config, environment)
+        return module.SagemakerRunner(api, runer_config, environment)  # type: ignore
     if runner_name == "vertex":
         module = get_module("wandb.sdk.launch.runner.vertex_runner")
-        return module.VertexRunner(api, runer_config, environment)
+        return module.VertexRunner(api, runer_config, environment)  # type: ignore
     if runner_name == "kubernetes":
         module = get_module("wandb.sdk.launch.runner.kubernetes_runner")
-        return module.KubernetesRunner(api, runer_config, environment)
+        return module.KubernetesRunner(api, runer_config, environment)  # type: ignore
     raise LaunchError(
         f"Could not create runner from config. Invalid runner name: {runner_name}"
     )

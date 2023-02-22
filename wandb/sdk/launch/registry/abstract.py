@@ -6,6 +6,8 @@ from typing import Tuple
 class AbstractRegistry(ABC):
     """Abstract base class for registries."""
 
+    uri: str
+
     @abstractmethod
     def verify(self) -> None:
         """Verify that the registry is configured correctly."""
@@ -18,4 +20,9 @@ class AbstractRegistry(ABC):
         Returns:
             (str, str): The username and password.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_username_password(self) -> Tuple[str, str]:
+        """Get the username and password for the registry."""
         raise NotImplementedError

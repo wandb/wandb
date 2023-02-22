@@ -57,18 +57,18 @@ class KanikoBuilder(AbstractBuilder):
 
     build_job_name: str
     build_context_store: str
-    secret_name: str
-    secret_key: str
+    secret_name: Optional[str]
+    secret_key: Optional[str]
 
     def __init__(
         self,
-        environment: AbstractEnvironment,
-        registry: AbstractRegistry,
+        environment: Optional[AbstractEnvironment],
+        registry: Optional[AbstractRegistry],
         build_job_name: str = "wandb-launch-container-build",
-        build_context_store: str = None,
-        secret_name: str = None,
-        secret_key: str = None,
-        verify=True,
+        build_context_store: Optional[str] = None,
+        secret_name: Optional[str] = None,
+        secret_key: Optional[str] = None,
+        verify: bool = True,
     ):
         """Initialize a KanikoBuilder.
 
@@ -85,18 +85,18 @@ class KanikoBuilder(AbstractBuilder):
         Raises:
             LaunchError: If the builder cannot be intialized or verified.
         """
+        if build_context_store is None:
+            raise LaunchError(
+                "You are required to specify an external build "
+                "context store for Kaniko builds. Please specify a  storage url "
+                "in the 'build-context-store' field of your builder config."
+            )
         self.environment = environment
         self.registry = registry
         self.build_job_name = build_job_name
         self.build_context_store = build_context_store.rstrip("/")
         self.secret_name = secret_name
         self.secret_key = secret_key
-        if self.build_context_store is None:
-            raise LaunchError(
-                "You are required to specify an external build "
-                "context store for Kaniko builds. Please specify a  storage url "
-                "in the 'build-context-store' field of your builder config."
-            )
         if verify:
             self.verify()
 
@@ -104,9 +104,10 @@ class KanikoBuilder(AbstractBuilder):
     def from_config(
         cls,
         config: dict,
-        environment: AbstractEnvironment,
-        registry: AbstractRegistry,
+        environment: Optional[AbstractEnvironment],
+        registry: Optional[AbstractRegistry],
         verify: bool = True,
+        login: bool = True,
     ) -> "AbstractBuilder":
         """Create a KanikoBuilder from a config dict.
 
@@ -150,15 +151,19 @@ class KanikoBuilder(AbstractBuilder):
         Raises:
             LaunchError: If the builder config is invalid.
         """
+        if self.environment is None:
+            raise LaunchError("No environment specified for Kaniko build.")
         self.environment.verify_storage_uri(self.build_context_store)
 
     def login(self) -> None:
         """Login to the registry."""
-        super().login()
+        pass
 
     def _create_docker_ecr_config_map(
         self, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
+        if self.registry is None:
+            raise LaunchError("No registry specified for Kaniko build.")
         username, password = self.registry.get_username_password()
         encoded = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode(
             "utf-8"
@@ -189,6 +194,8 @@ class KanikoBuilder(AbstractBuilder):
             context_tgz.add(context_path, arcname=".")
         context_file.close()
         destination = f"{self.build_context_store}/{run_id}.tgz"
+        if self.environment is None:
+            raise LaunchError("No environment specified for Kaniko build.")
         self.environment.upload_file(context_file.name, destination)
         return destination
 
@@ -197,6 +204,8 @@ class KanikoBuilder(AbstractBuilder):
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
     ) -> str:
+        if self.registry is None:
+            raise LaunchError("No registry specified for Kaniko build.")
         repo_uri = self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + launch_project.image_tag
 

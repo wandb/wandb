@@ -174,6 +174,7 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
+        config = config or {}
         docker_image_uri = build_image_from_project(launch_project, api, config)
         run = wandb.run or wandb.init(
             project=launch_spec["project"],

@@ -1,7 +1,7 @@
 """Implementation of the docker builder."""
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import wandb
 import wandb.docker as docker
@@ -40,10 +40,10 @@ class DockerBuilder(AbstractBuilder):
 
     def __init__(
         self,
-        environment: AbstractEnvironment,
-        registry: AbstractRegistry,
-        verify=True,
-        login=True,
+        environment: Optional[AbstractEnvironment],
+        registry: Optional[AbstractRegistry],
+        verify: bool = True,
+        login: bool = True,
     ):
         """Initialize a DockerBuilder.
 
@@ -67,8 +67,10 @@ class DockerBuilder(AbstractBuilder):
     def from_config(
         cls,
         config: Dict[str, Any],
-        environment: AbstractEnvironment,
-        registry: AbstractRegistry,
+        environment: Optional[AbstractEnvironment],
+        registry: Optional[AbstractRegistry],
+        verify: bool = True,
+        login: bool = True,
     ) -> "DockerBuilder":
         """Create a DockerBuilder from a config.
 
@@ -85,11 +87,11 @@ class DockerBuilder(AbstractBuilder):
         # but ultimately we should add things like target platform, base image, etc.
         return cls(environment, registry)
 
-    def verify(self):
+    def verify(self) -> None:
         """Verify the builder."""
         validate_docker_installation()
 
-    def login(self):
+    def login(self) -> None:
         """Login to the registry."""
         if not self.registry:
             _logger.info(f"{LOG_PREFIX} No registry configured, skipping login.")

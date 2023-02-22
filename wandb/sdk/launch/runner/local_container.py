@@ -69,7 +69,7 @@ class LocalContainerRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: wandb.apis.public.Api,
+        api: wandb.apis.internal.Api,
         backend_config: Dict[str, Any],
         environment: AbstractEnvironment,
     ) -> None:
@@ -79,7 +79,7 @@ class LocalContainerRunner(AbstractRunner):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
+        builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
@@ -132,6 +132,7 @@ class LocalContainerRunner(AbstractRunner):
         else:
             assert entry_point is not None
             _logger.info("Building docker image...")
+            assert builder is not None
             image_uri = builder.build_image(
                 launch_project,
                 entry_point,
