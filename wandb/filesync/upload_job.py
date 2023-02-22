@@ -215,7 +215,7 @@ class UploadJobAsync:
             else:
                 logger.info("Uploaded file %s", self._request.path)
         finally:
-            # Note: whereas UploadJob removes the file in a finally block,
-            # here we only remove it if the upload was successful
+            # If we fell back to the sync impl, the file will have already been deleted.
+            # Doesn't matter, we only try to delete it if it exists.
             if self._request.copied and os.path.isfile(self._request.path):
                 os.remove(self._request.path)
