@@ -1,11 +1,19 @@
 import logging
 import multiprocessing as mp
+import sys
+import urllib3
 from collections import defaultdict, deque
 from hashlib import md5
 from types import ModuleType
 from typing import TYPE_CHECKING, Dict, List, Union
 
+if sys.version_info >= (3, 8):
+    from typing import Final
+else:
+    from typing_extensions import Final
+
 import requests
+import requests.adapters
 
 import wandb
 from wandb.sdk.lib import telemetry
@@ -17,6 +25,17 @@ if TYPE_CHECKING:
     from typing import Deque, Optional
 
     from wandb.sdk.internal.settings_static import SettingsStatic
+
+
+_PREFIX: Final[str] = "openmetrics"
+
+_REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
+    backoff_factor=1,
+    total=3,
+    status_forcelist=(408, 409, 429, 500, 502, 503, 504),
+)
+_REQUEST_POOL_CONNECTIONS = 4
+_REQUEST_POOL_MAXSIZE = 4
 
 
 logger = logging.getLogger(__name__)
@@ -31,6 +50,18 @@ except ImportError:
     pass
 
 
+def _setup_requests_session() -> requests.Session:
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(
+        max_retries=_REQUEST_RETRY_STRATEGY,
+        pool_connections=_REQUEST_POOL_CONNECTIONS,
+        pool_maxsize=_REQUEST_POOL_MAXSIZE,
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+
 class OpenMetricsMetric:
     """
     Container for all the COUNTER and GAUGE metrics extracted from an
@@ -40,7 +71,7 @@ class OpenMetricsMetric:
     def __init__(self, name: str, url: str) -> None:
         self.name = name
         self.url = url
-        self.session: Optional["requests.Session"] = None
+        self._session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
         self.label_map: "Dict[str, Dict[str, int]]" = defaultdict(dict)
@@ -48,19 +79,25 @@ class OpenMetricsMetric:
         self.label_hashes: "Dict[str, dict]" = {}
 
     def setup(self) -> None:
-        if self.session is None:
-            self.session = requests.Session()
+        if self._session is not None:
+            return
+
+        self._session = _setup_requests_session()
 
     def teardown(self) -> None:
-        if self.session is not None:
-            self.session.close()
-            self.session = None
+        if self._session is None:
+            return
+
+        self._session.close()
+        self._session = None
 
     def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
         assert prometheus_client_parser is not None
-        assert self.session is not None
+        assert self._session is not None
 
-        response = self.session.get(self.url)
+        response = self._session.get(self.url)
+        response.raise_for_status()
+
         text = response.text
         measurement = {}
         for family in prometheus_client_parser.text_string_to_metric_families(text):
@@ -93,7 +130,7 @@ class OpenMetricsMetric:
         if not self.samples:
             return {}
 
-        prefix = f"openmetrics.{self.name}."
+        prefix = f"{_PREFIX}.{self.name}."
 
         stats = {}
         for key in self.samples[0].keys():
@@ -139,6 +176,8 @@ class OpenMetrics:
 
     @classmethod
     def is_available(cls, url: str) -> bool:
+        _is_available: bool = False
+
         ret = prometheus_client_parser is not None
         if not ret:
             wandb.termwarn(
@@ -146,24 +185,29 @@ class OpenMetrics:
                 "To install it, run `pip install prometheus_client`.",
                 repeat=False,
             )
-            return False
+            return _is_available
         # check if the endpoint is available and is a valid OpenMetrics endpoint
+        _session: Optional[requests.Session] = None
         try:
             assert prometheus_client_parser is not None
-            response = requests.get(url)
-            if (
-                response.status_code == 200
-                and prometheus_client_parser.text_string_to_metric_families(
-                    response.text
-                )
-            ):
-                return True
+            _session = _setup_requests_session()
+            response = _session.get(url)
+            response.raise_for_status()
+            # check if the response is a valid OpenMetrics response
+            if prometheus_client_parser.text_string_to_metric_families(response.text):
+                _is_available = True
         except Exception as e:
             logger.debug(
                 f"OpenMetrics endpoint {url} is not available: {e}", exc_info=True
             )
 
-        return False
+        if _session is not None:
+            try:
+                _session.close()
+            except Exception:
+                pass
+
+        return _is_available
 
     def start(self) -> None:
         self.metrics_monitor.start()
