@@ -7,12 +7,11 @@ import kubernetes
 import pytest
 import wandb
 import wandb.sdk.launch.launch as launch
-from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes import (
     MAX_KUBERNETES_RETRIES,
     maybe_create_imagepull_secret,
 )
-from wandb.sdk.launch.utils import make_name_dns_safe
+from wandb.sdk.launch.utils import LaunchError, make_name_dns_safe
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
