@@ -49,7 +49,20 @@ def _convert_access(access: str) -> str:
 def _max_from_config(
     config: Dict[str, Any], key: str, default: int = 1
 ) -> Union[int, float]:
-    max_from_config = int(config.get(key, default))
+    """
+    Helper for parsing integers from the agent config with
+    a default, infinity handling, and integer parsing.
+    Raises more informative error if parse error
+
+    returns parsed value as int or infinity
+    """
+    try:
+        max_from_config = int(config.get(key, default))
+    except ValueError as e:
+        raise Exception(
+            f"Error when parsing LaunchAgent config key: ['{key}': "
+            f"{config.get(key, default)}]. Error: {str(e)}"
+        )
     if max_from_config == -1:
         return float("inf")
     return max_from_config
