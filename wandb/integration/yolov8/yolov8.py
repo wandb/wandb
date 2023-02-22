@@ -10,7 +10,7 @@ import wandb
 from wandb.sdk.lib import telemetry
 
 
-class WandbLogger:
+class WandbCallback:
     """
     A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
     Usage:
@@ -239,7 +239,7 @@ def add_callbacks(
     ```
     """
     if RANK in [-1, 0]:
-        wandb_logger = WandbLogger(
+        wandb_logger = WandbCallback(
             yolo, run_name=run_name, project=project, tags=tags, resume=resume, **kwargs
         )
         for event, callback_fn in wandb_logger.callbacks.items():
