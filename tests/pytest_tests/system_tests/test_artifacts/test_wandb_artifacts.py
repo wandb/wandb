@@ -794,7 +794,7 @@ def test_download_safe_pathname(wandb_init):
         run.log_artifact(artifact)
 
     with wandb_init() as run:
-        artifact = run.use_artifact("my-arty")
+        artifact = run.use_artifact("my-arty:v0")
         artifact_dir = Path(artifact.download()).resolve()
         no_anchor = artifact_dir.relative_to(artifact_dir.anchor)
         assert ":" not in str(no_anchor)
