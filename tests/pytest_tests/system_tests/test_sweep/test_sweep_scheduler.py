@@ -112,7 +112,7 @@ def test_sweep_scheduler_base_scheduler_states(
         )
 
         monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+            "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
             lambda _: True,
         )
 
@@ -225,6 +225,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     api = internal.Api()
 
     _project = "test-project"
+    _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
     def mock_launch_add(*args, **kwargs):
@@ -249,12 +250,17 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     )
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
     _scheduler = Scheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, project_queue=_project
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        project_queue=_project,
+        job=_job,
     )
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
@@ -274,6 +280,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         entity=user,
         project=_project,
         project_queue=_project_queue,
+        job=_job,
     )
     _scheduler2.start()
     assert _scheduler2._runs["foo_run"].queued_run.args()[-3] == _project_queue
@@ -285,7 +292,7 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
@@ -297,9 +304,15 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
     api.agent_heartbeat = mock_agent_heartbeat
 
     _project = "test-project"
+    _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
     scheduler = SweepScheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=num_workers,
+        job=_job,
     )
     scheduler.start()
     assert scheduler.state == SchedulerState.STOPPED
@@ -311,7 +324,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
@@ -364,7 +377,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_job",
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
@@ -399,12 +412,82 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     api.get_run_state = mock_get_run_state
 
     _project = "test-project"
+    _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
     _scheduler = SweepScheduler(
-        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=num_workers,
+        job=_job,
     )
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
     _scheduler.start()
     assert _scheduler._runs["mock-run-id-1"].state == SimpleRunState.DEAD
+
+
+def test_launch_sweep_scheduler_try_executable_works(user, wandb_init, test_settings):
+    _project = "test-project"
+    settings = test_settings({"project": _project})
+    run = wandb_init(settings=settings)
+    job_artifact = run._log_job_artifact_with_image("lala-docker-123", args=[])
+    job_name = job_artifact.wait().name
+
+    run.finish()
+    sweep_id = wandb.sweep(
+        VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
+    )
+
+    _scheduler = SweepScheduler(
+        internal.Api(),
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=4,
+        job=job_name,
+    )
+
+    assert _scheduler._try_load_executable()
+
+
+def test_launch_sweep_scheduler_try_executable_fails(user):
+    _project = "test-project"
+    job_name = "nonexistent"
+    sweep_id = wandb.sweep(
+        VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
+    )
+
+    _scheduler = SweepScheduler(
+        internal.Api(),
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=4,
+        job=job_name,
+    )
+
+    _scheduler.start()
+
+    assert _scheduler.state == SchedulerState.FAILED
+
+
+def test_launch_sweep_scheduler_try_executable_image(user):
+    _project = "test-project"
+    _image_uri = "some-image-wow"
+    sweep_id = wandb.sweep(
+        VALID_SWEEP_CONFIGS_MINIMAL[0], entity=user, project=_project
+    )
+
+    _scheduler = SweepScheduler(
+        internal.Api(),
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=4,
+        image_uri=_image_uri,
+    )
+
+    assert _scheduler._try_load_executable()
