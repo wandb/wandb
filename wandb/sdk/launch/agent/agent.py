@@ -46,7 +46,7 @@ def _convert_access(access: str) -> str:
     return access
 
 
-def _max_from_config(config: Dict[str, Any], key: str, default=1) -> Union[int, float]:
+def _max_from_config(config: Dict[str, Any], key: str, default: int = 1) -> Union[int, float]:
     max_from_config = int(config.get(key, default))
     if max_from_config == -1:
         return float("inf")
