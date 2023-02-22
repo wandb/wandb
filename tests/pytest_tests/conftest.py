@@ -9,6 +9,7 @@ from typing import Any, Callable, Generator, Union
 import git
 import pytest
 import wandb
+import wandb.env
 import wandb.old.settings
 import wandb.util
 from click.testing import CliRunner
@@ -20,6 +21,7 @@ from wandb.sdk.lib.git import GitRepo
 # --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
+os.environ[wandb.env.ERROR_REPORTING] = "false"
 
 
 @pytest.fixture(scope="session")
