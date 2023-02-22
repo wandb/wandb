@@ -66,17 +66,14 @@ def test_mkdir_exists_ok_not_writable(tmp_path):
         mkdir_exists_ok(new_dir)
 
 
-def test_copy_or_overwrite_changed_windows_colon(tmp_path):
+def test_copy_or_overwrite_changed_colon(tmp_path):
     source_path = tmp_path / "new_file.txt"
     target_path = tmp_path / "file:with:colon.txt"
 
     source_path.write_text("original")
     final_path = copy_or_overwrite_changed(source_path, target_path)
 
-    if platform.system() == "Windows":
-        assert final_path == tmp_path / "file-with-colon.txt"
-    else:
-        assert final_path == target_path
+    assert final_path == tmp_path / "file-with-colon.txt"
     assert final_path.read_text() == "original"
 
 
