@@ -289,26 +289,30 @@ def test_launch_build_with_local(
         {"image_uri": "testing222", "num_workers": 5},
         {"image_uri": "testing333", "num_workers": "5"},
     ],
-    ids=['none', 'empty', 'working', 'num-workers-int', 'num-workers-str']  # 'none', 'empty', 
+    ids=[
+        "none",
+        "empty",
+        "working",
+        "num-workers-int",
+        "num-workers-str",
+    ],  # 'none', 'empty',
 )
 @pytest.mark.parametrize(
-    "job",
-    ["actualJob:123"],  # None, "",
-    ids=['working']  # 'none', 'empty', 
+    "job", ["actualJob:123"], ids=["working"]  # None, "",  # 'none', 'empty',
 )
 
-# launch/conftest --> fixtures for create launch project 
+# launch/conftest --> fixtures for create launch project
 
 # maybe already a fixture for create project (general)
 # also for create_run_queue  (launch)
-#  
+#
 def test_launch_sweep_launch(
     user, wandb_init, test_settings, runner, launch_params, monkeypatch, job
 ):
     import random
 
-    queue = "testing-" + str(random.random()).replace('.', '')
-    user_project = 'testing-proj-' + str(random.random()).replace('.', '')
+    queue = "testing-" + str(random.random()).replace(".", "")
+    user_project = "testing-proj-" + str(random.random()).replace(".", "")
 
     print(f"{queue=} {user_project=}")
     api = InternalApi()
@@ -316,7 +320,7 @@ def test_launch_sweep_launch(
     # with runner.isolated_filesystem():
     # monkeypatch.setenv("WANDB_ENTITY", user)
     # public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
-    settings = test_settings({'project': user_project})
+    settings = test_settings({"project": user_project})
     run: Run = wandb_init(settings=settings)
     run.finish()
 
@@ -332,9 +336,9 @@ def test_launch_sweep_launch(
         access="USER",
     )
 
-    if res.get('success') is not True:
-        raise Exception('create queue' + str(res))
-    
+    if res.get("success") is not True:
+        raise Exception("create queue" + str(res))
+
     with open("sweep-config.yaml", "w") as f:
         json.dump(
             {
@@ -348,7 +352,19 @@ def test_launch_sweep_launch(
     import subprocess
 
     result = subprocess.check_output(
-        ["wandb", "sweep", "sweep-config.yaml", "-e", user, "-q", queue, "-p", user_project, "--project-queue", user_project]
+        [
+            "wandb",
+            "sweep",
+            "sweep-config.yaml",
+            "-e",
+            user,
+            "-q",
+            queue,
+            "-p",
+            user_project,
+            "--project-queue",
+            user_project,
+        ]
     )
 
     wandb.termlog(str(result))
@@ -358,4 +374,3 @@ def test_launch_sweep_launch(
     # else:
     #     if result.exit_code != 0:
     #         raise Exception(result.output)
-
