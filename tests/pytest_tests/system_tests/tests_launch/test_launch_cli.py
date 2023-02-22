@@ -279,26 +279,77 @@ def test_launch_build_with_local(
 
 
 @pytest.mark.parametrize(
-    "launch_params",
+    "image_uri,scheduler_params",
     [
-        {},
-        {"image_uri": ""},
-        {"image_uri": "testing111"},
-        {"image_uri": "testing222", "num_workers": 5},
-        {"image_uri": "testing333", "num_workers": "5"},
+        ("testing111", {}),
+        ("testing222", {"num_workers": 5}),
+        ("testing222", {"num_workers": "5"}),
     ],
     ids=[
-        "none",
-        "empty",
         "working",
         "num-workers-int",
         "num-workers-str",
     ],
 )
-@pytest.mark.parametrize("job", [None, "actualJob:123"], ids=["none", "working"])
-def test_launch_sweep_launch(
-    user, wandb_init, test_settings, runner, launch_params, monkeypatch, job
-):
+def test_launch_sweep_launch_uri(user, image_uri, scheduler_params):
+    queue = "testing-" + str(random.random()).replace(".", "")
+    api = InternalApi()
+    public_api = Api()
+    public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
+
+    # make launch project queue
+    res = api.create_run_queue(
+        entity=user,
+        project=LAUNCH_DEFAULT_PROJECT,
+        queue_name=queue,
+        access="USER",
+    )
+
+    if res.get("success") is not True:
+        raise Exception("create queue" + str(res))
+
+    with open("sweep-config.yaml", "w") as f:
+        json.dump(
+            {
+                "job": None,
+                "method": "grid",
+                "image_uri": image_uri,
+                "scheduler": scheduler_params,
+                "parameters": {"parameter1": {"values": [1, 2, 3]}},
+            },
+            f,
+        )
+    import subprocess
+
+    subprocess.check_output(
+        [
+            "wandb",
+            "sweep",
+            "sweep-config.yaml",
+            "-e",
+            user,
+            "-q",
+            queue,
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "image_uri,scheduler_params,job",
+    [
+        (None, {}, None),
+        ("", None, None),
+        ("testing111", {}, "job123:v1"),
+        ("testing222", {"num_workers": 5}, "job"),
+    ],
+    ids=[
+        "None, empty, None",
+        "empty, None, None",
+        "image + job",
+        "image + malformed job",
+    ],
+)
+def test_launch_sweep_launch_error(user, image_uri, scheduler_params, job):
     queue = "testing-" + str(random.random()).replace(".", "")
     api = InternalApi()
     public_api = Api()
@@ -319,27 +370,24 @@ def test_launch_sweep_launch(
         json.dump(
             {
                 "job": job,
+                "image_uri": image_uri,
                 "method": "grid",
-                "launch": launch_params,
+                "scheduler": scheduler_params,
                 "parameters": {"parameter1": {"values": [1, 2, 3]}},
             },
             f,
         )
     import subprocess
 
-    result = subprocess.check_output(
-        [
-            "wandb",
-            "sweep",
-            "sweep-config.yaml",
-            "-e",
-            user,
-            "-q",
-            queue,
-        ]
-    )
-
-    if not launch_params.get("image_uri") and not job:
-        assert "No 'job' or 'image_uri' found in sweep config" in str(result)
-    else:
-        assert "No 'job' or 'image_uri' found in sweep config" in str(result)
+    with pytest.raises(subprocess.CalledProcessError):
+        subprocess.check_output(
+            [
+                "wandb",
+                "sweep",
+                "sweep-config.yaml",
+                "-e",
+                user,
+                "-q",
+                queue,
+            ],
+        )

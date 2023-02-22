@@ -907,6 +907,8 @@ def sweep(
         _image_uri = config.get("image_uri")
         if not _job and not _image_uri:  # don't allow empty string
             raise LaunchError("No 'job' or 'image_uri' found in sweep config")
+        elif _job and _image_uri:
+            raise LaunchError("Sweep has both 'job' and 'image_uri'")
 
         if not queue:
             if launch_config.get("queue"):

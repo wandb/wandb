@@ -274,9 +274,7 @@ class Scheduler(ABC):
                 f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"
             )
         elif _job is not None and _image_uri is not None:
-            raise SchedulerError(
-                f"{LOG_PREFIX}Sweep given has both 'job' and 'image_uri'"
-            )
+            raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
 
         run_id = run_id or generate_id()
         queued_run = launch_add(
