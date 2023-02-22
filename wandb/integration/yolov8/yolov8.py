@@ -1,12 +1,13 @@
 from typing import List, Optional
-from ultralytics.yolo.v8.classify.train import ClassificationTrainer
-from ultralytics.yolo.engine.trainer import BaseTrainer
-from ultralytics.yolo.utils.torch_utils import get_flops, get_num_params
+
 from ultralytics.yolo.engine.model import YOLO
+from ultralytics.yolo.engine.trainer import BaseTrainer
 from ultralytics.yolo.utils import RANK
-from wandb.sdk.lib import telemetry
+from ultralytics.yolo.utils.torch_utils import get_flops, get_num_params
+from ultralytics.yolo.v8.classify.train import ClassificationTrainer
 
 import wandb
+from wandb.sdk.lib import telemetry
 
 
 class WandbLogger:

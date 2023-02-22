@@ -1,0 +1,25 @@
+id: 0.yolov8.detection
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: test_yolov8_segmentation.py
+depend:
+    requirements:
+        - "ultralytics>=8.0.26"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary][epoch]: 2
+    - :wandb:runs[0][config][agnostic_nms]: False
+    - :wandb:runs[0][config][augment]: False
+    - :wandb:runs[0][config][batch]: 16
+    - :wandb:runs[0][config][task]: detect
+    - :wandb:runs[0][summary][model/parameters]: 3157200
+
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 46  # yolov8 used
+    - :wandb:runs[0][exitcode]: 0
