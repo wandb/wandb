@@ -4873,10 +4873,8 @@ class Artifact(artifacts.Artifact):
             if include_version
             else os.path.join(".", "artifacts", self._sequence_name)
         )
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(root)
-            root = head + tail.replace(":", "-")
-        return root
+        head, tail = os.path.splitdrive(root)
+        return head + tail.replace(":", "-")
 
     def json_encode(self):
         return util.artifact_to_json(self)

@@ -95,11 +95,12 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
     """
     return_type = type(target_path)
 
-    if platform.system() == "Windows":
-        head, tail = os.path.splitdrive(str(target_path))
-        if ":" in tail:
-            logger.warning("Replacing ':' in %s with '-'", tail)
-            target_path = os.path.join(head, tail.replace(":", "-"))
+    # Replace ':' with '-' to avoid Windows path issues. This needs to be done on Linux
+    # as well because it's still possible to run into problems with FUSE-mounted drives.
+    head, tail = os.path.splitdrive(str(target_path))
+    if ":" in tail:
+        logger.warning("Replacing ':' in %s with '-'", tail)
+        target_path = os.path.join(head, tail.replace(":", "-"))
 
     need_copy = (
         not os.path.isfile(target_path)
