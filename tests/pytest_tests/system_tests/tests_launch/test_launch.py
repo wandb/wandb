@@ -2,6 +2,7 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run
 from wandb.sdk.launch.utils import LaunchError
@@ -128,3 +129,12 @@ def test_launch_multi_run_context(
 
         assert run1.id == "test"
         assert run2.id != "test"
+
+
+def test_launch_get_project_queue_error(user):
+    proj = "projectq32e"
+    api = InternalApi()
+    with pytest.raises(CommError) as e:
+        api.get_project_run_queues(user, proj)
+
+    assert f"Error fetching run queues for {user}/{proj}" in str(e)
