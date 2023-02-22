@@ -585,9 +585,10 @@ class Settings:
                 "hook": lambda x: self._path_convert(x),
             },
             _stats_open_metrics_endpoints={
-                "value": {
-                    "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
-                },
+                # todo: opt-in to this feature
+                # "value": {
+                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
+                # },
                 "preprocessor": _str_as_dict,
             },
             _tmp_code_dir={
