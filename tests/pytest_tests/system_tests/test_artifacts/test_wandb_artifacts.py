@@ -3,6 +3,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Mapping, Optional
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -781,6 +782,22 @@ def test_add_obj_using_brackets(assets_path):
 
     with pytest.raises(ValueError):
         _ = artifact["my-image"]
+
+
+def test_download_safe_pathname(wandb_init):
+    test_file = Path("test_file.txt")
+    test_file.write("hello")
+
+    with wandb_init() as run:
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact.add_file(test_file)
+        run.log_artifact(artifact)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("my-arty")
+        artifact_dir = Path(artifact.download()).resolve()
+        no_anchor = artifact_dir.relative_to(artifact_dir.anchor)
+        assert ":" not in str(no_anchor)
 
 
 def test_artifact_interface_link():
