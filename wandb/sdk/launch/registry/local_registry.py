@@ -19,7 +19,7 @@ class LocalRegistry(AbstractRegistry):
 
     @classmethod
     def from_config(
-        cls, config: dict, environment: "AbstractEnvironment"
+        cls, config: dict, environment: "AbstractEnvironment", verify: bool = True
     ) -> "LocalRegistry":
         """Create a local registry from a config.
 

@@ -25,7 +25,7 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
-def resolve_agent_config(
+def resolve_agent_config(  # noqa: C901
     api: Api,
     entity: Optional[str],
     project: Optional[str],

@@ -579,14 +579,20 @@ def build_image_from_project(
         LaunchError: If the project is not valid or the image could not be built.
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
-
+    launch_config = launch_config or {}
     env_config = launch_config.get("environment", {})
+    if not isinstance(env_config, dict):
+        raise LaunchError(f"Invalid environment config: {env_config}")
     environment = environment_from_config(env_config)
 
     registry_config = launch_config.get("registry", {})
+    if not isinstance(registry_config, dict):
+        raise LaunchError(f"Invalid registry config: {registry_config}")
     registry = registry_from_config(registry_config, environment)
 
     builder_config = launch_config.get("builder", {})
+    if not isinstance(builder_config, dict):
+        raise LaunchError(f"Invalid builder config: {builder_config}")
     builder = builder_from_config(builder_config, environment, registry)
 
     if not builder:

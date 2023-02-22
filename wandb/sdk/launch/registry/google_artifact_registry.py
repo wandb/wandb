@@ -59,7 +59,8 @@ class GoogleArtifactRegistry(AbstractRegistry):
 
         Raises:
             LaunchError: If verify is True and the container registry or its
-                environment have not been properly configured.
+                environment have not been properly configured. Or if the environment
+                is not an instance of GcpEnvironment.
         """
         _logger.info(
             f"Initializing Google Artifact Registry with repository {repository} "
@@ -84,13 +85,14 @@ class GoogleArtifactRegistry(AbstractRegistry):
     @uri.setter
     def uri(self, uri: str) -> None:
         """Set the uri of the registry."""
-        raise NotImplementedError(
-            "The uri of the Google Artifact Registry cannot be set."
-        )
+        raise LaunchError("The uri of the Google Artifact Registry cannot be set.")
 
     @classmethod
-    def from_config(
-        cls, config: dict, environment: GcpEnvironment, verify: bool = True
+    def from_config(  # type: ignore[override]
+        cls,
+        config: dict,
+        environment: GcpEnvironment,
+        verify: bool = True,
     ) -> "GoogleArtifactRegistry":
         """Create a Google Artifact Registry from a config.
 

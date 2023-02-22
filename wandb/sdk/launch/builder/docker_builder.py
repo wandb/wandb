@@ -41,8 +41,8 @@ class DockerBuilder(AbstractBuilder):
 
     def __init__(
         self,
-        environment: Optional[AbstractEnvironment],
-        registry: Optional[AbstractRegistry],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
         verify: bool = True,
         login: bool = True,
     ):
@@ -68,10 +68,9 @@ class DockerBuilder(AbstractBuilder):
     def from_config(
         cls,
         config: Dict[str, Any],
-        environment: Optional[AbstractEnvironment],
-        registry: Optional[AbstractRegistry],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
         verify: bool = True,
-        login: bool = True,
     ) -> "DockerBuilder":
         """Create a DockerBuilder from a config.
 

@@ -50,8 +50,11 @@ class ElasticContainerRegistry(AbstractRegistry):
         self.verify()
 
     @classmethod
-    def from_config(
-        self, config: Dict, environment: AwsEnvironment
+    def from_config(  # type: ignore[override]
+        cls,
+        config: Dict,
+        environment: AwsEnvironment,
+        verify: bool = True,
     ) -> "ElasticContainerRegistry":
         """Create an Elastic Container Registry from a config.
 
@@ -72,7 +75,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             raise LaunchError(
                 "Could not create ElasticContainerRegistry from config. 'repository' is required."
             )
-        return ElasticContainerRegistry(repository, environment)
+        return cls(repository, environment)
 
     def verify(self) -> None:
         """Verify that the registry is accessible and the configured repo exists.

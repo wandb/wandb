@@ -27,7 +27,7 @@ class AbstractRegistry(ABC):
     @classmethod
     @abstractmethod
     def from_config(
-        cls, config: dict, environment: "AbstractEnvironment"
+        cls, config: dict, environment: "AbstractEnvironment", verify: bool = True
     ) -> "AbstractRegistry":
         """Create a registry from a config."""
         raise NotImplementedError

@@ -7,9 +7,16 @@ from wandb.errors import LaunchError
 from .builder.abstract import AbstractBuilder
 from .environment.abstract import AbstractEnvironment
 from .registry.abstract import AbstractRegistry
+from .registry.local_registry import LocalRegistry
 from .runner.abstract import AbstractRunner
 
-WANDB_RUNNERS = {"local-proces", "local-container", "vertex", "sagemaker", "kubernetes"}
+WANDB_RUNNERS = {
+    "local-container",
+    "local-process",
+    "kubernetes",
+    "vertex",
+    "sagemaker",
+}
 
 
 def environment_from_config(
@@ -79,13 +86,28 @@ def registry_from_config(
         # fmt: on
     registry_type = config.get("type")
     if registry_type is None:
-        return None
+        # fmt: off
+        from .registry.local_registry import LocalRegistry
+        return LocalRegistry()  # This is the default, dummy registry.
+        # fmt: on
     # disable black formatting to avoid awkward blank lines due to the imports
     # fmt: off
     if registry_type == "ecr":
+        from .environment.aws_environment import AwsEnvironment
+        if not isinstance(environment, AwsEnvironment):
+            raise LaunchError(
+                "Could not create ECR registry. "
+                "Environment must be an instance of AWSEnvironment."
+            )
         from .registry.elastic_container_registry import ElasticContainerRegistry
         return ElasticContainerRegistry.from_config(config, environment)
     if registry_type == "gcr":
+        from .environment.gcp_environment import GcpEnvironment
+        if not isinstance(environment, GcpEnvironment):
+            raise LaunchError(
+                "Could not create GCR registry. "
+                "Environment must be an instance of GCPEnvironment."
+            )
         from .registry.google_artifact_registry import GoogleArtifactRegistry
         return GoogleArtifactRegistry.from_config(config, environment)
     # fmt: on
@@ -131,6 +153,11 @@ def builder_from_config(
         from .builder.docker_builder import DockerBuilder
         return DockerBuilder.from_config(config, environment, registry)
     if builder_type == "kaniko":
+        if isinstance(registry, LocalRegistry):
+            raise LaunchError(
+                "Could not create Kaniko builder. "
+                "Registry must be a remote registry."
+            )
         from .builder.kaniko_builder import KanikoBuilder
         return KanikoBuilder.from_config(config, environment, registry)
     if builder_type == "noop":
@@ -172,11 +199,23 @@ def runner_from_config(
         return LocalContainerRunner(api, runner_config, environment)
     if runner_name == "local-process":
         from .runner.local_process import LocalProcessRunner
-        return LocalProcessRunner(api, runner_config, environment)
+        return LocalProcessRunner(api, runner_config)
     if runner_name == "sagemaker":
+        from .environment.aws_environment import AwsEnvironment
+        if not isinstance(environment, AwsEnvironment):
+            raise LaunchError(
+                "Could not create Sagemaker runner. "
+                "Environment must be an instance of AwsEnvironment."
+            )
         from .runner.sagemaker_runner import SagemakerRunner
         return SagemakerRunner(api, runner_config, environment)
     if runner_name == "vertex":
+        from .environment.gcp_environment import GcpEnvironment
+        if not isinstance(environment, GcpEnvironment):
+            raise LaunchError(
+                "Could not create Vertex runner. "
+                "Environment must be an instance of GcpEnvironment."
+            )
         from .runner.vertex_runner import VertexRunner
         return VertexRunner(api, runner_config, environment)
     if runner_name == "kubernetes":
