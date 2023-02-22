@@ -332,6 +332,18 @@ class _run_decorator:  # noqa: N801
         return wrapper
 
     @classmethod
+    def _check_finished(cls, func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+            if self._is_finished:
+                raise errors.UsageError(
+                    f"run ({self.id}) is finished, cannot call `{func.__name__}`. TODO: write better error message"
+                )
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    @classmethod
     def _noop(cls, func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
@@ -496,6 +508,7 @@ class Run:
 
     _attach_id: Optional[str]
     _is_attached: bool
+    _is_finished: bool
     _settings: Settings
 
     _launch_artifacts: Optional[Dict[str, Any]]
@@ -634,6 +647,7 @@ class Run:
         self._iface_port = None
         self._attach_id = None
         self._is_attached = False
+        self._is_finished = False
 
         self._attach_pid = os.getpid()
 
@@ -1515,6 +1529,7 @@ class Run:
             self._step += 1
 
     @_run_decorator._noop
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def log(
         self,
@@ -1868,6 +1883,8 @@ class Run:
         manager = self._wl and self._wl._get_manager()
         if manager:
             manager._inform_finish(run_id=self._run_id)
+
+        self._is_finished = True
 
     @_run_decorator._noop
     @_run_decorator._attach
