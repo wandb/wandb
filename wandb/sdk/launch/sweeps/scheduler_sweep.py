@@ -139,18 +139,10 @@ class SweepScheduler(Scheduler):
                     SimpleRunState.DEAD,
                     SimpleRunState.UNKNOWN,
                 ]:
-                    # If we are in a flush state, we have already marked the scheduler as stopping.
-                    # All runs are then marked dead in the backend (?) but we still need to launch
-                    # runs that have been pushed to our internal scheduler queue
-                    if self.state == SchedulerState.FLUSH_RUNS:
-                        logging.debug(
-                            f"{LOG_PREFIX}Launching dead run: {run.id}, probably hit the run_cap."
-                        )
-                    else:
-                        wandb.termwarn(
-                            f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}"
-                        )
-                        continue
+                    wandb.termwarn(
+                        f"{LOG_PREFIX}Can't launch run: {run.id} in state {run.state}"
+                    )
+                    continue
 
                 wandb.termlog(
                     f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
@@ -169,9 +161,7 @@ class SweepScheduler(Scheduler):
                 )
             except queue.Empty:
                 if self.state == SchedulerState.FLUSH_RUNS:
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Sweep stopped, waiting on running runs..."
-                    )
+                    wandb.termlog(f"{LOG_PREFIX}Sweep paused, waiting on runs...")
                 else:
                     wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
                 time.sleep(self._heartbeat_queue_sleep)
