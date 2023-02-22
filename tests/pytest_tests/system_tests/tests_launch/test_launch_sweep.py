@@ -5,7 +5,7 @@ import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
-from wandb.sdk.launch.utils import construct_launch_spec, LAUNCH_DEFAULT_PROJECT
+from wandb.sdk.launch.utils import construct_launch_spec
 
 
 @pytest.mark.parametrize(
