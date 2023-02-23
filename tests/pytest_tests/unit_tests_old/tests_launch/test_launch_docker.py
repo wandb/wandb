@@ -13,7 +13,6 @@ from wandb.sdk.launch._project_spec import (
     fetch_and_validate_project,
 )
 from wandb.sdk.launch.builder.build import (
-    construct_gcp_image_uri,
     docker_image_exists,
     generate_dockerfile,
     get_base_setup,
