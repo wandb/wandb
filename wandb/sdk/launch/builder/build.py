@@ -523,8 +523,9 @@ def join(split_command: List[str]) -> str:
     "'local container queue'" --> "local container queue"
 
     """
+    args = [str(arg).replace("'", "") for arg in split_command]
 
-    return " ".join(shlex.quote(arg.replace("'", "")) for arg in split_command)
+    return " ".join(shlex.quote(arg) for arg in args)
 
 
 def construct_builder_args(
