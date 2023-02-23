@@ -359,7 +359,7 @@ class KubernetesRunner(AbstractRunner):
             # TODO: Issue a warning if we are building on the local registry.
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
-            if builder.registry is None:
+            if not builder.registry:
                 raise LaunchError(
                     "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
                 )
