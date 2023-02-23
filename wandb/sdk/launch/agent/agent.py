@@ -12,13 +12,14 @@ from threading import Lock
 from typing import Any, Dict, List, Union
 
 import wandb
+from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 import wandb.util as util
 from wandb.apis.internal import Api
-from wandb.sdk.launch.runner.abstract import AbstractRun
 from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
+from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
@@ -39,9 +40,9 @@ _logger = logging.getLogger(__name__)
 
 def init_pool_processes(jobs: Dict[str, int], lock: Lock) -> None:
     global _jobs
-    global _lock
+    global _jobs_lock
     _jobs = jobs  # type: ignore
-    _lock = lock  # type: ignore
+    _jobs_lock = lock  # type: ignore
 
 
 def thread_run_job(
@@ -79,14 +80,20 @@ def thread_run_job(
 
     if not run:
         return
-    with _lock:  # type: ignore
+    with _jobs_lock:  # type: ignore
         _jobs[run.id] = 1  # type: ignore
-    while True:
-        if _is_run_finished(run):
-            with _lock:  # type: ignore
-                del _jobs[run.id]  # type: ignore
-            return
-        time.sleep(AGENT_POLLING_INTERVAL)
+    try:
+        while True:
+            if _is_run_finished(run):
+                with _jobs_lock:  # type: ignore
+                    del _jobs[run.id]  # type: ignore
+                return
+            time.sleep(AGENT_POLLING_INTERVAL)
+    except KeyboardInterrupt:
+        # temp: for local, kill all jobs. we don't yet have good handling for different
+        # types of runners in general
+        if isinstance(run, LocalSubmittedRun):
+            run.command_proc.kill()
 
 
 def _is_run_finished(run: AbstractRun) -> bool:
@@ -128,8 +135,7 @@ class LaunchAgent:
         self._ticks = 0
         manager = Manager()
         self._jobs = manager.dict()
-        _lock = manager.Lock()
-        self._pool = Pool(initializer=init_pool_processes, initargs=(self._jobs, _lock))
+        _jobs_lock = manager.Lock()
         self._cwd = os.getcwd()
         self._namespace = runid.generate_id()
         self._access = _convert_access("project")
@@ -138,6 +144,11 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = max_jobs_from_config
+        self._pool = Pool(
+            processes=int(min(64, self._max_jobs)),
+            initializer=init_pool_processes,
+            initargs=(self._jobs, _jobs_lock),
+        )
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
@@ -178,15 +189,17 @@ class LaunchAgent:
         output_str = "agent "
         if self._name:
             output_str += f"{self._name} "
-        if len(self._jobs.keys()) < self._max_jobs:
+        if len(self._jobs) < self._max_jobs:
             output_str += "polling on "
             if self._project != LAUNCH_DEFAULT_PROJECT:
                 output_str += f"project {self._project}, "
             output_str += f"queues {','.join(self._queues)}, "
-        output_str += f"running {len(self._jobs.keys())} out of a maximum of {self._max_jobs} jobs"
+        output_str += (
+            f"running {len(self._jobs)} out of a maximum of {self._max_jobs} jobs"
+        )
 
         wandb.termlog(f"{LOG_PREFIX}{output_str}")
-        if len(self._jobs.keys()) > 0:
+        if len(self._jobs) > 0:
             output_str += f": {','.join([str(key) for key in self._jobs.keys()])}"
         _logger.info(output_str)
 
@@ -242,7 +255,7 @@ class LaunchAgent:
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
-                if len(self._jobs.keys()) < self._max_jobs:
+                if len(self._jobs) < self._max_jobs:
                     # only check for new jobs if we're not at max
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
