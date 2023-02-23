@@ -121,7 +121,7 @@ class KanikoBuilder(AbstractBuilder):
         """
         if config.get("type") != "kaniko":
             raise LaunchError(
-                "Builder config must have type 'kaniko' to create a KanikoBuilder."
+                "Builder config must include 'type':'kaniko' to create a KanikoBuilder."
             )
         build_context_store = config.get("build-context-store")
         if build_context_store is None:
