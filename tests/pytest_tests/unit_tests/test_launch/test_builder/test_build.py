@@ -1,3 +1,4 @@
+import hashlib
 from unittest.mock import MagicMock
 
 from wandb.sdk.launch.builder import build
@@ -23,6 +24,16 @@ def test_get_env_vars_dict(mocker):
         "WANDB_RUN_ID": "test-run-id",
         "WANDB_USERNAME": "test-author",
     }
+
+
+def test_image_tag_from_dockerfile_and_source(mocker):
+    _setup(mocker)
+
+    resp = build.image_tag_from_dockerfile_and_source(mocker.launch_project, "")
+
+    tag = hashlib.sha256("test-docker-image".encode("utf-8")).hexdigest()[:8]
+
+    assert resp == tag
 
 
 def _setup(mocker):

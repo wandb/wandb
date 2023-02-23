@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from typing import Any, Dict, Optional
 
 import wandb
@@ -40,11 +39,9 @@ class DockerBuilder(AbstractBuilder):
         repository: Optional[str],
         entrypoint: EntryPoint,
     ) -> str:
-        now = time.time()
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, self.type
         )
-        print(f"Generated dockerfile in {time.time() - now} seconds")
 
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
 
