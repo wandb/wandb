@@ -88,10 +88,9 @@ class ClickWandbException(ClickException):
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
-            return "An Exception was raised, see %s for full traceback.\n" "%s: %s" % (
-                log_file,
-                orig_type,
-                self.message,
+            return (
+                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"{orig_type}: {self.message}"
             )
 
 
