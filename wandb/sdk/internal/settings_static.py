@@ -32,7 +32,7 @@ class SettingsStatic:
     _jupyter_name: Optional[str]
     _jupyter_root: Optional[str]
     _network_buffer: Optional[int]
-    _require_service: Optional[str]
+    _disable_service: Optional[bool]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
     program: Optional[str]

@@ -23,6 +23,7 @@ from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
+    LaunchError,
     resolve_build_and_registry_config,
 )
 
@@ -100,14 +101,22 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        if self._project == LAUNCH_DEFAULT_PROJECT:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on queues {','.join(self._queues)} for jobs"
-            )
-        else:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
-            )
+        output_str = "agent "
+        if self._name:
+            output_str += f"{self._name} "
+        if self._running < self._max_jobs:
+            output_str += "polling on "
+            if self._project != LAUNCH_DEFAULT_PROJECT:
+                output_str += f"project {self._project}, "
+            output_str += f"queues {','.join(self._queues)}, "
+        output_str += (
+            f"running {self._running} out of a maximum of {self._max_jobs} jobs"
+        )
+
+        wandb.termlog(f"{LOG_PREFIX}{output_str}")
+        if self._running > 0:
+            output_str += f": {','.join([str(key) for key in self._jobs.keys()])}"
+        _logger.info(output_str)
 
     def update_status(self, status: str) -> None:
         update_ret = self._api.update_launch_agent_status(
@@ -130,7 +139,15 @@ class LaunchAgent:
         try:
             if self._jobs[job_id].get_status().state in ["failed", "finished"]:
                 self.finish_job_id(job_id)
-        except Exception:
+        except Exception as e:
+            if isinstance(e, LaunchError):
+                wandb.termerror(f"Terminating job {job_id} because it failed to start:")
+                wandb.termerror(str(e))
+            _logger.info("---")
+            _logger.info("Caught exception while getting status.")
+            _logger.info(f"Job ID: {job_id}")
+            _logger.info(traceback.format_exc())
+            _logger.info("---")
             self.finish_job_id(job_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
@@ -215,9 +232,9 @@ class LaunchAgent:
                 if self._ticks % 2 == 0:
                     if self._running == 0:
                         self.update_status(AGENT_POLLING)
-                        self.print_status()
                     else:
                         self.update_status(AGENT_RUNNING)
+                    self.print_status()
                 time.sleep(AGENT_POLLING_INTERVAL)
 
         except KeyboardInterrupt:

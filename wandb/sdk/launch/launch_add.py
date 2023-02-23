@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
 from wandb.sdk.launch._project_spec import (
     compute_command_args,
     create_project_from_spec,
@@ -13,6 +12,7 @@ from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     LOG_PREFIX,
+    LaunchError,
     construct_launch_spec,
     validate_launch_spec_source,
 )
@@ -207,7 +207,10 @@ def _launch_add(
         if updated_spec.get("resource"):
             launch_spec["resource"] = updated_spec.get("resource")
 
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
+    if project_queue == LAUNCH_DEFAULT_PROJECT:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+    else:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     container_job = False

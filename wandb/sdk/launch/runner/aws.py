@@ -11,13 +11,18 @@ if False:
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
+from ..utils import (
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
+    LaunchError,
+    run_shell,
+    to_camel_case,
+)
 from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
@@ -107,11 +112,15 @@ class AWSSagemakerRunner(AbstractRunner):
         region = get_region(given_sagemaker_args, registry_config.get("region"))
         instance_role: bool = False
         try:
+            _logger.info("Getting ID from STS")
             client = boto3.client("sts")
             instance_role = True
             caller_id = client.get_caller_identity()
 
         except botocore.exceptions.NoCredentialsError:
+            _logger.info(
+                "No credentials provided. Trying again with credentials from env vars or ~/.aws/credentials"
+            )
             access_key, secret_key = get_aws_credentials(given_sagemaker_args)
             client = boto3.client(
                 "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
@@ -119,6 +128,7 @@ class AWSSagemakerRunner(AbstractRunner):
             caller_id = client.get_caller_identity()
 
         account_id = caller_id["Account"]
+        _logger.info(f"Using account ID {account_id}")
         role_arn = get_role_arn(given_sagemaker_args, self.backend_config, account_id)
         entry_point = launch_project.get_single_entry_point()
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
@@ -183,11 +193,13 @@ class AWSSagemakerRunner(AbstractRunner):
         else:
             assert entry_point is not None
             # build our own image
+            _logger.info("Building docker image...")
             image = builder.build_image(
                 launch_project,
                 repository,
                 entry_point,
             )
+            _logger.info(f"Docker image built with uri {image}")
 
         if not self.ack_run_queue_item(launch_project):
             return None

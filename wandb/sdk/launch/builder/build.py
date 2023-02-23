@@ -15,7 +15,6 @@ from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
-from wandb.errors import DockerError, ExecutionError, LaunchError
 
 from ...lib.git import GitRepo
 from .._project_spec import (
@@ -25,7 +24,13 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
+from ..utils import (
+    LAUNCH_CONFIG_FILE,
+    LOG_PREFIX,
+    ExecutionError,
+    LaunchError,
+    resolve_build_and_registry_config,
+)
 from .abstract import AbstractBuilder
 from .loader import load_builder
 
@@ -394,7 +399,7 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
         parsed = json.loads(data)[0]
         _inspected_images[docker_image] = parsed
         return True
-    except (DockerError, ValueError) as e:
+    except (docker.DockerError, ValueError) as e:
         if should_raise:
             raise e
         _logger.info("Base image not found. Generating new base image")
@@ -415,7 +420,7 @@ def pull_docker_image(docker_image: str) -> None:
         return
     try:
         docker.run(["docker", "pull", docker_image])
-    except DockerError as e:
+    except docker.DockerError as e:
         raise LaunchError(f"Docker server returned error: {e}")
 
 
@@ -511,8 +516,15 @@ def _create_docker_build_ctx(
 
 
 def join(split_command: List[str]) -> str:
-    """Return a shell-escaped string from *split_command*."""
-    return " ".join(shlex.quote(arg) for arg in split_command)
+    """
+    Return a shell-escaped string from *split_command*.
+    Also remove quotes from double quoted strings. Ex:
+
+    "'local container queue'" --> "local container queue"
+
+    """
+
+    return " ".join(shlex.quote(arg.replace("'", "")) for arg in split_command)
 
 
 def construct_builder_args(

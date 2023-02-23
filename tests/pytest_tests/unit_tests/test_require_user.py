@@ -25,7 +25,7 @@ def mock_require(mocker):
 
 
 def test_require_single(capsys):
-    with pytest.raises(wandb.errors.RequireError):
+    with pytest.raises(wandb.errors.UnsupportedError):
         wandb.require("something")
     captured = capsys.readouterr()
     assert "unsupported requirement: something" in captured.err
@@ -33,7 +33,7 @@ def test_require_single(capsys):
 
 
 def test_require_list(capsys):
-    with pytest.raises(wandb.errors.RequireError):
+    with pytest.raises(wandb.errors.UnsupportedError):
         wandb.require(["something", "another"])
     captured = capsys.readouterr()
     assert "unsupported requirement: something" in captured.err
@@ -41,14 +41,14 @@ def test_require_list(capsys):
 
 
 def test_require_version(capsys):
-    with pytest.raises(wandb.errors.RequireError):
+    with pytest.raises(wandb.errors.UnsupportedError):
         wandb.require("something@beta")
     captured = capsys.readouterr()
     assert "unsupported requirement: something" in captured.err
 
 
 def test_require_param(capsys):
-    with pytest.raises(wandb.errors.RequireError):
+    with pytest.raises(wandb.errors.UnsupportedError):
         wandb.require("something:param@beta")
     captured = capsys.readouterr()
     assert "unsupported requirement: something" in captured.err

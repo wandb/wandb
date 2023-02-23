@@ -12,11 +12,29 @@ import click
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
+
+
+class LaunchError(Error):
+    """Raised when a known error occurs in wandb launch"""
+
+    pass
+
+
+class ExecutionError(Error):
+    """Generic execution exception"""
+
+    pass
+
+
+class SweepError(Error):
+    """Raised when a known error occurs with wandb sweeps"""
+
+    pass
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that

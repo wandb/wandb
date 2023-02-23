@@ -5,3 +5,6 @@
 # Adding or removing dependencies needs extra scrutiny
 /setup.py @wandb/sdk-team
 /requirements.txt @wandb/sdk-team
+
+/tests/pytest_tests/unit_tests/test_launch/ @wandb/mlw-team
+/tests/pytest_tests/unit_tests_old/tests_launch/ @wandb/mlw-team

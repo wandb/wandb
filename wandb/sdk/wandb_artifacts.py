@@ -63,7 +63,6 @@ from .lib.hashutil import (
 )
 
 if TYPE_CHECKING:
-
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
     # instead of `type:ignore`ing these boto imports, but it's nontrivial:
     # for some reason, despite being actively maintained as of 2022-09-30,
@@ -76,7 +75,6 @@ if TYPE_CHECKING:
 
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
-    from wandb.sdk.internal import internal_api
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -845,7 +843,7 @@ class ArtifactManifestV1(ArtifactManifest):
     def digest(self) -> HexMD5:
         hasher = hashlib.md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
-        for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
+        for name, entry in sorted(self.entries.items(), key=lambda kv: kv[0]):
             hasher.update(f"{name}:{entry.digest}\n".encode())
         return HexMD5(hasher.hexdigest())
 
@@ -859,8 +857,13 @@ class WandbStoragePolicy(StoragePolicy):
     def from_config(cls, config: Dict) -> "WandbStoragePolicy":
         return cls(config=config)
 
-    def __init__(self, config: Optional[Dict] = None) -> None:
-        self._cache = get_artifacts_cache()
+    def __init__(
+        self,
+        config: Optional[Dict] = None,
+        cache: Optional[ArtifactsCache] = None,
+        api: Optional[InternalApi] = None,
+    ) -> None:
+        self._cache = cache or get_artifacts_cache()
         self._config = config or {}
         self._session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
@@ -879,7 +882,7 @@ class WandbStoragePolicy(StoragePolicy):
         local_artifact = WBLocalArtifactHandler()
         file_handler = LocalFileHandler()
 
-        self._api = InternalApi()
+        self._api = api or InternalApi()
         self._handler = MultiHandler(
             handlers=[
                 s3,
@@ -980,15 +983,14 @@ class WandbStoragePolicy(StoragePolicy):
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
 
-        def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
-            return {
+        resp = preparer.prepare(
+            {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-
-        resp = preparer.prepare(_prepare_fn)
+        )
 
         entry.birth_artifact_id = resp.birth_artifact_id
         if resp.upload_url is None:
@@ -1021,7 +1023,7 @@ class WandbStoragePolicy(StoragePolicy):
 
 
 # Don't use this yet!
-class __S3BucketPolicy(StoragePolicy):
+class __S3BucketPolicy(StoragePolicy):  # noqa: N801
     @classmethod
     def name(cls) -> str:
         return "wandb-s3-bucket-policy-v1"
@@ -1269,7 +1271,7 @@ class LocalFileHandler(StorageHandler):
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
-                    if i >= max_objects:
+                    if i > max_objects:
                         raise ValueError(
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
@@ -1327,6 +1329,7 @@ class S3Handler(StorageHandler):
         boto: "boto3" = util.get_module(
             "boto3",
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
+            lazy=False,
         )
         self._s3 = boto.session.Session().resource(
             "s3",
@@ -1488,7 +1491,7 @@ class S3Handler(StorageHandler):
         ]
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        if len(entries) >= max_objects:
+        if len(entries) > max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
                 % max_objects
@@ -1717,7 +1720,7 @@ class GCSHandler(StorageHandler):
         ]
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        if len(entries) >= max_objects:
+        if len(entries) > max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
                 % max_objects
