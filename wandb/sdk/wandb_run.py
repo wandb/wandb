@@ -3686,7 +3686,7 @@ class InvalidArtifact:
 
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
-    _instance: Optional[ArtifactInterface] = None
+    _instance: Union[ArtifactInterface, InvalidArtifact]
     _future: Any
 
     def __init__(self, api: PublicApi, future: Any):
