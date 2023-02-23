@@ -3811,7 +3811,7 @@ class _LazyArtifact(ArtifactInterface):
         return self._instance.verify(root)
 
     def save(self) -> None:
-        return self._instance.save()
+        self._instance.save()
 
     def delete(self) -> None:
-        return self._instance.delete()
+        self._instance.delete()

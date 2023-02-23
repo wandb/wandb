@@ -110,7 +110,9 @@ def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 class ArtifactNotLoggedError(Exception):
     """Raised for Artifact methods or attributes that require the logged artifact."""
 
-    def __init__(self, artifact: "Artifact" = None, attr: Optional[str] = None):
+    def __init__(
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
+    ):
         desc = artifact.__class__.__name__ if artifact else "Artifact"
         desc += f".{attr}" if attr else ""
         super().__init__(
