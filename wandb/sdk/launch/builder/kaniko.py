@@ -194,7 +194,7 @@ class KanikoBuilder(AbstractBuilder):
             raise LaunchError("Unsupported storage provider")
 
     def check_build_required(
-        self, repository: str, launch_project: LaunchProject
+        self, image_tag: str, repository: str, launch_project: LaunchProject
     ) -> bool:
         # TODO(kyle): Robustify to remote the trycatch
         try:
@@ -211,7 +211,7 @@ class KanikoBuilder(AbstractBuilder):
                 try:
                     ecr_client.describe_images(
                         repositoryName=repo_name,
-                        imageIds=[{"imageTag": launch_project.image_tag}],
+                        imageIds=[{"imageTag": image_tag}],
                     )
                     return False
                 except ecr_client.exceptions.ImageNotFoundException:
@@ -241,7 +241,7 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = f"{repository}:{image_tag}"
 
         if not launch_project.build_required() and not self.check_build_required(
-            repository, launch_project
+            image_tag, repository, launch_project
         ):
             _logger.info(f"Using cached image: {image_uri}")
             return image_uri

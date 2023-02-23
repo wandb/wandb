@@ -424,16 +424,6 @@ def pull_docker_image(docker_image: str) -> None:
         raise LaunchError(f"Docker server returned error: {e}")
 
 
-def construct_gcp_image_uri(
-    launch_project: LaunchProject,
-    gcp_repo: str,
-    gcp_project: str,
-    gcp_registry: str,
-) -> str:
-    base_uri = launch_project.image_uri
-    return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
-
-
 def construct_gcp_registry_uri(
     gcp_repo: str, gcp_project: str, gcp_registry: str
 ) -> str:
@@ -591,5 +581,5 @@ def image_tag_from_dockerfile_and_source(
     """Converts the source and dockerfile contents into a docker image tag"""
     image_source_string = launch_project.get_image_source_string()
     unique_id_string = image_source_string + dockerfile_contents
-    image_id = hashlib.sha256(unique_id_string.encode("utf-8")).hexdigest()[:8]
-    return image_id
+    image_tag = hashlib.sha256(unique_id_string.encode("utf-8")).hexdigest()[:8]
+    return image_tag

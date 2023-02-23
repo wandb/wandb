@@ -100,8 +100,6 @@ class LaunchProject:
         self.cuda = cuda
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
-        self._image_tag: str = self._initialize_image_job_tag() or self.run_id
-        # wandb.termlog(f"{LOG_PREFIX}Launch project using image tag {self._image_tag}")
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -201,12 +199,6 @@ class LaunchProject:
             _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")
             return wandb.util.make_docker_image_name_safe(_image_tag)
         return None
-
-    @property
-    def image_uri(self) -> str:
-        if self.docker_image:
-            return self.docker_image
-        return f"{self.image_name}:{self.image_tag}"
 
     @property
     def image_tag(self) -> str:
@@ -332,11 +324,7 @@ class LaunchProject:
                 internal_api,
                 self.project_dir,
             )
-            if downloaded_code_artifact:
-                self._image_tag = binascii.hexlify(
-                    downloaded_code_artifact.digest.encode()
-                ).decode()
-            else:
+            if not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise LaunchError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
@@ -351,12 +339,8 @@ class LaunchProject:
                 patch = utils.fetch_project_diff(
                     source_entity, source_project, source_run_name, internal_api
                 )
-                tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
-                    tag_string += patch
-
-                self._image_tag = binascii.hexlify(tag_string.encode()).decode()
 
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):
