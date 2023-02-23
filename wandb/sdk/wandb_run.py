@@ -86,7 +86,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_artifacts import Artifact
+from .wandb_artifacts import Artifact, ArtifactNotLoggedError
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
@@ -3668,6 +3668,22 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
 
 
+class InvalidArtifact:
+    """An "artifact" that raises an error when any properties are accessed."""
+
+    def __init__(self, base_artifact: "ArtifactInterface"):
+        super().__setattr__("base_artifact", base_artifact)
+
+    def __getattr__(self, __name: str) -> Any:
+        raise ArtifactNotLoggedError(artifact=self.base_artifact, attr=__name)
+
+    def __setattr__(self, __name: str, __value: Any) -> None:
+        raise ArtifactNotLoggedError(artifact=self.base_artifact, attr=__name)
+
+    def __bool__(self) -> bool:
+        return False
+
+
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
     _instance: Optional[ArtifactInterface] = None
@@ -3675,17 +3691,10 @@ class _LazyArtifact(ArtifactInterface):
 
     def __init__(self, api: PublicApi, future: Any):
         self._api = api
+        self._instance = InvalidArtifact(self)
         self._future = future
 
-    def _assert_instance(self) -> ArtifactInterface:
-        if not self._instance:
-            raise ValueError(
-                "Must call wait() before accessing logged artifact properties"
-            )
-        return self._instance
-
     def __getattr__(self, item: str) -> Any:
-        self._assert_instance()
         return getattr(self._instance, item)
 
     def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
@@ -3708,88 +3717,88 @@ class _LazyArtifact(ArtifactInterface):
 
     @property
     def id(self) -> Optional[str]:
-        return self._assert_instance().id
+        return self._instance.id
 
     @property
     def source_version(self) -> Optional[str]:
-        return self._assert_instance().source_version
+        return self._instance.source_version
 
     @property
     def version(self) -> str:
-        return self._assert_instance().version
+        return self._instance.version
 
     @property
     def name(self) -> str:
-        return self._assert_instance().name
+        return self._instance.name
 
     @property
     def type(self) -> str:
-        return self._assert_instance().type
+        return self._instance.type
 
     @property
     def entity(self) -> str:
-        return self._assert_instance().entity
+        return self._instance.entity
 
     @property
     def project(self) -> str:
-        return self._assert_instance().project
+        return self._instance.project
 
     @property
     def manifest(self) -> "ArtifactManifest":
-        return self._assert_instance().manifest
+        return self._instance.manifest
 
     @property
     def digest(self) -> str:
-        return self._assert_instance().digest
+        return self._instance.digest
 
     @property
     def state(self) -> str:
-        return self._assert_instance().state
+        return self._instance.state
 
     @property
     def size(self) -> int:
-        return self._assert_instance().size
+        return self._instance.size
 
     @property
     def commit_hash(self) -> str:
-        return self._assert_instance().commit_hash
+        return self._instance.commit_hash
 
     @property
     def description(self) -> Optional[str]:
-        return self._assert_instance().description
+        return self._instance.description
 
     @description.setter
     def description(self, desc: Optional[str]) -> None:
-        self._assert_instance().description = desc
+        self._instance.description = desc
 
     @property
     def metadata(self) -> dict:
-        return self._assert_instance().metadata
+        return self._instance.metadata
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
-        self._assert_instance().metadata = metadata
+        self._instance.metadata = metadata
 
     @property
     def aliases(self) -> List[str]:
-        return self._assert_instance().aliases
+        return self._instance.aliases
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
-        self._assert_instance().aliases = aliases
+        self._instance.aliases = aliases
 
     def used_by(self) -> List["wandb.apis.public.Run"]:
-        return self._assert_instance().used_by()
+        return self._instance.used_by()
 
     def logged_by(self) -> "wandb.apis.public.Run":
-        return self._assert_instance().logged_by()
+        return self._instance.logged_by()
 
     # Commenting this block out since this code is unreachable since LocalArtifact
     # overrides them and therefore untestable.
     # Leaving behind as we may want to support these in the future.
 
     # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().new_file(name, mode)
+    #     return self._instance.new_file(name, mode)
 
     # def add_file(
     #     self,
@@ -3797,10 +3806,10 @@ class _LazyArtifact(ArtifactInterface):
     #     name: Optional[str] = None,
     #     is_tmp: Optional[bool] = False,
     # ) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add_file(local_path, name, is_tmp)
+    #     return self._instance.add_file(local_path, name, is_tmp)
 
     # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
-    #     return self._assert_instance().add_dir(local_path, name)
+    #     return self._instance.add_dir(local_path, name)
 
     # def add_reference(
     #     self,
@@ -3809,30 +3818,30 @@ class _LazyArtifact(ArtifactInterface):
     #     checksum: bool = True,
     #     max_objects: Optional[int] = None,
     # ) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
+    #     return self._instance.add_reference(uri, name, checksum, max_objects)
 
     # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add(obj, name)
+    #     return self._instance.add(obj, name)
 
     def get_path(self, name: str) -> "ArtifactManifestEntry":
-        return self._assert_instance().get_path(name)
+        return self._instance.get_path(name)
 
     def get(self, name: str) -> "WBValue":
-        return self._assert_instance().get(name)
+        return self._instance.get(name)
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
     ) -> util.FilePathStr:
-        return self._assert_instance().download(root, recursive)
+        return self._instance.download(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:
-        return self._assert_instance().checkout(root)
+        return self._instance.checkout(root)
 
     def verify(self, root: Optional[str] = None) -> Any:
-        return self._assert_instance().verify(root)
+        return self._instance.verify(root)
 
     def save(self) -> None:
-        return self._assert_instance().save()
+        return self._instance.save()
 
     def delete(self) -> None:
-        return self._assert_instance().delete()
+        return self._instance.delete()
