@@ -1204,7 +1204,7 @@ class Settings:
         source: int = Source.OVERRIDE,
         **kwargs: Any,
     ) -> None:
-        """Update individual settings using the Property.update() method."""
+        """Update individual settings."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
             raise TypeError("Settings object is frozen")
 
