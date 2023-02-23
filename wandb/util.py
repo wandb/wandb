@@ -1143,7 +1143,7 @@ def get_log_file_path() -> str:
 
 
 def docker_image_regex(image: str) -> Any:
-    """regex for valid docker image names."""
+    """Regex match for valid docker image names."""
     if image:
         return re.match(
             r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$",
@@ -1557,20 +1557,20 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
 
 
 def host_from_path(path: Optional[str]) -> str:
-    """returns the host of the path."""
+    """Return the host of the path."""
     url = urllib.parse.urlparse(path)
     return str(url.netloc)
 
 
 def uri_from_path(path: Optional[str]) -> str:
-    """returns the URI of the path."""
+    """Return the URI of the path."""
     url = urllib.parse.urlparse(path)
     uri = url.path if url.path[0] != "/" else url.path[1:]
     return str(uri)
 
 
 def is_unicode_safe(stream: TextIO) -> bool:
-    """returns true if the stream supports UTF-8."""
+    """Return True if the stream supports UTF-8."""
     encoding = getattr(stream, "encoding", None)
     return encoding.lower() in {"utf-8", "utf_8"} if encoding else False
 

@@ -381,7 +381,7 @@ def test_metric_nested_mult(relay_server, wandb_init):
 
 
 def test_metric_dotted(relay_server, wandb_init):
-    """escaped dotted define metric matches dotted metrics."""
+    """Escape dots in metric definitions."""
     with relay_server() as relay:
         run = wandb_init()
         run_id = run.id
