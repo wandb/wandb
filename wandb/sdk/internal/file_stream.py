@@ -103,7 +103,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
 
 
 class StreamCRState:
-    """There are two streams: stdout and stderr.
+    r"""There are two streams: stdout and stderr.
     We create two instances for each stream.
     An instance holds state about:
         found_cr:       if a carriage return has been found in this stream.
@@ -124,7 +124,7 @@ class StreamCRState:
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
-    """File stream policy that removes characters that would be erased by
+    r"""File stream policy that removes characters that would be erased by
     carriage returns.
 
     This is what a terminal does. We use it for console output to reduce the
@@ -175,7 +175,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     @staticmethod
     def split_chunk(chunk: Chunk) -> Tuple[str, str]:
-        """Args:
+        r"""Args:
             chunk: object with two fields: filename (str) & data (str)
             `chunk.data` is a str containing the lines we want. It usually contains \n or \r or both.
             `chunk.data` has two possible formats (for the two streams - stdout and stderr):
@@ -204,7 +204,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         return prefix, rest
 
     def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
-        """Args:
+        r"""Args:
             chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
 
         Returns:
