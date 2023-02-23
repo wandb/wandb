@@ -470,10 +470,9 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
             raise LaunchError(
-                "Unable to checkout version '{version}' of git repo {uri}"
+                f"Unable to checkout version '{version}' of git repo {uri}"
                 "- please ensure that the version exists in the repo. "
-                "Error: {e}",
-                extras=dict(version=version, uri=uri, error=e),
+                f"Error: {e}"
             ) from e
     else:
         if getattr(repo, "references", None) is not None:
@@ -494,10 +493,9 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
             )
         except (AttributeError, IndexError) as e:
             raise LaunchError(
-                "Unable to checkout default version '{version}' of git repo {uri} "
+                f"Unable to checkout default version '{version}' of git repo {uri} "
                 "- to specify a git version use: --git-version \n"
-                "Error: {e}",
-                extras=dict(version=version, uri=uri, error=e),
+                f"Error: {e}"
             ) from e
 
     repo.submodule_update(init=True, recursive=True)
