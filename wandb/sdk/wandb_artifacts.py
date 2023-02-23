@@ -384,13 +384,13 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.used_by()
 
-        raise ArtifactNotLoggedError(self, "used_by()")
+        raise ArtifactNotLoggedError(self, "used_by")
 
     def logged_by(self) -> "wandb.apis.public.Run":
         if self._logged_artifact:
             return self._logged_artifact.logged_by()
 
-        raise ArtifactNotLoggedError(self, "logged_by()")
+        raise ArtifactNotLoggedError(self, "logged_by")
 
     @contextlib.contextmanager
     def new_file(
@@ -589,13 +589,13 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.get_path(name)
 
-        raise ArtifactNotLoggedError(self, "get_path()")
+        raise ArtifactNotLoggedError(self, "get_path")
 
     def get(self, name: str) -> data_types.WBValue:
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
-        raise ArtifactNotLoggedError(self, "get()")
+        raise ArtifactNotLoggedError(self, "get")
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
@@ -603,19 +603,19 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 
-        raise ArtifactNotLoggedError(self, "download()")
+        raise ArtifactNotLoggedError(self, "download")
 
     def checkout(self, root: Optional[str] = None) -> str:
         if self._logged_artifact:
             return self._logged_artifact.checkout(root=root)
 
-        raise ArtifactNotLoggedError(self, "checkout()")
+        raise ArtifactNotLoggedError(self, "checkout")
 
     def verify(self, root: Optional[str] = None) -> bool:
         if self._logged_artifact:
             return self._logged_artifact.verify(root=root)
 
-        raise ArtifactNotLoggedError(self, "verify()")
+        raise ArtifactNotLoggedError(self, "verify")
 
     def save(
         self,
