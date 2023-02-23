@@ -276,6 +276,8 @@ class LaunchAgent:
                 continue
 
             if _job_is_scheduler(job.get("runSpec")):
+                # If job is a scheduler, and we are already at the cap, ignore,
+                #    don't ack, and it will be pushed back onto the queue in 1 min
                 if len(self._schedulers) >= self._max_schedulers:
                     wandb.termwarn(
                         f"{LOG_PREFIX}Agent already running the maximum number "
@@ -305,6 +307,9 @@ class LaunchAgent:
                     raise KeyboardInterrupt
 
                 # only check for new jobs/schedulers if we're not at max JOBS
+                # even if there is room for another scheduler, don't pop from
+                # queues, to prevent churning through the entire queue looking
+                # for schedulers
                 if len(self._jobs) < self._max_jobs:
                     self._poll_queues_and_run_jobs()
 
