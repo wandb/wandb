@@ -627,13 +627,14 @@ class Api:
         return parts
 
     def _parse_path(self, path):
-        """Parses paths in the following formats:
+        """Parse url, filepath, or docker paths.
 
-        url: entity/project/runs/id
-        path: entity/project/id
-        docker: entity/project:id
+        Allows paths in the following formats:
+        - url: entity/project/runs/id
+        - path: entity/project/id
+        - docker: entity/project:id
 
-        entity is optional and will fall back to the current logged-in user.
+        Entity is optional and will fall back to the current logged-in user.
         """
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity

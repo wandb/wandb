@@ -1208,12 +1208,12 @@ def load_yaml(file: Any) -> Any:
 
 
 def image_id_from_k8s() -> Optional[str]:
-    """Pings the k8s metadata service for the image id.  Specify the
-    KUBERNETES_NAMESPACE environment variable if your pods are not in
-    the default namespace:
+    """Ping the k8s metadata service for the image id.
 
-    - name: KUBERNETES_NAMESPACE
-      valueFrom:
+    Specify the KUBERNETES_NAMESPACE environment variable if your pods are not in the
+    default namespace:
+
+    - name: KUBERNETES_NAMESPACE valueFrom:
         fieldRef:
           fieldPath: metadata.namespace
     """

@@ -474,6 +474,7 @@ def check_server_health(
     base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
 ) -> bool:
     """Check if wandb server is healthy.
+
     :param base_url:
     :param num_retries:
     :param sleep_time:
@@ -517,8 +518,10 @@ def check_server_up(
     wandb_server_tag: str = "master",
     wandb_server_pull: Literal["missing", "always"] = "missing",
 ) -> bool:
-    """Check if wandb server is up and running;
-    if not on the CI and the server is not running, then start it first.
+    """Check if wandb server is up and running.
+
+    If not on the CI and the server is not running, then start it first.
+
     :param base_url:
     :param wandb_server_tag:
     :param wandb_server_pull:

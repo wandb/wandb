@@ -266,7 +266,8 @@ class GCE:
         return p.returncode
 
     def delete_vm(self) -> int:
-        """Delete the VM
+        """Delete the VM.
+
         :return:
         """
         p = subprocess.run(
