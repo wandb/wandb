@@ -190,15 +190,6 @@ class LaunchProject:
         else:
             return True
 
-    def _initialize_image_job_tag(self) -> Optional[str]:
-        if self._job_artifact is not None:
-            collection_name, alias = self._job_artifact.name.split(":")
-            # Alias is used to differentiate images between jobs of the same sequence
-            _image_tag = f"{alias}-{collection_name}"
-            _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")
-            return wandb.util.make_docker_image_name_safe(_image_tag)
-        return None
-
     @property
     def docker_image(self) -> Optional[str]:
         return self._docker_image
