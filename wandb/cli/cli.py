@@ -928,7 +928,7 @@ def sweep(
             "--project",
             project,
             "--num_workers",
-            config.get("scheduler", {}).get("num_workers", 8),
+            f'{config.get("scheduler", {}).get("num_workers", 8)}',
         ]
 
         if _job:
