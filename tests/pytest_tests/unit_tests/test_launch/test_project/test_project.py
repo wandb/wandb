@@ -6,7 +6,6 @@ from wandb.sdk.launch._project_spec import LaunchProject
 def test_project_build_required():
     mock_args = {
         "job": "mock-test-entity/mock-test-project/mock-test-job:v0",
-        "entity": "mock-test-entity",
         "api": MagicMock(),
         "launch_spec": {},
         "target_entity": "mock-test-entity",
@@ -30,7 +29,6 @@ def test_project_build_required():
 def test_project_image_source_string():
     mock_args = {
         "job": "mock-test-entity/mock-test-project/mock-test-job:v0",
-        "entity": "mock-test-entity",
         "api": MagicMock(),
         "launch_spec": {},
         "target_entity": "mock-test-entity",
