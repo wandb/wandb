@@ -192,7 +192,7 @@ def runner_from_config(
         LaunchError: If the runner is not configured correctly.
     """
     # fmt: off
-    if runner_name == "local-container" or not runner_name:
+    if not runner_name or runner_name == "local-container":
         from .runner.local_container import LocalContainerRunner
         return LocalContainerRunner(api, runner_config, environment)
     if runner_name == "local-process":
