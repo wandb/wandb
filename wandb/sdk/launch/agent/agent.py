@@ -12,9 +12,9 @@ from threading import Lock
 from typing import Any, Dict, List, Union
 
 import wandb
-from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 import wandb.util as util
 from wandb.apis.internal import Api
+from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.lib import runid
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
