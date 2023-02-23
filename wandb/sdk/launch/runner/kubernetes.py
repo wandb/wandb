@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import time
 from typing import Any, Dict, List, Optional
 
@@ -10,7 +11,6 @@ from kubernetes.client.models.v1_job import V1Job  # type: ignore
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
 
 import wandb
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module, load_json_yaml_dict
 
@@ -19,6 +19,7 @@ from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
+    LaunchError,
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
@@ -28,6 +29,9 @@ TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
     60  # default 10 second loop time on the agent, this is 10 minutes
 )
+FAIL_MESSAGE_INTERVAL = 60
+
+_logger = logging.getLogger(__name__)
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -81,11 +85,16 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.pod_names[0], namespace=self.namespace
             )
         except Exception as e:
-            if self._fail_count == 1:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to 10 minutes for job to start."
-                )
+            now = time.time()
+            if self._fail_count == 0:
+                self._fail_first_msg_time = now
+                self._fail_last_msg_time = 0.0
             self._fail_count += 1
+            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
+                wandb.termlog(
+                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes for job to start."
+                )
+                self._fail_last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 raise LaunchError(
                     f"Failed to start job {self.name}, because of error {str(e)}"
@@ -269,6 +278,7 @@ class KubernetesRunner(AbstractRunner):
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
+        _logger.info(f"Running Kubernetes job with resource args: {resource_args}")
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
@@ -364,6 +374,9 @@ class KubernetesRunner(AbstractRunner):
         kubernetes_style_env_vars = [
             {"name": k, "value": v} for k, v in env_vars.items()
         ]
+        _logger.info(
+            f"Using environment variables: {given_env_vars + kubernetes_style_env_vars}"
+        )
         for cont in containers:
             cont["env"] = given_env_vars + kubernetes_style_env_vars
         pod_spec["containers"] = containers
@@ -382,6 +395,7 @@ class KubernetesRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
+        _logger.info(f"Creating Kubernetes job from: {job_dict}")
         job_response = kubernetes.utils.create_from_yaml(
             api_client, yaml_objects=[job_dict], namespace=namespace
         )[0][

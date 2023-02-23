@@ -47,11 +47,16 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, _fetch_git_repo, apply_patch
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    LaunchError,
+    _fetch_git_repo,
+    apply_patch,
+)
 from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
@@ -2050,15 +2055,15 @@ class Run(Attrs):
         the history records being sampled.
 
         Arguments:
-            samples (int, optional): The number of samples to return
-            pandas (bool, optional): Return a pandas dataframe
-            keys (list, optional): Only return metrics for specific keys
-            x_axis (str, optional): Use this metric as the xAxis defaults to _step
-            stream (str, optional): "default" for metrics, "system" for machine metrics
+            samples : (int, optional) The number of samples to return
+            pandas : (bool, optional) Return a pandas dataframe
+            keys : (list, optional) Only return metrics for specific keys
+            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
+            stream : (str, optional) "default" for metrics, "system" for machine metrics
 
         Returns:
-            If pandas=True returns a `pandas.DataFrame` of history metrics.
-            If pandas=False returns a list of dicts of history metrics.
+            pandas.DataFrame: If pandas=True returns a `pandas.DataFrame` of history metrics.
+            list of dicts: If pandas=False returns a list of dicts of history metrics.
         """
         if keys is not None and not isinstance(keys, list):
             wandb.termerror("keys must be specified in a list")
@@ -4353,6 +4358,19 @@ class Artifact(artifacts.Artifact):
         self._attrs = attrs
         if self._attrs is None:
             self._load()
+
+        # The entity and project above are taken from the passed-in artifact version path
+        # so if the user is pulling an artifact version from an artifact portfolio, the entity/project
+        # of that portfolio may be different than the birth entity/project of the artifact version.
+        self._birth_project = (
+            self._attrs.get("artifactType", {}).get("project", {}).get("name")
+        )
+        self._birth_entity = (
+            self._attrs.get("artifactType", {})
+            .get("project", {})
+            .get("entity", {})
+            .get("name")
+        )
         self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
@@ -5406,8 +5424,8 @@ class ArtifactFiles(Paginator):
     ):
         self.artifact = artifact
         variables = {
-            "entityName": artifact.entity,
-            "projectName": artifact.project,
+            "entityName": artifact._birth_entity,
+            "projectName": artifact._birth_project,
             "artifactTypeName": artifact.type,
             "artifactName": artifact.name,
             "fileNames": names,

@@ -4,7 +4,7 @@ import os
 import pytest
 import wandb
 from wandb.cli import cli
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -254,6 +254,7 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                 {
                     "name": "My Sweep",
                     "method": "grid",
+                    "job": "test-job:v9",
                     "parameters": {"parameter1": {"values": [1, 2, 3]}},
                 },
                 f,
@@ -263,7 +264,6 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                 {
                     "queue": "default",
                     "resource": "local-process",
-                    "job": "mock-launch-job",
                     "scheduler": {
                         "resource": "local-process",
                     },

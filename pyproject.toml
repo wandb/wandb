@@ -20,6 +20,26 @@ skip = ["wandb/__init__.py"]
 extend_skip_glob = ["wandb/vendor/**", "wandb/proto/**"]
 skip_gitignore = "True"
 
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+major_version_zero = true
+version = "0.13.11.dev1"
+version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
+tag_format = "v$major.$minor.$patch$prerelease"
+changelog_incremental = true
+#post_bump_hooks = [
+#  "tools/cz_version_to_dev.sh",
+#]
+
+[tool.commitizen.change_type_map]
+"feat" = ":sparkles: Enhancements"
+"fix" = ":hammer: Fixes"
+"refactor" = ":nail_care: Cleanup"
+"perf" = ":rocket: Performance"
+security = ":lock: Security"
+
+
 [tool.ruff]
 select = ["F", "E", "W", "B", "I", "N", "C90"]
 ignore = ["B904", "E501"]

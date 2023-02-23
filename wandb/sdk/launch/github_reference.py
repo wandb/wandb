@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 
 PREFIX_HTTPS = "https://"
 PREFIX_SSH = "git@"

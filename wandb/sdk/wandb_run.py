@@ -39,7 +39,6 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import MailboxError
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -82,7 +81,7 @@ from .lib import (
 )
 from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
-from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
+from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
@@ -359,7 +358,7 @@ class _run_decorator:  # noqa: N801
                     settings = getattr(self, "_settings", None)
                     if settings and settings["strict"]:
                         wandb.termerror(message, repeat=False)
-                        raise errors.MultiprocessError(
+                        raise errors.UnsupportedError(
                             f"`{func.__name__}` does not support multiprocessing"
                         )
                     wandb.termwarn(message, repeat=False)
@@ -639,7 +638,7 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if self._settings._require_service:
+        if not self._settings._disable_service:
             self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
@@ -776,7 +775,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Custom pickler."""
         # We only pickle in service mode
-        if not self._settings or not self._settings._require_service:
+        if not self._settings or self._settings._disable_service:
             return
 
         _attach_id = self._attach_id
@@ -1960,7 +1959,7 @@ class Run:
             console = self._settings._console
         # only use raw for service to minimize potential changes
         if console == SettingsConsole.WRAP:
-            if self._settings._require_service:
+            if not self._settings._disable_service:
                 console = SettingsConsole.WRAP_RAW
             else:
                 console = SettingsConsole.WRAP_EMU
