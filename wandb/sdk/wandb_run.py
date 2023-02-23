@@ -3793,36 +3793,6 @@ class _LazyArtifact(ArtifactInterface):
     def logged_by(self) -> "wandb.apis.public.Run":
         return self._instance.logged_by()
 
-    # Commenting this block out since this code is unreachable since LocalArtifact
-    # overrides them and therefore untestable.
-    # Leaving behind as we may want to support these in the future.
-
-    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
-    #     return self._instance.new_file(name, mode)
-
-    # def add_file(
-    #     self,
-    #     local_path: str,
-    #     name: Optional[str] = None,
-    #     is_tmp: Optional[bool] = False,
-    # ) -> Any:  # TODO: Refine Type
-    #     return self._instance.add_file(local_path, name, is_tmp)
-
-    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
-    #     return self._instance.add_dir(local_path, name)
-
-    # def add_reference(
-    #     self,
-    #     uri: Union["ArtifactManifestEntry", str],
-    #     name: Optional[str] = None,
-    #     checksum: bool = True,
-    #     max_objects: Optional[int] = None,
-    # ) -> Any:  # TODO: Refine Type
-    #     return self._instance.add_reference(uri, name, checksum, max_objects)
-
-    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
-    #     return self._instance.add(obj, name)
-
     def get_path(self, name: str) -> "ArtifactManifestEntry":
         return self._instance.get_path(name)
 
