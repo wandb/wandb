@@ -2,7 +2,6 @@
 Internal utility for converting arguments from a launch spec or call to wandb launch
 into a runnable wandb launch script
 """
-import binascii
 import enum
 import json
 import logging
@@ -199,12 +198,6 @@ class LaunchProject:
             _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")
             return wandb.util.make_docker_image_name_safe(_image_tag)
         return None
-
-    @property
-    def image_tag(self) -> str:
-        if self._image_tag is None:
-            raise LaunchError("Image tag is not set")
-        return self._image_tag
 
     @property
     def docker_image(self) -> Optional[str]:
