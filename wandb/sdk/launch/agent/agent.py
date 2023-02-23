@@ -8,6 +8,7 @@ import pprint
 import time
 import traceback
 from multiprocessing import Manager, Pool
+from threading import Lock
 from typing import Any, Dict, List, Union
 
 import wandb
@@ -36,11 +37,11 @@ AGENT_KILLED = "KILLED"
 _logger = logging.getLogger(__name__)
 
 
-def init_pool_processes(jobs, lock):
+def init_pool_processes(jobs: Dict[str, int], lock: Lock) -> None:
     global _jobs
     global _lock
-    _jobs = jobs
-    _lock = lock
+    _jobs = jobs  # type: ignore
+    _lock = lock  # type: ignore
 
 
 def thread_run_job(
@@ -48,7 +49,7 @@ def thread_run_job(
     job: Dict[str, Any],
     default_config: Dict[str, Any],
     api: Api,
-):
+) -> None:
     project = create_project_from_spec(launch_spec, api)
     _logger.info("Fetching and validating project...")
     project = fetch_and_validate_project(project, api)
@@ -78,17 +79,17 @@ def thread_run_job(
 
     if not run:
         return
-    with _lock:
-        _jobs[run.id] = 1
+    with _lock:  # type: ignore
+        _jobs[run.id] = 1  # type: ignore
     while True:
         if _is_run_finished(run):
-            with _lock:
-                del _jobs[run.id]
+            with _lock:  # type: ignore
+                del _jobs[run.id]  # type: ignore
             return
         time.sleep(AGENT_POLLING_INTERVAL)
 
 
-def _is_run_finished(run: AbstractRun) -> None:
+def _is_run_finished(run: AbstractRun) -> bool:
     """Check our status enum."""
     try:
         if run.get_status().state in ["failed", "finished"]:
