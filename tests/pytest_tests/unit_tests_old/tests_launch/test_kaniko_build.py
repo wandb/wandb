@@ -420,7 +420,7 @@ def test_build_image_success(
         image_uri = builder.build_image(project, "repository-url", entry_point)
         assert "defaulting to building" in capsys.readouterr().err
         # the string below is the result of the hash
-        assert image_uri == "repository-url:b60e433c\"
+        assert image_uri == "repository-url:b60e433c"
 
 
 def test_kaniko_build_no_cloud_provider():
