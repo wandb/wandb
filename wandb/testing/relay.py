@@ -90,9 +90,10 @@ class Timer:
 
 
 class Context:
-    """Implements a container used to store the snooped state/data of a test,
-    including raw requests and responses; parsed and processed data; and
-    a number of convenience methods and properties for accessing the data.
+    """A container used to store the snooped state/data of a test.
+
+    Includes raw requests and responses, parsed and processed data, and a number of
+    convenience methods and properties for accessing the data.
     """
 
     def __init__(self) -> None:
@@ -241,8 +242,9 @@ class Context:
 
 
 class QueryResolver:
-    """Resolves request/response pairs against a set of known patterns
-    to extract and process useful data, to be later stored in a Context object.
+    """Resolve request/response pairs against a set of known patterns.
+
+    This extracts and processes useful data to be later stored in a Context object.
     """
 
     def __init__(self):
@@ -466,8 +468,10 @@ class InjectedResponse:
         self,
         other: Union["InjectedResponse", requests.Request, requests.PreparedRequest],
     ):
-        """Equality check for InjectedResponse objects.
-        We use this to check if this response should be injected as a replacement of `other`.
+        """Check InjectedResponse object equality.
+
+        We use this to check if this response should be injected as a replacement of
+        `other`.
 
         :param other:
         :return:

@@ -12,8 +12,9 @@ def _get_dict(d):
 
 
 class SummaryDict(metaclass=abc.ABCMeta):
-    """dict-like which wraps all nested dictionaries in a SummarySubDict,
-    and triggers self._root._callback on property changes.
+    """dict-like wrapper for the nested dictionaries in a SummarySubDict.
+
+    Triggers self._root._callback on property changes.
     """
 
     @abc.abstractmethod
@@ -128,8 +129,9 @@ class Summary(SummaryDict):
 
 
 class SummarySubDict(SummaryDict):
-    """Non-root node of the summary data structure. Contains a path to itself
-    from the root.
+    """Non-root node of the summary data structure.
+
+    Contains a path to itself from the root.
     """
 
     _items: t.Dict

@@ -733,9 +733,9 @@ class Settings:
     # helper methods for validating values
     @staticmethod
     def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """Factory for type validators, given a type hint:
-        Convert the type hint of a setting into a function
-        that checks if the argument is of the correct type.
+        """Factory for type validators.
+
+        Given a type hint for a setting into a function that type checks the argument.
         """
         origin, args = get_origin(hint), get_args(hint)
 
@@ -1017,6 +1017,7 @@ class Settings:
 
     def _set_run_start_time(self, source: int = Source.BASE) -> None:
         """Set the time stamps for the settings.
+
         Called once the run is initialized.
         """
         time_stamp: float = time.time()

@@ -23,8 +23,9 @@ def subdict(d, expected_dict):
 
 
 def matplotlib_multiple_axes_figures(total_plot_count=3, data=(1, 2, 3)):
-    """Helper generator which  create a figure containing up to `total_plot_count`
-    axes and optionally adds `data` to each axes in a permutation-style loop.
+    """Create a figure containing up to `total_plot_count` axes.
+
+    Optionally adds `data` to each axes in a permutation-style loop.
     """
     for num_plots in range(1, total_plot_count + 1):
         for permutation in range(2**num_plots):
@@ -352,9 +353,11 @@ def test_matplotlib_image():
 
 
 def test_matplotlib_image_with_multiple_axes():
-    """Ensures that wandb.Image constructor can accept a pyplot or figure
-    reference in which the figure has multiple axes. Importantly, there is
-    no requirement that any of the axes have plotted data.
+    """Test multiple axis pyplot or figure references.
+
+    Ensure that wandb.Image constructor accepts a pyplot or figure reference when the
+    figure has multiple axes. Importantly, there is no requirement that any of the axes
+    have plotted data.
     """
     for fig in matplotlib_multiple_axes_figures():
         wandb.Image(fig)  # this should not error.

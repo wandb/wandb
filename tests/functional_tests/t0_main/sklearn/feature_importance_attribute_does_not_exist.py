@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-"""Tests that feature importance visualization is not produced on model without feature importances
+"""Ensure feature importance visualization is not produced on model without feature importances.
+
 ---
 id: 0.sklearn.feature_importance_attribute_does_not_exist
 tag:

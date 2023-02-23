@@ -1,6 +1,8 @@
-"""These test the full stack by launching a real backend server.  You won't get
-credit for coverage of the backend logic in these tests.  See test_sender.py for testing
-specific backend logic, or wandb_test.py for testing frontend logic.
+"""Test the full stack by launching a real backend server.
+
+You won't get credit for coverage of the backend logic in these tests.  See
+test_sender.py for testing specific backend logic, or wandb_test.py for testing frontend
+logic.
 
 Be sure to use `test_settings` or an isolated directory
 """

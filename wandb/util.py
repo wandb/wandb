@@ -293,12 +293,19 @@ def sentry_set_scope(
 
 
 def vendor_setup() -> Callable:
-    """This enables us to use the vendor directory for packages we don't depend on
-    Returns a function to call after imports are complete. Make sure to call this
-    function or you will modify the user's path which is never good. The pattern should be:
+    """Create a function that restores user paths after vendor imports.
+
+    This enables us to use the vendor directory for packages we don't depend on. Call
+    the returned function after imports are complete. If you don't you may modify the
+    user's path which is never good.
+
+    Usage:
+
+    ```python
     reset_path = vendor_setup()
     # do any vendor imports...
-    reset_path().
+    reset_path()
+    ```
     """
     original_path = [directory for directory in sys.path]
 
@@ -407,8 +414,9 @@ def app_url(api_url: str) -> str:
 
 
 def get_full_typename(o: Any) -> Any:
-    """We determine types based on type names so we don't have to import
-    (and therefore depend on) PyTorch, TensorFlow, etc.
+    """Determine types based on type names.
+
+    Avoids needing to to import (and therefore depend on) PyTorch, TensorFlow, etc.
     """
     instance_name = o.__class__.__module__ + "." + o.__class__.__name__
     if instance_name in ["builtins.module", "__builtin__.module"]:
@@ -434,6 +442,7 @@ def is_uri(string: str) -> bool:
 
 def local_file_uri_to_path(uri: str) -> str:
     """Convert URI to local filesystem path.
+
     No-op if the uri does not have the expected scheme.
     """
     path = urllib.parse.urlparse(uri).path if uri.startswith("file:") else uri
@@ -441,8 +450,10 @@ def local_file_uri_to_path(uri: str) -> str:
 
 
 def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
-    """Check if the argument is a local path (no scheme or file:///) and return local path if true,
-    None otherwise.
+    """Return path if local, None otherwise.
+
+    Return None if the argument is a local path (not a scheme or file:///). Otherwise
+    return `path_or_uri`.
     """
     parsed_uri = urllib.parse.urlparse(path_or_uri)
     if (
@@ -578,8 +589,10 @@ def is_pandas_data_frame(obj: Any) -> bool:
 
 
 def ensure_matplotlib_figure(obj: Any) -> Any:
-    """Extract the current figure from a matplotlib object or return the object if it's a figure.
-    raises ValueError if the object can't be converted.
+    """Extract the current figure from a matplotlib object.
+
+    Return the object itself if it's a figure.
+    Raises ValueError if the object can't be converted.
     """
     import matplotlib  # type: ignore
     from matplotlib.figure import Figure  # type: ignore
@@ -590,6 +603,7 @@ def ensure_matplotlib_figure(obj: Any) -> Any:
 
     def is_frame_like(self: Any) -> bool:
         """Return True if directly on axes frame.
+
         This is useful for determining if a spine is the edge of an
         old style MPL plot. If so, this function will return True.
         """
@@ -907,8 +921,8 @@ class WandBJSONEncoderOld(json.JSONEncoder):
 
 class WandBHistoryJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types.
-    This encoder turns numpy like objects with a size > 32 into histograms
-    .
+
+    This encoder turns numpy like objects with a size > 32 into histograms.
     """
 
     def default(self, obj: Any) -> Any:
@@ -921,8 +935,8 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
 
 class JSONEncoderUncompressed(json.JSONEncoder):
     """A JSON Encoder that handles some extra types.
-    This encoder turns numpy like objects with a size > 32 into histograms
-    .
+
+    This encoder turns numpy like objects with a size > 32 into histograms.
     """
 
     def default(self, obj: Any) -> Any:
@@ -1153,9 +1167,11 @@ def docker_image_regex(image: str) -> Any:
 
 
 def image_from_docker_args(args: List[str]) -> Optional[str]:
-    """This scans docker run args and attempts to find the most likely docker image argument.
-    If excludes any argments that start with a dash, and the argument after it if it isn't a boolean
-    switch.  This can be improved, we currently fallback gracefully when this fails.
+    """Scan docker run args and attempt to find the most likely docker image argument.
+
+    It excludes any arguments that start with a dash, and the argument after it if it
+    isn't a boolean switch. This can be improved, we currently fallback gracefully when
+    this fails.
     """
     bool_args = [
         "-t",
@@ -1246,12 +1262,13 @@ def image_id_from_k8s() -> Optional[str]:
 
 
 def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
-    """Accepts a method and optional timeout.
-    Returns a new method that will call the original with any args, waiting for upto timeout seconds.
-    This new method blocks on the original and returns the result or None
-    if timeout was reached, along with the thread.
-    You can check thread.is_alive() to determine if a timeout was reached.
-    If an exception is thrown in the thread, we reraise it.
+    """Wrap a method to run in the background with an optional timeout.
+
+    Returns a new method that will call the original with any args, waiting for upto
+    timeout seconds. This new method blocks on the original and returns the result or
+    None if timeout was reached, along with the thread. You can check thread.is_alive()
+    to determine if a timeout was reached. If an exception is thrown in the thread, we
+    reraise it.
     """
     q: "queue.Queue" = queue.Queue()
 
@@ -1594,9 +1611,7 @@ def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str
 def fsync_open(
     path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
-    """Opens a path for I/O, guaranteeing that the file is flushed and
-    fsynced when the file's context expires.
-    """
+    """Open a path for I/O and guarante that the file is flushed and synced."""
     with open(path, mode, encoding=encoding) as f:
         yield f
 
@@ -1643,8 +1658,7 @@ def _is_py_path(path: str) -> bool:
 
 
 def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
-    """Consolidate violation strings from wandb/sweeps describing the ways in which a
-    sweep config violates the allowed schema as a single string.
+    """Consolidate schema violation strings from wandb/sweeps into a single string.
 
     Parameters
     ----------
@@ -1670,8 +1684,7 @@ def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> s
 
 
 def handle_sweep_config_violations(warnings: List[str]) -> None:
-    """Render warnings from gorilla describing the ways in which a
-    sweep config violates the allowed schema as terminal warnings.
+    """Echo sweep config schema violation warnings from Gorilla to the terminal.
 
     Parameters
     ----------
@@ -1778,7 +1791,9 @@ def _parse_entity_project_item(path: str) -> tuple:
 
 
 def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
-    """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
+    """Add the 'latest' alias and ensure that all aliases are unique.
+
+    Takes in `aliases` which can be None, str, or List[str] and returns List[str].
     Ensures that "latest" is always present in the returned list.
 
     Args:
@@ -1787,13 +1802,15 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
     Returns:
         List[str], with "latest" always present.
 
-    Example:
-        aliases = _resolve_aliases(["best", "dev"])
-        assert aliases == ["best", "dev", "latest"]
+    Usage:
 
-        aliases = _resolve_aliases("boom")
-        assert aliases == ["boom", "latest"]
+    ```python
+    aliases = _resolve_aliases(["best", "dev"])
+    assert aliases == ["best", "dev", "latest"]
 
+    aliases = _resolve_aliases("boom")
+    assert aliases == ["boom", "latest"]
+    ```
     """
     aliases = aliases or ["latest"]
 

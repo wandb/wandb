@@ -210,9 +210,10 @@ class Agent:
             os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
 
     def is_flapping(self):
-        """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
-        exit codes in the first FLAPPING_MAX_SECONDS
-        .
+        """Determine if the process is flapping.
+
+        Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0 exit codes in
+        the first FLAPPING_MAX_SECONDS.
         """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False

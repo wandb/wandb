@@ -344,8 +344,10 @@ class Artifact(ArtifactInterface):
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
-        """Arguments:
-        aliases: (list) The list of aliases associated with this artifact.
+        """Set artifact aliases.
+
+        Arguments:
+            aliases: (list) The list of aliases associated with this artifact.
         """
         if self._logged_artifact:
             self._logged_artifact.aliases = aliases
@@ -627,14 +629,16 @@ class Artifact(ArtifactInterface):
         project: Optional[str] = None,
         settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None,
     ) -> None:
-        """Persists any changes made to the artifact. If currently in a run, that run will
-        log this artifact. If not currently in a run, a run of type "auto" will be created
-        to track this artifact.
+        """Persist any changes made to the artifact.
+
+        If currently in a run, that run will log this artifact. If not currently in a
+        run, a run of type "auto" will be created to track this artifact.
 
         Arguments:
-            project: (str, optional) A project to use for the artifact in the case that a run is not already in context
-            settings: (wandb.Settings, optional) A settings object to use when initializing an
-            automatic run. Most commonly used in testing harness.
+            project: (str, optional) A project to use for the artifact in the case that
+            a run is not already in context settings: (wandb.Settings, optional) A
+            settings object to use when initializing an automatic run. Most commonly
+            used in testing harness.
 
         Returns:
             None
@@ -670,8 +674,10 @@ class Artifact(ArtifactInterface):
         )
 
     def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
-        """Arguments:
-        timeout: (int, optional) Waits in seconds for artifact to finish logging if needed.
+        """Wait for an artifact to finish logging.
+
+        Arguments:
+            timeout: (int, optional) Wait up to this long.
         """
         if self._logged_artifact:
             return self._logged_artifact.wait(timeout)  # type: ignore [call-arg]
