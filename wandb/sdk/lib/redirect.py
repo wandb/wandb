@@ -104,9 +104,7 @@ def _get_char(code):
 
 
 class Char:
-    """
-    Class encapsulating a single character, its foreground, background and style attributes
-    """
+    """Class encapsulating a single character, its foreground, background and style attributes."""
 
     __slots__ = (
         "data",
@@ -174,16 +172,13 @@ _defchar = Char()
 
 
 class Cursor:
-    """
-    2D cursor
-    """
+    """2D cursor."""
 
     __slots__ = ("x", "y", "char")
 
     def __init__(self, x=0, y=0, char=None):
-        """
-        x, y - 2D coordinates
-        char - Next character to be written will inherit colors and styles from this character
+        """x, y - 2D coordinates
+        char - Next character to be written will inherit colors and styles from this character.
         """
         if char is None:
             char = Char()
@@ -193,9 +188,7 @@ class Cursor:
 
 
 class TerminalEmulator:
-    """
-    An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
-    """
+    """An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor."""
 
     _MAX_LINES = 100
 
@@ -488,8 +481,7 @@ _MIN_CALLBACK_INTERVAL = 2  # seconds
 
 class RedirectBase:
     def __init__(self, src, cbs=()):
-        """
-        # Arguments
+        """# Arguments.
 
         `src`: Source stream to be redirected. "stdout" or "stderr".
         `cbs`: tuple/list of callbacks. Each callback should take exactly 1 argument (bytes).
@@ -527,9 +519,7 @@ class RedirectBase:
 
 
 class StreamWrapper(RedirectBase):
-    """
-    Patches the write method of current sys.stdout/sys.stderr
-    """
+    """Patches the write method of current sys.stdout/sys.stderr."""
 
     def __init__(self, src, cbs=()):
         super().__init__(src=src, cbs=cbs)
@@ -620,8 +610,7 @@ class StreamWrapper(RedirectBase):
 
 
 class StreamRawWrapper(RedirectBase):
-    """
-    Patches the write method of current sys.stdout/sys.stderr
+    """Patches the write method of current sys.stdout/sys.stderr.
 
     Captures data in a raw form rather than using the emulator
     """
@@ -710,9 +699,7 @@ _WSCH = _WindowSizeChangeHandler()
 
 
 class Redirect(RedirectBase):
-    """
-    Redirects low level file descriptors.
-    """
+    """Redirects low level file descriptors."""
 
     def __init__(self, src, cbs=()):
         super().__init__(src=src, cbs=cbs)

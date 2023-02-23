@@ -1,5 +1,4 @@
-"""
-Tools for integrating `wandb` with [`Keras`](https://keras.io/),
+"""Tools for integrating `wandb` with [`Keras`](https://keras.io/),
 a deep learning API for [`TensorFlow`](https://www.tensorflow.org/).
 """
 __all__ = (

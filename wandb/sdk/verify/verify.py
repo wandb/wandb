@@ -1,6 +1,4 @@
-"""
-Utilities for wandb verify
-"""
+"""Utilities for wandb verify."""
 import getpass
 import os
 import time
@@ -276,7 +274,6 @@ def log_use_download_artifact(
         project=PROJECT_NAME,
         config={"test": "artifact log"},
     ) as log_art_run:
-
         if add_extra_file:
             with open("verify_2.txt", "w") as f:
                 f.write("2")

@@ -1,6 +1,4 @@
-"""
-Implementation of launch agent.
-"""
+"""Implementation of launch agent."""
 
 import logging
 import os

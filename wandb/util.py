@@ -202,7 +202,7 @@ def sentry_exc(
 
 
 def sentry_reraise(exc: Any, delay: bool = False) -> None:
-    """Re-raise an exception after logging it to Sentry
+    """Re-raise an exception after logging it to Sentry.
 
     Use this for top-level exceptions when you want the user to see the traceback.
 
@@ -298,7 +298,7 @@ def vendor_setup() -> Callable:
     function or you will modify the user's path which is never good. The pattern should be:
     reset_path = vendor_setup()
     # do any vendor imports...
-    reset_path()
+    reset_path().
     """
     original_path = [directory for directory in sys.path]
 
@@ -329,8 +329,7 @@ def vendor_import(name: str) -> Any:
 
 
 def import_module_lazy(name: str) -> Any:
-    """
-    Import a module lazily, only when it is used.
+    """Import a module lazily, only when it is used.
 
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     """
@@ -356,8 +355,7 @@ def get_module(
     required: Optional[Union[str, bool]] = None,
     lazy: bool = True,
 ) -> Any:
-    """
-    Return module or None. Absolute import is required.
+    """Return module or None. Absolute import is required.
 
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     :param (str) required: A string to raise a ValueError if missing
@@ -435,8 +433,7 @@ def is_uri(string: str) -> bool:
 
 
 def local_file_uri_to_path(uri: str) -> str:
-    """
-    Convert URI to local filesystem path.
+    """Convert URI to local filesystem path.
     No-op if the uri does not have the expected scheme.
     """
     path = urllib.parse.urlparse(uri).path if uri.startswith("file:") else uri
@@ -671,10 +668,10 @@ def _find_all_matching_keys(
        match_fn: The function to determine if the key is a match.
        visited: Keep track of visited nodes so we dont recurse forever.
        key_path: Keep track of all the keys to get to the current node.
+
     Yields:
        (key_path, key): The location where the key was found, and the key
     """
-
     if visited is None:
         visited = set()
     me = id(d)
@@ -707,7 +704,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
 def json_friendly(  # noqa: C901
     obj: Any,
 ) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
-    """Convert an object into something that's more becoming of JSON"""
+    """Convert an object into something that's more becoming of JSON."""
     converted = True
     typename = get_full_typename(obj)
 
@@ -770,7 +767,7 @@ def json_friendly(  # noqa: C901
 
 
 def json_friendly_val(val: Any) -> Any:
-    """Make any value (including dict, slice, sequence, etc) JSON friendly"""
+    """Make any value (including dict, slice, sequence, etc) JSON friendly."""
     converted: Union[dict, list]
     if isinstance(val, dict):
         converted = {}
@@ -844,7 +841,7 @@ def maybe_compress_summary(obj: Any, h5_typename: str) -> Tuple[Any, bool]:
 
 
 def launch_browser(attempt_launch_browser: bool = True) -> bool:
-    """Decide if we should launch a browser"""
+    """Decide if we should launch a browser."""
     _display_variables = ["DISPLAY", "WAYLAND_DISPLAY", "MIR_SOCKET"]
     _webbrowser_names_blocklist = ["www-browser", "lynx", "links", "elinks", "w3m"]
 
@@ -873,7 +870,7 @@ def generate_id(length: int = 8) -> str:
 
 
 def parse_tfjob_config() -> Any:
-    """Attempts to parse TFJob config, returning False if it can't find it"""
+    """Attempts to parse TFJob config, returning False if it can't find it."""
     if os.getenv("TF_CONFIG"):
         try:
             return json.loads(os.environ["TF_CONFIG"])
@@ -910,7 +907,9 @@ class WandBJSONEncoderOld(json.JSONEncoder):
 
 class WandBHistoryJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types.
-    This encoder turns numpy like objects with a size > 32 into histograms"""
+    This encoder turns numpy like objects with a size > 32 into histograms
+    .
+    """
 
     def default(self, obj: Any) -> Any:
         obj, converted = json_friendly(obj)
@@ -922,7 +921,9 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
 
 class JSONEncoderUncompressed(json.JSONEncoder):
     """A JSON Encoder that handles some extra types.
-    This encoder turns numpy like objects with a size > 32 into histograms"""
+    This encoder turns numpy like objects with a size > 32 into histograms
+    .
+    """
 
     def default(self, obj: Any) -> Any:
         if is_numpy_array(obj):
@@ -949,7 +950,7 @@ def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
 
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
-    """Convert obj to json, with some extra encodable types, including histograms"""
+    """Convert obj to json, with some extra encodable types, including histograms."""
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
@@ -1088,6 +1089,7 @@ def find_runner(program: str) -> Union[None, list, List[str]]:
 
     Arguments:
         program: The string name of the program to try to run.
+
     Returns:
         commandline list of strings to run the program (eg. with subprocess.call()) or None
     """
@@ -1141,7 +1143,7 @@ def get_log_file_path() -> str:
 
 
 def docker_image_regex(image: str) -> Any:
-    """regex for valid docker image names"""
+    """regex for valid docker image names."""
     if image:
         return re.match(
             r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$",
@@ -1296,7 +1298,7 @@ def read_many_from_queue(
 
 
 def stopwatch_now() -> float:
-    """Get a time value for interval comparisons
+    """Get a time value for interval comparisons.
 
     When possible it is a monotonic clock to prevent backwards time issues.
     """
@@ -1339,7 +1341,7 @@ def prompt_choices(
     input_timeout: Optional[int] = None,
     jupyter: bool = False,
 ) -> str:
-    """Allow a user to choose from a list of options"""
+    """Allow a user to choose from a list of options."""
     for i, choice in enumerate(choices):
         wandb.termlog(f"({i+1}) {choice}")
 
@@ -1361,7 +1363,7 @@ def prompt_choices(
 
 
 def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
-    """Infer the type of data based on the shape of the tensors
+    """Infer the type of data based on the shape of the tensors.
 
     Arguments:
         shape (Sequence[int]): The shape of the data
@@ -1460,7 +1462,6 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     Returns:
         None or str if there is an error
     """
-
     entity = None
     project = None
     sweep_id = parts_dict.get("name")
@@ -1556,26 +1557,26 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
 
 
 def host_from_path(path: Optional[str]) -> str:
-    """returns the host of the path"""
+    """returns the host of the path."""
     url = urllib.parse.urlparse(path)
     return str(url.netloc)
 
 
 def uri_from_path(path: Optional[str]) -> str:
-    """returns the URI of the path"""
+    """returns the URI of the path."""
     url = urllib.parse.urlparse(path)
     uri = url.path if url.path[0] != "/" else url.path[1:]
     return str(uri)
 
 
 def is_unicode_safe(stream: TextIO) -> bool:
-    """returns true if the stream supports UTF-8"""
+    """returns true if the stream supports UTF-8."""
     encoding = getattr(stream, "encoding", None)
     return encoding.lower() in {"utf-8", "utf_8"} if encoding else False
 
 
 def _has_internet() -> bool:
-    """Attempts to open a DNS connection to Googles root servers"""
+    """Attempts to open a DNS connection to Googles root servers."""
     try:
         s = socket.create_connection(("8.8.8.8", 53), 0.5)
         s.close()
@@ -1593,8 +1594,7 @@ def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str
 def fsync_open(
     path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
-    """
-    Opens a path for I/O, guaranteeing that the file is flushed and
+    """Opens a path for I/O, guaranteeing that the file is flushed and
     fsynced when the file's context expires.
     """
     with open(path, mode, encoding=encoding) as f:
@@ -1651,13 +1651,12 @@ def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> s
     violations: list of str
         The warnings to render.
 
-    Returns
+    Returns:
     -------
     violation: str
         The consolidated violation text.
 
     """
-
     violation_base = (
         "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
         "To avoid this, please fix the sweep config schema violations below:"
@@ -1679,7 +1678,6 @@ def handle_sweep_config_violations(warnings: List[str]) -> None:
     warnings: list of str
         The warnings to render.
     """
-
     warning = sweep_config_err_text_from_jsonschema_violations(warnings)
     if len(warnings) > 0:
         term.termwarn(warning)
@@ -1687,7 +1685,6 @@ def handle_sweep_config_violations(warnings: List[str]) -> None:
 
 def _log_thread_stacks() -> None:
     """Log all threads, useful for debugging."""
-
     thread_map = {t.ident: t.name for t in threading.enumerate()}
 
     for thread_id, frame in sys._current_frames().items():
@@ -1880,7 +1877,7 @@ def ensure_text(
 
 
 def make_artifact_name_safe(name: str) -> str:
-    """Make an artifact name safe for use in artifacts"""
+    """Make an artifact name safe for use in artifacts."""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
     cleaned = re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
     if len(cleaned) <= 128:
@@ -1890,7 +1887,7 @@ def make_artifact_name_safe(name: str) -> str:
 
 
 def make_docker_image_name_safe(name: str) -> str:
-    """Make a docker image name safe for use in artifacts"""
+    """Make a docker image name safe for use in artifacts."""
     safe_chars = RE_DOCKER_IMAGE_NAME_CHARS.sub("__", name.lower())
     deduped = RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT.sub("__", safe_chars)
     trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
@@ -1899,9 +1896,7 @@ def make_docker_image_name_safe(name: str) -> str:
 
 
 def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Recursively merge two dictionaries.
-    """
+    """Recursively merge two dictionaries."""
     for key, value in source.items():
         if isinstance(value, dict):
             # get node or create one

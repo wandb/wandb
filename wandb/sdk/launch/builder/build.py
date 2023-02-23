@@ -184,8 +184,9 @@ def get_base_setup(
     launch_project: LaunchProject, py_version: str, py_major: str
 ) -> str:
     """Fill in the Dockerfile templates for stage 2 of build. CPU version is built on python, GPU
-    version is built on nvidia:cuda"""
-
+    version is built on nvidia:cuda
+    .
+    """
     python_base_image = f"python:{py_version}-buster"
     if launch_project.cuda:
         cuda_version = launch_project.cuda_version or DEFAULT_CUDA_VERSION
@@ -390,7 +391,9 @@ _inspected_images = {}
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     """Checks if a specific image is already available,
-    optionally raising an exception"""
+    optionally raising an exception
+    .
+    """
     _logger.info("Checking if base image exists...")
     try:
         data = docker.run(["docker", "image", "inspect", docker_image])
@@ -407,14 +410,14 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
 
 
 def docker_image_inspect(docker_image: str) -> Dict[str, Any]:
-    """Get the parsed json result of docker inspect image_name"""
+    """Get the parsed json result of docker inspect image_name."""
     if _inspected_images.get(docker_image) is None:
         docker_image_exists(docker_image, True)
     return _inspected_images.get(docker_image, {})
 
 
 def pull_docker_image(docker_image: str) -> None:
-    """Pulls the requested docker image"""
+    """Pulls the requested docker image."""
     if docker_image_exists(docker_image):
         # don't pull images if they exist already, eg if they are local images
         return
@@ -468,12 +471,11 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
 
 
 def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> str:
-    """
-    Returns an appropriate Docker image URI for a project based on the git hash of the specified
+    """Returns an appropriate Docker image URI for a project based on the git hash of the specified
     working directory.
     :param name: The URI of the Docker repository with which to tag the image. The
                            repository URI is used as the prefix of the image URI.
-    :param work_dir: Path to the working directory in which to search for a git commit hash
+    :param work_dir: Path to the working directory in which to search for a git commit hash.
     """
     name = name.replace(" ", "-") if name else "wandb-launch"
     # Optionally include first 7 digits of git SHA in tag name, if available.
@@ -516,14 +518,12 @@ def _create_docker_build_ctx(
 
 
 def join(split_command: List[str]) -> str:
-    """
-    Return a shell-escaped string from *split_command*.
+    """Return a shell-escaped string from *split_command*.
     Also remove quotes from double quoted strings. Ex:
 
     "'local container queue'" --> "local container queue"
 
     """
-
     return " ".join(shlex.quote(arg.replace("'", "")) for arg in split_command)
 
 
@@ -554,9 +554,7 @@ def build_image_with_builder(
     repository: Optional[Any],
     entry_point: EntryPoint,
 ) -> Optional[str]:
-    """
-    Helper for testing and logging
-    """
+    """Helper for testing and logging."""
     wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
     image_uri: Optional[str] = builder.build_image(
         launch_project,
@@ -572,11 +570,10 @@ def build_image_from_project(
     launch_config: Optional[Dict[str, Any]] = None,
     default_builder_type: Optional[str] = "docker",
 ) -> str:
-    """
-    Accepts a reference to the Api class and a pre-computed launch_spec
+    """Accepts a reference to the Api class and a pre-computed launch_spec
     object, with an optional launch_config to set things like repository
     which is used in naming the output docker image, and build_type defaulting
-    to docker (but could be used to build kube resource jobs w/ "kaniko")
+    to docker (but could be used to build kube resource jobs w/ "kaniko").
 
     updates launch_project with the newly created docker image uri and
     returns the uri

@@ -31,7 +31,7 @@ assert:
     - :wandb:runs[0][summary][roc][ncols]: 3
     - :wandb:runs[0][summary][summary_metrics][_type]: table-file
     - :wandb:runs[0][summary][summary_metrics][ncols]: 3
-    - :wandb:runs[0][summary][summary_metrics][nrows]: 4
+    - :wandb:runs[0][summary][summary_metrics][nrows]: 4.
 """
 import wandb
 from sklearn import datasets

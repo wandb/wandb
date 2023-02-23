@@ -27,7 +27,7 @@ SLEEP_ASYNC_FN = asyncio.sleep
 
 
 class TransientError(Exception):
-    """Exception type designated for errors that may only be temporary
+    """Exception type designated for errors that may only be temporary.
 
     Can have its own message and/or wrap another exception.
     """
@@ -99,7 +99,6 @@ class Retry(Generic[_R]):
            sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
                are derived from this one.
         """
-
         retry_timedelta = kwargs.pop("retry_timedelta", self._retry_timedelta)
         if retry_timedelta is None:
             retry_timedelta = datetime.timedelta(days=365)
@@ -280,7 +279,6 @@ async def retry_async(
 
     Each time `fn` fails, `on_exc` is called with the exception.
     """
-
     while True:
         try:
             return await fn(*args, **kwargs)

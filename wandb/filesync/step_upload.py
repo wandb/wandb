@@ -214,7 +214,6 @@ class StepUpload:
         to `self._running_jobs` is textually right next to the code that eventually enqueues
         the `EventJobDone` message. This should help keep them in sync.
         """
-
         # Adding the entry to `self._running_jobs` MUST happen in the main thread,
         # NOT in the job that gets submitted to the thread-pool, to guard against
         # this sequence of events:

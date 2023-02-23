@@ -90,8 +90,7 @@ class Timer:
 
 
 class Context:
-    """
-    Implements a container used to store the snooped state/data of a test,
+    """Implements a container used to store the snooped state/data of a test,
     including raw requests and responses; parsed and processed data; and
     a number of convenience methods and properties for accessing the data.
     """
@@ -242,8 +241,7 @@ class Context:
 
 
 class QueryResolver:
-    """
-    Resolves request/response pairs against a set of known patterns
+    """Resolves request/response pairs against a set of known patterns
     to extract and process useful data, to be later stored in a Context object.
     """
 
@@ -468,8 +466,7 @@ class InjectedResponse:
         self,
         other: Union["InjectedResponse", requests.Request, requests.PreparedRequest],
     ):
-        """
-        Equality check for InjectedResponse objects.
+        """Equality check for InjectedResponse objects.
         We use this to check if this response should be injected as a replacement of `other`.
 
         :param other:

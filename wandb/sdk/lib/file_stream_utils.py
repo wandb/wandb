@@ -5,8 +5,7 @@ from typing import Any, Dict, Iterable
 def split_files(
     files: Dict[str, Any], max_bytes: int = 10 * 1024 * 1024
 ) -> Iterable[Dict[str, Dict]]:
-    """
-    Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_BYTES` size.
+    """Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_BYTES` size.
     This method is used in `FileStreamAPI._send()` to limit the size of post requests sent
     to wandb server.
 

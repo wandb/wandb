@@ -368,7 +368,7 @@ def test_artifact_add_reference_via_url():
 def test_add_reference_via_artifact_entry():
     """This test is the same as test_artifact_add_reference_via_url, but rather
     than passing the direct URL, we pass an Artifact entry, which will automatically
-    resolve to the correct URL
+    resolve to the correct URL.
     """
     upstream_artifact_name = "upstream_artifact"
     middle_artifact_name = "middle_artifact"
@@ -443,9 +443,8 @@ def test_get_artifact_obj_by_name():
     """Tests tests the ability to instantiate a wandb Media object when passed
     the name of such object. This is the logical inverse of Artifact.add(name).
     TODO: test more robustly for every Media type, nested objects (eg. Table -> Image),
-    and references
+    and references.
     """
-
     with wandb.init() as run:
         artifact = wandb.Artifact("A2", "database")
         image = _make_wandb_image()

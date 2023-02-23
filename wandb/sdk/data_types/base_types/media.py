@@ -254,11 +254,11 @@ class Media(WBValue):
     def from_json(
         cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "Media":
-        """Likely will need to override for any more complicated media objects"""
+        """Likely will need to override for any more complicated media objects."""
         return cls(source_artifact.get_path(json_obj["path"]).download())
 
     def __eq__(self, other: object) -> bool:
-        """Likely will need to override for any more complicated media objects"""
+        """Likely will need to override for any more complicated media objects."""
         return (
             isinstance(other, self.__class__)
             and hasattr(self, "_sha256")

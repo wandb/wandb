@@ -148,8 +148,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     @staticmethod
     def get_consecutive_offsets(console: Dict[int, str]) -> List[List[int]]:
-        """
-        Args:
+        """Args:
             console: Dict[int, str] which maps offsets (line numbers) to lines of text.
             It represents a mini version of our console dashboard on the UI.
 
@@ -176,13 +175,12 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     @staticmethod
     def split_chunk(chunk: Chunk) -> Tuple[str, str]:
-        """
-        Args:
+        """Args:
             chunk: object with two fields: filename (str) & data (str)
             `chunk.data` is a str containing the lines we want. It usually contains \n or \r or both.
             `chunk.data` has two possible formats (for the two streams - stdout and stderr):
                 - "2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n"
-                - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n"
+                - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n".
 
                 Here's another example with a carriage return \r.
                 - "ERROR 2020-08-25T20:38:36.895321 \r progress bar\n"
@@ -206,8 +204,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         return prefix, rest
 
     def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
-        """
-        Args:
+        """Args:
             chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
 
         Returns:
@@ -268,7 +265,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
         intervals = self.get_consecutive_offsets(console)
         ret = []
-        for (a, b) in intervals:
+        for a, b in intervals:
             processed_chunk: "ProcessedChunk" = {
                 "offset": a,
                 "content": [console[i] for i in range(a, b + 1)],
@@ -495,7 +492,7 @@ class FileStreamApi:
             raise e
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
-        """Logs dropped chunks and updates dynamic settings"""
+        """Logs dropped chunks and updates dynamic settings."""
         if isinstance(response, Exception):
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
@@ -575,7 +572,7 @@ class FileStreamApi:
         self._queue.put(Chunk(filename, data))
 
     def push_success(self, artifact_id: str, save_name: str) -> None:
-        """Notification that a file upload has been successfully completed
+        """Notification that a file upload has been successfully completed.
 
         Arguments:
             artifact_id: ID of artifact

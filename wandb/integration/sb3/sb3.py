@@ -1,4 +1,4 @@
-"""W&B callback for sb3
+"""W&B callback for sb3.
 
 Really simple callback to get logging for each tree
 
@@ -34,7 +34,9 @@ def make_env():
 
 
 env = DummyVecEnv([make_env])
-env = VecVideoRecorder(env, "videos", record_video_trigger=lambda x: x % 2000 == 0, video_length=200)
+env = VecVideoRecorder(
+    env, "videos", record_video_trigger=lambda x: x % 2000 == 0, video_length=200
+)
 model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs")
 model.learn(
     total_timesteps=config["total_timesteps"],
@@ -70,7 +72,7 @@ class WandbCallback(BaseCallback):
         - Added model tracking and uploading
         - Added complete hyperparameters recording
         - Added gradient logging
-        - Note that `wandb.init(...)` must be called before the WandbCallback can be used
+        - Note that `wandb.init(...)` must be called before the WandbCallback can be used.
 
     Args:
         verbose: The verbosity of sb3 output

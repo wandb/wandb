@@ -435,8 +435,7 @@ def pytest_addoption(parser):
 
 
 def random_string(length: int = 12) -> str:
-    """
-    Generate a random string of a given length.
+    """Generate a random string of a given length.
     :param length: Length of the string to generate.
     :return: Random string.
     """
@@ -474,8 +473,7 @@ def wandb_debug(request):
 def check_server_health(
     base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
 ) -> bool:
-    """
-    Check if wandb server is healthy.
+    """Check if wandb server is healthy.
     :param base_url:
     :param num_retries:
     :param sleep_time:
@@ -519,8 +517,7 @@ def check_server_up(
     wandb_server_tag: str = "master",
     wandb_server_pull: Literal["missing", "always"] = "missing",
 ) -> bool:
-    """
-    Check if wandb server is up and running;
+    """Check if wandb server is up and running;
     if not on the CI and the server is not running, then start it first.
     :param base_url:
     :param wandb_server_tag:
@@ -713,9 +710,7 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 @pytest.fixture(scope="function")
 def relay_server(base_url):
-    """
-    Creates a new relay server.
-    """
+    """Creates a new relay server."""
 
     @contextmanager
     def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
@@ -766,7 +761,6 @@ def wandb_init(user, test_settings, request):
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,
     ):
-
         kwargs = dict(locals())
         # drop fixtures from kwargs
         for key in ("user", "test_settings", "request"):
@@ -808,7 +802,6 @@ def inject_file_stream_response(base_url, user):
         status: int = 200,
         application_pattern: str = "1",
     ) -> InjectedResponse:
-
         if status > 299:
             message = body if isinstance(body, str) else "::".join(body.args)
             body = DeliberateHTTPError(status_code=status, message=message)

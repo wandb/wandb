@@ -44,7 +44,7 @@ __IFrame = None
 
 
 def maybe_display():
-    """Display a run if the user added cell magic and we have run"""
+    """Display a run if the user added cell magic and we have run."""
     if __IFrame is not None:
         return __IFrame.maybe_display()
     return False
@@ -234,7 +234,9 @@ def notebook_metadata(silent) -> Dict[str, str]:
 
 def jupyter_servers_and_kernel_id():
     """Returns a list of servers and the current kernel_id so we can query for
-    the name of the notebook"""
+    the name of the notebook
+    .
+    """
     try:
         import ipykernel
 
@@ -278,7 +280,7 @@ def attempt_kaggle_load_ipynb():
 
 
 def attempt_colab_login(app_url):
-    """This renders an iframe to wandb in the hopes it posts back an api key"""
+    """This renders an iframe to wandb in the hopes it posts back an api key."""
     from google.colab import output
     from google.colab._message import MessageError
     from IPython import display
@@ -428,7 +430,7 @@ class Notebook:
         return False
 
     def save_history(self):
-        """This saves all cell executions in the current session as a new notebook"""
+        """This saves all cell executions in the current session as a new notebook."""
         try:
             from nbformat import v4, validator, write
         except ImportError:

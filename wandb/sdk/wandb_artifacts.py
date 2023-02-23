@@ -107,8 +107,7 @@ def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 class Artifact(ArtifactInterface):
-    """
-    Flexible and lightweight building block for dataset and model versioning.
+    """Flexible and lightweight building block for dataset and model versioning.
 
     Constructs an empty artifact whose contents can be populated using its
     `add` family of functions. Once the artifact has all the desired files,
@@ -345,9 +344,8 @@ class Artifact(ArtifactInterface):
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
-        """
-        Arguments:
-            aliases: (list) The list of aliases associated with this artifact.
+        """Arguments:
+        aliases: (list) The list of aliases associated with this artifact.
         """
         if self._logged_artifact:
             self._logged_artifact.aliases = aliases
@@ -629,8 +627,7 @@ class Artifact(ArtifactInterface):
         project: Optional[str] = None,
         settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None,
     ) -> None:
-        """
-        Persists any changes made to the artifact. If currently in a run, that run will
+        """Persists any changes made to the artifact. If currently in a run, that run will
         log this artifact. If not currently in a run, a run of type "auto" will be created
         to track this artifact.
 
@@ -642,7 +639,6 @@ class Artifact(ArtifactInterface):
         Returns:
             None
         """
-
         if self._incremental:
             with wandb_lib.telemetry.context() as tel:
                 tel.feature.artifact_incremental = True
@@ -674,9 +670,8 @@ class Artifact(ArtifactInterface):
         )
 
     def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
-        """
-        Arguments:
-            timeout: (int, optional) Waits in seconds for artifact to finish logging if needed.
+        """Arguments:
+        timeout: (int, optional) Waits in seconds for artifact to finish logging if needed.
         """
         if self._logged_artifact:
             return self._logged_artifact.wait(timeout)  # type: ignore [call-arg]
@@ -686,8 +681,7 @@ class Artifact(ArtifactInterface):
         )
 
     def get_added_local_path_name(self, local_path: str) -> Optional[str]:
-        """
-        Get the artifact relative name of a file added by a local filesystem path.
+        """Get the artifact relative name of a file added by a local filesystem path.
 
         Arguments:
             local_path: (str) The local path to resolve into an artifact relative name.
@@ -711,8 +705,7 @@ class Artifact(ArtifactInterface):
         return entry.path
 
     def finalize(self) -> None:
-        """
-        Marks this artifact as final, which disallows further additions to the artifact.
+        """Marks this artifact as final, which disallows further additions to the artifact.
         This happens automatically when calling `log_artifact`.
 
 
@@ -813,7 +806,7 @@ class ArtifactManifestV1(ArtifactManifest):
         super().__init__(artifact, storage_policy, entries=entries)
 
     def to_manifest_json(self) -> Dict:
-        """This is the JSON that's stored in wandb_manifest.json
+        """This is the JSON that's stored in wandb_manifest.json.
 
         If include_local is True we also include the local paths to files. This is
         used to represent an artifact that's waiting to be saved on the current
@@ -983,7 +976,6 @@ class WandbStoragePolicy(StoragePolicy):
             True if the file was a duplicate (did not need to be uploaded),
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
-
         resp = preparer.prepare(
             {
                 "artifactID": artifact_id,
@@ -1134,8 +1126,7 @@ class MultiHandler(StorageHandler):
 
 class TrackingHandler(StorageHandler):
     def __init__(self, scheme: Optional[str] = None) -> None:
-        """
-        Tracks paths as is, with no modification or special processing. Useful
+        """Tracks paths as is, with no modification or special processing. Useful
         when paths being tracked are on file systems mounted at a standardized
         location.
 
@@ -1192,11 +1183,10 @@ DEFAULT_MAX_OBJECTS = 10000
 
 
 class LocalFileHandler(StorageHandler):
-    """Handles file:// references"""
+    """Handles file:// references."""
 
     def __init__(self, scheme: Optional[str] = None) -> None:
-        """
-        Tracks files or directories on a local filesystem. Directories
+        """Tracks files or directories on a local filesystem. Directories
         are expanded to create an entry for each file contained within.
         """
         self._scheme = scheme or "file"
@@ -1516,13 +1506,12 @@ class S3Handler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        """
-        Arguments:
-            obj: The S3 object
-            path: The S3-style path (e.g.: "s3://bucket/file.txt")
-            name: The user assigned name, or None if not specified
-            prefix: The prefix to add (will be the same as `path` for directories)
-            multi: Whether or not this is a multi-object add
+        """Arguments:
+        obj: The S3 object
+        path: The S3-style path (e.g.: "s3://bucket/file.txt")
+        name: The user assigned name, or None if not specified
+        prefix: The prefix to add (will be the same as `path` for directories)
+        multi: Whether or not this is a multi-object add.
         """
         bucket, key, _ = self._parse_uri(path)
 
@@ -1736,13 +1725,12 @@ class GCSHandler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        """
-        Arguments:
-            obj: The GCS object
-            path: The GCS-style path (e.g.: "gs://bucket/file.txt")
-            name: The user assigned name, or None if not specified
-            prefix: The prefix to add (will be the same as `path` for directories)
-            multi: Whether or not this is a multi-object add
+        """Arguments:
+        obj: The GCS object
+        path: The GCS-style path (e.g.: "gs://bucket/file.txt")
+        name: The user assigned name, or None if not specified
+        prefix: The prefix to add (will be the same as `path` for directories)
+        multi: Whether or not this is a multi-object add.
         """
         bucket, key, _ = self._parse_uri(path)
 
@@ -1880,7 +1868,7 @@ class HTTPHandler(StorageHandler):
 
 
 class WBArtifactHandler(StorageHandler):
-    """Handles loading and storing Artifact reference-type files"""
+    """Handles loading and storing Artifact reference-type files."""
 
     _client: Optional[PublicApi]
 
@@ -1891,7 +1879,7 @@ class WBArtifactHandler(StorageHandler):
 
     @property
     def scheme(self) -> str:
-        """overrides parent scheme
+        """overrides parent scheme.
 
         Returns:
             (str): The scheme to which this handler applies.
@@ -1909,8 +1897,7 @@ class WBArtifactHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
-        """
-        Loads the file within the specified artifact given its
+        """Loads the file within the specified artifact given its
         corresponding entry. In this case, the referenced artifact is downloaded
         and a new symlink is created and returned to the caller.
 
@@ -1947,8 +1934,7 @@ class WBArtifactHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        """
-        Stores the file or directory at the given path within the specified artifact. In this
+        """Stores the file or directory at the given path within the specified artifact. In this
         case we recursively resolve the reference until the result is a concrete asset so that
         we don't have multiple hops. TODO-This resolution could be done in the server for
         performance improvements.
@@ -1961,7 +1947,6 @@ class WBArtifactHandler(StorageHandler):
         Returns:
             (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
         """
-
         # Recursively resolve the reference until a concrete asset is found
         while path is not None and urlparse(path).scheme == self._scheme:
             artifact_id = util.host_from_path(path)
@@ -1998,7 +1983,7 @@ class WBArtifactHandler(StorageHandler):
 
 
 class WBLocalArtifactHandler(StorageHandler):
-    """Handles loading and storing Artifact reference-type files"""
+    """Handles loading and storing Artifact reference-type files."""
 
     _client: Optional[PublicApi]
 
@@ -2008,7 +1993,7 @@ class WBLocalArtifactHandler(StorageHandler):
 
     @property
     def scheme(self) -> str:
-        """overrides parent scheme
+        """overrides parent scheme.
 
         Returns:
             (str): The scheme to which this handler applies.
@@ -2032,8 +2017,7 @@ class WBLocalArtifactHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        """
-        Stores the file or directory at the given path within the specified artifact.
+        """Stores the file or directory at the given path within the specified artifact.
 
         Arguments:
             artifact: The artifact doing the storing

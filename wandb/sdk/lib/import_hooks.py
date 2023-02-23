@@ -1,5 +1,4 @@
-"""
-Note: This file is based on
+"""Note: This file is based on
 https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
 (with slight modifications).
 
@@ -92,7 +91,6 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
         module = sys.modules.get(name)
 
         if module is not None:
-
             _post_import_hooks[name] = {}
             if hook:  # type: ignore
                 hook(module)
@@ -230,7 +228,6 @@ class ImportHookFinder:
         # Now call back into the import system again.
 
         try:
-
             # For Python 3 we need to use find_spec().loader
             # from the importlib.util module. It doesn't actually
             # import the target module and only finds the

@@ -1,5 +1,4 @@
-"""
-pip uninstall wandb > /dev/null -y && \
+"""pip uninstall wandb > /dev/null -y && \
 pip install wandb > /dev/null && \
 WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 && \
 WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=100 --clear_cache && \
@@ -18,7 +17,7 @@ WANDB_SILENT=true python artifact_table_load.py --n_rows=100 --img_dim=200 --cle
 WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 && \
 WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=100 --clear_cache && \
 WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 && \
-WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache
+WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache.
 """
 
 import argparse

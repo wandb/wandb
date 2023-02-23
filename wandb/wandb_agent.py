@@ -211,7 +211,9 @@ class Agent:
 
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
-        exit codes in the first FLAPPING_MAX_SECONDS"""
+        exit codes in the first FLAPPING_MAX_SECONDS
+        .
+        """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
@@ -224,7 +226,6 @@ class Agent:
         )
 
     def run(self):  # noqa: C901
-
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
@@ -588,8 +589,7 @@ def run_agent(
 
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
-    """
-    Generic agent entrypoint, used for CLI or jupyter.
+    """Generic agent entrypoint, used for CLI or jupyter.
 
     Will run a function or program with configuration parameters specified
     by server.

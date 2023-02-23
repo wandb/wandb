@@ -95,7 +95,7 @@ class ClickWandbException(ClickException):
 
 
 def display_error(func):
-    """Function decorator for catching common errors and re-raising as wandb.Error"""
+    """Function decorator for catching common errors and re-raising as wandb.Error."""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -1184,8 +1184,7 @@ def launch(
     repository,
     project_queue,
 ):
-    """
-    Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
+    """Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
     In the case of a wandb URI the arguments used in the original run will be used by default.
     These arguments can be overridden using the args option, or specifying those arguments
     in the config's 'overrides' key, 'args' field as a list of strings.

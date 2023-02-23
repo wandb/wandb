@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test stable_baselines3 integration"""
+"""Test stable_baselines3 integration."""
 
 import gym
 import wandb

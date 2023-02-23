@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-"""
-test_git_repo
-----------------------------------
+"""test_git_repo
+----------------------------------.
 
 Tests for the `wandb.GitRepo` module.
 """

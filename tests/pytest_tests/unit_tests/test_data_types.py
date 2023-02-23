@@ -42,7 +42,7 @@ def matplotlib_multiple_axes_figures(total_plot_count=3, data=(1, 2, 3)):
 
 
 def matplotlib_with_image():
-    """Creates a matplotlib figure with an image"""
+    """Creates a matplotlib figure with an image."""
     fig, ax = plt.subplots(3)
     ax[0].plot([1, 2, 3])
     ax[1].imshow(np.random.rand(200, 200, 3))
@@ -51,7 +51,7 @@ def matplotlib_with_image():
 
 
 def matplotlib_without_image():
-    """Creates a matplotlib figure without an image"""
+    """Creates a matplotlib figure without an image."""
     fig, ax = plt.subplots(2)
     ax[0].plot([1, 2, 3])
     ax[1].plot([1, 2, 3])
@@ -154,7 +154,6 @@ def standard_mask():
 def test_captions(
     image,
 ):
-
     wbone = wandb.Image(image, caption="Cool")
     wbtwo = wandb.Image(image, caption="Nice")
     assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
@@ -164,7 +163,6 @@ def test_bind_image(
     mock_run,
     image,
 ):
-
     wb_image = wandb.Image(image)
     wb_image.bind_to_run(mock_run(), "stuff", 10)
     assert wb_image.is_bound()
@@ -181,7 +179,6 @@ def test_image_accepts_bounding_boxes(
     image,
     full_box,
 ):
-
     run = mock_run()
     img = wandb.Image(
         image,
@@ -203,7 +200,6 @@ def test_image_accepts_bounding_boxes_optional_args(
     full_box,
     dissoc,
 ):
-
     optional_keys = ["box_caption", "scores"]
 
     boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
@@ -368,7 +364,7 @@ def test_matplotlib_image_with_multiple_axes():
 
 
 def test_image_from_matplotlib_with_image():
-    """Ensures that wandb.Image constructor supports a pyplot with image is passed"""
+    """Ensures that wandb.Image constructor supports a pyplot with image is passed."""
     # try the figure version
     fig = matplotlib_with_image()
     wandb.Image(fig)  # this should not error.
@@ -516,7 +512,7 @@ def test_matplotlib_plotly_with_multiple_axes():
 
 def test_plotly_from_matplotlib_with_image():
     """Ensures that wandb.Plotly constructor properly errors when
-    a pyplot with image is passed
+    a pyplot with image is passed.
     """
     # try the figure version
     fig = matplotlib_with_image()
@@ -533,7 +529,7 @@ def test_plotly_from_matplotlib_with_image():
 
 def test_make_plot_media_from_matplotlib_without_image():
     """Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
-    there is no image
+    there is no image.
     """
     fig = matplotlib_without_image()
     assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Plotly
@@ -546,7 +542,7 @@ def test_make_plot_media_from_matplotlib_without_image():
 
 def test_make_plot_media_from_matplotlib_with_image():
     """Ensures that wand.Plotly.make_plot_media() returns an Image object when
-    there is an image in the matplotlib figure
+    there is an image in the matplotlib figure.
     """
     fig = matplotlib_with_image()
     assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Image
@@ -585,7 +581,7 @@ def test_create_bokeh_plot(
     mock_run,
     bokeh_plot,
 ):
-    """Ensures that wandb.Bokeh constructor accepts a bokeh plot"""
+    """Ensures that wandb.Bokeh constructor accepts a bokeh plot."""
     bp = bokeh_plot()
     bp = wandb.data_types.Bokeh(bp)
     bp.bind_to_run(mock_run(), "bokeh", 0)
@@ -670,7 +666,7 @@ def test_molecule_file(mock_run):
 
 
 def test_molecule_from_smiles(mock_run):
-    """Ensures that wandb.Molecule.from_smiles supports valid SMILES molecule string representations"""
+    """Ensures that wandb.Molecule.from_smiles supports valid SMILES molecule string representations."""
     run = mock_run()
     mol = wandb.Molecule.from_smiles("CC(=O)Nc1ccc(O)cc1")
     mol.bind_to_run(run, "rad", "summary")
@@ -680,13 +676,13 @@ def test_molecule_from_smiles(mock_run):
 
 
 def test_molecule_from_invalid_smiles():
-    """Ensures that wandb.Molecule.from_smiles errs if passed an invalid SMILES string"""
+    """Ensures that wandb.Molecule.from_smiles errs if passed an invalid SMILES string."""
     with pytest.raises(ValueError):
         wandb.Molecule.from_smiles("TEST")
 
 
 def test_molecule_from_rdkit_mol_object(mock_run):
-    """Ensures that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
+    """Ensures that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects."""
     run = mock_run()
     mol = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
     mol.bind_to_run(run, "rad", "summary")
@@ -696,7 +692,7 @@ def test_molecule_from_rdkit_mol_object(mock_run):
 
 
 def test_molecule_from_rdkit_mol_file(mock_run):
-    """Ensures that wandb.Molecule.from_rdkit supports .mol files"""
+    """Ensures that wandb.Molecule.from_rdkit supports .mol files."""
     run = mock_run()
     substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
     mol_file_name = "test.mol"
@@ -709,7 +705,7 @@ def test_molecule_from_rdkit_mol_file(mock_run):
 
 
 def test_molecule_from_rdkit_invalid_input():
-    """Ensures that wandb.Molecule.from_rdkit errs on invalid input"""
+    """Ensures that wandb.Molecule.from_rdkit errs on invalid input."""
     mol_file_name = "test"
     with pytest.raises(ValueError):
         wandb.Molecule.from_rdkit(mol_file_name)
@@ -877,7 +873,6 @@ def test_table_default():
     ],
 )
 def test_table_eq_debug_mismatch(a, b):
-
     with pytest.raises(AssertionError):
         a._eq_debug(b, True)
     assert a != b
@@ -901,7 +896,6 @@ def test_table_eq_debug_match():
 
 
 def test_table_custom():
-
     table = wandb.Table(["Foo", "Bar"])
     table.add_data("So", "Cool")
     table.add_row("&", "Rad")
@@ -973,7 +967,6 @@ def test_table_from_numpy(table_data):
 
 
 def test_table_from_pandas(table_data):
-
     pd_data = pd.DataFrame(table_data)
     table = wandb.Table(data=pd_data)
     assert table.data == table_data

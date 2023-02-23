@@ -13,7 +13,8 @@ def _get_dict(d):
 
 class SummaryDict(metaclass=abc.ABCMeta):
     """dict-like which wraps all nested dictionaries in a SummarySubDict,
-    and triggers self._root._callback on property changes."""
+    and triggers self._root._callback on property changes.
+    """
 
     @abc.abstractmethod
     def _as_dict(self):
@@ -73,8 +74,7 @@ class SummaryDict(metaclass=abc.ABCMeta):
 
 
 class Summary(SummaryDict):
-    """
-    Tracks single values for each metric for each run.
+    """Tracks single values for each metric for each run.
 
     By default, a metric's summary is the last value of its History.
 
@@ -99,10 +99,10 @@ class Summary(SummaryDict):
 
         best_accuracy = 0
         for epoch in range(1, args.epochs + 1):
-        test_loss, test_accuracy = test()
-        if (test_accuracy > best_accuracy):
-            wandb.run.summary["best_accuracy"] = test_accuracy
-            best_accuracy = test_accuracy
+            test_loss, test_accuracy = test()
+            if test_accuracy > best_accuracy:
+                wandb.run.summary["best_accuracy"] = test_accuracy
+                best_accuracy = test_accuracy
         ```
     """
 
@@ -129,7 +129,8 @@ class Summary(SummaryDict):
 
 class SummarySubDict(SummaryDict):
     """Non-root node of the summary data structure. Contains a path to itself
-    from the root."""
+    from the root.
+    """
 
     _items: t.Dict
     _parent: SummaryDict

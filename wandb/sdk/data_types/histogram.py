@@ -23,7 +23,7 @@ class Histogram(WBValue):
     Examples:
         Generate histogram from a sequence
         ```python
-        wandb.Histogram([1,2,3])
+        wandb.Histogram([1, 2, 3])
         ```
 
         Efficiently initialize from np.histogram.
@@ -52,7 +52,6 @@ class Histogram(WBValue):
         np_histogram: Optional["NumpyHistogram"] = None,
         num_bins: int = 64,
     ) -> None:
-
         if np_histogram:
             if len(np_histogram) == 2:
                 self.histogram = (
@@ -89,6 +88,6 @@ class Histogram(WBValue):
 
     def __sizeof__(self) -> int:
         """This returns an estimated size in bytes, currently the factor of 1.7
-        is used to account for the JSON encoding.  We use this in tb_watcher.TBHistory
+        is used to account for the JSON encoding.  We use this in tb_watcher.TBHistory.
         """
         return int((sys.getsizeof(self.histogram) + sys.getsizeof(self.bins)) * 1.7)

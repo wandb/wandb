@@ -3,8 +3,7 @@
 # Really simple callback to get logging for each tree
 
 # Example usage:
-"""
-Use the `wandb_callback` to add `wandb` logging to any `XGboost` model. However, it will be deprecated in favor of
+"""Use the `wandb_callback` to add `wandb` logging to any `XGboost` model. However, it will be deprecated in favor of
 WandbCallback. Use it instead for more features.
 """
 

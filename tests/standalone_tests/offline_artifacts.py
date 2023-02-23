@@ -1,8 +1,7 @@
-"""
-rm -rf wandb \
+"""rm -rf wandb \
  && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py \
  && rm -rf wandb \
- && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py --online
+ && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py --online.
 """
 
 import sys

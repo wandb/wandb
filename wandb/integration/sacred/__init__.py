@@ -9,8 +9,9 @@ import wandb
 
 class WandbObserver(RunObserver):
     """Logs sacred experiment data to W&B.
+
     Arguments:
-        Accepts all the arguments accepted by wandb.init()
+        Accepts all the arguments accepted by wandb.init().
 
         name — A display name for this run, which shows up in the UI and is editable, doesn't have to be unique
         notes — A multiline string description associated with the run
@@ -61,10 +62,9 @@ class WandbObserver(RunObserver):
     def started_event(
         self, ex_info, command, host_info, start_time, config, meta_info, _id
     ):
-        """
-        TODO:
+        """Todo:
         * add the source code file
-        * add dependencies and metadata
+        * add dependencies and metadata.
         """
         self.__update_config(config)
 
@@ -102,9 +102,7 @@ class WandbObserver(RunObserver):
         self.run.log_artifact(artifact)
 
     def resource_event(self, filename):
-        """
-        TODO: Maintain resources list
-        """
+        """TODO: Maintain resources list."""
         if filename not in self.resources:
             md5 = get_digest(filename)
             self.resources[filename] = md5

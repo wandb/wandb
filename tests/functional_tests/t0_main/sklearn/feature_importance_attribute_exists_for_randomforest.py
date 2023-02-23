@@ -15,7 +15,7 @@ assert:
     - :yea:exit: 0
     - :wandb:runs[0][summary][feature_importances][_type]: table-file
     - :wandb:runs[0][summary][feature_importances][ncols]: 2
-    - :wandb:runs[0][summary][feature_importances][nrows]: 30
+    - :wandb:runs[0][summary][feature_importances][nrows]: 30.
 """
 import wandb
 from sklearn import datasets

@@ -11,8 +11,7 @@ def pr_curve(
     interp_size=21,
     title=None,
 ):
-    """
-    Computes the tradeoff between precision and recall for different thresholds.
+    """Computes the tradeoff between precision and recall for different thresholds.
     A high area under the curve represents both high recall and high precision,
     where high precision relates to a low false positive rate, and high recall
     relates to a low false negative rate. High scores for both show that the

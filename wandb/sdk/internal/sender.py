@@ -1,6 +1,4 @@
-"""
-sender.
-"""
+"""sender."""
 
 
 import json
@@ -712,7 +710,8 @@ class SendManager:
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
         """This maybe queries the backend for a run and fails if the settings are
-        incompatible."""
+        incompatible.
+        """
         if not self._settings.resume:
             return None
 
@@ -851,7 +850,7 @@ class SendManager:
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
     def _sync_spell(self) -> None:
-        """Syncs this run with spell"""
+        """Syncs this run with spell."""
         if not self._run:
             return
         try:
@@ -1373,9 +1372,8 @@ class SendManager:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
 
     def send_use_artifact(self, record: "Record") -> None:
-        """
-        This function doesn't actually send anything, it is just used
-        internally
+        """This function doesn't actually send anything, it is just used
+        internally.
         """
         use = record.use_artifact
         if use.type == "job":
@@ -1543,8 +1541,7 @@ class SendManager:
         return self._cached_server_info
 
     def get_local_info(self) -> "LocalInfo":
-        """
-        This is a helper function that queries the server to get the local version information.
+        """This is a helper function that queries the server to get the local version information.
         First, we perform an introspection, if it returns empty we deduce that the docker image is
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """

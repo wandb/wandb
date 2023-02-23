@@ -312,7 +312,7 @@ def test_to_human_size():
 
 
 def matplotlib_with_image():
-    """Creates a matplotlib figure with an image"""
+    """Creates a matplotlib figure with an image."""
     fig, ax = plt.subplots(3)
     ax[0].plot([1, 2, 3])
     ax[1].imshow(np.random.rand(200, 200, 3))
@@ -321,7 +321,7 @@ def matplotlib_with_image():
 
 
 def matplotlib_without_image():
-    """Creates a matplotlib figure without an image"""
+    """Creates a matplotlib figure without an image."""
     fig, ax = plt.subplots(2)
     ax[0].plot([1, 2, 3])
     ax[1].plot([1, 2, 3])
@@ -330,7 +330,9 @@ def matplotlib_without_image():
 
 def test_matplotlib_contains_images():
     """Ensures that the utility function can properly detect if immages are in a
-    matplotlib figure"""
+    matplotlib figure
+    .
+    """
     # fig true
     fig = matplotlib_with_image()
     assert util.matplotlib_contains_images(fig)
@@ -354,7 +356,9 @@ def test_matplotlib_contains_images():
 
 def test_matplotlib_to_plotly():
     """Ensures that the utility function can properly transform a pyplot object to a
-    plotly object (not the wandb.* versions"""
+    plotly object (not the wandb.* versions
+    .
+    """
     fig = matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(fig)) == plotly.graph_objs._figure.Figure
     plt.close()

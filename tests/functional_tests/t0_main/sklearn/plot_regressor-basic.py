@@ -22,7 +22,7 @@ assert:
     - :wandb:runs[0][summary][residuals][ncols]: 5
     - :wandb:runs[0][summary][summary_metrics][_type]: table-file
     - :wandb:runs[0][summary][summary_metrics][ncols]: 3
-    - :wandb:runs[0][summary][summary_metrics][nrows]: 3
+    - :wandb:runs[0][summary][summary_metrics][nrows]: 3.
 """
 import pandas as pd
 import wandb

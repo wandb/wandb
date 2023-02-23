@@ -54,8 +54,7 @@ class _WBValueArtifactTarget:
 
 
 class WBValue:
-    """
-    Abstract parent class for things that can be logged by `wandb.log()` and
+    """Abstract parent class for things that can be logged by `wandb.log()` and
     visualized by wandb.
 
     The objects will be serialized as JSON and always have a _type attribute
@@ -104,7 +103,7 @@ class WBValue:
 
     @classmethod
     def with_suffix(cls: Type["WBValue"], name: str, filetype: str = "json") -> str:
-        """Helper function to return the name with suffix added if not already
+        """Helper function to return the name with suffix added if not already.
 
         Args:
             name (str): the name of the file
@@ -175,7 +174,7 @@ class WBValue:
         return not self.__eq__(other)
 
     def to_data_array(self) -> List[Any]:
-        """Converts the object to a list of primitives representing the underlying data"""
+        """Converts the object to a list of primitives representing the underlying data."""
         raise NotImplementedError
 
     def _set_artifact_source(

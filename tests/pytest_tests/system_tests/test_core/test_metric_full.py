@@ -1,6 +1,4 @@
-"""
-metric full tests.
-"""
+"""metric full tests."""
 
 
 def test_metric_default(relay_server, wandb_init):

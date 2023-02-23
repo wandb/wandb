@@ -128,6 +128,7 @@ class WandbEvalCallback(Callback, abc.ABC):
     def add_ground_truth(self, logs: Optional[Dict[str, float]] = None) -> None:
         """Use this method to write the logic for adding validation/training
         data to `data_table` initialized using `init_data_table` method.
+
         Example:
             ```
             for idx, data in enumerate(dataloader):
@@ -147,6 +148,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         """Use this method to write the logic for adding model prediction for
         validation/training data to `pred_table` initialized using
         `init_pred_table` method.
+
         Example:
             ```
             # Assuming the dataloader is not shuffling the samples.
@@ -166,6 +168,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         """Initialize the W&B Tables for validation data.
         Call this method `on_train_begin` or equivalent hook. This is followed by
         adding data to the table row or column wise.
+
         Args:
             column_names (list): Column names for W&B Tables.
         """
@@ -175,6 +178,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         """Initialize the W&B Tables for model evaluation.
         Call this method `on_epoch_end` or equivalent hook. This is followed by
         adding data to the table row or column wise.
+
         Args:
             column_names (list): Column names for W&B Tables.
         """
@@ -187,6 +191,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         `use_artifact` on it so that the evaluation table can use the reference
         of already uploaded data (images, text, scalar, etc.).
         This allows the data to be uploaded just once.
+
         Args:
             name (str):  A human-readable name for this artifact, which is how
                 you can identify this artifact in the UI or reference
@@ -194,7 +199,7 @@ class WandbEvalCallback(Callback, abc.ABC):
             type (str): The type of the artifact, which is used to organize and
                 differentiate artifacts. (default is 'dataset')
             table_name (str): The name of the table as will be displayed in the UI.
-                (default is 'val_data')
+                (default is 'val_data').
         """
         data_artifact = wandb.Artifact(name, type=type)
         data_artifact.add(self.data_table, table_name)
@@ -216,6 +221,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         """Log the W&B Tables for model evaluation.
         The table will be logged multiple times creating new version. Use this
         to compare models at different intervals interactively.
+
         Args:
             type (str): The type of the artifact, which is used to organize and
                 differentiate artifacts. (default is 'evaluation')

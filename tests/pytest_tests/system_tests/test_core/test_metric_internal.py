@@ -1,6 +1,4 @@
-"""
-metric internal tests.
-"""
+"""metric internal tests."""
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -400,7 +398,6 @@ def test_metric_dot_glob(relay_server, user, publish_util, mock_run):
     """glob should escape the defined metric name."""
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay:
-
         history = []
         history.append(dict(step=0, data={"this.has.dots": 2}))
         history.append(dict(step=1, data={"this.also": 2}))

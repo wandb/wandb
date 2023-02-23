@@ -231,7 +231,6 @@ def link_model(
         link_model(sm, "my-portfolio")
 
     """
-
     aliases = wandb.util._resolve_aliases(aliases)
 
     if wandb.run:

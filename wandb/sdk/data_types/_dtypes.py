@@ -137,7 +137,7 @@ def _params_obj_to_json_obj(
     params_obj: t.Any,
     artifact: t.Optional["ArtifactInCreation"] = None,
 ) -> t.Any:
-    """Helper method"""
+    """Helper method."""
     if params_obj.__class__ == dict:
         return {
             key: _params_obj_to_json_obj(params_obj[key], artifact)
@@ -154,7 +154,7 @@ def _params_obj_to_json_obj(
 def _json_obj_to_params_obj(
     json_obj: t.Any, artifact: t.Optional["DownloadedArtifact"] = None
 ) -> t.Any:
-    """Helper method"""
+    """Helper method."""
     if json_obj.__class__ == dict:
         if "wb_type" in json_obj:
             return TypeRegistry.type_from_dict(json_obj, artifact)
@@ -308,7 +308,7 @@ class Type:
 
 class InvalidType(Type):
     """all assignments to a InvalidType result in a Never Type.
-    InvalidType is basically the invalid case
+    InvalidType is basically the invalid case.
     """
 
     name = "invalid"
@@ -320,7 +320,7 @@ class InvalidType(Type):
 
 class AnyType(Type):
     """all assignments to an AnyType result in the
-    AnyType except None which will be InvalidType
+    AnyType except None which will be InvalidType.
     """
 
     name = "any"
@@ -336,7 +336,7 @@ class AnyType(Type):
 
 class UnknownType(Type):
     """all assignments to an UnknownType result in the type of the assigned object
-    except none which will result in a InvalidType
+    except none which will result in a InvalidType.
     """
 
     name = "unknown"
@@ -416,7 +416,7 @@ if np:
 
 
 class PythonObjectType(Type):
-    """Serves as a backup type by keeping track of the python object name"""
+    """Serves as a backup type by keeping track of the python object name."""
 
     name = "pythonObject"
     legacy_names = ["object"]
@@ -431,7 +431,7 @@ class PythonObjectType(Type):
 
 
 class ConstType(Type):
-    """Represents a constant value (currently only primitives supported)"""
+    """Represents a constant value (currently only primitives supported)."""
 
     name = "const"
     types: t.ClassVar[t.List[type]] = []
@@ -524,7 +524,7 @@ def _union_assigner(
 
 
 class UnionType(Type):
-    """Represents an "or" of types"""
+    """Represents an "or" of types."""
 
     name = "union"
     types: t.ClassVar[t.List[type]] = []
@@ -581,7 +581,7 @@ class UnionType(Type):
 
 def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
     """Function that mimics the Type class API for constructing an "Optional Type"
-    which is just a Union[wb_type, NoneType]
+    which is just a Union[wb_type, NoneType].
 
     Args:
         dtype (Type): type to be optional
@@ -593,7 +593,7 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
 
 
 class ListType(Type):
-    """Represents a list of homogenous types"""
+    """Represents a list of homogenous types."""
 
     name = "list"
     types: t.ClassVar[t.List[type]] = [list, tuple, set, frozenset]
@@ -693,7 +693,7 @@ class ListType(Type):
 
 
 class NDArrayType(Type):
-    """Represents a list of homogenous types"""
+    """Represents a list of homogenous types."""
 
     name = "ndarray"
     types: t.ClassVar[t.List[type]] = []  # will manually add type if np is available
@@ -782,7 +782,7 @@ if np:
 
 
 class TypedDictType(Type):
-    """Represents a dictionary object where each key can have a type"""
+    """Represents a dictionary object where each key can have a type."""
 
     name = "typedDict"
     legacy_names = ["dictionary"]

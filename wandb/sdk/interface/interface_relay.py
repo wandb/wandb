@@ -1,4 +1,4 @@
-"""InterfaceRelay - Derived from InterfaceQueue using RelayRouter to preserve uuid req/resp
+"""InterfaceRelay - Derived from InterfaceQueue using RelayRouter to preserve uuid req/resp.
 
 See interface.py for how interface classes relate to each other.
 

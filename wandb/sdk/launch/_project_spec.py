@@ -1,6 +1,5 @@
-"""
-Internal utility for converting arguments from a launch spec or call to wandb launch
-into a runnable wandb launch script
+"""Internal utility for converting arguments from a launch spec or call to wandb launch
+into a runnable wandb launch script.
 """
 import binascii
 import enum
@@ -148,7 +147,7 @@ class LaunchProject:
 
     @property
     def base_image(self) -> str:
-        """Returns {PROJECT}_base:{PYTHON_VERSION}"""
+        """Returns {PROJECT}_base:{PYTHON_VERSION}."""
         # TODO: this should likely be source_project when we have it...
 
         # don't make up a separate base image name if user provides a docker image
@@ -192,7 +191,6 @@ class LaunchProject:
 
     @property
     def image_tag(self) -> str:
-
         return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
 
     @property
@@ -435,7 +433,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     Returns:
         An initialized `LaunchProject` object
     """
-
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]

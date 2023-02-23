@@ -1,6 +1,4 @@
-"""
-module lazyloader
-"""
+"""module lazyloader."""
 
 
 import importlib

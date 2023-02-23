@@ -20,19 +20,19 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class LaunchError(Error):
-    """Raised when a known error occurs in wandb launch"""
+    """Raised when a known error occurs in wandb launch."""
 
     pass
 
 
 class ExecutionError(Error):
-    """Generic execution exception"""
+    """Generic execution exception."""
 
     pass
 
 
 class SweepError(Error):
-    """Raised when a known error occurs with wandb sweeps"""
+    """Raised when a known error occurs with wandb sweeps."""
 
     pass
 
@@ -243,7 +243,7 @@ def is_bare_wandb_uri(uri: str) -> bool:
     """Checks if the uri is of the format
     /<entity>/<project>/runs/<run_name>[other stuff]
     or
-    /<entity>/<project>/artifacts/job/<job_name>[other stuff]
+    /<entity>/<project>/artifacts/job/<job_name>[other stuff].
     """
     _logger.info(f"Checking if uri {uri} is bare...")
     return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
@@ -384,7 +384,7 @@ def validate_wandb_python_deps(
     requirements_file: Optional[str],
     dir: str,
 ) -> None:
-    """Warns if local python dependencies differ from wandb requirements.txt"""
+    """Warns if local python dependencies differ from wandb requirements.txt."""
     if requirements_file is not None:
         requirements_path = os.path.join(dir, requirements_file)
         with open(requirements_path) as f:
@@ -435,8 +435,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
 
 
 def _make_refspec_from_version(version: Optional[str]) -> List[str]:
-    """
-    Helper to create a refspec that checks for the existence of origin/main
+    """Helper to create a refspec that checks for the existence of origin/main
     and the version, if provided.
     """
     if version:
@@ -628,10 +627,9 @@ def resolve_build_and_registry_config(
 
 
 def check_logged_in(api: Api) -> bool:
-    """
-    Uses an internal api reference to check if a user is logged in
+    """Uses an internal api reference to check if a user is logged in
     raises an error if the viewer doesn't load, likely broken API key
-    expected time cost is 0.1-0.2 seconds
+    expected time cost is 0.1-0.2 seconds.
     """
     res = api.api.viewer()
     if not res:

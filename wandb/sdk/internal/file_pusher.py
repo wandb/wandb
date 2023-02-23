@@ -117,6 +117,7 @@ class FilePusher:
         copy: bool = True,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
+
         Arguments:
             save_name: string logical location of the file relative to the run
                 directory.

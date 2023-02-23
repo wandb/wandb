@@ -5,7 +5,9 @@ import wandb
 
 def mp_func():
     """This needs to be defined at the module level to be picklable and sendable to
-    the spawned process via multiprocessing"""
+    the spawned process via multiprocessing
+    .
+    """
     print("hello from the other side")
 
 

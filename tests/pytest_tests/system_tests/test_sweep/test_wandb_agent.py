@@ -1,4 +1,4 @@
-"""Agent tests"""
+"""Agent tests."""
 import os
 from unittest import mock
 
