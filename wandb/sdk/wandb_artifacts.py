@@ -1331,6 +1331,7 @@ class S3Handler(StorageHandler):
         boto: "boto3" = util.get_module(
             "boto3",
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
+            lazy=False,
         )
         self._s3 = boto.session.Session().resource(
             "s3",
