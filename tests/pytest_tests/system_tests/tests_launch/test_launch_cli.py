@@ -279,11 +279,11 @@ def test_launch_build_with_local(
 
 
 @pytest.mark.parametrize(
-    "image_uri,scheduler_params",
+    "image_uri,launch_config",
     [
         ("testing111", {}),
-        ("testing222", {"num_workers": 5}),
-        ("testing222", {"num_workers": "5"}),
+        ("testing222", {"scheduler": {"num_workers": 5}}),
+        ("testing222", {"scheduler": {"num_workers": "5"}}),
     ],
     ids=[
         "working",
@@ -291,7 +291,7 @@ def test_launch_build_with_local(
         "num-workers-str",
     ],
 )
-def test_launch_sweep_launch_uri(user, image_uri, scheduler_params):
+def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     queue = "testing-" + str(random.random()).replace(".", "")
     api = InternalApi()
     public_api = Api()
@@ -314,7 +314,6 @@ def test_launch_sweep_launch_uri(user, image_uri, scheduler_params):
                 "job": None,
                 "method": "grid",
                 "image_uri": image_uri,
-                "scheduler": scheduler_params,
                 "parameters": {"parameter1": {"values": [1, 2, 3]}},
             },
             f,
@@ -330,17 +329,19 @@ def test_launch_sweep_launch_uri(user, image_uri, scheduler_params):
             user,
             "-q",
             queue,
+            "--launch_config",
+            json.dumps(launch_config),
         ]
     )
 
 
 @pytest.mark.parametrize(
-    "image_uri,scheduler_params,job",
+    "image_uri,launch_config,job",
     [
         (None, {}, None),
-        ("", None, None),
-        ("testing111", {}, "job123:v1"),
-        ("testing222", {"num_workers": 5}, "job"),
+        ("", {}, None),
+        ("testing111", {"scheduler": {}}, "job123:v1"),
+        ("testing222", {"scheduler": {"num_workers": 5}}, "job"),
     ],
     ids=[
         "None, empty, None",
@@ -349,7 +350,7 @@ def test_launch_sweep_launch_uri(user, image_uri, scheduler_params):
         "image + malformed job",
     ],
 )
-def test_launch_sweep_launch_error(user, image_uri, scheduler_params, job):
+def test_launch_sweep_launch_error(user, image_uri, launch_config, job):
     queue = "testing-" + str(random.random()).replace(".", "")
     api = InternalApi()
     public_api = Api()
@@ -363,7 +364,7 @@ def test_launch_sweep_launch_error(user, image_uri, scheduler_params, job):
         access="USER",
     )
 
-    if res.get("success") is not True:
+    if not res or res.get("success") is not True:
         raise Exception("create queue" + str(res))
 
     with open("sweep-config.yaml", "w") as f:
@@ -372,7 +373,6 @@ def test_launch_sweep_launch_error(user, image_uri, scheduler_params, job):
                 "job": job,
                 "image_uri": image_uri,
                 "method": "grid",
-                "scheduler": scheduler_params,
                 "parameters": {"parameter1": {"values": [1, 2, 3]}},
             },
             f,
@@ -389,5 +389,7 @@ def test_launch_sweep_launch_error(user, image_uri, scheduler_params, job):
                 user,
                 "-q",
                 queue,
+                "--launch_config",
+                json.dumps(launch_config),
             ],
         )
