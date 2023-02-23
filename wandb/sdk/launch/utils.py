@@ -240,10 +240,12 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 
 def is_bare_wandb_uri(uri: str) -> bool:
-    """Checks if the uri is of the format
-    /<entity>/<project>/runs/<run_name>[other stuff]
+    """Check that a wandb uri is valid.
+
+    URI must be in the format
+    `/<entity>/<project>/runs/<run_name>[other stuff]`
     or
-    /<entity>/<project>/artifacts/job/<job_name>[other stuff].
+    `/<entity>/<project>/artifacts/job/<job_name>[other stuff]`.
     """
     _logger.info(f"Checking if uri {uri} is bare...")
     return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
@@ -435,9 +437,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
 
 
 def _make_refspec_from_version(version: Optional[str]) -> List[str]:
-    """Helper to create a refspec that checks for the existence of origin/main
-    and the version, if provided.
-    """
+    """Create a refspec that checks for the existence of origin/main and the version."""
     if version:
         return [f"+{version}"]
 
@@ -627,9 +627,10 @@ def resolve_build_and_registry_config(
 
 
 def check_logged_in(api: Api) -> bool:
-    """Uses an internal api reference to check if a user is logged in
-    raises an error if the viewer doesn't load, likely broken API key
-    expected time cost is 0.1-0.2 seconds.
+    """Check if a user is logged in.
+
+    Raises an error if the viewer doesn't load (likely a broken API key). Expected time
+    cost is 0.1-0.2 seconds.
     """
     res = api.api.viewer()
     if not res:

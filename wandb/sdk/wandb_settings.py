@@ -492,8 +492,9 @@ class Settings:
     table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
-        """Helper method that is used in `__init__` together with the class attributes
-        to initialize instance attributes (individual settings) as Property objects.
+        """Initialize instance attributes (individual settings) as Property objects.
+
+        Helper method that is used in `__init__` together with the class attributes.
         Note that key names must be the same as the class attribute names.
         """
         return dict(

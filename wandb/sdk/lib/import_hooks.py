@@ -1,10 +1,10 @@
-"""Note: This file is based on
+"""Implements a post-import hook mechanism.
+
+Styled as per PEP-369. Note that it doesn't cope with modules being reloaded.
+
+Note: This file is based on
 https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
 (with slight modifications).
-
-This module implements a post import hook mechanism styled after what is
-described in PEP-369. Note that it doesn't cope with modules being reloaded.
-
 """
 
 import functools

@@ -177,7 +177,9 @@ class Cursor:
     __slots__ = ("x", "y", "char")
 
     def __init__(self, x=0, y=0, char=None):
-        """x, y - 2D coordinates
+        """Arguments:
+
+        x, y - 2D coordinates
         char - Next character to be written will inherit colors and styles from this character.
         """
         if char is None:

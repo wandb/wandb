@@ -1,5 +1,6 @@
-"""Log in to Weights & Biases, authenticating your machine to log data to your
-account.
+"""Log in to Weights & Biases.
+
+This authenticates your machine to log data to your account.
 """
 
 import enum
@@ -25,9 +26,10 @@ from .wandb_settings import Settings, Source
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
-    """Write the host parameter from wandb.login or wandb login to
-    the global settings file so that it is used automatically by
-    the application's APIs.
+    """Write the host parameter to the global settings file.
+
+    This takes the parameter from wandb.login or wandb login for use by the
+    application's APIs.
     """
     _api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):

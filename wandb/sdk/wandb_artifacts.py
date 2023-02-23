@@ -711,9 +711,9 @@ class Artifact(ArtifactInterface):
         return entry.path
 
     def finalize(self) -> None:
-        """Marks this artifact as final, which disallows further additions to the artifact.
-        This happens automatically when calling `log_artifact`.
+        """Mark this artifact as final, disallowing further modifications.
 
+        This happens automatically when calling `log_artifact`.
 
         Returns:
             None
@@ -1132,8 +1132,9 @@ class MultiHandler(StorageHandler):
 
 class TrackingHandler(StorageHandler):
     def __init__(self, scheme: Optional[str] = None) -> None:
-        """Tracks paths as is, with no modification or special processing. Useful
-        when paths being tracked are on file systems mounted at a standardized
+        """Track paths with no modification or special processing.
+
+        Useful when paths being tracked are on file systems mounted at a standardized
         location.
 
         For example, if the data to track is located on an NFS share mounted on
@@ -1192,8 +1193,9 @@ class LocalFileHandler(StorageHandler):
     """Handles file:// references."""
 
     def __init__(self, scheme: Optional[str] = None) -> None:
-        """Tracks files or directories on a local filesystem. Directories
-        are expanded to create an entry for each file contained within.
+        """Track files or directories on a local filesystem.
+
+        Expand directories to create an entry for each file contained.
         """
         self._scheme = scheme or "file"
         self._cache = get_artifacts_cache()
@@ -1513,6 +1515,7 @@ class S3Handler(StorageHandler):
         multi: bool = False,
     ) -> ArtifactManifestEntry:
         """Arguments:
+
         obj: The S3 object
         path: The S3-style path (e.g.: "s3://bucket/file.txt")
         name: The user assigned name, or None if not specified
@@ -1732,6 +1735,7 @@ class GCSHandler(StorageHandler):
         multi: bool = False,
     ) -> ArtifactManifestEntry:
         """Arguments:
+
         obj: The GCS object
         path: The GCS-style path (e.g.: "gs://bucket/file.txt")
         name: The user assigned name, or None if not specified
@@ -1903,9 +1907,9 @@ class WBArtifactHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[util.URIStr, util.FilePathStr]:
-        """Loads the file within the specified artifact given its
-        corresponding entry. In this case, the referenced artifact is downloaded
-        and a new symlink is created and returned to the caller.
+        """Load the file in the specified artifact given its corresponding entry.
+
+        Download the referenced artifact; create and return a new symlink to the caller.
 
         Arguments:
             manifest_entry (ArtifactManifestEntry): The index entry to load
@@ -1940,20 +1944,20 @@ class WBArtifactHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        """Stores the file or directory at the given path within the specified artifact. In this
-        case we recursively resolve the reference until the result is a concrete asset so that
-        we don't have multiple hops. TODO-This resolution could be done in the server for
-        performance improvements.
+        """Store the file or directory at the given path into the specified artifact.
+
+        Recursively resolves the reference until the result is a concrete asset.
 
         Arguments:
-            artifact: The artifact doing the storing
-            path (str): The path to store
-            name (str): If specified, the logical name that should map to `path`
+            artifact: The artifact doing the storing path (str): The path to store name
+            (str): If specified, the logical name that should map to `path`
 
         Returns:
-            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
+            (list[ArtifactManifestEntry]): A list of manifest entries to store within
+            the artifact
         """
         # Recursively resolve the reference until a concrete asset is found
+        # TODO: Consider resolving server-side for performance improvements.
         while path is not None and urlparse(path).scheme == self._scheme:
             artifact_id = util.host_from_path(path)
             artifact_file_path = util.uri_from_path(path)
