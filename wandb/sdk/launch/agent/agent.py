@@ -321,7 +321,7 @@ class LaunchAgent:
         except KeyboardInterrupt:
             # temp: for local, kill all jobs. we don't yet have good handling for different
             # types of runners in general
-            for _, run in (self._jobs | self._schedulers).items():
+            for _, run in {**self._jobs, **self._schedulers}.items():
                 if isinstance(run, LocalSubmittedRun):
                     run.command_proc.kill()
             self.update_status(AGENT_KILLED)
