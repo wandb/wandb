@@ -663,7 +663,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.delete()
 
-        raise ArtifactNotLoggedError(self, "delete()")
+        raise ArtifactNotLoggedError(self, "delete")
 
     def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         """
@@ -673,7 +673,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.wait(timeout)  # type: ignore [call-arg]
 
-        raise ArtifactNotLoggedError(self, "wait()")
+        raise ArtifactNotLoggedError(self, "wait")
 
     def get_added_local_path_name(self, local_path: str) -> Optional[str]:
         """
@@ -718,7 +718,7 @@ class Artifact(ArtifactInterface):
 
     def json_encode(self) -> Dict[str, Any]:
         if not self._logged_artifact:
-            raise ArtifactNotLoggedError(self, "json_encode()")
+            raise ArtifactNotLoggedError(self, "json_encode")
         return util.artifact_to_json(self)
 
     def _ensure_can_add(self) -> None:

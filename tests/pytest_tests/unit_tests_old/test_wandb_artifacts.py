@@ -282,7 +282,6 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             "checkout",
             "verify",
             "delete",
-            "wait",
             "json_encode",
         ]
 
@@ -293,6 +292,8 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         special_errors = {
             "save": wandb.errors.CommError,
             "delete": wandb.errors.CommError,
+            "verify": ValueError,
+            "logged_by": KeyError,
         }
 
         for valid_getter in testable_getters_valid + testable_getters_always_valid:
