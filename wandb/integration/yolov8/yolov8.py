@@ -68,7 +68,7 @@ class WandbCallback:
                     else trainer.args.project or "YOLOv8",
                     tags=self.tags if self.tags else ["YOLOv8"],
                     config=vars(trainer.args),
-                    resume="allow" or self.resume,
+                    resume=self.resume if self.resume else "allow",
                     **self.kwargs,
                 )
             else:
@@ -238,6 +238,13 @@ def add_callbacks(
     model.train(data="coco128.yaml", epochs=3, imgsz=640,)
     ```
     """
+    wandb.termwarn(
+        """The wandb callback is currently in beta and is subject to change based on updates to `ultralytics yolov8`.
+        The callback is tested and supported for ultralytics v8.0.43 and above.
+        Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.
+        """
+    )
+
     if RANK in [-1, 0]:
         wandb_logger = WandbCallback(
             yolo, run_name=run_name, project=project, tags=tags, resume=resume, **kwargs
@@ -246,8 +253,8 @@ def add_callbacks(
             yolo.add_callback(event, callback_fn)
         return yolo
     else:
-        wandb.termwarn(
-            "Weights & Biases callbacks were not added to this instance of the "
-            "model since the RANK of the process to add the callbacks was neither 0 or -1."
+        wandb.termerror(
+            "The RANK of the process to add the callbacks was neither 0 or -1."
+            "No Weights & Biases callbacks were added to this instance of the YOLO model."
         )
     return yolo
