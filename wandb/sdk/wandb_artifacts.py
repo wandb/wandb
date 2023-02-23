@@ -1514,13 +1514,14 @@ class S3Handler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        """Arguments:
+        """Create an ArtifactManifestEntry from an S3 object.
 
-        obj: The S3 object
-        path: The S3-style path (e.g.: "s3://bucket/file.txt")
-        name: The user assigned name, or None if not specified
-        prefix: The prefix to add (will be the same as `path` for directories)
-        multi: Whether or not this is a multi-object add.
+        Arguments:
+            obj: The S3 object
+            path: The S3-style path (e.g.: "s3://bucket/file.txt")
+            name: The user assigned name, or None if not specified
+            prefix: The prefix to add (will be the same as `path` for directories)
+            multi: Whether or not this is a multi-object add.
         """
         bucket, key, _ = self._parse_uri(path)
 
@@ -1734,13 +1735,14 @@ class GCSHandler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        """Arguments:
+        """Create an ArtifactManifestEntry from a GCS object.
 
-        obj: The GCS object
-        path: The GCS-style path (e.g.: "gs://bucket/file.txt")
-        name: The user assigned name, or None if not specified
-        prefix: The prefix to add (will be the same as `path` for directories)
-        multi: Whether or not this is a multi-object add.
+        Arguments:
+            obj: The GCS object
+            path: The GCS-style path (e.g.: "gs://bucket/file.txt")
+            name: The user assigned name, or None if not specified
+            prefix: The prefix to add (will be the same as `path` for directories)
+            multi: Whether or not this is a multi-object add.
         """
         bucket, key, _ = self._parse_uri(path)
 

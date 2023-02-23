@@ -172,16 +172,17 @@ _defchar = Char()
 
 
 class Cursor:
-    """2D cursor."""
+    """A 2D cursor.
+
+    Attributes:
+        x: x-coordinate.
+        y: y-coordinate.
+        char: the character to inherit colors and styles from.
+    """
 
     __slots__ = ("x", "y", "char")
 
     def __init__(self, x=0, y=0, char=None):
-        """Arguments:
-
-        x, y - 2D coordinates
-        char - Next character to be written will inherit colors and styles from this character.
-        """
         if char is None:
             char = Char()
         self.x = x
@@ -190,7 +191,10 @@ class Cursor:
 
 
 class TerminalEmulator:
-    """An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor."""
+    """An FSM emulating a terminal.
+
+    Characters are stored in a 2D matrix (buffer) indexed by the cursor.
+    """
 
     _MAX_LINES = 100
 
