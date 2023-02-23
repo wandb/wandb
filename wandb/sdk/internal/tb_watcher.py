@@ -330,10 +330,11 @@ class Event:
 
 
 class TBEventConsumer:
-    """Consumes tfevents from a priority queue.  There should always
-    only be one of these per run_manager.  We wait for 10 seconds of queued
-    events to reduce the chance of multiple tfevent files triggering
-    out of order steps.
+    """Consume tfevents from a priority queue.
+
+    There should always only be one of these per run_manager.  We wait for 10 seconds of
+    queued events to reduce the chance of multiple tfevent files triggering out of order
+    steps.
     """
 
     def __init__(

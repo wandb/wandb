@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 class ProcessMemoryRSS:
     """Memory resident set size (RSS) in MB.
+
     RSS is the portion of memory occupied by a process that is held in main memory (RAM).
     """
 

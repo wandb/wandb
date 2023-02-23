@@ -57,9 +57,7 @@ class SweepRun:
 
 
 class Scheduler(ABC):
-    """The Scheduler is a controller/agent that will populate a Launch RunQueue
-    with jobs from a hyperparameter sweep.
-    """
+    """A controller/agent that populates a Launch RunQueue from a hyperparameter sweep."""
 
     def __init__(
         self,
@@ -229,8 +227,9 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
 
     def _update_run_states(self) -> None:
-        """Thread-safe iteration through runs, get state from backend
-        Deletes runs if not in running state.
+        """Iterate through runs.
+
+        Get state from backend and deletes runs if not in running state. Threadsafe.
         """
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():

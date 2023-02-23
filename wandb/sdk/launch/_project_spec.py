@@ -1,5 +1,6 @@
-"""Internal utility for converting arguments from a launch spec or call to wandb launch
-into a runnable wandb launch script.
+"""Convert launch arguments into a runnable wandb launch script.
+
+Arguments can come from a launch spec or call to wandb launch.
 """
 import binascii
 import enum

@@ -103,8 +103,9 @@ class SummaryFilePolicy(DefaultFilePolicy):
 
 
 class StreamCRState:
-    r"""There are two streams: stdout and stderr.
-    We create two instances for each stream.
+    r"""Stream state that tracks carriage returns.
+
+    There are two streams: stdout and stderr. We create two instances for each stream.
     An instance holds state about:
         found_cr:       if a carriage return has been found in this stream.
         cr:             most recent offset (line number) where we found \r.
@@ -124,17 +125,16 @@ class StreamCRState:
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
-    r"""File stream policy that removes characters that would be erased by
-    carriage returns.
+    r"""File stream policy for removing carriage-return erased characters.
 
-    This is what a terminal does. We use it for console output to reduce the
-    amount of data we need to send over the network (eg. for progress bars),
-    while preserving the output's appearance in the web app.
+    This is what a terminal does. We use it for console output to reduce the amount of
+    data we need to send over the network (eg. for progress bars), while preserving the
+    output's appearance in the web app.
 
-    CR stands for "carriage return", for the character \r. It tells the terminal
-    to move the cursor back to the start of the current line. Progress bars
-    (like tqdm) use \r repeatedly to overwrite a line with newer updates.
-    This gives the illusion of the progress bar filling up in real-time.
+    CR stands for "carriage return", for the character \r. It tells the terminal to move
+    the cursor back to the start of the current line. Progress bars (like tqdm) use \r
+    repeatedly to overwrite a line with newer updates. This gives the illusion of the
+    progress bar filling up in real-time.
     """
 
     def __init__(self, start_chunk_id: int = 0) -> None:
@@ -148,7 +148,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     @staticmethod
     def get_consecutive_offsets(console: Dict[int, str]) -> List[List[int]]:
-        """Args:
+        """Compress consecutive line numbers into an interval.
+
+        Args:
             console: Dict[int, str] which maps offsets (line numbers) to lines of text.
             It represents a mini version of our console dashboard on the UI.
 
@@ -175,7 +177,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     @staticmethod
     def split_chunk(chunk: Chunk) -> Tuple[str, str]:
-        r"""Args:
+        r"""Split chunks.
+
+        Args:
             chunk: object with two fields: filename (str) & data (str)
             `chunk.data` is a str containing the lines we want. It usually contains \n or \r or both.
             `chunk.data` has two possible formats (for the two streams - stdout and stderr):
@@ -204,7 +208,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         return prefix, rest
 
     def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
-        r"""Args:
+        r"""Process chunks.
+
+        Args:
             chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
 
         Returns:

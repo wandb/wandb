@@ -60,8 +60,9 @@ class SetupTeardown(Protocol):
 
 @runtime_checkable
 class Asset(Protocol):
-    """Base protocol to encapsulate everything relating to an "Asset"
-    e.g. CPU, GPU, TPU, Network, I/O etc.
+    """Base protocol encapsulate everything relating to an "Asset".
+
+    An asset can be CPU, GPU, TPU, Network, I/O etc.
     """
 
     name: str
