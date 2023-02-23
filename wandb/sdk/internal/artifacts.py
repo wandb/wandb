@@ -6,8 +6,8 @@ import tempfile
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
-import wandb.filesync.step_prepare
 from wandb import util
+import wandb.filesync.step_prepare
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 
 from ..interface.artifacts import (
@@ -242,7 +242,7 @@ class ArtifactSaver:
                 _, resp = self._api.update_artifact_manifest(
                     artifact_manifest_id,
                     digest=digest,
-                )
+                );
             else:
                 # In the regular flow, we can recreate the full manifest with the
                 # updated digest.
@@ -263,6 +263,7 @@ class ArtifactSaver:
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
+            zz = set((1,))
             with open(path, "rb") as fp2:
                 self._api.upload_file_retry(
                     upload_url,
