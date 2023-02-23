@@ -15,6 +15,10 @@ def test_project_build_required():
         "git_info": {},
         "resource": "local-container",
         "resource_args": {},
+        "uri": None,
+        "name": None,
+        "cuda": None,
+        "run_id": None,
     }
     project = LaunchProject(**mock_args)
 
@@ -38,6 +42,10 @@ def test_project_image_source_string():
         "git_info": {},
         "resource": "local-container",
         "resource_args": {},
+        "uri": None,
+        "name": None,
+        "cuda": None,
+        "run_id": None,
     }
 
     project = LaunchProject(**mock_args)
