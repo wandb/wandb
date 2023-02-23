@@ -248,7 +248,7 @@ class Scheduler(ABC):
                     "killed",
                     "finished",
                 ]:
-                    logging.debug(f"Got runstate: {_state} for run: {run_id}")
+                    logger.debug(f"Got runstate: {_state} for run: {run_id}")
                     run.state = RunState.DEAD
                     _runs_to_remove.append(run_id)
                 elif _state in [
