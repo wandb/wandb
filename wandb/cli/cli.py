@@ -917,11 +917,11 @@ def sweep(
                     "No queue passed from CLI or in launch config for launch-sweep."
                 )
 
-        num_workers = f'{config.get("scheduler", {}).get("num_workers")}'
+        scheduler_config = launch_config.get("scheduler", {})
+        num_workers = f'{scheduler_config.get("num_workers")}'
         if num_workers is None or not str.isdigit(num_workers):
             num_workers = "8"
 
-        scheduler_config = launch_config.get("scheduler", {})
         scheduler_entrypoint = [
             "wandb",
             "scheduler",
