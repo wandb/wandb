@@ -563,7 +563,7 @@ def build_image_with_builder(
 def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
-    launch_config: Dict[str, Any] = {},
+    launch_config: Dict[str, Any],
 ) -> str:
     """Construct a docker image from a project and returns the URI of the image.
 

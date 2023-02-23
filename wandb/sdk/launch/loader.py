@@ -19,9 +19,7 @@ WANDB_RUNNERS = {
 }
 
 
-def environment_from_config(
-    config: Optional[Dict[str, Any]]
-) -> Optional[AbstractEnvironment]:
+def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnvironment:
     """Create an environment from a config.
 
     This helper function is used to create an environment from a config. The
@@ -60,8 +58,8 @@ def environment_from_config(
 
 
 def registry_from_config(
-    config: Optional[Dict[str, Any]], environment: Optional[AbstractEnvironment]
-) -> Optional[AbstractRegistry]:
+    config: Optional[Dict[str, Any]], environment: AbstractEnvironment
+) -> AbstractRegistry:
     """Create a registry from a config.
 
     This helper function is used to create a registry from a config. The
@@ -118,9 +116,9 @@ def registry_from_config(
 
 def builder_from_config(
     config: Optional[Dict[str, Any]],
-    environment: Optional[AbstractEnvironment],
-    registry: Optional[AbstractRegistry],
-) -> Optional[AbstractBuilder]:
+    environment: AbstractEnvironment,
+    registry: AbstractRegistry,
+) -> AbstractBuilder:
     """Create a builder from a config.
 
     This helper function is used to create a builder from a config. The

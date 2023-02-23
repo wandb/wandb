@@ -60,8 +60,8 @@ class KanikoBuilder(AbstractBuilder):
 
     def __init__(
         self,
-        environment: Optional[AbstractEnvironment],
-        registry: Optional[AbstractRegistry],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
         build_job_name: str = "wandb-launch-container-build",
         build_context_store: str = "",
         secret_name: str = "",
@@ -102,8 +102,8 @@ class KanikoBuilder(AbstractBuilder):
     def from_config(
         cls,
         config: dict,
-        environment: Optional[AbstractEnvironment],
-        registry: Optional[AbstractRegistry],
+        environment: AbstractEnvironment,
+        registry: AbstractRegistry,
         verify: bool = True,
         login: bool = True,
     ) -> "AbstractBuilder":

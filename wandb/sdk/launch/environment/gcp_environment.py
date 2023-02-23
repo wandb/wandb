@@ -53,7 +53,6 @@ class GcpEnvironment(AbstractEnvironment):
     """
 
     region: str
-    project: str
 
     def __init__(self, region: str, verify: bool = True) -> None:
         """Initialize the GCP environment.
