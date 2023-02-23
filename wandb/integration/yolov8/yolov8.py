@@ -32,7 +32,7 @@ class WandbCallback:
         **kwargs,
     ):
         """
-        A unitly class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
+        A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
         Args:
             yolo: A YOLOv8 model that's inherited from `:class:ultralytics.yolo.engine.model.YOLO`
             run_name: The name of the run to be created on Weights & Biases.
@@ -41,7 +41,6 @@ class WandbCallback:
             resume: Whether to resume a previous run on Weights & Biases.
             **kwargs: Additional arguments to be passed to `wandb.init()`.
         """
-        # TODO: Add a healthwarning to inform the user that this is in beta
         self.yolo = yolo
         self.run = None
         self.run_name = run_name
@@ -166,7 +165,6 @@ class WandbCallback:
                 },
             )
 
-        # TODO: consider getting additional metadata from the user
         if trainer.best.exists():
             self.run.log_artifact(
                 str(trainer.best),
