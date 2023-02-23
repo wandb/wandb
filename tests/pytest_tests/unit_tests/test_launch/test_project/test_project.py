@@ -50,6 +50,6 @@ def test_project_image_source_string():
 
     project = LaunchProject(**mock_args)
     assert (
-        project.image_source_string()
+        project.get_image_source_string()
         == "mock-test-entity/mock-test-project/mock-test-job:v0"
     )
