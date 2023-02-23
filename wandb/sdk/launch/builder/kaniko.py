@@ -233,6 +233,7 @@ class KanikoBuilder(AbstractBuilder):
 
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
+        # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, self.type
         )
@@ -249,7 +250,6 @@ class KanikoBuilder(AbstractBuilder):
             get_entry_point_command(entrypoint, launch_project.override_args)
         )
 
-        # kaniko builder doesn't seem to work with a custom user id, need more investigation
         create_metadata_file(
             launch_project,
             image_uri,
