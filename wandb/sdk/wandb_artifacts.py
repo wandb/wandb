@@ -110,11 +110,12 @@ def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 class ArtifactNotLoggedError(Exception):
     """Raised for Artifact methods or attributes that require the logged artifact."""
 
-    def __init__(self, artifact: "Artifact" = None, attr: str = None):
+    def __init__(self, artifact: "Artifact" = None, attr: Optional[str] = None):
         desc = artifact.__class__.__name__ if artifact else "Artifact"
         desc += f".{attr}" if attr else ""
         super().__init__(
-            f"'{desc}' used prior to logging artifact or while in offline mode"
+            f"'{desc}' used prior to logging artifact or while in offline mode."
+            "Call wait() before accessing logged artifact properties."
         )
         # Follow the same pattern as AttributeError.
         self.obj = artifact
