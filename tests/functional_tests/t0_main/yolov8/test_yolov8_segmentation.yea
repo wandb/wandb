@@ -1,4 +1,4 @@
-id: 0.yolov8.detection
+id: 0.yolov8.segmentation
 plugin:
     - wandb
 tag:
