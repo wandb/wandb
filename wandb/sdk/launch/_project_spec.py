@@ -189,7 +189,7 @@ class LaunchProject:
             # a build is only not required if the user has specified
             # a version index, since all other aliases can
             # be moved from version to version
-            return re.match(r"v\d+", alias) is not None
+            return re.match(r"v\d+", alias) is None
         else:
             return True
 
