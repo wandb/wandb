@@ -76,6 +76,8 @@ data:
   launch-config.yaml: |
     base_url: https://api.wandb.ai # TODO: set wandb base url
     max_jobs: -1 # TODO: set max concurrent jobs here
+    queues:
+    - default # TODO: set queue name here
     environment:
       type: aws
       region: us-east-1 # TODO: set aws region here
