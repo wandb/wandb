@@ -121,6 +121,47 @@ class AgentProcess:
         return self._proc.terminate()
 
 
+def _create_sweep_command_args(command: Dict) -> Dict[str, Any]:
+    """Create various formats of command arguments for the agent.
+
+    Raises:
+        ValueError: improperly formatted command dict
+
+    """
+    if "args" not in command:
+        raise ValueError('No "args" found in command: %s' % command)
+    # four different formats of command args
+    # (1) standard command line flags (e.g. --foo=bar)
+    flags: List[str] = []
+    # (2) flags without hyphens (e.g. foo=bar)
+    flags_no_hyphens: List[str] = []
+    # (3) flags with false booleans ommited  (e.g. --foo)
+    flags_no_booleans: List[str] = []
+    # (4) flags as a dictionary (used for constructing a json)
+    flags_dict: Dict[str, Any] = {}
+    for param, config in command["args"].items():
+        _value: Any = config.get("value", None)
+        if _value is None:
+            raise ValueError('No "value" found for command["args"]["%s"]' % param)
+        _flag: str = f"{param}={_value}"
+        flags.append("--" + _flag)
+        flags_no_hyphens.append(_flag)
+        if isinstance(_value, bool):
+            # omit flags if they are boolean and false
+            if _value:
+                flags_no_booleans.append("--" + param)
+        else:
+            flags_no_booleans.append("--" + _flag)
+        flags_dict[param] = _value
+    return {
+        "args": flags,
+        "args_no_hyphens": flags_no_hyphens,
+        "args_no_boolean_flags": flags_no_booleans,
+        "args_json": [json.dumps(flags_dict)],
+        "args_dict": flags_dict,
+    }
+
+
 class Agent:
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 0
@@ -169,8 +210,11 @@ class Agent:
             os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
 
     def is_flapping(self):
-        """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
-        exit codes in the first FLAPPING_MAX_SECONDS"""
+        """Determine if the process is flapping.
+
+        Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0 exit codes in
+        the first FLAPPING_MAX_SECONDS.
+        """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
@@ -183,7 +227,6 @@ class Agent:
         )
 
     def run(self):  # noqa: C901
-
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
@@ -341,49 +384,8 @@ class Agent:
         return response
 
     @staticmethod
-    def _create_command_args(command: Dict) -> Dict[str, Any]:
-        """Create various formats of command arguments for the agent.
-
-        Raises:
-            ValueError: improperly formatted command dict
-
-        """
-        if "args" not in command:
-            raise ValueError('No "args" found in command: %s' % command)
-        # four different formats of command args
-        # (1) standard command line flags (e.g. --foo=bar)
-        flags: List[str] = []
-        # (2) flags without hyphens (e.g. foo=bar)
-        flags_no_hyphens: List[str] = []
-        # (3) flags with false booleans ommited  (e.g. --foo)
-        flags_no_booleans: List[str] = []
-        # (4) flags as a dictionary (used for constructing a json)
-        flags_dict: Dict[str, Any] = {}
-        for param, config in command["args"].items():
-            _value: Any = config.get("value", None)
-            if _value is None:
-                raise ValueError('No "value" found for command["args"]["%s"]' % param)
-            _flag: str = f"{param}={_value}"
-            flags.append("--" + _flag)
-            flags_no_hyphens.append(_flag)
-            if isinstance(_value, bool):
-                # omit flags if they are boolean and false
-                if _value:
-                    flags_no_booleans.append("--" + param)
-            else:
-                flags_no_booleans.append("--" + _flag)
-            flags_dict[param] = _value
-        return {
-            "args": flags,
-            "args_no_hyphens": flags_no_hyphens,
-            "args_no_boolean_flags": flags_no_booleans,
-            "args_json": [json.dumps(flags_dict)],
-            "args_dict": flags_dict,
-        }
-
-    @staticmethod
     def _create_sweep_command(command: Optional[List] = None) -> List:
-        """Returns sweep command, filling in environment variable macros."""
+        """Return sweep command, filling in environment variable macros."""
         # Start from default sweep command
         command = command or Agent.DEFAULT_SWEEP_COMMAND
         for i, chunk in enumerate(command):
@@ -442,7 +444,7 @@ class Agent:
 
         env = dict(os.environ)
 
-        sweep_vars: Dict[str, Any] = Agent._create_command_args(command)
+        sweep_vars: Dict[str, Any] = _create_sweep_command_args(command)
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:
@@ -588,11 +590,9 @@ def run_agent(
 
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
-    """
-    Generic agent entrypoint, used for CLI or jupyter.
+    """Run a function or program with configuration parameters specified by server.
 
-    Will run a function or program with configuration parameters specified
-    by server.
+    Generic agent entrypoint, used for CLI or jupyter.
 
     Arguments:
         sweep_id: (dict) Sweep ID generated by CLI or sweep API

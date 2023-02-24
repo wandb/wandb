@@ -1,9 +1,9 @@
-"""Agent tests"""
+"""Agent tests."""
 import os
 from unittest import mock
 
 import pytest
-from wandb.wandb_agent import Agent
+from wandb.wandb_agent import Agent, _create_sweep_command_args
 
 
 def test_agent_create_command_args():
@@ -11,7 +11,7 @@ def test_agent_create_command_args():
         "args": {"a": {"value": True}, "b": {"value": False}, "c": {"value": 1}}
     }
 
-    _return = Agent._create_command_args(mock_command)
+    _return = _create_sweep_command_args(mock_command)
     # test has all the required fields
     assert "args" in _return
     assert "args_no_hyphens" in _return
@@ -27,10 +27,10 @@ def test_agent_create_command_args():
 def test_agent_create_command_args_bad_command():
     mock_command_no_args = {"foo": None}
     with pytest.raises(ValueError):
-        _ = Agent._create_command_args(mock_command_no_args)
+        _ = _create_sweep_command_args(mock_command_no_args)
     mock_command_missing_value = {"args": {"a": {"foo": True}}}
     with pytest.raises(ValueError):
-        _ = Agent._create_command_args(mock_command_missing_value)
+        _ = _create_sweep_command_args(mock_command_missing_value)
 
 
 @mock.patch.dict(

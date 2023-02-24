@@ -1,4 +1,4 @@
-"""test run.save() functionality
+"""test run.save() functionality.
 
 ---
 id: 0.save.glob
@@ -49,7 +49,7 @@ def test_save_glob():
 
 
 def test_save_glob_later():
-    """If you add files later, wandb.save() does not pick them up"""
+    """If you add files later, wandb.save() does not pick them up."""
     with tempfile.TemporaryDirectory() as tmpdir:
         dirname = os.path.join(tmpdir, "newdir")
         glob = os.path.join(dirname, "*.txt")
