@@ -8,7 +8,7 @@ import pprint
 import threading
 import time
 import traceback
-from multiprocessing import Event, Manager, Pool
+from multiprocessing import Event, Manager, ThreadPool
 from typing import Any, Dict, List, Union
 
 import wandb
@@ -160,7 +160,7 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = max_jobs_from_config
-        self._pool = Pool(
+        self._pool = ThreadPool(
             processes=int(min(64, self._max_jobs)),
             initializer=init_pool_processes,
             initargs=(self._jobs, self._jobs_lock),
@@ -297,7 +297,7 @@ class LaunchAgent:
                                     f"Error running job: {traceback.format_exc()}"
                                 )
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
-                with self._jobs_lock:  # type: ignore
+                with self._jobs_lock:
                     for job_id in self.job_ids:
                         self._update_finished(job_id)
                 if self._ticks % 2 == 0:
