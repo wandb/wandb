@@ -343,7 +343,7 @@ class _WandbInit:
                 config_target.setdefault(k, v)
 
     def _enable_logging(self, log_fname: str, run_id: Optional[str] = None) -> None:
-        """Enables logging to the global debug log.
+        """Enable logging to the global debug log.
 
         This adds a run_id to the log, in case of multiple processes on the same machine.
         Currently, there is no way to disable logging after it's enabled.
@@ -469,7 +469,7 @@ class _WandbInit:
         ipython.display_pub.publish = publish
 
     def _log_setup(self, settings: Settings) -> None:
-        """Sets up logging from settings."""
+        """Set up logging from settings."""
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_user))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_internal))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.sync_file))
@@ -943,7 +943,7 @@ def init(
     id: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
-    r"""Starts a new run to track and log to W&B.
+    r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
     to the beginning of your training script as well as your evaluation

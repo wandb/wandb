@@ -734,7 +734,7 @@ class Settings:
     # helper methods for validating values
     @staticmethod
     def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """Factory for type validators.
+        """Return a factory for type validators.
 
         Given a type hint for a setting into a function that type checks the argument.
         """

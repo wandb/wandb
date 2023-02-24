@@ -395,7 +395,7 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url: str) -> str:
-    """Returns the frontend app url without a trailing slash."""
+    """Return the frontend app url without a trailing slash."""
     # TODO: move me to settings
     app_url = get_app_url()
     if app_url is not None:
@@ -884,7 +884,7 @@ def generate_id(length: int = 8) -> str:
 
 
 def parse_tfjob_config() -> Any:
-    """Attempts to parse TFJob config, returning False if it can't find it."""
+    """Attempt to parse TFJob config, returning False if it can't find it."""
     if os.getenv("TF_CONFIG"):
         try:
             return json.loads(os.environ["TF_CONFIG"])
@@ -1593,7 +1593,7 @@ def is_unicode_safe(stream: TextIO) -> bool:
 
 
 def _has_internet() -> bool:
-    """Attempts to open a DNS connection to Googles root servers."""
+    """Attempt to open a DNS connection to Googles root servers."""
     try:
         s = socket.create_connection(("8.8.8.8", 53), 0.5)
         s.close()
@@ -1765,7 +1765,7 @@ def load_json_yaml_dict(config: str) -> Any:
 
 
 def _parse_entity_project_item(path: str) -> tuple:
-    """Parses paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
+    """Parse paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
 
     Args:
         path: `str`, input path; must be between 0 and 3 in length.
