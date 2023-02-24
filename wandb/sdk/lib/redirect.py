@@ -705,7 +705,7 @@ _WSCH = _WindowSizeChangeHandler()
 
 
 class Redirect(RedirectBase):
-    """Redirects low level file descriptors."""
+    """Redirect low level file descriptors."""
 
     def __init__(self, src, cbs=()):
         super().__init__(src=src, cbs=cbs)

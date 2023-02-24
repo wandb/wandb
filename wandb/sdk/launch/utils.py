@@ -150,7 +150,7 @@ def construct_launch_spec(
     run_id: Optional[str],
     repository: Optional[str],
 ) -> Dict[str, Any]:
-    """Constructs the launch specification from CLI arguments."""
+    """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     if uri is not None:

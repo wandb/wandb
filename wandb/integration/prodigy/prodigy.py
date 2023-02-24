@@ -269,7 +269,7 @@ def create_table(data):
 
 
 def upload_dataset(dataset_name):
-    """Uploads dataset from local database to Weights & Biases.
+    """Upload dataset from local database to Weights & Biases.
 
     Args:
         dataset_name: The name of the dataset in the Prodigy database.

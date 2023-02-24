@@ -4,7 +4,7 @@ from .util import coalesce
 
 
 def create_example_header():
-    """Creates an example header with image at top."""
+    """Create an example header with image at top."""
     import wandb.apis.reports as wr
 
     return [
@@ -21,7 +21,7 @@ def create_example_header():
 
 
 def create_example_footer():
-    """Creates an example footer with image and text at bottom."""
+    """Create an example footer with image and text at bottom."""
     import wandb.apis.reports as wr
 
     return [
@@ -70,7 +70,7 @@ def create_customer_landing_page(
     main_contact="My Contact (name@email.com)",
     slack_link="https://company.slack.com",
 ):
-    """Creates an example customer landing page using data from Andrew's demo."""
+    """Create an example customer landing page using data from Andrew's demo."""
     import wandb.apis.reports as wr
 
     project = coalesce(project, "default-project")

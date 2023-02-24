@@ -136,7 +136,7 @@ class Scheduler(ABC):
         return True
 
     def start(self) -> None:
-        """Starts a scheduler, confirms prerequisites, begins execution loop."""
+        """Start a scheduler, confirms prerequisites, begins execution loop."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():

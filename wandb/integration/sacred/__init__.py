@@ -8,7 +8,7 @@ import wandb
 
 
 class WandbObserver(RunObserver):
-    """Logs sacred experiment data to W&B.
+    """Log sacred experiment data to W&B.
 
     Arguments:
         Accepts all the arguments accepted by wandb.init().

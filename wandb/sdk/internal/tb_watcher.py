@@ -59,7 +59,7 @@ def _link_and_save_file(
 
 
 def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
-    """Checks if a path is a tfevents file created by hostname.
+    """Check if a path is a tfevents file created by hostname.
 
     tensorboard tfevents filename format:
         https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81

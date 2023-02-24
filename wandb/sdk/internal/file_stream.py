@@ -498,7 +498,7 @@ class FileStreamApi:
             raise e
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
-        """Logs dropped chunks and updates dynamic settings."""
+        """Log dropped chunks and updates dynamic settings."""
         if isinstance(response, Exception):
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"

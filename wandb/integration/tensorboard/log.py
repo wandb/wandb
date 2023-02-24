@@ -62,7 +62,7 @@ def namespaced_tag(tag: str, namespace: str = "") -> str:
 
 
 def history_image_key(key: str, namespace: str = "") -> str:
-    """Converts invalid filesystem characters to _ for use in History keys.
+    """Convert invalid filesystem characters to _ for use in History keys.
 
     Unfortunately this means currently certain image keys will collide silently. We
     implement this mapping up here in the TensorFlow stuff rather than in the History

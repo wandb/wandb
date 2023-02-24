@@ -225,7 +225,7 @@ class LaunchProject:
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, command: List[str]) -> "EntryPoint":
-        """Adds an entry point to the project."""
+        """Add n entry point to the project."""
         entry_point = command[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint

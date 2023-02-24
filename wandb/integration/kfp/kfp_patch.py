@@ -205,7 +205,7 @@ def create_component_from_func(
         The function name and docstring are used as component name and description. Argument and return annotations are used as component input/output types::
 
             def add(a: float, b: float) -> float:
-                """Returns sum of two arguments"""
+                """Return sum of two arguments"""
                 return a + b
 
             # add_op is a task factory function that creates a task object when given arguments

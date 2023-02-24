@@ -203,7 +203,7 @@ class StepUpload:
         self._spawn_upload(job)
 
     def _spawn_upload(self, job: upload_job.UploadJob) -> None:
-        """Spawns an upload job, and handles the bookkeeping of `self._running_jobs`.
+        """Spawn an upload job, and handles the bookkeeping of `self._running_jobs`.
 
         Context: it's important that, whenever we add an entry to `self._running_jobs`,
         we ensure that a corresponding `EventJobDone` message will eventually get handled;

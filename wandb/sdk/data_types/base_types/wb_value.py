@@ -156,7 +156,7 @@ class WBValue:
 
     @staticmethod
     def type_mapping() -> "TypeMappingType":
-        """Returns a map from `_log_type` to subclass. Used to lookup correct types for deserialization.
+        """Return a map from `_log_type` to subclass. Used to lookup correct types for deserialization.
 
         Returns:
             dict: dictionary of str:class

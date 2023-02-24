@@ -481,7 +481,7 @@ class Image(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """Combines a list of images into a meta dictionary object describing the child images."""
+        """Combine a list of images into a meta dictionary object describing the child images."""
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 

@@ -618,7 +618,7 @@ class Api:
         )
 
     def _parse_project_path(self, path):
-        """Returns project and entity for project specified by path."""
+        """Return project and entity for project specified by path."""
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
         if path is None:
@@ -661,7 +661,7 @@ class Api:
         return entity, project, id
 
     def _parse_artifact_path(self, path):
-        """Returns project, entity and artifact name for project specified by path."""
+        """Return project, entity and artifact name for project specified by path."""
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
         if path is None:

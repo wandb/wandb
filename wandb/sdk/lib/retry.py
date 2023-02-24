@@ -44,7 +44,7 @@ _R = TypeVar("_R")
 
 
 class Retry(Generic[_R]):
-    """Creates a retryable version of a function.
+    """Create a retryable version of a function.
 
     Calling this will call the passed function, retrying if any exceptions in
     retryable_exceptions are caught, with exponential backoff.

@@ -2029,7 +2029,7 @@ class WBLocalArtifactHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        """Stores the file or directory at the given path within the specified artifact.
+        """Store the file or directory at the given path within the specified artifact.
 
         Arguments:
             artifact: The artifact doing the storing

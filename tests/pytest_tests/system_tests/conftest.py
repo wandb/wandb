@@ -714,7 +714,7 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 @pytest.fixture(scope="function")
 def relay_server(base_url):
-    """Creates a new relay server."""
+    """Create a new relay server."""
 
     @contextmanager
     def relay_server_context(inject: Optional[List[InjectedResponse]] = None):

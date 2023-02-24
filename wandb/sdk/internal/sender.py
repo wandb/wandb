@@ -849,7 +849,7 @@ class SendManager:
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
     def _sync_spell(self) -> None:
-        """Syncs this run with spell."""
+        """Sync this run with spell."""
         if not self._run:
             return
         try:

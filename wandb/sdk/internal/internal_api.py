@@ -229,7 +229,7 @@ class Api:
         return self._local_data.context or self._global_context
 
     def reauth(self) -> None:
-        """Ensures the current api key is set in the transport."""
+        """Ensure the current api key is set in the transport."""
         self.client.transport.auth = ("api", self.api_key or "")
 
     def relocate(self) -> None:
@@ -602,7 +602,7 @@ class Api:
 
     @normalize_exceptions
     def list_projects(self, entity: Optional[str] = None) -> List[Dict[str, str]]:
-        """Lists projects in W&B scoped by entity.
+        """List projects in W&B scoped by entity.
 
         Arguments:
             entity (str, optional): The entity to scope this project to.
@@ -742,7 +742,7 @@ class Api:
     def list_runs(
         self, project: str, entity: Optional[str] = None
     ) -> List[Dict[str, str]]:
-        """Lists runs in W&B scoped by project.
+        """List runs in W&B scoped by project.
 
         Arguments:
             project (str): The project to scope the runs to
@@ -2311,7 +2311,7 @@ class Api:
 
     @normalize_exceptions
     def create_anonymous_api_key(self) -> str:
-        """Creates a new API key belonging to a new anonymous user."""
+        """Create a new API key belonging to a new anonymous user."""
         mutation = gql(
             """
         mutation CreateAnonymousApiKey {

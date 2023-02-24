@@ -44,7 +44,7 @@ class ValidationDataLogger:
         class_labels: Optional[List[str]] = None,
         infer_missing_processors: bool = True,
     ) -> None:
-        """Initializes a new ValidationDataLogger.
+        """Initialize a new ValidationDataLogger.
 
         Args:
             inputs: A list of input vectors or dictionary of lists of input vectors
@@ -232,7 +232,7 @@ def _get_example_shape(example: Union[Sequence, Any]):
 
 
 def _bind(lambda_fn: Callable, **closure_kwargs: Any) -> Callable:
-    """Creates a closure around a lambda function by binding `closure_kwargs` to the function."""
+    """Create a closure around a lambda function by binding `closure_kwargs` to the function."""
 
     def closure(*args: Any, **kwargs: Any) -> Any:
         _k = {}

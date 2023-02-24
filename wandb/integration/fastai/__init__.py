@@ -132,7 +132,7 @@ class WandbCallback(TrackerCallback):
     def on_epoch_end(
         self, epoch: int, smooth_loss: float, last_metrics: list, **kwargs: Any
     ) -> None:
-        """Logs training loss, validation loss and custom metrics & log prediction samples & save model."""
+        """Log training loss, validation loss and custom metrics & log prediction samples & save model."""
         if self.save_model:
             # Adapted from fast.ai "SaveModelCallback"
             current = self.get_monitor_value()

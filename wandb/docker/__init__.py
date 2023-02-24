@@ -70,7 +70,7 @@ _buildx_installed = None
 
 
 def is_buildx_installed() -> bool:
-    """Returns `True` if docker buildx is installed and working."""
+    """Return `True` if docker buildx is installed and working."""
     global _buildx_installed
     if _buildx_installed is not None:
         return _buildx_installed  # type: ignore

@@ -40,7 +40,7 @@ def in_jupyter() -> bool:
 
 
 def display_html(html: str):  # type: ignore
-    """Displays HTML in notebooks, is a noop outside of a jupyter context."""
+    """Display HTML in notebooks, is a noop outside of a jupyter context."""
     if wandb.run and wandb.run._settings.silent:
         return
     try:

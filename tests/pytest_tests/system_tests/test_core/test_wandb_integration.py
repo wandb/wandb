@@ -84,7 +84,7 @@ def _remove_dir_if_exists(path):
 
 
 def test_dir_on_import():
-    """Ensures that `import wandb` does not create a local storage directory."""
+    """Ensure hat `import wandb` does not create a local storage directory."""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
@@ -108,7 +108,7 @@ def test_dir_on_import():
 
 
 def test_dir_on_init(wandb_init):
-    """Ensures that `wandb.init()` creates the proper directory and nothing else."""
+    """Ensure that `wandb.init()` creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
 
     # Clear env if set

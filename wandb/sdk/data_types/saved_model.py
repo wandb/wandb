@@ -183,7 +183,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return json_obj
 
     def model_obj(self) -> SavedModelObjType:
-        """Returns the model object."""
+        """Return the model object."""
         if self._model_obj is None:
             assert self._path is not None, "Cannot load model object without path"
             self._set_obj(self._deserialize(self._path))

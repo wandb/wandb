@@ -588,7 +588,7 @@ def test_create_bokeh_plot(
     mock_run,
     bokeh_plot,
 ):
-    """Ensures that wandb.Bokeh constructor accepts a bokeh plot."""
+    """Ensure that wandb.Bokeh constructor accepts a bokeh plot."""
     bp = bokeh_plot()
     bp = wandb.data_types.Bokeh(bp)
     bp.bind_to_run(mock_run(), "bokeh", 0)
@@ -673,7 +673,7 @@ def test_molecule_file(mock_run):
 
 
 def test_molecule_from_smiles(mock_run):
-    """Ensures that wandb.Molecule.from_smiles supports valid SMILES molecule string representations."""
+    """Ensure that wandb.Molecule.from_smiles supports valid SMILES molecule string representations."""
     run = mock_run()
     mol = wandb.Molecule.from_smiles("CC(=O)Nc1ccc(O)cc1")
     mol.bind_to_run(run, "rad", "summary")
