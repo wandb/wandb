@@ -14,6 +14,7 @@ import wandb.sdk.interface as wandb_interface
 from wandb import util
 from wandb.sdk import wandb_artifacts
 from wandb.sdk.lib.hashutil import md5_string
+from wandb.sdk.wandb_artifacts import ArtifactNotLoggedError
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -779,7 +780,7 @@ def test_add_obj_using_brackets(assets_path):
         },
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ArtifactNotLoggedError):
         _ = artifact["my-image"]
 
 

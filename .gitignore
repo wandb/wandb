@@ -31,3 +31,4 @@ wandb/run-202*
 .idea/
 .yea-requirements.txt
 .yeadoc/
+logs/
