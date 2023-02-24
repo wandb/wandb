@@ -98,7 +98,7 @@ class AwsEnvironment(AbstractEnvironment):
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
                 f"Could not verify AWS environment. Please verify that your AWS credentials are configured correctly. {e}"
-            )
+            ) from e
 
     def get_session(self) -> "boto3.Session":  # type: ignore
         """Get an AWS session.
@@ -155,7 +155,7 @@ class AwsEnvironment(AbstractEnvironment):
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
                 f"botocore error attempting to copy {source} to {destination}. {e}"
-            )
+            ) from e
 
     def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to s3 from local storage.
@@ -201,11 +201,11 @@ class AwsEnvironment(AbstractEnvironment):
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
                 f"botocore error attempting to copy {source} to {destination}. {e}"
-            )
+            ) from e
         except Exception as e:
             raise LaunchError(
                 f"Unexpected error attempting to copy {source} to {destination}. {e}"
-            )
+            ) from e
 
     def verify_storage_uri(self, uri: str) -> None:
         """Verify that s3 storage is configured correctly.
@@ -235,4 +235,4 @@ class AwsEnvironment(AbstractEnvironment):
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
                 f"Could not verify AWS storage. Please verify that your AWS credentials are configured correctly. {e}"
-            )
+            ) from e

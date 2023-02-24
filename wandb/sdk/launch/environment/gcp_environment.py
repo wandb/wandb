@@ -111,29 +111,22 @@ class GcpEnvironment(AbstractEnvironment):
             creds, project = google.auth.default()
             if not self._project:
                 self._project = project
-            if self._project != project:
-                # This should never happen, but we check just in case.
-                raise LaunchError(
-                    "The GCP project specified by the credentials has changed. "
-                )
-        except google.auth.exceptions.DefaultCredentialsError:
+            _logger.debug("Refreshing GCP credentials")
+            creds.refresh(google.auth.transport.requests.Request())
+        except google.auth.exceptions.DefaultCredentialsError as e:
             raise LaunchError(
                 "No Google Cloud Platform credentials found. Please run "
                 "`gcloud auth application-default login` or set the environment "
                 "variable GOOGLE_APPLICATION_CREDENTIALS to the path of a valid "
                 "service account key file."
-            )
-        if not creds.valid:
-            _logger.debug("Refreshing GCP credentials")
-            try:
-                creds.refresh(google.auth.transport.requests.Request())
-            except google.auth.exceptions.RefreshError:
-                raise LaunchError(
-                    "Could not refresh Google Cloud Platform credentials. Please run "
-                    "`gcloud auth application-default login` or set the environment "
-                    "variable GOOGLE_APPLICATION_CREDENTIALS to the path of a valid "
-                    "service account key file."
-                )
+            ) from e
+        except google.auth.exceptions.RefreshError as e:
+            raise LaunchError(
+                "Could not refresh Google Cloud Platform credentials. Please run "
+                "`gcloud auth application-default login` or set the environment "
+                "variable GOOGLE_APPLICATION_CREDENTIALS to the path of a valid "
+                "service account key file."
+            ) from e
         if not creds.valid:
             raise LaunchError(
                 "Invalid Google Cloud Platform credentials. Please run "
@@ -226,4 +219,4 @@ class GcpEnvironment(AbstractEnvironment):
                     blob = bucket.blob(gcs_path)
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload directory to GCS: {e}")
+            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
