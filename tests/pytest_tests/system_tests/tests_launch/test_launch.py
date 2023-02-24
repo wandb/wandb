@@ -134,7 +134,8 @@ def test_launch_multi_run_context(
 def test_launch_get_project_queue_error(user):
     proj = "projectq32e"
     api = InternalApi()
-    with pytest.raises(CommError) as e:
+    with pytest.raises(
+        CommError,
+        match=f"Error fetching run queues for {user}/{proj} check that you have access to this entity and project",
+    ):
         api.get_project_run_queues(user, proj)
-
-    assert f"Error fetching run queues for {user}/{proj}" in str(e)
