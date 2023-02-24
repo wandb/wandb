@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 import wandb
 import wandb.env
 from wandb import trigger
-from wandb.errors import BackendError, CommError, InternalError, UsageError
+from wandb.errors import CommError, Error, InternalError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -1123,6 +1123,7 @@ def init(
     kwargs = dict(locals())
     error_seen = None
     except_exit = None
+    run: Optional[Run, RunDisabled] = None
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
@@ -1145,14 +1146,13 @@ def init(
                 pass
             # TODO(jhr): figure out how to make this RunDummy
             run = None
+    except Error as e:
+        if logger is not None:
+            logger.exception(str(e))
+        raise e
     except KeyboardInterrupt as e:
         assert logger
         logger.warning("interrupted", exc_info=e)
-        raise e
-    except (UsageError, CommError) as e:
-        # wandb.termerror(str(e), repeat=False)
-        # assert logger
-        # logger.exception(str(e))
         raise e
     except Exception as e:
         error_seen = e
@@ -1165,8 +1165,8 @@ def init(
         # reraise(*sys.exc_info())
     finally:
         if error_seen:
-            # wandb.termerror("Abnormal program exit")
             if except_exit:
+                wandb.termerror("Abnormal program exit")
                 os._exit(1)
-            raise Exception("Abnormal program exit") from error_seen
+            raise Exception("An unexpected error occurred") from error_seen
     return run
