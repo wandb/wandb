@@ -103,37 +103,3 @@ class ElasticContainerRegistry(AbstractRegistry):
             str: The uri of the repository.
         """
         return self.uri + "/" + self.repo_name
-
-    def check_image_exists(self, image_uri: str) -> bool:
-        """Check if an image exists in the registry.
-
-        Args:
-            image_uri (str): The image uri.
-
-        Returns:
-            bool: True if the image exists, False otherwise.
-
-        Raises:
-            RegistryError: If there is an error checking if the image exists.
-        """
-        _logger.debug(
-            f"Checking if image {image_uri} exists in ElasticContainerRegistry."
-        )
-        session = self.environment.get_session()
-        client = session.client("ecr")
-        tag = image_uri.split(":")[1]
-        try:
-            response = client.describe_images(
-                repositoryName=self.repo_name,
-                imageIds=[{"imageTag": tag}],
-                filter={"tagStatus": "TAGGED"},
-            )
-            for i in response["imageDetails"]:
-                if tag in i["imageTags"]:
-                    return True
-            return False
-        except botocore.exceptions.ClientError as e:
-            code = e.response["Error"]["Code"]
-            msg = e.response["Error"]["Message"]
-            # TODO: Log the code and the message here?
-            raise LaunchError(f"Error checking if image exists: {code} {msg}")
