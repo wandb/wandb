@@ -1,7 +1,6 @@
 pytest
 hypothesis
 flaky
-pytest-random-order
 coverage
 Pillow
 pandas
