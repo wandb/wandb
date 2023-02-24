@@ -94,7 +94,7 @@ class DockerBuilder(AbstractBuilder):
     def login(self) -> None:
         """Login to the registry."""
         if isinstance(self.registry, LocalRegistry):
-            _logger.info(f"{LOG_PREFIX} No registry configured, skipping login.")
+            _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
         else:
             username, password = self.registry.get_username_password()
             docker.login(username, password, self.registry.uri)
