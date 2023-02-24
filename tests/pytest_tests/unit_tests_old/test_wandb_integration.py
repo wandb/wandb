@@ -176,8 +176,7 @@ def test_network_fault_graphql(live_mock_server, test_settings):
     )
 
 
-@pytest.mark.flaky(reruns=5)
-@pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
+@pytest.mark.flaky(reruns=5, condition=platform.system() == "Windows")
 def test_live_policy_file_upload(live_mock_server, test_settings):
     test_settings.update(
         {

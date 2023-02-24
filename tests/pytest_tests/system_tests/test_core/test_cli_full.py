@@ -112,10 +112,7 @@ def test_pull(runner, wandb_init):
         pytest.param(
             "events.out.tfevents.1611911647.big-histos",
             27,
-            marks=[
-                pytest.mark.flaky,
-                # pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015"),
-            ],
+            marks=[pytest.mark.flaky(reruns=5)],
         ),
     ],
 )

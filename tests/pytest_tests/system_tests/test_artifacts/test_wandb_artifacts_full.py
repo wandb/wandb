@@ -182,7 +182,6 @@ def test_artifact_finish_distributed_id(wandb_init):
 
 
 @pytest.mark.flaky(reruns=5)
-@pytest.mark.xfail(reason="flaky on CI")
 def test_edit_after_add(wandb_init):
     artifact = wandb.Artifact(name="hi-art", type="dataset")
     filename = "file1.txt"
