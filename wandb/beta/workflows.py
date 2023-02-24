@@ -145,16 +145,25 @@ def log_model(
         _SavedModel instance
 
     Example:
-        import torch.nn as nn import torch.nn.functional as F
+        ```python
+        import torch.nn as nn
+        import torch.nn.functional as F
+
 
         class Net(nn.Module):
             def __init__(self):
-                super(Net, self).__init__() self.fc1 = nn.Linear(10, 10)
+                super(Net, self).__init__()
+                self.fc1 = nn.Linear(10, 10)
 
             def forward(self, x):
-                x = self.fc1(x) x = F.relu(x) return x
+                x = self.fc1(x)
+                x = F.relu(x)
+                return x
 
-        model = Net() sm = log_model(model, "my-simple-model", aliases=["best"])
+
+        model = Net()
+        sm = log_model(model, "my-simple-model", aliases=["best"])
+        ```
 
     """
     model = data_types._SavedModel.init(model_obj, **kwargs)
