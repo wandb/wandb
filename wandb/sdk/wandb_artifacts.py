@@ -106,6 +106,23 @@ def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     )
 
 
+class ArtifactNotLoggedError(Exception):
+    """Raised for Artifact methods or attributes that require the logged artifact."""
+
+    def __init__(
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
+    ):
+        desc = artifact.__class__.__name__ if artifact else "Artifact"
+        desc += f".{attr}" if attr else ""
+        super().__init__(
+            f"'{desc}' used prior to logging artifact or while in offline mode."
+            "Call wait() before accessing logged artifact properties."
+        )
+        # Follow the same pattern as AttributeError.
+        self.obj = artifact
+        self.name = attr
+
+
 class Artifact(ArtifactInterface):
     """
     Flexible and lightweight building block for dataset and model versioning.
@@ -227,9 +244,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.version
 
-        raise ValueError(
-            "Cannot call version on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "version")
 
     @property
     def entity(self) -> str:
@@ -299,9 +314,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.commit_hash
 
-        raise ValueError(
-            "Cannot access commit_hash on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "commit_hash")
 
     @property
     def description(self) -> Optional[str]:
@@ -339,9 +352,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.aliases
 
-        raise ValueError(
-            "Cannot call aliases on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "aliases")
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
@@ -353,9 +364,7 @@ class Artifact(ArtifactInterface):
             self._logged_artifact.aliases = aliases
             return
 
-        raise ValueError(
-            "Cannot set aliases on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "aliases")
 
     @property
     def use_as(self) -> Optional[str]:
@@ -377,17 +386,13 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.used_by()
 
-        raise ValueError(
-            "Cannot call used_by on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "used_by")
 
     def logged_by(self) -> "wandb.apis.public.Run":
         if self._logged_artifact:
             return self._logged_artifact.logged_by()
 
-        raise ValueError(
-            "Cannot call logged_by on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "logged_by")
 
     @contextlib.contextmanager
     def new_file(
@@ -586,17 +591,13 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.get_path(name)
 
-        raise ValueError(
-            "Cannot load paths from an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "get_path")
 
     def get(self, name: str) -> data_types.WBValue:
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
-        raise ValueError(
-            "Cannot call get on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "get")
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
@@ -604,25 +605,19 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 
-        raise ValueError(
-            "Cannot call download on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "download")
 
     def checkout(self, root: Optional[str] = None) -> str:
         if self._logged_artifact:
             return self._logged_artifact.checkout(root=root)
 
-        raise ValueError(
-            "Cannot call checkout on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "checkout")
 
     def verify(self, root: Optional[str] = None) -> bool:
         if self._logged_artifact:
             return self._logged_artifact.verify(root=root)
 
-        raise ValueError(
-            "Cannot call verify on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "verify")
 
     def save(
         self,
@@ -669,9 +664,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.delete()
 
-        raise ValueError(
-            "Cannot call delete on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "delete")
 
     def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         """
@@ -681,9 +674,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.wait(timeout)  # type: ignore [call-arg]
 
-        raise ValueError(
-            "Cannot call wait on an artifact before it has been logged or in offline mode"
-        )
+        raise ArtifactNotLoggedError(self, "wait")
 
     def get_added_local_path_name(self, local_path: str) -> Optional[str]:
         """
@@ -728,9 +719,7 @@ class Artifact(ArtifactInterface):
 
     def json_encode(self) -> Dict[str, Any]:
         if not self._logged_artifact:
-            raise ValueError(
-                "Cannot json encode artifact before it has been logged or in offline mode."
-            )
+            raise ArtifactNotLoggedError(self, "json_encode")
         return util.artifact_to_json(self)
 
     def _ensure_can_add(self) -> None:
