@@ -1,14 +1,13 @@
 __all__ = [
     "Error",
     "CommError",
-    "TimeoutError",
-    "PermissionsError",
-    "AuthenticationError",
-    "AuthorizationError",
+    "BackendTimeoutError",
+    "BackendPermissionsError",
+    "BackendAuthenticationError",
+    "BackendAuthorizationError",
     "UsageError",
     "InvalidError",
     "UnsupportedError",
-    "ConfigurationError",
     "DependencyError",
     "InternalError",
     "WaitTimeoutError",
@@ -29,7 +28,7 @@ class Error(Exception):
 
 
 class CommError(Error):
-    """Error communicating with W&B"""
+    """Error communicating with W&B (legacy error for backwards compatibility)"""
 
     def __init__(self, msg, exc=None) -> None:
         super().__init__(msg)
@@ -37,24 +36,28 @@ class CommError(Error):
         self.exc = exc
 
 
-class TimeoutError(CommError):
+class BackendError(CommError):
+    """Error communicating with W&B backend"""
+
+
+class BackendTimeoutError(BackendError):
     """Raised when a connection times out"""
 
 
-class PermissionsError(CommError):
+class BackendPermissionsError(BackendError):
     """Raised when tries to access a resource that without sufficient permissions"""
 
 
-class AuthenticationError(CommError):
+class BackendAuthenticationError(BackendError):
     """Raised when fails to provide valid authentication credentials"""
 
 
-class AuthorizationError(CommError):
+class BackendAuthorizationError(BackendError):
     """Raised when not authorized to access a particular resource"""
 
 
 class UsageError(Error):
-    """Raised when an invalid usage of an SDK API is detected"""
+    """Raised when an invalid usage of the SDK API is detected"""
 
     pass
 
@@ -71,20 +74,14 @@ class UnsupportedError(UsageError):
     pass
 
 
-class ConfigurationError(UsageError):
-    """Raised when something is misconfigured"""
-
-    pass
-
-
 class DependencyError(UsageError):
     """Raised when there is a missing or invalid dependency"""
 
     pass
 
 
-class InternalError(Error):
-    """Raised when an internal error occurs"""
+class InternalError(CommError):
+    """Raised when an SDK internal error occurs"""
 
     pass
 

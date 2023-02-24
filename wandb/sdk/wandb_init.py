@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 import wandb
 import wandb.env
 from wandb import trigger
-from wandb.errors import CommError, UsageError
+from wandb.errors import BackendError, CommError, InternalError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -739,9 +739,13 @@ class _WandbInit:
 
             if run_result is None:
                 error_message = (
-                    f"Communication with the internal wandb process failed. Communication has timed out after {timeout} sec. "
+                    f"Run initialization has timed out after {timeout} sec. "
                     f"\nPlease refer to the documentation for additional information: {wburls.get('doc_start_err')}"
                 )
+                # We're not certain whether the error we encountered is due to an issue
+                # with the server (a "BackendError") or if it's a problem within the SDK (an "InternalError").
+                # This means that the error could be a result of the server being unresponsive,
+                # or it could be because we were unable to communicate with the wandb service.
                 error = CommError(error_message)
                 run_init_handle._cancel()
             elif run_result.HasField("error"):
@@ -756,8 +760,8 @@ class _WandbInit:
                     self.teardown()
                 raise error
 
-            # if run_result is not None:
-            assert run_result and run_result.run
+            if not run_result.HasField("run"):
+                raise InternalError("run_result is None")
 
             if run_result.run.resumed:
                 logger.info("run resumed")

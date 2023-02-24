@@ -3,19 +3,19 @@ from typing import Optional
 from wandb.proto import wandb_internal_pb2 as pb
 
 from . import (
-    AuthenticationError,
-    AuthorizationError,
+    BackendAuthenticationError,
+    BackendAuthorizationError,
     Error,
     InvalidError,
-    PermissionsError,
+    BackendPermissionsError,
 )
 
 to_exception_map = {
     pb.ErrorInfo.UNKNOWN: Error,
     pb.ErrorInfo.INVALID: InvalidError,
-    pb.ErrorInfo.PERMISSION: PermissionsError,
-    pb.ErrorInfo.AUTHENTICATION: AuthenticationError,
-    pb.ErrorInfo.AUTHORIZATION: AuthorizationError,
+    pb.ErrorInfo.PERMISSION: BackendPermissionsError,
+    pb.ErrorInfo.AUTHENTICATION: BackendAuthenticationError,
+    pb.ErrorInfo.AUTHORIZATION: BackendAuthorizationError,
 }
 
 from_exception_map = {v: k for k, v in to_exception_map.items()}
