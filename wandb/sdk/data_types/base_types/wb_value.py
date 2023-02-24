@@ -182,7 +182,7 @@ class WBValue:
         return not self.__eq__(other)
 
     def to_data_array(self) -> List[Any]:
-        """Converts the object to a list of primitives representing the underlying data."""
+        """Convert the object to a list of primitives representing the underlying data."""
         raise NotImplementedError
 
     def _set_artifact_source(

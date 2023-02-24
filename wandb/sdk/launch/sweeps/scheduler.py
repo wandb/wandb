@@ -219,7 +219,7 @@ class Scheduler(ABC):
             self._stop_run(run_id)
 
     def _stop_run(self, run_id: str) -> None:
-        """Stops a run and removes it from the scheduler."""
+        """Stop a run and removes it from the scheduler."""
         if run_id in self._runs:
             run: SweepRun = self._runs[run_id]
             run.state = RunState.DEAD

@@ -234,7 +234,7 @@ def create_component_from_func(
 
             @create_component_from_func
             def add_op(a: float, b: float) -> float:
-                """Returns sum of two arguments"""
+                """Return sum of two arguments"""
                 return a + b
 
         To declare a function with multiple return values, use the :code:`NamedTuple` return annotation syntax::
@@ -242,7 +242,7 @@ def create_component_from_func(
             from typing import NamedTuple
 
             def add_multiply_two_numbers(a: float, b: float) -> NamedTuple('Outputs', [('sum', float), ('product', float)]):
-                """Returns sum and product of two arguments"""
+                """Return sum and product of two arguments"""
                 return (a + b, a * b)
 
             add_multiply_op = create_component_from_func(add_multiply_two_numbers)
@@ -274,7 +274,7 @@ def create_component_from_func(
                 ('Precision', float), # Small output of type "Float"
                 ('JobUri', 'URI'),    # Small output of type "URI"
             ]):
-                """Trains CatBoost classification model"""
+                """Train CatBoost classification model"""
                 ...
 
                 return (accuracy, precision, recall)

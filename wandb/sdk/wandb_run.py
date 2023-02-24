@@ -2551,7 +2551,7 @@ class Run:
         target_path: str,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Links the given artifact to a portfolio (a promoted collection of artifacts).
+        """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
         The linked artifact will be visible in the UI for the specified portfolio.
 

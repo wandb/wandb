@@ -126,7 +126,7 @@ def test_dir_on_init(wandb_init):
 
 
 def test_dir_on_init_env(wandb_init):
-    """Ensures that `wandb.init()` w/ env variable set creates the proper directory and nothing else."""
+    """Ensure that `wandb.init()` w/ env variable set creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
 

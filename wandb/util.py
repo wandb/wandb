@@ -1122,7 +1122,7 @@ def find_runner(program: str) -> Union[None, list, List[str]]:
 
 
 def downsample(values: Sequence, target_length: int) -> list:
-    """Downsamples 1d values to target_length, including start and end.
+    """Downsample 1d values to target_length, including start and end.
 
     Algorithm just rounds index down.
 

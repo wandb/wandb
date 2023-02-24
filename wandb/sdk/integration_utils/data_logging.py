@@ -143,7 +143,7 @@ class ValidationDataLogger:
     def make_predictions(
         self, predict_fn: Callable
     ) -> Union[Sequence, Dict[str, Sequence]]:
-        """Produces predictions by passing `validation_inputs` to `predict_fn`.
+        """Produce predictions by passing `validation_inputs` to `predict_fn`.
 
         Args:
             predict_fn (Callable): Any function which can accept `validation_inputs` and produce

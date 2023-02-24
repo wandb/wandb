@@ -180,7 +180,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
 
 
 def notebook_metadata(silent) -> Dict[str, str]:
-    """Attempts to query jupyter for the path and name of the notebook file.
+    """Attempt to query jupyter for the path and name of the notebook file.
 
     This can handle different jupyter environments, specifically:
 

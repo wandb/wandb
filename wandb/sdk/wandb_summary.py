@@ -75,7 +75,7 @@ class SummaryDict(metaclass=abc.ABCMeta):
 
 
 class Summary(SummaryDict):
-    """Tracks single values for each metric for each run.
+    """Track single values for each metric for each run.
 
     By default, a metric's summary is the last value of its History.
 

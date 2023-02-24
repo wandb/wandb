@@ -194,7 +194,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     # Methods to be implemented by subclasses
     @staticmethod
     def _deserialize(path: str) -> SavedModelObjType:
-        """Returns the model object from a path. Allowed to throw errors."""
+        """Return the model object from a path. Allowed to throw errors."""
         raise NotImplementedError
 
     @staticmethod

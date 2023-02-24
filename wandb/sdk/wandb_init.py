@@ -124,7 +124,7 @@ class _WandbInit:
         self.printer = get_printer(settings._jupyter)
 
     def setup(self, kwargs: Any) -> None:  # noqa: C901
-        """Completes setup for `wandb.init()`.
+        """Complete setup for `wandb.init()`.
 
         This includes parsing all arguments, applying them with settings and enabling logging.
         """

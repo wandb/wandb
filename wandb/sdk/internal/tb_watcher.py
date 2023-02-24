@@ -214,7 +214,7 @@ class TBDirWatcher:
         self._thread.start()
 
     def _is_our_tfevents_file(self, path: str) -> bool:
-        """Checks if a path has been modified since launch and contains tfevents."""
+        """Check if a path has been modified since launch and contains tfevents."""
         if not path:
             raise ValueError("Path must be a nonempty string")
         if self._force:

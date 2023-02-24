@@ -1,4 +1,4 @@
-"""This module defines data types for logging rich, interactive visualizations to W&B.
+"""Thi module defines data types for logging rich, interactive visualizations to W&B.
 
 Data types include common media types, like images, audio, and videos,
 flexible containers for information, like tables and HTML, and more.
@@ -1050,7 +1050,7 @@ class Audio(BatchableMedia):
     _log_type = "audio-file"
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
-        """Accepts a path to an audio file or a numpy array of audio data."""
+        """Accept a path to an audio file or a numpy array of audio data."""
         super().__init__()
         self._duration = None
         self._sample_rate = sample_rate
@@ -1184,7 +1184,7 @@ class Audio(BatchableMedia):
 
 
 class JoinedTable(Media):
-    """Joins two tables for visualization in the Artifact UI.
+    """Join two tables for visualization in the Artifact UI.
 
     Arguments:
         table1 (str, wandb.Table, ArtifactManifestEntry):

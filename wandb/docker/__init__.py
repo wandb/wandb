@@ -166,7 +166,7 @@ def parse(image_name: str) -> Tuple[str, str, str]:
 
 
 def auth_token(registry: str, repo: str) -> Dict[str, str]:
-    """Makes a request to the root of a v2 docker registry to get the auth url.
+    """Make a request to the root of a v2 docker registry to get the auth url.
 
     Always returns a dictionary, if there's no token key we couldn't authenticate
     """
