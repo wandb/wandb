@@ -148,7 +148,7 @@ class LaunchAgent:
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
-        self._jobs: Dict[str, Dict[str, str]] = {}
+        self._jobs: Dict[Union[str,int], Dict[str, str]] = {}
         self._jobs_lock = threading.Lock()
         self._jobs_event = Event()
         self._jobs_event.set()
