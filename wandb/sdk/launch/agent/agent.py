@@ -5,10 +5,10 @@ Implementation of launch agent.
 import logging
 import os
 import pprint
+import threading
 import time
 import traceback
-from multiprocessing import Manager, Pool
-from threading import Lock
+from multiprocessing import Event, Manager, Pool
 from typing import Any, Dict, List, Union
 
 import wandb
@@ -38,7 +38,7 @@ AGENT_KILLED = "KILLED"
 _logger = logging.getLogger(__name__)
 
 
-def init_pool_processes(jobs: Dict[str, int], lock: Lock) -> None:
+def init_pool_processes(jobs: Dict[str, Dict[str, str]], lock: threading.Lock) -> None:
     global _jobs
     global _jobs_lock
     _jobs = jobs  # type: ignore
@@ -50,6 +50,21 @@ def thread_run_job(
     job: Dict[str, Any],
     default_config: Dict[str, Any],
     api: Api,
+    jobs_event: threading.Event,
+) -> None:
+    try:
+        _run_job(launch_spec, job, default_config, api, jobs_event)
+    except Exception:
+        wandb.termerror(f"Error running job: {traceback.format_exc()}")
+        api.ack_run_queue_item(job["runQueueItemId"])
+
+
+def _run_job(
+    launch_spec: Dict[str, Any],
+    job: Dict[str, Any],
+    default_config: Dict[str, Any],
+    api: Api,
+    jobs_event: threading.Event,
 ) -> None:
     project = create_project_from_spec(launch_spec, api)
     _logger.info("Fetching and validating project...")
@@ -81,25 +96,24 @@ def thread_run_job(
     if not run:
         return
     with _jobs_lock:  # type: ignore
-        _jobs[run.id] = 1  # type: ignore
-    try:
-        while True:
-            if _is_run_finished(run):
-                with _jobs_lock:  # type: ignore
-                    del _jobs[run.id]  # type: ignore
-                return
-            time.sleep(AGENT_POLLING_INTERVAL)
-    except KeyboardInterrupt:
-        # temp: for local, kill all jobs. we don't yet have good handling for different
-        # types of runners in general
-        if isinstance(run, LocalSubmittedRun):
-            run.command_proc.kill()
+        _jobs[run.id] = {"status": None}  # type: ignore
+    while jobs_event.is_set():
+        if _is_run_finished(run):
+            return
+        time.sleep(AGENT_POLLING_INTERVAL)
+    # temp: for local, kill all jobs. we don't yet have good handling for different
+    # types of runners in general
+    if isinstance(run, LocalSubmittedRun):
+        run.command_proc.kill()
 
 
 def _is_run_finished(run: AbstractRun) -> bool:
     """Check our status enum."""
     try:
-        if run.get_status().state in ["failed", "finished"]:
+        status = run.get_status().state
+        with _jobs_lock:  # type: ignore
+            _jobs[run.id]["status"] = status  # type: ignore
+        if status in ["failed", "finished"]:
             wandb.termlog(f"Job finished with ID: {run.id}")
             return True
         return False
@@ -135,7 +149,9 @@ class LaunchAgent:
         self._ticks = 0
         manager = Manager()
         self._jobs = manager.dict()
-        _jobs_lock = manager.Lock()
+        self._jobs_lock = manager.Lock()
+        self._jobs_event = Event()
+        self._jobs_event.set()
         self._cwd = os.getcwd()
         self._namespace = runid.generate_id()
         self._access = _convert_access("project")
@@ -147,7 +163,7 @@ class LaunchAgent:
         self._pool = Pool(
             processes=int(min(64, self._max_jobs)),
             initializer=init_pool_processes,
-            initargs=(self._jobs, _jobs_lock),
+            initargs=(self._jobs, self._jobs_lock),
         )
         self.default_config: Dict[str, Any] = config
 
@@ -210,6 +226,19 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"Failed to update agent status to {status}")
 
+    def finish_job_id(self, job_id: Union[str, int]) -> None:
+        """Removes the job from our list for now."""
+        # TODO:  keep logs or something for the finished jobs
+        del self._jobs[job_id]
+        # update status back to polling if no jobs are running
+        if len(self._jobs) == 0:
+            self.update_status(AGENT_POLLING)
+
+    def _update_finished(self, job_id: Union[int, str]) -> None:
+        """Check our status enum."""
+        if self._jobs[job_id]["status"] in ["failed", "finished"]:
+            self.finish_job_id(job_id)
+
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
@@ -235,6 +264,7 @@ class LaunchAgent:
                 job,
                 self.default_config,
                 self._api,
+                self._jobs_event,
             ),
         )
 
@@ -267,8 +297,11 @@ class LaunchAgent:
                                     f"Error running job: {traceback.format_exc()}"
                                 )
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
+                with self._jobs_lock:  # type: ignore
+                    for job_id in self.job_ids:
+                        self._update_finished(job_id)
                 if self._ticks % 2 == 0:
-                    if len(self._jobs.keys()) == 0:
+                    if len(self._jobs) == 0:
                         self.update_status(AGENT_POLLING)
                     else:
                         self.update_status(AGENT_RUNNING)
@@ -276,6 +309,9 @@ class LaunchAgent:
                 time.sleep(AGENT_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
+            self._jobs_event.clear()
             self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
+            self._pool.close()
+            self._pool.join()
