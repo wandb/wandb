@@ -88,6 +88,11 @@ def settings_dict_from_pbmap(
             v = tuple(v_obj.tuple_value.string_values)
         elif v_type == "map_value":
             v = dict(v_obj.map_value.map_values)
+        elif v_type == "nested_map_value":
+            v = {
+                k: dict(vv.map_values)
+                for k, vv in dict(v_obj.nested_map_value.nested_map_values).items()
+            }
         elif v_type == "timestamp_value":
             v = datetime.strptime(v_obj.timestamp_value, "%Y%m%d_%H%M%S")
         d[k] = v

@@ -593,6 +593,13 @@ class Settings:
                 # },
                 "preprocessor": _str_as_dict,
             },
+            _stats_open_metrics_filters={
+                # capture all metrics by default
+                "value": {
+                    ".*": {},
+                },
+                "preprocessor": _str_as_dict,
+            },
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),

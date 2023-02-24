@@ -1,10 +1,11 @@
 import logging
 import multiprocessing as mp
+import re
 import sys
 from collections import defaultdict, deque
 from hashlib import md5
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Union
+from typing import TYPE_CHECKING, Dict, List, Mapping, Union
 
 import urllib3
 
@@ -69,9 +70,12 @@ class OpenMetricsMetric:
     OpenMetrics endpoint.
     """
 
-    def __init__(self, name: str, url: str) -> None:
+    def __init__(
+        self, name: str, url: str, filters: Mapping[str, Mapping[str, str]]
+    ) -> None:
         self.name = name
         self.url = url
+        self.filters = filters
         self._session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
@@ -92,6 +96,35 @@ class OpenMetricsMetric:
         self._session.close()
         self._session = None
 
+    def _should_capture_metric(
+        self,
+        metric_name: str,
+        metric_labels: Mapping[str, str],
+    ) -> bool:
+        should_capture = False
+
+        if not self.filters:
+            return should_capture
+
+        # self.filters keys are regexes, check the name against them
+        # and for the first match, check the labels against the label filters.
+        # assume that if at least one label filter doesn't match, the metric
+        # should not be captured.
+        # it's up to the user to make sure that the filters are not conflicting etc.
+        for metric_name_regex, label_filters in self.filters.items():
+            if not re.match(metric_name_regex, metric_name):
+                continue
+
+            should_capture = True
+
+            for label, label_filter in label_filters.items():
+                if not re.match(label_filter, metric_labels.get(label, "")):
+                    should_capture = False
+                    break
+            break
+
+        return should_capture
+
     def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
         assert prometheus_client_parser is not None
         assert self._session is not None
@@ -108,6 +141,10 @@ class OpenMetricsMetric:
                 continue
             for sample in family.samples:
                 name, labels, value = sample.name, sample.labels, sample.value
+
+                if not self._should_capture_metric(name, labels):
+                    continue
+
                 # md5 hash of the labels
                 label_hash = md5(str(labels).encode("utf-8")).hexdigest()
                 if label_hash not in self.label_map[name]:
@@ -161,7 +198,9 @@ class OpenMetrics:
         self.settings = settings
         self.shutdown_event = shutdown_event
 
-        self.metrics: List[Metric] = [OpenMetricsMetric(name, url)]
+        self.metrics: List[Metric] = [
+            OpenMetricsMetric(name, url, settings._stats_open_metrics_filters)
+        ]
 
         self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
             asset_name=self.name,
