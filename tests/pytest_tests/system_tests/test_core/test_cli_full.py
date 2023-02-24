@@ -18,15 +18,6 @@ def empty_netrc(monkeypatch):
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
 
-# @contextlib.contextmanager
-# def config_dir():
-#     try:
-#         os.environ["WANDB_CONFIG"] = os.getcwd()
-#         yield
-#     finally:
-#         del os.environ["WANDB_CONFIG"]
-
-
 def debug_result(result, prefix=None):
     prefix = prefix or ""
     print("DEBUG({}) {} = {}".format(prefix, "out", result.output))
@@ -36,7 +27,7 @@ def debug_result(result, prefix=None):
     )
 
 
-@pytest.mark.xfail(reason="This test is flakey on CI")
+@pytest.mark.flaky
 def test_init_reinit(runner, empty_netrc, user):
     with runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.lib.apikey.len", return_value=40
@@ -54,7 +45,7 @@ def test_init_reinit(runner, empty_netrc, user):
         assert user in generated_wandb
 
 
-@pytest.mark.xfail(reason="This test is flakey on CI")
+@pytest.mark.flaky
 def test_init_add_login(runner, empty_netrc, user):
     with runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.lib.apikey.len", return_value=40
@@ -74,7 +65,7 @@ def test_init_add_login(runner, empty_netrc, user):
         assert user in generated_wandb
 
 
-@pytest.mark.xfail(reason="This test is flakey on CI")
+@pytest.mark.flaky
 def test_init_existing_login(runner, user):
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
@@ -90,7 +81,7 @@ def test_init_existing_login(runner, user):
         assert "This directory is configured" in result.output
 
 
-@pytest.mark.xfail(reason="This test is flakey on CI")
+@pytest.mark.flaky
 def test_pull(runner, wandb_init):
     with runner.isolated_filesystem():
         project_name = "test_pull"

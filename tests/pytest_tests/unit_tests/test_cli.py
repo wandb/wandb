@@ -1,4 +1,3 @@
-import contextlib
 import datetime
 import getpass
 import importlib
@@ -59,75 +58,6 @@ def empty_netrc(monkeypatch):
 
 @pytest.mark.skip(reason="Currently dont have on in cling")
 def test_enable_on(runner, git_repo):
-    with runner.isolated_filesystem():
-        with open("wandb/settings", "w") as f:
-            f.write("[default]\nproject=rad")
-        result = runner.invoke(cli.on)
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
-        assert "W&B enabled" in str(result.output)
-        assert result.exit_code == 0
-
-
-@contextlib.contextmanager
-def config_dir():
-    try:
-        os.environ["WANDB_CONFIG"] = os.getcwd()
-        yield
-    finally:
-        del os.environ["WANDB_CONFIG"]
-
-
-def debug_result(result, prefix=None):
-    prefix = prefix or ""
-    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))
-    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))
-    print(
-        "DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2]))
-    )
-
-
-@pytest.mark.flaky  # Flaky on CI.
-def test_init_reinit(runner, empty_netrc, user):
-    with runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.lib.apikey.len", return_value=40
-    ):
-        result = runner.invoke(cli.login, [user])
-        debug_result(result, "login")
-        result = runner.invoke(cli.init, input="y\n\n\n")
-        debug_result(result, "init")
-        assert result.exit_code == 0
-        with open("netrc") as f:
-            generated_netrc = f.read()
-        with open("wandb/settings") as f:
-            generated_wandb = f.read()
-        assert user in generated_netrc
-        assert user in generated_wandb
-
-
-@pytest.mark.flaky  # Flaky on CI.
-def test_init_add_login(runner, empty_netrc, user):
-    with runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.lib.apikey.len", return_value=40
-    ):
-        with open("netrc", "w") as f:
-            f.write("previous config")
-        result = runner.invoke(cli.login, [user])
-        debug_result(result, "login")
-        result = runner.invoke(cli.init, input=f"y\n{user}\nvanpelt\n")
-        debug_result(result, "init")
-        assert result.exit_code == 0
-        with open("netrc") as f:
-            generated_netrc = f.read()
-        with open("wandb/settings") as f:
-            generated_wandb = f.read()
-        assert user in generated_netrc
-        assert user in generated_wandb
-
-
-@pytest.mark.flaky  # Flaky on CI.
-def test_init_existing_login(runner, user):
     with runner.isolated_filesystem():
         with open("wandb/settings", "w") as f:
             f.write("[default]\nproject=rad")
