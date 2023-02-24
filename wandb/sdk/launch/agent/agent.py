@@ -8,7 +8,7 @@ import pprint
 import threading
 import time
 import traceback
-from multiprocessing import Event, Manager
+from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Union
 
@@ -148,9 +148,8 @@ class LaunchAgent:
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
-        manager = Manager()
-        self._jobs = manager.dict()
-        self._jobs_lock = manager.Lock()
+        self._jobs = {}
+        self._jobs_lock = threading.Lock()
         self._jobs_event = Event()
         self._jobs_event.set()
         self._cwd = os.getcwd()
@@ -237,6 +236,7 @@ class LaunchAgent:
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
+        wandb.termlog(f"Calling finish job id {job_id}")
         if self._jobs[job_id]["status"] in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
@@ -298,6 +298,7 @@ class LaunchAgent:
                                     f"Error running job: {traceback.format_exc()}"
                                 )
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
+
                 with self._jobs_lock:
                     for job_id in self.job_ids:
                         self._update_finished(job_id)
