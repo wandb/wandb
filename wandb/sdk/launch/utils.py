@@ -232,7 +232,7 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
-    """Parses wandb uri to retrieve entity, project and run name."""
+    """Parse wandb uri to retrieve entity, project and run name."""
     ref = WandbReference.parse(uri)
     if not ref or not ref.entity or not ref.project or not ref.run_id:
         raise LaunchError(f"Trouble parsing wandb uri {uri}")
@@ -326,7 +326,7 @@ def get_local_python_deps(
 
 
 def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
-    """Returns a list of pip requirements that are not in req_1 but are in req_2."""
+    """Return a list of pip requirements that are not in req_1 but are in req_2."""
 
     def _parse_req(req: List[str]) -> Dict[str, str]:
         # TODO: This can be made more exhaustive, but for 99% of cases this is fine
@@ -386,7 +386,7 @@ def validate_wandb_python_deps(
     requirements_file: Optional[str],
     dir: str,
 ) -> None:
-    """Warns if local python dependencies differ from wandb requirements.txt."""
+    """Warn if local python dependencies differ from wandb requirements.txt."""
     if requirements_file is not None:
         requirements_path = os.path.join(dir, requirements_file)
         with open(requirements_path) as f:

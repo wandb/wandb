@@ -199,7 +199,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
-        """Validates the model object. Allowed to throw errors."""
+        """Validate the model object. Allowed to throw errors."""
         raise NotImplementedError
 
     @staticmethod

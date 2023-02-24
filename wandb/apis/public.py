@@ -2402,7 +2402,7 @@ class QueuedRun:
 
     @normalize_exceptions
     def delete(self, delete_artifacts=False):
-        """Deletes the given queued run from the wandb backend."""
+        """Delete the given queued run from the wandb backend."""
         query = gql(
             """
             query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
@@ -2580,7 +2580,7 @@ class Sweep(Attrs):
             )
 
     def best_run(self, order=None):
-        """Returns the best run sorted by the metric defined in config or the order passed in."""
+        """Return the best run sorted by the metric defined in config or the order passed in."""
         if order is None:
             order = self.order
         else:
@@ -2606,7 +2606,7 @@ class Sweep(Attrs):
 
     @property
     def expected_run_count(self) -> Optional[int]:
-        """Returns the number of expected runs in the sweep or None for infinite runs."""
+        """Return the number of expected runs in the sweep or None for infinite runs."""
         return self._attrs.get("runCountExpected")
 
     @property

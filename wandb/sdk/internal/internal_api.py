@@ -233,7 +233,7 @@ class Api:
         self.client.transport.auth = ("api", self.api_key or "")
 
     def relocate(self) -> None:
-        """Ensures the current api points to the right server."""
+        """Ensure the current api points to the right server."""
         self.client.transport.url = "%s/graphql" % self.settings("base_url")
 
     def execute(self, *args: Any, **kwargs: Any) -> "_Response":
@@ -384,7 +384,7 @@ class Api:
     def parse_slug(
         self, slug: str, project: Optional[str] = None, run: Optional[str] = None
     ) -> Tuple[str, str]:
-        """Parses a slug into a project and run.
+        """Parse a slug into a project and run.
 
         Arguments:
             slug (str): The slug to parse
@@ -1965,7 +1965,7 @@ class Api:
         callback: Optional["ProgressFn"] = None,
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> Optional[requests.Response]:
-        """Uploads a file to W&B with failure resumption.
+        """Upload a file to W&B with failure resumption.
 
         Arguments:
             url: The url to download

@@ -162,7 +162,7 @@ class ValidationDataLogger:
         table_name: str = "validation_predictions",
         commit: bool = True,
     ) -> wandb.data_types.Table:
-        """Logs a set of predictions.
+        """Log a set of predictions.
 
         Intended usage:
 
@@ -221,7 +221,7 @@ def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
 
 
 def _get_example_shape(example: Union[Sequence, Any]):
-    """Gets the shape of an object if applicable."""
+    """Get the shape of an object if applicable."""
     shape = []
     if type(example) is not str and hasattr(example, "__len__"):
         length = len(example)

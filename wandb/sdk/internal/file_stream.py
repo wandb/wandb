@@ -587,7 +587,7 @@ class FileStreamApi:
         self._queue.put(self.PushSuccess(artifact_id, save_name))
 
     def finish(self, exitcode: int) -> None:
-        """Cleans up.
+        """Clean up.
 
         Anything pushed after finish will be dropped.
 

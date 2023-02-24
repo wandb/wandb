@@ -40,6 +40,7 @@ from wandb_watchdog.utils.compat import Event
 if sys.version_info[0] == 2 and platform.is_windows():
     # st_ino is not implemented in os.stat on this platform
     import win32stat
+
     stat = win32stat.stat
 else:
     stat = os.stat
@@ -63,7 +64,7 @@ class UnsupportedLibc(Exception):
 
 
 class BaseThread(threading.Thread):
-    """ Convenience class for creating stoppable threads. """
+    """Convenience class for creating stoppable threads."""
 
     def __init__(self):
         threading.Thread.__init__(self)
@@ -75,7 +76,7 @@ class BaseThread(threading.Thread):
         return self._stopped_event
 
     def should_keep_running(self):
-        """Determines whether the thread should continue running."""
+        """Determine whether the thread should continue running."""
         return not self._stopped_event.is_set()
 
     def on_thread_stop(self):
@@ -87,7 +88,7 @@ class BaseThread(threading.Thread):
         pass
 
     def stop(self):
-        """Signals the thread to stop."""
+        """Signal the thread to stop."""
         self._stopped_event.set()
         self.on_thread_stop()
 
@@ -106,11 +107,11 @@ class BaseThread(threading.Thread):
 
 
 def load_module(module_name):
-    """Imports a module given its name and returns a handle to it."""
+    """Import a module given its name and returns a handle to it."""
     try:
         __import__(module_name)
     except ImportError:
-        raise ImportError('No module named %s' % module_name)
+        raise ImportError("No module named %s" % module_name)
     return sys.modules[module_name]
 
 
@@ -132,10 +133,10 @@ def load_class(dotted_path):
     - modle.name.ClassName     # Typo in module name.
     - module.name.ClasNam      # Typo in classname.
     """
-    dotted_path_split = dotted_path.split('.')
+    dotted_path_split = dotted_path.split(".")
     if len(dotted_path_split) > 1:
         klass_name = dotted_path_split[-1]
-        module_name = '.'.join(dotted_path_split[:-1])
+        module_name = ".".join(dotted_path_split[:-1])
 
         module = load_module(module_name)
         if has_attribute(module, klass_name):
@@ -144,8 +145,11 @@ def load_class(dotted_path):
             # Finally create and return an instance of the class
             # return klass(*args, **kwargs)
         else:
-            raise AttributeError('Module %s does not have class attribute %s' % (
-                                 module_name, klass_name))
+            raise AttributeError(
+                "Module %s does not have class attribute %s" % (module_name, klass_name)
+            )
     else:
         raise ValueError(
-            'Dotted module path %s must contain a module name and a classname' % dotted_path)
+            "Dotted module path %s must contain a module name and a classname"
+            % dotted_path
+        )

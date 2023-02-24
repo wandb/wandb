@@ -683,7 +683,7 @@ def test_molecule_from_smiles(mock_run):
 
 
 def test_molecule_from_invalid_smiles():
-    """Ensures that wandb.Molecule.from_smiles errs if passed an invalid SMILES string."""
+    """Ensure that wandb.Molecule.from_smiles errs if passed an invalid SMILES string."""
     with pytest.raises(ValueError):
         wandb.Molecule.from_smiles("TEST")
 
