@@ -1,7 +1,6 @@
 """Test the high level sdk methods by mocking out the backend.
 
-See wandb_integration_test.py for tests that launch a real backend against a live
-backend server.
+See wandb_integration_test.py for tests that launch a real backend server.
 """
 import glob
 import inspect
