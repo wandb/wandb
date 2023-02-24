@@ -240,7 +240,8 @@ def add_callbacks(
         """The wandb callback is currently in beta and is subject to change based on updates to `ultralytics yolov8`.
         The callback is tested and supported for ultralytics v8.0.43 and above.
         Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.
-        """
+        """,
+        repeat=False,
     )
 
     if RANK in [-1, 0]:
