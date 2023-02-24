@@ -52,7 +52,7 @@ def display_html(html: str):  # type: ignore
 
 
 def display_widget(widget):
-    """Displays ipywidgets in notebooks, is a noop outside of a jupyter context."""
+    """Display ipywidgets in notebooks, is a noop outside of a jupyter context."""
     if wandb.run and wandb.run._settings.silent:
         return
     try:
@@ -99,7 +99,7 @@ class ProgressWidget:
 
 
 def jupyter_progress_bar(min: float = 0, max: float = 1.0) -> Optional[ProgressWidget]:
-    """Returns an ipywidget progress bar or None if we can't import it."""
+    """Return an ipywidget progress bar or None if we can't import it."""
     widgets = wandb.util.get_module("ipywidgets")
     try:
         if widgets is None:

@@ -996,7 +996,7 @@ class Run:
     @property
     @_run_decorator._attach
     def group(self) -> str:
-        """Return the name of the group associated with the run.
+        """Name of the group associated with the run.
 
         Setting a group helps the W&B UI organize runs in a sensible way.
 
@@ -1016,7 +1016,7 @@ class Run:
     @property
     @_run_decorator._attach
     def project(self) -> str:
-        """Return the name of the W&B project associated with the run."""
+        """Name of the W&B project associated with the run."""
         return self.project_name()
 
     @_run_decorator._attach
@@ -1830,7 +1830,7 @@ class Run:
     def finish(
         self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
     ) -> None:
-        """Mark a run as finished, and finishes uploading all data.
+        """Mark a run as finished, and finishe uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
         call this method when your script exits or if you use the run context manager.
