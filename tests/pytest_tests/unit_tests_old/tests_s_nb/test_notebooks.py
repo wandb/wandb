@@ -64,7 +64,7 @@ def test_magic(notebook):
         assert iframes == 5
 
 
-@pytest.mark.flaky
+@pytest.mark.flaky(reruns=5)
 @pytest.mark.timeout(90)
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="flaky test that fails on windows"

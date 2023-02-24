@@ -1,6 +1,5 @@
 pytest
 hypothesis
-flaky
 coverage
 Pillow
 pandas

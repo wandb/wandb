@@ -9,7 +9,7 @@ import pytest
 from tests.pytest_tests.unit_tests_old import utils
 
 
-@pytest.mark.flaky
+@pytest.mark.flaky(reruns=5)
 @pytest.mark.xfail(reason="flaky test")
 def test_sync_in_progress(live_mock_server, test_dir):
     with open("train.py", "w") as f:

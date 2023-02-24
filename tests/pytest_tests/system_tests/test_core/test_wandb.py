@@ -434,7 +434,7 @@ def test_log_step_committed_same_dropped(relay_server, wandb_init):
 # ----------------------------------
 
 
-@pytest.mark.flaky
+@pytest.mark.flaky(reruns=5)
 def test_save_invalid_path(wandb_init):
     run = wandb_init()
     root = tempfile.gettempdir()
