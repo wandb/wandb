@@ -40,7 +40,7 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
         return LocalEnvironment()  # This is the default, dummy environment.
         # fmt: on
     env_type = config.get("type")
-    if env_type is None:
+    if not env_type:
         raise LaunchError(
             "Could not create environment from config. Environment type not specified!"
         )
