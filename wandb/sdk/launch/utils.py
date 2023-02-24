@@ -12,11 +12,29 @@ import click
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
+
+
+class LaunchError(Error):
+    """Raised when a known error occurs in wandb launch"""
+
+    pass
+
+
+class ExecutionError(Error):
+    """Generic execution exception"""
+
+    pass
+
+
+class SweepError(Error):
+    """Raised when a known error occurs with wandb sweeps"""
+
+    pass
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -452,10 +470,10 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
             raise LaunchError(
-                "Unable to checkout version '%s' of git repo %s"
+                f"Unable to checkout version '{version}' of git repo {uri}"
                 "- please ensure that the version exists in the repo. "
-                "Error: %s" % (version, uri, e)
-            )
+                f"Error: {e}"
+            ) from e
     else:
         if getattr(repo, "references", None) is not None:
             branches = [ref.name for ref in repo.references]
@@ -475,10 +493,10 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
             )
         except (AttributeError, IndexError) as e:
             raise LaunchError(
-                "Unable to checkout default version '%s' of git repo %s "
+                f"Unable to checkout default version '{version}' of git repo {uri} "
                 "- to specify a git version use: --git-version \n"
-                "Error: %s" % (version, uri, e)
-            )
+                f"Error: {e}"
+            ) from e
 
     repo.submodule_update(init=True, recursive=True)
     return version
@@ -560,7 +578,6 @@ def get_kube_context_and_api_client(
     kubernetes: Any,  # noqa: F811
     resource_args: Dict[str, Any],  # noqa: F811
 ) -> Tuple[Any, Any]:
-
     config_file = resource_args.get("config_file", None)
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):

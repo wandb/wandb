@@ -1,3 +1,63 @@
+## 0.13.10 (February 7, 2023)
+
+### :magic_wand: Enhancements
+* perf(artifacts): reuse session for file upload requests by @speezepearson in https://github.com/wandb/wandb/pull/4708
+* feat(artifacts): expose aliases list endpoint for artifact collections by @ibindlish in https://github.com/wandb/wandb/pull/4809
+* feat(launch): include the username of the run's author in the environment variables by @TimH98 in https://github.com/wandb/wandb/pull/4851
+* feat(launch): add support for local-container resource args by @KyleGoyette in https://github.com/wandb/wandb/pull/4846
+* feat(sdk): add the ability to append to a run with `wandb sync --append` by @raubitsj in https://github.com/wandb/wandb/pull/4848
+* feat(launch): add an escape hatch (`disable_job_creation`) to disable automatic job creation by @KyleGoyette in https://github.com/wandb/wandb/pull/4901
+### :hammer: Fixes
+* fix(launch): remove underscores from generated job name in kubernetes runner by @TimH98 in https://github.com/wandb/wandb/pull/4752
+* fix(sweeps): sweep command args can once again be int type by @gtarpenning in https://github.com/wandb/wandb/pull/4728
+* fix(artifacts): ensure prepared artifacts have the `latest` alias by @moredatarequired in https://github.com/wandb/wandb/pull/4828
+* fix(artifacts): catch FileNotFoundError and PermissionError during cache.cleanup() by @moredatarequired in https://github.com/wandb/wandb/pull/4868
+* fix(sdk): fix order of python executable resolves by @kptkin in https://github.com/wandb/wandb/pull/4839
+* fix(sdk): fix console handling when forking and setting stdout==stderr by @raubitsj in https://github.com/wandb/wandb/pull/4877
+* fix(launch): Fix issue where job artifacts are being logged without latest alias by @KyleGoyette in https://github.com/wandb/wandb/pull/4884
+* fix(launch): Ensure job names do not exceed maximum allowable for artifacts by @KyleGoyette in https://github.com/wandb/wandb/pull/4889
+### :books: Docs
+* docs(sdk): fix broken reference link to W&B Settings page in Sweeps by @ngrayluna in https://github.com/wandb/wandb/pull/4820
+* docs(sdk): Docodoile autogen docs by @ngrayluna in https://github.com/wandb/wandb/pull/4734
+### :gear: Dev
+* test(artifacts): ensure manifest version is verified by @moredatarequired in https://github.com/wandb/wandb/pull/4691
+* test(sdk): add tests for custom SSL certs and disabling SSL by @speezepearson in https://github.com/wandb/wandb/pull/4692
+* test(sdk): fix nightly docker builds by @dmitryduev in https://github.com/wandb/wandb/pull/4787
+* chore(sdk): dont create universal py2/py3 package by @raubitsj in https://github.com/wandb/wandb/pull/4797
+* chore(sdk): fix flake8-bugbear B028 and ignore B017 by @kptkin in https://github.com/wandb/wandb/pull/4799
+* test(sdk): fix gcloud sdk version requested in nightly tests by @dmitryduev in https://github.com/wandb/wandb/pull/4802
+* chore(artifacts): remove unused parameters in StorageHandler.load_{path,file,reference} by @moredatarequired in https://github.com/wandb/wandb/pull/4678
+* chore(sdk): split unit tests to system tests and proper unit tests by @kptkin in https://github.com/wandb/wandb/pull/4811
+* test(sdk): address fixture server move from port 9010 to 9015 in local-testcontainer by @dmitryduev in https://github.com/wandb/wandb/pull/4814
+* chore(sdk): add aliases to ac query response by @ibindlish in https://github.com/wandb/wandb/pull/4813
+* test(sdk): run regression suite nightly by @dmitryduev in https://github.com/wandb/wandb/pull/4788
+* test(sdk): fix broken lightning test by @kptkin in https://github.com/wandb/wandb/pull/4823
+* chore(sdk): enable type checking for wandb_init.py by @dmitryduev in https://github.com/wandb/wandb/pull/4784
+* chore(launch): deprecate defaulting to default queue in launch-agent command by @gtarpenning in https://github.com/wandb/wandb/pull/4801
+* test(launch): add unit test for kubernetes runner with annotations by @TimH98 in https://github.com/wandb/wandb/pull/4800
+* test(integrations): fix train_gpu_ddp test by @dmitryduev in https://github.com/wandb/wandb/pull/4831
+* chore(sdk): fix docker testimage to pull amd64 version by @raubitsj in https://github.com/wandb/wandb/pull/4838
+* chore(sdk): fix codeowners after test restructure by @raubitsj in https://github.com/wandb/wandb/pull/4843
+* test(sdk): fix md5 test failures on Windows by @moredatarequired in https://github.com/wandb/wandb/pull/4840
+* chore(sdk): split out relay server so it can be shared with yea-wandb by @raubitsj in https://github.com/wandb/wandb/pull/4837
+* chore(sdk): fix a flake8 complaint in a test by @speezepearson in https://github.com/wandb/wandb/pull/4806
+* test(integrations): fix several import tests by @dmitryduev in https://github.com/wandb/wandb/pull/4849
+* test(sdk): don't use symlinks for SSL test assets, because Windows by @speezepearson in https://github.com/wandb/wandb/pull/4847
+* test(sdk): add unit tests for filesync.Stats by @speezepearson in https://github.com/wandb/wandb/pull/4855
+* chore(sdk): add async retry logic by @speezepearson in https://github.com/wandb/wandb/pull/4738
+* test(artifacts): strengthen tests for ArtifactSaver, StepUpload by @speezepearson in https://github.com/wandb/wandb/pull/4808
+* chore(launch): Agent logs full stack trace when catching exception by @TimH98 in https://github.com/wandb/wandb/pull/4861
+* chore(sdk): swallow warning printed by neuron-ls by @dmitryduev in https://github.com/wandb/wandb/pull/4835
+* build(sdk): pin pip and tox in development environments by @moredatarequired in https://github.com/wandb/wandb/pull/4871
+### :nail_care: Cleanup
+* refactor(sdk): strengthen StepUpload tests; make exception-handling more thorough in upload/commit by @speezepearson in https://github.com/wandb/wandb/pull/4677
+* refactor(artifacts): refactor Artifact query to fetch entity and project by @vwrj in https://github.com/wandb/wandb/pull/4775
+* refactor(sdk): replace more communicate calls with deliver by @raubitsj in https://github.com/wandb/wandb/pull/4841
+* refactor(artifacts): internally use Future to communicate success/failure of commit, not threading.Event by @speezepearson in https://github.com/wandb/wandb/pull/4859
+* refactor(sdk): use stdlib ThreadPoolExecutor in StepUpload instead of managing our own by @speezepearson in https://github.com/wandb/wandb/pull/4860
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.9...v0.13.10
+
 ## 0.13.9 (January 11, 2023)
 
 ### :hammer: Fixes

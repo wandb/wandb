@@ -5,11 +5,13 @@ import re
 import shutil
 import sys
 from base64 import b64encode
+from typing import Dict
 
 import requests
 from requests.compat import urljoin
 
 import wandb
+import wandb.util
 from wandb.sdk.lib import filesystem
 
 try:
@@ -177,10 +179,10 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
     return None
 
 
-def notebook_metadata(silent):
+def notebook_metadata(silent) -> Dict[str, str]:
     """Attempts to query jupyter for the path and name of the notebook file.
 
-    This can handle many different jupyter environments, specifically:
+    This can handle different jupyter environments, specifically:
 
     1. Colab
     2. Kaggle
@@ -193,30 +195,21 @@ def notebook_metadata(silent):
         "the WANDB_NOTEBOOK_NAME environment variable to enable code saving."
     )
     try:
-        # In colab we can request the most recent contents
+        jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
+
+        # Colab:
+        # request the most recent contents
         ipynb = attempt_colab_load_ipynb()
-        if ipynb:
-            nb_name = ipynb["metadata"]["colab"]["name"]
-            if ".ipynb" not in nb_name:
-                nb_name += ".ipynb"
-            ret = {
+        if ipynb is not None and jupyter_metadata is not None:
+            return {
                 "root": "/content",
-                "path": nb_name,
-                "name": nb_name,
+                "path": jupyter_metadata["path"],
+                "name": jupyter_metadata["name"],
             }
 
-            try:
-                jupyter_metadata = (
-                    notebook_metadata_from_jupyter_servers_and_kernel_id()
-                )
-            except RuntimeError:
-                pass
-            else:
-                ret["path"] = jupyter_metadata["path"]
-            return ret
-
+        # Kaggle:
         if wandb.util._is_kaggle():
-            # In kaggle we can request the most recent contents
+            # request the most recent contents
             ipynb = attempt_kaggle_load_ipynb()
             if ipynb:
                 return {
@@ -225,7 +218,6 @@ def notebook_metadata(silent):
                     "name": ipynb["metadata"]["name"],
                 }
 
-        jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
         if jupyter_metadata:
             return jupyter_metadata
         if not silent:
@@ -401,12 +393,14 @@ class Notebook:
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
-            nb_name = (
-                colab_ipynb.get("metadata", {})
-                .get("colab", {})
-                .get("name", "colab.ipynb")
-            )
-            if ".ipynb" not in nb_name:
+            try:
+                jupyter_metadata = (
+                    notebook_metadata_from_jupyter_servers_and_kernel_id()
+                )
+                nb_name = jupyter_metadata["name"]
+            except Exception:
+                nb_name = "colab.ipynb"
+            if not nb_name.endswith(".ipynb"):
                 nb_name += ".ipynb"
             with open(
                 os.path.join(

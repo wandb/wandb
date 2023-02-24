@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional
 
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.utils import LaunchError
 
 from .._project_spec import EntryPoint, LaunchProject
 

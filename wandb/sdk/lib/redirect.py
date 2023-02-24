@@ -511,6 +511,9 @@ class RedirectBase:
     def src_wrapped_stream(self):
         return getattr(sys, self.src)
 
+    def save(self):
+        pass
+
     def install(self):
         curr_redirect = _redirects.get(self.src)
         if curr_redirect and curr_redirect != self:
@@ -627,14 +630,16 @@ class StreamRawWrapper(RedirectBase):
         super().__init__(src=src, cbs=cbs)
         self._installed = False
 
+    def save(self):
+        stream = self.src_wrapped_stream
+        self._old_write = stream.write
+
     def install(self):
         super().install()
         if self._installed:
             return
         stream = self.src_wrapped_stream
-        old_write = stream.write
         self._prev_callback_timestamp = time.time()
-        self._old_write = old_write
 
         def write(data):
             self._old_write(data)

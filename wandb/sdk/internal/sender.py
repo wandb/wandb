@@ -21,6 +21,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Union,
     cast,
 )
 
@@ -28,10 +29,11 @@ import requests
 
 import wandb
 from wandb import util
-from wandb.errors import ContextCancelledError
+from wandb.errors import CommError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
+from wandb.sdk.lib.mailbox import ContextCancelledError
 
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
@@ -269,7 +271,7 @@ class SendManager:
         self._debounce_status_time = time_now
 
     @classmethod
-    def setup(cls, root_dir: str) -> "SendManager":
+    def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
         """This is a helper class method to set up a standalone SendManager.
         Currently, we're using this primarily for `sync.py`.
         """
@@ -280,7 +282,7 @@ class SendManager:
             root_dir=root_dir,
             _start_time=0,
             git_remote=None,
-            resume=None,
+            resume=resume,
             program=None,
             ignore_globs=(),
             run_id=None,
@@ -298,6 +300,7 @@ class SendManager:
             _sync=True,
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
+            disable_job_creation=False,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
@@ -924,7 +927,19 @@ class SendManager:
             config_value_dict = self._config_format(None)
             self._config_save(config_value_dict)
 
-        self._init_run(run, config_value_dict)
+        try:
+            self._init_run(run, config_value_dict)
+        except CommError as e:
+            logger.error(e, exc_info=True)
+            if record.control.req_resp or record.control.mailbox_slot:
+                result = proto_util._result_from_record(record)
+                result.run_result.run.CopyFrom(run)
+                error = wandb_internal_pb2.ErrorInfo()
+                error.message = str(e)
+                result.run_result.error.CopyFrom(error)
+                self._respond_result(result)
+            return
+
         assert self._run  # self._run is configured in _init_run()
 
         if record.control.req_resp or record.control.mailbox_slot:
@@ -1554,24 +1569,28 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
+        if self._job_builder.disable or self._settings.get("_offline", False):
+            return
         self._job_builder.set_config(
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
         )
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        if not self._settings.get("_offline", False) and not self._job_builder.disable:
-            artifact = self._job_builder.build()
-            if artifact is not None and self._run is not None:
-                proto_artifact = self._interface._make_artifact(artifact)
-                proto_artifact.run_id = self._run.run_id
-                proto_artifact.project = self._run.project
-                proto_artifact.entity = self._run.entity
-                proto_artifact.user_created = True
-                proto_artifact.use_after_commit = True
-                proto_artifact.finalize = True
+        artifact = self._job_builder.build()
+        if artifact is not None and self._run is not None:
+            proto_artifact = self._interface._make_artifact(artifact)
+            proto_artifact.run_id = self._run.run_id
+            proto_artifact.project = self._run.project
+            proto_artifact.entity = self._run.entity
+            # TODO: this should be removed when the latest tag is handled
+            # by the backend (WB-12116)
+            proto_artifact.aliases.append("latest")
+            proto_artifact.user_created = True
+            proto_artifact.use_after_commit = True
+            proto_artifact.finalize = True
 
-                self._interface._publish_artifact(proto_artifact)
+            self._interface._publish_artifact(proto_artifact)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)

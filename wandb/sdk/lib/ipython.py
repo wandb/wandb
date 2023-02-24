@@ -1,5 +1,6 @@
 import logging
 import sys
+import warnings
 from typing import Optional
 
 import wandb
@@ -103,7 +104,9 @@ def jupyter_progress_bar(min: float = 0, max: float = 1.0) -> Optional[ProgressW
     try:
         if widgets is None:
             # TODO: this currently works in iPython but it's deprecated since 4.0
-            from IPython.html import widgets  # type: ignore
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                from IPython.html import widgets  # type: ignore
 
         assert hasattr(widgets, "VBox")
         assert hasattr(widgets, "Label")

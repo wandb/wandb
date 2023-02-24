@@ -414,38 +414,6 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  pex:
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 8
-    docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-    resource_class: small
-    working_directory: /mnt/ramdisk
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - run:
-          name: Install pex
-          command: |
-            pip install -U pip
-            pip install pex
-          no_output_timeout: 5m
-      - run:
-          name: Run pex test
-          no_output_timeout: 5m
-          command: |
-            pex . -o wandb.pex
-            WANDB_EXECUTABLE=./wandb.pex ./wandb.pex -c "import wandb; import os; wandb.init(mode='offline'); wandb.finish()"
-      - save-test-results
-
   protobuf-compatability:
     parameters:
       python_version_major:
@@ -1135,7 +1103,7 @@ workflows:
             - equal:
                 - << pipeline.schedule.name >>
                 - "nightly"
-        - << pipeline.parameters.manual_nightly >>  # this is a manual trigger
+        - << pipeline.parameters.manual_nightly >> # this is a manual trigger
     jobs:
       #
       # "And now my watch begins"
@@ -1152,8 +1120,8 @@ workflows:
       - regression:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - yolov5
                 - huggingface
@@ -1353,7 +1321,7 @@ workflows:
               python_version_minor: [6, 7, 8, 9, 10]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
-          tox_args: "tests/pytest_tests/system_tests --ignore=tests/pytest_tests/system_tests/tests_launch"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
@@ -1484,6 +1452,30 @@ workflows:
           tox_args: "tests/pytest_tests/system_tests/tests_launch"
 
       #
+      # wandb sweeps tests
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "system-sweeps-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/system_tests/test_sweep"
+
+      #
+      # wandb artifacts tests
+      #
+      - pytest:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "system-artifacts-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/system_tests/test_artifacts"
+
+      #
       # sharded unit tests
       #
       # s_nb: notebook tests
@@ -1513,10 +1505,18 @@ workflows:
           parallelism: 1
           xdist: 1
       #
-      # pex test
+      # functional tests with different executors
       #
-      - pex:
-          name: "pex"
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+              toxenv:
+                - "executor-uwsgi"
+                - "executor-gunicorn"
+                - "executor-pex"
+          name: "<<matrix.toxenv>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 
   # todo: needs love
   #  manual_test:
