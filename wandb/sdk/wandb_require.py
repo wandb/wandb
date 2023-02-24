@@ -12,7 +12,7 @@ Example:
 from typing import Optional, Sequence, Union
 
 import wandb
-from wandb.errors import RequireError
+from wandb.errors import UnsupportedError
 from wandb.sdk import wandb_run
 from wandb.sdk.lib.wburls import wburls
 
@@ -56,7 +56,7 @@ class _Requires:
             wandb.termerror(
                 f"Supported wandb.require() features can be found at: {wburls.get('doc_require')}"
             )
-            raise RequireError(last_message)
+            raise UnsupportedError(last_message)
 
 
 def require(
@@ -70,7 +70,7 @@ def require(
         experiment: (str or list) Features to require
 
     Raises:
-        wandb.errors.RequireError: if not supported or other error
+        wandb.errors.UnsupportedError: if not supported
     """
     features = requirement or experiment
     if not features:

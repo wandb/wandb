@@ -2,14 +2,11 @@ __all__ = [
     "Error",
     "UsageError",
     "CommError",
-    "LogError",
-    "LogMultiprocessError",
-    "MultiprocessError",
-    "RequireError",
+    "UnsupportedError",
     "WaitTimeoutError",
 ]
 
-from typing import List, Optional
+from typing import Optional
 
 
 class Error(Exception):
@@ -42,28 +39,8 @@ class UsageError(Error):
     pass
 
 
-class LogError(Error):
-    """Raised when wandb.log() fails"""
-
-    pass
-
-
-class LogMultiprocessError(LogError):
-    """Raised when wandb.log() fails because of multiprocessing"""
-
-    pass
-
-
-class MultiprocessError(Error):
-    """Raised when fails because of multiprocessing"""
-
-    pass
-
-
-class RequireError(Error):
-    """Raised when wandb.require() fails"""
-
-    pass
+class UnsupportedError(UsageError):
+    """Raised when trying to use a feature that is not supported"""
 
 
 class WaitTimeoutError(Error):
