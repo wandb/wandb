@@ -744,7 +744,7 @@ class _WandbInit:
                 )
                 error = CommError(error_message)
                 run_init_handle._cancel()
-            elif run_result.error:
+            elif run_result.HasField("error"):
                 error = ProtobufErrorHandler.to_exception(run_result.error)
 
             if error is not None:
