@@ -1,4 +1,5 @@
 import inspect
+import os
 from importlib import reload
 from unittest.mock import patch
 
@@ -123,9 +124,7 @@ def test_valid_created_component():
     assert add2_task_spec.outputs == [OutputSpec("Output", "Float")]
 
 
-@pytest.mark.xfail(
-    reason="This test sometimes fails in CI (not sure why)", strict=False
-)
+@pytest.mark.flaky(reruns=5, condition=os.environ.get("CI") == "true")
 def test_unpatching():
     assert (
         inspect.getmodule(kfp.components._python_op.create_component_from_func)

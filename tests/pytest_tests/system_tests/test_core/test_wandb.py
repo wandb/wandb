@@ -151,7 +151,7 @@ def test_custom_dir_env(wandb_init):
     assert len(glob.glob(os.path.join(tempfile.gettempdir(), "wandb", "offline-*"))) > 0
 
 
-@pytest.mark.xfail(reason="Backend race condition")
+@pytest.mark.flaky(reruns=5)
 def test_anonymous_mode(wandb_init, capsys, local_settings):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")
@@ -169,7 +169,7 @@ def test_anonymous_mode(wandb_init, capsys, local_settings):
     )
 
 
-@pytest.mark.xfail(reason="Backend race condition")
+@pytest.mark.flaky(reruns=5)
 def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")

@@ -156,8 +156,7 @@ def test_artifact_log_with_network_error(runner, live_mock_server, test_settings
 #         assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
-# todo: investigate why this test is flaking
-@pytest.mark.xfail(reason="flaky test")
+@pytest.mark.flaky(reruns=5)
 def test_artifact_incremental_internal(
     mocked_run,
     mock_server,

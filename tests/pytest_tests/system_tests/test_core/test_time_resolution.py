@@ -29,7 +29,7 @@ def test_log(relay_server, wandb_init):
     assert all(0 <= history["_runtime"]) and all(history["_runtime"] <= after - before)
 
 
-@pytest.mark.xfail(reason="TODO: this test is non-deterministic and sometimes fails")
+@pytest.mark.flaky(reruns=5)
 def test_stats(relay_server, wandb_init):
     with relay_server() as relay:
         before = time.time()
