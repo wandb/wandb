@@ -148,7 +148,7 @@ def _json_helper(val, artifact):
 
 
 class Table(Media):
-    """The Table class is used to display and analyze tabular data.
+    """The Table class used to display and analyze tabular data.
 
     Unlike traditional spreadsheets, Tables support numerous types of data:
     scalar values, strings, numpy arrays, and most subclasses of `wandb.data_types.Media`.
@@ -257,7 +257,10 @@ class Table(Media):
         optional=True,
         allow_mixed_types=False,
     ):
-        """rows is kept for legacy reasons, we use data to mimic the Pandas api."""
+        """Initialize a Table object.
+
+        Rows is kept for legacy reasons, we use data to mimic the Pandas api.
+        """
         super().__init__()
         self._pk_col = None
         self._fk_cols = set()
@@ -344,7 +347,7 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        """Casts a column to a specific type.
+        """Cast a column to a specific type.
 
         Arguments:
             col_name: (str) - name of the column to cast
@@ -445,12 +448,15 @@ class Table(Media):
         return self._eq_debug(other)
 
     def add_row(self, *row):
-        """add_row is deprecated. Please use add_data."""
+        """Deprecated: use add_data instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     def add_data(self, *data):
-        """Add a row of data to the table. Argument length should match column length."""
+        """Add a row of data to the table.
+
+        Argument length should match column length.
+        """
         if len(data) != len(self.columns):
             raise ValueError(
                 "This table expects {} columns: {}, found {}".format(
@@ -482,9 +488,10 @@ class Table(Media):
         self._update_keys(force_last=True)
 
     def _get_updated_result_type(self, row):
-        """Returns an updated result type based on incoming row. Raises error if
-        the assignment is invalid
-        .
+        """Return an updated result type based on incoming row.
+
+        Raises:
+            TypeError: if the assignment is invalid.
         """
         incoming_row_dict = {
             col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
@@ -724,13 +731,14 @@ class Table(Media):
         self.cast(col_name, _ForeignKeyType(table, table_col))
 
     def _update_keys(self, force_last=False):
-        """Updates the known key-like columns based on the current
-        column types. If the state has been updated since
-        the last update, we wrap the data appropriately in the Key classes.
+        """Update the known key-like columns based on the current column types.
+
+        If the state has been updated since the last update, we wrap the data
+        appropriately in the Key classes.
 
         Arguments:
-        force_last: (bool) Determines wrapping the last column of data even if
-        there are no key updates.
+            force_last: (bool) Determines wrapping the last column of data even if there
+                are no key updates.
         """
         _pk_col = None
         _fk_cols = set()
@@ -770,7 +778,7 @@ class Table(Media):
             self._apply_key_updates(not has_update)
 
     def _apply_key_updates(self, only_last=False):
-        """Appropriately wraps the underlying data in special key classes.
+        """Appropriately wrap the underlying data in special key classes.
 
         Arguments:
             only_last: only apply the updates to the last row (used for performance when
@@ -860,7 +868,7 @@ class Table(Media):
             raise err
 
     def get_column(self, name, convert_to=None):
-        """Retrieves a column of data from the table.
+        """Retrieve a column of data from the table.
 
         Arguments:
             name: (str) - the name of the column
@@ -885,7 +893,7 @@ class Table(Media):
         return col
 
     def get_index(self):
-        """Returns an array of row indexes which can be used in other tables to create links."""
+        """Return an array of row indexes for use in other tables to create links."""
         ndxs = []
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -901,7 +909,7 @@ class Table(Media):
         return _index
 
     def add_computed_columns(self, fn):
-        """Adds one or more computed columns based on existing data.
+        """Add one or more computed columns based on existing data.
 
         Args:
             fn: A function which accepts one or two parameters, ndx (int) and row (dict),
@@ -943,16 +951,18 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """PartitionedTable represents a table which is composed
-    by the union of multiple sub-tables. Currently, PartitionedTable
-    is designed to point to a directory within an artifact.
+    """A table which is composed of multiple sub-tables.
+
+    Currently, PartitionedTable is designed to point to a directory within an artifact.
     """
 
     _log_type = "partitioned-table"
 
     def __init__(self, parts_path):
-        """Args:
-        parts_path (str): path to a directory of tables in the artifact.
+        """Initialize a PartitionedTable.
+
+        Args:
+            parts_path (str): path to a directory of tables in the artifact.
         """
         super().__init__()
         self.parts_path = parts_path

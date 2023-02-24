@@ -1184,13 +1184,15 @@ def launch(
     repository,
     project_queue,
 ):
-    """Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
-    In the case of a wandb URI the arguments used in the original run will be used by default.
-    These arguments can be overridden using the args option, or specifying those arguments
-    in the config's 'overrides' key, 'args' field as a list of strings.
+    """Start a W&B run from the given URI.
 
-    Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
-    `wandb launch [URI] --queue [optional queuename]`.
+    The URI can bea wandb URI, a GitHub repo uri, or a local path). In the case of a
+    wandb URI the arguments used in the original run will be used by default. These
+    arguments can be overridden using the args option, or specifying those arguments in
+    the config's 'overrides' key, 'args' field as a list of strings.
+
+    Running `wandb launch [URI]` will launch the run directly. To add the run to a
+    queue, run `wandb launch [URI] --queue [optional queuename]`.
     """
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
@@ -1455,11 +1457,10 @@ def controller(verbose, sweep_id):
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
 def docker_run(ctx, docker_run_args):
-    """Simple wrapper for `docker run` which adds WANDB_API_KEY and WANDB_DOCKER
-    environment variables to any docker run command.
+    """Wrap `docker run` and adds WANDB_API_KEY and WANDB_DOCKER environment variables.
 
-    This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
-    and --runtime wasn't set.
+    This will also set the runtime to nvidia if the nvidia-docker executable is present
+    on the system and --runtime wasn't set.
 
     See `docker run --help` for more details.
     """

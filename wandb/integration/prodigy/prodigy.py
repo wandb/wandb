@@ -31,7 +31,8 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 def named_entity(docs):
-    """Creates a named entity visualization.
+    """Create a named entity visualization.
+
     Taken from https://github.com/wandb/wandb/blob/main/wandb/plots/named_entity.py.
     """
     spacy = util.get_module(

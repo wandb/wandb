@@ -1,4 +1,5 @@
-"""This module hooks fast.ai v1 Learners to Weights & Biases through a callback.
+"""Hooks that add fast.ai v1 Learners to Weights & Biases through a callback.
+
 Requested logged data can be configured through the callback constructor.
 
 Examples:
@@ -60,7 +61,8 @@ except ImportError:
 
 
 class WandbCallback(TrackerCallback):
-    """Automatically saves model topology, losses & metrics.
+    """Callback for saving model topology, losses & metrics.
+
     Optionally logs weights, gradients, sample predictions and best trained model.
 
     Arguments:

@@ -19,7 +19,8 @@ log = logging.getLogger(__name__)
 
 
 class DockerError(Exception):
-    """A base class from which all other exceptions inherit.
+    """Base class from which all other exceptions inherit.
+
     If you want to catch all errors that the Docker SDK might raise,
     catch this base exception.
     """
@@ -66,8 +67,10 @@ def config_path_from_environment() -> Optional[str]:
 
 
 def home_dir() -> str:
-    """Get the user's home directory, using the same logic as the Docker Engine
-    client - use %USERPROFILE% on Windows, $HOME/getuid on POSIX.
+    """Get the user's home directory.
+
+    Uses the same logic as the Docker Engine client - use %USERPROFILE% on Windows,
+    $HOME/getuid on POSIX.
     """
     if IS_WINDOWS_PLATFORM:
         return os.environ.get("USERPROFILE", "")
@@ -147,7 +150,8 @@ class AuthConfig(dict):
         entries: Dict[str, Dict[str, Any]],
         raise_on_error: bool = False,
     ) -> Dict[str, Dict[str, Any]]:
-        """Parses authentication entries
+        """Parse authentication entries.
+
         Arguments:
           entries:        Dict of authentication entries.
           raise_on_error: If set to true, an invalid format will raise
@@ -206,8 +210,11 @@ class AuthConfig(dict):
         config_dict: Optional[Dict[str, Any]],
         credstore_env: Optional[Mapping] = None,
     ) -> "AuthConfig":
-        """Loads authentication data from a Docker configuration file in the given
-        root directory or if config_path is passed use given path.
+        """Load authentication data from a Docker configuration file.
+
+        If the config_path is not passed in it looks for a configuration file in the
+        root directory.
+
         Lookup priority:
             explicit config_path parameter > DOCKER_CONFIG environment
             variable > ~/.docker/config.json > ~/.dockercfg.
@@ -268,10 +275,11 @@ class AuthConfig(dict):
     def resolve_authconfig(
         self, registry: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        """Returns the authentication data from the given auth configuration for a
-        specific registry. As with the Docker client, legacy entries in the
-        config with full URLs are stripped down to hostnames before checking
-        for a match. Returns None if no match was found.
+        """Return the authentication data for a specific registry.
+
+        As with the Docker client, legacy entries in the config with full URLs are
+        stripped down to hostnames before checking for a match. Returns None if no match
+        was found.
         """
         if self.creds_store or self.cred_helpers:
             store_name = self.get_credential_store(registry)
@@ -379,7 +387,8 @@ def decode_auth(auth: Union[str, bytes]) -> Tuple[str, str]:
 def parse_auth(
     entries: Dict, raise_on_error: bool = False
 ) -> Dict[str, Dict[str, Any]]:
-    """Parses authentication entries
+    """Parse authentication entries.
+
     Arguments:
       entries:        Dict of authentication entries.
       raise_on_error: If set to true, an invalid format will raise

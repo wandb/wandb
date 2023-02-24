@@ -22,7 +22,8 @@ Func = Callable[[T], V]
 
 
 def generate_name(length: int = 12) -> str:
-    """Generate random name.
+    """Generate a random name.
+
     This implementation roughly based the following snippet in core:
     https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44.
     """
@@ -53,12 +54,16 @@ def generate_name(length: int = 12) -> str:
 
 
 def coalesce(*arg: Any) -> Any:
-    """Return the first non-none value in the list of arguments.  Similar to ?? in C#."""
+    """Return the first non-none value in the list of arguments.
+
+    Similar to ?? in C#.
+    """
     return next((a for a in arg if a is not None), None)
 
 
 def nested_get(json: dict, keys: str) -> Any:
-    """Given a nested JSON dict and path, get the element at the terminal node.
+    """Get the element at the terminal node of a nested JSON dict based on `path`.
+
     The first item of the path can be an object.
     """
     keys = keys.split(".")
@@ -79,7 +84,8 @@ def nested_get(json: dict, keys: str) -> Any:
 
 
 def nested_set(json: dict, keys: str, value: Any) -> None:
-    """Given a nested JSON dict and path, set the element at the terminal node.
+    """Set the element at the terminal node of a nested JSON dict based on `path`.
+
     The first item of the path can be an object.
 
     If nodes do not exist, they are created along the way.

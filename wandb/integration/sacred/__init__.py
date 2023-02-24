@@ -62,10 +62,8 @@ class WandbObserver(RunObserver):
     def started_event(
         self, ex_info, command, host_info, start_time, config, meta_info, _id
     ):
-        """Todo:
-        * add the source code file
-        * add dependencies and metadata.
-        """
+        # TODO: add the source code file
+        # TODO: add dependencies and metadata.
         self.__update_config(config)
 
     def completed_event(self, stop_time, result):

@@ -128,7 +128,8 @@ def wandb_log(  # noqa: C901
     # /,  # py38 only
     log_component_file=True,
 ):
-    """Wrap a standard python function and log to W&B
+    """Wrap a standard python function and log to W&B.
+
     NOTE: Because patching failed, this decorator is a no-op.
     """
     from functools import wraps
@@ -147,7 +148,9 @@ def wandb_log(  # noqa: C901
 
 
 def _get_function_source_definition(func: Callable) -> str:
-    """This function is modified from KFP.  The original source is below:
+    """Get the source code of a function.
+
+    This function is modified from KFP.  The original source is below:
     https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L300-L319.
     """
     func_code = inspect.getsource(func)
@@ -180,11 +183,12 @@ def create_component_from_func(
     packages_to_install: Optional[List[str]] = None,
     annotations: Optional[Mapping[str, str]] = None,
 ):
-    '''This function is modified from KFP.  The original source is below:
-    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L998-L1110.
+    '''Convert a Python function to a component and returns a task factory.
 
-    Converts a Python function to a component and returns a task factory
-    (a function that accepts arguments and returns a task object).
+    The returned task factory accepts arguments and returns a task object.
+
+    This function is modified from KFP.  The original source is below:
+    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L998-L1110.
 
     Args:
         func: The python function to convert
@@ -300,7 +304,9 @@ def create_component_from_func(
 
 
 def strip_type_hints(source_code: str) -> str:
-    """This function is modified from KFP.  The original source is below:
+    """Strip type hints from source code.
+
+    This function is modified from KFP.  The original source is below:
     https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L237-L248.
     """
     # For wandb, do not strip type hints

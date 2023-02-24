@@ -106,9 +106,10 @@ class PolicyEnd(FileEventHandler):
 
 
 class PolicyLive(FileEventHandler):
-    """This policy will upload files every RATE_LIMIT_SECONDS as it
-    changes throttling as the size increases
-    .
+    """Event handler that uploads respecting throttling.
+
+    Uploads files every RATE_LIMIT_SECONDS, which changes as the size increases to deal
+    with throttling.
     """
 
     RATE_LIMIT_SECONDS = 15

@@ -68,7 +68,9 @@ logger = logging.getLogger(__name__)
 
 
 class WandbCallback(BaseCallback):
-    """Log SB3 experiments to Weights and Biases
+    """Callback for logging experiments to Weights and Biases.
+
+    Log SB3 experiments to Weights and Biases
         - Added model tracking and uploading
         - Added complete hyperparameters recording
         - Added gradient logging

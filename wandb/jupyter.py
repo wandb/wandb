@@ -233,9 +233,9 @@ def notebook_metadata(silent) -> Dict[str, str]:
 
 
 def jupyter_servers_and_kernel_id():
-    """Returns a list of servers and the current kernel_id so we can query for
-    the name of the notebook
-    .
+    """Return a list of servers and the current kernel_id.
+
+    Used to query for the name of the notebook.
     """
     try:
         import ipykernel
