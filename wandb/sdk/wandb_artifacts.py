@@ -1891,11 +1891,7 @@ class WBArtifactHandler(StorageHandler):
 
     @property
     def scheme(self) -> str:
-        """overrides parent scheme.
-
-        Returns:
-            (str): The scheme to which this handler applies.
-        """
+        """Scheme this handler applies to."""
         return self._scheme
 
     @property
@@ -2005,11 +2001,7 @@ class WBLocalArtifactHandler(StorageHandler):
 
     @property
     def scheme(self) -> str:
-        """overrides parent scheme.
-
-        Returns:
-            (str): The scheme to which this handler applies.
-        """
+        """Scheme this handler applies to."""
         return self._scheme
 
     def load_path(

@@ -82,7 +82,7 @@ class Asset(Protocol):
         ...  # pragma: no cover
 
     def finish(self) -> None:
-        """finish monitoring the resource."""
+        """Finish monitoring the resource."""
         ...  # pragma: no cover
 
     def probe(self) -> dict:

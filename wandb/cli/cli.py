@@ -770,7 +770,7 @@ def sweep(
         config_yaml = config_yaml_or_sweep_id
 
     def _parse_settings(settings):
-        """settings could be json or comma seperated assignments."""
+        """Parse settings from json or comma separated assignments."""
         ret = {}
         # TODO(jhr): merge with magic:_parse_magic
         if settings.find("=") > 0:

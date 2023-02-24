@@ -326,7 +326,7 @@ class _WandbController:
             self._create["parameters"][name]["b"] = b
 
     def configure_controller(self, type):
-        """configure controller to local if type == 'local'."""
+        """Configure controller to local if type == 'local'."""
         self._configure_check()
         self._create.setdefault("controller", {})
         self._create["controller"].setdefault("type", type)
