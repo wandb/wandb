@@ -54,7 +54,7 @@ class AuthorizationError(CommError):
 
 
 class UsageError(Error):
-    """Raised when an invalid usage of the API is detected"""
+    """Raised when an invalid usage of an SDK API is detected"""
 
     pass
 
