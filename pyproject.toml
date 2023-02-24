@@ -1,3 +1,7 @@
+[build-system]
+requires = ['setuptools<64']
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 88
 include = '\.pyi?$'
@@ -41,8 +45,13 @@ security = ":lock: Security"
 
 
 [tool.ruff]
-select = ["F", "E", "W", "B", "I", "N", "C90"]
-ignore = ["B904", "E501"]
+select = ["F", "E", "W", "B", "I", "N", "C90", "UP"]
+ignore = [
+    "B904",
+    "E501",
+    "UP022",  # Only valid for Python 3.7+
+    "UP036",  # Only valid for Python 3.7+
+]
 exclude = [
     "tests/functional_tests/t0_main/fastai/t1_v1.py",
     "tests/functional_tests/t0_main/metaflow",

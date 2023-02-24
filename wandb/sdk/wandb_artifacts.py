@@ -62,7 +62,6 @@ from .lib.hashutil import (
 )
 
 if TYPE_CHECKING:
-
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
     # instead of `type:ignore`ing these boto imports, but it's nontrivial:
     # for some reason, despite being actively maintained as of 2022-09-30,
@@ -845,7 +844,7 @@ class ArtifactManifestV1(ArtifactManifest):
     def digest(self) -> HexMD5:
         hasher = hashlib.md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
-        for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
+        for name, entry in sorted(self.entries.items(), key=lambda kv: kv[0]):
             hasher.update(f"{name}:{entry.digest}\n".encode())
         return HexMD5(hasher.hexdigest())
 
@@ -1331,6 +1330,7 @@ class S3Handler(StorageHandler):
         boto: "boto3" = util.get_module(
             "boto3",
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
+            lazy=False,
         )
         self._s3 = boto.session.Session().resource(
             "s3",
