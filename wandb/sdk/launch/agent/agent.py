@@ -120,8 +120,8 @@ class LaunchAgent:
         Raises:
             AssertionError: if config is missing the "entity" or "project" key.
         """
-        self._entity = str(config.get("entity"))
-        self._project = str(config.get("project"))
+        self._entity = config["entity"]
+        self._project = config["project"]
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
