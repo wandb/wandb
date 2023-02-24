@@ -38,9 +38,7 @@ class _Stats(TypedDict):
 
 
 class GPUAppleStats:
-    """
-    Apple GPU stats available on Arm Macs.
-    """
+    """Apple GPU stats available on Arm Macs."""
 
     name = "gpu.0.{}"
     samples: "Deque[_Stats]"

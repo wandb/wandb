@@ -71,8 +71,7 @@ SavedModelObjType = TypeVar("SavedModelObjType")
 
 
 class _SavedModel(WBValue, Generic[SavedModelObjType]):
-    """SavedModel is a private data type that can be used to store a model object
-    inside of a W&B Artifact.
+    """Internal W&B Artifact model storage.
 
     _model_type_id: (str) The id of the SavedModel subclass used to serialize the model.
     """
@@ -184,7 +183,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return json_obj
 
     def model_obj(self) -> SavedModelObjType:
-        """Returns the model object."""
+        """Return the model object."""
         if self._model_obj is None:
             assert self._path is not None, "Cannot load model object without path"
             self._set_obj(self._deserialize(self._path))
@@ -195,19 +194,22 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     # Methods to be implemented by subclasses
     @staticmethod
     def _deserialize(path: str) -> SavedModelObjType:
-        """Returns the model object from a path. Allowed to throw errors"""
+        """Return the model object from a path. Allowed to throw errors."""
         raise NotImplementedError
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
-        """Validates the model object. Allowed to throw errors"""
+        """Validate the model object. Allowed to throw errors."""
         raise NotImplementedError
 
     @staticmethod
     def _serialize(obj: SavedModelObjType, dir_or_file_path: str) -> None:
-        """Save the model to disk. The method will receive a directory path which all
-        files needed for deserialization should be saved. A directory will always be passed if
-        _path_extension is an empty string, else a single file will be passed. Allowed to throw errors
+        """Save the model to disk.
+
+        The method will receive a directory path which all files needed for
+        deserialization should be saved. A directory will always be passed if
+        _path_extension is an empty string, else a single file will be passed. Allowed
+        to throw errors.
         """
         raise NotImplementedError
 
