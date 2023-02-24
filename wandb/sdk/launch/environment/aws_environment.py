@@ -14,74 +14,55 @@ botocore = get_module(
 )
 
 
-@dataclass
-class AwsConfig:
-    """AwsEnvironment configuration object.
-
-    Attributes:
-        region (str): The AWS region.
-        profile (Optional[str], optional): The AWS profile to use. Defaults to None.
-        kubernetes_secret (Optional[str], optional): Name of kubernetes secret
-            storing aws credentials. If this is not set (default) we will read
-            default aws credentials.
-    """
-
-    region: str
-    profile: Optional[str] = None
-    kubernetes_secret: Optional[str] = None
-
-    @classmethod
-    def from_dict(cls, config_dict: dict) -> "AwsConfig":
-        """Create an AwsConfig from a dictionary.
-
-        Args:
-            config_dict (dict): The dictionary.
-
-        Returns:
-            AwsConfig: The AwsConfig.
-
-        Raises:
-            LaunchError: If the dictionary is not valid.
-        """
-        # Check that all required keys are set.
-        required_keys = ["region"]
-        for key in required_keys:
-            if key not in config_dict:
-                raise LaunchError(
-                    f"Required key {key} missing in aws environment config.\n{config_dict}"
-                )
-        # Check for unknown keys.
-        # TODO: Should we error or warn?
-        known_keys = required_keys + ["profile", "kubernetes_secret"]
-        for key in config_dict:
-            if key not in known_keys:
-                raise LaunchError(
-                    f"Unknown key {key} in aws environment config.\n{config_dict}"
-                )
-
-        # Construct the config.
-        return cls(
-            region=config_dict["region"],
-            profile=config_dict.get("profile"),
-            kubernetes_secret=config_dict.get("kubernetes_secret"),
-        )
-
-
 class AwsEnvironment(AbstractEnvironment):
-    config: AwsConfig
+    """AWS environment."""
 
-    def __init__(self, config: AwsConfig) -> None:
+    def __init__(
+        self,
+        region: str,
+        access_key: str,
+        secret_key: str,
+        session_token: str,
+    ) -> None:
         """Initialize the AWS environment.
 
         Args:
-            config (AwsConfig): The AWS configuration.
+            region (str): The AWS region.
 
         Raises:
-            Exception: If the AWS environment is not configured correctly.
+            LaunchError: If the AWS environment is not configured correctly.
         """
         super().__init__()
-        self.config = config
+        self.__region = region
+        self.__access_key = access_key
+        self.__secret_key = secret_key
+        self.__session_token = session_token
         self.verify()
+
+    @classmethod
+    def from_default(cls):
+        """Create an AWS environment from the default AWS environment.
+
+        Returns:
+            AwsEnvironment: The AWS environment.
+        """
+        try:
+            session = boto3.Session()
+            region = session.region_name
+            credentials = session.get_credentials()
+            access_key = credentials.access_key
+            secret_key = credentials.secret_key
+            session_token = credentials.token
+        except botocore.client.ClientError as e:
+            raise LaunchError(
+                f"Could not create AWS environment from default environment. Please verify that your AWS credentials are configured correctly. {e}"
+            )
+        return cls(
+            region=region,
+            access_key=access_key,
+            secret_key=secret_key,
+            session_token=session_token,
+        )
 
     def verify(self) -> None:
         """Verify that the AWS environment is configured correctly.
@@ -106,7 +87,7 @@ class AwsEnvironment(AbstractEnvironment):
             uri (str): The URI of the storage.
 
         Raises:
-            Exception: If the storage is not configured correctly.
+            LaunchError: If the storage is not configured correctly.
 
         Returns:
             None
@@ -128,15 +109,20 @@ class AwsEnvironment(AbstractEnvironment):
             boto3.Session: The AWS session.
 
         Raises:
-            EnvironmentError: If the AWS session could not be created.
+            LaunchError: If the AWS session could not be created.
         """
         try:
-            return boto3.Session(region_name=self.config.region)
+            return boto3.Session(
+                aws_access_key_id=self.__access_key,
+                aws_secret_access_key=self.__secret_key,
+                aws_session_token=self.__session_token,
+                region_name=self.__region,
+            )
         except botocore.exceptions.ClientError as e:
             raise LaunchError(f"Could not create AWS session. {e}")
 
     def copy(self, source: str, destination: str) -> None:
-        """Copy a file or directory to storage.
+        """Copy a directory to s3 from local storage.
 
         Args:
             source (str): The path to the file or directory.
@@ -144,7 +130,7 @@ class AwsEnvironment(AbstractEnvironment):
             recursive (bool, optional): If True, copy the directory recursively. Defaults to False.
 
         Raises:
-            EnvironmentError: If the copy fails.
+            LaunchError: If the copy fails.
         """
         bucket = destination.replace("s3://", "").split("/")[0]
         key = destination.replace(f"s3://{bucket}/", "")
