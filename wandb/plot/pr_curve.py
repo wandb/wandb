@@ -36,7 +36,9 @@ def pr_curve(
         'auto visualizations'.
 
     Example:
-        ``` wandb.log({"pr-curve": wandb.plot.pr_curve(y_true, y_probas, labels)}) ```
+        ```
+        wandb.log({"pr-curve": wandb.plot.pr_curve(y_true, y_probas, labels)})
+        ```
     """
     np = util.get_module(
         "numpy",
