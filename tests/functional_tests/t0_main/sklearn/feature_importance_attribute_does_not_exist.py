@@ -16,7 +16,7 @@ assert:
     - :yea:exit: 0
     - :op:contains_regex:
       - :wandb:runs[0][output][stderr]
-      - Cannot plot feature importances.
+      - Cannot plot feature importances
 """
 import wandb
 from sklearn import datasets

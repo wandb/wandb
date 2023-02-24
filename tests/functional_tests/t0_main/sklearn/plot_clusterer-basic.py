@@ -18,7 +18,7 @@ assert:
     - :wandb:runs[0][summary][elbow_curve][ncols]: 3
     - :wandb:runs[0][summary][silhouette_plot][_type]: table-file
     - :wandb:runs[0][summary][silhouette_plot][ncols]: 10
-    - :yea:exit: 0.
+    - :yea:exit: 0
 """
 import numpy as np
 import wandb

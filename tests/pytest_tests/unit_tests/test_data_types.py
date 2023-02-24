@@ -712,7 +712,7 @@ def test_molecule_from_rdkit_mol_file(mock_run):
 
 
 def test_molecule_from_rdkit_invalid_input():
-    """Ensures that wandb.Molecule.from_rdkit errs on invalid input."""
+    """Ensure that wandb.Molecule.from_rdkit errs on invalid input."""
     mol_file_name = "test"
     with pytest.raises(ValueError):
         wandb.Molecule.from_rdkit(mol_file_name)

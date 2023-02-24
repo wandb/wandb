@@ -1,4 +1,4 @@
-"""Thi module defines data types for logging rich, interactive visualizations to W&B.
+"""This module defines data types for logging rich, interactive visualizations to W&B.
 
 Data types include common media types, like images, audio, and videos,
 flexible containers for information, like tables and HTML, and more.
