@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import queue
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Optional
 from unittest.mock import Mock
@@ -62,9 +63,13 @@ def is_cache_hit(cache: ArtifactsCache, digest: str, size: int) -> bool:
     return hit
 
 
-def mock_prepare_sync(
-    spec: "CreateArtifactFileSpecInput",
-) -> ResponsePrepare:
+def singleton_queue(x):
+    q = queue.Queue()
+    q.put(x)
+    return q
+
+
+def dummy_response_prepare(spec):
     name = spec["name"]
     return ResponsePrepare(
         upload_url=f"http://wandb-test/upload-url-{name}",
@@ -73,9 +78,25 @@ def mock_prepare_sync(
     )
 
 
+def mock_prepare_sync_to_async(sync):
+    def mock_prepare_async(*args, **kwargs):
+        q = sync(*args, **kwargs)
+        return asyncio.get_event_loop().run_in_executor(None, q.get)
+
+    return mock_prepare_async
+
+
+def mock_prepare_sync(
+    spec: "CreateArtifactFileSpecInput",
+) -> ResponsePrepare:
+    return singleton_queue(dummy_response_prepare(spec))
+
+
 def mock_preparer(**kwargs):
     kwargs.setdefault("prepare_sync", Mock(wraps=mock_prepare_sync))
-    kwargs.setdefault("prepare_async", Mock(wraps=asyncify(kwargs["prepare_sync"])))
+    kwargs.setdefault(
+        "prepare_async", Mock(wraps=mock_prepare_sync_to_async(kwargs["prepare_sync"]))
+    )
     return Mock(**kwargs)
 
 
@@ -186,8 +207,10 @@ class TestStoreFile:
         self, store_file: "StoreFileFixture", api, tmp_path: Path
     ):
         preparer = mock_preparer(
-            prepare_sync=lambda spec: mock_prepare_sync(spec)._replace(
-                upload_url="https://wandb-test/dst"
+            prepare_sync=lambda spec: singleton_queue(
+                dummy_response_prepare(spec)._replace(
+                    upload_url="https://wandb-test/dst"
+                )
             )
         )
         store_file(
@@ -201,8 +224,10 @@ class TestStoreFile:
         self, store_file: "StoreFileFixture", api, tmp_path: Path
     ):
         preparer = mock_preparer(
-            prepare_sync=lambda spec: mock_prepare_sync(spec)._replace(
-                upload_headers=["x-my-header:my-header-val"]
+            prepare_sync=lambda spec: singleton_queue(
+                dummy_response_prepare(spec)._replace(
+                    upload_headers=["x-my-header:my-header-val"]
+                )
             )
         )
         store_file(
@@ -231,8 +256,8 @@ class TestStoreFile:
         expect_deduped: bool,
     ):
         preparer = mock_preparer(
-            prepare_sync=lambda spec: mock_prepare_sync(spec)._replace(
-                upload_url=upload_url
+            prepare_sync=lambda spec: singleton_queue(
+                dummy_response_prepare(spec)._replace(upload_url=upload_url)
             )
         )
         policy = WandbStoragePolicy(api=api)
