@@ -3,7 +3,7 @@ import base64
 import logging
 from typing import Tuple
 
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.util import get_module
 

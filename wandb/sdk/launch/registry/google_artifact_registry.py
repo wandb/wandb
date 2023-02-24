@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Tuple
 
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 from wandb.util import get_module
 

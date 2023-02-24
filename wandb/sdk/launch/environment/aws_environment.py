@@ -4,7 +4,7 @@ import logging
 import os
 import re
 
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractEnvironment
