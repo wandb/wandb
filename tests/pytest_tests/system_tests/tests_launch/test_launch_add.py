@@ -15,7 +15,7 @@ def mocked_fetchable_git_repo():
     m = mock.Mock()
 
     def fixture_open(path, mode="r"):
-        """Returns an opened fixture file"""
+        """Return an opened fixture file."""
         return open(fixture_path(path), mode)
 
     def fixture_path(path):

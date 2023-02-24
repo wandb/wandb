@@ -220,7 +220,7 @@ class Report(Base):
             return self
 
     def to_html(self, height: int = 1024, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying this report"""
+        """Generate HTML containing an iframe displaying this report."""
         try:
             url = self.url + "?jupyter=true"
             style = f"border:none;width:100%;height:{height}px;"

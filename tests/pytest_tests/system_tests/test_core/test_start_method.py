@@ -1,6 +1,4 @@
-"""
-start method tests.
-"""
+"""start method tests."""
 
 import platform
 
