@@ -129,8 +129,12 @@ class GcpEnvironment(AbstractEnvironment):
             LaunchError: If the GCP credentials are invalid.
         """
         _logger.debug("Getting GCP credentials")
+        # TODO: Figure out a minimal set of scopes.
+        scopes = [
+            "https://www.googleapis.com/auth/cloud-platform",
+        ]
         try:
-            creds, project = google.auth.default()
+            creds, project = google.auth.default(scopes=scopes)
             if not self._project:
                 self._project = project
             _logger.debug("Refreshing GCP credentials")
