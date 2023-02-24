@@ -89,10 +89,9 @@ class ClickWandbException(ClickException):
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
-            return "An Exception was raised, see %s for full traceback.\n" "%s: %s" % (
-                log_file,
-                orig_type,
-                self.message,
+            return (
+                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"{orig_type}: {self.message}"
             )
 
 
@@ -920,6 +919,10 @@ def sweep(
                 )
 
         scheduler_config = launch_config.get("scheduler", {})
+        num_workers = f'{scheduler_config.get("num_workers")}'
+        if num_workers is None or not str.isdigit(num_workers):
+            num_workers = "8"
+
         scheduler_entrypoint = [
             "wandb",
             "scheduler",
@@ -929,7 +932,7 @@ def sweep(
             "--project",
             project,
             "--num_workers",
-            config.get("scheduler", {}).get("num_workers", 8),
+            num_workers,
         ]
 
         if _job:
