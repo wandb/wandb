@@ -2568,6 +2568,11 @@ class Run:
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+        if project != 'model-registry':
+            project = 'model-registry'
+            wandb.termwarn(
+                "Projects other than model-registry are not supported to create registerd models. Resetting to default."
+            )
         if aliases is None:
             aliases = []
 
