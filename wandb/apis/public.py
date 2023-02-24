@@ -479,7 +479,7 @@ class Api:
         return wandb.apis.reports.Report.from_url(path)
 
     def create_user(self, email, admin=False):
-        """Creates a new user.
+        """Create a new user.
 
         Arguments:
             email: (str) The name of the team
@@ -553,9 +553,11 @@ class Api:
         return self._viewer
 
     def flush(self):
-        """The api object keeps a local cache of runs, so if the state of the run may
-        change while executing your script you must clear the local cache with `api.flush()`
-        to get the latest values associated with the run.
+        """Flush the local cache.
+
+        The api object keeps a local cache of runs, so if the state of the run may
+        change while executing your script you must clear the local cache with
+        `api.flush()` to get the latest values associated with the run.
         """
         self._runs = {}
 
@@ -733,7 +735,7 @@ class Api:
         return self._reports[key]
 
     def create_team(self, team, admin_username=None):
-        """Creates a new team.
+        """Create a new team.
 
         Arguments:
             team: (str) The name of the team
@@ -863,7 +865,7 @@ class Api:
 
     @normalize_exceptions
     def run(self, path=""):
-        """Returns a single run by parsing path in the form entity/project/run_id.
+        """Return a single run by parsing path in the form entity/project/run_id.
 
         Arguments:
             path: (str) path to run in the form `entity/project/run_id`.
@@ -887,7 +889,10 @@ class Api:
         container_job=False,
         project_queue=None,
     ):
-        """Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id."""
+        """Return a single queued run based on the path.
+
+        Parses paths of the form entity/project/queue_id/run_queue_item_id.
+        """
         return QueuedRun(
             self.client,
             entity,
@@ -900,7 +905,7 @@ class Api:
 
     @normalize_exceptions
     def sweep(self, path=""):
-        """Returns a sweep by parsing path in the form `entity/project/sweep_id`.
+        """Return a sweep by parsing path in the form `entity/project/sweep_id`.
 
         Arguments:
             path: (str, optional) path to sweep in the form entity/project/sweep_id.  If `api.entity`
@@ -933,7 +938,7 @@ class Api:
 
     @normalize_exceptions
     def artifact(self, name, type=None):
-        """Returns a single artifact by parsing path in the form `entity/project/run_id`.
+        """Return a single artifact by parsing path in the form `entity/project/run_id`.
 
         Arguments:
             name: (str) An artifact name. May be prefixed with entity/project. Valid names
@@ -1129,7 +1134,7 @@ class User(Attrs):
 
     @classmethod
     def create(cls, api, email, admin=False):
-        """Creates a new user.
+        """Create a new user.
 
         Arguments:
             api: (`Api`) The api instance to use
@@ -1158,7 +1163,7 @@ class User(Attrs):
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
 
     def delete_api_key(self, api_key):
-        """Delete a users api key.
+        """Delete a user's api key.
 
         Returns:
             Boolean indicating success
@@ -1177,7 +1182,7 @@ class User(Attrs):
         return True
 
     def generate_api_key(self, description=None):
-        """Generates a new api key.
+        """Generate a new api key.
 
         Returns:
             The new api key, or None on failure
@@ -1324,7 +1329,7 @@ class Team(Attrs):
 
     @classmethod
     def create(cls, api, team, admin_username=None):
-        """Creates a new team.
+        """Create a new team.
 
         Arguments:
             api: (`Api`) The api instance to use
@@ -1344,7 +1349,7 @@ class Team(Attrs):
         return Team(api.client, team)
 
     def invite(self, username_or_email, admin=False):
-        """Invites a user to a team.
+        """Invite a user to a team.
 
         Arguments:
             username_or_email: (str) The username or email address of the user you want to invite
@@ -1365,7 +1370,7 @@ class Team(Attrs):
         return True
 
     def create_service_account(self, description):
-        """Creates a service account for the team.
+        """Create a service account for the team.
 
         Arguments:
             description: (str) A description for this service account
@@ -1544,6 +1549,7 @@ class Project(Attrs):
 
 class Runs(Paginator):
     """An iterable collection of runs associated with a project and optional filter.
+
     This is generally used indirectly via the `Api`.runs method.
     """
 
@@ -1688,7 +1694,11 @@ class Run(Attrs):
         attrs: Optional[Mapping] = None,
         include_sweeps: bool = True,
     ):
-        """Run is always initialized by calling api.runs() where api is an instance of wandb.Api."""
+        """Initialize a Run object.
+
+        Run is always initialized by calling api.runs() where api is an instance of
+        wandb.Api.
+        """
         _attrs = attrs or {}
         super().__init__(dict(_attrs))
         self.client = client
@@ -1875,7 +1885,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def update(self):
-        """Persists changes to the run object to the wandb backend."""
+        """Persist changes to the run object to the wandb backend."""
         mutation = gql(
             """
         mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
@@ -1903,7 +1913,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def delete(self, delete_artifacts=False):
-        """Deletes the given run from the wandb backend."""
+        """Delete the given run from the wandb backend."""
         mutation = gql(
             """
             mutation DeleteRun(
@@ -1985,7 +1995,9 @@ class Run(Attrs):
 
     @normalize_exceptions
     def files(self, names=None, per_page=50):
-        """Arguments:
+        """Return a file path for each file named.
+
+        Arguments:
             names (list): names of the requested files, if empty returns all files
             per_page (int): number of results per page.
 
@@ -1996,7 +2008,9 @@ class Run(Attrs):
 
     @normalize_exceptions
     def file(self, name):
-        """Arguments:
+        """Return the path of a file with a given name in the artifact.
+
+        Arguments:
             name (str): name of requested file.
 
         Returns:
@@ -2006,7 +2020,9 @@ class Run(Attrs):
 
     @normalize_exceptions
     def upload_file(self, path, root="."):
-        """Arguments:
+        """Upload a file.
+
+        Arguments:
             path (str): name of file to upload.
             root (str): the root path to save the file relative to.  i.e.
                 If you want to have the file saved in the run as "my_dir/file.txt"
@@ -2030,8 +2046,9 @@ class Run(Attrs):
     def history(
         self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
     ):
-        """Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
-        the history records being sampled.
+        """Return sampled history metrics for a run.
+
+        This is simpler and faster if you are ok with the history records being sampled.
 
         Arguments:
             samples : (int, optional) The number of samples to return
@@ -2041,7 +2058,8 @@ class Run(Attrs):
             stream : (str, optional) "default" for metrics, "system" for machine metrics
 
         Returns:
-            pandas.DataFrame: If pandas=True returns a `pandas.DataFrame` of history metrics.
+            pandas.DataFrame: If pandas=True returns a `pandas.DataFrame` of history
+                metrics.
             list of dicts: If pandas=False returns a list of dicts of history metrics.
         """
         if keys is not None and not isinstance(keys, list):
@@ -4374,17 +4392,17 @@ class Artifact(artifacts.Artifact):
 
     @property
     def source_version(self):
-        """Returns:
-        (str) The artifact's version index under its parent artifact collection. This will return
-        a string with the format "v{number}".
+        """The artifact's version index under its parent artifact collection.
+
+        A string with the format "v{number}".
         """
         return f"v{self._sequence_version_index}"
 
     @property
     def version(self):
-        """Returns:
-        (str): The artifact's version index under the given artifact collection. This will return
-        a string with the format "v{number}".
+        """The artifact's version index under the given artifact collection.
+
+        A string with the format "v{number}".
         """
         for a in self._attrs["aliases"]:
             if a[
@@ -4429,16 +4447,12 @@ class Artifact(artifacts.Artifact):
 
     @property
     def created_at(self):
-        """Returns:
-        (datetime): The time at which the artifact was created.
-        """
+        """The time at which the artifact was created."""
         return self._attrs["createdAt"]
 
     @property
     def updated_at(self):
-        """Returns:
-        (datetime): The time at which the artifact was last updated.
-        """
+        """The time at which the artifact was last updated."""
         return self._attrs["updatedAt"] or self._attrs["createdAt"]
 
     @property
@@ -4633,21 +4647,15 @@ class Artifact(artifacts.Artifact):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def _add_download_root(self, dir_path):
-        """Adds `dir_path` as one of the known directories which this
-        artifact treated as a root
-        .
-        """
+        """Make `dir_path` a root directory for this artifact."""
         self._download_roots.add(os.path.abspath(dir_path))
 
     def _is_download_root(self, dir_path):
-        """Determines if `dir_path` is a directory which this artifact as
-        treated as a root for downloading
-        .
-        """
+        """Determine if `dir_path` is a root directory for this artifact."""
         return dir_path in self._download_roots
 
     def _local_path_to_name(self, file_path):
-        """Converts a local file path to a path entry in the artifact."""
+        """Convert a local file path to a path entry in the artifact."""
         abs_file_path = os.path.abspath(file_path)
         abs_file_parts = abs_file_path.split(os.sep)
         for i in range(len(abs_file_parts) + 1):
@@ -4656,9 +4664,11 @@ class Artifact(artifacts.Artifact):
         return None
 
     def _get_obj_entry(self, name):
-        """When objects are added with `.add(obj, name)`, the name is typically
-        changed to include the suffix of the object type when serializing to JSON. So we need
-        to be able to resolve a name, without tasking the user with appending .THING.json.
+        """Return an object entry by name, handling any type suffixes.
+
+        When objects are added with `.add(obj, name)`, the name is typically changed to
+        include the suffix of the object type when serializing to JSON. So we need to be
+        able to resolve a name, without tasking the user with appending .THING.json.
         This method returns an entry if it exists by a suffixed name.
 
         Args:
@@ -4921,8 +4931,9 @@ class Artifact(artifacts.Artifact):
 
     @normalize_exceptions
     def _save_alias_changes(self):
-        """Convenience function called by artifact.save() to persist alias changes
-        on this artifact to the wandb backend.
+        """Persist alias changes on this artifact to the wandb backend.
+
+        Called by artifact.save().
         """
         aliases_to_add = set(self._aliases) - set(self._frozen_aliases)
         aliases_to_remove = set(self._frozen_aliases) - set(self._aliases)
@@ -5131,7 +5142,7 @@ class Artifact(artifacts.Artifact):
         return self._manifest
 
     def _load_dependent_manifests(self):
-        """Helper function to interrogate entries and ensure we have loaded their manifests."""
+        """Interrogate entries and ensure we have loaded their manifests."""
         # Make sure dependencies are avail
         for entry_key in self._manifest.entries:
             entry = self._manifest.entries[entry_key]
@@ -5143,7 +5154,7 @@ class Artifact(artifacts.Artifact):
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
-        """Helper function determines if an ArtifactManifestEntry in manifest is an artifact reference."""
+        """Determine if an ArtifactManifestEntry is an artifact reference."""
         return (
             entry.ref is not None
             and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
@@ -5155,7 +5166,7 @@ class Artifact(artifacts.Artifact):
         return Artifact.from_id(hex_to_b64_id(artifact_id), self.client)
 
     def used_by(self):
-        """Retrieves the runs which use this artifact directly.
+        """Retrieve the runs which use this artifact directly.
 
         Returns:
             [Run]: a list of Run objects which use this artifact
@@ -5202,7 +5213,7 @@ class Artifact(artifacts.Artifact):
         return runs
 
     def logged_by(self):
-        """Retrieves the run which logged this artifact.
+        """Retrieve the run which logged this artifact.
 
         Returns:
             Run: Run object which logged this artifact
@@ -5248,6 +5259,7 @@ class Artifact(artifacts.Artifact):
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
+
     This is generally used indirectly via the `Api`.artifact_versions method.
     """
 

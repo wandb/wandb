@@ -43,7 +43,7 @@ def matplotlib_multiple_axes_figures(total_plot_count=3, data=(1, 2, 3)):
 
 
 def matplotlib_with_image():
-    """Creates a matplotlib figure with an image."""
+    """Create a matplotlib figure with an image."""
     fig, ax = plt.subplots(3)
     ax[0].plot([1, 2, 3])
     ax[1].imshow(np.random.rand(200, 200, 3))
@@ -52,7 +52,7 @@ def matplotlib_with_image():
 
 
 def matplotlib_without_image():
-    """Creates a matplotlib figure without an image."""
+    """Create a matplotlib figure without an image."""
     fig, ax = plt.subplots(2)
     ax[0].plot([1, 2, 3])
     ax[1].plot([1, 2, 3])
@@ -367,7 +367,7 @@ def test_matplotlib_image_with_multiple_axes():
 
 
 def test_image_from_matplotlib_with_image():
-    """Ensures that wandb.Image constructor supports a pyplot with image is passed."""
+    """Ensure that wandb.Image constructor supports a pyplot when an image is passed."""
     # try the figure version
     fig = matplotlib_with_image()
     wandb.Image(fig)  # this should not error.
@@ -502,9 +502,11 @@ def test_audio_refs():
 
 
 def test_matplotlib_plotly_with_multiple_axes():
-    """Ensures that wandb.Plotly constructor can accept a plotly figure
-    reference in which the figure has multiple axes. Importantly, there is
-    no requirement that any of the axes have plotted data.
+    """Test creating a wandb.Plotly object from a matplotlib figure with multiple axes.
+
+    Ensures that wandb.Plotly constructor can accept a plotly figure reference in which
+    the figure has multiple axes. Importantly, there is no requirement that any of the
+    axes have plotted data.
     """
     for fig in matplotlib_multiple_axes_figures():
         wandb.Plotly(fig)  # this should not error.
@@ -514,9 +516,7 @@ def test_matplotlib_plotly_with_multiple_axes():
 
 
 def test_plotly_from_matplotlib_with_image():
-    """Ensures that wandb.Plotly constructor properly errors when
-    a pyplot with image is passed.
-    """
+    """Test erroring when a pyplot with image is passed to wandb.Plotly."""
     # try the figure version
     fig = matplotlib_with_image()
     with pytest.raises(ValueError):
@@ -531,8 +531,10 @@ def test_plotly_from_matplotlib_with_image():
 
 
 def test_make_plot_media_from_matplotlib_without_image():
-    """Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
-    there is no image.
+    """Test creating a plotly object from a matplotlib figure without an image.
+
+    Ensures that wand.Plotly.make_plot_media() returns a Plotly object when there is no
+    image.
     """
     fig = matplotlib_without_image()
     assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Plotly
@@ -544,8 +546,10 @@ def test_make_plot_media_from_matplotlib_without_image():
 
 
 def test_make_plot_media_from_matplotlib_with_image():
-    """Ensures that wand.Plotly.make_plot_media() returns an Image object when
-    there is an image in the matplotlib figure.
+    """Test getting an image out of a matplotlib figure.
+
+    Ensures that wand.Plotly.make_plot_media() returns an Image object when there is an
+    image in the matplotlib figure.
     """
     fig = matplotlib_with_image()
     assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Image

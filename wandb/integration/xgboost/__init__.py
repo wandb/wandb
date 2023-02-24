@@ -1,4 +1,4 @@
-"""W&B callback for xgboost
+"""W&B callback for xgboost.
 
 Simple callback to get logging for each tree
 

@@ -45,8 +45,9 @@ def create_enterprise_report(
     body=None,
     footer=None,
 ):
-    """Creates an example enterprise report with a header and footer which
-    can be used to add custom branding to reports.
+    """Create an example enterprise report with a header and footer.
+
+    Can be used to add custom branding to reports.
     """
     import wandb.apis.reports as wr
 
