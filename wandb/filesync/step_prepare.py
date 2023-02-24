@@ -157,7 +157,7 @@ class StepPrepare:
 
     def prepare_async(
         self, file_spec: "CreateArtifactFileSpecInput"
-    ) -> asyncio.Future[ResponsePrepare]:
+    ) -> "asyncio.Future[ResponsePrepare]":
         """Request the backend to prepare a file for upload."""
         response: "asyncio.Future[ResponsePrepare]" = asyncio.Future()
         self._request_queue.put(
