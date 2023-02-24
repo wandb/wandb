@@ -71,8 +71,7 @@ SavedModelObjType = TypeVar("SavedModelObjType")
 
 
 class _SavedModel(WBValue, Generic[SavedModelObjType]):
-    """SavedModel is a private data type that can be used to store a model object
-    inside of a W&B Artifact.
+    """Internal W&B Artifact model storage.
 
     _model_type_id: (str) The id of the SavedModel subclass used to serialize the model.
     """
@@ -205,9 +204,12 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     @staticmethod
     def _serialize(obj: SavedModelObjType, dir_or_file_path: str) -> None:
-        """Save the model to disk. The method will receive a directory path which all
-        files needed for deserialization should be saved. A directory will always be passed if
-        _path_extension is an empty string, else a single file will be passed. Allowed to throw errors.
+        """Save the model to disk.
+
+        The method will receive a directory path which all files needed for
+        deserialization should be saved. A directory will always be passed if
+        _path_extension is an empty string, else a single file will be passed. Allowed
+        to throw errors.
         """
         raise NotImplementedError
 

@@ -450,8 +450,10 @@ class Image(BatchableMedia):
 
     @classmethod
     def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
-        """Converts floating point image on the range [0,1] and integer images
-        on the range [0,255] to uint8, clipping if necessary.
+        """Convert image data to uint8.
+
+        Convert floating point image on the range [0,1] and integer images on the range
+        [0,255] to uint8, clipping if necessary.
         """
         np = util.get_module(
             "numpy",
