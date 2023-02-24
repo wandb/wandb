@@ -3,9 +3,10 @@ import multiprocessing as mp
 import re
 import sys
 from collections import defaultdict, deque
+from functools import lru_cache
 from hashlib import md5
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Mapping, Union
+from typing import TYPE_CHECKING, Dict, List, Mapping, Tuple, Union
 
 import urllib3
 
@@ -64,6 +65,52 @@ def _setup_requests_session() -> requests.Session:
     return session
 
 
+def _nested_dict_to_tuple(
+    nested_dict: Mapping[str, Mapping[str, str]]
+) -> Tuple[Tuple[str, ...], ...]:
+    return tuple((k,) + tuple(v.items()) for k, v in nested_dict.items())
+
+
+def _tuple_to_nested_dict(
+    nested_tuple: Tuple[Tuple[str, ...], ...]
+) -> Dict[str, Dict[str, str]]:
+    return {k: dict(v) for k, *v in nested_tuple}
+
+
+@lru_cache
+def _should_capture_metric(
+    metric_name: str,
+    metric_labels: Tuple[str, ...],
+    filters: Tuple[Tuple[str, ...], ...],
+) -> bool:
+    # we use tuples to make the function arguments hashable => usable with lru_cache
+    should_capture = False
+
+    if not filters:
+        return should_capture
+
+    # self.filters keys are regexes, check the name against them
+    # and for the first match, check the labels against the label filters.
+    # assume that if at least one label filter doesn't match, the metric
+    # should not be captured.
+    # it's up to the user to make sure that the filters are not conflicting etc.
+    metric_labels_dict = {t[0]: t[1] for t in metric_labels}
+    filters_dict = _tuple_to_nested_dict(filters)
+    for metric_name_regex, label_filters in filters_dict.items():
+        if not re.match(metric_name_regex, metric_name):
+            continue
+
+        should_capture = True
+
+        for label, label_filter in label_filters.items():
+            if not re.match(label_filter, metric_labels_dict.get(label, "")):
+                should_capture = False
+                break
+        break
+
+    return should_capture
+
+
 class OpenMetricsMetric:
     """
     Container for all the COUNTER and GAUGE metrics extracted from an
@@ -96,35 +143,6 @@ class OpenMetricsMetric:
         self._session.close()
         self._session = None
 
-    def _should_capture_metric(
-        self,
-        metric_name: str,
-        metric_labels: Mapping[str, str],
-    ) -> bool:
-        should_capture = False
-
-        if not self.filters:
-            return should_capture
-
-        # self.filters keys are regexes, check the name against them
-        # and for the first match, check the labels against the label filters.
-        # assume that if at least one label filter doesn't match, the metric
-        # should not be captured.
-        # it's up to the user to make sure that the filters are not conflicting etc.
-        for metric_name_regex, label_filters in self.filters.items():
-            if not re.match(metric_name_regex, metric_name):
-                continue
-
-            should_capture = True
-
-            for label, label_filter in label_filters.items():
-                if not re.match(label_filter, metric_labels.get(label, "")):
-                    should_capture = False
-                    break
-            break
-
-        return should_capture
-
     def parse_open_metrics_endpoint(self) -> Dict[str, Union[str, int, float]]:
         assert prometheus_client_parser is not None
         assert self._session is not None
@@ -142,7 +160,11 @@ class OpenMetricsMetric:
             for sample in family.samples:
                 name, labels, value = sample.name, sample.labels, sample.value
 
-                if not self._should_capture_metric(name, labels):
+                if not _should_capture_metric(
+                    name,
+                    tuple(labels.items()),
+                    _nested_dict_to_tuple(self.filters),
+                ):
                     continue
 
                 # md5 hash of the labels

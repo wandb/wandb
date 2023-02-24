@@ -10,7 +10,10 @@ import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import OpenMetrics
 from wandb.sdk.internal.system.assets.interfaces import Asset
-from wandb.sdk.internal.system.assets.open_metrics import OpenMetricsMetric
+from wandb.sdk.internal.system.assets.open_metrics import (
+    _nested_dict_to_tuple,
+    _should_capture_metric,
+)
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
@@ -195,8 +198,9 @@ def test_dcgm(test_settings):
     ],
 )
 def test_metric_filters(filters, metric_name, metric_labels, should_capture):
-    metric = OpenMetricsMetric(
-        name="test_metric", url="http://localhost:9400/metrics", filters=filters
+    assert (
+        _should_capture_metric(
+            metric_name, tuple(metric_labels.items()), _nested_dict_to_tuple(filters)
+        )
+        is should_capture
     )
-
-    assert metric._should_capture_metric(metric_name, metric_labels) is should_capture
