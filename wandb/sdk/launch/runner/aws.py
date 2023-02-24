@@ -255,11 +255,12 @@ def aws_ecr_login(region: str, registry: str) -> Optional[str]:
 def merge_aws_tag_with_algorithm_specification(
     algorithm_specification: Optional[Dict[str, Any]], aws_tag: Optional[str]
 ) -> Dict[str, Any]:
-    """
-    AWS Sagemaker algorithms require a training image and an input mode.
-    If the user does not specify the specification themselves, define the spec
-    minimally using these two fields. Otherwise, if they specify the AlgorithmSpecification
-    set the training image if it is not set.
+    """Create an AWS AlgorithmSpecification.
+
+    AWS Sagemaker algorithms require a training image and an input mode. If the user
+    does not specify the specification themselves, define the spec minimally using these
+    two fields. Otherwise, if they specify the AlgorithmSpecification set the training
+    image if it is not set.
     """
     if algorithm_specification is None:
         return {

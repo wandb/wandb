@@ -57,9 +57,7 @@ class SweepRun:
 
 
 class Scheduler(ABC):
-    """The Scheduler is a controller/agent that will populate a Launch RunQueue
-    with jobs from a hyperparameter sweep.
-    """
+    """A controller/agent that populates a Launch RunQueue from a hyperparameter sweep."""
 
     def __init__(
         self,
@@ -138,9 +136,7 @@ class Scheduler(ABC):
         return True
 
     def start(self) -> None:
-        """
-        Starts a scheduler, confirms prerequisites, begins execution loop
-        """
+        """Start a scheduler, confirms prerequisites, begins execution loop."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
@@ -153,9 +149,7 @@ class Scheduler(ABC):
         self.run()
 
     def run(self) -> None:
-        """
-        Main run function for all external schedulers.
-        """
+        """Main run function for all external schedulers."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler Running.")
         self.state = SchedulerState.RUNNING
         try:
@@ -193,8 +187,7 @@ class Scheduler(ABC):
         self._stop_runs()
 
     def _try_load_executable(self) -> bool:
-        """
-        Check existance of valid executable for a run
+        """Check existance of valid executable for a run.
 
         logs and returns False when job is unreachable
         """
@@ -226,7 +219,7 @@ class Scheduler(ABC):
             self._stop_run(run_id)
 
     def _stop_run(self, run_id: str) -> None:
-        """Stops a run and removes it from the scheduler"""
+        """Stop a run and removes it from the scheduler."""
         if run_id in self._runs:
             run: SweepRun = self._runs[run_id]
             run.state = RunState.DEAD
@@ -234,9 +227,9 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
 
     def _update_run_states(self) -> None:
-        """
-        Thread-safe iteration through runs, get state from backend
-        Deletes runs if not in running state
+        """Iterate through runs.
+
+        Get state from backend and deletes runs if not in running state. Threadsafe.
         """
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
@@ -276,8 +269,7 @@ class Scheduler(ABC):
         entry_point: Optional[List[str]] = None,
         config: Optional[Dict[str, Any]] = None,
     ) -> "public.QueuedRun":
-        """
-        Add a launch job to the Launch RunQueue.
+        """Add a launch job to the Launch RunQueue.
 
         run_id: supplied by gorilla from agentHeartbeat
         config: launch config
