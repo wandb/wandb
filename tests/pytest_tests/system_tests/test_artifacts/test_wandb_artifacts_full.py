@@ -13,7 +13,6 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def test_add_table_from_dataframe(wandb_init):
-
     import pandas as pd
 
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
@@ -52,7 +51,6 @@ def test_add_table_from_dataframe(wandb_init):
 
 
 def test_artifact_error_for_invalid_aliases(wandb_init):
-
     run = wandb_init()
     artifact = wandb.Artifact("test-artifact", "dataset")
     error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
@@ -71,7 +69,6 @@ def test_artifact_error_for_invalid_aliases(wandb_init):
 
 
 def test_artifact_upsert_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -88,7 +85,6 @@ def test_artifact_upsert_no_id(wandb_init):
 
 
 def test_artifact_upsert_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -105,7 +101,6 @@ def test_artifact_upsert_group_id(wandb_init):
 
 
 def test_artifact_upsert_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -122,7 +117,6 @@ def test_artifact_upsert_distributed_id(wandb_init):
 
 
 def test_artifact_finish_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -137,7 +131,6 @@ def test_artifact_finish_no_id(wandb_init):
 
 
 def test_artifact_finish_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -152,7 +145,6 @@ def test_artifact_finish_group_id(wandb_init):
 
 
 def test_artifact_finish_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -225,7 +217,6 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
 
 def test_local_references(wandb_init):
-
     run = wandb_init()
 
     def make_table():
@@ -268,13 +259,14 @@ def test_artifact_wait_failure(wandb_init, timeout):
     run.finish()
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="TODO(spencerpearson): this test passes locally, but flakes in CI. After much investigation, I still have no clue.",
-    # examples of flakes:
-    #   https://app.circleci.com/pipelines/github/wandb/wandb/16334/workflows/319d3e58-853e-46ec-8a3f-088cac41351c/jobs/325741/tests#failed-test-0
-    #   https://app.circleci.com/pipelines/github/wandb/wandb/16392/workflows/b26b3e63-c8d8-45f4-b7db-00f84b11f8b8/jobs/327312
-)
+# @pytest.mark.skipif(
+#     os.environ.get("CI") == "true",
+#     reason="TODO(spencerpearson): this test passes locally, but flakes in CI. After much investigation, I still have no clue.",
+#     # examples of flakes:
+#     #   https://app.circleci.com/pipelines/github/wandb/wandb/16334/workflows/319d3e58-853e-46ec-8a3f-088cac41351c/jobs/325741/tests#failed-test-0
+#     #   https://app.circleci.com/pipelines/github/wandb/wandb/16392/workflows/b26b3e63-c8d8-45f4-b7db-00f84b11f8b8/jobs/327312
+# )
+@pytest.mark.flaky
 def test_artifact_metadata_save(wandb_init, relay_server):
     # Test artifact metadata sucessfully saved for len(numpy) > 32
     dummy_metadata = np.array([0] * 33)

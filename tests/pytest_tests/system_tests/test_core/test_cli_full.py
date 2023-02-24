@@ -123,7 +123,7 @@ def test_pull(runner, wandb_init):
             27,
             marks=[
                 pytest.mark.flaky,
-                pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015"),
+                # pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015"),
             ],
         ),
     ],
