@@ -258,7 +258,7 @@ def artifact_with_path_or_paths(
     file3.write_text("3")
 
     # reference to local file
-    art.add_reference(file3.as_uri())
+    art.add_reference(file3.resolve().as_uri())
 
     return art
 
@@ -277,7 +277,6 @@ def log_use_download_artifact(
         project=PROJECT_NAME,
         config={"test": "artifact log"},
     ) as log_art_run:
-
         if add_extra_file:
             with open("verify_2.txt", "w") as f:
                 f.write("2")
