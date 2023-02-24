@@ -8,7 +8,8 @@ import pprint
 import threading
 import time
 import traceback
-from multiprocessing import Event, Manager, ThreadPool
+from multiprocessing import Event, Manager
+from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Union
 
 import wandb
