@@ -148,7 +148,7 @@ class LaunchAgent:
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
-        self._jobs = {}
+        self._jobs: Dict[str, Dict[str, str]] = {}
         self._jobs_lock = threading.Lock()
         self._jobs_event = Event()
         self._jobs_event.set()
@@ -236,7 +236,6 @@ class LaunchAgent:
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
-        wandb.termlog(f"Calling finish job id {job_id}")
         if self._jobs[job_id]["status"] in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
