@@ -760,6 +760,8 @@ class _WandbInit:
                     self.teardown()
                 raise error
 
+            assert run_result is not None  # for mypy
+
             if not run_result.HasField("run"):
                 raise InternalError("run_result is None")
 
@@ -1123,7 +1125,7 @@ def init(
     kwargs = dict(locals())
     error_seen = None
     except_exit = None
-    run: Optional[Run, RunDisabled] = None
+    run: Optional[Union[Run, RunDisabled]] = None
     try:
         wi = _WandbInit()
         wi.setup(kwargs)

@@ -57,10 +57,10 @@ class _EarlyLogger:
         self._log.append((logging.CRITICAL, msg, args, kwargs))
 
     def exception(self, msg, *args, **kwargs):
-        self._exception.append(msg, args, kwargs)
+        self._exception.append((msg, args, kwargs))
 
     def log(self, level, msg, *args, **kwargs):
-        self._log.append(level, msg, args, kwargs)
+        self._log.append((level, msg, args, kwargs))
 
     def _flush(self):
         assert self is not logger

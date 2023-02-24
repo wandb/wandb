@@ -5,9 +5,9 @@ from wandb.proto import wandb_internal_pb2 as pb
 from . import (
     BackendAuthenticationError,
     BackendAuthorizationError,
+    BackendPermissionsError,
     Error,
     InvalidError,
-    BackendPermissionsError,
 )
 
 to_exception_map = {
