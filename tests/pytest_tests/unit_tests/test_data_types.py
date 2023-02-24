@@ -689,7 +689,7 @@ def test_molecule_from_invalid_smiles():
 
 
 def test_molecule_from_rdkit_mol_object(mock_run):
-    """Ensures that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects."""
+    """Ensure that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects."""
     run = mock_run()
     mol = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
     mol.bind_to_run(run, "rad", "summary")
@@ -699,7 +699,7 @@ def test_molecule_from_rdkit_mol_object(mock_run):
 
 
 def test_molecule_from_rdkit_mol_file(mock_run):
-    """Ensures that wandb.Molecule.from_rdkit supports .mol files."""
+    """Ensure that wandb.Molecule.from_rdkit supports .mol files."""
     run = mock_run()
     substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
     mol_file_name = "test.mol"
