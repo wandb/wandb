@@ -2027,22 +2027,30 @@ class Run(Attrs):
     def upload_file(self, path, root="."):
         """
         Arguments:
-            path (str): name of file to upload.
-            root (str): the root path to save the file relative to.  i.e.
-                If you want to have the file saved in the run as "my_dir/file.txt"
-                and you're currently in "my_dir" you would set root to "../"
+            path (str): local path to the file to upload.
+            root (str): the root path to save the file in wandb.
 
         Returns:
             A `File` matching the name argument.
         """
+        path = os.path.normpath(os.path.join(os.getcwd(), os.path.relpath(path, os.getcwd())))
+        if not os.path.isfile(path):
+            raise Exception(f"Either the file {path} doesn't exist or it's a directory!")
+        path_ext = os.path.splitext(path)[1]
+        if path_ext == "":
+            raise Exception(f"File {path} must contain a file extension, otherwise it won't be uploaded!")
+        if root == "/":
+            raise Exception("'/' is not a valid directory, to use the root directory use '.' instead.")
+        root_ext = os.path.splitext(root)[1]
+        if root_ext not in [path_ext, ""]:
+            raise Exception(f"Local file extension ({path_ext}) doesn't match target file extension ({root_ext})!")
+        name = os.path.normpath(f"{root}/{os.path.basename(path)}" if root_ext == "" else root)
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
-        root = os.path.abspath(root)
-        name = os.path.relpath(path, root)
-        with open(os.path.join(root, name), "rb") as f:
+        with open(path, "rb") as f:
             api.push({util.to_forward_slash_path(name): f})
         return Files(self.client, self, [name])[0]
 
