@@ -133,12 +133,19 @@ class WandbCallback:
         On fit epoch end we log all the best metrics and model detail to Weights & Biases run summary.
         """
         if trainer.epoch == 0:
-            self.run.summary.update(
-                {
-                    "model/speed(ms/img)": round(trainer.validator.speed[1], 3),
-                }
-            )
-
+            speeds = [
+                trainer.validator.speed.get(
+                    key,
+                )
+                for key in (1, "inference")
+            ]
+            speed = speeds[0] if speeds[0] else speeds[1]
+            if speed:
+                self.run.summary.update(
+                    {
+                        "model/speed(ms/img)": round(speed, 3),
+                    }
+                )
         if trainer.best_fitness == trainer.fitness:
             self.run.summary.update(
                 {
