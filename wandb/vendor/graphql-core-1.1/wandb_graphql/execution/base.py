@@ -4,11 +4,8 @@ from ..language import ast
 from ..pyutils.default_ordered_dict import DefaultOrderedDict
 from ..type.definition import GraphQLInterfaceType, GraphQLUnionType
 from ..type.directives import GraphQLIncludeDirective, GraphQLSkipDirective
-from ..type.introspection import (
-    SchemaMetaFieldDef,
-    TypeMetaFieldDef,
-    TypeNameMetaFieldDef,
-)
+from ..type.introspection import (SchemaMetaFieldDef, TypeMetaFieldDef,
+                                  TypeNameMetaFieldDef)
 from ..utils.type_from_ast import type_from_ast
 from .values import get_argument_values, get_variable_values
 
@@ -21,32 +18,11 @@ class ExecutionContext(object):
     Namely, schema of the type system that is currently executing,
     and the fragments defined in the query document"""
 
-    __slots__ = (
-        "schema",
-        "fragments",
-        "root_value",
-        "operation",
-        "variable_values",
-        "errors",
-        "context_value",
-        "argument_values_cache",
-        "executor",
-        "middleware",
-        "_subfields_cache",
-    )
+    __slots__ = 'schema', 'fragments', 'root_value', 'operation', 'variable_values', 'errors', 'context_value', \
+                'argument_values_cache', 'executor', 'middleware', '_subfields_cache'
 
-    def __init__(
-        self,
-        schema,
-        document_ast,
-        root_value,
-        context_value,
-        variable_values,
-        operation_name,
-        executor,
-        middleware,
-    ):
-        """Construct a ExecutionContext object from the arguments passed
+    def __init__(self, schema, document_ast, root_value, context_value, variable_values, operation_name, executor, middleware):
+        """Constructs a ExecutionContext object from the arguments passed
         to execute, which we will pass throughout the other execution
         methods."""
         errors = []
@@ -56,15 +32,9 @@ class ExecutionContext(object):
         for definition in document_ast.definitions:
             if isinstance(definition, ast.OperationDefinition):
                 if not operation_name and operation:
-                    raise GraphQLError(
-                        "Must provide operation name if query contains multiple operations."
-                    )
+                    raise GraphQLError('Must provide operation name if query contains multiple operations.')
 
-                if (
-                    not operation_name
-                    or definition.name
-                    and definition.name.value == operation_name
-                ):
+                if not operation_name or definition.name and definition.name.value == operation_name:
                     operation = definition
 
             elif isinstance(definition, ast.FragmentDefinition):
@@ -72,24 +42,18 @@ class ExecutionContext(object):
 
             else:
                 raise GraphQLError(
-                    "GraphQL cannot execute a request containing a {}.".format(
-                        definition.__class__.__name__
-                    ),
-                    definition,
+                    u'GraphQL cannot execute a request containing a {}.'.format(definition.__class__.__name__),
+                    definition
                 )
 
         if not operation:
             if operation_name:
-                raise GraphQLError(
-                    'Unknown operation named "{}".'.format(operation_name)
-                )
+                raise GraphQLError(u'Unknown operation named "{}".'.format(operation_name))
 
             else:
-                raise GraphQLError("Must provide an operation.")
+                raise GraphQLError('Must provide an operation.')
 
-        variable_values = get_variable_values(
-            schema, operation.variable_definitions or [], variable_values
-        )
+        variable_values = get_variable_values(schema, operation.variable_definitions or [], variable_values)
 
         self.schema = schema
         self.fragments = fragments
@@ -113,9 +77,8 @@ class ExecutionContext(object):
         result = self.argument_values_cache.get(k)
 
         if not result:
-            result = self.argument_values_cache[k] = get_argument_values(
-                field_def.args, field_ast.arguments, self.variable_values
-            )
+            result = self.argument_values_cache[k] = get_argument_values(field_def.args, field_ast.arguments,
+                                                                         self.variable_values)
 
         return result
 
@@ -128,11 +91,8 @@ class ExecutionContext(object):
                 selection_set = field_ast.selection_set
                 if selection_set:
                     subfield_asts = collect_fields(
-                        self,
-                        return_type,
-                        selection_set,
-                        subfield_asts,
-                        visited_fragment_names,
+                        self, return_type, selection_set,
+                        subfield_asts, visited_fragment_names
                     )
             self._subfields_cache[k] = subfield_asts
         return self._subfields_cache[k]
@@ -143,7 +103,7 @@ class ExecutionResult(object):
     query, `errors` is null if no errors occurred, and is a
     non-empty array if an error occurred."""
 
-    __slots__ = "data", "errors", "invalid"
+    __slots__ = 'data', 'errors', 'invalid'
 
     def __init__(self, data=None, errors=None, invalid=False):
         self.data = data
@@ -155,39 +115,46 @@ class ExecutionResult(object):
         self.invalid = invalid
 
     def __eq__(self, other):
-        return self is other or (
-            isinstance(other, ExecutionResult)
-            and self.data == other.data
-            and self.errors == other.errors
-            and self.invalid == other.invalid
+        return (
+            self is other or (
+                isinstance(other, ExecutionResult) and
+                self.data == other.data and
+                self.errors == other.errors and
+                self.invalid == other.invalid
+            )
         )
 
 
 def get_operation_root_type(schema, operation):
     op = operation.operation
-    if op == "query":
+    if op == 'query':
         return schema.get_query_type()
 
-    elif op == "mutation":
+    elif op == 'mutation':
         mutation_type = schema.get_mutation_type()
 
         if not mutation_type:
-            raise GraphQLError("Schema is not configured for mutations", [operation])
+            raise GraphQLError(
+                'Schema is not configured for mutations',
+                [operation]
+            )
 
         return mutation_type
 
-    elif op == "subscription":
+    elif op == 'subscription':
         subscription_type = schema.get_subscription_type()
 
         if not subscription_type:
             raise GraphQLError(
-                "Schema is not configured for subscriptions", [operation]
+                'Schema is not configured for subscriptions',
+                [operation]
             )
 
         return subscription_type
 
     raise GraphQLError(
-        "Can only execute queries, mutations and subscriptions", [operation]
+        'Can only execute queries, mutations and subscriptions',
+        [operation]
     )
 
 
@@ -212,41 +179,33 @@ def collect_fields(ctx, runtime_type, selection_set, fields, prev_fragment_names
 
         elif isinstance(selection, ast.InlineFragment):
             if not should_include_node(
-                ctx, directives
-            ) or not does_fragment_condition_match(ctx, selection, runtime_type):
+                    ctx, directives) or not does_fragment_condition_match(
+                    ctx, selection, runtime_type):
                 continue
 
-            collect_fields(
-                ctx, runtime_type, selection.selection_set, fields, prev_fragment_names
-            )
+            collect_fields(ctx, runtime_type, selection.selection_set, fields, prev_fragment_names)
 
         elif isinstance(selection, ast.FragmentSpread):
             frag_name = selection.name.value
 
-            if frag_name in prev_fragment_names or not should_include_node(
-                ctx, directives
-            ):
+            if frag_name in prev_fragment_names or not should_include_node(ctx, directives):
                 continue
 
             prev_fragment_names.add(frag_name)
             fragment = ctx.fragments.get(frag_name)
             frag_directives = fragment.directives
-            if (
-                not fragment
-                or not should_include_node(ctx, frag_directives)
-                or not does_fragment_condition_match(ctx, fragment, runtime_type)
-            ):
+            if not fragment or not \
+                    should_include_node(ctx, frag_directives) or not \
+                    does_fragment_condition_match(ctx, fragment, runtime_type):
                 continue
 
-            collect_fields(
-                ctx, runtime_type, fragment.selection_set, fields, prev_fragment_names
-            )
+            collect_fields(ctx, runtime_type, fragment.selection_set, fields, prev_fragment_names)
 
     return fields
 
 
 def should_include_node(ctx, directives):
-    """Determine if a field should be included based on the @include and
+    """Determines if a field should be included based on the @include and
     @skip directives, where @skip has higher precidence than @include."""
     # TODO: Refactor based on latest code
     if directives:
@@ -263,7 +222,7 @@ def should_include_node(ctx, directives):
                 skip_ast.arguments,
                 ctx.variable_values,
             )
-            if args.get("if") is True:
+            if args.get('if') is True:
                 return False
 
         include_ast = None
@@ -280,7 +239,7 @@ def should_include_node(ctx, directives):
                 ctx.variable_values,
             )
 
-            if args.get("if") is False:
+            if args.get('if') is False:
                 return False
 
     return True
@@ -302,37 +261,18 @@ def does_fragment_condition_match(ctx, fragment, type_):
 
 
 def get_field_entry_key(node):
-    """Implement the logic to compute the key of a given field's entry"""
+    """Implements the logic to compute the key of a given field's entry"""
     if node.alias:
         return node.alias.value
     return node.name.value
 
 
 class ResolveInfo(object):
-    __slots__ = (
-        "field_name",
-        "field_asts",
-        "return_type",
-        "parent_type",
-        "schema",
-        "fragments",
-        "root_value",
-        "operation",
-        "variable_values",
-    )
+    __slots__ = ('field_name', 'field_asts', 'return_type', 'parent_type',
+                 'schema', 'fragments', 'root_value', 'operation', 'variable_values')
 
-    def __init__(
-        self,
-        field_name,
-        field_asts,
-        return_type,
-        parent_type,
-        schema,
-        fragments,
-        root_value,
-        operation,
-        variable_values,
-    ):
+    def __init__(self, field_name, field_asts, return_type, parent_type,
+                 schema, fragments, root_value, operation, variable_values):
         self.field_name = field_name
         self.field_asts = field_asts
         self.return_type = return_type
@@ -346,8 +286,7 @@ class ResolveInfo(object):
 
 def default_resolve_fn(source, args, context, info):
     """If a resolve function is not given, then a default resolve behavior is used which takes the property of the source object
-    of the same name as the field and returns it as the result, or if it's a function, returns the result of calling that function.
-    """
+    of the same name as the field and returns it as the result, or if it's a function, returns the result of calling that function."""
     name = info.field_name
     property = getattr(source, name, None)
     if callable(property):
@@ -363,10 +302,10 @@ def get_field_def(schema, parent_type, field_name):
     are allowed, like on a Union. __schema could get automatically
     added to the query type, but that would require mutating type
     definitions, which would cause issues."""
-    if field_name == "__schema" and schema.get_query_type() == parent_type:
+    if field_name == '__schema' and schema.get_query_type() == parent_type:
         return SchemaMetaFieldDef
-    elif field_name == "__type" and schema.get_query_type() == parent_type:
+    elif field_name == '__type' and schema.get_query_type() == parent_type:
         return TypeMetaFieldDef
-    elif field_name == "__typename":
+    elif field_name == '__typename':
         return TypeNameMetaFieldDef
     return parent_type.fields.get(field_name)
