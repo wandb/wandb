@@ -80,13 +80,11 @@ def test_run_cuda_version(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "cuda": None,
         "resource": "local",
         "resource_args": {},
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
-    assert test_project.cuda is True
     dockerfile = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
@@ -97,13 +95,11 @@ def test_run_cuda_version(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "cuda": False,
         "resource": "local",
         "resource_args": {},
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
-    assert test_project.cuda is False
     dockerfile = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
@@ -114,14 +110,11 @@ def test_run_cuda_version(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "cuda": True,
         "resource": "local",
         "resource_args": {},
-        "cuda_version": "10.0",
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
-    assert test_project.cuda is True
     dockerfile = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )

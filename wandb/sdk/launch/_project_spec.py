@@ -60,7 +60,6 @@ class LaunchProject:
         overrides: Dict[str, Any],
         resource: str,
         resource_args: Dict[str, Any],
-        cuda: Optional[bool],
         run_id: Optional[str],
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
@@ -80,6 +79,7 @@ class LaunchProject:
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
+        self.cuda = None
         self.cuda_version: Optional[str] = resource_args_build.get("cuda", {}).get(
             "base_image"
         )
@@ -99,7 +99,6 @@ class LaunchProject:
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
         self.deps_type: Optional[str] = None
-        self.cuda = cuda
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
         self._image_tag: str = self._initialize_image_job_tag() or self.run_id
@@ -266,24 +265,6 @@ class LaunchProject:
             )
             program_name = run_info.get("codePath") or run_info["program"]
 
-            if run_info.get("cudaVersion"):
-                original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
-
-                if self.cuda is None:
-                    # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Original wandb run {source_run_name} was run with cuda version {original_cuda_version}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False"
-                    )
-                    self.cuda_version = original_cuda_version
-                    self.cuda = True
-                if (
-                    self.cuda
-                    and self.cuda_version
-                    and self.cuda_version != original_cuda_version
-                ):
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Specified cuda version {self.cuda_version} differs from original cuda version {original_cuda_version}. Running with specified version {self.cuda_version}"
-                    )
             self.python_version = run_info.get("python", "3")
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -453,7 +434,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("overrides", {}),
         launch_spec.get("resource", None),
         launch_spec.get("resource_args", {}),
-        launch_spec.get("cuda", None),
         launch_spec.get("run_id", None),
     )
 
