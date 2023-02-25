@@ -1,11 +1,10 @@
-"""
+"""Implements a post-import hook mechanism.
+
+Styled as per PEP-369. Note that it doesn't cope with modules being reloaded.
+
 Note: This file is based on
 https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
 (with slight modifications).
-
-This module implements a post import hook mechanism styled after what is
-described in PEP-369. Note that it doesn't cope with modules being reloaded.
-
 """
 
 import functools
@@ -92,7 +91,6 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
         module = sys.modules.get(name)
 
         if module is not None:
-
             _post_import_hooks[name] = {}
             if hook:  # type: ignore
                 hook(module)
@@ -230,7 +228,6 @@ class ImportHookFinder:
         # Now call back into the import system again.
 
         try:
-
             # For Python 3 we need to use find_spec().loader
             # from the importlib.util module. It doesn't actually
             # import the target module and only finds the

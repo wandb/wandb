@@ -4,8 +4,7 @@ import wandb
 
 
 def histogram(table: wandb.Table, value: str, title: Optional[str] = None):
-    """
-    Construct a histogram plot.
+    """Construct a histogram plot.
 
     Arguments:
         table (wandb.Table): Table of data.

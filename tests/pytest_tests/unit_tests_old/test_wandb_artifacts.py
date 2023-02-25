@@ -1,5 +1,3 @@
-import base64
-import hashlib
 from typing import Callable
 
 import numpy as np
@@ -7,6 +5,7 @@ import pytest
 import wandb
 from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.wandb_artifacts import ArtifactNotLoggedError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -170,7 +169,7 @@ def test_artifact_incremental_internal(
 
     with backend_interface() as interface:
         proto_run = interface._make_run(mocked_run)
-        r = internal_sm.send_run(interface._make_record(run=proto_run))
+        internal_sm.send_run(interface._make_record(run=proto_run))
 
         proto_artifact = interface._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -212,7 +211,7 @@ def test_artifact_references_internal(
 
         with backend_interface() as interface:
             proto_run = interface._make_run(mocked_run)
-            r = internal_sm.send_run(interface._make_record(run=proto_run))
+            internal_sm.send_run(interface._make_record(run=proto_run))
 
             proto_artifact = interface._make_artifact(art)
             proto_artifact.run_id = proto_run.run_id
@@ -283,6 +282,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             "checkout",
             "verify",
             "delete",
+            "json_encode",
         ]
 
         setter_data = {"metadata": {}}
@@ -300,14 +300,14 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             _ = getattr(art, valid_getter)
 
         for invalid_getter in testable_getters_invalid:
-            with pytest.raises(ValueError):
+            with pytest.raises(ArtifactNotLoggedError):
                 _ = getattr(art, invalid_getter)
 
         for valid_setter in testable_setters_valid + testable_setters_always_valid:
             setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
 
         for invalid_setter in testable_setters_invalid:
-            with pytest.raises(ValueError):
+            with pytest.raises(ArtifactNotLoggedError):
                 setattr(
                     art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
                 )
@@ -321,23 +321,23 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
 
         for invalid_method in testable_methods_invalid:
             attr_method = getattr(art, invalid_method)
-            with pytest.raises(ValueError):
+            with pytest.raises(ArtifactNotLoggedError):
                 _ = attr_method(*params.get(invalid_method, []))
 
         # THE LOG
         run.log_artifact(art)
 
         for getter in testable_getters_valid + testable_getters_invalid:
-            with pytest.raises(ValueError):
+            with pytest.raises(ArtifactNotLoggedError):
                 _ = getattr(art, getter)
 
         for setter in testable_setters_valid + testable_setters_invalid:
-            with pytest.raises(ValueError):
+            with pytest.raises(ArtifactNotLoggedError):
                 setattr(art, setter, setter_data.get(setter, setter))
 
         for method in testable_methods_valid + testable_methods_invalid:
             attr_method = getattr(art, method)
-            with pytest.raises(ValueError):
+            with pytest.raises(ArtifactNotLoggedError):
                 _ = attr_method(*params.get(method, []))
 
         # THE ALL IMPORTANT WAIT

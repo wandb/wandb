@@ -304,7 +304,7 @@ def _setup(
     settings: Optional["Settings"] = None,
     _reset: bool = False,
 ) -> Optional["_WandbSetup"]:
-    """Setup library context."""
+    """Set up library context."""
     if _reset:
         setup_instance = _WandbSetup._instance
         if setup_instance:

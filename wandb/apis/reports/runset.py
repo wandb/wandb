@@ -43,9 +43,7 @@ class Runset(Base):
 
     @classmethod
     def from_json(cls, spec: Dict[str, Any]) -> T:
-        """
-        This has a custom implementation because sometimes runsets are missing the project field.
-        """
+        """This has a custom implementation because sometimes runsets are missing the project field."""
         obj = cls()
         obj._spec = spec
 
