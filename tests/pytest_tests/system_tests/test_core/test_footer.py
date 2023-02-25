@@ -1,6 +1,4 @@
-"""
-footer tests.
-"""
+"""footer tests."""
 
 import numpy as np
 import pytest

@@ -23,7 +23,7 @@ else:
 def install_deps(
     deps: List[str], failed: Optional[Set[str]] = None
 ) -> Optional[Set[str]]:
-    """Install pip dependencies
+    """Install pip dependencies.
 
     Arguments:
         deps {List[str]} -- List of dependencies to install
@@ -61,7 +61,7 @@ def install_deps(
 
 
 def main() -> None:
-    """Install deps in requirements.frozen.txt"""
+    """Install deps in requirements.frozen.txt."""
     if os.path.exists("requirements.frozen.txt"):
         with open("requirements.frozen.txt") as f:
             print("Installing frozen dependencies...")

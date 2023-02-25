@@ -62,8 +62,7 @@ else:
 
 
 def _get_wandb_dir(root_dir: str) -> str:
-    """
-    Get the full path to the wandb directory.
+    """Get the full path to the wandb directory.
 
     The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
     We add the `__stage_dir__` to it to get the full `wandb_dir`
@@ -87,9 +86,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
 # todo: should either return bool or error out. fix once confident.
 def _str_as_bool(val: Union[str, bool]) -> bool:
-    """
-    Parse a string as a bool.
-    """
+    """Parse a string as a bool."""
     if isinstance(val, bool):
         return val
     try:
@@ -186,16 +183,15 @@ class SettingsConsole(enum.IntEnum):
 
 
 class Property:
-    """
-    A class to represent attributes (individual settings) of the Settings object.
+    """A class to represent attributes (individual settings) of the Settings object.
 
-        - Encapsulates the logic of how to preprocess and validate values of settings
-          throughout the lifetime of a class instance.
-        - Allows for runtime modification of settings with hooks, e.g. in the case when
-          a setting depends on another setting.
-        - The update() method is used to update the value of a setting.
-        - The `is_policy` attribute determines the source priority when updating the property value.
-          E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
+    - Encapsulates the logic of how to preprocess and validate values of settings
+    throughout the lifetime of a class instance.
+    - Allows for runtime modification of settings with hooks, e.g. in the case when
+    a setting depends on another setting.
+    - The update() method is used to update the value of a setting.
+    - The `is_policy` attribute determines the source priority when updating the property value.
+    E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
 
     # todo: this is a temporary measure to bypass validation of the settings
@@ -356,9 +352,7 @@ class Property:
 
 
 class Settings:
-    """
-    Settings for the wandb client.
-    """
+    """Settings for the wandb client."""
 
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
@@ -369,6 +363,7 @@ class Settings:
     _console: SettingsConsole
     _cuda: str
     _disable_meta: bool
+    _disable_service: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
@@ -392,11 +387,10 @@ class Settings:
     _os: str
     _platform: str
     _python: str
-    _require_service: str
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
-    _service_wait: int
+    _service_wait: float
     _start_datetime: datetime
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
@@ -412,7 +406,6 @@ class Settings:
     anonymous: str
     api_key: str
     base_url: str  # The base url for the wandb api
-    cache_dir: str  # The directory to use for artifacts cache: <cache_dir>/artifacts
     code_dir: str
     config_paths: Sequence[str]
     console: str
@@ -420,6 +413,7 @@ class Settings:
     disable_code: bool
     disable_git: bool
     disable_hints: bool
+    disable_job_creation: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
@@ -498,13 +492,18 @@ class Settings:
     table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Helper method that is used in `__init__` together with the class attributes
-        to initialize instance attributes (individual settings) as Property objects.
+        """Initialize instance attributes (individual settings) as Property objects.
+
+        Helper method that is used in `__init__` together with the class attributes.
         Note that key names must be the same as the class attribute names.
         """
         return dict(
             _disable_meta={"preprocessor": _str_as_bool},
+            _disable_service={
+                "value": False,
+                "preprocessor": _str_as_bool,
+                "is_policy": True,
+            },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _network_buffer={"preprocessor": int},
@@ -540,9 +539,21 @@ class Settings:
             _sync={"value": False},
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
-            _service_wait={"value": 30, "preprocessor": int},
-            _stats_sample_rate_seconds={"value": 2.0, "preprocessor": float},
-            _stats_samples_to_average={"value": 15},
+            _service_wait={
+                "value": 30,
+                "preprocessor": float,
+                "validator": self._validate__service_wait,
+            },
+            _stats_sample_rate_seconds={
+                "value": 2.0,
+                "preprocessor": float,
+                "validator": self._validate__stats_sample_rate_seconds,
+            },
+            _stats_samples_to_average={
+                "value": 15,
+                "preprocessor": int,
+                "validator": self._validate__stats_samples_to_average,
+            },
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
             _stats_neuron_monitor_config_path={
                 "hook": lambda x: self._path_convert(x),
@@ -570,6 +581,7 @@ class Settings:
             disable_code={"preprocessor": _str_as_bool},
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
+            disable_job_creation={"value": False, "preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -722,10 +734,9 @@ class Settings:
     # helper methods for validating values
     @staticmethod
     def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """
-        Factory for type validators, given a type hint:
-        Convert the type hint of a setting into a function
-        that checks if the argument is of the correct type
+        """Return a factory for type validators.
+
+        Given a type hint for a setting into a function that type checks the argument.
         """
         origin, args = get_origin(hint), get_args(hint)
 
@@ -825,8 +836,7 @@ class Settings:
 
     @staticmethod
     def _validate_base_url(value: Optional[str]) -> bool:
-        """
-        Validate the base url of the wandb server.
+        """Validate the base url of the wandb server.
 
         param value: URL to validate
 
@@ -926,12 +936,28 @@ class Settings:
 
         return True
 
+    @staticmethod
+    def _validate__service_wait(value: float) -> bool:
+        if value <= 0:
+            raise UsageError("_service_wait must be a positive number")
+        return True
+
+    @staticmethod
+    def _validate__stats_sample_rate_seconds(value: float) -> bool:
+        if value < 0.1:
+            raise UsageError("_stats_sample_rate_seconds must be >= 0.1")
+        return True
+
+    @staticmethod
+    def _validate__stats_samples_to_average(value: int) -> bool:
+        if value < 1 or value > 30:
+            raise UsageError("_stats_samples_to_average must be between 1 and 30")
+        return True
+
     # other helper methods
     @staticmethod
     def _path_convert(*args: str) -> str:
-        """
-        Join path and apply os.path.expanduser to it.
-        """
+        """Join path and apply os.path.expanduser to it."""
         return os.path.expanduser(os.path.join(*args))
 
     def _convert_console(self) -> SettingsConsole:
@@ -947,7 +973,7 @@ class Settings:
             if (
                 self._jupyter
                 or (self.start_method == "thread")
-                or self._require_service
+                or not self._disable_service
                 or self._windows
             ):
                 console = "wrap"
@@ -982,9 +1008,7 @@ class Settings:
         return f"{project_url}{query}"
 
     def _run_url(self) -> str:
-        """
-        Return the run url.
-        """
+        """Return the run url."""
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -993,8 +1017,8 @@ class Settings:
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
     def _set_run_start_time(self, source: int = Source.BASE) -> None:
-        """
-        Set the time stamps for the settings.
+        """Set the time stamps for the settings.
+
         Called once the run is initialized.
         """
         time_stamp: float = time.time()
@@ -1008,9 +1032,7 @@ class Settings:
         )
 
     def _sweep_url(self) -> str:
-        """
-        Return the sweep url.
-        """
+        """Return the sweep url."""
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""
@@ -1082,7 +1104,6 @@ class Settings:
         unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
-
             # todo: remove this and raise error instead once we are confident
             self.__unexpected_args.update(unexpected_arguments)
             wandb.termwarn(
@@ -1129,8 +1150,7 @@ class Settings:
         return f"<Settings {representation}>"
 
     def __copy__(self) -> "Settings":
-        """
-        Ensure that a copy of the settings object is a truly deep copy
+        """Ensure that a copy of the settings object is a truly deep copy.
 
         Note that the copied object will not be frozen  todo? why is this needed?
         """
@@ -1186,7 +1206,7 @@ class Settings:
         source: int = Source.OVERRIDE,
         **kwargs: Any,
     ) -> None:
-        """Update individual settings using the Property.update() method."""
+        """Update individual settings."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
             raise TypeError("Settings object is frozen")
 
@@ -1328,7 +1348,7 @@ class Settings:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
             "WANDB_TRACELOG": "_tracelog",
-            "WANDB_REQUIRE_SERVICE": "_require_service",
+            "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
@@ -1364,7 +1384,6 @@ class Settings:
         self, _logger: Optional[_EarlyLogger] = None
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
-
         settings: Dict[str, Union[bool, str, Sequence, None]] = dict()
         # disable symlinks if on windows (requires admin or developer setup)
         settings["symlink"] = True

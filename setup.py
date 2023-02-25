@@ -38,7 +38,10 @@ launch_requirements = [
     "typing_extensions",
     "boto3",
     "botocore",
+    "google-auth",
+    "google-cloud-compute",
     "google-cloud-storage",
+    "google-cloud-artifact-registry",
     "kubernetes",
 ]
 
@@ -47,7 +50,7 @@ models_requirements = ["cloudpickle"]
 
 setup(
     name="wandb",
-    version="0.13.10.dev1",
+    version="0.13.11.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

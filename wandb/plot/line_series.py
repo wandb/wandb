@@ -11,8 +11,7 @@ def line_series(
     title: t.Optional[str] = None,
     xname: t.Optional[str] = None,
 ):
-    """
-    Construct a line series plot.
+    """Construct a line series plot.
 
     Arguments:
         xs (array of arrays, or array): Array of arrays of x values
@@ -44,10 +43,11 @@ def line_series(
         import wandb
 
         run = wandb.init()
-        xs = [[i for i in range(10)], [2*i for i in range(10)]]
+        xs = [[i for i in range(10)], [2 * i for i in range(10)]]
         ys = [[i for i in range(10)], [i**2 for i in range(10)]]
         run.log(
-            {'line-series-plot2': wandb.plot.line_series(xs, ys, title="title", xname="step")})
+            {"line-series-plot2": wandb.plot.line_series(xs, ys, title="title", xname="step")}
+        )
         run.finish()
         ```
     """
