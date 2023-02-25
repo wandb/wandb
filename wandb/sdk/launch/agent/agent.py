@@ -113,7 +113,7 @@ class LaunchAgent:
         """Returns a list of keys running job ids for the agent."""
         job_ids: List[str] = []
         with self._jobs_lock:
-            job_ids = [job.run for job in self._jobs.values() if job.run]
+            job_ids = [job.run.id for job in self._jobs.values() if job.run]
         return job_ids
 
     def pop_from_queue(self, queue: str) -> Any:
