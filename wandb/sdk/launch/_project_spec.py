@@ -79,8 +79,7 @@ class LaunchProject:
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda = None
-        self.cuda_version: Optional[str] = resource_args_build.get("cuda", {}).get(
+        self.cuda_base_image: Optional[str] = resource_args_build.get("cuda", {}).get(
             "base_image"
         )
         self._base_image: Optional[str] = launch_spec.get("base_image")

@@ -188,7 +188,7 @@ def get_base_setup(
     CPU version is built on python, GPU version is built on nvidia:cuda.
     """
     python_base_image = f"python:{py_version}-buster"
-    if launch_project.cuda_version:
+    if launch_project.cuda_base_image:
         # cuda image doesn't come with python tooling
         if py_major == "2":
             python_packages = [
@@ -205,7 +205,7 @@ def get_base_setup(
                 "python3-setuptools",
             ]
         base_setup = CUDA_SETUP_TEMPLATE.format(
-            cuda_base_image=launch_project.cuda_version,
+            cuda_base_image=launch_project.cuda_base_image,
             python_packages=" \\\n".join(python_packages),
             py_version=py_version,
         )
