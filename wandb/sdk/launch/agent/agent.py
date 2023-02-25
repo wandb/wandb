@@ -10,7 +10,7 @@ import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import wandb
 import wandb.util as util
@@ -109,7 +109,7 @@ class LaunchAgent:
         return list(self._jobs.keys())
 
     @property
-    def job_ids(self) -> List[Union[str]]:
+    def job_ids(self) -> List[str]:
         """Returns a list of keys running job ids for the agent."""
         job_ids: List[str] = []
         with self._jobs_lock:
