@@ -1,6 +1,4 @@
-"""
-config.
-"""
+"""config."""
 
 import logging
 from typing import Optional
@@ -22,8 +20,7 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config:
-    """
-    Config object
+    """Config object.
 
     Config objects are intended to hold all of the hyperparameters associated with
     a wandb run and are saved with the run object when `wandb.init` is called.
@@ -193,7 +190,7 @@ class Config:
         return self._items.get(*args)
 
     def persist(self):
-        """Calls the callback if it's set"""
+        """Call the callback if it's set."""
         if self._callback:
             self._callback(data=self._as_dict())
 

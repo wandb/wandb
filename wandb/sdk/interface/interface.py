@@ -1,4 +1,4 @@
-"""Interface base class - Used to send messages to the internal process
+"""Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
 InterfaceGrpc: Use gRPC to send and receive messages
@@ -267,7 +267,6 @@ class InterfaceBase:
             A new tree of dict's with large objects replaced with dictionaries
             with "_type" entries that say which type the original data was.
         """
-
         # Constructs a new `dict` tree in `json_value` that discards and/or
         # encodes objects that aren't JSON serializable.
 
@@ -759,6 +758,28 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_attach(self, attach_id: str) -> MailboxHandle:
+        attach = pb.AttachRequest(attach_id=attach_id)
+        return self._deliver_attach(attach)
+
+    @abstractmethod
+    def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_check_version(
+        self, current_version: Optional[str] = None
+    ) -> MailboxHandle:
+        check_version = pb.CheckVersionRequest()
+        if current_version:
+            check_version.current_version = current_version
+        return self._deliver_check_version(check_version)
+
+    @abstractmethod
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_stop_status(self) -> MailboxHandle:

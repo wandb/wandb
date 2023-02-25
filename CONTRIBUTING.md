@@ -71,7 +71,7 @@ Please make sure to update the ToC when you update this page!
       git remote add upstream https://github.com/wandb/wandb.git
       ```
 
-3.  Develop you contribution.
+3.  Develop your contribution.
     - Make sure your fork is in sync with the main repository:
     ```shell
     git checkout main
@@ -365,7 +365,7 @@ By default, tests are run in parallel with 4 processes. This can be changed by s
 To run specific tests in a specific environment:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test
+tox -e py37 -- tests/test_some_code.py -k substring_of_test
 ```
 
 To run all tests in a specific environment:
@@ -385,14 +385,14 @@ This will manifest as a test failure with no/shortened associated output.
 In these cases, add the `-vvvv --showlocals` flags to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test -vvvv --showlocals
+tox -e py37 -- tests/test_some_code.py -k substring_of_test -vvvv --showlocals
 ```
 
 If a test fails, you can use the `--pdb -n0` flags to get the
 [pdb](https://docs.python.org/3/library/pdb.html) debugger attached to the test:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k failing_test -vvvv --showlocals --pdb -n0
+tox -e py37 -- tests/test_some_code.py -k failing_test -vvvv --showlocals --pdb -n0
 ```
 
 You can also manually set breakpoints in the test code (`breakpoint()`)
@@ -471,31 +471,30 @@ The interfaces are described here:
 
 1. Full codepath from wandb.init() to mock_server
    Note: coverage only counts for the User Process and interface code
-   Example: tests/wandb_integration_test.py
+   Example: [wandb_integration_test.py](tests/pytest_tests/system_tests/test_wandb_integration.py)
 2. Inject into the Shared Queues to mock_server
    Note: coverage only counts for the interface code and internal process code
-   Example: tests/test_sender.py
+   Example: [test_sender.py](tests/pytest_tests/system_tests/test_sender.py)
 3. From wandb.Run object to Shared Queues
    Note: coverage counts for User Process
-   Example: tests/wandb_run_test.py
+   Example: [wandb_run_test.py](tests/pytest_tests/unit_tests/test_wandb_run.py)
 ```
 
 Good examples of tests for each level of testing can be found at:
 
-- [test_metric_user.py](tests/test_metric_user.py): User process tests
-- [test_metric_internal.py](tests/test_metric_internal.py): Internal process tests
-- [test_metric_full.py](tests/test_metric_full.py): Full stack tests
+- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metric/test_system_metrics_*.py): User process tests
+- [test_metric_internal.py](tests/pytest_tests/system_tests/test_metric_internal.py): Internal process tests
+- [test_metric_full.py](tests/pytest_tests/system_tests/test_metric_full.py): Full stack tests
 
 ### Global Pytest Fixtures
 
-All global fixtures are defined in `tests/conftest.py`:
+Global fixtures are defined in `tests/**/conftest.py`, separated into [unit test fixtures](tests/pytest_tests/unit_tests/conftest.py), [system test fixtures](tests/pytest_tests/system_tests/conftest.py), as well as [shared fixtures](tests/pytest_tests/conftest.py).
 
 - `local_netrc` - used automatically for all tests and patches the netrc logic to avoid interacting with your system .netrc
 - `local_settings` - used automatically for all tests and patches the global settings path to an isolated directory.
 - `test_settings` - returns a `wandb.Settings` object that can be used to initialize runs against the `live_mock_server`. See `tests/wandb_integration_test.py`
 - `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`. This also mocks out calls for login returning a dummy api key.
 - `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
-- `mocked_module` - if you need to test code that calls `wandb.util.get_module("XXX")`, you can use this fixture to get a MagicMock(). See `tests/test_notebook.py`
 - `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling `wandb.init`). No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`. See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
 - `mock_server` - mocks all calls to the `requests` module with sane defaults. You can customize `tests/utils/mock_server.py` to use context or add api calls.
 - `live_mock_server` - we start a live flask server when tests start. live_mock_server configures WANDB_BASE_URL point to this server. You can alter or get its context with the `get_ctx` and `set_ctx` methods. See `tests/wandb_integration_test.py`. NOTE: this currently doesn't support concurrent requests so if we run tests in parallel we need to solve for this.

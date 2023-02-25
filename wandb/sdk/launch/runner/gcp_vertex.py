@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import shlex
 import time
@@ -10,16 +11,17 @@ if False:
 import yaml
 
 import wandb
-from wandb.errors import LaunchError
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder
 from ..builder.build import construct_gcp_registry_uri, get_env_vars_dict
-from ..utils import LOG_PREFIX, PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell
+from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
+
+_logger = logging.getLogger(__name__)
 
 
 class VertexSubmittedRun(AbstractRun):
@@ -70,7 +72,7 @@ class VertexSubmittedRun(AbstractRun):
 
 
 class VertexRunner(AbstractRunner):
-    """Runner class, uses a project to create a VertexSubmittedRun"""
+    """Runner class, uses a project to create a VertexSubmittedRun."""
 
     def run(
         self,
@@ -78,13 +80,13 @@ class VertexRunner(AbstractRunner):
         builder: AbstractBuilder,
         registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
-
         aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )
 
         resource_args = launch_project.resource_args.get("gcp_vertex")
+        _logger.info(f"Running Vertex job with resource args: {resource_args}")
         if not resource_args:
             raise LaunchError(
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
@@ -125,22 +127,19 @@ class VertexRunner(AbstractRunner):
         service_account = resource_args.get("service_account")
         tensorboard = resource_args.get("tensorboard")
 
+        _logger.info(
+            f"Initializing AI platform with project {gcp_project}, location {gcp_region}, staging bucket {gcp_staging_bucket}"
+        )
         aiplatform.init(
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
         )
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        if docker_args and list(docker_args) != ["docker_image"]:
-            wandb.termwarn(
-                f"{LOG_PREFIX}Docker args are not supported for GCP. Not using docker args."
-            )
 
         entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
             image_uri = launch_project.docker_image
         else:
-
             repository = construct_gcp_registry_uri(
                 gcp_artifact_repo,
                 gcp_project,
@@ -151,7 +150,6 @@ class VertexRunner(AbstractRunner):
                 launch_project,
                 repository,
                 entry_point,
-                docker_args,
             )
 
         if not self.ack_run_queue_item(launch_project):
@@ -190,6 +188,9 @@ class VertexRunner(AbstractRunner):
             f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
         )
 
+        _logger.info(
+            f"Running job (ID {job.id}, name {job.name}) with service account {service_account}, tensorboard {tensorboard}"
+        )
         # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
         # on this thread but continues to block the process on another thread. always set sync=False so we can get
         # the job info (dependent on job._gca_resource)

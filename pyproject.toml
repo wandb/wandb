@@ -1,3 +1,7 @@
+[build-system]
+requires = ['setuptools<64']
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 88
 include = '\.pyi?$'
@@ -19,3 +23,75 @@ profile = "black"
 skip = ["wandb/__init__.py"]
 extend_skip_glob = ["wandb/vendor/**", "wandb/proto/**"]
 skip_gitignore = "True"
+
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+major_version_zero = true
+version = "0.13.11.dev1"
+version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
+tag_format = "v$major.$minor.$patch$prerelease"
+changelog_incremental = true
+#post_bump_hooks = [
+#  "tools/cz_version_to_dev.sh",
+#]
+
+[tool.commitizen.change_type_map]
+"feat" = ":sparkles: Enhancements"
+"fix" = ":hammer: Fixes"
+"refactor" = ":nail_care: Cleanup"
+"perf" = ":rocket: Performance"
+security = ":lock: Security"
+
+
+[tool.ruff]
+select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
+ignore = [
+    "B904",
+    "E501",
+    "D1",  # Allow missing docstrings.
+    "D417",  # Don't require descriptions for all arguments.
+    "UP022",  # Only valid for Python 3.7+
+    "UP036",  # Only valid for Python 3.7+
+]
+exclude = [
+    "tests/functional_tests/t0_main/fastai/t1_v1.py",
+    "tests/functional_tests/t0_main/metaflow",
+    "tests/pytest_tests/assets/fixtures/train.py",
+    "tests/pytest_tests/unit_tests_old",
+    "wandb/__init__.py",
+    "wandb/bin",
+    "wandb/data",
+    "wandb/env.py",
+    "wandb/errors",
+    "wandb/integration/keras/keras.py",
+    "wandb/integration/magic.py",
+    "wandb/integration/metaflow",
+    "wandb/keras",
+    "wandb/offline-run-*",
+    "wandb/old",
+    "wandb/plots",
+    "wandb/proto_check",
+    "wandb/proto",
+    "wandb/run-*",
+    "wandb/sklearn",
+    "wandb/superagent",
+    "wandb/vendor",
+    "wandb/viz.py",
+    "wandb/wandb_torch.py",
+]
+target-version = "py37"
+
+[tool.ruff.per-file-ignores]
+"wandb/cli/cli.py" = ["C901"]
+"wandb/wandb_controller.py" = ["N803", "N806"]
+"wandb/filesync/step_checksum.py" = ["B023"]
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.pycodestyle]
+ignore-overlong-task-comments = true
+
+[tool.ruff.mccabe]
+max-complexity = 18

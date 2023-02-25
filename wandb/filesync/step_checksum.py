@@ -1,5 +1,6 @@
 """Batching file prepare requests to our API."""
 
+import concurrent.futures
 import os
 import queue
 import shutil
@@ -33,8 +34,8 @@ class RequestStoreManifestFiles(NamedTuple):
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
-    before_commit: Optional[step_upload.PreCommitFn]
-    on_commit: Optional[step_upload.PostCommitFn]
+    before_commit: step_upload.PreCommitFn
+    result_future: "concurrent.futures.Future[None]"
 
 
 class RequestFinish(NamedTuple):
@@ -127,7 +128,10 @@ class StepChecksum:
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(
                     step_upload.RequestCommitArtifact(
-                        req.artifact_id, req.finalize, req.before_commit, req.on_commit
+                        req.artifact_id,
+                        req.finalize,
+                        req.before_commit,
+                        req.result_future,
                     )
                 )
             elif isinstance(req, RequestFinish):

@@ -1,6 +1,4 @@
-"""
-sync.
-"""
+"""sync."""
 
 import datetime
 import fnmatch
@@ -51,6 +49,7 @@ class SyncThread(threading.Thread):
         app_url=None,
         sync_tensorboard=None,
         log_path=None,
+        append=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -65,6 +64,7 @@ class SyncThread(threading.Thread):
         self._app_url = app_url
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
+        self._append = append
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -119,7 +119,7 @@ class SyncThread(threading.Thread):
         return tb_event_files, tb_logdirs, tb_root
 
     def _setup_tensorboard(self, tb_root, tb_logdirs, tb_event_files, sync_item):
-        """Returns true if this sync item can be synced as tensorboard"""
+        """Return true if this sync item can be synced as tensorboard."""
         if tb_root is not None:
             if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
                 wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
@@ -216,7 +216,7 @@ class SyncThread(threading.Thread):
         send_manager.finish()
 
     def _robust_scan(self, ds):
-        """Attempt to scan data, handling incomplete files"""
+        """Attempt to scan data, handling incomplete files."""
         try:
             return ds.scan_data()
         except AssertionError as e:
@@ -250,7 +250,12 @@ class SyncThread(threading.Thread):
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
             root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
-            sm = sender.SendManager.setup(root_dir)
+
+            # When appending we are allowing a possible resume, ie the run
+            # doesnt have to exist already
+            resume = "allow" if self._append else None
+
+            sm = sender.SendManager.setup(root_dir, resume=resume)
             if sync_tb:
                 self._send_tensorboard(tb_root, tb_logdirs, sm)
                 continue
@@ -317,6 +322,7 @@ class SyncManager:
         verbose=None,
         sync_tensorboard=None,
         log_path=None,
+        append=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -329,6 +335,7 @@ class SyncManager:
         self._verbose = verbose
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
+        self._append = append
 
     def status(self):
         pass
@@ -349,6 +356,7 @@ class SyncManager:
             app_url=self._app_url,
             sync_tensorboard=self._sync_tensorboard,
             log_path=self._log_path,
+            append=self._append,
         )
         self._thread.start()
 

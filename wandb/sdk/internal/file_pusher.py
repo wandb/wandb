@@ -1,3 +1,4 @@
+import concurrent.futures
 import logging
 import os
 import queue
@@ -26,10 +27,11 @@ logger = logging.getLogger(__name__)
 
 class FilePusher:
     """Parallel file upload class.
+
     This manages uploading multiple files in parallel. It will restart a given file's
-    upload job if it receives a notification that that file has been modified.
-    The finish() method will block until all events have been processed and all
-    uploads are complete.
+    upload job if it receives a notification that that file has been modified. The
+    finish() method will block until all events have been processed and all uploads are
+    complete.
     """
 
     MAX_UPLOAD_JOBS = 64
@@ -116,6 +118,7 @@ class FilePusher:
         copy: bool = True,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
+
         Arguments:
             save_name: string logical location of the file relative to the run
                 directory.
@@ -147,12 +150,13 @@ class FilePusher:
     def commit_artifact(
         self,
         artifact_id: str,
+        *,
         finalize: bool = True,
-        before_commit: Optional[step_upload.PreCommitFn] = None,
-        on_commit: Optional[step_upload.PostCommitFn] = None,
+        before_commit: step_upload.PreCommitFn,
+        result_future: "concurrent.futures.Future[None]",
     ):
         event = step_checksum.RequestCommitArtifact(
-            artifact_id, finalize, before_commit, on_commit
+            artifact_id, finalize, before_commit, result_future
         )
         self._incoming_queue.put(event)
 

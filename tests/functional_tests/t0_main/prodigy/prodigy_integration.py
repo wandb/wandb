@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test prodigy integration
+"""Test prodigy integration.
 
 ---
 id: 0.prodigy.1
