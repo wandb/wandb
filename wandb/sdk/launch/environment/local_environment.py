@@ -1,7 +1,8 @@
 """Dummy local environment implementation. This is the default environment."""
+from typing import Any, Dict, Union
+
 from wandb.errors import LaunchError
 
-from typing import Any, Dict, Union
 from .abstract import AbstractEnvironment
 
 

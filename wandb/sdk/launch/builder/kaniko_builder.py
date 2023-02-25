@@ -202,7 +202,7 @@ class KanikoBuilder(AbstractBuilder):
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
     ) -> str:
-        if self.registry is None:
+        if not self.registry:
             raise LaunchError("No registry specified for Kaniko build.")
         repo_uri = self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + launch_project.image_tag
@@ -347,10 +347,11 @@ class KanikoBuilder(AbstractBuilder):
             "--cache=true",
             f"--cache-repo={repository}",
             "--snapshotMode=redo",
+            "--compressed-caching=false",
         ]
         container = client.V1Container(
             name="wandb-container-build",
-            image="gcr.io/kaniko-project/executor:v1.8.0",
+            image="gcr.io/kaniko-project/executor:v1.8.0-debug",
             args=args,
             volume_mounts=volume_mounts,
             env=env if env else None,

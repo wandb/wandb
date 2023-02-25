@@ -29,7 +29,12 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
+from ..utils import (
+    LAUNCH_CONFIG_FILE,
+    LOG_PREFIX,
+    LaunchError,
+    resolve_build_and_registry_config,
+)
 from .abstract import AbstractBuilder
 
 _logger = logging.getLogger(__name__)
