@@ -76,10 +76,13 @@ class LaunchProject:
         self.target_entity = target_entity
         self.target_project = target_project.lower()
         self.name = name  # TODO: replace with run_id
+        resource_args_build = resource_args.get(resource, {}).pop("build", {})
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_version: Optional[str] = resource_args.get("cuda_base_image")
+        self.cuda_version: Optional[str] = resource_args_build.get("cuda", {}).get(
+            "base_image"
+        )
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
