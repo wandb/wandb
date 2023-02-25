@@ -76,7 +76,6 @@ class LocalContainerRunner(AbstractRunner):
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
             "local-container", {}
         )
-        print("docker args", docker_args)
         # TODO: leaving this here because of existing CLI command
         # we should likely just tell users to specify the gpus arg directly
         if launch_project.cuda:
