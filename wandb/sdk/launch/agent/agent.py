@@ -335,7 +335,6 @@ class LaunchAgent:
                 return True
             return False
 
-        
         known_error = False
         try:
             run = job_tracker.run
