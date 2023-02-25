@@ -1,6 +1,4 @@
-"""
-apikey util.
-"""
+"""apikey util."""
 
 import os
 import stat
@@ -163,7 +161,7 @@ def prompt_api_key(  # noqa: C901
 
 
 def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
-    """Add our host and key to .netrc"""
+    """Add our host and key to .netrc."""
     key_prefix, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
         wandb.termerror(

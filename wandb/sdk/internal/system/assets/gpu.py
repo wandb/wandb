@@ -55,9 +55,7 @@ def gpu_in_use_by_this_process(gpu_handle: "GPUHandle", pid: int) -> bool:
 
 
 class GPUMemoryUtilization:
-    """
-    GPU memory utilization in percent for each GPU.
-    """
+    """GPU memory utilization in percent for each GPU."""
 
     # name = "memory_utilization"
     name = "gpu.{}.memory"
@@ -99,9 +97,7 @@ class GPUMemoryUtilization:
 
 
 class GPUMemoryAllocated:
-    """
-    GPU memory allocated in percent for each GPU.
-    """
+    """GPU memory allocated in percent for each GPU."""
 
     # name = "memory_allocated"
     name = "gpu.{}.memoryAllocated"
@@ -142,9 +138,7 @@ class GPUMemoryAllocated:
 
 
 class GPUUtilization:
-    """
-    GPU utilization in percent for each GPU.
-    """
+    """GPU utilization in percent for each GPU."""
 
     # name = "gpu_utilization"
     name = "gpu.{}.gpu"
@@ -186,9 +180,7 @@ class GPUUtilization:
 
 
 class GPUTemperature:
-    """
-    GPU temperature in Celsius for each GPU.
-    """
+    """GPU temperature in Celsius for each GPU."""
 
     # name = "gpu_temperature"
     name = "gpu.{}.temp"
@@ -233,9 +225,7 @@ class GPUTemperature:
 
 
 class GPUPowerUsageWatts:
-    """
-    GPU power usage in Watts for each GPU.
-    """
+    """GPU power usage in Watts for each GPU."""
 
     name = "gpu.{}.powerWatts"
     # samples: Deque[Tuple[datetime.datetime, float]]
@@ -273,9 +263,7 @@ class GPUPowerUsageWatts:
 
 
 class GPUPowerUsagePercent:
-    """
-    GPU power usage in percent for each GPU.
-    """
+    """GPU power usage in percent for each GPU."""
 
     name = "gpu.{}.powerPercent"
     # samples: Deque[Tuple[datetime.datetime, float]]

@@ -1,6 +1,4 @@
-"""
-file upload tests.
-"""
+"""file upload tests."""
 
 import os
 
