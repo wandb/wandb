@@ -1,10 +1,9 @@
-"""
-Utilities for wandb verify
-"""
+"""Utilities for wandb verify."""
 import getpass
 import os
 import time
 from functools import partial
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
@@ -253,11 +252,11 @@ def artifact_with_path_or_paths(
     with open(f"{verify_dir}/verify_1.txt", "w") as f:
         f.write("1")
     art.add_dir(verify_dir)
-    with open("verify_3.txt", "w") as f:
-        f.write("3")
+    file3 = Path(verify_dir) / "verify_3.txt"
+    file3.write_text("3")
 
     # reference to local file
-    art.add_reference("file://verify_3.txt")
+    art.add_reference(file3.resolve().as_uri())
 
     return art
 
@@ -276,7 +275,6 @@ def log_use_download_artifact(
         project=PROJECT_NAME,
         config={"test": "artifact log"},
     ) as log_art_run:
-
         if add_extra_file:
             with open("verify_2.txt", "w") as f:
                 f.write("2")

@@ -1,4 +1,4 @@
-"""Router - handle message router (base class)
+"""Router - handle message router (base class).
 
 Router to manage responses.
 

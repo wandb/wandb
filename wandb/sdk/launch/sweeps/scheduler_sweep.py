@@ -22,9 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class SweepScheduler(Scheduler):
-    """A SweepScheduler is a controller/agent that will populate a Launch RunQueue with
-    launch jobs it creates from run suggestions it pulls from an internal sweeps RunQueue.
-    """
+    """A controller/agent that populates a Launch RunQueue from a sweeps RunQueue."""
 
     def __init__(
         self,

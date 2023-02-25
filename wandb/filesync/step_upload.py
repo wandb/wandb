@@ -203,7 +203,7 @@ class StepUpload:
         self._spawn_upload(job)
 
     def _spawn_upload(self, job: upload_job.UploadJob) -> None:
-        """Spawns an upload job, and handles the bookkeeping of `self._running_jobs`.
+        """Spawn an upload job, and handles the bookkeeping of `self._running_jobs`.
 
         Context: it's important that, whenever we add an entry to `self._running_jobs`,
         we ensure that a corresponding `EventJobDone` message will eventually get handled;
@@ -214,7 +214,6 @@ class StepUpload:
         to `self._running_jobs` is textually right next to the code that eventually enqueues
         the `EventJobDone` message. This should help keep them in sync.
         """
-
         # Adding the entry to `self._running_jobs` MUST happen in the main thread,
         # NOT in the job that gets submitted to the thread-pool, to guard against
         # this sequence of events:

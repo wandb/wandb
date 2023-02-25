@@ -1,6 +1,4 @@
-"""
-metric internal tests.
-"""
+"""metric internal tests."""
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -331,7 +329,7 @@ def test_metric_nan_max(relay_server, user, publish_util, mock_run):
 
 
 def test_metric_dot_flat_escaped(relay_server, user, publish_util, mock_run):
-    """match works if metric is escaped."""
+    """Match works when metric is escaped."""
     history = []
     history.append(dict(step=0, data={"this.has.dots": 2}))
     history.append(dict(step=1, data={"this.also": 2}))
@@ -359,7 +357,7 @@ def test_metric_dot_flat_escaped(relay_server, user, publish_util, mock_run):
 
 
 def test_metric_dot_flat_notescaped(relay_server, user, publish_util, mock_run):
-    """match doesnt work if metric is not escaped."""
+    """Match doesn't work if metric is not escaped."""
     history = []
     history.append(dict(step=0, data={"this.has.dots": 2}))
     history.append(dict(step=1, data={"this.also": 2}))
@@ -397,10 +395,9 @@ def test_metric_dot_flat_notescaped(relay_server, user, publish_util, mock_run):
 
 
 def test_metric_dot_glob(relay_server, user, publish_util, mock_run):
-    """glob should escape the defined metric name."""
+    """Glob escapes the defined metric name."""
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay:
-
         history = []
         history.append(dict(step=0, data={"this.has.dots": 2}))
         history.append(dict(step=1, data={"this.also": 2}))

@@ -1,6 +1,4 @@
-"""
-disabled mode test.
-"""
+"""disabled mode test."""
 
 import os
 from unittest import mock
