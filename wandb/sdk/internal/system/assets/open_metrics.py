@@ -77,7 +77,7 @@ def _tuple_to_nested_dict(
     return {k: dict(v) for k, *v in nested_tuple}
 
 
-@lru_cache
+@lru_cache(maxsize=128)
 def _should_capture_metric(
     metric_name: str,
     metric_labels: Tuple[str, ...],
