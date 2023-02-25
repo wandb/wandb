@@ -109,7 +109,7 @@ class LaunchAgent:
         return list(self._jobs.keys())
 
     @property
-    def job_ids(self) -> List[Union[str]]:
+    def job_ids(self) -> List[str]:
         """Returns a list of keys running job ids for the agent."""
         job_ids: List[str] = []
         with self._jobs_lock:
