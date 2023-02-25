@@ -47,6 +47,7 @@ class JobAndRunStatus:
     failed_to_start: bool = False
     completed: bool = False
 
+    @property
     def job_completed(self) -> bool:
         return self.completed or self.failed_to_start
 
@@ -171,7 +172,7 @@ class LaunchAgent:
         """Check our status enum."""
         with self._jobs_lock:
             job = self._jobs[thread_id]
-        if job.job_completed():
+        if job.job_completed:
             self.finish_thread_id(thread_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
@@ -279,9 +280,9 @@ class LaunchAgent:
     ) -> None:
         thread_id = threading.current_thread().ident
         assert thread_id is not None
-        job_status = JobAndRunStatus()
+        job_tracker = JobAndRunStatus()
         with self._jobs_lock:
-            self._jobs[thread_id] = job_status
+            self._jobs[thread_id] = job_tracker
         project = create_project_from_spec(launch_spec, api)
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, api)
@@ -311,12 +312,12 @@ class LaunchAgent:
 
         if not run:
             with self._jobs_lock:
-                job_status.failed_to_start = True
+                job_tracker.failed_to_start = True
             return
         with self._jobs_lock:
-            job_status.run = run
+            job_tracker.run = run
         while self._jobs_event.is_set():
-            if self._check_run_finished(job_status):
+            if self._check_run_finished(job_tracker):
                 return
             time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
@@ -324,22 +325,28 @@ class LaunchAgent:
         if isinstance(run, LocalSubmittedRun):
             run.command_proc.kill()
 
-    def _check_run_finished(self, job_status: JobAndRunStatus) -> bool:
-        if job_status.run is None:
-            if job_status.failed_to_start:
+    def _check_run_finished(self, job_tracker: JobAndRunStatus) -> bool:
+        if job_tracker.completed:
+            return True
+
+        # the run can be done before the run has started
+        # but can also be none if the run failed to start
+        # so if there is no run, either the run hasn't started yet
+        # or it has failed
+        if job_tracker.run is None:
+            if job_tracker.failed_to_start:
                 return True
             return False
 
-        if job_status.completed:
-            return True
+        
         known_error = False
         try:
-            run = job_status.run
+            run = job_tracker.run
             status = run.get_status().state
             if status in ["stopped", "failed", "finished"]:
                 wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
-                    job_status.completed = True
+                    job_tracker.completed = True
                 return True
             return False
         except LaunchError as e:
@@ -348,7 +355,7 @@ class LaunchAgent:
             )
             known_error = True
             with self._jobs_lock:
-                job_status.failed_to_start = True
+                job_tracker.failed_to_start = True
         # TODO: make get_status robust to errors for each runner, and handle them
         # TODO: add sentry to track this case and solve issues
         except Exception:
