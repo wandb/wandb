@@ -108,12 +108,14 @@ class LaunchAgent:
         return list(self._jobs.keys())
 
     @property
-    def job_ids(self) -> List[Union[int, str]]:
+    def job_ids(self) -> List[Union[str]]:
         """Returns a list of keys running job ids for the agent."""
-        job_ids = []
-        for key in list(self._jobs.keys()):
-            if self._jobs[key].run is not None:
-                job_ids.append(self._jobs[key].run.id)
+        job_ids: List[str] = []
+        with self._jobs_lock:
+            for key in list(self._jobs.keys()):
+                run = self._jobs[key].run
+                if run is not None:
+                    job_ids.append(run.id)
         return job_ids
 
     def pop_from_queue(self, queue: str) -> Any:
@@ -253,9 +255,7 @@ class LaunchAgent:
             self._pool.close()
             self._pool.join()
 
-
-    ### Threaded functions
-
+    # Threaded functions
     def thread_run_job(
         self,
         launch_spec: Dict[str, Any],
