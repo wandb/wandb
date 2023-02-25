@@ -2,8 +2,7 @@ import wandb
 
 
 def scatter(table, x, y, title=None):
-    """
-    Construct a scatter plot.
+    """Construct a scatter plot.
 
     Arguments:
         table (wandb.Table): Table of data.

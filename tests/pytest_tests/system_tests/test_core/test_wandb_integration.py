@@ -1,6 +1,8 @@
-"""These test the full stack by launching a real backend server.  You won't get
-credit for coverage of the backend logic in these tests.  See test_sender.py for testing
-specific backend logic, or wandb_test.py for testing frontend logic.
+"""Test the full stack by launching a real backend server.
+
+You won't get credit for coverage of the backend logic in these tests.  See
+test_sender.py for testing specific backend logic, or wandb_test.py for testing frontend
+logic.
 
 Be sure to use `test_settings` or an isolated directory
 """
@@ -76,13 +78,13 @@ def test_ignore_globs_wandb_files(relay_server, wandb_init):
 
 
 def _remove_dir_if_exists(path):
-    """Recursively removes directory. Be careful"""
+    """Recursively removes directory. Be careful."""
     if os.path.isdir(path):
         shutil.rmtree(path)
 
 
 def test_dir_on_import():
-    """Ensures that `import wandb` does not create a local storage directory"""
+    """Ensure that `import wandb` does not create a local storage directory."""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
@@ -106,7 +108,7 @@ def test_dir_on_import():
 
 
 def test_dir_on_init(wandb_init):
-    """Ensures that `wandb.init()` creates the proper directory and nothing else"""
+    """Ensure that `wandb.init()` creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
 
     # Clear env if set
@@ -124,7 +126,7 @@ def test_dir_on_init(wandb_init):
 
 
 def test_dir_on_init_env(wandb_init):
-    """Ensures that `wandb.init()` w/ env variable set creates the proper directory and nothing else"""
+    """Ensure that `wandb.init()` w/ env variable set creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
@@ -155,7 +157,7 @@ def test_dir_on_init_env(wandb_init):
 
 
 def test_dir_on_init_dir(wandb_init):
-    """Ensures that `wandb.init(dir=DIR)` creates the proper directory and nothing else"""
+    """Ensure that `wandb.init(dir=DIR)` creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
     dir_name = "dir_custom"
     custom_dir_path = os.path.join(os.getcwd(), dir_name)
@@ -201,7 +203,6 @@ def test_versions_messages(wandb_init, capsys, version, message):
 
 
 def test_end_to_end_preempting(relay_server, wandb_init):
-
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
         run.mark_preempting()

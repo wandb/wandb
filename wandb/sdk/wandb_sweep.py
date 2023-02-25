@@ -67,16 +67,14 @@ def sweep(
         <!--yeadoc-test:one-parameter-sweep-->
         ```python
         import wandb
+
         sweep_configuration = {
             "name": "my-awesome-sweep",
             "metric": {"name": "accuracy", "goal": "maximize"},
             "method": "grid",
-            "parameters": {
-                "a": {
-                    "values": [1, 2, 3, 4]
-                }
-            }
+            "parameters": {"a": {"values": [1, 2, 3, 4]}},
         }
+
 
         def my_train_func():
             # read the current value of parameter "a" from wandb.config
@@ -85,13 +83,13 @@ def sweep(
 
             wandb.log({"a": a, "accuracy": a + 1})
 
+
         sweep_id = wandb.sweep(sweep_configuration)
 
         # run the sweep
         wandb.agent(sweep_id, function=my_train_func)
         ```
     """
-
     if callable(sweep):
         sweep = sweep()
     """Sweep create for controller api and jupyter (eventually for cli)."""
@@ -128,6 +126,7 @@ def controller(
     Usage:
         ```python
         import wandb
+
         tuner = wandb.controller(...)
         print(tuner.sweep_config)
         print(tuner.sweep_id)
