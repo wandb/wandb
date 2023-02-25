@@ -1,6 +1,4 @@
-"""
-module server
-"""
+"""module server."""
 
 import json
 

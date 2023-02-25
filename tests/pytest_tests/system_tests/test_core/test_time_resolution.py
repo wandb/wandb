@@ -1,6 +1,4 @@
-"""
-time resolution full tests.
-"""
+"""time resolution full tests."""
 
 import time
 
@@ -9,7 +7,6 @@ import pytest
 
 def test_log(relay_server, wandb_init):
     """Make sure log is generating history with subsecond resolution."""
-
     with relay_server() as relay:
         before = time.time()
         run = wandb_init()

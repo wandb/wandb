@@ -1,7 +1,5 @@
 #
-"""
-save.
-"""
+"""save."""
 
 import logging
 

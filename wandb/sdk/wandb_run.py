@@ -86,7 +86,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_artifacts import Artifact
+from .wandb_artifacts import Artifact, ArtifactNotLoggedError
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
@@ -773,7 +773,7 @@ class Run:
         return self
 
     def __getstate__(self) -> Any:
-        """Custom pickler."""
+        """Return run state as a custom pickle."""
         # We only pickle in service mode
         if not self._settings or self._settings._disable_service:
             return
@@ -785,7 +785,7 @@ class Run:
         return dict(_attach_id=self._attach_id, _init_pid=self._init_pid)
 
     def __setstate__(self, state: Any) -> None:
-        """Custom unpickler."""
+        """Set run state from a custom pickle."""
         if not state:
             return
 
@@ -807,7 +807,7 @@ class Run:
     @property
     @_run_decorator._attach
     def settings(self) -> Settings:
-        """Returns a frozen copy of run's Settings object."""
+        """A frozen copy of run's Settings object."""
         cp = self._settings.copy()
         cp.freeze()
         return cp
@@ -815,13 +815,13 @@ class Run:
     @property
     @_run_decorator._attach
     def dir(self) -> str:
-        """Returns the directory where files associated with the run are saved."""
+        """The directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property
     @_run_decorator._attach
     def config(self) -> wandb_config.Config:
-        """Returns the config object associated with this run."""
+        """Config object associated with this run."""
         return self._config
 
     @property
@@ -832,7 +832,7 @@ class Run:
     @property
     @_run_decorator._attach
     def name(self) -> Optional[str]:
-        """Returns the display name of the run.
+        """Display name of the run.
 
         Display names are not guaranteed to be unique and may be descriptive.
         By default, they are randomly generated.
@@ -855,7 +855,7 @@ class Run:
     @property
     @_run_decorator._attach
     def notes(self) -> Optional[str]:
-        """Returns the notes associated with the run, if there are any.
+        """Notes associated with the run, if there are any.
 
         Notes can be a multiline string and can also use markdown and latex equations
         inside `$$`, like `$x + 3$`.
@@ -876,7 +876,7 @@ class Run:
     @property
     @_run_decorator._attach
     def tags(self) -> Optional[Tuple]:
-        """Returns the tags associated with the run, if there are any."""
+        """Tags associated with the run, if there are any."""
         if self._tags:
             return self._tags
         run_obj = self._run_obj or self._run_obj_offline
@@ -896,7 +896,7 @@ class Run:
     @property
     @_run_decorator._attach
     def id(self) -> str:
-        """Returns the identifier for this run."""
+        """Identifier for this run."""
         if TYPE_CHECKING:
             assert self._run_id is not None
         return self._run_id
@@ -904,7 +904,7 @@ class Run:
     @property
     @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
-        """Returns the ID of the sweep associated with the run, if there is one."""
+        """ID of the sweep associated with the run, if there is one."""
         if not self._run_obj:
             return None
         return self._run_obj.sweep_id or None
@@ -918,7 +918,7 @@ class Run:
     @property
     @_run_decorator._attach
     def path(self) -> str:
-        """Returns the path to the run.
+        """Path to the run.
 
         Run paths include entity, project, and run ID, in the format
         `entity/project/run_id`.
@@ -935,7 +935,7 @@ class Run:
     @property
     @_run_decorator._attach
     def start_time(self) -> float:
-        """Returns the unix time stamp, in seconds, when the run started."""
+        """Unix timestamp (in seconds) of when the run started."""
         return self._get_start_time()
 
     def _get_starting_step(self) -> int:
@@ -944,19 +944,19 @@ class Run:
     @property
     @_run_decorator._attach
     def starting_step(self) -> int:
-        """Returns the first step of the run."""
+        """The first step of the run."""
         return self._get_starting_step()
 
     @property
     @_run_decorator._attach
     def resumed(self) -> bool:
-        """Returns True if the run was resumed, False otherwise."""
+        """True if the run was resumed, False otherwise."""
         return self._run_obj.resumed if self._run_obj else False
 
     @property
     @_run_decorator._attach
     def step(self) -> int:
-        """Returns the current value of the step.
+        """Current value of the step.
 
         This counter is incremented by `wandb.log`.
         """
@@ -996,7 +996,7 @@ class Run:
     @property
     @_run_decorator._attach
     def group(self) -> str:
-        """Returns the name of the group associated with the run.
+        """Name of the group associated with the run.
 
         Setting a group helps the W&B UI organize runs in a sensible way.
 
@@ -1016,7 +1016,7 @@ class Run:
     @property
     @_run_decorator._attach
     def project(self) -> str:
-        """Returns the name of the W&B project associated with the run."""
+        """Name of the W&B project associated with the run."""
         return self.project_name()
 
     @_run_decorator._attach
@@ -1027,7 +1027,7 @@ class Run:
         include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
-        """Saves the current state of your code to a W&B Artifact.
+        """Save the current state of your code to a W&B Artifact.
 
         By default, it walks the current directory and logs all files that end with `.py`.
 
@@ -1084,7 +1084,7 @@ class Run:
         return self._log_artifact(art)
 
     def get_url(self) -> Optional[str]:
-        """Returns the url for the W&B run, if there is one.
+        """Return the url for the W&B run, if there is one.
 
         Offline runs will not have a url.
         """
@@ -1094,7 +1094,7 @@ class Run:
         return self._settings.run_url
 
     def get_project_url(self) -> Optional[str]:
-        """Returns the url for the W&B project associated with the run, if there is one.
+        """Return the url for the W&B project associated with the run, if there is one.
 
         Offline runs will not have a project url.
         """
@@ -1104,7 +1104,7 @@ class Run:
         return self._settings.project_url
 
     def get_sweep_url(self) -> Optional[str]:
-        """Returns the url for the sweep associated with the run, if there is one."""
+        """Return the url for the sweep associated with the run, if there is one."""
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1113,13 +1113,13 @@ class Run:
     @property
     @_run_decorator._attach
     def url(self) -> Optional[str]:
-        """Returns the W&B url associated with the run."""
+        """The W&B url associated with the run."""
         return self.get_url()
 
     @property
     @_run_decorator._attach
     def entity(self) -> str:
-        """Returns the name of the W&B entity associated with the run.
+        """The name of the W&B entity associated with the run.
 
         Entity can be a user name or the name of a team or organization.
         """
@@ -1215,7 +1215,7 @@ class Run:
 
     @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
-        """Displays this run in jupyter."""
+        """Display this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
             ipython.display_html(self.to_html(height, hidden))
             return True
@@ -1225,7 +1225,7 @@ class Run:
 
     @_run_decorator._attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
-        """Generates HTML containing an iframe displaying the current run."""
+        """Generate HTML containing an iframe displaying the current run."""
         url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
@@ -1452,7 +1452,7 @@ class Run:
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
     ) -> None:
-        """Stores a singleton item to wandb config.
+        """Store a singleton item to wandb config.
 
         A singleton in this context is a piece of data that is continually
         logged with the same value in each history step, but represented
@@ -1523,7 +1523,7 @@ class Run:
         commit: Optional[bool] = None,
         sync: Optional[bool] = None,
     ) -> None:
-        """Logs a dictonary of data to the current run's history.
+        """Log a dictonary of data to the current run's history.
 
         Use `wandb.log` to log data from runs, such as scalars, images, video,
         histograms, plots, and tables.
@@ -1830,7 +1830,7 @@ class Run:
     def finish(
         self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
     ) -> None:
-        """Marks a run as finished, and finishes uploading all data.
+        """Mark a run as finished, and finishe uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
         call this method when your script exits or if you use the run context manager.
@@ -1872,7 +1872,7 @@ class Run:
     @_run_decorator._noop
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
-        """Deprecated alias for `finish()` - please use finish."""
+        """Deprecated alias for `finish()` - use finish instead."""  # noqa: D401
         deprecate.deprecate(
             field_name=deprecate.Deprecated.run__join,
             warning_message=(
@@ -1912,7 +1912,7 @@ class Run:
         fields: Dict[str, Any],
         string_fields: Optional[Dict[str, Any]] = None,
     ) -> CustomChart:
-        """Creates a custom plot on a table.
+        """Create a custom plot on a table.
 
         Arguments:
             vega_spec_name: the name of the spec for the plot
@@ -2551,7 +2551,7 @@ class Run:
         target_path: str,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Links the given artifact to a portfolio (a promoted collection of artifacts).
+        """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
         The linked artifact will be visible in the UI for the specified portfolio.
 
@@ -3007,7 +3007,7 @@ class Run:
 
     @_run_decorator._attach
     def mark_preempting(self) -> None:
-        """Marks this run as preempting.
+        """Mark this run as preempting.
 
         Also tells the internal process to immediately report this to server.
         """
@@ -3597,7 +3597,7 @@ def restore(
     replace: bool = False,
     root: Optional[str] = None,
 ) -> Union[None, TextIO]:
-    """Downloads the specified file from cloud storage.
+    """Download the specified file from cloud storage.
 
     File is placed into the current directory or run directory.
     By default, will only download the file if it doesn't already exist.
@@ -3655,7 +3655,7 @@ except AttributeError:
 
 
 def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
-    """Marks a run as finished, and finishes uploading all data.
+    """Mark a run as finished, and finish uploading all data.
 
     This is used when creating multiple runs in the same process.
     We automatically call this method when your script exits.
@@ -3668,24 +3668,33 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
 
 
+class InvalidArtifact:
+    """An "artifact" that raises an error when any properties are accessed."""
+
+    def __init__(self, base_artifact: "ArtifactInterface"):
+        super().__setattr__("base_artifact", base_artifact)
+
+    def __getattr__(self, __name: str) -> Any:
+        raise ArtifactNotLoggedError(artifact=self.base_artifact, attr=__name)
+
+    def __setattr__(self, __name: str, __value: Any) -> None:
+        raise ArtifactNotLoggedError(artifact=self.base_artifact, attr=__name)
+
+    def __bool__(self) -> bool:
+        return False
+
+
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
-    _instance: Optional[ArtifactInterface] = None
+    _instance: Union[ArtifactInterface, InvalidArtifact]
     _future: Any
 
     def __init__(self, api: PublicApi, future: Any):
         self._api = api
+        self._instance = InvalidArtifact(self)
         self._future = future
 
-    def _assert_instance(self) -> ArtifactInterface:
-        if not self._instance:
-            raise ValueError(
-                "Must call wait() before accessing logged artifact properties"
-            )
-        return self._instance
-
     def __getattr__(self, item: str) -> Any:
-        self._assert_instance()
         return getattr(self._instance, item)
 
     def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
@@ -3708,131 +3717,101 @@ class _LazyArtifact(ArtifactInterface):
 
     @property
     def id(self) -> Optional[str]:
-        return self._assert_instance().id
+        return self._instance.id
 
     @property
     def source_version(self) -> Optional[str]:
-        return self._assert_instance().source_version
+        return self._instance.source_version
 
     @property
     def version(self) -> str:
-        return self._assert_instance().version
+        return self._instance.version
 
     @property
     def name(self) -> str:
-        return self._assert_instance().name
+        return self._instance.name
 
     @property
     def type(self) -> str:
-        return self._assert_instance().type
+        return self._instance.type
 
     @property
     def entity(self) -> str:
-        return self._assert_instance().entity
+        return self._instance.entity
 
     @property
     def project(self) -> str:
-        return self._assert_instance().project
+        return self._instance.project
 
     @property
     def manifest(self) -> "ArtifactManifest":
-        return self._assert_instance().manifest
+        return self._instance.manifest
 
     @property
     def digest(self) -> str:
-        return self._assert_instance().digest
+        return self._instance.digest
 
     @property
     def state(self) -> str:
-        return self._assert_instance().state
+        return self._instance.state
 
     @property
     def size(self) -> int:
-        return self._assert_instance().size
+        return self._instance.size
 
     @property
     def commit_hash(self) -> str:
-        return self._assert_instance().commit_hash
+        return self._instance.commit_hash
 
     @property
     def description(self) -> Optional[str]:
-        return self._assert_instance().description
+        return self._instance.description
 
     @description.setter
     def description(self, desc: Optional[str]) -> None:
-        self._assert_instance().description = desc
+        self._instance.description = desc
 
     @property
     def metadata(self) -> dict:
-        return self._assert_instance().metadata
+        return self._instance.metadata
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
-        self._assert_instance().metadata = metadata
+        self._instance.metadata = metadata
 
     @property
     def aliases(self) -> List[str]:
-        return self._assert_instance().aliases
+        return self._instance.aliases
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
-        self._assert_instance().aliases = aliases
+        self._instance.aliases = aliases
 
     def used_by(self) -> List["wandb.apis.public.Run"]:
-        return self._assert_instance().used_by()
+        return self._instance.used_by()
 
     def logged_by(self) -> "wandb.apis.public.Run":
-        return self._assert_instance().logged_by()
-
-    # Commenting this block out since this code is unreachable since LocalArtifact
-    # overrides them and therefore untestable.
-    # Leaving behind as we may want to support these in the future.
-
-    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().new_file(name, mode)
-
-    # def add_file(
-    #     self,
-    #     local_path: str,
-    #     name: Optional[str] = None,
-    #     is_tmp: Optional[bool] = False,
-    # ) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add_file(local_path, name, is_tmp)
-
-    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
-    #     return self._assert_instance().add_dir(local_path, name)
-
-    # def add_reference(
-    #     self,
-    #     uri: Union["ArtifactManifestEntry", str],
-    #     name: Optional[str] = None,
-    #     checksum: bool = True,
-    #     max_objects: Optional[int] = None,
-    # ) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
-
-    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add(obj, name)
+        return self._instance.logged_by()
 
     def get_path(self, name: str) -> "ArtifactManifestEntry":
-        return self._assert_instance().get_path(name)
+        return self._instance.get_path(name)
 
     def get(self, name: str) -> "WBValue":
-        return self._assert_instance().get(name)
+        return self._instance.get(name)
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
     ) -> util.FilePathStr:
-        return self._assert_instance().download(root, recursive)
+        return self._instance.download(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:
-        return self._assert_instance().checkout(root)
+        return self._instance.checkout(root)
 
     def verify(self, root: Optional[str] = None) -> Any:
-        return self._assert_instance().verify(root)
+        return self._instance.verify(root)
 
     def save(self) -> None:
-        return self._assert_instance().save()
+        self._instance.save()
 
     def delete(self) -> None:
-        return self._assert_instance().delete()
+        self._instance.delete()

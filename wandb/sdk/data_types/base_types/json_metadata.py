@@ -21,9 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class JSONMetadata(Media):
-    """
-    JSONMetadata is a type for encoding arbitrary metadata as files.
-    """
+    """JSONMetadata is a type for encoding arbitrary metadata as files."""
 
     def __init__(self, val: dict) -> None:
         super().__init__()

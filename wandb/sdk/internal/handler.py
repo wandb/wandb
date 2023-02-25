@@ -413,7 +413,7 @@ class HandleManager:
             self._step += 1
 
     def _history_define_metric(self, hkey: str) -> Optional[MetricRecord]:
-        """check for hkey match in glob metrics, return defined metric."""
+        """Check for hkey match in glob metrics and return the defined metric."""
         # Dont define metric for internal metrics
         if hkey.startswith("_"):
             return None
@@ -478,7 +478,6 @@ class HandleManager:
         history: HistoryRecord,
         history_dict: Dict[str, Any],
     ) -> None:
-
         #  if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
             self._history_assign_step(history, history_dict)
@@ -825,8 +824,10 @@ class HandleManager:
         self._dispatch_record(record, always_send=True)
 
     def handle_request_keepalive(self, record: Record) -> None:
-        """keepalive is a noop, we just want to verify transport is alive."""
-        pass
+        """Handle a keepalive request.
+
+        Keepalive is a noop, we just want to verify transport is alive.
+        """
 
     def handle_request_run_status(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
