@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 import os
 import platform
 import sys
@@ -712,6 +713,15 @@ def test_launch_agent_runs(
         wandb.sdk.launch.agent.LaunchAgent,
         "pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
+    )
+
+    def mock_raise_exception():
+        raise Exception
+
+    monkeypatch.setattr(
+        multiprocessing.pool.Pool,
+        "apply_async",
+        lambda x, y: mock_raise_exception(),
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
