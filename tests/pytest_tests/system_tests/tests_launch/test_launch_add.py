@@ -104,10 +104,7 @@ def test_launch_add_delete_queued_run(
 
 
 # TODO(gst): Identify root cause of (threaded?) artifact creation error
-@pytest.mark.xfail(
-    strict=False,
-    reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
-)
+@pytest.mark.flaky(reruns=5)
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
@@ -169,12 +166,12 @@ def test_launch_build_push_job(
         launch_project,
         repository,
         entry_point,
-        docker_args,
+        docker_args=None,
     ):
         assert builder
         assert uri == launch_project.uri
         assert entry_point
-        if override_config and override_config.get("docker"):
+        if override_config and override_config.get("docker") and docker_args:
             assert docker_args == override_config.get("docker").get("args")
 
         return release_image

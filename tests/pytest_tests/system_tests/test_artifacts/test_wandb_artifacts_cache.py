@@ -109,8 +109,7 @@ def _cache_writer(artifact_cache):
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky")
+@pytest.mark.flaky(reruns=5)
 def test_check_write_parallel(cache):
     num_parallel = 5
 
@@ -174,8 +173,7 @@ def test_artifacts_cache_cleanup_tmp_files(cache):
     assert reclaimed_bytes == 1000
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky")
+@pytest.mark.flaky(reruns=5)
 def test_cache_cleanup_allows_upload(wandb_init, cache, monkeypatch):
     monkeypatch.setattr(wandb.sdk.interface.artifacts, "_artifacts_cache", cache)
     assert cache == wandb_sdk.wandb_artifacts.get_artifacts_cache()

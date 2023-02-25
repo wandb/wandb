@@ -703,8 +703,7 @@ def test_run_in_launch_context_with_artifacts_no_match(
 
 # this test includes building a docker container which can take some time,
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+@pytest.mark.flaky(reruns=5)
 @pytest.mark.timeout(320)
 def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
@@ -870,8 +869,7 @@ def test_launch_no_server_info(
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+@pytest.mark.flaky(reruns=5)
 @pytest.mark.timeout(60)
 def test_launch_metadata(
     live_mock_server,

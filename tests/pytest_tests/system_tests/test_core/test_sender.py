@@ -163,7 +163,7 @@ def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.flaky(reruns=5)
 def test_save_now_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -187,7 +187,7 @@ def test_save_now_existing_file(relay_server, user, mock_run, backend_interface)
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.flaky(reruns=5)
 def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -227,7 +227,7 @@ def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("checkpoints/test_2.txt") == 1
 
 
-@pytest.mark.xfail(reason="This test is flakey")
+@pytest.mark.flaky(reruns=5)
 def test_save_now_relative_path(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -242,7 +242,7 @@ def test_save_now_relative_path(relay_server, user, mock_run, backend_interface)
     assert uploaded_files.count("foo/test.txt") == 1
 
 
-@pytest.mark.xfail(reason="TODO: This test is flakey")
+@pytest.mark.flaky(reruns=5)
 def test_save_now_twice(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -308,7 +308,6 @@ def test_upgrade_yanked(
             "_find_available",
             lambda current_version: ("0.0.8", False, False, True, ""),
         ):
-
             ret = interface.communicate_check_version()
             assert ret
             assert (
@@ -342,7 +341,6 @@ def test_upgrade_yanked_message(
             "_find_available",
             lambda current_version: ("0.0.8", False, False, True, "just cuz"),
         ):
-
             ret = interface.communicate_check_version()
             assert ret
             assert (
@@ -394,7 +392,6 @@ def test_upgrade_removed(
 
 
 def test_sender_upsert_run(internal_sm, test_settings, mock_run):
-
     run = mock_run(use_magic_mock=True)
     run_proto = InterfaceBase()._make_run(run)
     record = pb.Record(run=run_proto)
