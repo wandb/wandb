@@ -142,6 +142,7 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
             "--cache=true",
             f"--cache-repo={repo_url}",
             "--snapshotMode=redo",
+            "--compressed-caching=false",
         ]
 
         assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
@@ -201,6 +202,7 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
             "--cache=true",
             f"--cache-repo={repo_url}",
             "--snapshotMode=redo",
+            "--compressed-caching=false",
         ]
 
         assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [

@@ -1,7 +1,7 @@
 """Local registry implementation."""
 from typing import Tuple
 
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 
 from ..environment.abstract import AbstractEnvironment
 from .abstract import AbstractRegistry

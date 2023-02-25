@@ -16,7 +16,7 @@ from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
-from wandb.sdk.launch.builder.docker import DockerBuilder
+from wandb.sdk.launch.builder.docker_builder import DockerBuilder
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,

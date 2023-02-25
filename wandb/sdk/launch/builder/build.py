@@ -32,6 +32,7 @@ from .._project_spec import (
 from ..utils import (
     LAUNCH_CONFIG_FILE,
     LOG_PREFIX,
+    ExecutionError,
     LaunchError,
     resolve_build_and_registry_config,
 )

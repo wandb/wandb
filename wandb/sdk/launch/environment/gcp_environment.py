@@ -180,10 +180,31 @@ class GcpEnvironment(AbstractEnvironment):
             # Check if the region is available using the compute API.
             compute_client = google.cloud.compute_v1.RegionsClient(credentials=creds)
             compute_client.get(project=self.project, region=self.region)
-        except google.api_core.exceptions.NotFound:
+        except google.api_core.exceptions.NotFound as e:
             raise LaunchError(
                 f"Region {self.region} is not available in project {self.project}."
+            ) from e
+
+    def verify_storage_uri(self, uri: str) -> None:
+        """Verify that a storage URI is valid.
+
+        Args:
+            uri: The storage URI.
+
+        Raises:
+            LaunchError: If the storage URI is invalid.
+        """
+        match = gcs_uri_re.match(uri)
+        if not match:
+            raise LaunchError(f"Invalid GCS URI: {uri}")
+        bucket = match.group(1)
+        try:
+            storage_client = google.cloud.storage.Client(
+                credentials=self.get_credentials()
             )
+            bucket = storage_client.post_bucket(bucket)
+        except google.api_core.exceptions.NotFound as e:
+            raise LaunchError(f"Bucket {bucket} does not exist.") from e
 
     def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to GCS.
@@ -211,7 +232,7 @@ class GcpEnvironment(AbstractEnvironment):
             blob = bucket.blob(key)
             blob.upload_from_filename(source)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload file to GCS: {e}")
+            raise LaunchError(f"Could not upload file to GCS: {e}") from e
 
     def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to GCS.
@@ -245,4 +266,6 @@ class GcpEnvironment(AbstractEnvironment):
                     blob = bucket.blob(gcs_path)
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
+            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
+            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
             raise LaunchError(f"Could not upload directory to GCS: {e}") from e

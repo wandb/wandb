@@ -1,7 +1,7 @@
 """Implementation of the docker builder."""
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import wandb
 import wandb.docker as docker

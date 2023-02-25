@@ -11,6 +11,7 @@ from kubernetes.client.models.v1_job import V1Job  # type: ignore
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
 
 import wandb
+from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry

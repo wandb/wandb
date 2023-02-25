@@ -11,11 +11,13 @@ if False:
 import yaml
 
 import wandb
+from wandb.apis.internal import Api
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder
 from ..builder.build import get_env_vars_dict
+from ..environment.gcp_environment import GcpEnvironment
 from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError, run_shell
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -115,10 +117,6 @@ class VertexRunner(AbstractRunner):
         )
         service_account = resource_args.get("service_account")
         tensorboard = resource_args.get("tensorboard")
-
-        _logger.info(
-            f"Initializing AI platform with project {gcp_project}, location {gcp_region}, staging bucket {gcp_staging_bucket}"
-        )
         aiplatform.init(
             project=self.environment.project,
             location=self.environment.region,

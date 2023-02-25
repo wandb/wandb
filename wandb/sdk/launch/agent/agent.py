@@ -17,9 +17,11 @@ from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
+from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from ..builder.build import construct_builder_args
 from ..runner.abstract import AbstractRun
-from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
+from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -381,19 +383,25 @@ class LaunchAgent:
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        override_build_config = launch_spec.get("build")
-        override_registry_config = launch_spec.get("registry")
+        override_build_config = launch_spec.get("builder")
 
-        build_config, registry_config = resolve_build_and_registry_config(
-            default_config, override_build_config, override_registry_config
+        build_config, registry_config = construct_builder_args(
+            default_config, override_build_config
         )
-        builder = load_builder(build_config)
 
-        default_runner = default_config.get("runner", {}).get("type")
-        if default_runner == resource:
-            backend_config["runner"] = default_config.get("runner")
-        backend = load_backend(resource, api, backend_config)
-        backend.verify()
+        environment = loader.environment_from_config(
+            default_config.get("environment", {})
+        )
+        registry = loader.registry_from_config(registry_config, environment)
+        builder = loader.builder_from_config(build_config, environment, registry)
+        backend = loader.runner_from_config(resource, api, backend_config, environment)
+        # builder = load_builder(build_config)
+
+        # default_runner = default_config.get("runner", {}).get("type")
+        # if default_runner == resource:
+        #     backend_config["runner"] = default_config.get("runner")
+        # backend = load_backend(resource, api, backend_config)
+        # backend.verify()
         _logger.info("Backend loaded...")
         run = backend.run(project, builder, registry_config)
 

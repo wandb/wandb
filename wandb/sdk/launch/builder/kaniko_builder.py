@@ -9,7 +9,6 @@ import kubernetes  # type: ignore
 from kubernetes import client
 
 import wandb
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -17,6 +16,7 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
+from wandb.sdk.launch.utils import LaunchError
 
 from .._project_spec import (
     EntryPoint,
@@ -351,7 +351,7 @@ class KanikoBuilder(AbstractBuilder):
         ]
         container = client.V1Container(
             name="wandb-container-build",
-            image="gcr.io/kaniko-project/executor:v1.8.0-debug",
+            image="gcr.io/kaniko-project/executor:v1.8.0",
             args=args,
             volume_mounts=volume_mounts,
             env=env if env else None,
