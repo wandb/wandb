@@ -21,8 +21,9 @@ from typing import (
 import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5, b64_to_hex_id
+from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -98,9 +99,9 @@ class ArtifactManifest:
 
 @dataclass
 class ArtifactManifestEntry:
-    path: util.LogicalFilePathStr
-    digest: Union[B64MD5, util.URIStr, util.FilePathStr, ETag]
-    ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
+    path: LogicalFilePathStr
+    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
+    ref: Optional[Union[FilePathStr, URIStr]] = None
     birth_artifact_id: Optional[str] = None
     size: Optional[int] = None
     extra: Dict = field(default_factory=dict)
@@ -121,7 +122,7 @@ class ArtifactManifestEntry:
         """
         raise NotImplementedError
 
-    def download(self, root: Optional[str] = None) -> util.FilePathStr:
+    def download(self, root: Optional[str] = None) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
         Arguments:
@@ -572,7 +573,7 @@ class Artifact:
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
-    ) -> util.FilePathStr:
+    ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
         NOTE: Any existing files at `root` are left untouched. Explicitly delete
@@ -785,7 +786,7 @@ class StorageHandler:
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[util.URIStr, util.FilePathStr]:
+    ) -> Union[URIStr, FilePathStr]:
         """Load a file or directory given the corresponding index entry.
 
         :param manifest_entry: The index entry to load
@@ -815,7 +816,7 @@ class ArtifactsCache:
 
     def __init__(self, cache_dir):
         self._cache_dir = cache_dir
-        filesystem.mkdir_exists_ok(self._cache_dir)
+        mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id = {}
@@ -825,23 +826,23 @@ class ArtifactsCache:
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
-    ) -> Tuple[util.FilePathStr, bool, "Opener"]:
+    ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
+        mkdir_exists_ok(os.path.dirname(path))
         return path, False, opener
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
     def check_etag_obj_path(
         self,
-        url: util.URIStr,
+        url: URIStr,
         etag: ETag,
         size: int,
-    ) -> Tuple[util.FilePathStr, bool, "Opener"]:
+    ) -> Tuple[FilePathStr, bool, "Opener"]:
         hexhash = hashlib.sha256(
             hashlib.sha256(url.encode("utf-8")).digest()
             + hashlib.sha256(etag.encode("utf-8")).digest()
@@ -850,19 +851,19 @@ class ArtifactsCache:
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
-        return path, False, opener
+        mkdir_exists_ok(os.path.dirname(path))
+        return FilePathStr(path), False, opener
 
-    def get_artifact(self, artifact_id):
+    def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
 
-    def store_artifact(self, artifact):
+    def store_artifact(self, artifact: "Artifact") -> None:
         self._artifacts_by_id[artifact.id] = artifact
 
-    def get_client_artifact(self, client_id):
+    def get_client_artifact(self, client_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_client_id.get(client_id)
 
-    def store_client_artifact(self, artifact):
+    def store_client_artifact(self, artifact: "Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
@@ -898,9 +899,9 @@ class ArtifactsCache:
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
 
-    def _cache_opener(self, path):
+    def _cache_opener(self, path: StrPath) -> "Opener":
         @contextlib.contextmanager
-        def helper(mode="w"):
+        def helper(mode: str = "w"):
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
@@ -951,10 +952,10 @@ def get_artifacts_cache() -> ArtifactsCache:
     return _artifacts_cache
 
 
-def get_staging_dir() -> util.FilePathStr:
+def get_staging_dir() -> FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    filesystem.mkdir_exists_ok(path)
-    return util.FilePathStr(os.path.abspath(os.path.expanduser(path)))
+    mkdir_exists_ok(path)
+    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
 
 
 def get_new_staging_file() -> IO:
