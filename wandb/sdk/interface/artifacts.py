@@ -954,7 +954,7 @@ def get_artifacts_cache() -> ArtifactsCache:
 def get_staging_dir() -> util.FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
     filesystem.mkdir_exists_ok(path)
-    return os.path.abspath(os.path.expanduser(path))
+    return util.FilePathStr(os.path.abspath(os.path.expanduser(path)))
 
 
 def get_new_staging_file() -> IO:
