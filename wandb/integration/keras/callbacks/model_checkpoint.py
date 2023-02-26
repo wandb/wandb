@@ -157,7 +157,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         try:
             assert wandb.run is not None
             model_artifact = wandb.Artifact(
-                f"run_{wandb.run.id}_model", type="model", metadata=self.metadata
+                f"run_{wandb.run.id}_model",
+                type="model" if not self.save_weights_only else "weights",
+                metadata=self.metadata,
             )
             if os.path.isdir(filepath):
                 model_artifact.add_dir(filepath)
