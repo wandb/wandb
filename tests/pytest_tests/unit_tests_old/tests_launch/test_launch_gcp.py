@@ -12,8 +12,8 @@ from wandb.sdk.launch.utils import LaunchError
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
-SUCCEEDED = "PipelineState.PIPELINE_STATE_SUCCEEDED"
-FAILED = "PipelineState.PIPELINE_STATE_FAILED"
+SUCCEEDED = "JobState.JOB_STATE_SUCCEEDED"
+FAILED = "JobState.JOB_STATE_FAILED"
 
 
 class MockDict(dict):
@@ -136,6 +136,9 @@ def test_launch_gcp_vertex(
     mocker.patch(
         "wandb.sdk.launch.loader.environment_from_config", return_value=environment
     )
+    mocker.patch(
+        "wandb.sdk.launch.loader.builder_from_config", lambda *args: MagicMock()
+    )
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]
@@ -182,6 +185,9 @@ def test_launch_gcp_vertex_failed(
     mocker.patch(
         "wandb.sdk.launch.loader.environment_from_config", return_value=environment
     )
+    mocker.patch(
+        "wandb.sdk.launch.loader.builder_from_config", lambda *args: MagicMock()
+    )
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]
     assert run.name == job_dict["display_name"]
@@ -208,6 +214,9 @@ def test_vertex_options(mocker, test_settings, monkeypatch, mocked_fetchable_git
     environment.region = "dummy"
     mocker.patch(
         "wandb.sdk.launch.loader.environment_from_config", return_value=environment
+    )
+    mocker.patch(
+        "wandb.sdk.launch.loader.builder_from_config", lambda *args: MagicMock()
     )
     try:
         launch.run(**kwargs)
@@ -256,6 +265,9 @@ def test_vertex_supplied_docker_image(
     environment.region = "dummy"
     mocker.patch(
         "wandb.sdk.launch.loader.environment_from_config", lambda *args: environment
+    )
+    mocker.patch(
+        "wandb.sdk.launch.loader.builder_from_config", lambda *args: MagicMock()
     )
     run = launch.run(**kwargs)
     assert run.id == job_dict["name"]

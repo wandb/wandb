@@ -178,7 +178,6 @@ class VertexRunner(AbstractRunner):
                 service_account=service_account,
                 tensorboard=tensorboard,
             )
-        job.wait_for_resource_creation()
 
         submitted_run = VertexSubmittedRun(job)
 
