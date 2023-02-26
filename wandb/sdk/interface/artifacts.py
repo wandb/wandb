@@ -9,6 +9,7 @@ from typing import (
     TYPE_CHECKING,
     ContextManager,
     Dict,
+    Generator,
     List,
     Mapping,
     Optional,
@@ -48,7 +49,6 @@ class ArtifactManifest:
     entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
-    # TODO: we don't need artifact here.
     def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
@@ -60,7 +60,7 @@ class ArtifactManifest:
 
     @classmethod
     def version(cls) -> int:
-        pass
+        raise NotImplementedError
 
     def __init__(
         self,
@@ -68,7 +68,7 @@ class ArtifactManifest:
         entries: Optional[Mapping[str, "ArtifactManifestEntry"]] = None,
     ) -> None:
         self.storage_policy = storage_policy
-        self.entries = entries or {}
+        self.entries = dict(entries) if entries else {}
 
     def to_manifest_json(self) -> Dict:
         raise NotImplementedError
@@ -109,8 +109,7 @@ class ArtifactManifestEntry:
 
     def __post_init__(self) -> None:
         self.path = util.to_forward_slash_path(self.path)
-        if self.extra is None:
-            self.extra = {}
+        self.extra = self.extra or {}
         if self.local_path and self.size is None:
             raise ValueError("size required when local_path specified")
 
@@ -164,6 +163,23 @@ class ArtifactManifestEntry:
             ```
         """
         raise NotImplementedError
+
+
+class ArtifactNotLoggedError(Exception):
+    """Raised for Artifact methods or attributes that require the logged artifact."""
+
+    def __init__(
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
+    ):
+        desc = artifact.__class__.__name__ if artifact else "Artifact"
+        desc += f".{attr}" if attr else ""
+        super().__init__(
+            f"'{desc}' used prior to logging artifact or while in offline mode."
+            "Call wait() before accessing logged artifact properties."
+        )
+        # Follow the same pattern as AttributeError.
+        self.obj = artifact
+        self.name = attr
 
 
 class Artifact:
@@ -316,7 +332,9 @@ class Artifact:
         """Get the run that first logged this artifact."""
         raise NotImplementedError
 
-    def new_file(self, name: str, mode: str = "w", encoding: Optional[str] = None):
+    def new_file(
+        self, name: str, mode: str = "w", encoding: Optional[str] = None
+    ) -> ContextManager[IO]:
         """Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
@@ -343,7 +361,7 @@ class Artifact:
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
-    ):
+    ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
         Arguments:
@@ -410,7 +428,7 @@ class Artifact:
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ):
+    ) -> Sequence[ArtifactManifestEntry]:
         """Add a reference denoted by a URI to the artifact.
 
         Unlike adding files or directories, references are NOT uploaded to W&B. However,
@@ -475,7 +493,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add(self, obj: WBValue, name: str):
+    def add(self, obj: WBValue, name: str) -> ArtifactManifestEntry:
         """Add wandb.WBValue `obj` to the artifact.
 
         ```
@@ -691,7 +709,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def __setitem__(self, name: str, item: WBValue):
+    def __setitem__(self, name: str, item: WBValue) -> "ArtifactManifestEntry":
         """Add `item` to the artifact at path `name`.
 
         Arguments:
@@ -738,10 +756,10 @@ class StoragePolicy:
         raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config: Dict) -> Optional["StoragePolicy"]:
+    def from_config(cls, config):
         raise NotImplementedError
 
-    def config(self) -> dict:
+    def config(self):
         raise NotImplementedError
 
     def load_file(
@@ -760,8 +778,8 @@ class StoragePolicy:
         raise NotImplementedError
 
     def store_reference(
-        self, artifact: Artifact, path: str, name=None, checksum=True, max_objects=None
-    ) -> Sequence[ArtifactManifestEntry]:
+        self, artifact, path, name=None, checksum=True, max_objects=None
+    ):
         raise NotImplementedError
 
     def load_reference(
@@ -797,7 +815,12 @@ class StorageHandler:
         raise NotImplementedError
 
     def store_path(
-        self, artifact, path, name=None, checksum=True, max_objects=None
+        self,
+        artifact: Artifact,
+        path: Union[URIStr, FilePathStr],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
         """Store the file or directory at the given path to the specified artifact.
 
@@ -814,15 +837,15 @@ class StorageHandler:
 class ArtifactsCache:
     _TMP_PREFIX = "tmp"
 
-    def __init__(self, cache_dir):
+    def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = cache_dir
         mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self._artifacts_by_id = {}
+        self._artifacts_by_id: Dict[str, Artifact] = {}
         self._random = random.Random()
         self._random.seed()
-        self._artifacts_by_client_id = {}
+        self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
@@ -831,9 +854,9 @@ class ArtifactsCache:
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True, opener
+            return FilePathStr(path), True, opener
         mkdir_exists_ok(os.path.dirname(path))
-        return path, False, opener
+        return FilePathStr(path), False, opener
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -850,7 +873,7 @@ class ArtifactsCache:
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True, opener
+            return FilePathStr(path), True, opener
         mkdir_exists_ok(os.path.dirname(path))
         return FilePathStr(path), False, opener
 
@@ -858,22 +881,26 @@ class ArtifactsCache:
         return self._artifacts_by_id.get(artifact_id)
 
     def store_artifact(self, artifact: "Artifact") -> None:
+        if not artifact.id:
+            raise ArtifactNotLoggedError(artifact, "store_artifact")
         self._artifacts_by_id[artifact.id] = artifact
 
-    def get_client_artifact(self, client_id: str) -> Optional["Artifact"]:
+    def get_client_artifact(
+        self, client_id: str
+    ) -> Optional["wandb_artifacts.Artifact"]:
         return self._artifacts_by_client_id.get(client_id)
 
-    def store_client_artifact(self, artifact: "Artifact") -> None:
+    def store_client_artifact(self, artifact: "wandb_artifacts.Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
-        bytes_reclaimed: int = 0
-        paths: Dict[os.PathLike, os.stat_result] = {}
-        total_size: int = 0
+        bytes_reclaimed = 0
+        paths = {}
+        total_size = 0
         for root, _, files in os.walk(self._cache_dir):
             for file in files:
                 try:
-                    path = os.path.join(root, file)
+                    path = str(os.path.join(root, file))
                     stat = os.stat(path)
 
                     if file.startswith(ArtifactsCache._TMP_PREFIX):
@@ -901,7 +928,7 @@ class ArtifactsCache:
 
     def _cache_opener(self, path: StrPath) -> "Opener":
         @contextlib.contextmanager
-        def helper(mode: str = "w"):
+        def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
