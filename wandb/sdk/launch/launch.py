@@ -133,7 +133,6 @@ def _run(
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
-    cuda: Optional[bool],
     api: Api,
     run_id: Optional[str],
     repository: Optional[str],
@@ -153,7 +152,6 @@ def _run(
         parameters,
         resource_args,
         launch_config,
-        cuda,
         run_id,
         repository,
     )
@@ -204,7 +202,6 @@ def run(
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
-    cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
 ) -> AbstractRun:
@@ -234,7 +231,6 @@ def run(
         asynchronous runs launched via this method will be terminated. If
         ``synchronous`` is True and the run fails, the current process will
         error out as well.
-    cuda: Whether to build a CUDA-enabled docker image or not
     run_id: ID for the run (To ultimately replace the :name: field)
     repository: string name of repository path for remote registry
 
@@ -277,7 +273,6 @@ def run(
         resource_args=resource_args,
         launch_config=config,
         synchronous=synchronous,
-        cuda=cuda,
         api=api,
         run_id=run_id,
         repository=repository,

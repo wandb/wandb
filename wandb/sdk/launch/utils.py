@@ -146,7 +146,6 @@ def construct_launch_spec(
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
-    cuda: Optional[bool],
     run_id: Optional[str],
     repository: Optional[str],
 ) -> Dict[str, Any]:
@@ -202,8 +201,6 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
-    if cuda is not None:
-        launch_spec["cuda"] = cuda
 
     if run_id is not None:
         launch_spec["run_id"] = run_id

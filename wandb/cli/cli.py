@@ -1136,14 +1136,6 @@ def sweep(
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
-    "--cuda",
-    is_flag=False,
-    flag_value=True,
-    default=None,
-    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
-    "built by default and you must set --cuda=False to build a CPU-only image.",
-)
-@click.option(
     "--build",
     "-b",
     is_flag=True,
@@ -1179,7 +1171,6 @@ def launch(
     queue,
     run_async,
     resource_args,
-    cuda,
     build,
     repository,
     project_queue,
@@ -1208,18 +1199,6 @@ def launch(
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
-
-    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
-    if cuda is not None:
-        # preserve cuda=None as unspecified, otherwise convert to bool
-        if cuda == "True":
-            cuda = True
-        elif cuda == "False":
-            cuda = False
-        else:
-            raise LaunchError(
-                f"Invalid value for --cuda: {cuda!r} is not a valid boolean."
-            )
 
     args_dict = util._user_args_to_dict(args_list)
 
@@ -1270,7 +1249,6 @@ def launch(
                 resource_args=resource_args,
                 config=config,
                 synchronous=(not run_async),
-                cuda=cuda,
                 run_id=run_id,
                 repository=repository,
             )
