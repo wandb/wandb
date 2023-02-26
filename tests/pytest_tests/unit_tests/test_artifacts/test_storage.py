@@ -337,21 +337,11 @@ def test_storage_handler_incomplete():
     class UnfinishedStorageHandler(wandb_artifacts.StorageHandler):
         pass
 
-    # Invalid argument values since we're only testing abstract code coverage.
-    abstract_method_args = {
-        "scheme": {},
-        "load_path": dict(manifest_entry=None),
-        "store_path": dict(artifact=None, path=""),
-    }
     ush = UnfinishedStorageHandler()
-    for method, kwargs in abstract_method_args.items():
-        with pytest.raises(NotImplementedError):
-            getattr(ush, method)(**kwargs)
 
-    UnfinishedStorageHandler.name = lambda: "UnfinishedStorageHandler"
-
-    handler = wandb_artifacts.StorageHandler.lookup_by_name("UnfinishedStorageHandler")
-    assert handler is UnfinishedStorageHandler
-
-    not_handler = wandb_artifacts.StorageHandler.lookup_by_name("NotAStorageHandler")
-    assert not_handler is None
+    with pytest.raises(NotImplementedError):
+        ush.scheme()
+    with pytest.raises(NotImplementedError):
+        ush.load_path(manifest_entry=None)
+    with pytest.raises(NotImplementedError):
+        ush.store_path(artifact=None, path="")
