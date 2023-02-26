@@ -773,6 +773,7 @@ class ArtifactManifestV1(ArtifactManifest):
         storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
         if storage_policy_cls is None:
             raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
+        assert issubclass(storage_policy_cls, WandbStoragePolicy)  # for mypy
 
         entries: Mapping[str, ArtifactManifestEntry]
         entries = {
