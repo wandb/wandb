@@ -7,7 +7,7 @@ from wandb import util
 from wandb.apis import InternalApi
 
 if TYPE_CHECKING:
-    Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
+    from wandb.sdk.wandb_settings import Settings
 
 
 class ServerError(Exception):
@@ -21,9 +21,9 @@ class Server:
         settings: Optional["Settings"] = None,
     ) -> None:
         self._api = api or InternalApi(default_settings=settings)
-        self._error_network = None
-        self._viewer = {}
-        self._flags = {}
+        self._error_network: Optional[bool] = None
+        self._viewer: Dict[str, Any] = {}
+        self._flags: Dict[str, Any] = {}
         self._settings = settings
 
     def query_with_timeout(self, timeout: Union[int, float, None] = None) -> None:
@@ -46,7 +46,7 @@ class Server:
         self._viewer, self._serverinfo = viewer_tuple
         self._flags = json.loads(self._viewer.get("flags", "{}"))
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         if self._error_network is None:
             raise Exception("invalid usage: must query server")
         return self._error_network

@@ -23,7 +23,7 @@ from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
 
 Logger = Union[logging.Logger, "_EarlyLogger"]
-Settings = Union["wandb_settings.Settings", Dict[str, Any]]
+Settings = "wandb_settings.Settings"
 
 if TYPE_CHECKING:
     from . import wandb_run
