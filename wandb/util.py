@@ -1603,6 +1603,7 @@ def _has_internet() -> bool:
 
 
 def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
+    wandb.termerror("rand_alphanumeric is deprecated, use 'secrets.token_hex'")
     rand = rand or random
     return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
