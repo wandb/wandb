@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 import boto3
 import kubernetes
 import pytest
-
 import wandb
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.runner.kubernetes_runner import (

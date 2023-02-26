@@ -2,10 +2,9 @@ import subprocess
 from unittest.mock import MagicMock
 
 import pytest
-from google.cloud import aiplatform
-
 import wandb
 import wandb.sdk.launch.launch as launch
+from google.cloud import aiplatform
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 from wandb.sdk.launch.runner.vertex_runner import get_gcp_config, run_shell
 from wandb.sdk.launch.utils import LaunchError
