@@ -61,12 +61,14 @@ class VertexSubmittedRun(AbstractRun):
 
     def get_status(self) -> Status:
         job_state = str(self._job.state)  # extract from type PipelineState
-        if job_state == "PipelineState.PIPELINE_STATE_SUCCEEDED":
+        if job_state == "JobState.JOB_STATE_SUCCEEDED":
             return Status("finished")
-        if job_state == "PipelineState.PIPELINE_STATE_FAILED":
+        if job_state == "JobState.JOB_STATE_FAILED":
             return Status("failed")
-        if job_state == "PipelineState.PIPELINE_STATE_RUNNING":
+        if job_state == "JobState.JOB_STATE_RUNNING":
             return Status("running")
+        if job_state == "JobState.JOB_STATE_PENDING":
+            return Status("starting")
         return Status("unknown")
 
     def cancel(self) -> None:
@@ -172,9 +174,6 @@ class VertexRunner(AbstractRunner):
             f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
         )
 
-        _logger.info(
-            f"Running job (ID {job.id}, name {job.name}) with service account {service_account}, tensorboard {tensorboard}"
-        )
         # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
         # on this thread but continues to block the process on another thread. always set sync=False so we can get
         # the job info (dependent on job._gca_resource)
