@@ -160,7 +160,7 @@ class AbstractRunner(ABC):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: Optional[AbstractBuilder],
+        builder: AbstractBuilder,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

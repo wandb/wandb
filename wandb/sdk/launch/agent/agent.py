@@ -8,7 +8,7 @@ import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import wandb
 import wandb.util as util
@@ -90,22 +90,22 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    _entity: str
-    _project: str
-    _api: Api
-    _base_url: str
-    _jobs: Dict[Union[int, str], AbstractRun]
-    _ticks: int
-    _running: int
-    _cwd: str
-    _namespace: str
-    _access: str
-    _max_jobs: float
-    default_config: Dict[str, Any]
-    gorilla_supports_agents: bool
-    _queues: List[str]
-    _id: str
-    _name: str
+    # _entity: str
+    # _project: str
+    # _api: Api
+    # _base_url: str
+    # _jobs: Dict[Union[int, str], AbstractRun]
+    # _ticks: int
+    # _running: int
+    # _cwd: str
+    # _namespace: str
+    # _access: str
+    # _max_jobs: float
+    # default_config: Dict[str, Any]
+    # gorilla_supports_agents: bool
+    # _queues: List[str]
+    # _id: str
+    # _name: str
 
     def __init__(self, api: Api, config: Dict[str, Any]):
         """Initialize a launch agent.
@@ -403,7 +403,7 @@ class LaunchAgent:
         # backend = load_backend(resource, api, backend_config)
         # backend.verify()
         _logger.info("Backend loaded...")
-        run = backend.run(project, builder, registry_config)
+        run = backend.run(project, builder)
 
         if _job_is_scheduler(launch_spec):
             with self._jobs_lock:

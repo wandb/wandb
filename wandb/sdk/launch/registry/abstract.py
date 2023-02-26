@@ -24,6 +24,15 @@ class AbstractRegistry(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def get_repo_uri(self) -> str:
+        """Get the URI for a repository.
+
+        Returns:
+            str: The URI.
+        """
+        raise NotImplementedError
+
     @classmethod
     @abstractmethod
     def from_config(

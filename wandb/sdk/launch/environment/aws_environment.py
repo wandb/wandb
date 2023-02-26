@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from typing import Dict
 
 from wandb.sdk.launch.utils import LaunchError
 from wandb.util import get_module
@@ -83,6 +84,29 @@ class AwsEnvironment(AbstractEnvironment):
             access_key=access_key,
             secret_key=secret_key,
             session_token=session_token,
+            verify=verify,
+        )
+
+    @classmethod
+    def from_config(
+        cls, config: Dict[str, str], verify: bool = True
+    ) -> "AwsEnvironment":
+        """Create an AWS environment from the default AWS environment.
+
+        Args:
+            config (dict): Configuration dictionary.
+            verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
+
+        Returns:
+            AwsEnvironment: The AWS environment.
+        """
+        region = str(config.get("region", ""))
+        if not region:
+            raise LaunchError(
+                "Could not create AWS environment from config. Region not specified."
+            )
+        return cls.from_default(
+            region=region,
             verify=verify,
         )
 
