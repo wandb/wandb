@@ -95,8 +95,9 @@ class VertexRunner(AbstractRunner):
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )
-
         resource_args = launch_project.resource_args.get("vertex")
+        if not resource_args:
+            resource_args = launch_project.resource_args.get("gcp-vertex")
         if not resource_args:
             raise LaunchError(
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
@@ -166,18 +167,20 @@ class VertexRunner(AbstractRunner):
             display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
         )
 
-        submitted_run = VertexSubmittedRun(job)
-
-        # todo: support gcp dataset?
-
         wandb.termlog(
             f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
         )
 
-        # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
-        # on this thread but continues to block the process on another thread. always set sync=False so we can get
-        # the job info (dependent on job._gca_resource)
-        job.run(service_account=service_account, tensorboard=tensorboard, sync=False)
+        if synchronous:
+            job.run(service_account=service_account, tensorboard=tensorboard, sync=True)
+        else:
+            job.submit(
+                service_account=service_account,
+                tensorboard=tensorboard,
+            )
+        job.wait_for_resource_creation()
+
+        submitted_run = VertexSubmittedRun(job)
 
         while not getattr(job._gca_resource, "name", None):
             # give time for the gcp job object to be created and named, this should only loop a couple times max
@@ -186,12 +189,6 @@ class VertexRunner(AbstractRunner):
         wandb.termlog(
             f"{LOG_PREFIX}View your job status and logs at {submitted_run.get_page_link()}."
         )
-
-        # hacky: if user doesn't want blocking behavior, kill both main thread and the background thread. job continues
-        # to run remotely. this obviously doesn't work if we need to do some sort of postprocessing after this run fn
-        if not synchronous:
-            os._exit(0)
-
         return submitted_run
 
 

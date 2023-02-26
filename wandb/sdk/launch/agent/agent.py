@@ -90,23 +90,6 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    # _entity: str
-    # _project: str
-    # _api: Api
-    # _base_url: str
-    # _jobs: Dict[Union[int, str], AbstractRun]
-    # _ticks: int
-    # _running: int
-    # _cwd: str
-    # _namespace: str
-    # _access: str
-    # _max_jobs: float
-    # default_config: Dict[str, Any]
-    # gorilla_supports_agents: bool
-    # _queues: List[str]
-    # _id: str
-    # _name: str
-
     def __init__(self, api: Api, config: Dict[str, Any]):
         """Initialize a launch agent.
 

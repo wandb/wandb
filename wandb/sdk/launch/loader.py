@@ -207,7 +207,7 @@ def runner_from_config(
             )
         from .runner.sagemaker_runner import SagemakerRunner
         return SagemakerRunner(api, runner_config, environment)
-    if runner_name == "vertex":
+    if runner_name in ["vertex", "gcp-vertex"]:
         from .environment.gcp_environment import GcpEnvironment
         if not isinstance(environment, GcpEnvironment):
             raise LaunchError(
