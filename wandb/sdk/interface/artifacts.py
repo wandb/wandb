@@ -10,6 +10,7 @@ from typing import (
     ContextManager,
     Dict,
     List,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -21,7 +22,7 @@ import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
+from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5, b64_to_hex_id
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -47,7 +48,7 @@ class ArtifactManifest:
 
     @classmethod
     # TODO: we don't need artifact here.
-    def from_manifest_json(cls, manifest_json) -> "ArtifactManifest":
+    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
         version = manifest_json["version"]
@@ -57,24 +58,24 @@ class ArtifactManifest:
         raise ValueError("Invalid manifest version.")
 
     @classmethod
-    def version(cls):
+    def version(cls) -> int:
         pass
 
     def __init__(
         self,
         storage_policy: "wandb_artifacts.WandbStoragePolicy",
-        entries=None,
+        entries: Optional[Mapping[str, "ArtifactManifestEntry"]] = None,
     ) -> None:
         self.storage_policy = storage_policy
         self.entries = entries or {}
 
-    def to_manifest_json(self):
+    def to_manifest_json(self) -> Dict:
         raise NotImplementedError
 
-    def digest(self):
+    def digest(self) -> HexMD5:
         raise NotImplementedError
 
-    def add_entry(self, entry):
+    def add_entry(self, entry: "ArtifactManifestEntry") -> None:
         if (
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
@@ -85,7 +86,7 @@ class ArtifactManifest:
     def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
         return self.entries.get(path)
 
-    def get_entries_in_directory(self, directory):
+    def get_entries_in_directory(self, directory: str) -> List["ArtifactManifestEntry"]:
         return [
             self.entries[entry_key]
             for entry_key in self.entries
@@ -105,7 +106,7 @@ class ArtifactManifestEntry:
     extra: Dict = field(default_factory=dict)
     local_path: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.path = util.to_forward_slash_path(self.path)
         if self.extra is None:
             self.extra = {}
