@@ -4334,7 +4334,7 @@ class Artifact(artifacts.Artifact):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    artifact, json.loads(util.ensure_text(req.content))
+                    json.loads(util.ensure_text(req.content))
                 )
 
             artifact._load_dependent_manifests()
@@ -5134,7 +5134,7 @@ class Artifact(artifacts.Artifact):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(util.ensure_text(req.content))
+                    json.loads(util.ensure_text(req.content))
                 )
 
             self._load_dependent_manifests()
