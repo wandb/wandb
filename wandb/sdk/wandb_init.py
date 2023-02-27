@@ -763,7 +763,10 @@ class _WandbInit:
             assert run_result is not None  # for mypy
 
             if not run_result.HasField("run"):
-                raise InternalError("run_result is None")
+                raise InternalError(
+                    "It appears that something have gone wrong during the program execution as an unexpected missing field was encountered. "
+                    "(run_result is missing the 'run' field)"
+                )
 
             if run_result.run.resumed:
                 logger.info("run resumed")
@@ -1115,7 +1118,8 @@ def init(
     ```
 
     Raises:
-        Exception: if problem.
+        Error: if some error happened during the run initialization.
+        KeyboardInterrupt: if user interrupts the run.
 
     Returns:
         A `Run` object.
@@ -1170,5 +1174,5 @@ def init(
             if except_exit:
                 wandb.termerror("Abnormal program exit")
                 os._exit(1)
-            raise Exception("An unexpected error occurred") from error_seen
+            raise Error("An unexpected error occurred") from error_seen
     return run

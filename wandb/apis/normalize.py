@@ -3,7 +3,7 @@
 import ast
 import sys
 from functools import wraps
-from typing import Callable, TypeVar
+from typing import Callable, List, TypeVar
 
 import requests
 from wandb_gql.client import RetryError
@@ -15,6 +15,23 @@ from wandb.sdk.lib.mailbox import ContextCancelledError
 _F = TypeVar("_F", bound=Callable)
 
 
+def parse_backend_error_messages(response: requests.Response) -> List[str]:
+    errors = []
+    try:
+        data = response.json()
+    except ValueError:
+        return errors
+
+    if "errors" in data and isinstance(data["errors"], list):
+        for error in data["errors"]:
+            # Our tests and potentially some api endpoints return a string error?
+            if isinstance(error, str):
+                error = {"message": error}
+            if "message" in error:
+                errors.append(error["message"])
+    return errors
+
+
 def normalize_exceptions(func: _F) -> _F:
     """Function decorator for catching common errors and re-raising as wandb.Error."""
 
@@ -24,23 +41,15 @@ def normalize_exceptions(func: _F) -> _F:
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as error:
-            try:
-                data = error.response.json()
-            except ValueError:
-                message = error.response
+            errors = parse_backend_error_messages(error.response)
+            if errors:
+                message = " ".join(errors)
+                message += (
+                    f" (Error {error.response.status_code}: {error.response.reason})"
+                )
             else:
-                # This else block tries to parse error messages that come from the server (gorilla)
-                message = ""
-                if "errors" in data and isinstance(data["errors"], list):
-                    for err in data["errors"]:
-                        # Our tests and potentially some api endpoints return a string error?
-                        if isinstance(err, str):
-                            err = {"message": err}
-                        if "message" in err:
-                            message += err["message"]
-                    if message:
-                        message += f" (Error {error.response.status_code}: {error.response.reason})"
-            raise CommError(message or error.response, error)
+                message = error.response
+            raise CommError(message, error)
         except ContextCancelledError as err:
             raise err
         except RetryError as err:
