@@ -922,6 +922,7 @@ def sweep(
         if num_workers is None or not str.isdigit(num_workers):
             num_workers = "8"
 
+        _type = "optuna" if config.get("method") == "optuna" else "sweep"
         scheduler_entrypoint = [
             "wandb",
             "scheduler",
@@ -932,6 +933,8 @@ def sweep(
             project,
             "--num_workers",
             num_workers,
+            "--sweep_type",
+            _type,
         ]
 
         if _job:

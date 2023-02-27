@@ -1599,7 +1599,6 @@ class Api:
         run_obj: Dict[str, Dict[str, Dict[str, str]]] = response["upsertBucket"][
             "bucket"
         ]
-        print(f"{run_obj=}")
         project_obj: Dict[str, Dict[str, str]] = run_obj.get("project", {})
         if project_obj:
             self.set_setting("project", project_obj["name"])

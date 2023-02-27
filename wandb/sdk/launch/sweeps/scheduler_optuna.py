@@ -17,12 +17,11 @@ import wandb
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
+    RunState,
     Scheduler,
-    SchedulerState,
-    SimpleRunState,
     SweepRun,
 )
-from wandb.wandb_agent import Agent as LegacySweepAgent
+from wandb.wandb_agent import _create_sweep_command_args
 
 from wandb.apis.public import QueuedRun, Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -48,13 +47,20 @@ class OptunaScheduler(Scheduler):
     ):
         super().__init__(*args, **kwargs)
         self._workers: Dict[int, _Worker] = {}
-        self._num_workers: int = num_workers
+        self._num_workers: int = 2 or num_workers
 
         self._public_api = PublicApi()
         self._api = InternalApi()
 
         self.study: optuna.study.Study = None
+
+        # user provided params
+        # TODO: remove from class, combine with create_study func
         self._trial_func = None
+        self._pruner = None
+        self._sampler = None
+        self._study = None
+
         self._storage_name = ""
         self._artifact_name = "optuna-scheduler"
         self._study_name = None
@@ -62,40 +68,48 @@ class OptunaScheduler(Scheduler):
         self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
         self._metric_history = defaultdict(int)
 
-        wandb.termlog("Creating optuna scheduler wandb run")
         self._wandb_run: Run = wandb.init(name=f"sweep-scheduler-{self._sweep_id}")
         self._load_db()
-        self._objective_func = self._load_objective_function()
+        self._load_optuna_artifact()
 
-    def _load_objective_function(self):
-        if self._sweep_config.get("objective_func"):
+    def _load_optuna_artifact(self):
+        if self._sweep_config.get("optuna_artifact"):
             artifact = self._wandb_run.use_artifact(
-                self._sweep_config.get("objective_func"), type="objective-func"
+                self._sweep_config.get("optuna_artifact"), type="optuna"
             )
             if artifact:
-                wandb.termlog(f"{LOG_PREFIX}Downloading objective artifact: {artifact}")
+                wandb.termlog(f"{LOG_PREFIX}Downloading optuna.py artifact: {artifact}")
                 path = artifact.download()
 
-                objective_path = f"{path}/objective.py"
+                objective_path = f"{path}/optuna.py"
                 try:
                     loader = importlib.machinery.SourceFileLoader(
-                        "objective", objective_path
+                        "optuna", objective_path
                     )
                     mod = types.ModuleType(loader.name)
                     loader.exec_module(mod)
-
+                    
+                    # Set objective function
                     self._trial_func = self._make_trial_from_objective
+                    self._objective_func = mod.objective
+                    if mod.study:
+                        wandb.termlog(f"{LOG_PREFIX}Identified user-provided study, ignoring pruner and sampler")
+                        self._study = mod.study()
+                    else:
+                        # Set other optuna objects
+                        self._pruner = mod.pruner()
+                        self._sampler = mod.sampler()
 
-                    return mod.objective
                 except Exception as e:
                     wandb.termwarn(f"failed to load objective function: {str(e)}")
                     raise e
 
             else:
                 wandb.termlog(
-                    f"{LOG_PREFIX}Failed to load objective: {self._sweep_config.get('objective_func')}"
+                    f"{LOG_PREFIX}Failed to load: {self._sweep_config.get('optuna_artifact')}"
                 )
 
+                # defaults for optuna ops, NOT user provided
                 self._trial_func = self._make_trial
         return None
 
@@ -103,13 +117,16 @@ class OptunaScheduler(Scheduler):
         """
         Create an optuna study with a sqlite backened for loose state management
         """
+        if self._study:
+            self.study = self._study
+            return
 
         # TODO(gst): add to validate function to confirm this exists, warn user
         if not self._sweep_config.get("optuna_study_name"):
             self._study_name = f"optuna-study-{self._sweep_id}"
 
         pruner_args = self._sweep_config.get("pruner", {})
-        pruner = self._make_optuna_pruner(pruner_args)
+        pruner = self._pruner or self._make_optuna_pruner(pruner_args)
 
         if self._wandb_run.resumed:
             # our scheduler was resumed, try to load state
@@ -126,7 +143,7 @@ class OptunaScheduler(Scheduler):
             study_name=self._study_name,
             storage=f"sqlite:///{self._storage_name}",
             pruner=pruner,
-            sampler=None,
+            sampler=self._sampler,
             load_if_exists=True,
             direction=self._sweep_config.get("metric", {}).get("goal"),
         )
@@ -155,15 +172,14 @@ class OptunaScheduler(Scheduler):
         if not self.is_alive():
             return
 
-        if (
-            self._job_queue.empty() and len(self._runs) < self._num_workers
-        ):  # add another run!
-            # upsert run
+        if self._job_queue.empty() and len(self._runs) < self._num_workers:
+            config, trial = self._trial_func()
             run = self._api.upsert_run(
+                project=self._project,
+                entity=self._entity,
                 sweep_name=self._sweep_id,
+                config=config,
             )[0]
-
-            print(f">>>>>{self._sweep_id}>>>>>> {run}")
 
             run_id = (
                 base64.b64decode(bytes(run["id"].encode("utf-8")))
@@ -171,11 +187,9 @@ class OptunaScheduler(Scheduler):
                 .split(":")[2]
             )
 
-            config, trial = self._trial_func()
             run = SweepRun(
                 id=run_id,
                 args=config,
-                program=self._sweep_config.get("program"),
                 worker_id=worker_id,
             )
             self._run_trials[run.id] = trial
@@ -192,7 +206,6 @@ class OptunaScheduler(Scheduler):
         launch new runs
         """
         to_kill = self._poll_running_runs()
-        time.sleep(1)
         for run_id in to_kill:
             del self._run_trials[run_id]
             self._stop_run(run_id)
@@ -209,8 +222,8 @@ class OptunaScheduler(Scheduler):
 
         # If run is already stopped just ignore the request
         if srun.state in [
-            SimpleRunState.DEAD,
-            SimpleRunState.UNKNOWN,
+            RunState.DEAD,
+            RunState.UNKNOWN,
         ]:
             return
 
@@ -218,18 +231,11 @@ class OptunaScheduler(Scheduler):
             f"{LOG_PREFIX}Converting Sweep Run (RunID:{srun.id}) to Launch Job"
         )
 
-        # send to launch
+        # send to launchs
+        command = _create_sweep_command_args({"args": srun.args})["args_dict"]
         self._add_to_launch_queue(
             run_id=srun.id,
-            entry_point=["python3", srun.program] if srun.program else None,
-            # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
-            config={
-                "overrides": {
-                    "run_config": LegacySweepAgent._create_command_args(
-                        {"args": srun.args}
-                    )["args_dict"]
-                }
-            },
+            config={"overrides": {"run_config": command}},
         )
 
     def _get_run_history(self, run_id):
@@ -303,7 +309,7 @@ class OptunaScheduler(Scheduler):
                     param, extras.get("min"), extras.get("max"), log=log
                 )
             else:
-                print(f"{LOG_PREFIX} Unknown parameter type, help! {param=}, {extras=}")
+                print(f"{LOG_PREFIX}Unknown parameter type, help! {param=}, {extras=}")
         return config, trial
 
     def _make_trial_from_objective(self):
