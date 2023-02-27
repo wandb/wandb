@@ -71,7 +71,9 @@ def resolve_agent_config(  # noqa: C901
             user_set_project = True
         resolved_config.update(launch_config.items())
     elif config is not None:
-        raise LaunchError(f"Could not find config file: {config_path}")
+        raise LaunchError(
+            f"Could not find use specified launch config file: {config_path}"
+        )
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
         user_set_project = True

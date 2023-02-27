@@ -42,7 +42,7 @@ google.cloud.storage = get_module(
 
 _logger = logging.getLogger(__name__)
 
-gcs_uri_re = re.compile(r"gs://([^/]+)/(.+)")
+GCS_URI_RE = re.compile(r"gs://([^/]+)/(.+)")
 
 
 class GcpEnvironment(AbstractEnvironment):
@@ -194,7 +194,7 @@ class GcpEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the storage URI is invalid.
         """
-        match = gcs_uri_re.match(uri)
+        match = GCS_URI_RE.match(uri)
         if not match:
             raise LaunchError(f"Invalid GCS URI: {uri}")
         bucket = match.group(1)
@@ -219,7 +219,7 @@ class GcpEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading file {source} to {destination}")
         if not os.path.isfile(source):
             raise LaunchError(f"File {source} does not exist.")
-        match = gcs_uri_re.match(destination)
+        match = GCS_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)
@@ -247,7 +247,7 @@ class GcpEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading directory {source} to {destination}")
         if not os.path.isdir(source):
             raise LaunchError(f"Directory {source} does not exist.")
-        match = gcs_uri_re.match(destination)
+        match = GCS_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)

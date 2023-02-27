@@ -37,10 +37,7 @@ class LocalRegistry(AbstractRegistry):
         pass
 
     def get_username_password(self) -> Tuple[str, str]:
-        """Get the username and password of the local registry.
-
-        Returns: Two empty strings. You can't login to a local registry.
-        """
+        """Get the username and password of the local registry."""
         raise LaunchError("Attempted to get username and password for LocalRegistry.")
 
     def get_repo_uri(self) -> str:
