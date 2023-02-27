@@ -22,9 +22,7 @@ CONFIG = {
 
 
 def locate_py_files(root_path: pathlib.Path):
-    """
-    Recursively search for Python files in the given root directory.
-    """
+    """Recursively search for Python files in the given root directory."""
     include = {root_path / dir_path for dir_path in CONFIG["include"]}
     exclude = {root_path / dir_path for dir_path in CONFIG["exclude"]}
     exclude_unrooted = CONFIG["exclude_unrooted"]

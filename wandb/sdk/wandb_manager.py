@@ -7,16 +7,32 @@ import atexit
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import psutil
+
 import wandb
 from wandb import env, trigger
+from wandb.errors import Error
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
+from wandb.util import sentry_reraise
 
 if TYPE_CHECKING:
     from wandb.sdk.service import service
     from wandb.sdk.service.service_base import ServiceInterface
     from wandb.sdk.wandb_settings import Settings
+
+
+class ManagerConnectionError(Error):
+    """Raised when service process is not running."""
+
+    pass
+
+
+class ManagerConnectionRefusedError(ManagerConnectionError):
+    """Raised when service process is not running."""
+
+    pass
 
 
 class _ManagerToken:
@@ -93,8 +109,26 @@ class _Manager:
     _settings: "Settings"
     _service: "service._Service"
 
+    def _service_connect(self) -> None:
+        port = self._token.port
+        svc_iface = self._get_service_interface()
+
+        try:
+            svc_iface._svc_connect(port=port)
+        except ConnectionRefusedError as e:
+            if not psutil.pid_exists(self._token.pid):
+                message = (
+                    "Connection to wandb service failed "
+                    "since the process is not available. "
+                )
+            else:
+                message = f"Connection to wandb service failed: {e}. "
+            raise ManagerConnectionRefusedError(message)
+        except Exception as e:
+            raise ManagerConnectionError(f"Connection to wandb service failed: {e}")
+
     def __init__(self, settings: "Settings") -> None:
-        # TODO: warn if user doesnt have grpc installed
+        # TODO: warn if user doesn't have grpc installed
         from wandb.sdk.service import service
 
         self._settings = settings
@@ -124,9 +158,10 @@ class _Manager:
 
         self._token = token
 
-        port = self._token.port
-        svc_iface = self._get_service_interface()
-        svc_iface._svc_connect(port=port)
+        try:
+            self._service_connect()
+        except ManagerConnectionError as e:
+            sentry_reraise(e, delay=True)
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()

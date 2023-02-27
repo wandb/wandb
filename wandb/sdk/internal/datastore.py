@@ -123,8 +123,7 @@ class DataStore:
         return offset
 
     def in_last_block(self):
-        """When reading, we want to know if we're in the last block to
-        handle in progress writes"""
+        """Determine if we're in the last block to handle in-progress writes."""
         return self._index > self._size_bytes - LEVELDBLOG_DATA_LEN
 
     def scan_record(self):
@@ -146,11 +145,16 @@ class DataStore:
         data = self._fp.read(dlength)
 
         if self._use_crc32c_ext:
-            checksum_computed_crc32c = google_crc32c.extend(self._crc32c[dtype], data) & 0xFFFFFFFF
-            checksum_computed = ((
-                    ((checksum_computed_crc32c >> 15) & 0xFFFFFFFF) |
-                    ((checksum_computed_crc32c << 17) & 0xFFFFFFFF)
-                    ) + 0xa282ead8) & 0xFFFFFFFF
+            checksum_computed_crc32c = (
+                google_crc32c.extend(self._crc32c[dtype], data) & 0xFFFFFFFF
+            )
+            checksum_computed = (
+                (
+                    ((checksum_computed_crc32c >> 15) & 0xFFFFFFFF)
+                    | ((checksum_computed_crc32c << 17) & 0xFFFFFFFF)
+                )
+                + 0xA282EAD8
+            ) & 0xFFFFFFFF
         else:
             checksum_computed = zlib.crc32(data, self._crc[dtype]) & 0xFFFFFFFF
         assert (

@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 import os
 import platform
 import sys
@@ -11,11 +12,14 @@ import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
 import yaml
 from wandb.apis import PublicApi
-from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, PROJECT_SYNCHRONOUS
+from wandb.sdk.launch.utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    PROJECT_SYNCHRONOUS,
+    LaunchError,
+)
 from wandb.sdk.lib import runid
 
 from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path
@@ -710,6 +714,15 @@ def test_launch_agent_runs(
         "pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
+
+    def mock_raise_exception():
+        raise Exception
+
+    monkeypatch.setattr(
+        multiprocessing.pool.Pool,
+        "apply_async",
+        lambda x, y: mock_raise_exception(),
+    )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -853,7 +866,7 @@ def test_launch_no_server_info(
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             project="new-test",
         )
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
@@ -891,7 +904,7 @@ def patched_pop_from_queue(self, queue):
 def test_fail_pull_docker_image():
     try:
         pull_docker_image("not an image")
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Docker server returned error" in str(e)
 
 
@@ -967,6 +980,7 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
                 "t": True,
             }
         },
+        "run_id": "p5leu4a7",
     }
     expected_command = [
         "docker",
@@ -982,6 +996,8 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "WANDB_ENTITY=mock_server_entity",
         "-e",
         "WANDB_LAUNCH=True",
+        "-e",
+        "WANDB_RUN_ID=p5leu4a7",
         "-e",
         f"WANDB_DOCKER={image_name}",
         "-e",
@@ -1362,7 +1378,7 @@ def test_launch_url_and_job(
     api.get_run_info = MagicMock(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
-    with pytest.raises(wandb.errors.LaunchError) as e_info:
+    with pytest.raises(LaunchError) as e_info:
         launch.run(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
@@ -1390,7 +1406,7 @@ def test_launch_no_url_job_or_docker_image(
             job=None,
             project="new-test",
         )
-    except wandb.errors.LaunchError as e:
+    except LaunchError as e:
         assert "Must specify a uri, job or docker image" in str(e)
 
 

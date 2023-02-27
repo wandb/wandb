@@ -1,6 +1,6 @@
-"""These test the high level sdk methods by mocking out the backend.
-See wandb_integration_test.py for tests that launch a real backend against
-a live backend server.
+"""Test the high level sdk methods by mocking out the backend.
+
+See wandb_integration_test.py for tests that launch a real backend server.
 """
 import glob
 import inspect
@@ -176,7 +176,6 @@ def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
     copied_env.pop("WANDB_USERNAME")
     copied_env.pop("WANDB_ENTITY")
     with mock.patch.dict("os.environ", copied_env, clear=True):
-
         run = wandb_init(anonymous="must")
         run.log_artifact(wandb.Artifact("my-arti", type="dataset"))
         run.finish()
@@ -485,7 +484,6 @@ def test_restore_name_not_found(wandb_init):
 
 @pytest.mark.xfail(reason="Public API might not return the correct value")
 def test_restore_no_init(create_run_with_file):
-
     with create_run_with_file("weights.h5", "content") as (run, file):
         file_size = os.path.getsize(file)
 
@@ -510,15 +508,6 @@ def test_restore(create_run_with_file, test_settings):
 
 def test_attach_usage_errors(wandb_init):
     run = wandb_init()
-    if not os.environ.get("WANDB_REQUIRE_SERVICE"):
-
-        with pytest.raises(wandb.UsageError) as e:
-            wandb._attach(run=run)
-        assert (
-            "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
-            in str(e.value)
-        )
-
     with pytest.raises(wandb.UsageError) as e:
         wandb._attach()
     assert "Either (`attach_id` or `run_id`) or `run` must be specified" in str(e.value)

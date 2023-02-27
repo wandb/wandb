@@ -28,6 +28,7 @@ def do_pool():
     data = result.get(TIME_LIMIT)
     assert len(data) == num_proc
 
+
 def do_tests(testname):
     print("-" * 40)
     print(f"Running: {testname}")
@@ -69,7 +70,7 @@ def main():
     print(f"Standard | {time_std}")
     print(f"Nexus    | {time_nex}")
     print("")
-    speed_up = (time_std / time_nex)
+    speed_up = time_std / time_nex
     print(f"Speed-up: {speed_up:.2f}x")
 
 
