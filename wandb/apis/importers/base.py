@@ -54,7 +54,7 @@ class Run:
         self._run_id = None
         self._entity = None
         self._project = None
-        self.run_dir = f"./testing/{self.run_id()}"
+        self.run_dir = f"./wandb-importer/{self.run_id()}"
 
     def run_id(self) -> str:
         if not self._run_id:
