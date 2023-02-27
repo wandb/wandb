@@ -2,9 +2,9 @@ import json
 from unittest.mock import MagicMock
 
 import kubernetes
+
 from wandb.apis.internal import Api
-from wandb.sdk.launch.builder.loader import load_builder
-from wandb.sdk.launch.runner.loader import load_backend
+from wandb.sdk.launch import loader
 from wandb.sdk.launch.utils import make_name_dns_safe
 
 
@@ -20,13 +20,6 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
     )
 
     with relay_server():
-        api = Api()
-        runner = load_backend(
-            backend_name="kubernetes",
-            api=api,
-            backend_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
-        )
-
         entity_name = "test.@#$()entity"
         project_name = "test_\\[]project"
         expected_generate_name = make_name_dns_safe(
@@ -47,9 +40,18 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project.override_config = {}
         project.job = "testjob"
 
-        builder = load_builder({"type": "noop"})
+        environment = loader.environment_from_config({})
+        registry = loader.registry_from_config({}, environment)
+        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
+        api = Api()
+        runner = loader.runner_from_config(
+            backend_name="kubernetes",
+            api=api,
+            backend_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+            environment=environment,
+        )
+        run = runner.run(launch_project=project, builder=builder)
 
-        run = runner.run(launch_project=project, builder=builder, registry_config={})
     assert run.name == expected_run_name
     assert run.job["metadata"]["generateName"] == expected_generate_name
 
@@ -162,7 +164,6 @@ def pods(job_name):
 
 
 def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
-
     monkeypatch.setattr(
         kubernetes.client,
         "BatchV1Api",
@@ -218,5 +219,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
                 "metadata": MockDict(metadata),
             }
         )
+        jobs_dict[name] = mock_job
+        return [[mock_job]]
         jobs_dict[name] = mock_job
         return [[mock_job]]

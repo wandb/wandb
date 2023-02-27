@@ -1,9 +1,8 @@
 from unittest.mock import MagicMock
 
 from wandb.apis.internal import Api
+from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint, compute_command_args
-from wandb.sdk.launch.builder.loader import load_builder
-from wandb.sdk.launch.runner.loader import load_backend
 
 
 def test_local_container_entrypoint(relay_server, monkeypatch):
@@ -30,12 +29,6 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
     )
 
     with relay_server():
-        api = Api()
-        runner = load_backend(
-            backend_name="local-container",
-            api=api,
-            backend_config={"SYNCHRONOUS": False},
-        )
         entity_name = "test_entity"
         project_name = "test_project"
         entry_command = ["python", "test.py"]
@@ -56,11 +49,16 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         string_args = " ".join(compute_command_args(project.override_args))
-        builder = load_builder({"type": "noop"})
-
-        command = runner.run(
-            launch_project=project, builder=builder, registry_config={}
+        environment = loader.environment_from_config({})
+        registry = loader.registry_from_config({}, environment)
+        builder = loader.builder_from_config({"type": "noop"}, environment, registry)
+        api = Api()
+        runner = loader.runner_from_config(
+            "local-container",
+            api,
+            {"type": "local-container", "SYNCHRONOUS": False},
         )
+        command = runner.run(launch_project=project, builder=builder)
         assert f"--entrypoint {' '.join(entry_command)}" in command
         assert f"{project.docker_image} {string_args}" in command
 
@@ -70,4 +68,5 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         command = runner.run(
             launch_project=project, builder=builder, registry_config={}
         )
+        assert f"WANDB_ARGS='{string_args}'" in command
         assert f"WANDB_ARGS='{string_args}'" in command
