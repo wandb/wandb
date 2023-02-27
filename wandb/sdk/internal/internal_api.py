@@ -245,9 +245,7 @@ class Api:
             logger.error(f"{response.status_code} response executing GraphQL.")
             logger.error(response.text)
             for error in parse_backend_error_messages(response):
-                wandb.termerror(
-                    "Error while calling W&B API: {} ({})".format(error, response)
-                )
+                wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
 
     def disabled(self) -> Union[str, bool]:
