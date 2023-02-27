@@ -1,4 +1,5 @@
 from unittest import mock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -32,7 +33,18 @@ def test_launch_incorrect_backend(
         "wandb.docker",
         lambda: None,
     )
-
+    monkeypatch.settattr(
+        "wandb.sdk.launch.loader.environment_from_config",
+        lambda *args, **kawrgs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.loader.registry_from_config",
+        lambda *args, **kawrgs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.loader.builder_from_config",
+        lambda *args, **kawrgs: MagicMock(),
+    )
     with relay_server():
         r = wandb_init(settings=settings)
 
@@ -77,4 +89,5 @@ def test_launch_multi_run_context(
             run2.log({"test": 2})
 
         assert run1.id == "test"
+        assert run2.id != "test"
         assert run2.id != "test"
