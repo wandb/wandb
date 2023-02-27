@@ -1603,7 +1603,7 @@ def _has_internet() -> bool:
 
 
 def rand_alphanumeric(
-    length: int = 8, rand: Optional[Union[ModuleType, random.Random] = None
+    length: int = 8, rand: Optional[Union[ModuleType, random.Random]] = None
 ) -> str:
     wandb.termerror("rand_alphanumeric is deprecated, use 'secrets.token_hex'")
     rand = rand or random
