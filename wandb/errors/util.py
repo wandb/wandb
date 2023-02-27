@@ -15,7 +15,6 @@ to_exception_map = {
     pb.ErrorInfo.UNKNOWN: Error,
     pb.ErrorInfo.AUTHENTICATION: AuthenticationError,
     pb.ErrorInfo.PERMISSION: PermissionsError,
-    pb.ErrorInfo.NETWORK: CommError,
     pb.ErrorInfo.INVALID: InvalidError,
     pb.ErrorInfo.INTERNAL: InternalError,
 }
