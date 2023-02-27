@@ -2,14 +2,7 @@ from typing import Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 
-from . import (
-    AuthenticationError,
-    CommError,
-    Error,
-    InternalError,
-    InvalidError,
-    PermissionsError,
-)
+from . import AuthenticationError, Error, InternalError, InvalidError, PermissionsError
 
 to_exception_map = {
     pb.ErrorInfo.UNKNOWN: Error,
