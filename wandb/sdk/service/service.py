@@ -4,7 +4,6 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 """
 
 import os
-import pathlib
 import platform
 import shutil
 import subprocess

@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
+import multiprocessing as mp
 import os
 import time
-import multiprocessing as mp
 
 import wandb
-
 
 NUM_HISTORY = 10000
 # NUM_HISTORY = 1000
@@ -65,7 +64,7 @@ def main():
     os.environ["WANDB__DISABLE_META"] = "true"
     time_std = perf_standard()
     time_nex = perf_nexus()
-    print(f"Test     | seconds")
+    print("Test     | seconds")
     print("-" * 20)
     print(f"Standard | {time_std}")
     print(f"Nexus    | {time_nex}")

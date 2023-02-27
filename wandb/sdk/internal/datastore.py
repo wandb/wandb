@@ -25,9 +25,7 @@ import zlib
 from typing import TYPE_CHECKING, Tuple
 
 import wandb
-
-# TODO: make this optional?
-import google_crc32c
+from wandb.util import get_module
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record
@@ -71,6 +69,7 @@ class DataStore:
     _flush_offset: int
 
     def __init__(self) -> None:
+        self._google_crc32c = get_module("google_crc32c")
         self._opened_for_scan = False
         self._fp = None
         self._index = 0
@@ -81,9 +80,12 @@ class DataStore:
         for x in range(1, LEVELDBLOG_LAST + 1):
             self._crc[x] = zlib.crc32(strtobytes(chr(x))) & 0xFFFFFFFF
 
-        self._crc32c = [0] * (LEVELDBLOG_LAST + 1)
-        for x in range(1, LEVELDBLOG_LAST + 1):
-            self._crc32c[x] = google_crc32c.value(strtobytes(chr(x))) & 0xFFFFFFFF
+        if self._google_crc32c:
+            self._crc32c = [0] * (LEVELDBLOG_LAST + 1)
+            for x in range(1, LEVELDBLOG_LAST + 1):
+                self._crc32c[x] = (
+                    self._google_crc32c.value(strtobytes(chr(x))) & 0xFFFFFFFF
+                )
 
         self._use_crc32c_ext = False
 
@@ -146,7 +148,7 @@ class DataStore:
 
         if self._use_crc32c_ext:
             checksum_computed_crc32c = (
-                google_crc32c.extend(self._crc32c[dtype], data) & 0xFFFFFFFF
+                self._google_crc32c.extend(self._crc32c[dtype], data) & 0xFFFFFFFF
             )
             checksum_computed = (
                 (
