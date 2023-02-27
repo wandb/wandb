@@ -962,7 +962,6 @@ def sweep(
                         None,  # parameters,
                         scheduler_config.get("resource_args"),  # resource_args,
                         None,  # launch_config,
-                        None,  # cuda,
                         None,  # run_id,
                         launch_config.get("registry", {}).get(
                             "url", None
@@ -1275,7 +1274,6 @@ def launch(
             args_dict,
             project_queue,
             resource_args,
-            cuda=cuda,
             build=build,
             run_id=run_id,
             repository=repository,
