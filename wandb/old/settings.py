@@ -43,7 +43,7 @@ class Settings:
                     raise
 
     def set(self, section, key, value, globally=False, persist=False) -> None:
-        """Persists settings to disk if persist = True"""
+        """Persist settings to disk if persist = True"""
 
         def write_setting(settings, settings_path, persist):
             if not settings.has_section(section):

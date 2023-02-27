@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 
 
 class DiskUsage:
-    """
-    Total system disk usage in percent.
-    """
+    """Total system disk usage in percent."""
 
     # name = "disk_usage"
     name = "disk"
@@ -62,7 +60,7 @@ class Disk:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Return a new instance of the CPU metrics"""
+        """Return a new instance of the CPU metrics."""
         return psutil is not None
 
     def probe(self) -> dict:

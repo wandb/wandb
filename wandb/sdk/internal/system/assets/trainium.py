@@ -92,9 +92,7 @@ class _Stats:
 
 
 class NeuronCoreStats:
-    """
-    AWS Trainium stats.
-    """
+    """AWS Trainium stats."""
 
     name: str = "trn.{key}"
     samples: "Deque[_Stats]"
@@ -154,7 +152,7 @@ class NeuronCoreStats:
         self.neuron_monitor_thread: Optional[threading.Thread] = None
 
     def setup(self) -> None:
-        """Start the neuron-monitor thread for collecting raw data"""
+        """Start the neuron-monitor thread for collecting raw data."""
         if self.neuron_monitor_thread is not None:
             return
 
@@ -168,7 +166,7 @@ class NeuronCoreStats:
         self.neuron_monitor_thread.start()
 
     def teardown(self) -> None:
-        """Stop the neuron-monitor thread"""
+        """Stop the neuron-monitor thread."""
         logger.debug("Stopping neuron-monitor thread")
         try:
             self.shutdown_event.set()
@@ -180,8 +178,7 @@ class NeuronCoreStats:
             self.neuron_monitor_thread = None
 
     def _is_matching_entry(self, entry: dict) -> bool:
-        """
-        For now, only check if the pid in the entry matches the pid of the process.
+        """For now, only check if the pid in the entry matches the pid of the process.
 
         todo: add matching by neuron_runtime_tag
         """
@@ -239,9 +236,7 @@ class NeuronCoreStats:
 
     @staticmethod
     def flatten_stats(sample: _Stats) -> dict:
-        """
-        Flatten _Stats object into a flat dict of numbers.
-        """
+        """Flatten _Stats object into a flat dict of numbers."""
         flattened = {}
 
         def helper(key: str, value: Any) -> None:

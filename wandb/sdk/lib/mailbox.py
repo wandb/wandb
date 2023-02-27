@@ -1,6 +1,4 @@
-"""
-mailbox.
-"""
+"""mailbox."""
 
 import secrets
 import string
@@ -23,13 +21,13 @@ def _generate_address(length: int = 12) -> str:
 
 
 class MailboxError(Error):
-    """Generic Mailbox Exception"""
+    """Generic Mailbox Exception."""
 
     pass
 
 
 class ContextCancelledError(MailboxError):
-    """Context cancelled Exception"""
+    """Context cancelled Exception."""
 
     pass
 
