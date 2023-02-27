@@ -18,12 +18,12 @@ import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
+from wandb.sdk.wandb_settings import Settings
 
 from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
 
 Logger = Union[logging.Logger, "_EarlyLogger"]
-Settings = "wandb.sdk.wandb_settings.Settings"
 
 if TYPE_CHECKING:
     from . import wandb_run
