@@ -51,7 +51,7 @@ def perf_standard():
 
 
 def perf_nexus():
-    os.environ["WBSERVICE"] = "/tmp/wandb-nexus"
+    os.environ["WANDB__USE_NEXUS"] = "true"
     wandb.setup(settings=wandb.Settings(_disable_stats=True, _disable_meta=True))
     total = do_tests("Nexus")
     wandb.teardown()
