@@ -1,4 +1,5 @@
 import json
+import platform
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
@@ -9,6 +10,7 @@ from tqdm.auto import tqdm
 
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
@@ -228,6 +230,16 @@ class Run:
             proto.aliases.append(tag)
         return self.interface._make_record(artifact=proto)
 
+    def make_telem_record(self) -> pb.Record:
+        feature = telem_pb.Feature()
+        feature.importer_mlflow = True
+
+        telem = telem_pb.TelemetryRecord()
+        telem.feature.CopyFrom(feature)
+        telem.python_version = platform.python_version()  # importer's python version
+        telem.cli_version = wandb.__version__
+        return self.interface._make_record(telemetry=telem)
+
     def _make_metadata_file(self, run_dir: str) -> None:
         missing_text = "MLFlow did not capture this info."
 
@@ -312,3 +324,4 @@ class Importer(ABC):
                 sm.send(history_record)
             if run.artifacts():
                 sm.send(run.make_artifact_record())
+            sm.send(run.make_telem_record())
