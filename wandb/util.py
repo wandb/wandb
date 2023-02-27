@@ -1261,7 +1261,9 @@ def image_id_from_k8s() -> Optional[str]:
     return None
 
 
-def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
+def async_call(
+    target: Callable, timeout: Optional[Union[int, float]] = None
+) -> Callable:
     """Wrap a method to run in the background with an optional timeout.
 
     Returns a new method that will call the original with any args, waiting for upto
