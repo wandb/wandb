@@ -444,22 +444,20 @@ class ErrorInfo(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         UNKNOWN: ErrorInfo._ErrorCode.ValueType  # 0
         INVALID: ErrorInfo._ErrorCode.ValueType  # 1
-        PERMISSION: ErrorInfo._ErrorCode.ValueType  # 2
+        INTERNAL: ErrorInfo._ErrorCode.ValueType  # 2
         NETWORK: ErrorInfo._ErrorCode.ValueType  # 3
-        INTERNAL: ErrorInfo._ErrorCode.ValueType  # 4
-        TIMEOUT: ErrorInfo._ErrorCode.ValueType  # 5
-        AUTHENTICATION: ErrorInfo._ErrorCode.ValueType  # 6
-        AUTHORIZATION: ErrorInfo._ErrorCode.ValueType  # 7
+        PERMISSION: ErrorInfo._ErrorCode.ValueType  # 4
+        AUTHENTICATION: ErrorInfo._ErrorCode.ValueType  # 5
+        TIMEOUT: ErrorInfo._ErrorCode.ValueType  # 6
 
     class ErrorCode(_ErrorCode, metaclass=_ErrorCodeEnumTypeWrapper): ...
     UNKNOWN: ErrorInfo.ErrorCode.ValueType  # 0
     INVALID: ErrorInfo.ErrorCode.ValueType  # 1
-    PERMISSION: ErrorInfo.ErrorCode.ValueType  # 2
+    INTERNAL: ErrorInfo.ErrorCode.ValueType  # 2
     NETWORK: ErrorInfo.ErrorCode.ValueType  # 3
-    INTERNAL: ErrorInfo.ErrorCode.ValueType  # 4
-    TIMEOUT: ErrorInfo.ErrorCode.ValueType  # 5
-    AUTHENTICATION: ErrorInfo.ErrorCode.ValueType  # 6
-    AUTHORIZATION: ErrorInfo.ErrorCode.ValueType  # 7
+    PERMISSION: ErrorInfo.ErrorCode.ValueType  # 4
+    AUTHENTICATION: ErrorInfo.ErrorCode.ValueType  # 5
+    TIMEOUT: ErrorInfo.ErrorCode.ValueType  # 6
 
     MESSAGE_FIELD_NUMBER: builtins.int
     CODE_FIELD_NUMBER: builtins.int

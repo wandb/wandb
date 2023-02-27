@@ -1,10 +1,9 @@
 __all__ = [
     "Error",
     "CommError",
-    "BackendTimeoutError",
-    "BackendPermissionsError",
-    "BackendAuthenticationError",
-    "BackendAuthorizationError",
+    "TimedoutError",
+    "PermissionsError",
+    "AuthenticationError",
     "UsageError",
     "InvalidError",
     "UnsupportedError",
@@ -31,62 +30,47 @@ class CommError(Error):
     """Error communicating with W&B (legacy error for backwards compatibility)"""
 
     def __init__(self, msg, exc=None) -> None:
-        super().__init__(msg)
-        self.message = msg
+
         self.exc = exc
+        self.message = msg
+        super().__init__(self.message)
 
 
 class BackendError(CommError):
     """Error communicating with W&B backend"""
 
 
-class BackendTimeoutError(BackendError):
+class TimedoutError(BackendError):
     """Raised when a connection times out"""
 
 
-class BackendPermissionsError(BackendError):
+class PermissionsError(BackendError):
     """Raised when tries to access a resource that without sufficient permissions"""
 
 
-class BackendAuthenticationError(BackendError):
-    """Raised when fails to provide valid authentication credentials"""
-
-
-class BackendAuthorizationError(BackendError):
-    """Raised when not authorized to access a particular resource"""
+class AuthenticationError(BackendError):
+    """Raised when not authenticated to access a resource"""
 
 
 class UsageError(Error):
     """Raised when an invalid usage of the SDK API is detected"""
 
-    pass
-
 
 class InvalidError(UsageError):
     """Raised when an invalid argument is passed to a function"""
-
-    pass
 
 
 class UnsupportedError(UsageError):
     """Raised when trying to use a feature that is not supported"""
 
-    pass
-
 
 class DependencyError(UsageError):
     """Raised when there is a missing or invalid dependency"""
-
-    pass
 
 
 class InternalError(CommError):
     """Raised when an SDK internal error occurs"""
 
-    pass
-
 
 class WaitTimeoutError(Error):
     """Raised when wait() timeout occurs before process is finished"""
-
-    pass

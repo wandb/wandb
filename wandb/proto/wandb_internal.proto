@@ -146,12 +146,11 @@ message ErrorInfo {
   enum ErrorCode {
     UNKNOWN = 0;
     INVALID = 1;
-    PERMISSION = 2;
+    INTERNAL = 2;
     NETWORK = 3;
-    INTERNAL = 4;
-    TIMEOUT = 5;
-    AUTHENTICATION = 6;
-    AUTHORIZATION = 7;
+    PERMISSION = 4;
+    AUTHENTICATION = 5;
+    TIMEOUT = 6;
   }
   string  message = 1;
   ErrorCode code = 2;

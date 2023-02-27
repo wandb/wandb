@@ -23,8 +23,24 @@ def normalize_exceptions(func: _F) -> _F:
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
-        except requests.HTTPError as err:
-            raise CommError(err.response, err)
+        except requests.HTTPError as error:
+            try:
+                data = error.response.json()
+            except ValueError:
+                message = error.response
+            else:
+                # This else block tries to parse error messages that come from the server (gorilla)
+                message = ""
+                if "errors" in data and isinstance(data["errors"], list):
+                    for err in data["errors"]:
+                        # Our tests and potentially some api endpoints return a string error?
+                        if isinstance(err, str):
+                            err = {"message": err}
+                        if "message" in err:
+                            message += err["message"]
+                    if message:
+                        message += f" (Error {error.response.status_code}: {error.response.reason})"
+            raise CommError(message or error.response, error)
         except ContextCancelledError as err:
             raise err
         except RetryError as err:
