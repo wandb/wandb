@@ -22,6 +22,8 @@ import wandb
 from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
 
+Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
+
 Logger = Union[logging.Logger, "_EarlyLogger"]
 
 if TYPE_CHECKING:
@@ -85,7 +87,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def __init__(
         self,
         pid: int,
-        settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
+        settings: Optional[Settings] = None,
         environ: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._environ = environ or dict(os.environ)
@@ -117,9 +119,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _settings_setup(
         self,
-        settings: Union[
-            "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
-        ] = None,
+        settings: Optional[Settings] = None,
         early_logger: Optional[_EarlyLogger] = None,
     ) -> "wandb_settings.Settings":
         s = wandb_settings.Settings()
@@ -141,9 +141,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _update(
         self,
-        settings: Union[
-            "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
-        ] = None,
+        settings: Optional[Settings] = None,
     ) -> None:
         if settings is None:
             return
@@ -156,9 +154,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             self._settings.update(settings, source=wandb_settings.Source.SETUP)
         # self._settings.freeze()
 
-    def _update_user_settings(
-        self, settings: Optional["wandb.sdk.wandb_settings.Settings"] = None
-    ) -> None:
+    def _update_user_settings(self, settings: Optional[Settings] = None) -> None:
         settings = settings or self._settings
         # Get rid of cached results to force a refresh.
         self._server = None
@@ -211,17 +207,17 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             teams = [team["node"]["name"] for team in teams["edges"]]
         return teams or []
 
-    def _load_viewer(
-        self, settings: Optional["wandb.sdk.wandb_settings.Settings"] = None
-    ) -> None:
+    def _load_viewer(self, settings: Optional[Settings] = None) -> None:
         if self._settings and self._settings._offline:
             return
+        if isinstance(settings, dict):
+            settings = wandb_settings.Settings(**settings)
         s = server.Server(settings=settings)
         s.query_with_timeout()
         self._server = s
 
     def _load_user_settings(
-        self, settings: Optional["wandb.sdk.wandb_settings.Settings"] = None
+        self, settings: Optional[Settings] = None
     ) -> Optional[Dict[str, Any]]:
         if self._server is None:
             self._load_viewer(settings=settings)
@@ -299,9 +295,7 @@ class _WandbSetup:
 
     _instance: Optional["_WandbSetup__WandbSetup"] = None
 
-    def __init__(
-        self, settings: Optional["wandb.sdk.wandb_settings.Settings"] = None
-    ) -> None:
+    def __init__(self, settings: Optional[Settings] = None) -> None:
         pid = os.getpid()
         if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
@@ -313,7 +307,7 @@ class _WandbSetup:
 
 
 def _setup(
-    settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
+    settings: Optional[Settings] = None,
     _reset: bool = False,
 ) -> Optional["_WandbSetup"]:
     """Set up library context."""
@@ -328,7 +322,7 @@ def _setup(
 
 
 def setup(
-    settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
+    settings: Optional[Settings] = None,
 ) -> Optional["_WandbSetup"]:
     ret = _setup(settings=settings)
     return ret
