@@ -66,6 +66,7 @@ from wandb.viz import CustomChart, Visualize, custom_chart
 from . import wandb_artifacts, wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
+from .interface.artifacts import ArtifactNotLoggedError
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
@@ -86,7 +87,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
-from .wandb_artifacts import Artifact, ArtifactNotLoggedError
+from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
