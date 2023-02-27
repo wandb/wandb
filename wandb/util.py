@@ -1604,8 +1604,8 @@ def _has_internet() -> bool:
         return False
 
 
-def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
-    rand = rand or random
+def rand_alphanumeric(length: int = 8, rand: Optional[random.Random] = None) -> str:
+    rand = rand or random.Random()
     return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 

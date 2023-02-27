@@ -177,8 +177,12 @@ def test_upload_directory(mocker):
 
 
 def test_upload_invalid_path(mocker):
-    """Test that we raise an error when the source path is not a directory or
-    the destination path is not a valid s3 URI."""
+    """Test that we raise an error for invalid paths.
+
+    The upload can't proceed if
+    - the source path is not a directory, or
+    - the destination path is not a valid S3 URI
+    """
     environment = _get_environment()
     with pytest.raises(LaunchError) as e:
         environment.upload_dir("invalid_path", "s3://bucket/key")
