@@ -756,10 +756,10 @@ class StoragePolicy:
         raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config: Dict) -> "StoragePolicy":
         raise NotImplementedError
 
-    def config(self):
+    def config(self) -> Dict:
         raise NotImplementedError
 
     def load_file(
@@ -778,8 +778,13 @@ class StoragePolicy:
         raise NotImplementedError
 
     def store_reference(
-        self, artifact, path, name=None, checksum=True, max_objects=None
-    ):
+        self,
+        artifact: Artifact,
+        path: Union[URIStr, FilePathStr],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ) -> Sequence[ArtifactManifestEntry]:
         raise NotImplementedError
 
     def load_reference(
