@@ -398,12 +398,22 @@ def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
     arr: List[str] = []
     if parameters is None:
         return arr
-    for key, value in parameters.items():
-        if value is not None:
-            arr.append(f"--{key}")
-            arr.append(quote(str(value)))
+    for key in sorted(parameters.keys()):
+        value = parameters[key]
+        # positional arguments
+        if key.startswith("__"):
+            arr.append(quote(value))
+            continue
+        # for legacy reasons default to -- for keys without dashes
+        elif not key.startswith("-"):
+            key = f"--{key}"
+        if value is None:
+            arr.append(quote(key))
+        elif value == "":
+            arr.append(quote(key))
         else:
-            arr.append(f"--{key}")
+            arr.append(quote(key))
+            arr.append(quote(str(value)))
     return arr
 
 
