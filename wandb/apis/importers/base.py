@@ -14,7 +14,6 @@ from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
 
-
 Name = str
 Path = str
 
