@@ -33,7 +33,7 @@ def resolve_agent_config(  # noqa: C901
     queues: Optional[Tuple[str]],
     config: Optional[str],
 ) -> Tuple[Dict[str, Any], Api]:
-    """ "Resolve the agent config.
+    """Resolve the agent config.
 
     Args:
         api (Api): The api.

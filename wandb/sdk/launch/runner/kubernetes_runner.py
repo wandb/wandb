@@ -357,7 +357,6 @@ class KubernetesRunner(AbstractRunner):
             assert entry_point is not None
             assert builder is not None
             image_uri = builder.build_image(launch_project, entry_point)
-            # TODO: Issue a warning if we are building on the local registry.
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             if not builder.registry:

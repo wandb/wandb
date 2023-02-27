@@ -588,17 +588,29 @@ def build_image_from_project(
     launch_config = launch_config or {}
     env_config = launch_config.get("environment", {})
     if not isinstance(env_config, dict):
-        raise LaunchError(f"Invalid environment config: {env_config}")
+        wrong_type = type(env_config).__name__
+        raise LaunchError(
+            f"Invalid environment config: {env_config} of type {wrong_type} "
+            "loaded from launch config. Expected dict."
+        )
     environment = environment_from_config(env_config)
 
     registry_config = launch_config.get("registry", {})
     if not isinstance(registry_config, dict):
-        raise LaunchError(f"Invalid registry config: {registry_config}")
+        wrong_type = type(registry_config).__name__
+        raise LaunchError(
+            f"Invalid registry config: {registry_config} of type {wrong_type}"
+            " loaded from launch config. Expected dict."
+        )
     registry = registry_from_config(registry_config, environment)
 
     builder_config = launch_config.get("builder", {})
     if not isinstance(builder_config, dict):
-        raise LaunchError(f"Invalid builder config: {builder_config}")
+        wrong_type = type(builder_config).__name__
+        raise LaunchError(
+            f"Invalid builder config: {builder_config} of type {wrong_type} "
+            "loaded from launch config. Expected dict."
+        )
     builder = builder_from_config(builder_config, environment, registry)
 
     if not builder:
@@ -615,4 +627,5 @@ def build_image_from_project(
     if not image_uri:
         raise LaunchError("Error building image uri")
     else:
+        return image_uri
         return image_uri

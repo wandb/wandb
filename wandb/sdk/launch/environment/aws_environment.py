@@ -21,11 +21,9 @@ botocore = get_module(
     "it with `pip install wandb[launch]`.",
 )
 
-s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
-
 _logger = logging.getLogger(__name__)
 
-s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
+S3_URI_RE = re.compile(r"s3://([^/]+)/(.+)")
 
 
 class AwsEnvironment(AbstractEnvironment):
@@ -177,7 +175,7 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading {source} to {destination}")
         if not os.path.isfile(source):
             raise LaunchError(f"Source {source} does not exist.")
-        match = s3_uri_re.match(destination)
+        match = S3_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
         bucket = match.group(1)
@@ -213,7 +211,7 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading {source} to {destination}")
         if not os.path.isdir(source):
             raise LaunchError(f"Source {source} does not exist.")
-        match = s3_uri_re.match(destination)
+        match = S3_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
         bucket = match.group(1)
@@ -260,7 +258,7 @@ class AwsEnvironment(AbstractEnvironment):
             None
         """
         _logger.debug(f"Verifying storage {uri}")
-        match = s3_uri_re.match(uri)
+        match = S3_URI_RE.match(uri)
         if not match:
             raise LaunchError(f"Destination {uri} is not a valid s3 URI.")
         bucket = match.group(1)

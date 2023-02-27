@@ -93,12 +93,9 @@ class LaunchAgent:
     def __init__(self, api: Api, config: Dict[str, Any]):
         """Initialize a launch agent.
 
-        Args:
+        Arguments:
             api: Api object to use for making requests to the backend.
             config: Config dictionary for the agent.
-
-        Raises:
-            AssertionError: if config is missing the "entity" or "project" key.
         """
         self._entity = config["entity"]
         self._project = config["project"]
@@ -156,7 +153,7 @@ class LaunchAgent:
     def pop_from_queue(self, queue: str) -> Any:
         """Pops an item off the runqueue to run as a job.
 
-        Args:
+        Arguments:
             queue: Queue to pop from.
 
         Returns:

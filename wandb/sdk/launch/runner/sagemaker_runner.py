@@ -90,7 +90,7 @@ class SagemakerRunner(AbstractRunner):
         launch_project: LaunchProject,
         builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:
-        """Run a project on AWS Sagemaker.
+        """Run a project on Amazon Sagemaker.
 
         Args:
             launch_project (LaunchProject): The project to run.

@@ -289,7 +289,11 @@ class KanikoBuilder(AbstractBuilder):
                 ),
             ),
         ]
-
+        if bool(self.secret_name) != bool(self.secret_key):
+            raise LaunchError(
+                "Both secret_name and secret_key or neither must be specified "
+                "for kaniko build. You provided only one of them."
+            )
         if self.secret_name and self.secret_key:
             # TODO: We should validate that the secret exists and has the key
             # before creating the job. Or when we create the builder.
