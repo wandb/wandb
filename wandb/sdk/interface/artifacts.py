@@ -3,7 +3,7 @@ import hashlib
 import os
 import random
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -104,7 +104,7 @@ class ArtifactManifestEntry:
     ref: Optional[Union[FilePathStr, URIStr]] = None
     birth_artifact_id: Optional[str] = None
     size: Optional[int] = None
-    extra: Optional[Dict] = None
+    extra: Dict = field(default_factory=dict)
     local_path: Optional[str] = None
 
     def __post_init__(self) -> None:
