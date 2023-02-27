@@ -474,7 +474,6 @@ def test_aws_get_region_file_success(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
-            cuda=None,
             run_id=None,
         )
         region = get_region(launch_project.resource_args)
@@ -502,7 +501,6 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
-            cuda=None,
             run_id=None,
         )
         with pytest.raises(LaunchError) as e_info:
@@ -531,7 +529,6 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
-            cuda=None,
             run_id=None,
         )
         with pytest.raises(LaunchError) as e_info:

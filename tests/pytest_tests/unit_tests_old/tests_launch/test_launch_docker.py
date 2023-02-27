@@ -46,32 +46,9 @@ def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_r
     assert "python3-pip" in base_setup and "python3-setuptools" in base_setup
 
 
-def test_py2_cuda_base_setup(
-    test_settings, live_mock_server, mocked_fetchable_git_repo
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    test_spec = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "cuda": True,
-        "resource": "local",
-        "resource_args": {},
-    }
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
-    base_setup = get_base_setup(test_project, "2.7", "2")
-    assert "FROM nvidia/cuda:" in base_setup
-    assert "python-pip" in base_setup and "python-setuptools" in base_setup
-
-
 def test_run_cuda_version(
     runner, live_mock_server, mocked_fetchable_git_repo, test_settings
 ):
-    # run returns a previous cuda version = 11.0
-    live_mock_server.set_ctx({"run_cuda_version": "11.0"})
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -81,7 +58,13 @@ def test_run_cuda_version(
         "entity": "mock_server_entity",
         "project": "test",
         "resource": "local",
-        "resource_args": {},
+        "resource_args": {
+            "build": {
+                "cuda": {
+                    "base_image": "nvidia/cuda:11.0-runtime",
+                }
+            }
+        },
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
@@ -104,21 +87,6 @@ def test_run_cuda_version(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
     assert "FROM python:" in dockerfile
-
-    # differing versions, use specified
-    test_spec = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource": "local",
-        "resource_args": {},
-    }
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
-    dockerfile = generate_dockerfile(
-        test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
-    )
-    assert "FROM nvidia/cuda:10.0-runtime as base" in dockerfile
 
 
 def test_dockerfile_conda(
