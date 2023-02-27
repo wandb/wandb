@@ -11,7 +11,6 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
-import yaml
 
 import wandb
 import wandb.apis.public as public
@@ -20,7 +19,7 @@ from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
+
 
 logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -58,6 +57,12 @@ class SweepRun:
     # Threading can be used to run multiple workers in parallel
     worker_id: Optional[int] = None
 
+    @property
+    def full_name(self) -> Optional[str]:
+        qr = self.queued_run.queued_run
+        if qr:
+            return f"{qr.entity}/{qr.project}/{qr.id}"
+
 
 class Scheduler(ABC):
     """A controller/agent that populates a Launch RunQueue from a hyperparameter sweep."""
@@ -73,6 +78,7 @@ class Scheduler(ABC):
         **kwargs: Optional[Any],
     ):
         self._api = api
+        self._public_api = public.Api()
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -198,9 +204,8 @@ class Scheduler(ABC):
         logs and returns False when job is unreachable
         """
         if self._kwargs.get("job"):
-            _public_api = public.Api()
             try:
-                _job_artifact = _public_api.artifact(self._kwargs["job"], type="job")
+                _job_artifact = self._public_api.artifact(self._kwargs["job"], type="job")
                 wandb.termlog(
                     f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
                 )
@@ -243,7 +248,7 @@ class Scheduler(ABC):
                 id=encoded_run_id,
                 state="finished",
             )
-            wandb.termlog(f"----- {success}")
+            wandb.termlog(f"----- success: {success}")
             if success:
                 wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
             else:
@@ -254,9 +259,10 @@ class Scheduler(ABC):
             return success
 
     def _update_run_states(self) -> None:
-        """Iterate through runs.
+        """
+        Iterate through runs. Threadsafe.
 
-        Get state from backend and deletes runs if not in running state. Threadsafe.
+        Get state from backend and deletes runs if not in running state.
         """
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():

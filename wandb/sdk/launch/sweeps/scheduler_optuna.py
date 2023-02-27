@@ -1,56 +1,68 @@
 import base64
 from collections import defaultdict
 import logging
-import pprint
 import queue
 import socket
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import types
+from types import ModuleType
 from importlib.machinery import SourceFileLoader
-
+import click
 import optuna
+from optuna.pruners import HyperbandPruner, SuccessiveHalvingPruner
 
 import wandb
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
-    LOG_PREFIX,
+    _Worker,
     RunState,
     Scheduler,
     SweepRun,
 )
 from wandb.wandb_agent import _create_sweep_command_args
 
-from wandb.apis.public import QueuedRun, Api as PublicApi
-from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.wandb_run import Run
+from wandb.apis.public import Artifact, QueuedRun, Api as PublicApi
+from wandb.sdk.wandb_run import Run as SdkRun
+from wandb.apis.public import Run
 
 logger = logging.getLogger(__name__)
-
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+
+LOG_PREFIX = f"{click.style('optuna sched:', fg='bright_blue')} "
 OPTUNA_WANDB_FILENAME = "optuna_wandb.py"
+OPTUNA_WANDB_STORAGE = "optuna.db"
 
 
 @dataclass
-class _Worker:
-    agent_config: Dict[str, Any]
-    agent_id: str
+class _OptunaRun:
+    num_metrics: int
+    trial: optuna.Trial
+    sweep_run: SweepRun
 
 
-def _get_module(module_name: str, filepath: str) -> Union[bool, str]:
+def _encoded(run_id: str) -> str:
+    """
+    Helper to hash the run id for backend format
+    """
+    return base64.b64decode(bytes(run_id.encode("utf-8"))).decode("utf-8").split(":")[2]
+
+
+def _get_module(
+    module_name: str, filepath: str
+) -> Tuple[Optional[ModuleType], Optional[str]]:
     """
     Helper function that loads a python module from provided filepath
     """
     try:
         loader = SourceFileLoader(module_name, filepath)
-        mod = types.ModuleType(loader.name)
+        mod = ModuleType(loader.name)
         loader.exec_module(mod)
-        return True, ""
+        return mod, None
     except Exception as e:
-        return False, e
+        return None, str(e)
 
 
 class OptunaScheduler(Scheduler):
@@ -62,98 +74,141 @@ class OptunaScheduler(Scheduler):
     ):
         super().__init__(*args, **kwargs)
         self._workers: Dict[int, _Worker] = {}
-        self._num_workers: int = 2 or num_workers
-
-        self._public_api = PublicApi()
-        self._api = InternalApi()
-
-        self.study: optuna.study.Study = None
-
-        # user provided params
-        # TODO: remove from class, combine with create_study func
-        self._trial_func = None
-        self._pruner = None
-        self._sampler = None
-        self._study = None
-
-        self._storage_name = ""
-        self._study_name = None
-        self._run_trials = {}
+        self._num_workers: int = 2  # num_workers
         self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
-        self._metric_history = defaultdict(int)
 
-        self._wandb_run: Run = wandb.init(name=f"sweep-scheduler-{self._sweep_id}")
-        self._load_db()
-        self._load_optuna_artifact()
+        # Scheduler controller run
+        # TODO(gst): what if the scheduler is resumed?
+        self._wandb_run: SdkRun = wandb.init(name=f"sweep-scheduler-{self._sweep_id}")
 
-    def _load_optuna_artifact(self):
-        artifact_name = self._sweep_config.get("optuna_artifact")
-        if artifact_name:
-            artifact = self._wandb_run.use_artifact(artifact_name, type="optuna")
-            if artifact:
-                path = artifact.download()
-                mod, err = _get_module("optuna", f"{path}/{OPTUNA_WANDB_FILENAME}")
-                if not mod:
-                    wandb.termwarn(
-                        f"{LOG_PREFIX}Failed to load optuna from artifact: "
-                        f"{artifact_name} with error: {err}"
-                    )
-                    self._trial_func = self._make_trial
+        # Optuna
+        self.study: optuna.study.Study = None
+        self._trial_func = self._make_trial
+        self._optuna_runs: Dict[str, _OptunaRun] = {}
 
-                # Set objective function
-                self._trial_func = self._make_trial_from_objective
-                self._objective_func = mod.objective
-                if mod.study:
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Identified user-provided study, ignoring pruner and sampler"
-                    )
-                    self._study = mod.study()
-                else:
-                    # Set other optuna objects
-                    self._pruner = mod.pruner()
-                    self._sampler = mod.sampler()
-            else:
-                wandb.termwarn(f"{LOG_PREFIX}Failed to load artifact: {artifact_name}")
+    def _validate_optuna_study(self, study: optuna.Study) -> Optional[str]:
+        """
+        Accepts an optuna study, runs validation
+        Returns an error string if validation fails
+        """
+
+        # TODO(gst): implement
         return None
 
-    def _load_db(self):
+    def _load_optuna_artifacts(
+        self,
+    ) -> Tuple[
+        Optional[optuna.Study],
+        Optional[optuna.pruners.BasePruner],
+        Optional[optuna.samplers.BaseSampler],
+    ]:
+        """
+        Loads custom optuna classes from user-supplied artifact
+
+        Returns:
+            study: a custom optuna study object created by the user
+            pruner: a custom optuna pruner supplied by user
+            sampler: a custom optuna sampler supplied by user
+        """
+        artifact_name = self._sweep_config.get("optuna", {}).get("artifact")
+        if not artifact_name:
+            return None, None, None
+
+        wandb.termlog(f"{LOG_PREFIX}User set optuna.artifact, attempting download.")
+        artifact = self._wandb_run.use_artifact(artifact_name, type="optuna")
+        if not artifact:
+            raise SchedulerError(
+                f"{LOG_PREFIX}Failed to load artifact: {artifact_name}"
+            )
+
+        path = artifact.download()
+        mod, err = _get_module("optuna", f"{path}/{OPTUNA_WANDB_FILENAME}")
+        if not mod:
+            raise SchedulerError(
+                f"{LOG_PREFIX}Failed to load optuna from artifact: "
+                f"{artifact_name} with error: {err}"
+            )
+
+        # Set custom optuna trial creation method
+        if mod.objective:
+            self._trial_func = self._make_trial_from_objective
+            self._objective_func = mod.objective
+
+        if mod.study:
+            wandb.termlog(
+                f"{LOG_PREFIX}User provided study, ignoring pruner and sampler"
+            )
+            val_error: Optional[str] = self._validate_optuna_study(mod.study())
+            if val_error:
+                raise SchedulerError(err)
+            return mod.study(), None, None
+
+        pruner = mod.pruner() if mod.pruner else None
+        sampler = mod.sampler() if mod.sampler else None
+        return None, pruner, sampler
+
+    def _load_optuna(self) -> None:
         """
         Create an optuna study with a sqlite backened for loose state management
         """
-        if self._study:
-            self.study = self._study
+        study, pruner, sampler = self._load_optuna_artifacts()
+        if study:
+            self.study = study
             return
 
-        self._study_name = f"optuna-study-{self._sweep_id}"
-        pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
-        pruner = self._pruner or self._make_optuna_pruner(pruner_args)
+        if not pruner:
+            pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
+            pruner = self._make_optuna_pruner(pruner_args)
 
+        study_name = f"optuna-study-{self._sweep_id}"
+        storage_name = f"{study_name}.db"
+
+        # TODO(gst): this doesn't work
         if self._wandb_run.resumed:
             # our scheduler was resumed, try to load state
-            storage = self._wandb_run.use_artifact(self._artifact_name)
+            storage_artifact = f"{self._entity}/{self._project}{self._wandb_run.id}/{OPTUNA_WANDB_STORAGE}"
+            storage: Artifact = self._wandb_run.use_artifact(storage_artifact)
             storage.download()
-            self._storage_name = storage
-        else:
-            self._storage_name = f"{self._study_name}.db"
+            storage_name = storage.name
 
         wandb.termlog(
             f"{LOG_PREFIX}Creating optuna study with direction: {self._sweep_config.get('metric', {}).get('goal')}"
         )
         self.study = optuna.create_study(
-            study_name=self._study_name,
-            storage=f"sqlite:///{self._storage_name}",
+            study_name=study_name,
+            storage=f"sqlite:///{storage_name}",
             pruner=pruner,
-            sampler=self._sampler,
-            load_if_exists=True,
+            sampler=sampler,
+            load_if_exists=True,  # TODO(gst): verify this is correct functionality
             direction=self._sweep_config.get("metric", {}).get("goal"),
         )
 
+    def _load_scheduler_state(self) -> None:
+        """
+        Load optuna study sqlite data from an artifact in controller run
+        """
+        raise NotImplementedError
+
     def _save_scheduler_state(self) -> None:
-        scheduler_artifact = wandb.Artifact(self._artifact_name, type="scheduler")
-        scheduler_artifact.add_file(f".{self._storage_name}")
+        """
+        Save optuna study sqlite data to an artifact in the controller run
+        """
+        artifact_name = (
+            f"{self._entity}/{self._project}{self._wandb_run.id}/{OPTUNA_WANDB_STORAGE}"
+        )
+        scheduler_artifact = wandb.Artifact(artifact_name, type="scheduler")
+        scheduler_artifact.add_file(f".{self.study._storage}")
         self._wandb_run.log_artifact(scheduler_artifact)
+        wandb.termlog(
+            f"{LOG_PREFIX}Saved scheduler state to run: {self._wandb_run.id} "
+            f"in artifact: {scheduler_artifact.name}"
+        )
 
     def _start(self) -> None:
+        """
+        Load optuna state, then register workers as agents
+        """
+        self._load_optuna()
         for worker_id in range(self._num_workers):
             wandb.termlog(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
             agent_config = self._api.register_agent(
@@ -168,33 +223,34 @@ class OptunaScheduler(Scheduler):
             )
 
     def _heartbeat(self, worker_id: int) -> None:
-        # Make sure Scheduler is alive
+        """
+        Query job queue for available jobs if we have space in our worker cap
+        """
         if not self.is_alive():
             return
 
         if self._job_queue.empty() and len(self._runs) < self._num_workers:
             config, trial = self._trial_func()
-            run = self._api.upsert_run(
+            run: dict = self._api.upsert_run(
                 project=self._project,
                 entity=self._entity,
                 sweep_name=self._sweep_id,
                 config=config,
             )[0]
-
-            run_id = (
-                base64.b64decode(bytes(run["id"].encode("utf-8")))
-                .decode("utf-8")
-                .split(":")[2]
-            )
-
-            run = SweepRun(
-                id=run_id,
+            srun = SweepRun(
+                id=_encoded(run["id"]),
                 args=config,
                 worker_id=worker_id,
             )
-            self._run_trials[run.id] = trial
-            self._runs[run.id] = run
-            self._job_queue.put(run)
+            # internal scheduler handling needs this
+            self._runs[srun.id] = srun
+            self._job_queue.put(srun)
+            # track the trial and metrics for optuna
+            self._optuna_runs[srun.id] = _OptunaRun(
+                num_metrics=0,
+                trial=trial,
+                sweep_run=srun,
+            )
 
     def _run(self) -> None:
         """
@@ -205,9 +261,10 @@ class OptunaScheduler(Scheduler):
         create new runs if necessary from optuna suggestions
         launch new runs
         """
+        # go through every run we know is alive and get metrics
         to_kill = self._poll_running_runs()
         for run_id in to_kill:
-            del self._run_trials[run_id]
+            del self._optuna_runs[run_id]
             self._stop_run(run_id)
 
         for worker_id in self._workers:
@@ -227,72 +284,79 @@ class OptunaScheduler(Scheduler):
         ]:
             return
 
-        wandb.termlog(
-            f"{LOG_PREFIX}Converting Sweep Run (RunID:{srun.id}) to Launch Job"
-        )
-
-        # send to launchs
+        # send to launch
         command = _create_sweep_command_args({"args": srun.args})["args_dict"]
         self._add_to_launch_queue(
             run_id=srun.id,
             config={"overrides": {"run_config": command}},
         )
 
-    def _get_run_history(self, run_id):
-        launched_run_path = f"{self._entity}/{self._project}/{run_id}"
+    def _get_run_history(self, run_id: str) -> Tuple[List[int], bool]:
+        """
+        Gets logged metric history for a given run_id
+        """
         if run_id in self._runs:
-            # run was killed upstream
-            queued_run: QueuedRun = self._runs[run_id].queued_run
-            if queued_run.state == "pending":
+            queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
+            if not queued_run or queued_run.state == "pending":
                 return [], False
-            else:
-                queued_run.wait_until_running()
+
+            # TODO(gst): just noop here
+            queued_run.wait_until_running()
 
         try:
-            api_run: Run = self._public_api.run(launched_run_path)
-            finished = False
-        except Exception:
-            finished = True
+            api_run: Run = self._public_api.run(self._runs[run_id].full_name)
+        except Exception as e:
+            logger.debug(f"Failed to poll run from public api with error: {str(e)}")
+            return [], True
 
         metric_name = self._sweep_config["metric"]["name"]
         history = api_run.scan_history(keys=["_step", metric_name])
-        finished = finished or api_run.state == "finished"
+        metrics = [x[metric_name] for x in history]
 
-        return [x[metric_name] for x in history], finished
+        return metrics, api_run.state == "finished"
 
-    def _poll_running_runs(self):
+    def _poll_run(self, orun: _OptunaRun) -> bool:
+        """
+        Polls metrics for a run, returns true if finished
+        """
+        metrics, run_finished = self._get_run_history(orun.sweep_run.id)
+        for i, metric in enumerate(metrics[orun.num_metrics :]):
+            logger.debug(f"{orun.sweep_run.id} (step:{i+orun.num_metrics}) {metrics}")
+            orun.trial.report(metric, orun.num_metrics + i)
+            orun.num_metrics = len(metrics)
+
+            if orun.trial.should_prune():
+                wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {orun.sweep_run.id}")
+                self.study.tell(orun.trial, state=optuna.trial.TrialState.PRUNED)
+                return True
+        return run_finished
+
+    def _poll_running_runs(self) -> List[str]:
+        """
+        Iterates through runs, getting metrics, reporting to optuna
+
+        Returns list of runs optuna marked as PRUNED, to be deleted
+        """
+        # TODO(gst): make threadsafe?
         wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
         to_kill = []
-        for run_id, trial in self._run_trials.items():
-            # poll metrics, feed into optuna
-            metrics, run_finished = self._get_run_history(run_id)
-            last_metric_idx = self._metric_history[run_id]
-            for i, metric in enumerate(metrics[last_metric_idx:]):
-                wandb.termlog(
-                    f"{LOG_PREFIX}Run: {run_id} | logging new {metric=} (step: {i+last_metric_idx})"
-                )
-                trial = self._run_trials[run_id]
-                trial.report(metric, last_metric_idx + i)
-                self._metric_history[run_id] = len(metrics)
+        for run_id, orun in self._optuna_runs.items():
+            run_finished = self._poll_run(orun)
 
-                # ask optuna if we should prune the run
-                if trial.should_prune():
-                    wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {run_id}")
-                    self.study.tell(trial, state=optuna.trial.TrialState.PRUNED)
-                    to_kill += [run_id]
-                    break
-
-            if run_finished:
-                self.study.tell(trial, state=optuna.trial.TrialState.COMPLETE)
-                wandb.termlog(
-                    f"{LOG_PREFIX}Run finished. Currenty study state: {self.study.trials}"
-                )
+            if run_finished:  # Does this ever happen?
+                self.study.tell(orun.trial, state=optuna.trial.TrialState.COMPLETE)
+                wandb.termlog(f"{LOG_PREFIX}Run: {run_id} finished.")
+                logger.debug(f"Finished run, study state: {self.study.trials}")
                 to_kill += [run_id]
         return to_kill
 
-    def _make_trial(self):
+    def _make_trial(self) -> Tuple[Dict[str, Any], optuna.Trial]:
+        """
+        Use a wandb.config to create an optuna trial object with correct
+            optuna distributions
+        """
         trial = self.study.ask()
-        config = defaultdict(dict)
+        config: Dict[str, Dict[str, Any]] = defaultdict(dict)
         for param, extras in self._sweep_config["parameters"].items():
             if values := extras.get("values"):  # categorical
                 config[param]["value"] = trial.suggest_categorical(param, values)
@@ -309,10 +373,10 @@ class OptunaScheduler(Scheduler):
                     param, extras.get("min"), extras.get("max"), log=log
                 )
             else:
-                print(f"{LOG_PREFIX}Unknown parameter type, help! {param=}, {extras=}")
+                logger.debug(f"Unknown parameter type! {param=}, {extras=}")
         return config, trial
 
-    def _make_trial_from_objective(self) -> Union[Dict[str, Any], optuna.Trial]:
+    def _make_trial_from_objective(self) -> Tuple[Dict[str, Any], optuna.Trial]:
         """
         This is the core logic that turns a user-provided MOCK objective func
             into wandb params, allowing for pythonic search spaces.
@@ -323,7 +387,6 @@ class OptunaScheduler(Scheduler):
         Then calls optuna optimize on the copy study, passing in the
         loaded-from-user objective function with an aggresive timeout:
             ensures the model does not actually train.
-            TODO(gst): Play with this val, up to maybe 10 secs?
 
         Retrieves created mock-trial from study copy and formats params for wandb
 
@@ -335,16 +398,17 @@ class OptunaScheduler(Scheduler):
         study_copy = optuna.create_study()
         study_copy.add_trials(self.study.trials)
         try:
+            # TODO(gst): this the right timeout val?
             study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
         except TimeoutError:
-            raise Exception(
+            raise SchedulerError(
                 "Passed optuna objective functions cannot actually train."
                 " Must execute in 2 seconds. See docs."
             )
 
         temp_trial = study_copy.trials[-1]
         # convert from optuna-type param config to wandb-type param config
-        config = defaultdict(dict)
+        config: Dict[str, Dict[str, Any]] = defaultdict(dict)
         for param, value in temp_trial.params.items():
             config[param]["value"] = value
 
@@ -352,7 +416,9 @@ class OptunaScheduler(Scheduler):
 
         return config, new_trial
 
-    def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int] = 100):
+    def _make_optuna_pruner(
+        self, pruner_args: Dict, epochs: Optional[int] = 100
+    ) -> Optional[Union[HyperbandPruner, SuccessiveHalvingPruner]]:
         """
         Uses sweep config values in the optuna dict to configure pruner.
         Example sweep_config.yaml:
@@ -372,19 +438,20 @@ class OptunaScheduler(Scheduler):
             return None
         elif type_ == "HyperbandPruner":
             wandb.termlog(f"{LOG_PREFIX}Using the optuna HyperbandPruner")
-            return optuna.pruners.HyperbandPruner(
+            return HyperbandPruner(
                 min_resource=pruner_args.get("min_resource", 1),
                 max_resource=epochs,
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
         elif type_ == "SuccessiveHalvingPruner":
             wandb.termlog(f"{LOG_PREFIX}Using the optuna SuccessiveHalvingPruner")
-            return optuna.pruners.SuccessiveHalvingPruner(
+            return SuccessiveHalvingPruner(
                 min_resource=pruner_args.get("min_resource", 1),
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
         else:
             wandb.termwarn(f"Pruner: {type_} not *yet* supported.")
+            return None
 
-    def _exit(self):
+    def _exit(self) -> None:
         pass
