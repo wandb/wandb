@@ -12,15 +12,19 @@ class Api:
         self._api = None
 
     def __getstate__(self):
-        """Used for serializing. self._api is not serializable,
-        so it's dropped"""
+        """Use for serializing.
+
+        self._api is not serializable, so it's dropped
+        """
         state = self.__dict__.copy()
         del state["_api"]
         return state
 
     def __setstate__(self, state):
-        """Used for deserializing. Don't need to set self._api because
-        it's constructed when needed"""
+        """Used for deserializing.
+
+        Don't need to set self._api because it's constructed when needed.
+        """
         self.__dict__.update(state)
         self._api = None
 
