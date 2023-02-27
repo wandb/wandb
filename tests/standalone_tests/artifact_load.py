@@ -17,7 +17,7 @@ For a single artifact named A:
       - ensure files are available in bucket and match md5 / etag
       - ensure there are no dangling files in bucket
 
-TODO:
+Todo:
   - enabling the cache gc process causes errors, but the test doesn't fail, because
     wandb exits cleanly even if file pusher has errors
   - implement the deleter and bucket gc processes once we've built support for them
