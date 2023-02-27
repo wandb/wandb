@@ -10,7 +10,7 @@ import pytest
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
-from wandb.sdk.launch.runner.aws import (
+from wandb.sdk.launch.runner.sagemaker_runner import (
     SagemakerSubmittedRun,
     get_aws_credentials,
     get_ecr_repository_url,
@@ -121,7 +121,9 @@ def test_launch_aws_sagemaker_no_instance(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -161,7 +163,9 @@ def test_launch_aws_sagemaker(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -223,7 +227,9 @@ def test_launch_aws_sagemaker_launch_fail(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -250,7 +256,9 @@ def test_launch_aws_sagemaker_push_image_fail_none(
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     monkeypatch.setattr(wandb.docker, "push", lambda x, y: None)
 
@@ -278,7 +286,9 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: "I regret to inform you, that I have failed"
@@ -423,7 +433,9 @@ def test_failed_aws_cred_login(
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Failed\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Failed\n",
     )
     kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
@@ -537,7 +549,9 @@ def test_no_sagemaker_resource_args(
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
@@ -566,7 +580,9 @@ def test_no_OuputDataConfig(
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
@@ -598,7 +614,9 @@ def test_no_StoppingCondition(
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
@@ -628,7 +646,9 @@ def test_no_ResourceConfig(
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
@@ -658,7 +678,9 @@ def test_no_RoleARN(
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+        wandb.sdk.launch.runner.sagemaker_runner,
+        "aws_ecr_login",
+        lambda x, y: "Login Succeeded\n",
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
