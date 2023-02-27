@@ -3,7 +3,6 @@ import platform
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
-from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from tqdm.auto import tqdm
@@ -14,12 +13,6 @@ from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.sender import SendManager
-
-
-@dataclass
-class GPU:
-    name: str
-    memory_total: int
 
 
 Name = str
@@ -46,39 +39,23 @@ def send_manager(root_dir):
 
 class Run:
     def __init__(self) -> None:
-        self.MISSING_ENTITY = "default"
-        self.MISSING_PROJECT = "default"
-        self.MISSING_RUN_ID = wandb.util.generate_id()  # type: ignore
         self.interface = InterfaceQueue()
-        # self._autogen_run_id = wandb.util.generate_id()
-        self._run_id = None
-        self._entity = None
-        self._project = None
         self.run_dir = f"./wandb-importer/{self.run_id()}"
 
     def run_id(self) -> str:
-        if not self._run_id:
-            self._run_id = self.MISSING_RUN_ID
-            wandb.termwarn(
-                f"`run_id` not specified.  Auto-generating id: {self.MISSING_RUN_ID}"
-            )
-        return self._run_id
+        _id = wandb.util.generate_id()
+        wandb.termwarn(f"`run_id` not specified.  Autogenerating id: {_id}")
+        return _id
 
     def entity(self) -> str:
-        if not self._entity:
-            self._entity = self.MISSING_ENTITY
-            wandb.termwarn(
-                f"`entity` not specified.  Defaulting to: {self.MISSING_ENTITY}"
-            )
-        return self._entity
+        _entity = "unspecified-entity"
+        wandb.termwarn(f"`entity` not specified.  Defaulting to: {_entity}")
+        return _entity
 
     def project(self) -> str:
-        if not self._project:
-            self._project = self.MISSING_PROJECT
-            wandb.termwarn(
-                f"`project` not specified.  Defaulting to: {self.MISSING_PROJECT}"
-            )
-        return self._project
+        _project = "unspecified-project"
+        wandb.termwarn(f"`project` not specified.  Defaulting to: {_project}")
+        return _project
 
     def config(self) -> Dict[str, Any]:
         return {}
@@ -107,82 +84,80 @@ class Run:
         """
         return []
 
-    def run_group(self) -> str:
+    def run_group(self) -> Optional[str]:
         ...
 
-    def job_type(self) -> str:
+    def job_type(self) -> Optional[str]:
         ...
 
     def display_name(self) -> str:
         return self.run_id()
 
-    def notes(self) -> str:
+    def notes(self) -> Optional[str]:
         ...
 
-    def tags(self) -> List[str]:
+    def tags(self) -> Optional[List[str]]:
         ...
 
-    def settings(self):  # not sure what this is
+    def artifacts(self) -> Optional[Iterable[Tuple[Name, Path]]]:
         ...
 
-    def artifacts(self) -> Iterable[Tuple[Name, Path]]:
+    def os_version(self) -> Optional[str]:
         ...
 
-    def os_version(self) -> str:
+    def python_version(self) -> Optional[str]:
         ...
 
-    def python_version(self) -> str:
+    def cuda_version(self) -> Optional[str]:
         ...
 
-    def cuda_version(self) -> str:
+    def program(self) -> Optional[str]:
         ...
 
-    def program(self) -> str:
+    def host(self) -> Optional[str]:
         ...
 
-    def host(self) -> str:
+    def username(self) -> Optional[str]:
         ...
 
-    def username(self) -> str:
+    def executable(self) -> Optional[str]:
         ...
 
-    def executable(self) -> str:
+    def gpus_used(self) -> Optional[str]:
         ...
 
-    def gpus_used(self) -> List[GPU]:
+    def cpus_used(self) -> Optional[int]:  # can we get the model?
         ...
 
-    def cpus_used(self) -> int:  # can we get the model?
+    def memory_used(self) -> Optional[int]:
         ...
 
-    def memory_used(self) -> int:
+    def runtime(self) -> Optional[int]:
         ...
 
-    def runtime(self) -> int:
-        ...
-
-    def start_time(self) -> int:
+    def start_time(self) -> Optional[int]:
         ...
 
     def make_run_record(self) -> pb.Record:
         run = pb.RunRecord()
-        run.run_id = coalesce(self.run_id(), wandb.util.generate_id())  # type: ignore
-        run.entity = coalesce(self.entity(), self.MISSING_ENTITY)
-        run.project = coalesce(self.project(), self.MISSING_PROJECT)
+        run.run_id = self.run_id()
+        run.entity = self.entity()
+        run.project = self.project()
         run.display_name = coalesce(self.display_name())
         run.notes = coalesce(self.notes(), "")
         run.tags.extend(coalesce(self.tags(), list()))
         # run.start_time.FromMilliseconds(self.start_time())
         # run.runtime = self.runtime()
-        if self.run_group():
-            run.run_group = self.run_group()
+        run_group = self.run_group()
+        if run_group is not None:
+            run.run_group = run_group
         self.interface._make_config(
             data=self.config(), obj=run.config
         )  # is there a better way?
         return self.interface._make_record(run=run)
 
     def make_summary_record(self) -> pb.Record:
-        d = {
+        d: dict = {
             **self.summary(),
             "_runtime": self.runtime(),  # quirk of runtime -- it has to be here!
             # '_timestamp': self.start_time()/1000,
@@ -217,8 +192,10 @@ class Run:
 
     def make_artifact_record(self) -> pb.Record:
         art = wandb.Artifact(self.display_name(), "imported-artifacts")
-        for name, path in self.artifacts():
-            art.add_file(path, name)
+        artifacts = self.artifacts()
+        if artifacts is not None:
+            for name, path in artifacts:
+                art.add_file(path, name)
         proto = self.interface._make_artifact(art)
         proto.run_id = self.run_id()
         proto.project = self.project()
@@ -244,36 +221,45 @@ class Run:
         missing_text = "MLFlow did not capture this info."
 
         d = {}
-        if self.os_version():
+        if self.os_version() is not None:
             d["os"] = self.os_version()
         else:
             d["os"] = missing_text
 
-        if self.python_version():
+        if self.python_version() is not None:
             d["python"] = self.python_version()
         else:
             d["python"] = missing_text
 
-        if self.program():
+        if self.program() is not None:
             d["program"] = self.program()
         else:
             d["program"] = missing_text
 
-        if self.cuda_version():
+        if self.cuda_version() is not None:
             d["cuda"] = self.cuda_version()
-        if self.host():
+        if self.host() is not None:
             d["host"] = self.host()
-        if self.username():
+        if self.username() is not None:
             d["username"] = self.username()
-        if self.executable():
+        if self.executable() is not None:
             d["executable"] = self.executable()
-        if self.gpus_used():
-            d["gpu_devices"] = self.gpus_used()
-            d["gpu_count"] = len(d["gpu_devices"])
-        if self.cpus_used():
-            d["cpu_count"] = self.cpus_used()
-        if self.memory_used():
-            d["memory"] = {"total": self.memory_used()}
+        gpus_used = self.gpus_used()
+        if gpus_used is not None:
+            # if self.gpus_used() is not None:
+            # assert self.gpus_used() is not None
+            d["gpu_devices"] = json.dumps(gpus_used)
+            d["gpu_count"] = json.dumps(len(gpus_used))
+        cpus_used = self.cpus_used()
+        if cpus_used is not None:
+            # if self.cpus_used() is not None:
+            # assert self.cpus_used() is not None
+            d["cpu_count"] = json.dumps(self.cpus_used())
+        mem_used = self.memory_used()
+        if mem_used is not None:
+            # if self.memory_used() is not None:
+            # assert self.memory_used() is not None
+            d["memory"] = json.dumps({"total": self.memory_used()})
 
         with open(f"{run_dir}/files/wandb-metadata.json", "w") as f:
             f.write(json.dumps(d))
@@ -322,6 +308,6 @@ class Importer(ABC):
             sm.send(run.make_metadata_files_record())
             for history_record in run.make_history_records():
                 sm.send(history_record)
-            if run.artifacts():
+            if run.artifacts() is not None:
                 sm.send(run.make_artifact_record())
             sm.send(run.make_telem_record())

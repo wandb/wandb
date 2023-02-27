@@ -27,10 +27,10 @@ class MlflowRun(Run):
     # def project(self):
     #     return MISSING_PROJECT
 
-    def config(self) -> Dict[str, Any]:
+    def config(self):
         return self.run.data.params
 
-    def summary(self) -> Dict[str, float]:
+    def summary(self):
         return self.run.data.metrics
 
     def metrics(self):
@@ -107,7 +107,11 @@ class MlflowImporter(Importer):
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
 
-    def send(self, run: MlflowRun, overrides: Optional[Dict[str, Any]] = None) -> None:
+    def send(
+        self,
+        run: Run,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
         super().send(run, overrides)
 
