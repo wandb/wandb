@@ -201,7 +201,7 @@ class Artifact(ArtifactInterface):
         self._final = False
         self._digest = ""
         self._file_entries = None
-        self._manifest = ArtifactManifestV1(self, self._storage_policy)
+        self._manifest = ArtifactManifestV1(self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_objs = {}
         self._added_local_paths = {}
@@ -760,9 +760,7 @@ class ArtifactManifestV1(ArtifactManifest):
         return 1
 
     @classmethod
-    def from_manifest_json(
-        cls, artifact: ArtifactInterface, manifest_json: Dict
-    ) -> "ArtifactManifestV1":
+    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifestV1":
         if manifest_json["version"] != cls.version():
             raise ValueError(
                 "Expected manifest version 1, got %s" % manifest_json["version"]
@@ -789,17 +787,14 @@ class ArtifactManifestV1(ArtifactManifest):
             for name, val in manifest_json["contents"].items()
         }
 
-        return cls(
-            artifact, storage_policy_cls.from_config(storage_policy_config), entries
-        )
+        return cls(storage_policy_cls.from_config(storage_policy_config), entries)
 
     def __init__(
         self,
-        artifact: ArtifactInterface,
         storage_policy: "WandbStoragePolicy",
         entries: Optional[Mapping[str, ArtifactManifestEntry]] = None,
     ) -> None:
-        super().__init__(artifact, storage_policy, entries=entries)
+        super().__init__(storage_policy, entries=entries)
 
     def to_manifest_json(self) -> Dict:
         """This is the JSON that's stored in wandb_manifest.json.
