@@ -65,8 +65,12 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
+def _base_url() -> str:
+    return wandb.setup(settings=dict(_cli_only_mode=True)).settings.base_url
 
 def _is_wandb_uri(uri: str) -> bool:
+    if _base_url() in uri:
+        return True
     return (
         _WANDB_URI_REGEX.match(uri)
         or _WANDB_DEV_URI_REGEX.match(uri)

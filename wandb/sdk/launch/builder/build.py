@@ -466,6 +466,8 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                 except Exception as e:
                     _logger.warn(f"Unable to parse requirements.txt: {e}")
                     continue
+            # make sure we add wandb even if it wasn't in base_requirements
+            include_only.add("wandb")
         requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
     return requirements_line
 
