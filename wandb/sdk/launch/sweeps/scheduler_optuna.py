@@ -6,10 +6,10 @@ import queue
 import socket
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import types
-import importlib.machinery
+from importlib.machinery import SourceFileLoader
 
 import optuna
 
@@ -31,11 +31,26 @@ logger = logging.getLogger(__name__)
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+OPTUNA_WANDB_FILENAME = "optuna_wandb.py"
+
 
 @dataclass
 class _Worker:
     agent_config: Dict[str, Any]
     agent_id: str
+
+
+def _get_module(module_name: str, filepath: str) -> Union[bool, str]:
+    """
+    Helper function that loads a python module from provided filepath
+    """
+    try:
+        loader = SourceFileLoader(module_name, filepath)
+        mod = types.ModuleType(loader.name)
+        loader.exec_module(mod)
+        return True, ""
+    except Exception as e:
+        return False, e
 
 
 class OptunaScheduler(Scheduler):
@@ -62,7 +77,6 @@ class OptunaScheduler(Scheduler):
         self._study = None
 
         self._storage_name = ""
-        self._artifact_name = "optuna-scheduler"
         self._study_name = None
         self._run_trials = {}
         self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
@@ -73,44 +87,33 @@ class OptunaScheduler(Scheduler):
         self._load_optuna_artifact()
 
     def _load_optuna_artifact(self):
-        if self._sweep_config.get("optuna_artifact"):
-            artifact = self._wandb_run.use_artifact(
-                self._sweep_config.get("optuna_artifact"), type="optuna"
-            )
+        artifact_name = self._sweep_config.get("optuna_artifact")
+        if artifact_name:
+            artifact = self._wandb_run.use_artifact(artifact_name, type="optuna")
             if artifact:
-                wandb.termlog(f"{LOG_PREFIX}Downloading optuna.py artifact: {artifact}")
                 path = artifact.download()
-
-                objective_path = f"{path}/optuna.py"
-                try:
-                    loader = importlib.machinery.SourceFileLoader(
-                        "optuna", objective_path
+                mod, err = _get_module("optuna", f"{path}/{OPTUNA_WANDB_FILENAME}")
+                if not mod:
+                    wandb.termwarn(
+                        f"{LOG_PREFIX}Failed to load optuna from artifact: "
+                        f"{artifact_name} with error: {err}"
                     )
-                    mod = types.ModuleType(loader.name)
-                    loader.exec_module(mod)
-                    
-                    # Set objective function
-                    self._trial_func = self._make_trial_from_objective
-                    self._objective_func = mod.objective
-                    if mod.study:
-                        wandb.termlog(f"{LOG_PREFIX}Identified user-provided study, ignoring pruner and sampler")
-                        self._study = mod.study()
-                    else:
-                        # Set other optuna objects
-                        self._pruner = mod.pruner()
-                        self._sampler = mod.sampler()
+                    self._trial_func = self._make_trial
 
-                except Exception as e:
-                    wandb.termwarn(f"failed to load objective function: {str(e)}")
-                    raise e
-
+                # Set objective function
+                self._trial_func = self._make_trial_from_objective
+                self._objective_func = mod.objective
+                if mod.study:
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Identified user-provided study, ignoring pruner and sampler"
+                    )
+                    self._study = mod.study()
+                else:
+                    # Set other optuna objects
+                    self._pruner = mod.pruner()
+                    self._sampler = mod.sampler()
             else:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Failed to load: {self._sweep_config.get('optuna_artifact')}"
-                )
-
-                # defaults for optuna ops, NOT user provided
-                self._trial_func = self._make_trial
+                wandb.termwarn(f"{LOG_PREFIX}Failed to load artifact: {artifact_name}")
         return None
 
     def _load_db(self):
@@ -121,11 +124,8 @@ class OptunaScheduler(Scheduler):
             self.study = self._study
             return
 
-        # TODO(gst): add to validate function to confirm this exists, warn user
-        if not self._sweep_config.get("optuna_study_name"):
-            self._study_name = f"optuna-study-{self._sweep_id}"
-
-        pruner_args = self._sweep_config.get("pruner", {})
+        self._study_name = f"optuna-study-{self._sweep_id}"
+        pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
         pruner = self._pruner or self._make_optuna_pruner(pruner_args)
 
         if self._wandb_run.resumed:
@@ -312,7 +312,25 @@ class OptunaScheduler(Scheduler):
                 print(f"{LOG_PREFIX}Unknown parameter type, help! {param=}, {extras=}")
         return config, trial
 
-    def _make_trial_from_objective(self):
+    def _make_trial_from_objective(self) -> Union[Dict[str, Any], optuna.Trial]:
+        """
+        This is the core logic that turns a user-provided MOCK objective func
+            into wandb params, allowing for pythonic search spaces.
+            MOCK: does not actually train, only configures params
+
+        First creates a copy of our real study, quarantined from fake metrics
+
+        Then calls optuna optimize on the copy study, passing in the
+        loaded-from-user objective function with an aggresive timeout:
+            ensures the model does not actually train.
+            TODO(gst): Play with this val, up to maybe 10 secs?
+
+        Retrieves created mock-trial from study copy and formats params for wandb
+
+        Finally, ask our real study for a trial with fixed params = retrieved
+
+        Returns wandb formatted config and optuna trial from real study
+        """
         wandb.termlog(f"{LOG_PREFIX}Making trial params from objective func")
         study_copy = optuna.create_study()
         study_copy.add_trials(self.study.trials)
@@ -320,10 +338,12 @@ class OptunaScheduler(Scheduler):
             study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
         except TimeoutError:
             raise Exception(
-                "Passed optuna objective functions cannot actually train. Must execute in 2 seconds. See docs."
+                "Passed optuna objective functions cannot actually train."
+                " Must execute in 2 seconds. See docs."
             )
 
         temp_trial = study_copy.trials[-1]
+        # convert from optuna-type param config to wandb-type param config
         config = defaultdict(dict)
         for param, value in temp_trial.params.items():
             config[param]["value"] = value
@@ -333,11 +353,22 @@ class OptunaScheduler(Scheduler):
         return config, new_trial
 
     def _make_optuna_pruner(self, pruner_args: Dict, epochs: Optional[int] = 100):
+        """
+        Uses sweep config values in the optuna dict to configure pruner.
+        Example sweep_config.yaml:
+
+        ```
+        method: optuna
+        optuna:
+           pruner:
+              type: SuccessiveHalvingPruner
+              min_resource: 10
+              reduction_factor: 3
+        ```
+        """
         type_ = pruner_args.get("type")
         if not type_:
-            wandb.termwarn(
-                f"{LOG_PREFIX}No pruner selected, using Optuna default median pruner"
-            )
+            wandb.termwarn(f"{LOG_PREFIX}No pruner args, using Optuna defaults")
             return None
         elif type_ == "HyperbandPruner":
             wandb.termlog(f"{LOG_PREFIX}Using the optuna HyperbandPruner")
@@ -353,7 +384,7 @@ class OptunaScheduler(Scheduler):
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
         else:
-            wandb.termwarn(f"Pruner: {type_} not yet supported.")
+            wandb.termwarn(f"Pruner: {type_} not *yet* supported.")
 
     def _exit(self):
         pass
