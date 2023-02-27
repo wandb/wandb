@@ -33,7 +33,7 @@ def test_launch_incorrect_backend(
         "wandb.docker",
         lambda: None,
     )
-    monkeypatch.settattr(
+    monkeypatch.setattr(
         "wandb.sdk.launch.loader.environment_from_config",
         lambda *args, **kawrgs: MagicMock(),
     )
