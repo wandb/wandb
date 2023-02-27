@@ -118,7 +118,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _settings_setup(
         self,
-        settings: Optional[Settings] = None,
+        settings: Union[Settings, Dict[str, Any], None] = None,
         early_logger: Optional[_EarlyLogger] = None,
     ) -> "wandb_settings.Settings":
         s = wandb_settings.Settings()
@@ -138,7 +138,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
         return s
 
-    def _update(self, settings: Optional[Settings] = None) -> None:
+    def _update(self, settings: Union[Settings, Dict[str, Any], None] = None) -> None:
         if settings is None:
             return
         # self._settings.unfreeze()
