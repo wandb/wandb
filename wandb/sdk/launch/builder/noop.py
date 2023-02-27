@@ -45,7 +45,7 @@ class NoOpBuilder(AbstractBuilder):
     ) -> str:
         """Build the image.
 
-        For this class we just return the image name.
+        For this we raise a launch error since it can't build.
         """
         raise LaunchError(
             "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
