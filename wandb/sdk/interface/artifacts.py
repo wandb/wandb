@@ -13,6 +13,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
     Union,
 )
 
@@ -726,22 +727,22 @@ class StorageLayout:
 
 class StoragePolicy:
     @classmethod
-    def lookup_by_name(cls, name):
+    def lookup_by_name(cls, name: str) -> Optional[Type["StoragePolicy"]]:
         for sub in cls.__subclasses__():
             if sub.name() == name:
                 return sub
         return None
 
     @classmethod
-    def name(cls):
-        pass
+    def name(cls) -> str:
+        raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config):
-        pass
+    def from_config(cls, config: Dict) -> Optional["StoragePolicy"]:
+        raise NotImplementedError
 
-    def config(self):
-        pass
+    def config(self) -> dict:
+        raise NotImplementedError
 
     def load_file(
         self, artifact: Artifact, manifest_entry: ArtifactManifestEntry
@@ -759,8 +760,8 @@ class StoragePolicy:
         raise NotImplementedError
 
     def store_reference(
-        self, artifact, path, name=None, checksum=True, max_objects=None
-    ):
+        self, artifact: Artifact, path: str, name=None, checksum=True, max_objects=None
+    ) -> Sequence[ArtifactManifestEntry]:
         raise NotImplementedError
 
     def load_reference(
@@ -779,7 +780,7 @@ class StorageHandler:
         :return: The scheme to which this handler applies.
         :rtype: str
         """
-        pass
+        raise NotImplementedError
 
     def load_path(
         self,
@@ -793,7 +794,7 @@ class StorageHandler:
         :return: A path to the file represented by `index_entry`
         :rtype: str
         """
-        pass
+        raise NotImplementedError
 
     def store_path(
         self, artifact, path, name=None, checksum=True, max_objects=None
@@ -807,7 +808,7 @@ class StorageHandler:
         :return: A list of manifest entries to store within the artifact
         :rtype: list(ArtifactManifestEntry)
         """
-        pass
+        raise NotImplementedError
 
 
 class ArtifactsCache:
