@@ -1100,7 +1100,6 @@ def test_launch_entrypoint(test_settings):
         {},
         "local-container",
         {},
-        None,
         None,  # run_id
     )
     launch_project.add_entry_point(entry_point)

@@ -35,8 +35,16 @@ def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_r
         "entity": "mock_server_entity",
         "project": "test",
         "cuda": True,
-        "resource": "local",
-        "resource_args": {},
+        "resource": "local-container",
+        "resource_args": {
+            "local-container": {
+                "build": {
+                    "cuda": {
+                        "base_image": "nvidia/cuda:11.0-runtime",
+                    }
+                }
+            }
+        },
         "cuda_version": "11.0",
     }
     test_project = create_project_from_spec(test_spec, api)
@@ -57,11 +65,13 @@ def test_run_cuda_version(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource": "local",
+        "resource": "local-container",
         "resource_args": {
-            "build": {
-                "cuda": {
-                    "base_image": "nvidia/cuda:11.0-runtime",
+            "local-container": {
+                "build": {
+                    "cuda": {
+                        "base_image": "nvidia/cuda:11.0-runtime",
+                    }
                 }
             }
         },
