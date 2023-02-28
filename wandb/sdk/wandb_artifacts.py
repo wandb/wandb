@@ -37,7 +37,7 @@ from wandb.errors.term import termlog, termwarn
 from wandb.sdk import lib as wandb_lib
 from wandb.sdk.data_types._dtypes import Type, TypeRegistry
 from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
-from wandb.sdk.interface.artifacts import (  # noqa: F401
+from wandb.sdk.interface.artifacts import (
     ArtifactManifest,
     ArtifactManifestEntry,
     ArtifactNotLoggedError,

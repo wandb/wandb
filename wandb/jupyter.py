@@ -315,7 +315,7 @@ def attempt_colab_login(app_url):
             });
             })
         });
-    """  # noqa: E501
+    """
             % app_url.replace("http:", "https:")
         )
     )

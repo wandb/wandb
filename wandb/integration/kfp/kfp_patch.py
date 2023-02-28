@@ -123,7 +123,7 @@ def patch_kfp():
         patch("wandb.integration.kfp", wandb_log)
 
 
-def wandb_log(  # noqa: C901
+def wandb_log(
     func=None,
     # /,  # py38 only
     log_component_file=True,

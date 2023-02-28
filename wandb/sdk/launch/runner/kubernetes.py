@@ -256,9 +256,7 @@ class KubernetesRunner(AbstractRunner):
         )
         return pod_names
 
-    def get_namespace(
-        self, resource_args: Dict[str, Any]
-    ) -> Optional[str]:  # noqa: C901
+    def get_namespace(self, resource_args: Dict[str, Any]) -> Optional[str]:
         return self.backend_config.get("runner", {}).get(
             "namespace"
         ) or resource_args.get("namespace")
@@ -268,8 +266,8 @@ class KubernetesRunner(AbstractRunner):
         launch_project: LaunchProject,
         builder: AbstractBuilder,
         registry_config: Dict[str, Any],
-    ) -> Optional[AbstractRun]:  # noqa: C901
-        kubernetes = get_module(  # noqa: F811
+    ) -> Optional[AbstractRun]:
+        kubernetes = get_module(
             "kubernetes", "KubernetesRunner requires kubernetes to be installed"
         )
 
