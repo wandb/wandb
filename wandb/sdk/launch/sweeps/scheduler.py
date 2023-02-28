@@ -19,7 +19,7 @@ from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 
 
@@ -118,12 +118,12 @@ class Scheduler(ABC):
 
     @property
     def state(self) -> SchedulerState:
-        logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
+        _logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
         return self._state
 
     @state.setter
     def state(self, value: SchedulerState) -> None:
-        logger.debug(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
+        _logger.debug(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
         self._state = value
 
     def is_alive(self) -> bool:
@@ -241,7 +241,7 @@ class Scheduler(ABC):
                     "killed",
                     "finished",
                 ]:
-                    logger.debug(f"Got runstate: {_state} for run: {run_id}")
+                    _logger.debug(f"Got runstate: {_state} for run: {run_id}")
                     run.state = RunState.DEAD
                     _runs_to_remove.append(run_id)
                 elif _state in [
