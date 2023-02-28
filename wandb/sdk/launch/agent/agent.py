@@ -30,6 +30,7 @@ from ..utils import (
 )
 
 AGENT_POLLING_INTERVAL = 10
+ACTIVE_SWEEP_POLLING_INTERVAL = 1  # much more frequent when we know we have jobs
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
@@ -116,7 +117,7 @@ class LaunchAgent:
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
         self._pool = ThreadPool(
-            processes=int(min(MAX_THREADS, self._max_jobs)),
+            processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
             # initializer=init_pool_processes,
             initargs=(self._jobs, self._jobs_lock),
         )
@@ -292,7 +293,11 @@ class LaunchAgent:
                     else:
                         self.update_status(AGENT_RUNNING)
                     self.print_status()
-                time.sleep(AGENT_POLLING_INTERVAL)
+
+                if self.num_running_schedulers == 0:
+                    time.sleep(AGENT_POLLING_INTERVAL)
+                else:
+                    time.sleep(ACTIVE_SWEEP_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
             self._jobs_event.clear()
