@@ -313,7 +313,10 @@ def test_storage_policy_incomplete():
         "from_config": dict(config={}),
         "config": {},
         "load_file": dict(artifact=None, manifest_entry=None),
-        "store_file": dict(
+        "store_file_sync": dict(
+            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
+        ),
+        "store_file_async": dict(
             artifact_id="", artifact_manifest_id="", entry=None, preparer=None
         ),
         "store_reference": dict(artifact=None, path=""),
