@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-
+from wandb.errors import UsageError
 
 def test_run_step_property(mock_run):
     run = mock_run()
@@ -227,3 +227,11 @@ def test_run_deepcopy():
     run = wandb_sdk.wandb_run.Run(settings=s, config=c)
     run2 = copy.deepcopy(run)
     assert id(run) == id(run2)
+
+
+def test_raise_error_when_using_finished_run(mock_run):
+    run = mock_run(use_magic_mock=True)
+    run.finish()
+    assert run._is_finished
+    with pytest.raises(UsageError):
+        run.log({"a": 2})
