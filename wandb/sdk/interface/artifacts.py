@@ -530,14 +530,11 @@ class Artifact:
     def get_path(self, name: str) -> ArtifactManifestEntry:
         """Get the path to the file located at the artifact relative `name`.
 
-        NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact`, fetched using the API, or `wait()` has been called.
-
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            Exception: if problem
+            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
             Basic usage
@@ -562,14 +559,11 @@ class Artifact:
     def get(self, name: str) -> WBValue:
         """Get the WBValue object located at the artifact relative `name`.
 
-        NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact`, fetched using the API, or `wait()` has been called.
-
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            Exception: if problem
+            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
             Basic usage
@@ -682,14 +676,11 @@ class Artifact:
     def __getitem__(self, name: str) -> Optional[WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
-        NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact`, fetched using the API, or `wait()` has been called.
-
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            Exception: if problem
+            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
             Basic usage
