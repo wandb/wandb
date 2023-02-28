@@ -29,10 +29,9 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
 
     Arguments:
         config (Dict[str, Any]): The config.
+
     Returns:
         Environment: The environment constructed.
-    Raises:
-        LaunchError: If the environment is not configured correctly.
     """
     if not config:
         from .environment.local_environment import LocalEnvironment

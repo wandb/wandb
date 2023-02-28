@@ -8,7 +8,7 @@ import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.util as util
