@@ -92,7 +92,7 @@ class AsyncExecutor:
         )
 
         self.concurrency_limiter = asyncio.Semaphore(
-            value=concurrency_limit if concurrency_limit is not None else 128,
+            value=concurrency_limit or 128,
             # Before Python 3.10: if we don't set `loop=loop`,
             #   then the Semaphore will bind to the wrong event loop,
             #   causing errors when a coroutine tries to wait for it;
