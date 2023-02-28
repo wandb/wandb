@@ -9,9 +9,7 @@ from wandb.sdk.launch.launch import run
 from wandb.sdk.launch.utils import LaunchError
 
 
-def test_launch_incorrect_backend(
-    relay_server, runner, user, monkeypatch, wandb_init, test_settings
-):
+def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_settings):
     proj = "test1"
     uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
@@ -45,21 +43,20 @@ def test_launch_incorrect_backend(
         "wandb.sdk.launch.loader.builder_from_config",
         lambda *args, **kawrgs: MagicMock(),
     )
-    with relay_server():
-        r = wandb_init(settings=settings)
-
-        with pytest.raises(LaunchError) as e_info:
-            run(
-                api,
-                uri=uri,
-                entity=user,
-                project=proj,
-                entry_point=entry_point,
-                resource="testing123",
-            )
-
-        assert "Resource name not among available resources" in str(e_info)
-        r.finish()
+    r = wandb_init(settings=settings)
+    r.finish()
+    with pytest.raises(
+        LaunchError,
+        match="Could not create runner from config. Invalid runner name: testing123",
+    ):
+        run(
+            api,
+            uri=uri,
+            entity=user,
+            project=proj,
+            entry_point=entry_point,
+            resource="testing123",
+        )
 
 
 def test_launch_multi_run(relay_server, runner, user, wandb_init, test_settings):

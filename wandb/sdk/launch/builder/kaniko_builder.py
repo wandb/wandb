@@ -160,9 +160,7 @@ class KanikoBuilder(AbstractBuilder):
         if self.registry is None:
             raise LaunchError("No registry specified for Kaniko build.")
         username, password = self.registry.get_username_password()
-        encoded = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode(
-            "utf-8"
-        )
+        encoded = base64.b64encode(f"{username}:{password}".encode()).decode("utf-8")
         ecr_config_map = client.V1ConfigMap(
             api_version="v1",
             kind="ConfigMap",
