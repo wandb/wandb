@@ -27,7 +27,7 @@ class WBURLs:
             cli_launch="https://wandb.me/launch",
             doc_run="https://wandb.me/run",
             doc_require="https://wandb.me/library-require",
-            doc_start_err="https://docs.wandb.ai/library/init#init-start-error",
+            doc_start_err="https://docs.wandb.ai/guides/track/tracking-faq#initstarterror-error-communicating-with-wandb-process-",
             doc_artifacts_guide="https://docs.wandb.ai/guides/artifacts",
             upgrade_server="https://wandb.me/server-upgrade",
             multiprocess="http://wandb.me/init-multiprocess",

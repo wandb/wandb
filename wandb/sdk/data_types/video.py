@@ -183,7 +183,7 @@ class Video(BatchableMedia):
         return json_dict
 
     def _prepare_video(self, video: "np.ndarray") -> "np.ndarray":
-        """This logic was mostly taken from tensorboardX"""
+        """This logic was mostly taken from tensorboardX."""
         np = util.get_module(
             "numpy",
             required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".',

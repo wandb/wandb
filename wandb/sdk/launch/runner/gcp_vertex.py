@@ -72,7 +72,7 @@ class VertexSubmittedRun(AbstractRun):
 
 
 class VertexRunner(AbstractRunner):
-    """Runner class, uses a project to create a VertexSubmittedRun"""
+    """Runner class, uses a project to create a VertexSubmittedRun."""
 
     def run(
         self,
@@ -80,7 +80,6 @@ class VertexRunner(AbstractRunner):
         builder: AbstractBuilder,
         registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
-
         aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
@@ -141,7 +140,6 @@ class VertexRunner(AbstractRunner):
         if launch_project.docker_image:
             image_uri = launch_project.docker_image
         else:
-
             repository = construct_gcp_registry_uri(
                 gcp_artifact_repo,
                 gcp_project,

@@ -1,4 +1,4 @@
-"""Router - handle message router (sock)
+"""Router - handle message router (sock).
 
 Router to manage responses from a socket client.
 
