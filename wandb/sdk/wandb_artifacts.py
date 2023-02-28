@@ -6,8 +6,8 @@ import os
 import pathlib
 import re
 import shutil
+import tempfile
 import time
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -48,7 +48,7 @@ from wandb.sdk.interface.artifacts import (  # noqa: F401
     get_artifacts_cache,
 )
 from wandb.sdk.internal import progress
-from wandb.sdk.internal.artifacts import get_staging_dir
+from wandb.sdk.internal.artifact_saver import get_staging_dir
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.hashutil import (
     B64MD5,
@@ -87,7 +87,7 @@ _REQUEST_POOL_CONNECTIONS = 64
 
 _REQUEST_POOL_MAXSIZE = 64
 
-ARTIFACT_TMP = TemporaryDirectory("wandb-artifacts")
+ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
 
 class _AddedObj:
@@ -189,7 +189,7 @@ class Artifact(ArtifactInterface):
         self._added_objs = {}
         self._added_local_paths = {}
         # You can write into this directory when creating artifact files
-        self._artifact_dir = TemporaryDirectory()
+        self._artifact_dir = tempfile.TemporaryDirectory()
         self._type = type
         self._name = name
         self._description = description
@@ -718,7 +718,7 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        with NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
+        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
 

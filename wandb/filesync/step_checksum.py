@@ -15,8 +15,7 @@ if TYPE_CHECKING:
 
     from wandb.filesync import stats
     from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifacts as internal_artifacts
-    from wandb.sdk.internal import internal_api
+    from wandb.sdk.internal import artifact_saver, internal_api
 
 
 class RequestUpload(NamedTuple):
@@ -28,7 +27,7 @@ class RequestUpload(NamedTuple):
 class RequestStoreManifestFiles(NamedTuple):
     manifest: "artifacts.ArtifactManifest"
     artifact_id: str
-    save_fn: "internal_artifacts.SaveFn"
+    save_fn: "artifact_saver.SaveFn"
 
 
 class RequestCommitArtifact(NamedTuple):
@@ -100,7 +99,7 @@ class StepChecksum:
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(
-                            save_fn: "internal_artifacts.SaveFn",
+                            save_fn: "artifact_saver.SaveFn",
                             entry: "artifacts.ArtifactManifestEntry",
                         ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(

@@ -30,33 +30,26 @@ from wandb import util
 from wandb.errors import CommError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.internal import (
-    artifacts,
-    context,
-    datastore,
-    file_stream,
-    internal_api,
-    update,
-)
+from wandb.sdk.interface import interface
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context, datastore, file_stream, internal_api, update
+from wandb.sdk.internal.artifact_saver import ArtifactSaver
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
-from wandb.sdk.lib import redirect
-from wandb.sdk.lib.mailbox import ContextCancelledError
-from wandb.sdk.lib.proto_util import message_to_dict
-from wandb.sdk.wandb_settings import Settings
-
-from ..interface import interface
-from ..interface.interface_queue import InterfaceQueue
-from ..lib import (
+from wandb.sdk.lib import (
     config_util,
     filenames,
     filesystem,
     printer,
     proto_util,
+    redirect,
     telemetry,
     tracelog,
 )
+from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.sdk.lib.proto_util import message_to_dict
+from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
@@ -1478,7 +1471,7 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifacts.ArtifactSaver(
+        saver = ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
             manifest_json=_manifest_json_from_proto(artifact.manifest),

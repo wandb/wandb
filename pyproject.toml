@@ -82,9 +82,6 @@ exclude = [
 ]
 target-version = "py37"
 
-[tool.ruff.isort]
-split-on-trailing-comma = false
-
 [tool.ruff.per-file-ignores]
 "wandb/cli/cli.py" = ["C901"]
 "wandb/wandb_controller.py" = ["N803", "N806"]

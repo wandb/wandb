@@ -11,9 +11,8 @@ import wandb.util
 from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface.artifacts import ArtifactManifest
-    from wandb.sdk.internal import file_stream, internal_api
-    from wandb.sdk.internal.artifacts import SaveFn
+    from wandb.sdk.interface import artifacts
+    from wandb.sdk.internal import artifact_saver, file_stream, internal_api
 
 
 # Temporary directory for copies we make of some file types to
@@ -140,9 +139,9 @@ class FilePusher:
 
     def store_manifest_files(
         self,
-        manifest: "ArtifactManifest",
+        manifest: "artifacts.ArtifactManifest",
         artifact_id: str,
-        save_fn: "SaveFn",
+        save_fn: "artifact_saver.SaveFn",
     ) -> None:
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
