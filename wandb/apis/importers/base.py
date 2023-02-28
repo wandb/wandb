@@ -151,7 +151,8 @@ class Run:
         if run_group is not None:
             run.run_group = run_group
         self.interface._make_config(
-            data=self.config(), obj=run.config
+            data=self.config(),
+            obj=run.config,
         )  # is there a better way?
         return self.interface._make_record(run=run)
 
@@ -245,19 +246,13 @@ class Run:
             d["executable"] = self.executable()
         gpus_used = self.gpus_used()
         if gpus_used is not None:
-            # if self.gpus_used() is not None:
-            # assert self.gpus_used() is not None
             d["gpu_devices"] = json.dumps(gpus_used)
             d["gpu_count"] = json.dumps(len(gpus_used))
         cpus_used = self.cpus_used()
         if cpus_used is not None:
-            # if self.cpus_used() is not None:
-            # assert self.cpus_used() is not None
             d["cpu_count"] = json.dumps(self.cpus_used())
         mem_used = self.memory_used()
         if mem_used is not None:
-            # if self.memory_used() is not None:
-            # assert self.memory_used() is not None
             d["memory"] = json.dumps({"total": self.memory_used()})
 
         with open(f"{run_dir}/files/wandb-metadata.json", "w") as f:
@@ -282,8 +277,12 @@ class Importer(ABC):
                 futures = {
                     exc.submit(self.send, run, overrides=overrides): run for run in runs
                 }
-                for _ in as_completed(futures):
+                for future in as_completed(futures):
+                    run = futures[future]
                     pbar.update(1)
+                    pbar.set_description(
+                        f"Imported Run: {run.run_group()} {run.display_name()}"
+                    )
 
     def send(
         self,
@@ -299,8 +298,6 @@ class Importer(ABC):
         self._send(run)
 
     def _send(self, run: Run) -> None:
-        # path is not writeable otherwise?  Not sure why...
-        # !mkdir {run.run_dir} && chmod -R 755 {run.run_dir}
         with send_manager(run.run_dir) as sm:
             sm.send(run.make_run_record())
             sm.send(run.make_summary_record())

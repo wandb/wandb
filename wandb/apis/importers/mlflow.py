@@ -1,7 +1,5 @@
 from typing import Any, Dict, Iterable, Optional
 
-from tqdm.auto import tqdm
-
 from wandb.util import get_module
 
 from .base import Importer, Run
@@ -24,8 +22,8 @@ class MlflowRun(Run):
     def entity(self):
         return self.run.info.user_id
 
-    # def project(self):
-    #     return MISSING_PROJECT
+    def project(self):
+        return "imported-from-mlflow"
 
     def config(self):
         return self.run.data.params
@@ -40,7 +38,6 @@ class MlflowRun(Run):
                 d["_step"] = step
                 yield d
 
-        # Might go OOM if data is really big
         metrics = [
             self.mlflow_client.get_metric_history(self.run.info.run_id, k)
             for k in self.run.data.metrics.keys()
@@ -48,7 +45,7 @@ class MlflowRun(Run):
         metrics = zip(*metrics)  # transpose
         return wandbify(metrics)
 
-        # uses 1/k less memory, but may be slower?
+        # Alternate: Might be slower but use less mem
         # Can't make this a generator.  See mlflow get_metric_history internals
         # https://github.com/mlflow/mlflow/blob/master/mlflow/tracking/_tracking_service/client.py#L74-L93
         # for k in self.run.data.metrics.keys():
@@ -56,7 +53,7 @@ class MlflowRun(Run):
         #     yield wandbify(history)
 
     def run_group(self):
-        # ...  # this is nesting?  Parent at `run.info.tags.get("mlflow.parentRunId")`
+        # this is nesting?  Parent at `run.info.tags.get("mlflow.parentRunId")`
         return f"Experiment {self.run.info.experiment_id}"
 
     def job_type(self):
@@ -76,20 +73,15 @@ class MlflowRun(Run):
 
     def start_time(self):
         return self.run.info.start_time // 1000
-        # return 1675296000
 
     def runtime(self):
         return self.run.info.end_time // 1_000 - self.start_time()
-        # return 1675299600 - self.start_time()
 
     def git(self):
         ...
 
     def artifacts(self):
         for f in self.mlflow_client.list_artifacts(self.run.info.run_id):
-            # saved_path = client.download_artifacts(self.run.info.run_id, f.path)
-            # filename = saved_path.split('/')[-1]
-            # yield (filename, saved_path)
             dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
             full_path = dir_path + f.path
             yield (f.path, full_path)
@@ -116,12 +108,6 @@ class MlflowImporter(Importer):
         super().send(run, overrides)
 
     def get_all_runs(self) -> Iterable[MlflowRun]:
-        with tqdm(self.mlflow_client.search_experiments()) as exps:
-            for exp in exps:
-                exps.set_description(f"Importing Experiment: {exp.name}")
-                with tqdm(
-                    self.mlflow_client.search_runs(exp.experiment_id), leave=False
-                ) as runs:
-                    for run in runs:
-                        runs.set_description(f"Importing Run: {run.info.run_name}")
-                        yield MlflowRun(run, self.mlflow_client)
+        for exp in self.mlflow_client.search_experiments():
+            for run in self.mlflow_client.search_runs(exp.experiment_id):
+                yield MlflowRun(run, self.mlflow_client)
