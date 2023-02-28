@@ -290,7 +290,11 @@ class LaunchAgent:
                         self.update_status(AGENT_RUNNING)
                     self.print_status()
 
-                if self.num_running_schedulers == 0:
+                if (
+                    self.num_running_jobs == self._max_jobs
+                    or self.num_running_schedulers == 0
+                ):
+                    # all threads busy or no schedulers running
                     time.sleep(AGENT_POLLING_INTERVAL)
                 else:
                     time.sleep(ACTIVE_SWEEP_POLLING_INTERVAL)
