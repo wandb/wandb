@@ -112,8 +112,7 @@ class DataStore:
         return offset
 
     def in_last_block(self):
-        """When reading, we want to know if we're in the last block to
-        handle in progress writes"""
+        """Determine if we're in the last block to handle in-progress writes."""
         return self._index > self._size_bytes - LEVELDBLOG_DATA_LEN
 
     def scan_record(self):
@@ -260,7 +259,7 @@ class DataStore:
             # write middles (if any)
             while data_left > LEVELDBLOG_DATA_LEN:
                 self._write_record(
-                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],  # noqa: E203
+                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],
                     LEVELDBLOG_MIDDLE,
                 )
                 data_used += LEVELDBLOG_DATA_LEN

@@ -7,7 +7,7 @@ from . import files as sm_files
 
 
 def parse_sm_config() -> Dict[str, Any]:
-    """Attempts to parse SageMaker configuration.
+    """Attempt to parse SageMaker configuration.
 
     Returns:
         A dictionary of SageMaker config keys/values or empty dict if not found.

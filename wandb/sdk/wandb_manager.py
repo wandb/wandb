@@ -24,13 +24,13 @@ if TYPE_CHECKING:
 
 
 class ManagerConnectionError(Error):
-    """Raised when service process is not running"""
+    """Raised when service process is not running."""
 
     pass
 
 
 class ManagerConnectionRefusedError(ManagerConnectionError):
-    """Raised when service process is not running"""
+    """Raised when service process is not running."""
 
     pass
 

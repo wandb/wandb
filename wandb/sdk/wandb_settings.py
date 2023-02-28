@@ -62,8 +62,7 @@ else:
 
 
 def _get_wandb_dir(root_dir: str) -> str:
-    """
-    Get the full path to the wandb directory.
+    """Get the full path to the wandb directory.
 
     The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
     We add the `__stage_dir__` to it to get the full `wandb_dir`
@@ -87,9 +86,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
 # todo: should either return bool or error out. fix once confident.
 def _str_as_bool(val: Union[str, bool]) -> bool:
-    """
-    Parse a string as a bool.
-    """
+    """Parse a string as a bool."""
     if isinstance(val, bool):
         return val
     try:
@@ -107,9 +104,7 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
 
 
 def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Parse a string as a dict.
-    """
+    """Parse a string as a dict."""
     if isinstance(val, dict):
         return val
     try:
@@ -125,6 +120,13 @@ def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
     raise UsageError(f"Could not parse value {val} as a dict.")
 
 
+def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
+    """Parse a (potentially comma-separated) string as a tuple."""
+    if isinstance(val, str):
+        return tuple(val.split(","))
+    return tuple(val)
+
+
 def _redact_dict(
     d: Dict[str, Any],
     unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
@@ -138,7 +140,7 @@ def _redact_dict(
     return safe_dict
 
 
-def _get_program() -> Optional[Any]:
+def _get_program() -> Optional[str]:
     program = os.getenv(wandb.env.PROGRAM)
     if program is not None:
         return program
@@ -205,16 +207,15 @@ class SettingsConsole(enum.IntEnum):
 
 
 class Property:
-    """
-    A class to represent attributes (individual settings) of the Settings object.
+    """A class to represent attributes (individual settings) of the Settings object.
 
-        - Encapsulates the logic of how to preprocess and validate values of settings
-          throughout the lifetime of a class instance.
-        - Allows for runtime modification of settings with hooks, e.g. in the case when
-          a setting depends on another setting.
-        - The update() method is used to update the value of a setting.
-        - The `is_policy` attribute determines the source priority when updating the property value.
-          E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
+    - Encapsulates the logic of how to preprocess and validate values of settings
+    throughout the lifetime of a class instance.
+    - Allows for runtime modification of settings with hooks, e.g. in the case when
+    a setting depends on another setting.
+    - The update() method is used to update the value of a setting.
+    - The `is_policy` attribute determines the source priority when updating the property value.
+    E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
 
     # todo: this is a temporary measure to bypass validation of the settings
@@ -375,9 +376,7 @@ class Property:
 
 
 class Settings:
-    """
-    Settings for the wandb client.
-    """
+    """Settings for the wandb client."""
 
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
@@ -518,9 +517,9 @@ class Settings:
     table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Helper method that is used in `__init__` together with the class attributes
-        to initialize instance attributes (individual settings) as Property objects.
+        """Initialize instance attributes (individual settings) as Property objects.
+
+        Helper method that is used in `__init__` together with the class attributes.
         Note that key names must be the same as the class attribute names.
         """
         return dict(
@@ -606,6 +605,7 @@ class Settings:
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
+            config_paths={"prepocessor": _str_as_tuple},
             console={"value": "auto", "validator": self._validate_console},
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
@@ -767,10 +767,9 @@ class Settings:
     # helper methods for validating values
     @staticmethod
     def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """
-        Factory for type validators, given a type hint:
-        Convert the type hint of a setting into a function
-        that checks if the argument is of the correct type
+        """Return a factory for type validators.
+
+        Given a type hint for a setting into a function that type checks the argument.
         """
         origin, args = get_origin(hint), get_args(hint)
 
@@ -870,8 +869,7 @@ class Settings:
 
     @staticmethod
     def _validate_base_url(value: Optional[str]) -> bool:
-        """
-        Validate the base url of the wandb server.
+        """Validate the base url of the wandb server.
 
         param value: URL to validate
 
@@ -992,9 +990,7 @@ class Settings:
     # other helper methods
     @staticmethod
     def _path_convert(*args: str) -> str:
-        """
-        Join path and apply os.path.expanduser to it.
-        """
+        """Join path and apply os.path.expanduser to it."""
         return os.path.expanduser(os.path.join(*args))
 
     def _convert_console(self) -> SettingsConsole:
@@ -1045,9 +1041,7 @@ class Settings:
         return f"{project_url}{query}"
 
     def _run_url(self) -> str:
-        """
-        Return the run url.
-        """
+        """Return the run url."""
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -1056,8 +1050,8 @@ class Settings:
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
     def _set_run_start_time(self, source: int = Source.BASE) -> None:
-        """
-        Set the time stamps for the settings.
+        """Set the time stamps for the settings.
+
         Called once the run is initialized.
         """
         time_stamp: float = time.time()
@@ -1071,9 +1065,7 @@ class Settings:
         )
 
     def _sweep_url(self) -> str:
-        """
-        Return the sweep url.
-        """
+        """Return the sweep url."""
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""
@@ -1145,7 +1137,6 @@ class Settings:
         unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
-
             # todo: remove this and raise error instead once we are confident
             self.__unexpected_args.update(unexpected_arguments)
             wandb.termwarn(
@@ -1192,8 +1183,7 @@ class Settings:
         return f"<Settings {representation}>"
 
     def __copy__(self) -> "Settings":
-        """
-        Ensure that a copy of the settings object is a truly deep copy
+        """Ensure that a copy of the settings object is a truly deep copy.
 
         Note that the copied object will not be frozen  todo? why is this needed?
         """
@@ -1249,7 +1239,7 @@ class Settings:
         source: int = Source.OVERRIDE,
         **kwargs: Any,
     ) -> None:
-        """Update individual settings using the Property.update() method."""
+        """Update individual settings."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
             raise TypeError("Settings object is frozen")
 
@@ -1427,7 +1417,6 @@ class Settings:
         self, _logger: Optional[_EarlyLogger] = None
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
-
         settings: Dict[str, Union[bool, str, Sequence, None]] = dict()
         # disable symlinks if on windows (requires admin or developer setup)
         settings["symlink"] = True

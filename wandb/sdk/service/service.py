@@ -24,19 +24,19 @@ if TYPE_CHECKING:
 
 
 class ServiceStartProcessError(Error):
-    """Raised when a known error occurs when launching wandb service"""
+    """Raised when a known error occurs when launching wandb service."""
 
     pass
 
 
 class ServiceStartTimeoutError(Error):
-    """Raised when service start times out"""
+    """Raised when service start times out."""
 
     pass
 
 
 class ServiceStartPortError(Error):
-    """Raised when service start fails to find a port"""
+    """Raised when service start fails to find a port."""
 
     pass
 
@@ -84,8 +84,7 @@ class _Service:
     def _wait_for_ports(
         self, fname: str, proc: Optional[subprocess.Popen] = None
     ) -> None:
-        """
-        Wait for the service to write the port file and then read it.
+        """Wait for the service to write the port file and then read it.
 
         Args:
             fname: The path to the port file.
@@ -102,11 +101,11 @@ class _Service:
             if proc and proc.poll():
                 # process finished
                 # define these variables for sentry context grab:
-                # command = proc.args  # noqa: F841
-                # sys_executable = sys.executable  # noqa: F841
-                # which_python = shutil.which("python3")  # noqa: F841
-                # proc_out = proc.stdout.read()  # noqa: F841
-                # proc_err = proc.stderr.read()  # noqa: F841
+                # command = proc.args
+                # sys_executable = sys.executable
+                # which_python = shutil.which("python3")
+                # proc_out = proc.stdout.read()
+                # proc_err = proc.stderr.read()
                 context = dict(
                     command=proc.args,
                     sys_executable=sys.executable,
@@ -147,7 +146,6 @@ class _Service:
 
     def _launch_server(self) -> None:
         """Launch server and set ports."""
-
         # References for starting processes
         # - https://github.com/wandb/wandb/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python

@@ -29,7 +29,7 @@ def _to_dict(params):
     if meta:
         is_tf_flags_module = (
             isinstance(params, types.ModuleType)
-            and meta.__name__ == "tensorflow.python.platform.flags"  # noqa: W503
+            and meta.__name__ == "tensorflow.python.platform.flags"
         )
         if is_tf_flags_module or meta.__name__ == "absl.flags":
             params = params.FLAGS
