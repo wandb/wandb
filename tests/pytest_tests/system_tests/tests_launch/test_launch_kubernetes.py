@@ -2,7 +2,6 @@ import json
 from unittest.mock import MagicMock
 
 import kubernetes
-
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch.utils import make_name_dns_safe

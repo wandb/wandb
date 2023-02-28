@@ -1,8 +1,8 @@
 """Build and optinally push the launch agent image."""
-from wandb.docker import build, push
 import argparse
 import os
 
+from wandb.docker import build, push
 
 DOCKERFILE = """
 FROM python:3.9-bullseye
