@@ -1,6 +1,4 @@
-"""
-metric user tests.
-"""
+"""metric user tests."""
 
 import pytest
 import wandb

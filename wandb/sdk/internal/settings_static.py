@@ -1,6 +1,4 @@
-"""
-static settings.
-"""
+"""static settings."""
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]

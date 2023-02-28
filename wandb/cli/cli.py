@@ -32,6 +32,7 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -88,15 +89,14 @@ class ClickWandbException(ClickException):
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
-            return "An Exception was raised, see %s for full traceback.\n" "%s: %s" % (
-                log_file,
-                orig_type,
-                self.message,
+            return (
+                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"{orig_type}: {self.message}"
             )
 
 
 def display_error(func):
-    """Function decorator for catching common errors and re-raising as wandb.Error"""
+    """Function decorator for catching common errors and re-raising as wandb.Error."""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -662,7 +662,7 @@ def sync(
         _summary()
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")  # noqa: C901
+@cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
 @click.option("--project", "-p", default=None, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
@@ -733,7 +733,7 @@ def sweep(
     config_yaml_or_sweep_id,
     queue,
     project_queue,
-):  # noqa: C901
+):
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
     is_state_change_command = sum(lcls[k] for k in state_args)
@@ -771,7 +771,7 @@ def sweep(
         config_yaml = config_yaml_or_sweep_id
 
     def _parse_settings(settings):
-        """settings could be json or comma seperated assignments."""
+        """Parse settings from json or comma separated assignments."""
         ret = {}
         # TODO(jhr): merge with magic:_parse_magic
         if settings.find("=") > 0:
@@ -919,6 +919,10 @@ def sweep(
                 )
 
         scheduler_config = launch_config.get("scheduler", {})
+        num_workers = f'{scheduler_config.get("num_workers")}'
+        if num_workers is None or not str.isdigit(num_workers):
+            num_workers = "8"
+
         scheduler_entrypoint = [
             "wandb",
             "scheduler",
@@ -928,7 +932,7 @@ def sweep(
             "--project",
             project,
             "--num_workers",
-            config.get("scheduler", {}).get("num_workers", 8),
+            num_workers,
         ]
 
         if _job:
@@ -946,7 +950,7 @@ def sweep(
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        "placeholder-uri-scheduler",  # uri
+                        SCHEDULER_URI,  # uri
                         None,  # job
                         api,
                         "Scheduler.WANDB_SWEEP_ID",  # name,
@@ -1181,14 +1185,15 @@ def launch(
     repository,
     project_queue,
 ):
-    """
-    Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
-    In the case of a wandb URI the arguments used in the original run will be used by default.
-    These arguments can be overridden using the args option, or specifying those arguments
-    in the config's 'overrides' key, 'args' field as a list of strings.
+    """Start a W&B run from the given URI.
 
-    Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
-    `wandb launch [URI] --queue [optional queuename]`.
+    The URI can bea wandb URI, a GitHub repo uri, or a local path). In the case of a
+    wandb URI the arguments used in the original run will be used by default. These
+    arguments can be overridden using the args option, or specifying those arguments in
+    the config's 'overrides' key, 'args' field as a list of strings.
+
+    Running `wandb launch [URI]` will launch the run directly. To add the run to a
+    queue, run `wandb launch [URI] --queue [optional queuename]`.
     """
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
@@ -1453,11 +1458,10 @@ def controller(verbose, sweep_id):
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
 def docker_run(ctx, docker_run_args):
-    """Simple wrapper for `docker run` which adds WANDB_API_KEY and WANDB_DOCKER
-    environment variables to any docker run command.
+    """Wrap `docker run` and adds WANDB_API_KEY and WANDB_DOCKER environment variables.
 
-    This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
-    and --runtime wasn't set.
+    This will also set the runtime to nvidia if the nvidia-docker executable is present
+    on the system and --runtime wasn't set.
 
     See `docker run --help` for more details.
     """
@@ -1532,19 +1536,25 @@ def docker(
     cmd,
     no_tty,
 ):
-    """W&B docker lets you run your code in a docker image ensuring wandb is configured. It adds the WANDB_DOCKER and WANDB_API_KEY
-    environment variables to your container and mounts the current directory in /app by default.  You can pass additional
-    args which will be added to `docker run` before the image name is declared, we'll choose a default image for you if
-    one isn't passed:
+    """Run your code in a docker container.
 
+    W&B docker lets you run your code in a docker image ensuring wandb is configured. It
+    adds the WANDB_DOCKER and WANDB_API_KEY environment variables to your container and
+    mounts the current directory in /app by default.  You can pass additional args which
+    will be added to `docker run` before the image name is declared, we'll choose a
+    default image for you if one isn't passed:
+
+    ```sh
     wandb docker -v /mnt/dataset:/app/data
     wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
     wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
+    ```
 
-    By default, we override the entrypoint to check for the existence of wandb and install it if not present.  If you pass the --jupyter
-    flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
-    the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run
-    command.
+    By default, we override the entrypoint to check for the existence of wandb and
+    install it if not present.  If you pass the --jupyter flag we will ensure jupyter is
+    installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your
+    system we will use the nvidia runtime.  If you just want wandb to set environment
+    variable to an existing docker run command, see the wandb docker-run command.
     """
     api = InternalApi()
     if not find_executable("docker"):

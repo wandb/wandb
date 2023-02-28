@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test a batch of import telemetry
+"""Test a batch of import telemetry.
 
 ---
 id: 0.imports.07-batch7
