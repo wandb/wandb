@@ -148,7 +148,7 @@ def _json_helper(val, artifact):
 
 
 class Table(Media):
-    """The Table class is used to display and analyze tabular data.
+    """The Table class used to display and analyze tabular data.
 
     Unlike traditional spreadsheets, Tables support numerous types of data:
     scalar values, strings, numpy arrays, and most subclasses of `wandb.data_types.Media`.
@@ -257,7 +257,10 @@ class Table(Media):
         optional=True,
         allow_mixed_types=False,
     ):
-        """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
+        """Initialize a Table object.
+
+        Rows is kept for legacy reasons, we use data to mimic the Pandas api.
+        """
         super().__init__()
         self._pk_col = None
         self._fk_cols = set()
@@ -344,7 +347,7 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        """Casts a column to a specific type
+        """Cast a column to a specific type.
 
         Arguments:
             col_name: (str) - name of the column to cast
@@ -445,12 +448,15 @@ class Table(Media):
         return self._eq_debug(other)
 
     def add_row(self, *row):
-        """add_row is deprecated. Please use add_data"""
+        """Deprecated: use add_data instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     def add_data(self, *data):
-        """Add a row of data to the table. Argument length should match column length"""
+        """Add a row of data to the table.
+
+        Argument length should match column length.
+        """
         if len(data) != len(self.columns):
             raise ValueError(
                 "This table expects {} columns: {}, found {}".format(
@@ -482,8 +488,11 @@ class Table(Media):
         self._update_keys(force_last=True)
 
     def _get_updated_result_type(self, row):
-        """Returns an updated result type based on incoming row. Raises error if
-        the assignment is invalid"""
+        """Return an updated result type based on incoming row.
+
+        Raises:
+            TypeError: if the assignment is invalid.
+        """
         incoming_row_dict = {
             col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
         }
@@ -695,14 +704,15 @@ class Table(Media):
         return json_dict
 
     def iterrows(self):
-        """Iterate over rows as (ndx, row)
-        Yields
+        """Iterate over rows as (ndx, row).
+
+        Yields:
         ------
         index : int
             The index of the row. Using this value in other WandB tables
             will automatically build a relationship between the tables
         row : List[any]
-            The data of the row
+            The data of the row.
         """
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -721,13 +731,14 @@ class Table(Media):
         self.cast(col_name, _ForeignKeyType(table, table_col))
 
     def _update_keys(self, force_last=False):
-        """Updates the known key-like columns based on the current
-        column types. If the state has been updated since
-        the last update, we wrap the data appropriately in the Key classes
+        """Update the known key-like columns based on the current column types.
+
+        If the state has been updated since the last update, we wrap the data
+        appropriately in the Key classes.
 
         Arguments:
-        force_last: (bool) Determines wrapping the last column of data even if
-        there are no key updates.
+            force_last: (bool) Determines wrapping the last column of data even if there
+                are no key updates.
         """
         _pk_col = None
         _fk_cols = set()
@@ -767,7 +778,7 @@ class Table(Media):
             self._apply_key_updates(not has_update)
 
     def _apply_key_updates(self, only_last=False):
-        """Appropriately wraps the underlying data in special key classes.
+        """Appropriately wrap the underlying data in special key classes.
 
         Arguments:
             only_last: only apply the updates to the last row (used for performance when
@@ -818,7 +829,7 @@ class Table(Media):
     def add_column(self, name, data, optional=False):
         """Add a column of data to the table.
 
-        Arguments
+        Arguments:
             name: (str) - the unique name of the column
             data: (list | np.array) - a column of homogenous data
             optional: (bool) - if null-like values are permitted
@@ -857,9 +868,9 @@ class Table(Media):
             raise err
 
     def get_column(self, name, convert_to=None):
-        """Retrieves a column of data from the table
+        """Retrieve a column of data from the table.
 
-        Arguments
+        Arguments:
             name: (str) - the name of the column
             convert_to: (str, optional)
                 - "numpy": will convert the underlying data to numpy object
@@ -882,7 +893,7 @@ class Table(Media):
         return col
 
     def get_index(self):
-        """Returns an array of row indexes which can be used in other tables to create links"""
+        """Return an array of row indexes for use in other tables to create links."""
         ndxs = []
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -891,14 +902,14 @@ class Table(Media):
         return ndxs
 
     def index_ref(self, index):
-        """Get a reference to a particular row index in the table"""
+        """Get a reference to a particular row index in the table."""
         assert index < len(self.data)
         _index = _TableIndex(index)
         _index.set_table(self)
         return _index
 
     def add_computed_columns(self, fn):
-        """Adds one or more computed columns based on existing data
+        """Add one or more computed columns based on existing data.
 
         Args:
             fn: A function which accepts one or two parameters, ndx (int) and row (dict),
@@ -923,7 +934,7 @@ class Table(Media):
 
 
 class _PartitionTablePartEntry:
-    """Helper class for PartitionTable to track its parts"""
+    """Helper class for PartitionTable to track its parts."""
 
     def __init__(self, entry, source_artifact):
         self.entry = entry
@@ -940,17 +951,18 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """PartitionedTable represents a table which is composed
-    by the union of multiple sub-tables. Currently, PartitionedTable
-    is designed to point to a directory within an artifact.
+    """A table which is composed of multiple sub-tables.
+
+    Currently, PartitionedTable is designed to point to a directory within an artifact.
     """
 
     _log_type = "partitioned-table"
 
     def __init__(self, parts_path):
-        """
+        """Initialize a PartitionedTable.
+
         Args:
-            parts_path (str): path to a directory of tables in the artifact
+            parts_path (str): path to a directory of tables in the artifact.
         """
         super().__init__()
         self.parts_path = parts_path
@@ -982,13 +994,14 @@ class PartitionedTable(Media):
         return instance
 
     def iterrows(self):
-        """Iterate over rows as (ndx, row)
-        Yields
+        """Iterate over rows as (ndx, row).
+
+        Yields:
         ------
         index : int
             The index of the row.
         row : List[any]
-            The data of the row
+            The data of the row.
         """
         columns = None
         ndx = 0
@@ -1024,8 +1037,7 @@ class PartitionedTable(Media):
 
 
 class Audio(BatchableMedia):
-    """
-    Wandb class for audio clips.
+    """Wandb class for audio clips.
 
     Arguments:
         data_or_path: (string or numpy array) A path to an audio file
@@ -1038,7 +1050,7 @@ class Audio(BatchableMedia):
     _log_type = "audio-file"
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
-        """Accepts a path to an audio file or a numpy array of audio data."""
+        """Accept a path to an audio file or a numpy array of audio data."""
         super().__init__()
         self._duration = None
         self._sample_rate = sample_rate
@@ -1172,7 +1184,7 @@ class Audio(BatchableMedia):
 
 
 class JoinedTable(Media):
-    """Joins two tables for visualization in the Artifact UI
+    """Join two tables for visualization in the Artifact UI.
 
     Arguments:
         table1 (str, wandb.Table, ArtifactManifestEntry):
@@ -1227,7 +1239,7 @@ class JoinedTable(Media):
 
     @staticmethod
     def _validate_table_input(table):
-        """Helper method to validate that the table input is one of the 3 supported types"""
+        """Helper method to validate that the table input is one of the 3 supported types."""
         return (
             (type(table) == str and table.endswith(".table.json"))
             or isinstance(table, Table)
@@ -1236,7 +1248,7 @@ class JoinedTable(Media):
         )
 
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
-        """Helper method to add the table to the incoming artifact. Returns the path"""
+        """Helper method to add the table to the incoming artifact. Returns the path."""
         if isinstance(table, Table) or isinstance(table, PartitionedTable):
             table_name = f"t{table_ndx}_{str(id(self))}"
             if (
@@ -1310,8 +1322,7 @@ class JoinedTable(Media):
 
 
 class Bokeh(Media):
-    """
-    Wandb class for Bokeh plots.
+    """Wandb class for Bokeh plots.
 
     Arguments:
         val: Bokeh plot
@@ -1373,7 +1384,7 @@ def _nest(thing):
 
 
 class Graph(Media):
-    """Wandb class for graphs
+    """Wandb class for graphs.
 
     This class is typically used for saving and diplaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
@@ -1537,9 +1548,7 @@ class Graph(Media):
 
 
 class Node(WBValue):
-    """
-    Node used in `Graph`
-    """
+    """Node used in `Graph`."""
 
     def __init__(
         self,
@@ -1589,7 +1598,7 @@ class Node(WBValue):
 
     @property
     def id(self):
-        """Must be unique in the graph"""
+        """Must be unique in the graph."""
         return self._attributes.get("id")
 
     @id.setter
@@ -1599,7 +1608,7 @@ class Node(WBValue):
 
     @property
     def name(self):
-        """Usually the type of layer or sublayer"""
+        """Usually the type of layer or sublayer."""
         return self._attributes.get("name")
 
     @name.setter
@@ -1609,7 +1618,7 @@ class Node(WBValue):
 
     @property
     def class_name(self):
-        """Usually the type of layer or sublayer"""
+        """Usually the type of layer or sublayer."""
         return self._attributes.get("class_name")
 
     @class_name.setter
@@ -1641,7 +1650,7 @@ class Node(WBValue):
 
     @size.setter
     def size(self, val):
-        """Tensor size"""
+        """Tensor size."""
         self._attributes["size"] = tuple(val)
         return val
 
@@ -1651,7 +1660,7 @@ class Node(WBValue):
 
     @output_shape.setter
     def output_shape(self, val):
-        """Tensor output_shape"""
+        """Tensor output_shape."""
         self._attributes["output_shape"] = val
         return val
 
@@ -1661,7 +1670,7 @@ class Node(WBValue):
 
     @is_output.setter
     def is_output(self, val):
-        """Tensor is_output"""
+        """Tensor is_output."""
         self._attributes["is_output"] = val
         return val
 
@@ -1671,7 +1680,7 @@ class Node(WBValue):
 
     @num_parameters.setter
     def num_parameters(self, val):
-        """Tensor num_parameters"""
+        """Tensor num_parameters."""
         self._attributes["num_parameters"] = val
         return val
 
@@ -1681,7 +1690,7 @@ class Node(WBValue):
 
     @child_parameters.setter
     def child_parameters(self, val):
-        """Tensor child_parameters"""
+        """Tensor child_parameters."""
         self._attributes["child_parameters"] = val
         return val
 
@@ -1691,7 +1700,7 @@ class Node(WBValue):
 
     @is_constant.setter
     def is_constant(self, val):
-        """Tensor is_constant"""
+        """Tensor is_constant."""
         self._attributes["is_constant"] = val
         return val
 
@@ -1714,9 +1723,7 @@ class Node(WBValue):
 
 
 class Edge(WBValue):
-    """
-    Edge used in `Graph`
-    """
+    """Edge used in `Graph`."""
 
     def __init__(self, from_node, to_node):
         self._attributes = {}
@@ -1736,7 +1743,7 @@ class Edge(WBValue):
 
     @property
     def name(self):
-        """Optional, not necessarily unique"""
+        """Optional, not necessarily unique."""
         return self._attributes.get("name")
 
     @name.setter

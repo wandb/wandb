@@ -3,9 +3,11 @@ from typing import Any, Callable, Dict
 
 log = logging.getLogger(__name__)
 
+SCHEDULER_URI = "placeholder-uri-scheduler"
+
 
 class SchedulerError(Exception):
-    """Raised when a known error occurs with wandb sweep scheduler"""
+    """Raised when a known error occurs with wandb sweep scheduler."""
 
     pass
 
@@ -22,7 +24,6 @@ _WANDB_SCHEDULERS: Dict[str, Callable] = {
 
 
 def load_scheduler(scheduler_name: str) -> Any:
-
     scheduler_name = scheduler_name.lower()
     if scheduler_name not in _WANDB_SCHEDULERS:
         raise SchedulerError(

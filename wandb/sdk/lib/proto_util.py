@@ -94,10 +94,7 @@ def settings_dict_from_pbmap(
 def message_to_dict(
     message: "Message",
 ) -> Dict[str, Any]:
-    """
-    Converts a protobuf message into a dictionary.
-    """
-
+    """Convert a protobuf message into a dictionary."""
     from google.protobuf.json_format import MessageToDict
 
     return MessageToDict(message, preserving_proto_field_name=True)

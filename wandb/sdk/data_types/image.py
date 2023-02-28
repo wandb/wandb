@@ -435,9 +435,7 @@ class Image(BatchableMedia):
         return json_dict
 
     def guess_mode(self, data: "np.ndarray") -> str:
-        """
-        Guess what type of image the np.array is representing
-        """
+        """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
             return "L"
@@ -452,9 +450,10 @@ class Image(BatchableMedia):
 
     @classmethod
     def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
-        """
-        Converts floating point image on the range [0,1] and integer images
-        on the range [0,255] to uint8, clipping if necessary.
+        """Convert image data to uint8.
+
+        Convert floating point image on the range [0,1] and integer images on the range
+        [0,255] to uint8, clipping if necessary.
         """
         np = util.get_module(
             "numpy",
@@ -482,9 +481,7 @@ class Image(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """
-        Combines a list of images into a meta dictionary object describing the child images.
-        """
+        """Combine a list of images into a meta dictionary object describing the child images."""
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 

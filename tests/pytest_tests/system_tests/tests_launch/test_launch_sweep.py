@@ -3,6 +3,8 @@ import json
 import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
+from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.utils import construct_launch_spec
 
 
@@ -34,19 +36,15 @@ def test_sweeps_on_launch(
     proj = "test_project2"
     queue = "existing-queue"
     settings = test_settings({"project": proj})
-    docker_image = "testing321"
 
     with relay_server():
-        run = wandb_init(settings=settings)
-        # log fake job to use in scheduler
-        job_artifact = run._log_job_artifact_with_image(docker_image, args=[])
-        job_name = job_artifact.wait().name
+        wandb_init(settings=settings).finish()
 
         api = wandb.sdk.internal.internal_api.Api()
         api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
 
         sweep_config = {
-            "job": job_name,
+            "job": "fake-job:v1",
             "method": "bayes",
             "metric": {
                 "name": "loss_metric",
@@ -64,7 +62,7 @@ def test_sweeps_on_launch(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        "placeholder-uri-scheduler",  # uri
+                        SCHEDULER_URI,  # uri
                         None,  # job
                         api,
                         "Scheduler.WANDB_SWEEP_ID",  # name,
@@ -81,12 +79,9 @@ def test_sweeps_on_launch(
                             "--project",
                             proj,
                             "--job",  # necessary?
-                            job_name,
+                            sweep_config["job"],
                             "--resource",
                             resource,
-                            # TODO(hupo): Add num-workers as option in launch config
-                            # "--num_workers",
-                            # launch_config.get("scheduler", {}).get("num_workers", 1),
                         ],  # entry_point,
                         None,  # version,
                         None,  # parameters,
@@ -130,4 +125,111 @@ def test_sweeps_on_launch(
             assert res["runSpec"]
             assert res["runSpec"]["resource"] == resource
 
-        run.finish()
+
+@pytest.mark.parametrize("max_schedulers", [None, 0, -1, 2.0, "2"])
+def test_launch_agent_scheduler(
+    monkeypatch, user, wandb_init, test_settings, max_schedulers
+):
+    proj = "123"
+    queue = "queue"
+    settings = test_settings({"project": proj})
+    run = wandb_init(settings=settings)
+
+    job_artifact = run._log_job_artifact_with_image("docker_image", args=[])
+    job_name = job_artifact.wait().name
+
+    api = wandb.sdk.internal.internal_api.Api()
+    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
+
+    sweep_config = {
+        "job": job_name,
+        "method": "bayes",
+        "metric": {
+            "name": "loss_metric",
+            "goal": "minimize",
+        },
+        "parameters": {
+            "epochs": {"value": 1},
+            "increment": {"values": [0.1, 0.2, 0.3]},
+        },
+    }
+
+    # Launch job spec for the Scheduler
+    _launch_scheduler_spec = json.dumps(
+        {
+            "queue": queue,
+            "run_spec": json.dumps(
+                construct_launch_spec(
+                    SCHEDULER_URI,  # uri
+                    None,  # job
+                    api,
+                    "Scheduler.WANDB_SWEEP_ID",  # name,
+                    proj,
+                    user,
+                    None,  # docker_image,
+                    "local-process",  # resource,
+                    [
+                        "wandb",
+                        "scheduler",
+                        "WANDB_SWEEP_ID",
+                        "--queue",
+                        queue,
+                        "--project",
+                        proj,
+                        "--job",  # necessary?
+                        job_name,
+                    ],  # entry_point,
+                    None,  # version,
+                    None,  # parameters,
+                    None,  # resource_args,
+                    None,  # launch_config,
+                    None,  # cuda,
+                    None,  # run_id,
+                    None,  # repository
+                )
+            ),
+        }
+    )
+
+    sweep_id, warnings = api.upsert_sweep(
+        sweep_config,
+        project=proj,
+        entity=user,
+        obj_id=None,
+        launch_scheduler=_launch_scheduler_spec,
+    )
+
+    assert len(warnings) == 0
+    assert sweep_id
+
+    def _check_job(_, job):
+        print(job)
+        return
+
+    def _raise(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        LaunchAgent,
+        "run_job",
+        _check_job,
+    )
+
+    api.ack_run_queue_item = _raise
+
+    launch_agent = LaunchAgent(
+        api=api,
+        config={
+            "entity": user,
+            "project": proj,
+            "queues": [queue],
+            "max_schedulers": max_schedulers,
+        },
+    )
+
+    if max_schedulers is None:
+        assert launch_agent._max_schedulers == 1
+    elif max_schedulers is -1:
+        assert launch_agent._max_schedulers == float("inf")
+    else:
+        assert launch_agent._max_schedulers == int(max_schedulers)
