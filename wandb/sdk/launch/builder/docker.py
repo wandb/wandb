@@ -54,10 +54,16 @@ class DockerBuilder(AbstractBuilder):
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
-            docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
+            _, stderr = docker.build(
+                tags=[image_uri],
+                file=dockerfile,
+                context_path=build_ctx_path,
+                return_stderr=True,
+            )
+
         except docker.DockerError as e:
             raise LaunchError(f"Error communicating with docker client: {e}")
-
+        print(os.listdir(build_ctx_path), build_ctx_path)
         try:
             os.remove(build_ctx_path)
         except Exception:

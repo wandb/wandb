@@ -35,26 +35,28 @@ def install_deps(
     try:
         # Include only uri if @ is present
         clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
-
         print("installing {}...".format(", ".join(clean_deps)))
         sys.stdout.flush()
         subprocess.check_output(
             ["pip", "install"] + OPTS + clean_deps, stderr=subprocess.STDOUT
         )
         if failed is not None and len(failed) > 0:
-            sys.stderr.write(
-                "ERROR: Unable to install: {}".format(", ".join(clean_deps))
-            )
-            sys.stderr.flush()
+            sys.stdout.write("ERROR: Unable to install: {}\n".format(", ".join(failed)))
+            sys.stdout.flush()
         return failed
     except subprocess.CalledProcessError as e:
         if failed is None:
             failed = set()
         num_failed = len(failed)
-        for line in e.output.decode("utf8"):
+        for line in e.output.decode("utf8").splitlines():
             if line.startswith("ERROR:"):
-                failed.add(line.split(" ")[-1])
-        if len(failed) > num_failed:
+                dep = find_package_in_error_string(clean_deps, line)
+                if dep is not None:
+                    failed.add(dep)
+                    break
+        if len(set(clean_deps) - failed) == 0:
+            return failed
+        elif len(failed) > num_failed:
             return install_deps(list(set(clean_deps) - failed), failed)
         else:
             return failed
@@ -75,7 +77,11 @@ def main() -> None:
                     reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
-                if len(reqs) >= CORES:
+                if len(reqs) >= CORES - 3:
+                    reqs.append("torch==0.1234")
+                    reqs.append("basdfhuiobdsahf")
+                    reqs.append("jifdgebn")
+                    reqs.reverse()
                     deps_failed = install_deps(reqs)
                     reqs = []
                     if deps_failed is not None:
@@ -85,6 +91,7 @@ def main() -> None:
                 if deps_failed is not None:
                     failed = failed.union(deps_failed)
             with open("_wandb_bootstrap_errors.json", "w") as f:
+                print("WRITING FAILED", os.getcwd())
                 f.write(json.dumps({"pip": list(failed)}))
             if len(failed) > 0:
                 sys.stderr.write(
@@ -93,6 +100,25 @@ def main() -> None:
                 sys.stderr.flush()
     else:
         print("No frozen requirements found")
+
+
+# hacky way to get the name of the requirement that failed
+# attempt last word which is the name of the package often
+# fall back to checking all words in the line for the package name
+def find_package_in_error_string(deps: List[str], line: str):
+    # if the last word in the error string is in the list of deps, return it
+    last_word = line.split(" ")[-1]
+    if last_word in deps:
+        return last_word
+    # if the last word is not in the list of deps, check all words
+    # TODO: this could report the wrong package if the error string
+    # contains a reference to another package in the deps
+    # before the package that failed to install
+    for word in line.split(" "):
+        if word in deps:
+            return word
+    # if we can't find the package, return None
+    return None
 
 
 if __name__ == "__main__":

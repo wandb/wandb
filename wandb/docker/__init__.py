@@ -82,17 +82,23 @@ def is_buildx_installed() -> bool:
     return _buildx_installed
 
 
-def build(tags: List[str], file: str, context_path: str) -> str:
+def build(
+    tags: List[str], file: str, context_path: str, return_stderr: bool = False
+) -> str:
     command = ["buildx", "build"] if is_buildx_installed() else ["build"]
+    command = ["build"]
+    command += ["--progress", "plain"]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    run(
+    stderr = run(
         ["docker"] + command + build_tags + ["-f", file, context_path],
-        capture_stderr=False,
-        capture_stdout=False,
+        capture_stderr=True,
+        capture_stdout=True,
+        return_stderr=return_stderr,
     )
-    return tags[0]
+    print("STDERR", stderr)
+    return tags[0], return_stderr
 
 
 def run(
