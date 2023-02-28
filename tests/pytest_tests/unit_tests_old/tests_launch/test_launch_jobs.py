@@ -242,5 +242,5 @@ def test_launch_add_container_queued_run(
     )
 
     queued_run = launch_add(job="test-job:v0")
-    with pytest.raises(CommError):
+    with pytest.raises(LaunchError):
         queued_run.wait_until_finished()

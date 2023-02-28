@@ -483,7 +483,7 @@ def test_no_retry_auth():
         assert not util.no_retry_auth(e)
     e.response.status_code = 401
     e.response.reason = "Unauthorized"
-    with pytest.raises(wandb.CommError):
+    with pytest.raises(wandb.UsageError):
         util.no_retry_auth(e)
     e.response.status_code = 403
     e.response.reason = "Forbidden"
