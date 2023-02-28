@@ -1,11 +1,7 @@
-import os
-import tempfile
 from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, Union
 
 import wandb
-from wandb import env
 from wandb.data_types import WBValue
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
@@ -584,13 +580,3 @@ class Artifact:
             ```
         """
         raise NotImplementedError
-
-
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    mkdir_exists_ok(path)
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
-
-
-def get_new_staging_file() -> IO:
-    return tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False)

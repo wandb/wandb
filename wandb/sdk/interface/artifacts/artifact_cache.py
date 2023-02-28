@@ -2,15 +2,7 @@ import contextlib
 import hashlib
 import os
 import random
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    ContextManager,
-    Dict,
-    Generator,
-    Optional,
-    Tuple,
-)
+from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 from wandb import env, util
 from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError

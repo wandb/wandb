@@ -6,8 +6,8 @@ import os
 import pathlib
 import re
 import shutil
-import tempfile
 import time
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -34,13 +34,10 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-from wandb.sdk.internal import progress
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
-
-from . import lib as wandb_lib
-from .data_types._dtypes import Type, TypeRegistry
-from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.artifacts import (  # noqa: F401
+from wandb.sdk import lib as wandb_lib
+from wandb.sdk.data_types._dtypes import Type, TypeRegistry
+from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
+from wandb.sdk.interface.artifacts import (  # noqa: F401
     ArtifactManifest,
     ArtifactManifestEntry,
     ArtifactNotLoggedError,
@@ -49,10 +46,11 @@ from .interface.artifacts import (  # noqa: F401
     StorageLayout,
     StoragePolicy,
     get_artifacts_cache,
-    get_new_staging_file,
 )
-from .lib import filesystem, runid
-from .lib.hashutil import (
+from wandb.sdk.internal import progress
+from wandb.sdk.internal.artifacts import get_staging_dir
+from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
     HexMD5,
@@ -61,6 +59,7 @@ from .lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
+from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
@@ -88,7 +87,7 @@ _REQUEST_POOL_CONNECTIONS = 64
 
 _REQUEST_POOL_MAXSIZE = 64
 
-ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
+ARTIFACT_TMP = TemporaryDirectory("wandb-artifacts")
 
 
 class _AddedObj:
@@ -190,7 +189,7 @@ class Artifact(ArtifactInterface):
         self._added_objs = {}
         self._added_local_paths = {}
         # You can write into this directory when creating artifact files
-        self._artifact_dir = tempfile.TemporaryDirectory()
+        self._artifact_dir = TemporaryDirectory()
         self._type = type
         self._name = name
         self._description = description
@@ -719,7 +718,7 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        with get_new_staging_file() as f:
+        with NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
 

@@ -30,8 +30,21 @@ from wandb import util
 from wandb.errors import CommError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.sdk.internal import (
+    artifacts,
+    context,
+    datastore,
+    file_stream,
+    internal_api,
+    update,
+)
+from wandb.sdk.internal.file_pusher import FilePusher
+from wandb.sdk.internal.job_builder import JobBuilder
+from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
 from wandb.sdk.lib import redirect
 from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.sdk.lib.proto_util import message_to_dict
+from wandb.sdk.wandb_settings import Settings
 
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
@@ -44,17 +57,12 @@ from ..lib import (
     telemetry,
     tracelog,
 )
-from ..lib.proto_util import message_to_dict
-from ..wandb_settings import Settings
-from . import artifacts, context, datastore, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .job_builder import JobBuilder
-from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
     import sys
 
     from wandb.proto.wandb_internal_pb2 import (
+        ArtifactManifest,
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
@@ -98,6 +106,37 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
         ("tensorflow", "tensorflow"),
         ("sklearn", "sklearn"),
     ]
+
+
+def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
+    if manifest.version == 1:
+        contents = {
+            content.path: {
+                "digest": content.digest,
+                "birthArtifactID": content.birth_artifact_id
+                if content.birth_artifact_id
+                else None,
+                "ref": content.ref or None,
+                "size": content.size,
+                "local_path": content.local_path or None,
+                "extra": {
+                    extra.key: json.loads(extra.value_json) for extra in content.extra
+                },
+            }
+            for content in manifest.contents
+        }
+    else:
+        raise ValueError(f"unknown artifact manifest version: {manifest.version}")
+
+    return {
+        "version": manifest.version,
+        "storagePolicy": manifest.storage_policy,
+        "storagePolicyConfig": {
+            config.key: json.loads(config.value_json)
+            for config in manifest.storage_policy_config
+        },
+        "contents": contents,
+    }
 
 
 class ResumeState:
@@ -1442,7 +1481,7 @@ class SendManager:
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
-            manifest_json=artifacts._manifest_json_from_proto(artifact.manifest),
+            manifest_json=_manifest_json_from_proto(artifact.manifest),
             file_pusher=self._pusher,
             is_user_created=artifact.user_created,
         )

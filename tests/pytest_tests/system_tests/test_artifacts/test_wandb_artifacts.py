@@ -1097,7 +1097,7 @@ def test_tracking_storage_handler():
 def test_manifest_json_version():
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
     pd_manifest.version = 1
-    manifest = wandb.sdk.internal.artifacts._manifest_json_from_proto(pd_manifest)
+    manifest = wandb.sdk.internal.sender._manifest_json_from_proto(pd_manifest)
     assert manifest["version"] == 1
 
 
@@ -1113,7 +1113,7 @@ def test_manifest_json_invalid_version(version):
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
     pd_manifest.version = version
     with pytest.raises(Exception) as e:
-        wandb.sdk.internal.artifacts._manifest_json_from_proto(pd_manifest)
+        wandb.sdk.internal.sender._manifest_json_from_proto(pd_manifest)
     assert "manifest version" in str(e.value)
 
 

@@ -1,9 +1,4 @@
-from wandb.sdk.interface.artifacts.artifact import (
-    Artifact,
-    ArtifactNotLoggedError,
-    get_new_staging_file,
-    get_staging_dir,
-)
+from wandb.sdk.interface.artifacts.artifact import Artifact, ArtifactNotLoggedError
 from wandb.sdk.interface.artifacts.artifact_cache import (
     ArtifactsCache,
     get_artifacts_cache,
@@ -25,8 +20,6 @@ __all__ = [
     "ArtifactNotLoggedError",
     "ArtifactsCache",
     "get_artifacts_cache",
-    "get_new_staging_file",
-    "get_staging_dir",
     "StorageHandler",
     "StorageLayout",
     "StoragePolicy",

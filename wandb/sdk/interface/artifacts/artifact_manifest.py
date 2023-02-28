@@ -1,12 +1,5 @@
 from dataclasses import dataclass, field
-from typing import (
-    TYPE_CHECKING,
-    Dict,
-    List,
-    Mapping,
-    Optional,
-    Union,
-)
+from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb import util
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
