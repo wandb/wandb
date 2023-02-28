@@ -8,8 +8,6 @@ from hashlib import md5
 from types import ModuleType
 from typing import TYPE_CHECKING, Dict, List, Mapping, Tuple, Union
 
-import urllib3
-
 if sys.version_info >= (3, 8):
     from typing import Final
 else:
@@ -17,6 +15,7 @@ else:
 
 import requests
 import requests.adapters
+import urllib3
 
 import wandb
 from wandb.sdk.lib import telemetry
@@ -67,12 +66,12 @@ def _setup_requests_session() -> requests.Session:
 
 def _nested_dict_to_tuple(
     nested_dict: Mapping[str, Mapping[str, str]]
-) -> Tuple[Tuple[str, ...], ...]:
-    return tuple((k,) + tuple(v.items()) for k, v in nested_dict.items())
+) -> Tuple[Tuple[str, Tuple[str, str]], ...]:
+    return tuple((k, *v.items()) for k, v in nested_dict.items())  # type: ignore
 
 
 def _tuple_to_nested_dict(
-    nested_tuple: Tuple[Tuple[str, ...], ...]
+    nested_tuple: Tuple[Tuple[str, Tuple[str, str]], ...]
 ) -> Dict[str, Dict[str, str]]:
     return {k: dict(v) for k, *v in nested_tuple}
 
@@ -81,7 +80,7 @@ def _tuple_to_nested_dict(
 def _should_capture_metric(
     metric_name: str,
     metric_labels: Tuple[str, ...],
-    filters: Tuple[Tuple[str, ...], ...],
+    filters: Tuple[Tuple[str, Tuple[str, str]], ...],
 ) -> bool:
     # we use tuples to make the function arguments hashable => usable with lru_cache
     should_capture = False
@@ -112,10 +111,7 @@ def _should_capture_metric(
 
 
 class OpenMetricsMetric:
-    """
-    Container for all the COUNTER and GAUGE metrics extracted from an
-    OpenMetrics endpoint.
-    """
+    """Container for all the COUNTER and GAUGE metrics extracted from an OpenMetrics endpoint."""
 
     def __init__(
         self, name: str, url: str, filters: Mapping[str, Mapping[str, str]]
