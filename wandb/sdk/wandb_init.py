@@ -563,7 +563,7 @@ class _WandbInit:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb, "
-                        "you should use multi-processing not threads"  # noqa: E501
+                        "you should use multi-processing not threads"
                     )
 
                 latest_run = self._wl._global_run_stack[-1]
