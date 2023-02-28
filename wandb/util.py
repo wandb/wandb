@@ -1261,7 +1261,9 @@ def image_id_from_k8s() -> Optional[str]:
     return None
 
 
-def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
+def async_call(
+    target: Callable, timeout: Optional[Union[int, float]] = None
+) -> Callable:
     """Wrap a method to run in the background with an optional timeout.
 
     Returns a new method that will call the original with any args, waiting for upto
@@ -1602,8 +1604,8 @@ def _has_internet() -> bool:
         return False
 
 
-def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
-    rand = rand or random
+def rand_alphanumeric(length: int = 8, rand: Optional[random.Random] = None) -> str:
+    rand = rand or random.Random()
     return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
