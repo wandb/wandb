@@ -30,7 +30,7 @@ from ..utils import (
 )
 
 AGENT_POLLING_INTERVAL = 10
-ACTIVE_SWEEP_POLLING_INTERVAL = 1  # much more frequent when we know we have jobs
+ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
@@ -105,7 +105,6 @@ class LaunchAgent:
         self._project = config.get("project")
         self._api = api
         self._base_url = self._api.settings().get("base_url")
-
         self._ticks = 0
         self._jobs: Dict[int, JobAndRunStatus] = {}
         self._jobs_lock = threading.Lock()
@@ -140,23 +139,20 @@ class LaunchAgent:
     @property
     def thread_ids(self) -> List[int]:
         """Returns a list of keys running thread ids for the agent."""
-        return list(self._jobs.keys())
+        with self._jobs_lock:
+            return list(self._jobs.keys())
 
     @property
     def num_running_schedulers(self) -> int:
         """Returns just the number of schedulers"""
-        return len([x for x in self._jobs if self._jobs[x].is_scheduler])
+        with self._jobs_lock:
+            return len([x for x in self._jobs if self._jobs[x].is_scheduler])
 
     @property
     def num_running_jobs(self) -> int:
-        return len([x for x in self._jobs if not self._jobs[x].is_scheduler])
-
-    def job_ids(self) -> List[str]:
-        """Returns a list of keys running job ids for the agent."""
-        job_ids: List[str] = []
+        """Returns the number of jobs not including schedulers"""
         with self._jobs_lock:
-            job_ids = [job.run.id for job in self._jobs.values() if job.run]
-        return job_ids
+            return len([x for x in self._jobs if not self._jobs[x].is_scheduler])
 
     def pop_from_queue(self, queue: str) -> Any:
         """Pops an item off the runqueue to run as a job."""
@@ -188,7 +184,7 @@ class LaunchAgent:
 
         wandb.termlog(f"{LOG_PREFIX}{output_str}")
         if self.num_running_jobs > 0:
-            output_str += f": {','.join([str(key) for key in self._jobs.keys()])}"
+            output_str += f": {','.join(str(job_id) for job_id in self.thread_ids)}"
 
         _logger.info(output_str)
 
@@ -205,7 +201,7 @@ class LaunchAgent:
         with self._jobs_lock:
             del self._jobs[thread_id]
         # update status back to polling if no jobs are running
-        if len(self._jobs) == 0:
+        if len(self.thread_ids) == 0:
             self.update_status(AGENT_POLLING)
 
     def _update_finished(self, thread_id: int) -> None:
@@ -288,7 +284,7 @@ class LaunchAgent:
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
                 if self._ticks % 2 == 0:
-                    if len(self._jobs) == 0:
+                    if len(self.thread_ids) == 0:
                         self.update_status(AGENT_POLLING)
                     else:
                         self.update_status(AGENT_RUNNING)
@@ -365,7 +361,7 @@ class LaunchAgent:
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
             wandb.termlog(
-                f"{LOG_PREFIX}Preparing to run sweep scheduler: "
+                f"{LOG_PREFIX}Preparing to run sweep scheduler "
                 f"({self.num_running_schedulers}/{self._max_schedulers})"
             )
 
@@ -402,7 +398,10 @@ class LaunchAgent:
             run = job_tracker.run
             status = run.get_status().state
             if status in ["stopped", "failed", "finished"]:
-                wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
+                if job_tracker.is_scheduler:
+                    wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
+                else:
+                    wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed = True
                 return True
