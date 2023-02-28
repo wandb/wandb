@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.utils import LaunchError
 
