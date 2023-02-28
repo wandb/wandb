@@ -1,7 +1,9 @@
-from wandb.sdk.interface.artifacts.artifacts import (
-    Artifact,
+from wandb.sdk.interface.artifacts.artifact_manifest import (
     ArtifactManifest,
     ArtifactManifestEntry,
+)
+from wandb.sdk.interface.artifacts.artifacts import (
+    Artifact,
     ArtifactNotLoggedError,
     get_new_staging_file,
     get_staging_dir,

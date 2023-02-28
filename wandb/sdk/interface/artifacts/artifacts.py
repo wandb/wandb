@@ -1,149 +1,17 @@
 import os
 import tempfile
-from dataclasses import dataclass, field
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    ContextManager,
-    Dict,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Union,
-)
+from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, Union
 
 import wandb
-from wandb import env, util
+from wandb import env
 from wandb.data_types import WBValue
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
-from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     import wandb.apis.public
-    from wandb.sdk import wandb_artifacts
-
-
-class ArtifactManifest:
-    entries: Dict[str, "ArtifactManifestEntry"]
-
-    @classmethod
-    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
-        if "version" not in manifest_json:
-            raise ValueError("Invalid manifest format. Must contain version field.")
-        version = manifest_json["version"]
-        for sub in cls.__subclasses__():
-            if sub.version() == version:
-                return sub.from_manifest_json(manifest_json)
-        raise ValueError("Invalid manifest version.")
-
-    @classmethod
-    def version(cls) -> int:
-        raise NotImplementedError
-
-    def __init__(
-        self,
-        storage_policy: "wandb_artifacts.WandbStoragePolicy",
-        entries: Optional[Mapping[str, "ArtifactManifestEntry"]] = None,
-    ) -> None:
-        self.storage_policy = storage_policy
-        self.entries = dict(entries) if entries else {}
-
-    def to_manifest_json(self) -> Dict:
-        raise NotImplementedError
-
-    def digest(self) -> HexMD5:
-        raise NotImplementedError
-
-    def add_entry(self, entry: "ArtifactManifestEntry") -> None:
-        if (
-            entry.path in self.entries
-            and entry.digest != self.entries[entry.path].digest
-        ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
-        self.entries[entry.path] = entry
-
-    def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
-        return self.entries.get(path)
-
-    def get_entries_in_directory(self, directory: str) -> List["ArtifactManifestEntry"]:
-        return [
-            self.entries[entry_key]
-            for entry_key in self.entries
-            if entry_key.startswith(
-                directory + "/"
-            )  # entries use forward slash even for windows
-        ]
-
-
-@dataclass
-class ArtifactManifestEntry:
-    path: LogicalFilePathStr
-    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
-    ref: Optional[Union[FilePathStr, URIStr]] = None
-    birth_artifact_id: Optional[str] = None
-    size: Optional[int] = None
-    extra: Dict = field(default_factory=dict)
-    local_path: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        self.path = util.to_forward_slash_path(self.path)
-        self.extra = self.extra or {}
-        if self.local_path and self.size is None:
-            raise ValueError("size required when local_path specified")
-
-    def parent_artifact(self) -> "Artifact":
-        """Get the artifact to which this artifact entry belongs.
-
-        Returns:
-            (Artifact): The parent artifact
-        """
-        raise NotImplementedError
-
-    def download(self, root: Optional[str] = None) -> FilePathStr:
-        """Download this artifact entry to the specified root path.
-
-        Arguments:
-            root: (str, optional) The root path in which to download this
-                artifact entry. Defaults to the artifact's root.
-
-        Returns:
-            (str): The path of the downloaded artifact entry.
-
-        """
-        raise NotImplementedError
-
-    def ref_target(self) -> str:
-        """Get the reference URL that is targeted by this artifact entry.
-
-        Returns:
-            (str): The reference URL of this artifact entry.
-
-        Raises:
-            ValueError: If this artifact entry was not a reference.
-        """
-        if self.ref is None:
-            raise ValueError("Only reference entries support ref_target().")
-        return self.ref
-
-    def ref_url(self) -> str:
-        """Get a URL to this artifact entry.
-
-        These URLs can be referenced by another artifact.
-
-        Returns:
-            (str): A URL representing this artifact entry.
-
-        Examples:
-            Basic usage
-            ```
-            ref_url = source_artifact.get_path('file.txt').ref_url()
-            derived_artifact.add_reference(ref_url)
-            ```
-        """
-        raise NotImplementedError
+    from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 
 
 class ArtifactNotLoggedError(Exception):
@@ -207,7 +75,7 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def manifest(self) -> ArtifactManifest:
+    def manifest(self) -> "ArtifactManifest":
         """The artifact's manifest.
 
         The manifest lists all of its contents, and can't be changed once the artifact
@@ -342,7 +210,7 @@ class Artifact:
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
-    ) -> ArtifactManifestEntry:
+    ) -> "ArtifactManifestEntry":
         """Add a local file to the artifact.
 
         Arguments:
@@ -405,11 +273,11 @@ class Artifact:
 
     def add_reference(
         self,
-        uri: Union[ArtifactManifestEntry, str],
+        uri: Union["ArtifactManifestEntry", str],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> Sequence["ArtifactManifestEntry"]:
         """Add a reference denoted by a URI to the artifact.
 
         Unlike adding files or directories, references are NOT uploaded to W&B. However,
@@ -474,7 +342,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add(self, obj: WBValue, name: str) -> ArtifactManifestEntry:
+    def add(self, obj: WBValue, name: str) -> "ArtifactManifestEntry":
         """Add wandb.WBValue `obj` to the artifact.
 
         ```
@@ -508,7 +376,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> ArtifactManifestEntry:
+    def get_path(self, name: str) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using

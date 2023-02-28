@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 
-from wandb.sdk.interface.artifacts import Artifact, ArtifactManifestEntry
 from wandb.util import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     from wandb.filesync.step_prepare import StepPrepare
+    from wandb.sdk.interface.artifacts import Artifact, ArtifactManifestEntry
     from wandb.sdk.internal import progress
 
 
@@ -34,7 +34,7 @@ class StoragePolicy:
         raise NotImplementedError
 
     def load_file(
-        self, artifact: Artifact, manifest_entry: ArtifactManifestEntry
+        self, artifact: "Artifact", manifest_entry: "ArtifactManifestEntry"
     ) -> str:
         raise NotImplementedError
 
@@ -42,7 +42,7 @@ class StoragePolicy:
         self,
         artifact_id: str,
         artifact_manifest_id: str,
-        entry: ArtifactManifestEntry,
+        entry: "ArtifactManifestEntry",
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
@@ -50,17 +50,17 @@ class StoragePolicy:
 
     def store_reference(
         self,
-        artifact: Artifact,
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> Sequence["ArtifactManifestEntry"]:
         raise NotImplementedError
 
     def load_reference(
         self,
-        manifest_entry: ArtifactManifestEntry,
+        manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
     ) -> str:
         raise NotImplementedError
@@ -78,7 +78,7 @@ class StorageHandler:
 
     def load_path(
         self,
-        manifest_entry: ArtifactManifestEntry,
+        manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
         """Load a file or directory given the corresponding index entry.
@@ -92,12 +92,12 @@ class StorageHandler:
 
     def store_path(
         self,
-        artifact: Artifact,
+        artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> Sequence["ArtifactManifestEntry"]:
         """Store the file or directory at the given path to the specified artifact.
 
         :param path: The path to store
