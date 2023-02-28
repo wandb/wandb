@@ -10,8 +10,7 @@ def line(
     stroke: Optional[str] = None,
     title: Optional[str] = None,
 ):
-    """
-    Construct a line plot.
+    """Construct a line plot.
 
     Arguments:
         table (wandb.Table): Table of data.

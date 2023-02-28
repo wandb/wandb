@@ -62,7 +62,7 @@ def namespaced_tag(tag: str, namespace: str = "") -> str:
 
 
 def history_image_key(key: str, namespace: str = "") -> str:
-    """Converts invalid filesystem characters to _ for use in History keys.
+    """Convert invalid filesystem characters to _ for use in History keys.
 
     Unfortunately this means currently certain image keys will collide silently. We
     implement this mapping up here in the TensorFlow stuff rather than in the History
@@ -75,7 +75,7 @@ def history_image_key(key: str, namespace: str = "") -> str:
 def tf_summary_to_dict(  # noqa: C901
     tf_summary_str_or_pb: Any, namespace: str = ""
 ) -> Optional[Dict[str, Any]]:
-    """Convert a Tensorboard Summary to a dictionary
+    """Convert a Tensorboard Summary to a dictionary.
 
     Accepts a tensorflow.summary.Summary, one encoded as a string,
     or a list of such encoded as strings.
@@ -272,7 +272,7 @@ def tf_summary_to_dict(  # noqa: C901
 
 
 def reset_state() -> None:
-    """Internal method for resetting state, called by wandb.finish()"""
+    """Internal method for resetting state, called by wandb.finish()."""
     global STEPS
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
@@ -284,7 +284,7 @@ def _log(
     namespace: str = "",
     **kwargs: Any,
 ) -> None:
-    """Logs a tfsummary to wandb
+    """Logs a tfsummary to wandb.
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
     history object is passed.  Can optionally namespace events.  Results are committed

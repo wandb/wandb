@@ -3,7 +3,7 @@ def wandb_log(  # noqa: C901
     # /,  # py38 only
     log_component_file=True,
 ):
-    """Wrap a standard python function and log to W&B"""
+    """Wrap a standard python function and log to W&B."""
     import json
     import os
     from functools import wraps
@@ -131,7 +131,6 @@ def wandb_log(  # noqa: C901
                 job_type=func.__name__,
                 group="{{workflow.annotations.pipelines.kubeflow.org/run_name}}",
             ) as run:
-
                 # Link back to the kfp UI
                 kubeflow_url = get_link_back_to_kubeflow()
                 run.notes = kubeflow_url

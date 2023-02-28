@@ -188,7 +188,7 @@ def get_docker_command(
     docker_args: Optional[Dict[str, Any]] = None,
     additional_args: Optional[List[str]] = None,
 ) -> List[str]:
-    """Constructs the docker command using the image and docker args.
+    """Construct the docker command using the image and docker args.
 
     Arguments:
     image: a Docker image to be run

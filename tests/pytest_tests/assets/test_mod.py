@@ -4,8 +4,10 @@ import wandb
 
 
 def mp_func():
-    """This needs to be defined at the module level to be picklable and sendable to
-    the spawned process via multiprocessing"""
+    """Define at the module level to be pickle and send to the spawned process.
+
+    Required for multiprocessing.
+    """
     print("hello from the other side")
 
 
