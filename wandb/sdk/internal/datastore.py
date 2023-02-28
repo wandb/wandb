@@ -259,7 +259,7 @@ class DataStore:
             # write middles (if any)
             while data_left > LEVELDBLOG_DATA_LEN:
                 self._write_record(
-                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],  # noqa: E203
+                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],
                     LEVELDBLOG_MIDDLE,
                 )
                 data_used += LEVELDBLOG_DATA_LEN

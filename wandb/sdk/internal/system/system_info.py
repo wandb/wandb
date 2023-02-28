@@ -220,8 +220,7 @@ class SystemInfo:
                     if self.settings._jupyter_path.startswith("fileId="):
                         unescaped = unquote(self.settings._jupyter_path)
                         data["colab"] = (
-                            "https://colab.research.google.com/notebook#"
-                            + unescaped  # noqa
+                            "https://colab.research.google.com/notebook#" + unescaped
                         )
                         data["program"] = self.settings._jupyter_name
                     else:

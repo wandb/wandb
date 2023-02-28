@@ -40,7 +40,7 @@ from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.artifacts import (  # noqa: F401
+from .interface.artifacts import (
     ArtifactManifest,
     ArtifactManifestEntry,
     ArtifactNotLoggedError,

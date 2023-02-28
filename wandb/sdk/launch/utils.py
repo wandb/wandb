@@ -571,8 +571,8 @@ def validate_build_and_registry_configs(
 
 
 def get_kube_context_and_api_client(
-    kubernetes: Any,  # noqa: F811
-    resource_args: Dict[str, Any],  # noqa: F811
+    kubernetes: Any,
+    resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
     config_file = resource_args.get("config_file", None)
     context = None
