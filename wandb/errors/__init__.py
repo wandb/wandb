@@ -68,7 +68,7 @@ class DependencyError(UsageError):
     """Raised when there is a missing or invalid dependency"""
 
 
-class InternalError(CommError):
+class InternalError(Error):
     """Raised when an SDK internal error occurs"""
 
 
