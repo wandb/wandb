@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import os
 import random
@@ -316,9 +317,6 @@ def test_storage_policy_incomplete():
         "store_file_sync": dict(
             artifact_id="", artifact_manifest_id="", entry=None, preparer=None
         ),
-        "store_file_async": dict(
-            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
-        ),
         "store_reference": dict(artifact=None, path=""),
         "load_reference": dict(manifest_entry=None),
     }
@@ -326,6 +324,15 @@ def test_storage_policy_incomplete():
     for method, kwargs in abstract_method_args.items():
         with pytest.raises(NotImplementedError):
             getattr(usp, method)(**kwargs)
+
+    async_method_args = {
+        "store_file_async": dict(
+            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
+        )
+    }
+    for method, kwargs in async_method_args.items():
+        with pytest.raises(NotImplementedError):
+            asyncio.run(getattr(usp, method)(**kwargs))
 
     UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
 
