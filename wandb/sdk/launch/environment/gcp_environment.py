@@ -57,7 +57,7 @@ class GcpEnvironment(AbstractEnvironment):
     def __init__(self, region: str, verify: bool = True) -> None:
         """Initialize the GCP environment.
 
-        Args:
+        Arguments:
             region: The GCP region.
             verify: Whether to verify the credentials, region, and project.
 
@@ -76,7 +76,7 @@ class GcpEnvironment(AbstractEnvironment):
     def from_config(cls, config: dict) -> "GcpEnvironment":
         """Create a GcpEnvironment from a config dictionary.
 
-        Args:
+        Arguments:
             config: The config dictionary.
 
         Returns:
@@ -188,7 +188,7 @@ class GcpEnvironment(AbstractEnvironment):
     def verify_storage_uri(self, uri: str) -> None:
         """Verify that a storage URI is valid.
 
-        Args:
+        Arguments:
             uri: The storage URI.
 
         Raises:
@@ -209,7 +209,7 @@ class GcpEnvironment(AbstractEnvironment):
     def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to GCS.
 
-        Args:
+        Arguments:
             source: The path to the local file.
             destination: The path to the GCS file.
 
@@ -237,7 +237,7 @@ class GcpEnvironment(AbstractEnvironment):
     def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to GCS.
 
-        Args:
+        Arguments:
             source: The path to the local directory.
             destination: The path to the GCS directory.
 

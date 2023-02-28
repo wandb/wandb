@@ -2,6 +2,7 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+
 import wandb
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run
@@ -88,5 +89,4 @@ def test_launch_multi_run_context(
             run2.log({"test": 2})
 
         assert run1.id == "test"
-        assert run2.id != "test"
         assert run2.id != "test"

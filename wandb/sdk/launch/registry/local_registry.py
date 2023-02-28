@@ -23,7 +23,7 @@ class LocalRegistry(AbstractRegistry):
     ) -> "LocalRegistry":
         """Create a local registry from a config.
 
-        Args:
+        Arguments:
             config (dict): The config. This is ignored.
             environment (AbstractEnvironment): The environment. This is ignored.
 

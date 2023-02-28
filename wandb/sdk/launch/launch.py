@@ -35,7 +35,7 @@ def resolve_agent_config(  # noqa: C901
 ) -> Tuple[Dict[str, Any], Api]:
     """Resolve the agent config.
 
-    Args:
+    Arguments:
         api (Api): The api.
         entity (str): The entity.
         project (str): The project.

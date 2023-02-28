@@ -34,7 +34,7 @@ class ElasticContainerRegistry(AbstractRegistry):
     def __init__(self, repo_name: str, environment: AwsEnvironment) -> None:
         """Initialize the Elastic Container Registry.
 
-        Args:
+        Arguments:
             repo_name (str): The name of the repository.
             environment (AwsEnvironment): The AWS environment.
 
@@ -58,7 +58,7 @@ class ElasticContainerRegistry(AbstractRegistry):
     ) -> "ElasticContainerRegistry":
         """Create an Elastic Container Registry from a config.
 
-        Args:
+        Arguments:
             config (dict): The config.
             environment (AwsEnvironment): The AWS environment.
 

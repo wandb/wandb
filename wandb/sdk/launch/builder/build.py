@@ -573,16 +573,13 @@ def build_image_from_project(
 ) -> str:
     """Construct a docker image from a project and returns the URI of the image.
 
-    Args:
+    Arguments:
         launch_project: The project to build an image from.
         api: The API object to use for fetching the project.
         launch_config: The launch config to use for building the image.
 
     Returns:
         The URI of the built image.
-
-    Raises:
-        LaunchError: If the project is not valid or the image could not be built.
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
     launch_config = launch_config or {}

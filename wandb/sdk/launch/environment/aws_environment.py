@@ -39,7 +39,7 @@ class AwsEnvironment(AbstractEnvironment):
     ) -> None:
         """Initialize the AWS environment.
 
-        Args:
+        Arguments:
             region (str): The AWS region.
 
         Raises:
@@ -58,7 +58,7 @@ class AwsEnvironment(AbstractEnvironment):
     def from_default(cls, region: str, verify: bool = True) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 
-        Args:
+        Arguments:
             region (str): The AWS region.
             verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
 
@@ -91,7 +91,7 @@ class AwsEnvironment(AbstractEnvironment):
     ) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 
-        Args:
+        Arguments:
             config (dict): Configuration dictionary.
             verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
 
@@ -163,7 +163,7 @@ class AwsEnvironment(AbstractEnvironment):
         destination is "s3://bucket/key", the file "foo/bar" will be uploaded
         to "s3://bucket/key/bar".
 
-        Args:
+        Arguments:
             source (str): The path to the file or directory.
             destination (str): The uri of the storage destination. This should
                 be a valid s3 URI, e.g. s3://bucket/key.
@@ -199,7 +199,7 @@ class AwsEnvironment(AbstractEnvironment):
         destination is "s3://bucket/key", the contents of "foo/bar" will be uploaded
         to "s3://bucket/key/bar".
 
-        Args:
+        Arguments:
             source (str): The path to the file or directory.
             destination (str): The URI of the storage.
             recursive (bool, optional): If True, copy the directory recursively. Defaults to False.
@@ -247,7 +247,7 @@ class AwsEnvironment(AbstractEnvironment):
         This will check that the bucket exists and that the credentials are
         configured correctly.
 
-        Args:
+        Arguments:
             uri (str): The URI of the storage.
 
         Raises:

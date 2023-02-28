@@ -70,7 +70,7 @@ class KanikoBuilder(AbstractBuilder):
     ):
         """Initialize a KanikoBuilder.
 
-        Args:
+        Arguments:
             environment (AbstractEnvironment): The environment to use.
             registry (AbstractRegistry): The registry to use.
             build_job_name (str, optional): The name of the build job.
@@ -79,9 +79,6 @@ class KanikoBuilder(AbstractBuilder):
             secret_key (str, optional): The key of the secret to use for the registry.
             verify (bool, optional): Whether to verify the functionality of the builder.
                 Defaults to True.
-
-        Raises:
-            LaunchError: If the builder cannot be intialized or verified.
         """
         if build_context_store is None:
             raise LaunchError(
@@ -109,7 +106,7 @@ class KanikoBuilder(AbstractBuilder):
     ) -> "AbstractBuilder":
         """Create a KanikoBuilder from a config dict.
 
-        Args:
+        Arguments:
             config: A dict containing the builder config. Must contain a "type" key
                 with value "kaniko".
             environment: The environment to use for the build.

@@ -74,7 +74,7 @@ class SagemakerRunner(AbstractRunner):
     ) -> None:
         """Initialize the SagemakerRunner.
 
-        Args:
+        Arguments:
             api (Api): The API instance.
             backend_config (Dict[str, Any]): The backend configuration.
             environment (AwsEnvironment): The AWS environment.
@@ -92,7 +92,7 @@ class SagemakerRunner(AbstractRunner):
     ) -> Optional[AbstractRun]:
         """Run a project on Amazon Sagemaker.
 
-        Args:
+        Arguments:
             launch_project (LaunchProject): The project to run.
             builder (AbstractBuilder): The builder to use.
 

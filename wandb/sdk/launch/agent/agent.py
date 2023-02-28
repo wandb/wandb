@@ -197,7 +197,7 @@ class LaunchAgent:
     def update_status(self, status: str) -> None:
         """Update the status of the agent.
 
-        Args:
+        Arguments:
             status: Status to update the agent to.
         """
         update_ret = self._api.update_launch_agent_status(
@@ -225,7 +225,7 @@ class LaunchAgent:
     def run_job(self, job: Dict[str, Any]) -> None:
         """Set up project and run the job.
 
-        Args:
+        Arguments:
             job: Job to run.
         """
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
@@ -375,13 +375,6 @@ class LaunchAgent:
         registry = loader.registry_from_config(registry_config, environment)
         builder = loader.builder_from_config(build_config, environment, registry)
         backend = loader.runner_from_config(resource, api, backend_config, environment)
-        # builder = load_builder(build_config)
-
-        # default_runner = default_config.get("runner", {}).get("type")
-        # if default_runner == resource:
-        #     backend_config["runner"] = default_config.get("runner")
-        # backend = load_backend(resource, api, backend_config)
-        # backend.verify()
         _logger.info("Backend loaded...")
         run = backend.run(project, builder)
 

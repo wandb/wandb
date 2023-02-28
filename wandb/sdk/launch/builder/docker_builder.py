@@ -48,7 +48,7 @@ class DockerBuilder(AbstractBuilder):
     ):
         """Initialize a DockerBuilder.
 
-        Args:
+        Arguments:
             environment (AbstractEnvironment): The environment to use.
             registry (AbstractRegistry): The registry to use.
             verify (bool, optional): Whether to verify the functionality of the builder.
@@ -74,7 +74,7 @@ class DockerBuilder(AbstractBuilder):
     ) -> "DockerBuilder":
         """Create a DockerBuilder from a config.
 
-        Args:
+        Arguments:
             config (Dict[str, Any]): The config.
             registry (AbstractRegistry): The registry to use.
             verify (bool, optional): Whether to verify the functionality of the builder.
@@ -106,7 +106,7 @@ class DockerBuilder(AbstractBuilder):
     ) -> str:
         """Build the image for the given project.
 
-        Args:
+        Arguments:
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """

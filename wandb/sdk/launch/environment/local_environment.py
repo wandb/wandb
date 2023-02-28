@@ -19,7 +19,7 @@ class LocalEnvironment(AbstractEnvironment):
     ) -> "LocalEnvironment":
         """Create a local environment from a config.
 
-        Args:
+        Arguments:
             config (dict): The config. This is ignored.
 
         Returns:
@@ -34,7 +34,7 @@ class LocalEnvironment(AbstractEnvironment):
     def verify_storage_uri(self, uri: str) -> None:
         """Verify that the storage URI is configured correctly.
 
-        Args:
+        Arguments:
             uri (str): The storage URI. This is ignored.
         """
         raise LaunchError("Attempted to verify storage uri for LocalEnvironment.")
@@ -42,7 +42,7 @@ class LocalEnvironment(AbstractEnvironment):
     def upload_file(self, source: str, destination: str) -> None:
         """Upload a file from the local filesystem to storage in the environment.
 
-        Args:
+        Arguments:
             source (str): The source file. This is ignored.
             destination (str): The destination file. This is ignored.
         """
@@ -51,7 +51,7 @@ class LocalEnvironment(AbstractEnvironment):
     def upload_dir(self, source: str, destination: str) -> None:
         """Upload the contents of a directory from the local filesystem to the environment.
 
-        Args:
+        Arguments:
             source (str): The source directory. This is ignored.
             destination (str): The destination directory. This is ignored.
         """

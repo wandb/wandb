@@ -25,7 +25,7 @@ class AbstractBuilder(ABC):
     ) -> None:
         """Initialize a builder.
 
-        Args:
+        Arguments:
             builder_config: The builder config.
             registry: The registry to use.
             verify: Whether to verify the functionality of the builder.
@@ -46,7 +46,7 @@ class AbstractBuilder(ABC):
     ) -> "AbstractBuilder":
         """Create a builder from a config dictionary.
 
-        Args:
+        Arguments:
             config: The config dictionary.
             environment: The environment to use.
             registry: The registry to use.
@@ -66,7 +66,7 @@ class AbstractBuilder(ABC):
     ) -> str:
         """Build the image for the given project.
 
-        Args:
+        Arguments:
             launch_project: The project to build.
             build_ctx_path: The path to the build context.
 

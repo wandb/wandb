@@ -51,7 +51,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
     ) -> None:
         """Initialize the Google Artifact Registry.
 
-        Args:
+        Arguments:
             repository: The repository name.
             image_name: The image name.
             environment: A GcpEnvironment configured for access to this registry.
@@ -96,7 +96,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
     ) -> "GoogleArtifactRegistry":
         """Create a Google Artifact Registry from a config.
 
-        Args:
+        Arguments:
             config: A dictionary containing the following keys:
                 repository: The repository name.
                 image_name: The image name.
@@ -159,7 +159,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
     def get_repo_uri(self) -> str:
         """Get the URI for the given repository.
 
-        Args:
+        Arguments:
             repo_name: The repository name.
 
         Returns:

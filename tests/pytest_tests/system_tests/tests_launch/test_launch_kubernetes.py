@@ -2,6 +2,7 @@ import json
 from unittest.mock import MagicMock
 
 import kubernetes
+
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch.utils import make_name_dns_safe
@@ -220,7 +221,5 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
                 "metadata": MockDict(metadata),
             }
         )
-        jobs_dict[name] = mock_job
-        return [[mock_job]]
         jobs_dict[name] = mock_job
         return [[mock_job]]
