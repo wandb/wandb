@@ -1,8 +1,12 @@
 import json
+import random
 
 import pytest
 import wandb
+from wandb.apis.internal import InternalApi
+from wandb.apis.public import Api
 from wandb.cli import cli
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
@@ -271,4 +275,121 @@ def test_launch_build_with_local(
         assert (
             "Cannot build a docker image for the resource: local-process"
             in result.output
+        )
+
+
+@pytest.mark.parametrize(
+    "image_uri,launch_config",
+    [
+        ("testing111", {}),
+        ("testing222", {"scheduler": {"num_workers": 5}}),
+        ("testing222", {"scheduler": {"num_workers": "5"}}),
+    ],
+    ids=[
+        "working",
+        "num-workers-int",
+        "num-workers-str",
+    ],
+)
+def test_launch_sweep_launch_uri(user, image_uri, launch_config):
+    queue = "testing-" + str(random.random()).replace(".", "")
+    api = InternalApi()
+    public_api = Api()
+    public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
+
+    # make launch project queue
+    res = api.create_run_queue(
+        entity=user,
+        project=LAUNCH_DEFAULT_PROJECT,
+        queue_name=queue,
+        access="USER",
+    )
+
+    if res.get("success") is not True:
+        raise Exception("create queue" + str(res))
+
+    with open("sweep-config.yaml", "w") as f:
+        json.dump(
+            {
+                "job": None,
+                "method": "grid",
+                "image_uri": image_uri,
+                "parameters": {"parameter1": {"values": [1, 2, 3]}},
+            },
+            f,
+        )
+    import subprocess
+
+    subprocess.check_output(
+        [
+            "wandb",
+            "sweep",
+            "sweep-config.yaml",
+            "-e",
+            user,
+            "-q",
+            queue,
+            "--launch_config",
+            json.dumps(launch_config),
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "image_uri,launch_config,job",
+    [
+        (None, {}, None),
+        ("", {}, None),
+        ("testing111", {"scheduler": {}}, "job123:v1"),
+        ("testing222", {"scheduler": {"num_workers": 5}}, "job"),
+    ],
+    ids=[
+        "None, empty, None",
+        "empty, None, None",
+        "image + job",
+        "image + malformed job",
+    ],
+)
+def test_launch_sweep_launch_error(user, image_uri, launch_config, job):
+    queue = "testing-" + str(random.random()).replace(".", "")
+    api = InternalApi()
+    public_api = Api()
+    public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
+
+    # make launch project queue
+    res = api.create_run_queue(
+        entity=user,
+        project=LAUNCH_DEFAULT_PROJECT,
+        queue_name=queue,
+        access="USER",
+    )
+
+    if not res or res.get("success") is not True:
+        raise Exception("create queue" + str(res))
+
+    with open("sweep-config.yaml", "w") as f:
+        json.dump(
+            {
+                "job": job,
+                "image_uri": image_uri,
+                "method": "grid",
+                "parameters": {"parameter1": {"values": [1, 2, 3]}},
+            },
+            f,
+        )
+    import subprocess
+
+    with pytest.raises(subprocess.CalledProcessError):
+        subprocess.check_output(
+            [
+                "wandb",
+                "sweep",
+                "sweep-config.yaml",
+                "-e",
+                user,
+                "-q",
+                queue,
+                "--launch_config",
+                json.dumps(launch_config),
+            ],
         )

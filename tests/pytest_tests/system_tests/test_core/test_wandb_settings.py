@@ -1,6 +1,4 @@
-"""
-settings test.
-"""
+"""settings test."""
 
 import datetime
 import os

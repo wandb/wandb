@@ -5,7 +5,7 @@ from multiprocessing import Pool
 
 import pytest
 import wandb
-from wandb import wandb_sdk
+from wandb.sdk import wandb_artifacts
 
 
 def test_opener_rejects_append_mode(cache):
@@ -120,8 +120,7 @@ def test_check_write_parallel(cache):
     p.close()
     p.join()
 
-    # Regardless of the ordering, we should be left with one
-    # file at the end.
+    # Regardless of the ordering, we should be left with one file at the end.
     files = [f for f in (cache._cache_dir / "obj" / "etag").rglob("*") if f.is_file()]
     assert len(files) == 1
 
@@ -174,39 +173,6 @@ def test_artifacts_cache_cleanup_tmp_files(cache):
     assert reclaimed_bytes == 1000
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky")
-def test_cache_cleanup_allows_upload(wandb_init, cache, monkeypatch):
-    monkeypatch.setattr(wandb.sdk.interface.artifacts, "_artifacts_cache", cache)
-    assert cache == wandb_sdk.wandb_artifacts.get_artifacts_cache()
-    cache.cleanup(0)
-
-    artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
-    with open("test-file", "wb") as f:
-        f.truncate(2**20)
-        f.flush()
-        os.fsync(f)
-    artifact.add_file("test-file")
-
-    # We haven't cached it and can't reclaim its bytes.
-    assert cache.cleanup(0) == 0
-    # Deleting the file also shouldn't interfere with the upload.
-    os.remove("test-file")
-
-    # We're still able to upload the artifact.
-    with wandb_init() as run:
-        run.log_artifact(artifact)
-        artifact.wait()
-
-    manifest_entry = artifact.manifest.entries["test-file"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
-
-    # Now the file should be in the cache.
-    # Even though this works in production, the test often fails. I don't know why :(.
-    assert found
-    assert cache.cleanup(0) == 2**20
-
-
 def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
@@ -217,11 +183,11 @@ def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_sdk.wandb_artifacts.LocalFileHandler()
+    handler = wandb_artifacts.LocalFileHandler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+        wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=digest,
@@ -240,11 +206,11 @@ def test_s3_storage_handler_load_path_uses_cache(cache):
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_sdk.wandb_artifacts.S3Handler()
+    handler = wandb_artifacts.S3Handler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+        wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -259,9 +225,9 @@ def test_gcs_storage_handler_load_path_nonlocal():
     uri = "gs://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    handler = wandb_sdk.wandb_artifacts.GCSHandler()
+    handler = wandb_artifacts.GCSHandler()
     local_path = handler.load_path(
-        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+        wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -280,11 +246,11 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     with opener() as f:
         f.write(123 * "a")
 
-    handler = wandb_sdk.wandb_artifacts.GCSHandler()
+    handler = wandb_artifacts.GCSHandler()
     handler._cache = cache
 
     local_path = handler.load_path(
-        wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+        wandb_artifacts.ArtifactManifestEntry(
             path="foo/bar",
             ref=uri,
             digest=etag,
@@ -299,14 +265,14 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
     artifact = wandb.Artifact("test", type="dataset")
-    manifest_entry = wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+    manifest_entry = wandb_artifacts.ArtifactManifestEntry(
         path=path,
         ref=uri,
         digest="XUFAKrxLKna5cZ2REBfFkg==",
         size=123,
     )
 
-    handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
+    handler = wandb_artifacts.WBArtifactHandler()
     handler._client = lambda: None
     monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
@@ -320,14 +286,14 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
     artifact = wandb.Artifact("test", type="dataset")
-    manifest_entry = wandb_sdk.wandb_artifacts.ArtifactManifestEntry(
+    manifest_entry = wandb_artifacts.ArtifactManifestEntry(
         path=path,
         ref=uri,
         digest="XUFAKrxLKna5cZ2REBfFkg==",
         size=123,
     )
 
-    handler = wandb_sdk.wandb_artifacts.WBArtifactHandler()
+    handler = wandb_artifacts.WBArtifactHandler()
     handler._client = lambda: None
     monkeypatch.setattr(wandb.apis.public.Artifact, "from_id", lambda _1, _2: artifact)
     artifact.get_path = lambda _: artifact
@@ -335,3 +301,47 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
 
     local_path = handler.load_path(manifest_entry, local=True)
     assert local_path == path
+
+
+def test_storage_policy_incomplete():
+    class UnfinishedStoragePolicy(wandb_artifacts.StoragePolicy):
+        pass
+
+    # Invalid argument values since we're only testing abstract code coverage.
+    abstract_method_args = {
+        "name": {},
+        "from_config": dict(config={}),
+        "config": {},
+        "load_file": dict(artifact=None, manifest_entry=None),
+        "store_file": dict(
+            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
+        ),
+        "store_reference": dict(artifact=None, path=""),
+        "load_reference": dict(manifest_entry=None),
+    }
+    usp = UnfinishedStoragePolicy()
+    for method, kwargs in abstract_method_args.items():
+        with pytest.raises(NotImplementedError):
+            getattr(usp, method)(**kwargs)
+
+    UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
+
+    policy = wandb_artifacts.StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
+    assert policy is UnfinishedStoragePolicy
+
+    not_policy = wandb_artifacts.StoragePolicy.lookup_by_name("NotAStoragePolicy")
+    assert not_policy is None
+
+
+def test_storage_handler_incomplete():
+    class UnfinishedStorageHandler(wandb_artifacts.StorageHandler):
+        pass
+
+    ush = UnfinishedStorageHandler()
+
+    with pytest.raises(NotImplementedError):
+        ush.scheme()
+    with pytest.raises(NotImplementedError):
+        ush.load_path(manifest_entry=None)
+    with pytest.raises(NotImplementedError):
+        ush.store_path(artifact=None, path="")

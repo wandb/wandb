@@ -11,13 +11,18 @@ if False:
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
+from ..utils import (
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
+    LaunchError,
+    run_shell,
+    to_camel_case,
+)
 from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
@@ -250,11 +255,12 @@ def aws_ecr_login(region: str, registry: str) -> Optional[str]:
 def merge_aws_tag_with_algorithm_specification(
     algorithm_specification: Optional[Dict[str, Any]], aws_tag: Optional[str]
 ) -> Dict[str, Any]:
-    """
-    AWS Sagemaker algorithms require a training image and an input mode.
-    If the user does not specify the specification themselves, define the spec
-    minimally using these two fields. Otherwise, if they specify the AlgorithmSpecification
-    set the training image if it is not set.
+    """Create an AWS AlgorithmSpecification.
+
+    AWS Sagemaker algorithms require a training image and an input mode. If the user
+    does not specify the specification themselves, define the spec minimally using these
+    two fields. Otherwise, if they specify the AlgorithmSpecification set the training
+    image if it is not set.
     """
     if algorithm_specification is None:
         return {

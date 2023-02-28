@@ -9,7 +9,6 @@ import sys
 from pkg_resources import parse_version
 
 PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
-PIP_VERSION = "21.1.2"
 TOX_VERSION = "3.24.0"
 
 
@@ -145,7 +144,6 @@ def main():
             )
             if p.returncode != 0:
                 print(f"Failed to install {latest}")
-        pin_version("pip", PIP_VERSION, python_version=latest)
         pin_version("tox", TOX_VERSION, python_version=latest)
         installed_python_versions.append(latest)
 

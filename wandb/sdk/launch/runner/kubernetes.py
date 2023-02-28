@@ -11,7 +11,6 @@ from kubernetes.client.models.v1_job import V1Job  # type: ignore
 from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
 
 import wandb
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module, load_json_yaml_dict
 
@@ -20,6 +19,7 @@ from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
+    LaunchError,
     get_kube_context_and_api_client,
     make_name_dns_safe,
 )
@@ -256,9 +256,7 @@ class KubernetesRunner(AbstractRunner):
         )
         return pod_names
 
-    def get_namespace(
-        self, resource_args: Dict[str, Any]
-    ) -> Optional[str]:  # noqa: C901
+    def get_namespace(self, resource_args: Dict[str, Any]) -> Optional[str]:
         return self.backend_config.get("runner", {}).get(
             "namespace"
         ) or resource_args.get("namespace")
@@ -268,8 +266,8 @@ class KubernetesRunner(AbstractRunner):
         launch_project: LaunchProject,
         builder: AbstractBuilder,
         registry_config: Dict[str, Any],
-    ) -> Optional[AbstractRun]:  # noqa: C901
-        kubernetes = get_module(  # noqa: F811
+    ) -> Optional[AbstractRun]:
+        kubernetes = get_module(
             "kubernetes", "KubernetesRunner requires kubernetes to be installed"
         )
 

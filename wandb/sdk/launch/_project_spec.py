@@ -1,6 +1,6 @@
-"""
-Internal utility for converting arguments from a launch spec or call to wandb launch
-into a runnable wandb launch script
+"""Convert launch arguments into a runnable wandb launch script.
+
+Arguments can come from a launch spec or call to wandb launch.
 """
 import binascii
 import enum
@@ -15,11 +15,11 @@ import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
-from .utils import LOG_PREFIX
+from .utils import LOG_PREFIX, LaunchError
 
 _logger = logging.getLogger(__name__)
 
@@ -148,7 +148,7 @@ class LaunchProject:
 
     @property
     def base_image(self) -> str:
-        """Returns {PROJECT}_base:{PYTHON_VERSION}"""
+        """Returns {PROJECT}_base:{PYTHON_VERSION}."""
         # TODO: this should likely be source_project when we have it...
 
         # don't make up a separate base image name if user provides a docker image
@@ -192,7 +192,6 @@ class LaunchProject:
 
     @property
     def image_tag(self) -> str:
-
         return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
 
     @property
@@ -226,7 +225,7 @@ class LaunchProject:
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, command: List[str]) -> "EntryPoint":
-        """Adds an entry point to the project."""
+        """Add an entry point to the project."""
         entry_point = command[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint
@@ -435,7 +434,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     Returns:
         An initialized `LaunchProject` object
     """
-
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
