@@ -304,7 +304,6 @@ class StepUpload:
         `event.save_fn_async` is not None, but it's hard to tell that to Mypy.
         Likewise for why this method takes `async_executor` instead of `self._async_executor`.
         """
-
         self._running_jobs[event.save_name] = event
 
         async def run_and_notify() -> None:

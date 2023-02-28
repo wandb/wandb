@@ -18,7 +18,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
 )
 from wandb.wandb_agent import _create_sweep_command_args
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class SweepScheduler(Scheduler):
@@ -43,7 +43,7 @@ class SweepScheduler(Scheduler):
 
     def _start(self) -> None:
         for worker_id in range(self._num_workers):
-            logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
+            _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
             agent_config = self._api.register_agent(
                 f"{socket.gethostname()}-{worker_id}",  # host
                 sweep_id=self._sweep_id,
@@ -63,13 +63,13 @@ class SweepScheduler(Scheduler):
             if run.worker_id == worker_id and run.state == RunState.ALIVE:
                 _run_states[run_id] = True
 
-        logger.debug(f"{LOG_PREFIX}Sending states: \n{pf(_run_states)}\n")
+        _logger.debug(f"{LOG_PREFIX}Sending states: \n{pf(_run_states)}\n")
         commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
             self._workers[worker_id].agent_id,  # agent_id: str
             {},  # metrics: dict
             _run_states,  # run_states: dict
         )
-        logger.debug(f"{LOG_PREFIX}AgentHeartbeat commands: \n{pf(commands)}\n")
+        _logger.debug(f"{LOG_PREFIX}AgentHeartbeat commands: \n{pf(commands)}\n")
 
         return commands
 
@@ -132,18 +132,17 @@ class SweepScheduler(Scheduler):
                 # If run is already stopped just ignore the request
                 if run.state in [RunState.DEAD, RunState.UNKNOWN]:
                     wandb.termwarn(f"{LOG_PREFIX}Ignoring dead run {run.id}")
-                    logging.debug(f"dead run {run.id} state: {run.state}")
+                    _logger.debug(f"dead run {run.id} state: {run.state}")
                     continue
 
                 sweep_args = _create_sweep_command_args({"args": run.args})["args_dict"]
                 launch_config = {"overrides": {"run_config": sweep_args}}
                 self._add_to_launch_queue(run_id=run.id, config=launch_config)
-
             except queue.Empty:
                 if self.state == SchedulerState.FLUSH_RUNS:
                     wandb.termlog(f"{LOG_PREFIX}Sweep stopped, waiting on runs...")
                 else:
-                    wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
+                    wandb.termlog(f"{LOG_PREFIX}No new runs to launch, waiting...")
                 time.sleep(self._heartbeat_queue_sleep)
                 return
 

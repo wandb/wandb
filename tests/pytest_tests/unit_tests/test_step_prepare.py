@@ -276,7 +276,6 @@ class TestStepPrepare:
         If you're writing a test that only cares about the sync impl, you should
         probably just call `step_prepare.prepare_sync` directly.
         """
-
         enqueued = threading.Event()
         future = concurrent.futures.Future()
 
@@ -306,7 +305,6 @@ class TestStepPrepare:
         If you're writing a test that only cares about the async impl, you should
         probably just call `step_prepare.prepare_async` directly.
         """
-
         enqueued = threading.Event()
         future = concurrent.futures.Future()
 

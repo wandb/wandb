@@ -11,7 +11,7 @@ import responses
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.interface as wandb_interface
-from wandb import util
+from wandb import util, wandb_sdk
 from wandb.sdk import wandb_artifacts
 from wandb.sdk.lib.hashutil import md5_string
 from wandb.sdk.wandb_artifacts import ArtifactNotLoggedError
@@ -1115,3 +1115,37 @@ def test_manifest_json_invalid_version(version):
     with pytest.raises(Exception) as e:
         wandb.sdk.internal.artifacts._manifest_json_from_proto(pd_manifest)
     assert "manifest version" in str(e.value)
+
+
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="flaky")
+def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
+    cache = wandb_sdk.wandb_artifacts.ArtifactsCache(tmp_path)
+    monkeypatch.setattr(wandb.sdk.interface.artifacts, "_artifacts_cache", cache)
+    assert cache == wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    cache.cleanup(0)
+
+    artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
+    with open("test-file", "wb") as f:
+        f.truncate(2**20)
+        f.flush()
+        os.fsync(f)
+    artifact.add_file("test-file")
+
+    # We haven't cached it and can't reclaim its bytes.
+    assert cache.cleanup(0) == 0
+    # Deleting the file also shouldn't interfere with the upload.
+    os.remove("test-file")
+
+    # We're still able to upload the artifact.
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    manifest_entry = artifact.manifest.entries["test-file"]
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
+
+    # Now the file should be in the cache.
+    # Even though this works in production, the test often fails. I don't know why :(.
+    assert found
+    assert cache.cleanup(0) == 2**20

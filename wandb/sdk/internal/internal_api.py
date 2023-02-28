@@ -2073,7 +2073,6 @@ class Api:
             - This method doesn't wrap retryable errors in `TransientError`.
               It leaves that determination to the caller.
         """
-
         must_delegate = False
 
         if httpx is None:

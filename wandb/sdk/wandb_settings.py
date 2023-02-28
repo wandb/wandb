@@ -103,6 +103,13 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
+def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
+    """Parse a (potentially comma-separated) string as a tuple."""
+    if isinstance(val, str):
+        return tuple(val.split(","))
+    return tuple(val)
+
+
 def _redact_dict(
     d: Dict[str, Any],
     unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
@@ -116,7 +123,7 @@ def _redact_dict(
     return safe_dict
 
 
-def _get_program() -> Optional[Any]:
+def _get_program() -> Optional[str]:
     program = os.getenv(wandb.env.PROGRAM)
     if program is not None:
         return program
@@ -575,6 +582,7 @@ class Settings:
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
+            config_paths={"prepocessor": _str_as_tuple},
             console={"value": "auto", "validator": self._validate_console},
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
