@@ -65,12 +65,10 @@ def _convert_access(access: str) -> str:
 def _max_from_config(
     config: Dict[str, Any], key: str, default: int = 1
 ) -> Union[int, float]:
-    """
-    Utility for parsing integers from the agent config with
-    a default, infinity handling, and integer parsing.
-    Raises more informative error if parse error
+    """Get an integer from the config, or float.inf if -1.
 
-    returns parsed value as int or infinity
+    Utility for parsing integers from the agent config with a default, infinity
+    handling, and integer parsing. Raises more informative error if parse error.
     """
     try:
         val = config.get(key)
@@ -88,9 +86,7 @@ def _max_from_config(
 
 
 def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
-    """
-    Utility for determining whether a job/runSpec is a sweep scheduler
-    """
+    """Determine whether a job/runSpec is a sweep scheduler."""
     if not run_spec:
         _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
 
@@ -144,13 +140,13 @@ class LaunchAgent:
 
     @property
     def num_running_schedulers(self) -> int:
-        """Returns just the number of schedulers"""
+        """Return just the number of schedulers."""
         with self._jobs_lock:
             return len([x for x in self._jobs if self._jobs[x].is_scheduler])
 
     @property
     def num_running_jobs(self) -> int:
-        """Returns the number of jobs not including schedulers"""
+        """Return the number of jobs not including schedulers."""
         with self._jobs_lock:
             return len([x for x in self._jobs if not self._jobs[x].is_scheduler])
 

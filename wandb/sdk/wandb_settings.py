@@ -104,9 +104,7 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
 
 
 def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
-    """
-    Parse a (potentially comma-separated) string as a tuple.
-    """
+    """Parse a (potentially comma-separated) string as a tuple."""
     if isinstance(val, str):
         return tuple(val.split(","))
     return tuple(val)
