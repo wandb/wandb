@@ -707,7 +707,7 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        raise NotImplementedError
+        return self.get(name)
 
     def __setitem__(self, name: str, item: WBValue) -> "ArtifactManifestEntry":
         """Add `item` to the artifact at path `name`.
@@ -735,7 +735,7 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        raise NotImplementedError
+        return self.add(item, name)
 
 
 class StorageLayout:
