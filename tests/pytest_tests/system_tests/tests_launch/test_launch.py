@@ -2,7 +2,6 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
-
 import wandb
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch import run

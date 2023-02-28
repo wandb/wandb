@@ -19,6 +19,7 @@ WANDB_RUNNERS = {
 }
 
 
+# fmt: off
 def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnvironment:
     """Create an environment from a config.
 
@@ -35,28 +36,24 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
         LaunchError: If the environment is not configured correctly.
     """
     if not config:
-        # fmt: off
         from .environment.local_environment import LocalEnvironment
         return LocalEnvironment()  # This is the default, dummy environment.
-        # fmt: on
     env_type = config.get("type")
     if not env_type:
         raise LaunchError(
             "Could not create environment from config. Environment type not specified!"
         )
-    # fmt: off
     if env_type == "aws":
         from .environment.aws_environment import AwsEnvironment
         return AwsEnvironment.from_config(config)
     if env_type == "gcp":
         from .environment.gcp_environment import GcpEnvironment
         return GcpEnvironment.from_config(config)
-    # fmt: on
     raise LaunchError(
         f"Could not create environment from config. Invalid type: {env_type}"
     )
 
-
+# fmt: off
 def registry_from_config(
     config: Optional[Dict[str, Any]], environment: AbstractEnvironment
 ) -> AbstractRegistry:
@@ -78,18 +75,12 @@ def registry_from_config(
         LaunchError: If the registry is not configured correctly.
     """
     if not config:
-        # fmt: off
         from .registry.local_registry import LocalRegistry
         return LocalRegistry()  # This is the default, dummy registry.
-        # fmt: on
     registry_type = config.get("type")
     if registry_type is None:
-        # fmt: off
         from .registry.local_registry import LocalRegistry
         return LocalRegistry()  # This is the default, dummy registry.
-        # fmt: on
-    # disable black formatting to avoid awkward blank lines due to the imports
-    # fmt: off
     if registry_type == "ecr":
         from .environment.aws_environment import AwsEnvironment
         if not isinstance(environment, AwsEnvironment):
@@ -108,12 +99,12 @@ def registry_from_config(
             )
         from .registry.google_artifact_registry import GoogleArtifactRegistry
         return GoogleArtifactRegistry.from_config(config, environment)
-    # fmt: on
     raise LaunchError(
         f"Could not create registry from config. Invalid registry type: {registry_type}"
     )
 
 
+# fmt: off
 def builder_from_config(
     config: Optional[Dict[str, Any]],
     environment: AbstractEnvironment,
@@ -137,7 +128,6 @@ def builder_from_config(
         LaunchError: If the builder is not configured correctly.
     """
     if not config:
-        # fmt: off
         from .builder.docker_builder import DockerBuilder
         return DockerBuilder.from_config({}, environment, registry)  # This is the default builder.
 
@@ -146,7 +136,6 @@ def builder_from_config(
         raise LaunchError(
             "Could not create builder from config. Builder type not specified"
         )
-    # fmt: off
     if builder_type == "docker":
         from .builder.docker_builder import DockerBuilder
         return DockerBuilder.from_config(config, environment, registry)
@@ -161,12 +150,11 @@ def builder_from_config(
     if builder_type == "noop":
         from .builder.noop import NoOpBuilder
         return NoOpBuilder.from_config(config, environment, registry)
-    # fmt: on
     raise LaunchError(
         f"Could not create builder from config. Invalid builder type: {builder_type}"
     )
 
-
+# fmt: off
 def runner_from_config(
     runner_name: str,
     api: Api,
@@ -191,7 +179,6 @@ def runner_from_config(
     Raises:
         LaunchError: If the runner is not configured correctly.
     """
-    # fmt: off
     if not runner_name or runner_name in ["local-container", "local"]:
         from .runner.local_container import LocalContainerRunner
         return LocalContainerRunner(api, runner_config, environment)
@@ -219,7 +206,6 @@ def runner_from_config(
     if runner_name == "kubernetes":
         from .runner.kubernetes_runner import KubernetesRunner
         return KubernetesRunner(api, runner_config, environment)
-    # fmt: on
     raise LaunchError(
         f"Could not create runner from config. Invalid runner name: {runner_name}"
     )

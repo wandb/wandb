@@ -628,4 +628,3 @@ def build_image_from_project(
         raise LaunchError("Error building image uri")
     else:
         return image_uri
-        return image_uri
