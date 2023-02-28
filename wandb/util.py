@@ -1021,7 +1021,7 @@ def no_retry_auth(e: Any) -> bool:
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise AuthenticationError(
+        raise UsageError(
             "The API key is either invalid or missing, or the host is incorrect. "
             "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
             "The host defaults to 'https://api.wandb.ai' if not specified. "

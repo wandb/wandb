@@ -446,18 +446,20 @@ class ErrorInfo(google.protobuf.message.Message):
         INVALID: ErrorInfo._ErrorCode.ValueType  # 1
         INTERNAL: ErrorInfo._ErrorCode.ValueType  # 2
         NETWORK: ErrorInfo._ErrorCode.ValueType  # 3
-        PERMISSION: ErrorInfo._ErrorCode.ValueType  # 4
-        AUTHENTICATION: ErrorInfo._ErrorCode.ValueType  # 5
-        TIMEOUT: ErrorInfo._ErrorCode.ValueType  # 6
+        USAGE: ErrorInfo._ErrorCode.ValueType  # 4
+        PERMISSION: ErrorInfo._ErrorCode.ValueType  # 5
+        AUTHENTICATION: ErrorInfo._ErrorCode.ValueType  # 6
+        TIMEOUT: ErrorInfo._ErrorCode.ValueType  # 7
 
     class ErrorCode(_ErrorCode, metaclass=_ErrorCodeEnumTypeWrapper): ...
     UNKNOWN: ErrorInfo.ErrorCode.ValueType  # 0
     INVALID: ErrorInfo.ErrorCode.ValueType  # 1
     INTERNAL: ErrorInfo.ErrorCode.ValueType  # 2
     NETWORK: ErrorInfo.ErrorCode.ValueType  # 3
-    PERMISSION: ErrorInfo.ErrorCode.ValueType  # 4
-    AUTHENTICATION: ErrorInfo.ErrorCode.ValueType  # 5
-    TIMEOUT: ErrorInfo.ErrorCode.ValueType  # 6
+    USAGE: ErrorInfo.ErrorCode.ValueType  # 4
+    PERMISSION: ErrorInfo.ErrorCode.ValueType  # 5
+    AUTHENTICATION: ErrorInfo.ErrorCode.ValueType  # 6
+    TIMEOUT: ErrorInfo.ErrorCode.ValueType  # 7
 
     MESSAGE_FIELD_NUMBER: builtins.int
     CODE_FIELD_NUMBER: builtins.int

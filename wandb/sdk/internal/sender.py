@@ -27,7 +27,7 @@ import requests
 
 import wandb
 from wandb import util
-from wandb.errors import CommError
+from wandb.errors import Error
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
@@ -937,7 +937,7 @@ class SendManager:
 
         try:
             self._init_run(run, config_value_dict)
-        except CommError as e:
+        except Error as e:
             logger.error(e, exc_info=True)
             if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)

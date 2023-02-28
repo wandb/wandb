@@ -148,9 +148,10 @@ message ErrorInfo {
     INVALID = 1;
     INTERNAL = 2;
     NETWORK = 3;
-    PERMISSION = 4;
-    AUTHENTICATION = 5;
-    TIMEOUT = 6;
+    USAGE = 4;
+    PERMISSION = 5;
+    AUTHENTICATION = 6;
+    TIMEOUT = 7;
   }
   string  message = 1;
   ErrorCode code = 2;
