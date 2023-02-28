@@ -9,7 +9,6 @@ from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
-    # need this import for type annotations, but want to avoid circular dependency
     import wandb.apis.public
     from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 

@@ -3,10 +3,9 @@ from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 from wandb.util import FilePathStr, URIStr
 
 if TYPE_CHECKING:
-    # need this import for type annotations, but want to avoid circular dependency
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.interface.artifacts import Artifact, ArtifactManifestEntry
-    from wandb.sdk.internal import progress
+    from wandb.sdk.internal.progress import ProgressFn
 
 
 class StorageLayout:
@@ -44,7 +43,7 @@ class StoragePolicy:
         artifact_manifest_id: str,
         entry: "ArtifactManifestEntry",
         preparer: "StepPrepare",
-        progress_callback: Optional["progress.ProgressFn"] = None,
+        progress_callback: Optional["ProgressFn"] = None,
     ) -> bool:
         raise NotImplementedError
 

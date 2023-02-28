@@ -1,18 +1,18 @@
-from wandb.sdk.interface.artifacts.artifact_manifest import (
-    ArtifactManifest,
-    ArtifactManifestEntry,
-)
-from wandb.sdk.interface.artifacts.artifacts import (
+from wandb.sdk.interface.artifacts.artifact import (
     Artifact,
     ArtifactNotLoggedError,
     get_new_staging_file,
     get_staging_dir,
 )
-from wandb.sdk.interface.artifacts.artifacts_cache import (
+from wandb.sdk.interface.artifacts.artifact_cache import (
     ArtifactsCache,
     get_artifacts_cache,
 )
-from wandb.sdk.interface.artifacts.artifacts_storage import (
+from wandb.sdk.interface.artifacts.artifact_manifest import (
+    ArtifactManifest,
+    ArtifactManifestEntry,
+)
+from wandb.sdk.interface.artifacts.artifact_storage import (
     StorageHandler,
     StorageLayout,
     StoragePolicy,

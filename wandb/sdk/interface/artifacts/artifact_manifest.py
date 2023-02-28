@@ -13,61 +13,8 @@ from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
 from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
-    # need this import for type annotations, but want to avoid circular dependency
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.interface.artifacts import Artifact
-
-
-class ArtifactManifest:
-    entries: Dict[str, "ArtifactManifestEntry"]
-
-    @classmethod
-    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
-        if "version" not in manifest_json:
-            raise ValueError("Invalid manifest format. Must contain version field.")
-        version = manifest_json["version"]
-        for sub in cls.__subclasses__():
-            if sub.version() == version:
-                return sub.from_manifest_json(manifest_json)
-        raise ValueError("Invalid manifest version.")
-
-    @classmethod
-    def version(cls) -> int:
-        raise NotImplementedError
-
-    def __init__(
-        self,
-        storage_policy: "wandb_artifacts.WandbStoragePolicy",
-        entries: Optional[Mapping[str, "ArtifactManifestEntry"]] = None,
-    ) -> None:
-        self.storage_policy = storage_policy
-        self.entries = dict(entries) if entries else {}
-
-    def to_manifest_json(self) -> Dict:
-        raise NotImplementedError
-
-    def digest(self) -> HexMD5:
-        raise NotImplementedError
-
-    def add_entry(self, entry: "ArtifactManifestEntry") -> None:
-        if (
-            entry.path in self.entries
-            and entry.digest != self.entries[entry.path].digest
-        ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
-        self.entries[entry.path] = entry
-
-    def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
-        return self.entries.get(path)
-
-    def get_entries_in_directory(self, directory: str) -> List["ArtifactManifestEntry"]:
-        return [
-            self.entries[entry_key]
-            for entry_key in self.entries
-            if entry_key.startswith(
-                directory + "/"
-            )  # entries use forward slash even for windows
-        ]
 
 
 @dataclass
@@ -136,3 +83,55 @@ class ArtifactManifestEntry:
             ```
         """
         raise NotImplementedError
+
+
+class ArtifactManifest:
+    entries: Dict[str, ArtifactManifestEntry]
+
+    @classmethod
+    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
+        if "version" not in manifest_json:
+            raise ValueError("Invalid manifest format. Must contain version field.")
+        version = manifest_json["version"]
+        for sub in cls.__subclasses__():
+            if sub.version() == version:
+                return sub.from_manifest_json(manifest_json)
+        raise ValueError("Invalid manifest version.")
+
+    @classmethod
+    def version(cls) -> int:
+        raise NotImplementedError
+
+    def __init__(
+        self,
+        storage_policy: "wandb_artifacts.WandbStoragePolicy",
+        entries: Optional[Mapping[str, ArtifactManifestEntry]] = None,
+    ) -> None:
+        self.storage_policy = storage_policy
+        self.entries = dict(entries) if entries else {}
+
+    def to_manifest_json(self) -> Dict:
+        raise NotImplementedError
+
+    def digest(self) -> HexMD5:
+        raise NotImplementedError
+
+    def add_entry(self, entry: ArtifactManifestEntry) -> None:
+        if (
+            entry.path in self.entries
+            and entry.digest != self.entries[entry.path].digest
+        ):
+            raise ValueError("Cannot add the same path twice: %s" % entry.path)
+        self.entries[entry.path] = entry
+
+    def get_entry_by_path(self, path: str) -> Optional[ArtifactManifestEntry]:
+        return self.entries.get(path)
+
+    def get_entries_in_directory(self, directory: str) -> List[ArtifactManifestEntry]:
+        return [
+            self.entries[entry_key]
+            for entry_key in self.entries
+            if entry_key.startswith(
+                directory + "/"
+            )  # entries use forward slash even for windows
+        ]

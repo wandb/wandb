@@ -13,13 +13,12 @@ from typing import (
 )
 
 from wandb import env, util
-from wandb.sdk.interface.artifacts.artifacts import Artifact, ArtifactNotLoggedError
+from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
 from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.util import FilePathStr, URIStr
 
 if TYPE_CHECKING:
-    # need this import for type annotations, but want to avoid circular dependency
     import sys
 
     from wandb.sdk import wandb_artifacts
