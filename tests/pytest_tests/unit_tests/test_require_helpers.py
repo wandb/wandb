@@ -9,7 +9,7 @@ def test_requirements_mixin() -> None:
     class TestClass2:
         pass
 
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(Exception):
         TestClass()
 
     assert TestClass2()
@@ -23,7 +23,7 @@ def test_requirements_decorator() -> None:
     def test_func2() -> None:
         return "pass"
 
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(Exception):
         test_func()
 
     assert test_func2() == "pass"

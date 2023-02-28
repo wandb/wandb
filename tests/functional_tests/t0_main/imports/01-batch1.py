@@ -45,7 +45,7 @@ assert:
 """
 
 
-# import allennlp  # noqa: F401
+# import allennlp
 # import avalanche
 # import dalle_pytorch
 # import deeppavlov

@@ -492,7 +492,7 @@ class Api:
 
     def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
         """Sync a local directory containing tfevent files to wandb."""
-        from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
+        from wandb.sync import SyncManager
 
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
