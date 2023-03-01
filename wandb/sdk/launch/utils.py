@@ -656,4 +656,3 @@ def make_name_dns_safe(name: str) -> str:
     # Actual length limit is 253, but we want to leave room for the generated suffix
     resp = resp[:200]
     return resp
-    return resp
