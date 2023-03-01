@@ -427,7 +427,7 @@ class Run:
     and then log information only from that process, or you can create a run in each process,
     logging from each separately, and group the results together with the `group` argument
     to `wandb.init`. For more details on distributed training with W&B, check out
-    [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
+    [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
 
     Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
@@ -1537,7 +1537,7 @@ class Run:
         the summary values for these metrics.
 
         Visualize logged data in the workspace at [wandb.ai](https://wandb.ai),
-        or locally on a [self-hosted instance](https://docs.wandb.ai/self-hosted)
+        or locally on a [self-hosted instance](https://docs.wandb.ai/guides/hosting)
         of the W&B app, or export data to visualize and explore locally, e.g. in
         Jupyter notebooks, with [our API](https://docs.wandb.ai/guides/track/public-api-guide).
 
@@ -1547,7 +1547,7 @@ class Run:
         Logged values don't have to be scalars. Logging any wandb object is supported.
         For example `wandb.log({"example": wandb.Image("myimage.jpg")})` will log an
         example image which will be displayed nicely in the W&B UI.
-        See the [reference documentation](https://docs.wandb.com/library/reference/data_types)
+        See the [reference documentation](https://docs.wandb.com/ref/python/data-types)
         for all of the different supported types or check out our
         [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
         from 3D molecular structures and segmentation masks to PR curves and histograms.
@@ -1873,7 +1873,7 @@ class Run:
     @_run_decorator._noop
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
-        """Deprecated alias for `finish()` - use finish instead."""  # noqa: D401
+        """Deprecated alias for `finish()` - use finish instead."""
         deprecate.deprecate(
             field_name=deprecate.Deprecated.run__join,
             warning_message=(
@@ -2689,7 +2689,7 @@ class Run:
             else:
                 raise ValueError(
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
-                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
+                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"
                 )
         if self._backend and self._backend.interface:
             self._backend.interface.publish_use_artifact(artifact)

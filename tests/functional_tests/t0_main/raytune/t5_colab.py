@@ -1,7 +1,7 @@
 """ray-tune test.
 
 Based on:
-    https://docs.wandb.ai/guides/integrations/other/ray-tune
+    https://docs.wandb.ai/guides/integrations/ray-tune
     https://colab.research.google.com/github/wandb/examples/blob/master/colabs/raytune/RayTune_with_wandb.ipynb
 """
 
