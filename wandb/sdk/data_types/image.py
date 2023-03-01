@@ -34,13 +34,16 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _server_accepts_image_filenames() -> bool:
-    from pkg_resources import parse_version
+    if util._is_offline():
+        return False
 
     # Newer versions of wandb accept large image filenames arrays
     # but older versions would have issues with this.
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
+    from pkg_resources import parse_version
+
     accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
         max_cli_version
     )
