@@ -42,7 +42,7 @@ google.cloud.storage = get_module(
 
 _logger = logging.getLogger(__name__)
 
-gcs_uri_re = re.compile(r"gs://([^/]+)/(.+)")
+GCS_URI_RE = re.compile(r"gs://([^/]+)/(.+)")
 
 
 class GcpEnvironment(AbstractEnvironment):
@@ -53,12 +53,11 @@ class GcpEnvironment(AbstractEnvironment):
     """
 
     region: str
-    _project: str
 
     def __init__(self, region: str, verify: bool = True) -> None:
         """Initialize the GCP environment.
 
-        Args:
+        Arguments:
             region: The GCP region.
             verify: Whether to verify the credentials, region, and project.
 
@@ -72,6 +71,29 @@ class GcpEnvironment(AbstractEnvironment):
         self._project = ""
         if verify:
             self.verify()
+
+    @classmethod
+    def from_config(cls, config: dict) -> "GcpEnvironment":
+        """Create a GcpEnvironment from a config dictionary.
+
+        Arguments:
+            config: The config dictionary.
+
+        Returns:
+            GcpEnvironment: The GcpEnvironment.
+        """
+        if config.get("type") != "gcp":
+            raise LaunchError(
+                f"Could not create GcpEnvironment from config. Expected type 'gcp' "
+                f"but got '{config.get('type')}'."
+            )
+        region = config.get("region", None)
+        if not region:
+            raise LaunchError(
+                "Could not create GcpEnvironment from config. Missing 'region' "
+                "field."
+            )
+        return cls(region=region)
 
     @property
     def project(self) -> str:
@@ -107,8 +129,12 @@ class GcpEnvironment(AbstractEnvironment):
             LaunchError: If the GCP credentials are invalid.
         """
         _logger.debug("Getting GCP credentials")
+        # TODO: Figure out a minimal set of scopes.
+        scopes = [
+            "https://www.googleapis.com/auth/cloud-platform",
+        ]
         try:
-            creds, project = google.auth.default()
+            creds, project = google.auth.default(scopes=scopes)
             if not self._project:
                 self._project = project
             _logger.debug("Refreshing GCP credentials")
@@ -154,15 +180,36 @@ class GcpEnvironment(AbstractEnvironment):
             # Check if the region is available using the compute API.
             compute_client = google.cloud.compute_v1.RegionsClient(credentials=creds)
             compute_client.get(project=self.project, region=self.region)
-        except google.api_core.exceptions.NotFound:
+        except google.api_core.exceptions.NotFound as e:
             raise LaunchError(
                 f"Region {self.region} is not available in project {self.project}."
+            ) from e
+
+    def verify_storage_uri(self, uri: str) -> None:
+        """Verify that a storage URI is valid.
+
+        Arguments:
+            uri: The storage URI.
+
+        Raises:
+            LaunchError: If the storage URI is invalid.
+        """
+        match = GCS_URI_RE.match(uri)
+        if not match:
+            raise LaunchError(f"Invalid GCS URI: {uri}")
+        bucket = match.group(1)
+        try:
+            storage_client = google.cloud.storage.Client(
+                credentials=self.get_credentials()
             )
+            bucket = storage_client.post_bucket(bucket)
+        except google.api_core.exceptions.NotFound as e:
+            raise LaunchError(f"Bucket {bucket} does not exist.") from e
 
     def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to GCS.
 
-        Args:
+        Arguments:
             source: The path to the local file.
             destination: The path to the GCS file.
 
@@ -172,7 +219,7 @@ class GcpEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading file {source} to {destination}")
         if not os.path.isfile(source):
             raise LaunchError(f"File {source} does not exist.")
-        match = gcs_uri_re.match(destination)
+        match = GCS_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)
@@ -185,12 +232,12 @@ class GcpEnvironment(AbstractEnvironment):
             blob = bucket.blob(key)
             blob.upload_from_filename(source)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload file to GCS: {e}")
+            raise LaunchError(f"Could not upload file to GCS: {e}") from e
 
     def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to GCS.
 
-        Args:
+        Arguments:
             source: The path to the local directory.
             destination: The path to the GCS directory.
 
@@ -200,7 +247,7 @@ class GcpEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading directory {source} to {destination}")
         if not os.path.isdir(source):
             raise LaunchError(f"Directory {source} does not exist.")
-        match = gcs_uri_re.match(destination)
+        match = GCS_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Invalid GCS URI: {destination}")
         bucket = match.group(1)
@@ -219,4 +266,6 @@ class GcpEnvironment(AbstractEnvironment):
                     blob = bucket.blob(gcs_path)
                     blob.upload_from_filename(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
+            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
+            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
             raise LaunchError(f"Could not upload directory to GCS: {e}") from e

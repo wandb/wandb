@@ -717,7 +717,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
 
 def json_friendly(  # noqa: C901
     obj: Any,
-) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
+) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:
     """Convert an object into something that's more becoming of JSON."""
     converted = True
     typename = get_full_typename(obj)
@@ -1261,7 +1261,9 @@ def image_id_from_k8s() -> Optional[str]:
     return None
 
 
-def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
+def async_call(
+    target: Callable, timeout: Optional[Union[int, float]] = None
+) -> Callable:
     """Wrap a method to run in the background with an optional timeout.
 
     Returns a new method that will call the original with any args, waiting for upto
@@ -1602,8 +1604,8 @@ def _has_internet() -> bool:
         return False
 
 
-def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
-    rand = rand or random
+def rand_alphanumeric(length: int = 8, rand: Optional[random.Random] = None) -> str:
+    rand = rand or random.Random()
     return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
@@ -1622,7 +1624,7 @@ def fsync_open(
 def _is_kaggle() -> bool:
     return (
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules  # noqa: W503
+        or "kaggle_environments" in sys.modules
     )
 
 

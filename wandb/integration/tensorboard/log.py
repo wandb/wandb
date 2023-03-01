@@ -224,13 +224,13 @@ def tf_summary_to_dict(  # noqa: C901
             if len(value.histo.bucket_limit) >= 3:
                 first = (
                     value.histo.bucket_limit[0]
-                    + value.histo.bucket_limit[0]  # noqa: W503
-                    - value.histo.bucket_limit[1]  # noqa: W503
+                    + value.histo.bucket_limit[0]
+                    - value.histo.bucket_limit[1]
                 )
                 last = (
                     value.histo.bucket_limit[-2]
-                    + value.histo.bucket_limit[-2]  # noqa: W503
-                    - value.histo.bucket_limit[-3]  # noqa: W503
+                    + value.histo.bucket_limit[-2]
+                    - value.histo.bucket_limit[-3]
                 )
                 np_histogram = (
                     list(value.histo.bucket),
