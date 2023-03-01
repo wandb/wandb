@@ -95,9 +95,7 @@ class Graph:
 def _get_modification_order(
     settings: Settings,
 ) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
-    """Return the order in which settings that could have dependencies or
-    be dependent on should be modified.
-    """
+    """Return the order in which settings should be modified, based on dependencies."""
     dependency_graph = Graph()
 
     props = tuple(get_type_hints(Settings).keys())
