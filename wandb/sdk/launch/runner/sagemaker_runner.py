@@ -66,7 +66,7 @@ class SagemakerSubmittedRun(AbstractRun):
         return self._status
 
 
-class SagemakerRunner(AbstractRunner):
+class SageMakerRunner(AbstractRunner):
     """Runner class, uses a project to create a SagemakerSubmittedRun."""
 
     def __init__(

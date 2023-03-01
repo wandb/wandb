@@ -207,9 +207,9 @@ def runner_from_config(
                 "Could not create Sagemaker runner. "
                 "Environment must be an instance of AwsEnvironment."
             )
-        from .runner.sagemaker_runner import SagemakerRunner
+        from .runner.sagemaker_runner import SageMakerRunner
 
-        return SagemakerRunner(api, runner_config, environment)
+        return SageMakerRunner(api, runner_config, environment)
     if runner_name in ["vertex", "gcp-vertex"]:
         from .environment.gcp_environment import GcpEnvironment
 
