@@ -986,7 +986,14 @@ def get_artifacts_cache() -> ArtifactsCache:
 
 def get_staging_dir() -> FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    mkdir_exists_ok(path)
+    try:
+        mkdir_exists_ok(path)
+    except PermissionError as e:
+        raise PermissionError(
+            f"Unable to write staging files to {path}. "
+            "Set WANDB_DATA_DIR to a directory you have write access to."
+        ) from e
+
     return FilePathStr(os.path.abspath(os.path.expanduser(path)))
 
 
