@@ -338,7 +338,8 @@ class _run_decorator:  # noqa: N801
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
             if self._is_finished:
                 raise errors.UsageError(
-                    f"run ({self.id}) is finished, cannot call `{func.__name__}`. TODO: write better error message"
+                    f"Cannot call `{func.__name__}` on a run ({self.id}) that is finished. "
+                    f"Please make sure that you are using an active run before attempting to call `{func.__name__}`."
                 )
             return func(self, *args, **kwargs)
 
