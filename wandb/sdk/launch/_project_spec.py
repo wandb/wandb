@@ -75,7 +75,10 @@ class LaunchProject:
         self.target_entity = target_entity
         self.target_project = target_project.lower()
         self.name = name  # TODO: replace with run_id
-        resource_args_build = resource_args.get(resource, {}).pop("build", {})
+        # the builder key can be passed in through the resource args
+        # but these resource_args are then passed to the appropriate
+        # runner, so we need to pop the builder key out
+        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
@@ -141,8 +144,6 @@ class LaunchProject:
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
-        # if launch_spec.get("resource_args"):
-        # self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()
