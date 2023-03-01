@@ -35,7 +35,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 def _server_accepts_image_filenames() -> bool:
     if util._is_offline():
-        return False
+        return True
 
     # Newer versions of wandb accept large image filenames arrays
     # but older versions would have issues with this.
@@ -528,7 +528,7 @@ class Image(BatchableMedia):
             ]
         else:
             wandb.termwarn(
-                "Unable to log image array filenames. In some cases, this can prevent images from being"
+                "Unable to log image array filenames. In some cases, this can prevent images from being "
                 "viewed in the UI. Please upgrade your wandb server",
                 repeat=False,
             )
