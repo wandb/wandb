@@ -18,6 +18,7 @@ _Setting = Literal[
     "_console",
     "_cuda",
     "_disable_meta",
+    "_disable_service",
     "_disable_stats",
     "_disable_viewer",
     "_except_exit",
@@ -41,7 +42,6 @@ _Setting = Literal[
     "_os",
     "_platform",
     "_python",
-    "_require_service",
     "_runqueue_item_id",
     "_save_requirements",
     "_service_transport",
@@ -61,7 +61,6 @@ _Setting = Literal[
     "anonymous",
     "api_key",
     "base_url",
-    "cache_dir",
     "code_dir",
     "config_paths",
     "console",
@@ -69,6 +68,7 @@ _Setting = Literal[
     "disable_code",
     "disable_git",
     "disable_hints",
+    "disable_job_creation",
     "disabled",
     "docker",
     "email",
@@ -148,6 +148,9 @@ _Setting = Literal[
 ]
 
 SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
+    "_service_wait",
+    "_stats_sample_rate_seconds",
+    "_stats_samples_to_average",
     "anonymous",
     "base_url",
     "is_local",
