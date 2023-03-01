@@ -692,7 +692,7 @@ class _WindowSizeChangeHandler:
             win_size = fcntl.ioctl(0, termios.TIOCGWINSZ, "\0" * 8)
             rows, cols, xpix, ypix = struct.unpack("HHHH", win_size)
         # Note: IOError not subclass of OSError in python 2.x
-        except OSError:  # eg. in MPI we can't do this. # noqa
+        except OSError:  # eg. in MPI we can't do this.
             return
         if cols == 0:
             return
