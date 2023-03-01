@@ -330,16 +330,16 @@ class StepUpload:
         )
         job.run()
 
-    async def _do_upload_async(
-        self, event: RequestUpload, save_fn_async: SaveFnAsync
-    ) -> None:
+    async def _do_upload_async(self, event: RequestUpload) -> None:
+        """Upload a file and returns when it's done. Requires `event.save_fn_async`."""
+        assert event.save_fn_async is not None
         job = upload_job.UploadJobAsync(
             stats=self._stats,
             api=self._api,
             file_stream=self._file_stream,
             silent=self.silent,
             request=event,
-            save_fn_async=save_fn_async,
+            save_fn_async=event.save_fn_async,
         )
         await job.run()
 
