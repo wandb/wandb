@@ -286,10 +286,8 @@ def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypat
         artifact_path = run.use_artifact("art:latest").download()
         assert os.path.exists(artifact_path)
 
-    # Delete the cached file
-    cache.cleanup(0)
-    # There should be no files in the cache
-    assert all(p.isdir() for p in Path(cache._cache_dir.exists()).rglob("*"))
+    # Delete the entire cache
+    shutil.rmtree(cache._cache_dir)
 
     def fail_copy(src, dst):
         raise RuntimeError(f"Should not be called, attempt to copy from {src} to {dst}")
@@ -324,9 +322,7 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path):
         assert file1.read_text() == "hello"
 
     # Delete the cached file
-    cache.cleanup(0)
-    # There should be no files in the cache
-    assert all(p.isdir() for p in Path(cache._cache_dir.exists()).rglob("*"))
+    shutil.rmtree(cache._cache_dir)
 
     # Modify the artifact file to change its hash.
     file1.write_text("goodbye")
