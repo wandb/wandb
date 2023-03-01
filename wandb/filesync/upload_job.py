@@ -217,5 +217,9 @@ class UploadJobAsync:
         finally:
             # If we fell back to the sync impl, the file will have already been deleted.
             # Doesn't matter, we only try to delete it if it exists.
-            if self._request.copied and os.path.isfile(self._request.path):
-                os.remove(self._request.path)
+            if self._request.copied:
+                try:
+                    os.remove(self._request.path)
+                except OSError:
+                    # The file has already been deleted, we don't have permissions, or something else we can't fix.
+                    pass
