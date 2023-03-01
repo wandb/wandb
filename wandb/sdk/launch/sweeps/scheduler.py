@@ -277,7 +277,7 @@ class Scheduler(ABC):
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
 
-        _sweep_config_uri = self._sweep_config.get("scheduler", {}).get("image_uri")
+        _sweep_config_uri = self._sweep_config.get("image_uri")
         _image_uri = self._kwargs.get("image_uri") or _sweep_config_uri
         if _job is None and _image_uri is None:
             raise SchedulerError(
