@@ -350,7 +350,7 @@ def test_storage_handler_incomplete():
 
 def test_unwritable_staging_dir(monkeypatch):
     # Use a non-writable directory as the staging directory.
-    monkeypatch.setenv("WANDB_DATA_DIR", "/")
+    monkeypatch.setenv("WANDB_DATA_DIR", "/bin")
 
     with pytest.raises(PermissionError) as excinfo:
         _ = artifacts.get_new_staging_file()
