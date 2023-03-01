@@ -176,19 +176,19 @@ class LaunchProject:
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
         if self.source != LaunchSource.JOB:
-            return true
-            
-       assert isinstance(self.job, str)
-       job_info = self.job.split(":")
-       if len(job_info) != 2:
-           raise LaunchError(
-               "Job must be in the format <entity>/<propject>/<collection>:<alias> or <entity>/<propject>/<collection>:v<version>"
-           )
-       alias = job_info[1]
-       # a build is only not required if the user has specified
-       # a version index, since all other aliases can
-       # be moved from version to version
-       return re.match(r"v\d+", alias) is None
+            return True
+
+        assert isinstance(self.job, str)
+        job_info = self.job.split(":")
+        if len(job_info) != 2:
+            raise LaunchError(
+                "Job must be in the format <entity>/<propject>/<collection>:<alias> or <entity>/<propject>/<collection>:v<version>"
+            )
+        alias = job_info[1]
+        # a build is only not required if the user has specified
+        # a version index, since all other aliases can
+        # be moved from version to version
+        return re.match(r"v\d+", alias) is None
 
     @property
     def docker_image(self) -> Optional[str]:
@@ -251,7 +251,7 @@ class LaunchProject:
             return self.uri
         elif self.source == LaunchSource.JOB:
             assert isinstance(self.job, str)
-            return self.job
+            return f"{self._job_artifact.name}:v{self._job_artifact.version}"
         elif self.source == LaunchSource.GIT:
             assert isinstance(self.uri, str)
             ret = self.uri
@@ -262,7 +262,9 @@ class LaunchProject:
             assert isinstance(self.uri, str)
             return self.uri
         elif self.source == LaunchSource.DOCKER:
-            raise LaunchError("Attempted to get image source string for docker image")
+            assert isinstance(self.docker_image, str)
+            _logger.debug("")
+            return self.docker_image
         else:
             raise LaunchError("Unknown source type when determing image source string")
 
