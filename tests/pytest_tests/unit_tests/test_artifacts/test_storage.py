@@ -2,7 +2,6 @@ import base64
 import os
 import random
 from multiprocessing import Pool
-from pathlib import Path
 
 import pytest
 import wandb
@@ -351,10 +350,11 @@ def test_storage_handler_incomplete():
 
 def test_unwritable_staging_dir(monkeypatch):
     # Use a non-writable directory as the staging directory.
-    unwriteable = Path.cwd() / "unwriteable"
-    unwriteable.mkdir()
-    unwriteable.chmod(0o444)
-    monkeypatch.setenv("WANDB_DATA_DIR", str(unwriteable.resolve()))
+    # CI just doesn't care about permissions, so we're patching os.makedirs 🙃
+    def nope(*args, **kwargs):
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "makedirs", nope)
 
     with pytest.raises(PermissionError) as excinfo:
         _ = artifacts.get_new_staging_file()
