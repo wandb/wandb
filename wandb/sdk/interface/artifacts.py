@@ -990,8 +990,8 @@ def get_staging_dir() -> FilePathStr:
         mkdir_exists_ok(path)
     except OSError as e:
         raise PermissionError(
-            f"Unable to write staging files to {path}. "
-            "Set WANDB_DATA_DIR to a directory you have write access to."
+            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"{env.DATA_DIR} to a directory where you have the necessary write access."
         ) from e
 
     return FilePathStr(os.path.abspath(os.path.expanduser(path)))
