@@ -9,7 +9,6 @@ import pytest
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import WaitTimeoutError
-from wandb.sdk import wandb_artifacts
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -272,7 +271,8 @@ def test_artifact_wait_failure(wandb_init, timeout):
 
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
     """Don't re-download an artifact if it's already in the desired location."""
-    cache = wandb_artifacts.ArtifactsCache(tmp_path)
+    cache_dir = tmp_path / "cache"
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
 
     original_file = tmp_path / "test.txt"
     original_file.write_text("hello")
@@ -287,7 +287,7 @@ def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypat
         assert os.path.exists(artifact_path)
 
     # Delete the entire cache
-    shutil.rmtree(cache._cache_dir)
+    shutil.rmtree(cache_dir)
 
     def fail_copy(src, dst):
         raise RuntimeError(f"Should not be called, attempt to copy from {src} to {dst}")
@@ -303,9 +303,10 @@ def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypat
         assert file1.read_text() == "hello"
 
 
-def test_check_changed_artifact_then_download(wandb_init, tmp_path):
+def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch):
     """*Do* re-download an artifact if it's been modified in place."""
-    cache = wandb_artifacts.ArtifactsCache(tmp_path)
+    cache_dir = tmp_path / "cache"
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
 
     original_file = tmp_path / "test.txt"
     original_file.write_text("hello")
@@ -322,7 +323,7 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path):
         assert file1.read_text() == "hello"
 
     # Delete the cached file
-    shutil.rmtree(cache._cache_dir)
+    shutil.rmtree(cache_dir)
 
     # Modify the artifact file to change its hash.
     file1.write_text("goodbye")
