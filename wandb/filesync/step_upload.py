@@ -248,7 +248,6 @@ class StepUpload:
             # we sometimes need to use the sync method instead.)
             self._spawn_upload_async(
                 event,
-                save_fn_async=event.save_fn_async,
                 async_executor=self._async_executor,
             )
         else:
@@ -294,21 +293,20 @@ class StepUpload:
     def _spawn_upload_async(
         self,
         event: RequestUpload,
-        save_fn_async: SaveFnAsync,
         async_executor: AsyncExecutor,
     ) -> None:
-        """Equivalent to _spawn_upload_sync, but uses the async event loop instead of a thread.
+        """Equivalent to _spawn_upload_sync, but uses the async event loop instead of a thread, and requires `event.save_fn_async`.
 
-        "Why does this method take `save_fn_async` even though it's a field on `event`?"
-        Because `event.save_fn_async` is Optional. This method should only be called if
-        `event.save_fn_async` is not None, but it's hard to tell that to Mypy.
-        Likewise for why this method takes `async_executor` instead of `self._async_executor`.
+        Raises:
+            AssertionError: if `event.save_fn_async` is None.
         """
+        assert event.save_fn_async is not None
+
         self._running_jobs[event.save_name] = event
 
         async def run_and_notify() -> None:
             try:
-                await self._do_upload_async(event, save_fn_async)
+                await self._do_upload_async(event, event.save_fn_async)
             finally:
                 self._event_queue.put(
                     upload_job.EventJobDone(event, exc=sys.exc_info()[1])
