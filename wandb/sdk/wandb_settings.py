@@ -990,10 +990,10 @@ class Settings:
                 wandb.termwarn(
                     (
                         "async_upload_concurrency_limit setting of"
-                        + f"{value} exceeds this process's limit"
-                        + f" on open files ({file_limit}); may cause file-upload failures."
-                        + " Try decreasing async_upload_concurrency_limit,"
-                        + " or increasing your file limit with `ulimit -n`."
+                        f" {value} exceeds this process's limit"
+                        f" on open files ({file_limit}); may cause file-upload failures."
+                        " Try decreasing async_upload_concurrency_limit,"
+                        " or increasing your file limit with `ulimit -n`."
                     ),
                     repeat=False,
                 )
