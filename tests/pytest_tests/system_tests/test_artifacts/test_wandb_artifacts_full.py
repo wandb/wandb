@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -8,6 +9,7 @@ import pytest
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import WaitTimeoutError
+from wandb.sdk import wandb_artifacts
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -266,3 +268,73 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
+
+
+def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
+    """Don't re-download an artifact if it's already in the desired location."""
+    cache = wandb_artifacts.ArtifactsCache(tmp_path)
+
+    original_file = tmp_path / "test.txt"
+    original_file.write_text("hello")
+    with wandb_init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        artifact.add_file(original_file)
+        run.log_artifact(artifact)
+
+    # Download the artifact
+    with wandb_init() as run:
+        artifact_path = run.use_artifact("art:latest").download()
+        assert os.path.exists(artifact_path)
+
+    # Delete the cached file
+    cache.cleanup(0)
+    # There should be no files in the cache
+    assert all(p.isdir() for p in Path(cache._cache_dir.exists()).rglob("*"))
+
+    def fail_copy(src, dst):
+        raise RuntimeError(f"Should not be called, attempt to copy from {src} to {dst}")
+
+    # Monkeypatch the copy function to fail
+    monkeypatch.setattr(shutil, "copy2", fail_copy)
+
+    # Download the artifact again; it should be left in place despite the absent cache.
+    with wandb_init() as run:
+        artifact_path = Path(run.use_artifact("art:latest").download())
+        file1 = artifact_path / "test.txt"
+        assert file1.is_file()
+        assert file1.read_text() == "hello"
+
+
+def test_check_changed_artifact_then_download(wandb_init, tmp_path):
+    """*Do* re-download an artifact if it's been modified in place."""
+    cache = wandb_artifacts.ArtifactsCache(tmp_path)
+
+    original_file = tmp_path / "test.txt"
+    original_file.write_text("hello")
+    with wandb_init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        artifact.add_file(original_file)
+        run.log_artifact(artifact)
+
+    # Download the artifact
+    with wandb_init() as run:
+        artifact_path = Path(run.use_artifact("art:latest").download())
+        file1 = artifact_path / "test.txt"
+        assert file1.is_file()
+        assert file1.read_text() == "hello"
+
+    # Delete the cached file
+    cache.cleanup(0)
+    # There should be no files in the cache
+    assert all(p.isdir() for p in Path(cache._cache_dir.exists()).rglob("*"))
+
+    # Modify the artifact file to change its hash.
+    file1.write_text("goodbye")
+
+    # Download it again; it should be replaced with the original version.
+    with wandb_init() as run:
+        artifact_path = Path(run.use_artifact("art:latest").download())
+        file2 = artifact_path / "test.txt"
+        assert file1 == file2  # Same path, but the content should have changed.
+        assert file2.is_file()
+        assert file2.read_text() == "hello"
