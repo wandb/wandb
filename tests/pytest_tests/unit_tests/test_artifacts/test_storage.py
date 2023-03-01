@@ -356,7 +356,5 @@ def test_unwritable_staging_dir(monkeypatch):
 
     monkeypatch.setattr(os, "makedirs", nope)
 
-    with pytest.raises(PermissionError) as excinfo:
+    with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
         _ = artifacts.get_new_staging_file()
-
-    assert "Set WANDB_DATA_DIR to " in str(excinfo.value)
