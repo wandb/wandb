@@ -175,20 +175,20 @@ class LaunchProject:
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
-        if self.source == LaunchSource.JOB:
-            assert isinstance(self.job, str)
-            job_info = self.job.split(":")
-            if len(job_info) != 2:
-                raise LaunchError(
-                    "Job must be in the format <entity>/<propject>/<collection>:<alias> or <entity>/<propject>/<collection>:v<version>"
-                )
-            alias = job_info[1]
-            # a build is only not required if the user has specified
-            # a version index, since all other aliases can
-            # be moved from version to version
-            return re.match(r"v\d+", alias) is None
-        else:
-            return True
+        if self.source != LaunchSource.JOB:
+            return true
+            
+       assert isinstance(self.job, str)
+       job_info = self.job.split(":")
+       if len(job_info) != 2:
+           raise LaunchError(
+               "Job must be in the format <entity>/<propject>/<collection>:<alias> or <entity>/<propject>/<collection>:v<version>"
+           )
+       alias = job_info[1]
+       # a build is only not required if the user has specified
+       # a version index, since all other aliases can
+       # be moved from version to version
+       return re.match(r"v\d+", alias) is None
 
     @property
     def docker_image(self) -> Optional[str]:
