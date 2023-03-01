@@ -6,6 +6,7 @@ from multiprocessing import Pool
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.interface import artifacts
 
 
 def test_opener_rejects_append_mode(cache):
@@ -345,3 +346,13 @@ def test_storage_handler_incomplete():
         ush.load_path(manifest_entry=None)
     with pytest.raises(NotImplementedError):
         ush.store_path(artifact=None, path="")
+
+
+def test_unwritable_staging_dir(monkeypatch):
+    # Use a non-writable directory as the staging directory.
+    monkeypatch.setenv("WANDB_DATA_DIR", "/")
+
+    with pytest.raises(PermissionError) as excinfo:
+        _ = artifacts.get_new_staging_file()
+
+    assert "Set WANDB_DATA_DIR to " in str(excinfo.value)

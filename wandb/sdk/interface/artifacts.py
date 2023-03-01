@@ -988,7 +988,7 @@ def get_staging_dir() -> FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
     try:
         mkdir_exists_ok(path)
-    except PermissionError as e:
+    except OSError as e:
         raise PermissionError(
             f"Unable to write staging files to {path}. "
             "Set WANDB_DATA_DIR to a directory you have write access to."
