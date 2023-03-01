@@ -45,15 +45,21 @@ class ProtobufErrorHandler:
         return Error(error.message)
 
     @classmethod
-    def from_exception(cls, exc: Exception) -> "pb.ErrorInfo":
-        """Convert an exception to a protobuf error.
+    def from_exception(cls, exc: Error) -> "pb.ErrorInfo":
+        """Convert an wandb error to a protobuf error message.
 
         Args:
             exc: The exception to convert.
 
         Returns:
-            The corresponding protobuf error.
+            The corresponding protobuf error message.
         """
+        if not isinstance(exc, Error):
+            raise ValueError("exc must be a subclass of wandb.errors.Error")
 
-        code = from_exception_map.get(type(exc), pb.ErrorInfo.UNKNOWN)
+        code = None
+        for subclass in type(exc).__mro__:
+            if subclass in from_exception_map:
+                code = from_exception_map[subclass]
+                break
         return pb.ErrorInfo(code=code, message=str(exc))
