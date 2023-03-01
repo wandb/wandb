@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test stdin timeout"""
+"""Test stdin timeout."""
 
 import time
 

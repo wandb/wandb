@@ -40,7 +40,7 @@ class MockProfilerClient:
 
 # class MockTPUClusterResolver:
 #     @staticmethod
-#     def TPUClusterResolver(*args, **kwargs):  # noqa: N802
+#     def TPUClusterResolver(*args, **kwargs):
 #         return MockTPUClusterResolver()
 #
 #     def get_master(self) -> str:
