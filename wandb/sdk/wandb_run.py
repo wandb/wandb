@@ -3669,7 +3669,7 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
 
 
-class InvalidArtifact:
+class UnloggedArtifact(ArtifactInterface):
     """An "artifact" that raises an error when any properties are accessed."""
 
     def __init__(self, base_artifact: "ArtifactInterface"):
@@ -3687,12 +3687,12 @@ class InvalidArtifact:
 
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
-    _instance: Union[ArtifactInterface, InvalidArtifact]
+    _instance: ArtifactInterface
     _future: Any
 
     def __init__(self, api: PublicApi, future: Any):
         self._api = api
-        self._instance = InvalidArtifact(self)
+        self._instance = UnloggedArtifact(self)
         self._future = future
 
     def __getattr__(self, item: str) -> Any:
