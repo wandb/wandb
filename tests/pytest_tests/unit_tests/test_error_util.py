@@ -14,3 +14,8 @@ from wandb.proto import wandb_internal_pb2 as pb
 def test_protobuf_error_handler(error, expected):
     exc = ProtobufErrorHandler.to_exception(error)
     assert isinstance(exc, expected)
+
+
+def test_protobuf_error_handler_exception():
+    with pytest.raises(ValueError):
+        ProtobufErrorHandler.from_exception(Exception(""))  # type: ignore

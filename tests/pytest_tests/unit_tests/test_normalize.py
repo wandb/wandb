@@ -30,12 +30,12 @@ def raise_wandb_error():
     "func, args, error, message",
     [
         (raise_exception, (), CommError, "test"),
-        (raise_http_error, (response_factory(404),), CommError, "<Response \[404\]>"),
+        (raise_http_error, (response_factory(404),), CommError, r"<Response \[404\]>"),
         (
             raise_http_error,
             (response_factory(404, {"errors": "not found"}),),
             CommError,
-            "<Response \[404\]>",
+            r"<Response \[404\]>",
         ),
         (
             raise_http_error,
