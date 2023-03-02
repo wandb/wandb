@@ -34,7 +34,7 @@ def test_loop_capture_stack_trace(mocker):
 
 @pytest.mark.parametrize(
     "num_schedulers",
-    [0, -1, 1000000, "8"],
+    [0, -1, 1000000, "8", None],
 )
 def test_max_scheduler_setup(mocker, num_schedulers):
     _setup(mocker)
