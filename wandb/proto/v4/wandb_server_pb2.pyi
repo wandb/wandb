@@ -30,12 +30,8 @@ class ServerShutdownRequest(google.protobuf.message.Message):
         *,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerShutdownRequest = ServerShutdownRequest
 
@@ -61,12 +57,8 @@ class ServerStatusRequest(google.protobuf.message.Message):
         *,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerStatusRequest = ServerStatusRequest
 
@@ -86,19 +78,13 @@ class StringTupleValue(google.protobuf.message.Message):
 
     STRING_VALUES_FIELD_NUMBER: builtins.int
     @property
-    def string_values(
-        self,
-    ) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[
-        builtins.str
-    ]: ...
+    def string_values(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
         string_values: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(
-        self, field_name: typing_extensions.Literal["string_values", b"string_values"]
-    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["string_values", b"string_values"]) -> None: ...
 
 global___StringTupleValue = StringTupleValue
 
@@ -120,26 +106,53 @@ class StringStringMapValue(google.protobuf.message.Message):
             key: builtins.str = ...,
             value: builtins.str = ...,
         ) -> None: ...
-        def ClearField(
-            self,
-            field_name: typing_extensions.Literal["key", b"key", "value", b"value"],
-        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
 
     MAP_VALUES_FIELD_NUMBER: builtins.int
     @property
-    def map_values(
-        self,
-    ) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
+    def map_values(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
     def __init__(
         self,
         *,
         map_values: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(
-        self, field_name: typing_extensions.Literal["map_values", b"map_values"]
-    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["map_values", b"map_values"]) -> None: ...
 
 global___StringStringMapValue = StringStringMapValue
+
+@typing_extensions.final
+class NestedStringStringMapValue(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    @typing_extensions.final
+    class NestedMapValuesEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        @property
+        def value(self) -> global___StringStringMapValue: ...
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: global___StringStringMapValue | None = ...,
+        ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+    NESTED_MAP_VALUES_FIELD_NUMBER: builtins.int
+    @property
+    def nested_map_values(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___StringStringMapValue]: ...
+    def __init__(
+        self,
+        *,
+        nested_map_values: collections.abc.Mapping[builtins.str, global___StringStringMapValue] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["nested_map_values", b"nested_map_values"]) -> None: ...
+
+global___NestedStringStringMapValue = NestedStringStringMapValue
 
 @typing_extensions.final
 class SettingsValue(google.protobuf.message.Message):
@@ -153,6 +166,7 @@ class SettingsValue(google.protobuf.message.Message):
     TUPLE_VALUE_FIELD_NUMBER: builtins.int
     TIMESTAMP_VALUE_FIELD_NUMBER: builtins.int
     MAP_VALUE_FIELD_NUMBER: builtins.int
+    NESTED_MAP_VALUE_FIELD_NUMBER: builtins.int
     int_value: builtins.int
     string_value: builtins.str
     float_value: builtins.float
@@ -163,6 +177,8 @@ class SettingsValue(google.protobuf.message.Message):
     timestamp_value: builtins.str
     @property
     def map_value(self) -> global___StringStringMapValue: ...
+    @property
+    def nested_map_value(self) -> global___NestedStringStringMapValue: ...
     def __init__(
         self,
         *,
@@ -174,65 +190,11 @@ class SettingsValue(google.protobuf.message.Message):
         tuple_value: global___StringTupleValue | None = ...,
         timestamp_value: builtins.str = ...,
         map_value: global___StringStringMapValue | None = ...,
+        nested_map_value: global___NestedStringStringMapValue | None = ...,
     ) -> None: ...
-    def HasField(
-        self,
-        field_name: typing_extensions.Literal[
-            "bool_value",
-            b"bool_value",
-            "float_value",
-            b"float_value",
-            "int_value",
-            b"int_value",
-            "map_value",
-            b"map_value",
-            "null_value",
-            b"null_value",
-            "string_value",
-            b"string_value",
-            "timestamp_value",
-            b"timestamp_value",
-            "tuple_value",
-            b"tuple_value",
-            "value_type",
-            b"value_type",
-        ],
-    ) -> builtins.bool: ...
-    def ClearField(
-        self,
-        field_name: typing_extensions.Literal[
-            "bool_value",
-            b"bool_value",
-            "float_value",
-            b"float_value",
-            "int_value",
-            b"int_value",
-            "map_value",
-            b"map_value",
-            "null_value",
-            b"null_value",
-            "string_value",
-            b"string_value",
-            "timestamp_value",
-            b"timestamp_value",
-            "tuple_value",
-            b"tuple_value",
-            "value_type",
-            b"value_type",
-        ],
-    ) -> None: ...
-    def WhichOneof(
-        self, oneof_group: typing_extensions.Literal["value_type", b"value_type"]
-    ) -> typing_extensions.Literal[
-        "int_value",
-        "string_value",
-        "float_value",
-        "bool_value",
-        "null_value",
-        "tuple_value",
-        "timestamp_value",
-        "map_value",
-    ] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "map_value", b"map_value", "nested_map_value", b"nested_map_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "map_value", b"map_value", "nested_map_value", b"nested_map_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["value_type", b"value_type"]) -> typing_extensions.Literal["int_value", "string_value", "float_value", "bool_value", "null_value", "tuple_value", "timestamp_value", "map_value", "nested_map_value"] | None: ...
 
 global___SettingsValue = SettingsValue
 
@@ -255,40 +217,23 @@ class ServerInformInitRequest(google.protobuf.message.Message):
             key: builtins.str = ...,
             value: global___SettingsValue | None = ...,
         ) -> None: ...
-        def HasField(
-            self, field_name: typing_extensions.Literal["value", b"value"]
-        ) -> builtins.bool: ...
-        def ClearField(
-            self,
-            field_name: typing_extensions.Literal["key", b"key", "value", b"value"],
-        ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
 
     _SETTINGS_MAP_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _settings_map(
-        self,
-    ) -> google.protobuf.internal.containers.MessageMap[
-        builtins.str, global___SettingsValue
-    ]: ...
+    def _settings_map(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___SettingsValue]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _settings_map: collections.abc.Mapping[builtins.str, global___SettingsValue]
-        | None = ...,
+        _settings_map: collections.abc.Mapping[builtins.str, global___SettingsValue] | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self,
-        field_name: typing_extensions.Literal[
-            "_info", b"_info", "_settings_map", b"_settings_map"
-        ],
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "_settings_map", b"_settings_map"]) -> None: ...
 
 global___ServerInformInitRequest = ServerInformInitRequest
 
@@ -321,40 +266,23 @@ class ServerInformStartRequest(google.protobuf.message.Message):
             key: builtins.str = ...,
             value: global___SettingsValue | None = ...,
         ) -> None: ...
-        def HasField(
-            self, field_name: typing_extensions.Literal["value", b"value"]
-        ) -> builtins.bool: ...
-        def ClearField(
-            self,
-            field_name: typing_extensions.Literal["key", b"key", "value", b"value"],
-        ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
 
     _SETTINGS_MAP_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _settings_map(
-        self,
-    ) -> google.protobuf.internal.containers.MessageMap[
-        builtins.str, global___SettingsValue
-    ]: ...
+    def _settings_map(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___SettingsValue]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _settings_map: collections.abc.Mapping[builtins.str, global___SettingsValue]
-        | None = ...,
+        _settings_map: collections.abc.Mapping[builtins.str, global___SettingsValue] | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self,
-        field_name: typing_extensions.Literal[
-            "_info", b"_info", "_settings_map", b"_settings_map"
-        ],
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "_settings_map", b"_settings_map"]) -> None: ...
 
 global___ServerInformStartRequest = ServerInformStartRequest
 
@@ -380,12 +308,8 @@ class ServerInformFinishRequest(google.protobuf.message.Message):
         *,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerInformFinishRequest = ServerInformFinishRequest
 
@@ -411,12 +335,8 @@ class ServerInformAttachRequest(google.protobuf.message.Message):
         *,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerInformAttachRequest = ServerInformAttachRequest
 
@@ -439,40 +359,23 @@ class ServerInformAttachResponse(google.protobuf.message.Message):
             key: builtins.str = ...,
             value: global___SettingsValue | None = ...,
         ) -> None: ...
-        def HasField(
-            self, field_name: typing_extensions.Literal["value", b"value"]
-        ) -> builtins.bool: ...
-        def ClearField(
-            self,
-            field_name: typing_extensions.Literal["key", b"key", "value", b"value"],
-        ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
 
     _SETTINGS_MAP_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _settings_map(
-        self,
-    ) -> google.protobuf.internal.containers.MessageMap[
-        builtins.str, global___SettingsValue
-    ]: ...
+    def _settings_map(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___SettingsValue]: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _settings_map: collections.abc.Mapping[builtins.str, global___SettingsValue]
-        | None = ...,
+        _settings_map: collections.abc.Mapping[builtins.str, global___SettingsValue] | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self,
-        field_name: typing_extensions.Literal[
-            "_info", b"_info", "_settings_map", b"_settings_map"
-        ],
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "_settings_map", b"_settings_map"]) -> None: ...
 
 global___ServerInformAttachResponse = ServerInformAttachResponse
 
@@ -488,12 +391,8 @@ class ServerInformDetachRequest(google.protobuf.message.Message):
         *,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerInformDetachRequest = ServerInformDetachRequest
 
@@ -522,15 +421,8 @@ class ServerInformTeardownRequest(google.protobuf.message.Message):
         exit_code: builtins.int = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(
-        self, field_name: typing_extensions.Literal["_info", b"_info"]
-    ) -> builtins.bool: ...
-    def ClearField(
-        self,
-        field_name: typing_extensions.Literal[
-            "_info", b"_info", "exit_code", b"exit_code"
-        ],
-    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "exit_code", b"exit_code"]) -> None: ...
 
 global___ServerInformTeardownRequest = ServerInformTeardownRequest
 
@@ -588,67 +480,9 @@ class ServerRequest(google.protobuf.message.Message):
         inform_teardown: global___ServerInformTeardownRequest | None = ...,
         inform_start: global___ServerInformStartRequest | None = ...,
     ) -> None: ...
-    def HasField(
-        self,
-        field_name: typing_extensions.Literal[
-            "inform_attach",
-            b"inform_attach",
-            "inform_detach",
-            b"inform_detach",
-            "inform_finish",
-            b"inform_finish",
-            "inform_init",
-            b"inform_init",
-            "inform_start",
-            b"inform_start",
-            "inform_teardown",
-            b"inform_teardown",
-            "record_communicate",
-            b"record_communicate",
-            "record_publish",
-            b"record_publish",
-            "server_request_type",
-            b"server_request_type",
-        ],
-    ) -> builtins.bool: ...
-    def ClearField(
-        self,
-        field_name: typing_extensions.Literal[
-            "inform_attach",
-            b"inform_attach",
-            "inform_detach",
-            b"inform_detach",
-            "inform_finish",
-            b"inform_finish",
-            "inform_init",
-            b"inform_init",
-            "inform_start",
-            b"inform_start",
-            "inform_teardown",
-            b"inform_teardown",
-            "record_communicate",
-            b"record_communicate",
-            "record_publish",
-            b"record_publish",
-            "server_request_type",
-            b"server_request_type",
-        ],
-    ) -> None: ...
-    def WhichOneof(
-        self,
-        oneof_group: typing_extensions.Literal[
-            "server_request_type", b"server_request_type"
-        ],
-    ) -> typing_extensions.Literal[
-        "record_publish",
-        "record_communicate",
-        "inform_init",
-        "inform_finish",
-        "inform_attach",
-        "inform_detach",
-        "inform_teardown",
-        "inform_start",
-    ] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_request_type", b"server_request_type"]) -> typing_extensions.Literal["record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "inform_start"] | None: ...
 
 global___ServerRequest = ServerRequest
 
@@ -688,61 +522,8 @@ class ServerResponse(google.protobuf.message.Message):
         inform_teardown_response: global___ServerInformTeardownResponse | None = ...,
         inform_start_response: global___ServerInformStartResponse | None = ...,
     ) -> None: ...
-    def HasField(
-        self,
-        field_name: typing_extensions.Literal[
-            "inform_attach_response",
-            b"inform_attach_response",
-            "inform_detach_response",
-            b"inform_detach_response",
-            "inform_finish_response",
-            b"inform_finish_response",
-            "inform_init_response",
-            b"inform_init_response",
-            "inform_start_response",
-            b"inform_start_response",
-            "inform_teardown_response",
-            b"inform_teardown_response",
-            "result_communicate",
-            b"result_communicate",
-            "server_response_type",
-            b"server_response_type",
-        ],
-    ) -> builtins.bool: ...
-    def ClearField(
-        self,
-        field_name: typing_extensions.Literal[
-            "inform_attach_response",
-            b"inform_attach_response",
-            "inform_detach_response",
-            b"inform_detach_response",
-            "inform_finish_response",
-            b"inform_finish_response",
-            "inform_init_response",
-            b"inform_init_response",
-            "inform_start_response",
-            b"inform_start_response",
-            "inform_teardown_response",
-            b"inform_teardown_response",
-            "result_communicate",
-            b"result_communicate",
-            "server_response_type",
-            b"server_response_type",
-        ],
-    ) -> None: ...
-    def WhichOneof(
-        self,
-        oneof_group: typing_extensions.Literal[
-            "server_response_type", b"server_response_type"
-        ],
-    ) -> typing_extensions.Literal[
-        "result_communicate",
-        "inform_init_response",
-        "inform_finish_response",
-        "inform_attach_response",
-        "inform_detach_response",
-        "inform_teardown_response",
-        "inform_start_response",
-    ] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_response_type", b"server_response_type"]) -> typing_extensions.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "inform_start_response"] | None: ...
 
 global___ServerResponse = ServerResponse
