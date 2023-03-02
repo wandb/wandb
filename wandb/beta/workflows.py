@@ -6,23 +6,27 @@ import wandb
 import wandb.data_types as data_types
 from wandb.data_types import _SavedModel
 from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
-from wandb.sdk.interface.artifacts import ArtifactEntry
+from wandb.sdk.interface.artifacts import ArtifactManifestEntry
 
 
 def _add_any(
     artifact: ArtifactInterface,
-    path_or_obj: Union[str, ArtifactEntry, data_types.WBValue],  # todo: add dataframe
+    path_or_obj: Union[
+        str, ArtifactManifestEntry, data_types.WBValue
+    ],  # todo: add dataframe
     name: Optional[str],
 ) -> Any:
-    """High-level wrapper to add object(s) to an artifact - calls any of the .add* methods
-    under Artifact depending on the type of object that's passed in. This will probably be moved
-    to the Artifact class in the future.
+    """Add an object to an artifact.
+
+    High-level wrapper to add object(s) to an artifact - calls any of the .add* methods
+    under Artifact depending on the type of object that's passed in. This will probably
+    be moved to the Artifact class in the future.
 
     Args:
-        artifact: `ArtifactInterface` - most likely a LocalArtifact created with `wandb.Artifact(...)`
-
-        path_or_obj: `Union[str, ArtifactEntry, data_types.WBValue]` - either a str or valid object which
-        indicates what to add to an artifact.
+        artifact: `ArtifactInterface` - most likely a LocalArtifact created with
+            `wandb.Artifact(...)`
+        path_or_obj: `Union[str, ArtifactManifestEntry, data_types.WBValue]` - either a
+            str or valid object which indicates what to add to an artifact.
 
         name: `str` - the name of the object which is added to an artifact.
 
@@ -30,7 +34,7 @@ def _add_any(
         Type[Any] - Union[None, ArtifactManifestEntry, etc]
 
     """
-    if isinstance(path_or_obj, ArtifactEntry):
+    if isinstance(path_or_obj, ArtifactManifestEntry):
         return artifact.add_reference(path_or_obj, name)
     elif isinstance(path_or_obj, data_types.WBValue):
         return artifact.add(path_or_obj, name)
@@ -44,14 +48,14 @@ def _add_any(
                 f.write(json.dumps(path_or_obj, sort_keys=True))
     else:
         raise ValueError(
-            f"Expected `path_or_obj` to be instance of `ArtifactEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
+            f"Expected `path_or_obj` to be instance of `ArtifactManifestEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
         )
 
 
 def _log_artifact_version(
     name: str,
     type: str,
-    entries: Dict[str, Union[str, ArtifactEntry, data_types.WBValue]],
+    entries: Dict[str, Union[str, ArtifactManifestEntry, data_types.WBValue]],
     aliases: Optional[Union[str, List[str]]] = None,
     description: Optional[str] = None,
     metadata: Optional[dict] = None,
@@ -59,15 +63,20 @@ def _log_artifact_version(
     scope_project: Optional[bool] = None,
     job_type: str = "auto",
 ) -> ArtifactInterface:
-    """Creates an artifact, populates it, and logs it with a run.
+    """Create an artifact, populate it, and log it with a run.
+
     If a run is not present, we create one.
 
     Args:
-        name: `str` - name of the artifact. If not scoped to a project, name will be suffixed by "-{run_id}".
-        type: `str` - type of the artifact, used in the UI to group artifacts of the same type.
-        entries: `Dict` - dictionary containing the named objects we want added to this artifact.
+        name: `str` - name of the artifact. If not scoped to a project, name will be
+            suffixed by "-{run_id}".
+        type: `str` - type of the artifact, used in the UI to group artifacts of the
+            same type.
+        entries: `Dict` - dictionary containing the named objects we want added to this
+            artifact.
         description: `str` - text description of artifact.
-        metadata: `Dict` - users can pass in artifact-specific metadata here, will be visible in the UI.
+        metadata: `Dict` - users can pass in artifact-specific metadata here, will be
+            visible in the UI.
         project: `str` - project under which to place this artifact.
         scope_project: `bool` - if True, we will not suffix `name` with "-{run_id}".
         job_type: `str` - Only applied if run is not present and we create one.
@@ -112,27 +121,34 @@ def log_model(
     scope_project: Optional[bool] = None,
     **kwargs: Dict[str, Any],
 ) -> "_SavedModel":
-    """Logs a model object to enable model-centric workflows in the UI.
-    Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc.
-    Under the hood, we create a model artifact, bind it to the run that produced this model,
+    """Log a model object to enable model-centric workflows in the UI.
+
+    Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc. Under
+    the hood, we create a model artifact, bind it to the run that produced this model,
     associate it with the latest metrics logged with `wandb.log(...)` and more.
 
     Args:
-        model_obj: any model object created with the following ML frameworks: PyTorch, Keras, Tensorflow, Scikit-learn.
-        name: `str` - name of the model artifact that will be created to house this model_obj.
-        aliases: `str, List[str]` - optional alias(es) that will be applied on this model and allow for unique
-            identification. The alias "latest" will always be applied to the latest version of a model.
-        description: `str` - text description/notes about the model - will be visible in the Model Card UI.
+        model_obj: any model object created with the following ML frameworks: PyTorch,
+            Keras, Tensorflow, Scikit-learn. name: `str` - name of the model artifact
+            that will be created to house this model_obj.
+        aliases: `str, List[str]` - optional alias(es) that will be applied on this
+            model and allow for unique identification. The alias "latest" will always be
+            applied to the latest version of a model.
+        description: `str` - text description/notes about the model - will be visible in
+            the Model Card UI.
         metadata: `Dict` - model-specific metadata goes here - will be visible the UI.
         project: `str` - project under which to place this artifact.
-        scope_project: `bool` - If true, name of this model artifact will not be suffixed by `-{run_id}`.
+        scope_project: `bool` - If true, name of this model artifact will not be
+            suffixed by `-{run_id}`.
 
     Returns:
         _SavedModel instance
 
     Example:
+        ```python
         import torch.nn as nn
         import torch.nn.functional as F
+
 
         class Net(nn.Module):
             def __init__(self):
@@ -144,8 +160,10 @@ def log_model(
                 x = F.relu(x)
                 return x
 
+
         model = Net()
         sm = log_model(model, "my-simple-model", aliases=["best"])
+        ```
 
     """
     model = data_types._SavedModel.init(model_obj, **kwargs)
@@ -167,21 +185,25 @@ def log_model(
 
 
 def use_model(aliased_path: str) -> "_SavedModel":
-    """Allows the user to fetch their saved model with an alias.
-    Under the hood, we use the alias to fetch the model artifact containing the serialized model files
-    and rebuild the model object from these files. We also declare the fetched model artifact as an
-    input to the run (with `run.use_artifact`).
+    """Fetch a saved model from an alias.
+
+    Under the hood, we use the alias to fetch the model artifact containing the
+    serialized model files and rebuild the model object from these files. We also
+    declare the fetched model artifact as an input to the run (with `run.use_artifact`).
 
     Args:
-        aliased_path: `str` - the following forms are valid: "name:version", "name:alias". May be prefixed with "entity/project".
+        aliased_path: `str` - the following forms are valid: "name:version",
+            "name:alias". May be prefixed with "entity/project".
 
     Returns:
         _SavedModel instance
 
     Example:
-        # assuming you have previously logged a model with the name "my-simple-model"
+        ```python
+        # Assuming you have previously logged a model with the name "my-simple-model":
         sm = use_model("my-simple-model:latest")
         model = sm.model_obj()
+        ```
     """
     if ":" not in aliased_path:
         raise ValueError(
@@ -211,15 +233,19 @@ def link_model(
     target_path: str,
     aliases: Optional[Union[str, List[str]]] = None,
 ) -> None:
-    """Links the given model to a portfolio (a promoted collection which contains, in this case, model artifacts).
+    """Link the given model to a portfolio.
+
+    A portfolio is a promoted collection which contains (in this case) model artifacts.
     Linking to a portfolio allows for useful model-centric workflows in the UI.
 
     Args:
-        model: `_SavedModel` - an instance of _SavedModel, most likely from the output of `log_model` or `use_model`.
-        target_path: `str` - the target portfolio. The following forms are valid for the string: {portfolio}, {project/portfolio},
-            {entity}/{project}/{portfolio}.
-        aliases: `str, List[str]` - optional alias(es) that will only be applied on this linked model inside the portfolio.
-            The alias "latest" will always be applied to the latest version of a model.
+        model: `_SavedModel` - an instance of _SavedModel, most likely from the output
+            of `log_model` or `use_model`.
+        target_path: `str` - the target portfolio. The following forms are valid for the
+            string: {portfolio}, {project/portfolio},{entity}/{project}/{portfolio}.
+        aliases: `str, List[str]` - optional alias(es) that will only be applied on this
+            linked model inside the portfolio. The alias "latest" will always be applied
+            to the latest version of a model.
 
     Returns:
         None
@@ -229,7 +255,6 @@ def link_model(
         link_model(sm, "my-portfolio")
 
     """
-
     aliases = wandb.util._resolve_aliases(aliases)
 
     if wandb.run:

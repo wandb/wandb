@@ -13,7 +13,7 @@ class LineKey:
         return hash(self.key)
 
     def __repr__(self) -> str:
-        return f'LineKey(key="{self.key}")'
+        return f"LineKey(key={self.key!r})"
 
     @classmethod
     def from_run(cls, run: "Run", metric: str) -> "LineKey":

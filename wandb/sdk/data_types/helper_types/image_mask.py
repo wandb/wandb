@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional, Type, Union
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import runid
 
 from .._private import MEDIA_TMP
 from ..base_types.media import Media
@@ -53,30 +54,21 @@ class ImageMask(Media):
         ground_truth_mask[:25, 25:] = 2
         ground_truth_mask[25:, 25:] = 3
 
-        class_labels = {
-            0: "person",
-            1: "tree",
-            2: "car",
-            3: "road"
-        }
+        class_labels = {0: "person", 1: "tree", 2: "car", 3: "road"}
 
-        masked_image = wandb.Image(image, masks={
-            "predictions": {
-                "mask_data": predicted_mask,
-                "class_labels": class_labels
+        masked_image = wandb.Image(
+            image,
+            masks={
+                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
+                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
             },
-            "ground_truth": {
-                "mask_data": ground_truth_mask,
-                "class_labels": class_labels
-            }
-        })
-        wandb.log({"img_with_masks" : masked_image})
+        )
+        wandb.log({"img_with_masks": masked_image})
         ```
 
         ### Log a masked image inside a Table
         <!--yeadoc-test:log-image-mask-table-->
         ```python
-
         import numpy as np
         import wandb
 
@@ -95,30 +87,25 @@ class ImageMask(Media):
         ground_truth_mask[:25, 25:] = 2
         ground_truth_mask[25:, 25:] = 3
 
-        class_labels = {
-            0: "person",
-            1: "tree",
-            2: "car",
-            3: "road"
-        }
+        class_labels = {0: "person", 1: "tree", 2: "car", 3: "road"}
 
-        class_set = wandb.Classes([
-            {"name" : "person", "id" : 0},
-            {"name" : "tree", "id" : 1},
-            {"name" : "car", "id" : 2},
-            {"name" : "road", "id" : 3}
-        ])
+        class_set = wandb.Classes(
+            [
+                {"name": "person", "id": 0},
+                {"name": "tree", "id": 1},
+                {"name": "car", "id": 2},
+                {"name": "road", "id": 3},
+            ]
+        )
 
-        masked_image = wandb.Image(image, masks={
-            "predictions": {
-                "mask_data": predicted_mask,
-                "class_labels": class_labels
+        masked_image = wandb.Image(
+            image,
+            masks={
+                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
+                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
             },
-            "ground_truth": {
-                "mask_data": ground_truth_mask,
-                "class_labels": class_labels
-            }
-        }, classes=class_set)
+            classes=class_set,
+        )
 
         table = wandb.Table(columns=["image"])
         table.add_data(masked_image)
@@ -129,19 +116,19 @@ class ImageMask(Media):
     _log_type = "mask"
 
     def __init__(self, val: dict, key: str) -> None:
-        """
-        Arguments:
-            val: (dictionary)
-                One of these two keys to represent the image:
-                    mask_data : (2D numpy array) The mask containing an integer class label
-                        for each pixel in the image
-                    path : (string) The path to a saved image file of the mask
-                class_labels : (dictionary of integers to strings, optional) A mapping of the
-                    integer class labels in the mask to readable class names. These will default
-                    to class_0, class_1, class_2, etc.
+        """Initialize an ImageMask object.
 
-            key: (string)
-                The readable name or id for this mask type (e.g. predictions, ground_truth)
+        Arguments:
+            val: (dictionary) One of these two keys to represent the image:
+                mask_data : (2D numpy array) The mask containing an integer class label
+                    for each pixel in the image
+                path : (string) The path to a saved image file of the mask
+                class_labels : (dictionary of integers to strings, optional) A mapping
+                    of the integer class labels in the mask to readable class names.
+                    These will default to class_0, class_1, class_2, etc.
+
+        key: (string)
+            The readable name or id for this mask type (e.g. predictions, ground_truth)
         """
         super().__init__()
 
@@ -160,7 +147,7 @@ class ImageMask(Media):
             self._key = key
 
             ext = "." + self.type_name() + ".png"
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ext)
 
             pil_image = util.get_module(
                 "PIL.Image",

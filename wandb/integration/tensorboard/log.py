@@ -62,7 +62,7 @@ def namespaced_tag(tag: str, namespace: str = "") -> str:
 
 
 def history_image_key(key: str, namespace: str = "") -> str:
-    """Converts invalid filesystem characters to _ for use in History keys.
+    """Convert invalid filesystem characters to _ for use in History keys.
 
     Unfortunately this means currently certain image keys will collide silently. We
     implement this mapping up here in the TensorFlow stuff rather than in the History
@@ -75,7 +75,7 @@ def history_image_key(key: str, namespace: str = "") -> str:
 def tf_summary_to_dict(  # noqa: C901
     tf_summary_str_or_pb: Any, namespace: str = ""
 ) -> Optional[Dict[str, Any]]:
-    """Convert a Tensorboard Summary to a dictionary
+    """Convert a Tensorboard Summary to a dictionary.
 
     Accepts a tensorflow.summary.Summary, one encoded as a string,
     or a list of such encoded as strings.
@@ -224,13 +224,13 @@ def tf_summary_to_dict(  # noqa: C901
             if len(value.histo.bucket_limit) >= 3:
                 first = (
                     value.histo.bucket_limit[0]
-                    + value.histo.bucket_limit[0]  # noqa: W503
-                    - value.histo.bucket_limit[1]  # noqa: W503
+                    + value.histo.bucket_limit[0]
+                    - value.histo.bucket_limit[1]
                 )
                 last = (
                     value.histo.bucket_limit[-2]
-                    + value.histo.bucket_limit[-2]  # noqa: W503
-                    - value.histo.bucket_limit[-3]  # noqa: W503
+                    + value.histo.bucket_limit[-2]
+                    - value.histo.bucket_limit[-3]
                 )
                 np_histogram = (
                     list(value.histo.bucket),
@@ -241,14 +241,14 @@ def tf_summary_to_dict(  # noqa: C901
                     values[tag] = wandb.Histogram(np_histogram=np_histogram)
                 except ValueError:
                     wandb.termwarn(
-                        f'Not logging key "{tag}". '
+                        f"Not logging key {tag!r}. "
                         f"Histograms must have fewer than {wandb.Histogram.MAX_LENGTH} bins",
                         repeat=False,
                     )
             else:
                 # TODO: is there a case where we can render this?
                 wandb.termwarn(
-                    f'Not logging key "{tag}". Found a histogram with only 2 bins.',
+                    f"Not logging key {tag!r}. Found a histogram with only 2 bins.",
                     repeat=False,
                 )
         # TODO(jhr): figure out how to share this between userspace and internal process or dont
@@ -272,7 +272,7 @@ def tf_summary_to_dict(  # noqa: C901
 
 
 def reset_state() -> None:
-    """Internal method for resetting state, called by wandb.finish()"""
+    """Internal method for resetting state, called by wandb.finish()."""
     global STEPS
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
@@ -284,7 +284,7 @@ def _log(
     namespace: str = "",
     **kwargs: Any,
 ) -> None:
-    """Logs a tfsummary to wandb
+    """Logs a tfsummary to wandb.
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
     history object is passed.  Can optionally namespace events.  Results are committed

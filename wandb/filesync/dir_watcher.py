@@ -71,7 +71,7 @@ class FileEventHandler(abc.ABC):
 
 
 class PolicyNow(FileEventHandler):
-    """This policy only uploads files now"""
+    """This policy only uploads files now."""
 
     def on_modified(self, force: bool = False) -> None:
         # only upload if we've never uploaded or when .save is called
@@ -88,7 +88,7 @@ class PolicyNow(FileEventHandler):
 
 
 class PolicyEnd(FileEventHandler):
-    """This policy only updates at the end of the run"""
+    """This policy only updates at the end of the run."""
 
     def on_modified(self, force: bool = False) -> None:
         pass
@@ -106,8 +106,11 @@ class PolicyEnd(FileEventHandler):
 
 
 class PolicyLive(FileEventHandler):
-    """This policy will upload files every RATE_LIMIT_SECONDS as it
-    changes throttling as the size increases"""
+    """Event handler that uploads respecting throttling.
+
+    Uploads files every RATE_LIMIT_SECONDS, which changes as the size increases to deal
+    with throttling.
+    """
 
     RATE_LIMIT_SECONDS = 15
     unit_dict = dict(util.POW_10_BYTES)
@@ -250,7 +253,7 @@ class DirWatcher:
             feh.on_modified(force=True)
 
     def _per_file_event_handler(self) -> "wd_events.FileSystemEventHandler":
-        """Create a Watchdog file event handler that does different things for every file"""
+        """Create a Watchdog file event handler that does different things for every file."""
         file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created
         file_event_handler.on_modified = self._on_file_modified

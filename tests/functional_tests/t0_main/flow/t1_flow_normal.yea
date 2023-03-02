@@ -1,0 +1,13 @@
+plugin:
+  - wandb
+command:
+  program: flow_basic_clear_env.py
+assert:
+  - :wandb:runs_len: 1
+  - :op:not_contains:
+    - :wandb:runs[0][telemetry][3]  # Feature
+    - 43  # flow_control_disabled
+  - :op:not_contains:
+    - :wandb:runs[0][telemetry][3]  # Feature
+    - 44  # flow_control_custom
+  - :wandb:runs[0][history][9][a]: 9

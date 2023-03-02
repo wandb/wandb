@@ -25,6 +25,14 @@ def _result_from_record(record: "pb.Record") -> "pb.Result":
     return result
 
 
+def _assign_record_num(record: "pb.Record", record_num: int) -> None:
+    record.num = record_num
+
+
+def _assign_end_offset(record: "pb.Record", end_offset: int) -> None:
+    record.control.end_offset = end_offset
+
+
 def proto_encode_to_dict(
     pb_obj: Union["tpb.TelemetryRecord", "pb.MetricRecord"]
 ) -> Dict[int, Any]:
@@ -86,10 +94,7 @@ def settings_dict_from_pbmap(
 def message_to_dict(
     message: "Message",
 ) -> Dict[str, Any]:
-    """
-    Converts a protobuf message into a dictionary.
-    """
-
+    """Convert a protobuf message into a dictionary."""
     from google.protobuf.json_format import MessageToDict
 
     return MessageToDict(message, preserving_proto_field_name=True)

@@ -7,6 +7,7 @@ import os
 import re
 import socket
 import sys
+import threading
 from copy import deepcopy
 from typing import (
     IO,
@@ -38,10 +39,12 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
+from . import context
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
@@ -55,7 +58,7 @@ if TYPE_CHECKING:
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict, total=False):
-        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
+        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql."""
 
         artifactID: str  # noqa: N815
         name: str
@@ -95,8 +98,15 @@ if TYPE_CHECKING:
 #     def __getitem__(self, name: str) -> Any: ...
 
 
+class _ThreadLocalData(threading.local):
+    context: Optional[context.Context]
+
+    def __init__(self) -> None:
+        self.context = None
+
+
 class Api:
-    """W&B Internal Api wrapper
+    """W&B Internal Api wrapper.
 
     Note:
         Settings are automatically overridden by looking for
@@ -111,6 +121,8 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
+    _global_context: context.Context
+    _local_data: _ThreadLocalData
 
     def __init__(
         self,
@@ -130,6 +142,8 @@ class Api:
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
         self._environ = environ
+        self._global_context = context.Context()
+        self._local_data = _ThreadLocalData()
         self.default_settings: "DefaultSettings" = {
             "section": "default",
             "git_remote": "origin",
@@ -171,7 +185,7 @@ class Api:
             )
         )
         self.retry_callback = retry_callback
-        self.gql = retry.Retry(
+        self._retry_gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
@@ -180,6 +194,7 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
+        self._upload_file_session = requests.Session()
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -195,12 +210,30 @@ class Api:
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
 
+    def gql(self, *args: Any, **kwargs: Any) -> Any:
+        ret = self._retry_gql(
+            *args,
+            retry_cancel_event=self.context.cancel_event,
+            **kwargs,
+        )
+        return ret
+
+    def set_local_context(self, api_context: Optional[context.Context]) -> None:
+        self._local_data.context = api_context
+
+    def clear_local_context(self) -> None:
+        self._local_data.context = None
+
+    @property
+    def context(self) -> context.Context:
+        return self._local_data.context or self._global_context
+
     def reauth(self) -> None:
-        """Ensures the current api key is set in the transport"""
+        """Ensure the current api key is set in the transport."""
         self.client.transport.auth = ("api", self.api_key or "")
 
     def relocate(self) -> None:
-        """Ensures the current api points to the right server"""
+        """Ensure the current api points to the right server."""
         self.client.transport.url = "%s/graphql" % self.settings("base_url")
 
     def execute(self, *args: Any, **kwargs: Any) -> "_Response":
@@ -351,7 +384,7 @@ class Api:
     def parse_slug(
         self, slug: str, project: Optional[str] = None, run: Optional[str] = None
     ) -> Tuple[str, str]:
-        """Parses a slug into a project and run.
+        """Parse a slug into a project and run.
 
         Arguments:
             slug (str): The slug to parse
@@ -497,7 +530,6 @@ class Api:
 
     @normalize_exceptions
     def max_cli_version(self) -> Optional[str]:
-
         if self._max_cli_version is not None:
             return self._max_cli_version
 
@@ -570,7 +602,7 @@ class Api:
 
     @normalize_exceptions
     def list_projects(self, entity: Optional[str] = None) -> List[Dict[str, str]]:
-        """Lists projects in W&B scoped by entity.
+        """List projects in W&B scoped by entity.
 
         Arguments:
             entity (str, optional): The entity to scope this project to.
@@ -602,7 +634,7 @@ class Api:
 
     @normalize_exceptions
     def project(self, project: str, entity: Optional[str] = None) -> "_Response":
-        """Retrieve project
+        """Retrieve project.
 
         Arguments:
             project (str): The project to get details for
@@ -710,7 +742,7 @@ class Api:
     def list_runs(
         self, project: str, entity: Optional[str] = None
     ) -> List[Dict[str, str]]:
-        """Lists runs in W&B scoped by project.
+        """List runs in W&B scoped by project.
 
         Arguments:
             project (str): The project to scope the runs to
@@ -751,7 +783,7 @@ class Api:
     def run_config(
         self, project: str, run: Optional[str] = None, entity: Optional[str] = None
     ) -> Tuple[str, Dict[str, Any], Optional[str], Dict[str, Any]]:
-        """Get the relevant configs for a run
+        """Get the relevant configs for a run.
 
         Arguments:
             project (str): The project to download, (can include bucket)
@@ -940,7 +972,7 @@ class Api:
         description: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a new project
+        """Create a new project.
 
         Arguments:
             project (str): The project to create
@@ -1040,11 +1072,56 @@ class Api:
     def push_to_run_queue_by_name(
         self, entity: str, project: str, queue_name: str, run_spec: str
     ) -> Optional[Dict[str, Any]]:
-        """
-        Queryless mutation, should be used before legacy fallback method
-        """
-
+        """Queryless mutation, should be used before legacy fallback method."""
         mutation = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+                runSpec
+            }
+        }
+        """
+        )
+        variables = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "runSpec": run_spec,
+        }
+        try:
+            result: Optional[Dict[str, Any]] = self.gql(
+                mutation, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
+
+            if not result:
+                return None
+
+            if result.get("runSpec"):
+                run_spec = json.loads(str(result["runSpec"]))
+                result["runSpec"] = run_spec
+
+            return result
+        except Exception as e:
+            if (
+                'Cannot query field "runSpec" on type "PushToRunQueueByNamePayload"'
+                not in str(e)
+            ):
+                return None
+
+        mutation_no_runspec = gql(
             """
         mutation pushToRunQueueByName(
             $entityName: String!,
@@ -1065,15 +1142,10 @@ class Api:
         }
         """
         )
-        variables = {
-            "entityName": entity,
-            "projectName": project,
-            "queueName": queue_name,
-            "runSpec": run_spec,
-        }
+
         try:
-            result: Optional[Dict[str, Any]] = self.gql(
-                mutation, variables, check_retry_fn=util.no_retry_4xx
+            result = self.gql(
+                mutation_no_runspec, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
         except Exception:
             result = None
@@ -1082,21 +1154,23 @@ class Api:
 
     @normalize_exceptions
     def push_to_run_queue(
-        self, queue_name: str, launch_spec: Dict[str, str]
+        self,
+        queue_name: str,
+        launch_spec: Dict[str, str],
+        project_queue: str,
     ) -> Optional[Dict[str, Any]]:
         entity = launch_spec["entity"]
-        project = launch_spec["project"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
-            entity, project, queue_name, run_spec
+            entity, project_queue, queue_name, run_spec
         )
 
         if push_result:
             return push_result
 
         """ Legacy Method """
-        queues_found = self.get_project_run_queues(entity, project)
+        queues_found = self.get_project_run_queues(entity, project_queue)
         matching_queues = [
             q
             for q in queues_found
@@ -1112,25 +1186,25 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    f"No default queue existing for entity: {entity} in project: {project}, creating one."
+                    f"No default queue existing for entity: {entity} in project: {project_queue}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
-                    launch_spec["project"],
+                    project_queue,
                     queue_name,
                     access="PROJECT",
                 )
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        f"Unable to create default queue for entity: {entity} on project: {project}. Run could not be added to a queue"
+                        f"Unable to create default queue for entity: {entity} on project: {project_queue}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
 
             else:
                 wandb.termwarn(
-                    f"Unable to push to run queue {queue_name}. Queue not found."
+                    f"Unable to push to run queue {project_queue}/{queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
@@ -1367,7 +1441,7 @@ class Api:
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
-        """Update a run
+        """Update a run.
 
         Arguments:
             id (str, optional): The existing run to update
@@ -1390,7 +1464,6 @@ class Api:
             summary_metrics (str, optional): The JSON summary metrics
             num_retries (int, optional): Number of retries
         """
-
         query_string = """
         mutation UpsertBucket(
             $id: String,
@@ -1628,7 +1701,7 @@ class Api:
         entity: Optional[str] = None,
         description: Optional[str] = None,
     ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
-        """Generate temporary resumable upload urls
+        """Generate temporary resumable upload urls.
 
         Arguments:
             project (str): The project to download
@@ -1697,7 +1770,7 @@ class Api:
         run: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> Dict[str, Dict[str, str]]:
-        """Generate download urls
+        """Generate download urls.
 
         Arguments:
             project (str): The project to download
@@ -1756,7 +1829,7 @@ class Api:
         run: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> Optional[Dict[str, str]]:
-        """Generate download urls
+        """Generate download urls.
 
         Arguments:
             project (str): The project to download
@@ -1809,7 +1882,7 @@ class Api:
 
     @normalize_exceptions
     def download_file(self, url: str) -> Tuple[int, requests.Response]:
-        """Initiate a streaming download
+        """Initiate a streaming download.
 
         Arguments:
             url (str): The url to download
@@ -1827,7 +1900,7 @@ class Api:
         metadata: Dict[str, str],
         out_dir: Optional[str] = None,
     ) -> Tuple[str, Optional[requests.Response]]:
-        """Download a file from a run and write it to wandb/
+        """Download a file from a run and write it to wandb/.
 
         Arguments:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
@@ -1839,7 +1912,7 @@ class Api:
         """
         filename = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
-        if self.file_current(filename, util.B64MD5(metadata["md5"])):
+        if self.file_current(filename, B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -1853,9 +1926,7 @@ class Api:
     def upload_file_azure(
         self, url: str, file: Any, extra_headers: Dict[str, str]
     ) -> None:
-        """
-        Upload a file to azure
-        """
+        """Upload a file to azure."""
         from azure.core.exceptions import AzureError  # type: ignore
 
         # Configure the client without retries so our existing logic can handle them
@@ -1894,7 +1965,7 @@ class Api:
         callback: Optional["ProgressFn"] = None,
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> Optional[requests.Response]:
-        """Uploads a file to W&B with failure resumption
+        """Upload a file to W&B with failure resumption.
 
         Arguments:
             url: The url to download
@@ -1918,7 +1989,9 @@ class Api:
                         "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
                         repeat=False,
                     )
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = self._upload_file_session.put(
+                    url, data=progress, headers=extra_headers
+                )
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
@@ -1959,7 +2032,7 @@ class Api:
         project_name: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> dict:
-        """Register a new agent
+        """Register a new agent.
 
         Arguments:
             host (str): hostname
@@ -2238,7 +2311,7 @@ class Api:
 
     @normalize_exceptions
     def create_anonymous_api_key(self) -> str:
-        """Creates a new API key belonging to a new anonymous user."""
+        """Create a new API key belonging to a new anonymous user."""
         mutation = gql(
             """
         mutation CreateAnonymousApiKey {
@@ -2256,15 +2329,15 @@ class Api:
         return key
 
     @staticmethod
-    def file_current(fname: str, md5: util.B64MD5) -> bool:
-        """Checksum a file and compare the md5 with the known md5"""
-        return os.path.isfile(fname) and util.md5_file(fname) == md5
+    def file_current(fname: str, md5: B64MD5) -> bool:
+        """Checksum a file and compare the md5 with the known md5."""
+        return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
     @normalize_exceptions
     def pull(
         self, project: str, run: Optional[str] = None, entity: Optional[str] = None
     ) -> "List[requests.Response]":
-        """Download files from W&B
+        """Download files from W&B.
 
         Arguments:
             project (str): The project to download
@@ -2299,7 +2372,7 @@ class Api:
         force: bool = True,
         progress: Union[TextIO, bool] = False,
     ) -> "List[Optional[requests.Response]]":
-        """Uploads multiple files to W&B
+        """Uploads multiple files to W&B.
 
         Arguments:
             files (list or dict): The filenames to upload, when dict the values are open files
@@ -2869,7 +2942,6 @@ class Api:
         self,
         client_id: str,
     ) -> Optional[str]:
-
         if client_id in self._client_id_mapping:
             return self._client_id_mapping[client_id]
 
@@ -3062,9 +3134,7 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Finish the sweep to stop running new runs and let currently running runs finish.
-        """
+        """Finish the sweep to stop running new runs and let currently running runs finish."""
         self.set_sweep_state(
             sweep=sweep, state="FINISHED", entity=entity, project=project
         )
@@ -3075,9 +3145,7 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Cancel the sweep to kill all running runs and stop running new runs.
-        """
+        """Cancel the sweep to kill all running runs and stop running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="CANCELED", entity=entity, project=project
         )
@@ -3088,9 +3156,7 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Pause the sweep to temporarily stop running new runs.
-        """
+        """Pause the sweep to temporarily stop running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="PAUSED", entity=entity, project=project
         )
@@ -3101,20 +3167,18 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Resume the sweep to continue running new runs.
-        """
+        """Resume the sweep to continue running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="RUNNING", entity=entity, project=project
         )
 
     def _status_request(self, url: str, length: int) -> requests.Response:
-        """Ask google how much we've uploaded"""
+        """Ask google how much we've uploaded."""
         return requests.put(
             url=url,
             headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
         )
 
     def _flatten_edges(self, response: "_Response") -> List[Dict]:
-        """Return an array from the nested graphql relay structure"""
+        """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]

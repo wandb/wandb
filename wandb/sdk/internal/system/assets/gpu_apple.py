@@ -1,4 +1,5 @@
 import json
+import logging
 import multiprocessing as mp
 import pathlib
 import platform
@@ -12,7 +13,6 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import TypedDict
 
-import wandb
 from wandb.sdk.lib import telemetry
 
 from .aggregators import aggregate_mean
@@ -25,19 +25,20 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
+logger = logging.getLogger(__name__)
+
+
 class _Stats(TypedDict):
     gpu: float
     memoryAllocated: float  # noqa: N815
     temp: float
     powerWatts: float  # noqa: N815
     powerPercent: float  # noqa: N815
-    # cpuWaitMs: float  # noqa: N815
+    # cpuWaitMs: float
 
 
 class GPUAppleStats:
-    """
-    Apple GPU stats available on Arm Macs.
-    """
+    """Apple GPU stats available on Arm Macs."""
 
     name = "gpu.0.{}"
     samples: "Deque[_Stats]"
@@ -77,7 +78,7 @@ class GPUAppleStats:
             self.samples.append(stats)
 
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
-            wandb.termwarn(f"GPU stats error {e}", repeat=False)
+            logger.exception(f"GPU stats error: {e}")
 
     def clear(self) -> None:
         self.samples.clear()
@@ -86,11 +87,10 @@ class GPUAppleStats:
         if not self.samples:
             return {}
         stats = {}
-        if self.samples:
-            for key in self.samples[0].keys():
-                samples = [s[key] for s in self.samples]  # type: ignore
-                aggregate = aggregate_mean(samples)
-                stats[self.name.format(key)] = aggregate
+        for key in self.samples[0].keys():
+            samples = [s[key] for s in self.samples]  # type: ignore
+            aggregate = aggregate_mean(samples)
+            stats[self.name.format(key)] = aggregate
         return stats
 
 

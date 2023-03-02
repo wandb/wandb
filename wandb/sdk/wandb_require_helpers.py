@@ -10,9 +10,7 @@ requirement_env_var_mapping: Dict[str, str] = {
 
 
 def requires(requirement: str) -> FuncT:  # type: ignore
-    """
-    The decorator for gating features.
-    """
+    """Decorate functions to gate features with wandb.require."""
     env_var = requirement_env_var_mapping[requirement]
 
     def deco(func: FuncT) -> FuncT:
@@ -20,7 +18,7 @@ def requires(requirement: str) -> FuncT:  # type: ignore
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if not os.getenv(env_var):
                 raise Exception(
-                    f'You need to enable this feature with `wandb.require("{requirement}")`'
+                    f"You need to enable this feature with `wandb.require({requirement!r})`"
                 )
             return func(*args, **kwargs)
 
@@ -33,15 +31,9 @@ class RequiresMixin:
     requirement = ""
 
     def __init__(self) -> None:
-        """
-        This hook for normal classes
-        """
         self._check_if_requirements_met()
 
     def __post_init__(self) -> None:
-        """
-        This hook added for dataclasses
-        """
         self._check_if_requirements_met()
 
     def _check_if_requirements_met(self) -> None:

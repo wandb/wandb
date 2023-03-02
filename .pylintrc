@@ -1,5 +1,5 @@
 [MASTER]
-exclude =
+ignore-paths =
     wandb/vendor
 
 max-line-length = 180
