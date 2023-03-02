@@ -53,6 +53,8 @@ _Setting = Literal[
     "_stats_samples_to_average",
     "_stats_join_assets",
     "_stats_neuron_monitor_config_path",
+    "_stats_open_metrics_endpoints",
+    "_stats_open_metrics_filters",
     "_tmp_code_dir",
     "_tracelog",
     "_unsaved_keys",
