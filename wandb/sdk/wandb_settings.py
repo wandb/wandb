@@ -424,6 +424,8 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
+    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
+    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -589,6 +591,13 @@ class Settings:
                 # "value": {
                 #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
                 # },
+                "preprocessor": _str_as_dict,
+            },
+            _stats_open_metrics_filters={
+                # capture all metrics by default
+                "value": {
+                    ".*": {},
+                },
                 "preprocessor": _str_as_dict,
             },
             _tmp_code_dir={
