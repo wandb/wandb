@@ -304,7 +304,7 @@ def test_launch_kube_works(
     assert job.spec.backoff_limit == args["backoff_limit"]
     assert job.spec.completions == args["completions"]
     assert job.spec.parallelism == args["parallelism"]
-    assert job.spec.template.spec.restart_policy == args["restart_policy"]
+    assert job.spec.restart_policy == args["restart_policy"]
     assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
     assert job.spec.template.spec.node_name == args["node_name"]
     assert job.spec.template.spec.tolerations == args["tolerations"]
