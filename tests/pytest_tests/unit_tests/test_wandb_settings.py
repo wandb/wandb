@@ -702,6 +702,10 @@ def test_preprocess_bool_settings(setting: str):
     "setting, value",
     [
         ("_stats_open_metrics_endpoints", '{"DCGM":"http://localhvost"}'),
+        (
+            "_stats_open_metrics_filters",
+            '{"DCGM_FI_DEV_POWER_USAGE": {"pod": "dcgm-*"}}',
+        ),
     ],
 )
 def test_preprocess_dict_settings(setting: str, value: str):
