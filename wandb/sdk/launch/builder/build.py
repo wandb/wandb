@@ -561,8 +561,8 @@ def build_image_from_project(
 def image_tag_from_dockerfile_and_source(
     launch_project: LaunchProject, dockerfile_contents: str
 ) -> str:
-    """Converts the source and dockerfile contents into a docker image tag
-    by concatenating the strings and hashing them together."""
+    """Hashes the source and dockerfile contents into a unique tag."""
+
     image_source_string = launch_project.get_image_source_string()
     unique_id_string = image_source_string + dockerfile_contents
     image_tag = hashlib.sha256(unique_id_string.encode("utf-8")).hexdigest()[:8]

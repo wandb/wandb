@@ -236,7 +236,7 @@ class LaunchProject:
         self._job_artifact = job._job_artifact
 
     def get_image_source_string(self) -> str:
-        """Returns a unique string identifying the source of an image"""
+        """Returns a unique string identifying the source of an image."""
         if self.source == LaunchSource.LOCAL:
             # TODO: more correct to get a hash of local uri contents
             assert isinstance(self.uri, str)

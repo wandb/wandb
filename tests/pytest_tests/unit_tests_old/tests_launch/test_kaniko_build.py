@@ -268,6 +268,7 @@ def test_build_image_success(
         mock_artifact = MagicMock()
         mock_artifact.name = job_name
         mock_artifact.version = job_version
+        project._job_artifact = mock_artifact
         entry_point = EntryPoint("main.py", ["python", "main.py"])
         image_uri = builder.build_image(project, entry_point)
         assert (
