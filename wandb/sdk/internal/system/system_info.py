@@ -10,8 +10,8 @@ from shutil import copyfile
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
-from wandb import util
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.filenames import (
     CONDA_ENVIRONMENTS_FNAME,
     DIFF_FNAME,
@@ -47,7 +47,7 @@ class SystemInfo:
 
     # todo: refactor these _save_* methods
     def _save_pip(self) -> None:
-        """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""
+        """Save the current working set of pip packages to {REQUIREMENTS_FNAME}."""
         logger.debug(
             "Saving list of pip packages installed into the current environment"
         )
@@ -93,7 +93,7 @@ class SystemInfo:
 
         root: str = self.git.root or os.getcwd()
         program_relative: str = self.settings.program_relpath
-        util.mkdir_exists_ok(
+        filesystem.mkdir_exists_ok(
             os.path.join(
                 self.settings.files_dir, "code", os.path.dirname(program_relative)
             )
@@ -220,8 +220,7 @@ class SystemInfo:
                     if self.settings._jupyter_path.startswith("fileId="):
                         unescaped = unquote(self.settings._jupyter_path)
                         data["colab"] = (
-                            "https://colab.research.google.com/notebook#"
-                            + unescaped  # noqa
+                            "https://colab.research.google.com/notebook#" + unescaped
                         )
                         data["program"] = self.settings._jupyter_name
                     else:

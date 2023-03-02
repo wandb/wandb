@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test a batch of import telemetry
+"""Test a batch of import telemetry.
 
 ---
 id: 0.imports.01-batch1
@@ -45,7 +45,7 @@ assert:
 """
 
 
-# import allennlp  # noqa: F401
+# import allennlp
 # import avalanche
 # import dalle_pytorch
 # import deeppavlov

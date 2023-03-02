@@ -2,7 +2,7 @@ import inspect
 from functools import partial
 from itertools import chain
 
-from promise import Promise
+from wandb_promise import Promise
 
 MIDDLEWARE_RESOLVER_FUNCTION = 'resolve'
 
