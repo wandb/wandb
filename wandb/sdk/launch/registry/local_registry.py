@@ -1,9 +1,8 @@
 """Local registry implementation."""
-import json
 import logging
 from typing import Tuple
 
-from wandb.sdk.launch.utils import LaunchError, docker_image_exists, pull_docker_image
+from wandb.sdk.launch.utils import LaunchError, docker_image_exists
 
 from ..environment.abstract import AbstractEnvironment
 from .abstract import AbstractRegistry

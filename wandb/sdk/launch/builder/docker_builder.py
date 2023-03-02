@@ -19,7 +19,6 @@ from ..registry.local_registry import LocalRegistry
 from ..utils import LOG_PREFIX, LaunchError, sanitize_wandb_api_key
 from .build import (
     _create_docker_build_ctx,
-    docker_image_exists,
     generate_dockerfile,
     image_tag_from_dockerfile_and_source,
     validate_docker_installation,

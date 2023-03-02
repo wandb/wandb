@@ -177,7 +177,6 @@ class LaunchProject:
         """Checks the source to see if a build is required."""
         if self.source != LaunchSource.JOB:
             return True
-        assert self._job_artifact is not None
         return False
 
     @property
