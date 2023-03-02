@@ -41,3 +41,24 @@ def test_ecr_get_username_password():
     username, password = ecr.get_username_password()
     assert username == "user"
     assert password == "password"
+
+
+def test_ecr_image_exists():
+    """Test that the ECR registry checks if an image exists correctly."""
+    client = MagicMock()
+    client.describe_images.return_value = {
+        "imageDetails": [
+            {
+                "imageDigest": "sha256:1234567890123456789012345678901234567890123456789012345678901234",
+            }
+        ]
+    }
+    session = MagicMock()
+    session.client.return_value = client
+    environment = MagicMock()
+    environment.get_session.return_value = session
+    ecr = ElasticContainerRegistry("my-repo", environment)
+    assert ecr.check_image_exists("my-repo:latest") is True
+
+    client.describe_images.return_value = {"imageDetails": []}
+    assert ecr.check_image_exists("my-repo:latest") is False
