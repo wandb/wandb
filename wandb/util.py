@@ -289,6 +289,7 @@ def sentry_set_scope(
 
     # Track session so we can get metrics about error free rate
     if sentry_hub:
+        wandb.termlog("IMMA START A SESSION")
         sentry_hub.start_session()
 
 

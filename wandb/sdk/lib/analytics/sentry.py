@@ -17,11 +17,13 @@ import wandb.sdk.internal
 import wandb.sdk.internal.settings_static
 import wandb.util
 
+# SENTRY_DEFAULT_DSN = (
+#     "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+# )
+# project junk:
 SENTRY_DEFAULT_DSN = (
-    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+    "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.sentry.io/6438430"
 )
-# junk:
-# SENTRY_DEFAULT_DSN = "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.sentry.io/6438430"
 
 
 def _noop_if_disabled(func: Callable) -> Callable:
@@ -47,8 +49,9 @@ class Sentry:
 
     @property
     def environment(self) -> str:
+        # check if we're in a git repo
         is_git = os.path.exists(
-            os.path.join(os.path.dirname(__file__), "../../..", ".git")
+            os.path.join(os.path.dirname(__file__), "../../../../..", ".git")
         )
         # these match the environments for gorilla
         return "development" if is_git else "production"
