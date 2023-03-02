@@ -79,16 +79,17 @@ data:
     queues:
     - default # TODO: set queue name here
     environment:
-      type: aws
-      region: us-east-1 # TODO: set aws region here
+      type: gcp
+      region: us-central1 # TODO: set gcp region here
     registry:
-      type: ecr
-      repository: # TODO: set ecr repository name here
+      type: gcr
+      repository: # TODO: set name of artifact repository name here
+      image_name: launch-images # TODO: set name of image here
     builder:
       type: kaniko
-      build-context-store: s3://my-bucket/... # TODO: set your build context store here
-      secret-name: wandb-build-aws-credentials # TODO: set your secret name here
-      secret-key: credentials # TODO: set your secret key here, i.e. the key in the secret that contains your aws credentials file
+      build-context-store: gs://my-bucket/... # TODO: set your build context store here
+      secret-name: gcp-creds # TODO: set your secret name here
+      secret-key: service_account.json # TODO: set your secret key here, i.e. the key in the secret that contains your service account json
 
 kind: ConfigMap
 metadata:
