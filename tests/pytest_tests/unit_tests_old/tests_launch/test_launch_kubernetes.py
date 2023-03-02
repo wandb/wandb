@@ -246,7 +246,7 @@ def test_launch_kube_works(
                 "registry": "test.registry/repo_name",
                 "job_name": "test-job",
                 "job_labels": {"test-label": "test-val"},
-                "backoff_limit": 1,
+                "backoff_limit": 3,
                 "completions": 4,
                 "parallelism": 5,
                 "restart_policy": "OnFailure",
