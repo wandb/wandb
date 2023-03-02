@@ -50,7 +50,7 @@ class LocalRegistry(AbstractRegistry):
         """
         return ""
 
-    def check_image_exists(image_uri: str) -> bool:
+    def check_image_exists(self, image_uri: str) -> bool:
         """Check if an image exists in the local registry.
 
         Arguments:

@@ -112,7 +112,7 @@ class DockerBuilder(AbstractBuilder):
             entrypoint (EntryPoint): The entrypoint to use.
         """
         dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, "docker"
         )
 
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)

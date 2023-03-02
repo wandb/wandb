@@ -12,10 +12,7 @@ from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
 )
-from wandb.sdk.launch.builder.build import (
-    generate_dockerfile,
-    get_base_setup,
-)
+from wandb.sdk.launch.builder.build import generate_dockerfile, get_base_setup
 from wandb.sdk.launch.utils import docker_image_exists
 
 from .test_launch import (

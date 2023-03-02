@@ -6,7 +6,6 @@ import enum
 import json
 import logging
 import os
-import re
 import tempfile
 from shlex import quote
 from typing import Any, Dict, List, Optional
@@ -175,6 +174,10 @@ class LaunchProject:
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
+        # since the image tag for images built from jobs
+        # is based on the job version index, which is immutable
+        # we don't need to build the image for a job if that tag
+        # already exists
         if self.source != LaunchSource.JOB:
             return True
         return False

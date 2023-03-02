@@ -17,7 +17,6 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
-from wandb.sdk.launch.utils import LaunchError
 
 from .._project_spec import (
     EntryPoint,
@@ -25,13 +24,17 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
-from ..utils import LOG_PREFIX, get_kube_context_and_api_client, sanitize_wandb_api_key
+from ..utils import (
+    LOG_PREFIX,
+    LaunchError,
+    get_kube_context_and_api_client,
+    sanitize_wandb_api_key,
+)
 from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
     image_tag_from_dockerfile_and_source,
 )
-
 
 _logger = logging.getLogger(__name__)
 
@@ -210,7 +213,7 @@ class KanikoBuilder(AbstractBuilder):
             raise LaunchError("No registry specified for Kaniko build.")
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, "kaniko"
         )
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
         repo_uri = self.registry.get_repo_uri()

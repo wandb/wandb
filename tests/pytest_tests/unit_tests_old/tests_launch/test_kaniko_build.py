@@ -245,9 +245,12 @@ def test_build_image_success(
         builder = KanikoBuilder(
             MagicMock(), registry, build_context_store="s3://test-bucket/test-prefix"
         )
+        job_name = "mock_server_entity/test/job-artifact"
+        job_version = 0
+
         kwargs = {
             "uri": None,
-            "job": "mock_server_entity/test/job-artifact:v0",
+            "job": f"{job_name}:v{job_version}",
             "api": api,
             "launch_spec": {},
             "target_entity": "mock_server_entity",
@@ -262,8 +265,15 @@ def test_build_image_success(
             "run_id": None,
         }
         project = LaunchProject(**kwargs)
+        mock_artifact = MagicMock()
+        mock_artifact.name = job_name
+        mock_artifact.version = job_version
         entry_point = EntryPoint("main.py", ["python", "main.py"])
-        image_uri = builder.build_image(project, "repository-url", entry_point)
-        assert "defaulting to building" in capsys.readouterr().err
-        # the string below is the result of the hash
-        assert image_uri == "repository-url:b60e433c"
+        image_uri = builder.build_image(project, entry_point)
+        assert (
+            "Created kaniko job wandb-launch-container-build-"
+            in capsys.readouterr().err
+        )
+        assert (
+            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:b60e433c"
+        )
