@@ -127,9 +127,7 @@ class DockerBuilder(AbstractBuilder):
         else:
             image_uri = f"{launch_project.image_name}:{image_tag}"
 
-        if not launch_project.build_required() and self.registry.check_image_exists(
-            image_uri
-        ):
+        if self.registry.check_image_exists(image_uri):
             return image_uri
 
         _logger.info(
