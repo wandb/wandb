@@ -13,10 +13,10 @@ from wandb.sdk.launch._project_spec import (
     fetch_and_validate_project,
 )
 from wandb.sdk.launch.builder.build import (
-    docker_image_exists,
     generate_dockerfile,
     get_base_setup,
 )
+from wandb.sdk.launch.utils import docker_image_exists
 
 from .test_launch import (
     mocked_fetchable_git_repo,

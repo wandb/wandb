@@ -1,7 +1,7 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
 import base64
 import logging
-from typing import Tuple
+from typing import Dict, Tuple
 
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.utils import LaunchError
@@ -34,7 +34,7 @@ class ElasticContainerRegistry(AbstractRegistry):
     def __init__(self, repo_name: str, environment: AwsEnvironment) -> None:
         """Initialize the Elastic Container Registry.
 
-        Args:
+        Arguments:
             repo_name (str): The name of the repository.
             environment (AwsEnvironment): The AWS environment.
 
@@ -48,6 +48,34 @@ class ElasticContainerRegistry(AbstractRegistry):
         self.repo_name = repo_name
         self.environment = environment
         self.verify()
+
+    @classmethod
+    def from_config(  # type: ignore[override]
+        cls,
+        config: Dict,
+        environment: AwsEnvironment,
+        verify: bool = True,
+    ) -> "ElasticContainerRegistry":
+        """Create an Elastic Container Registry from a config.
+
+        Arguments:
+            config (dict): The config.
+            environment (AwsEnvironment): The AWS environment.
+
+        Returns:
+            ElasticContainerRegistry: The Elastic Container Registry.
+        """
+        if config.get("type") != "ecr":
+            raise LaunchError(
+                f"Could not create ElasticContainerRegistry from config. Expected type 'ecr' "
+                f"but got '{config.get('type')}'."
+            )
+        repository = config.get("repository")
+        if not repository:
+            raise LaunchError(
+                "Could not create ElasticContainerRegistry from config. 'repository' is required."
+            )
+        return cls(repository, environment)
 
     def verify(self) -> None:
         """Verify that the registry is accessible and the configured repo exists.
@@ -103,3 +131,32 @@ class ElasticContainerRegistry(AbstractRegistry):
             str: The uri of the repository.
         """
         return self.uri + "/" + self.repo_name
+
+    def check_image_exists(self, image_uri: str) -> bool:
+        """Check if the image tag exists.
+
+        Arguments:
+            image_uri (str): The full image_uri.
+
+        Returns:
+            bool: True if the image tag exists.
+        """
+        uri, tag = image_uri.split(":")
+        if uri != self.get_repo_uri():
+            raise LaunchError(
+                f"Image uri {image_uri} does not match Elastic Container Registry uri {self.get_repo_uri()}."
+            )
+
+        _logger.debug("Checking if image tag exists.")
+        try:
+            session = self.environment.get_session()
+            client = session.client("ecr")
+            response = client.describe_images(
+                repositoryName=self.repo_name, imageIds=[{"imageTag": tag}]
+            )
+            return len(response["imageDetails"]) > 0
+
+        except botocore.exceptions.ClientError as e:
+            code = e.response["Error"]["Code"]
+            msg = e.response["Error"]["Message"]
+            raise LaunchError(f"Error checking if image tag exists: {code} {msg}")
