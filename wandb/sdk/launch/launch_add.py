@@ -174,7 +174,7 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project, api, config)
+        docker_image_uri = build_image_from_project(launch_project, api, config or {})
         run = wandb.run or wandb.init(
             project=launch_spec["project"],
             entity=launch_spec["entity"],
@@ -207,7 +207,10 @@ def _launch_add(
         if updated_spec.get("resource"):
             launch_spec["resource"] = updated_spec.get("resource")
 
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
+    if project_queue == LAUNCH_DEFAULT_PROJECT:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+    else:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     container_job = False

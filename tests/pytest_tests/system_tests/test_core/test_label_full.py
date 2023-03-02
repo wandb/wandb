@@ -1,6 +1,4 @@
-"""
-label full tests.
-"""
+"""label full tests."""
 import inspect
 import sys
 

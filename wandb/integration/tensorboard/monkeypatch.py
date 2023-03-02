@@ -1,4 +1,4 @@
-"""monkeypatch: patch code to add tensorboard hooks"""
+"""monkeypatch: patch code to add tensorboard hooks."""
 
 import os
 import re

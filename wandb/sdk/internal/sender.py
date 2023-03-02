@@ -1,6 +1,4 @@
-"""
-sender.
-"""
+"""sender."""
 
 
 import json
@@ -272,7 +270,8 @@ class SendManager:
 
     @classmethod
     def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
-        """This is a helper class method to set up a standalone SendManager.
+        """Set up a standalone SendManager.
+
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
@@ -711,8 +710,7 @@ class SendManager:
     def _maybe_setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
-        """This maybe queries the backend for a run and fails if the settings are
-        incompatible."""
+        """Queries the backend for a run; fail if the settings are incompatible."""
         if not self._settings.resume:
             return None
 
@@ -851,7 +849,7 @@ class SendManager:
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
     def _sync_spell(self) -> None:
-        """Syncs this run with spell"""
+        """Sync this run with spell."""
         if not self._run:
             return
         try:
@@ -1373,9 +1371,9 @@ class SendManager:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
 
     def send_use_artifact(self, record: "Record") -> None:
-        """
-        This function doesn't actually send anything, it is just used
-        internally
+        """Pretend to send a used artifact.
+
+        This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
         if use.type == "job":
@@ -1543,10 +1541,11 @@ class SendManager:
         return self._cached_server_info
 
     def get_local_info(self) -> "LocalInfo":
-        """
-        This is a helper function that queries the server to get the local version information.
-        First, we perform an introspection, if it returns empty we deduce that the docker image is
-        out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
+        """Queries the server to get the local version information.
+
+        First, we perform an introspection, if it returns empty we deduce that the
+        docker image is out-of-date. Otherwise, we use the returned values to deduce the
+        state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
         if self._settings._offline:
