@@ -1459,9 +1459,9 @@ class Run:
         logged with the same value in each history step, but represented
         as a single item in the config.
 
-        We do this to avoid filling up history with a lot of repeated uneccessary data
+        We do this to avoid filling up history with a lot of repeated unnecessary data
 
-        Add singleton can be called many times in one run and it will only be
+        Add singleton can be called many times in one run, and it will only be
         updated when the value changes. The last value logged will be the one
         persisted to the server.
         """
