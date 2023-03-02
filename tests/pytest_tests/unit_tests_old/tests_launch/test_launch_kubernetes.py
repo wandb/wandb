@@ -102,8 +102,8 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         job_spec.completions = job_spec.get("completions", 1)
         job_spec.parallelism = job_spec.get("parallelism", 1)
         job_spec.suspend = job_spec.get("suspend", False)
+        job_spec.restart_policy = job_spec.get("restartPolicy", "Never")
         pod_spec = MockDict(jobd["spec"]["template"]["spec"])
-        pod_spec.restart_policy = pod_spec.get("restartPolicy", "Never")
         pod_spec.preemption_policy = pod_spec.get(
             "preemptionPolicy", "PreemptLowerPriority"
         )
