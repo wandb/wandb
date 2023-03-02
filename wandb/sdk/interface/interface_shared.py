@@ -1,4 +1,4 @@
-"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock
+"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock.
 
 See interface.py for how interface classes relate to each other.
 
@@ -380,7 +380,6 @@ class InterfaceShared(InterfaceBase):
         Returns:
             RunRecord object
         """
-
         req = self._make_record(run=run)
         resp = self._communicate(req, timeout=timeout)
         if resp is None:

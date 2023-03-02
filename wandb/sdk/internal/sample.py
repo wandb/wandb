@@ -1,6 +1,4 @@
-"""
-sample.
-"""
+"""sample."""
 
 import math
 

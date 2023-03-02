@@ -1,9 +1,8 @@
-"""
-Library public tests.
+"""Library public tests.
 
 *NOTE*: If you need to add a symbol, make sure this has been discussed and the name of the object or method is agreed upon.
 
-TODO:
+Todo:
     - clean up / hide symbols, which shouldn't be public
     - deprecate ones that were public but we want to remove
 
