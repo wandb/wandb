@@ -166,9 +166,8 @@ class KubernetesRunner(AbstractRunner):
     def populate_job_spec(
         self, job_spec: Dict[str, Any], resource_args: Dict[str, Any]
     ) -> None:
-        job_spec["restartPolicy"] = resource_args.get("restart_policy", "Never")
         if resource_args.get("backoff_limit"):
-            job_spec["backoffLimit"] = resource_args.get("backoff_limit")
+            job_spec["backoffLimit"] = resource_args.get("backoff_limit", 1)
         if resource_args.get("completions"):
             job_spec["completions"] = resource_args.get("completions")
         if resource_args.get("parallelism"):
@@ -179,6 +178,7 @@ class KubernetesRunner(AbstractRunner):
     def populate_pod_spec(
         self, pod_spec: Dict[str, Any], resource_args: Dict[str, Any]
     ) -> None:
+        pod_spec["restartPolicy"] = resource_args.get("restart_policy", "Never")
         if resource_args.get("preemption_policy"):
             pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
         if resource_args.get("node_name"):

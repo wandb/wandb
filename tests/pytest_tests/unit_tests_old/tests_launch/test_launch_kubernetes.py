@@ -102,8 +102,8 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         job_spec.completions = job_spec.get("completions", 1)
         job_spec.parallelism = job_spec.get("parallelism", 1)
         job_spec.suspend = job_spec.get("suspend", False)
-        job_spec.restart_policy = job_spec.get("restartPolicy", "Never")
         pod_spec = MockDict(jobd["spec"]["template"]["spec"])
+        pod_spec.restart_policy = pod_spec.get("restartPolicy", "Never")
         pod_spec.preemption_policy = pod_spec.get(
             "preemptionPolicy", "PreemptLowerPriority"
         )
@@ -246,7 +246,7 @@ def test_launch_kube_works(
                 "registry": "test.registry/repo_name",
                 "job_name": "test-job",
                 "job_labels": {"test-label": "test-val"},
-                "backoff_limit": 3,
+                "backoff_limit": 1,
                 "completions": 4,
                 "parallelism": 5,
                 "restart_policy": "OnFailure",
@@ -304,7 +304,7 @@ def test_launch_kube_works(
     assert job.spec.backoff_limit == args["backoff_limit"]
     assert job.spec.completions == args["completions"]
     assert job.spec.parallelism == args["parallelism"]
-    assert job.spec.restart_policy == args["restart_policy"]
+    assert job.spec.template.spec.restart_policy == args["restart_policy"]
     assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
     assert job.spec.template.spec.node_name == args["node_name"]
     assert job.spec.template.spec.tolerations == args["tolerations"]
