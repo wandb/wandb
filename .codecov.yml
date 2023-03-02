@@ -4,7 +4,7 @@ codecov:
     # To calculate after_n_builds use
     # ./tools/coverage-tool.py jobs | wc -l
     # also change comment block after_n_builds just below
-    after_n_builds: 53
+    after_n_builds: 55
     wait_for_ci: no
 
 comment:
