@@ -120,6 +120,7 @@ class OpenMetricsMetric:
         self.name = name
         self.url = url
         self.filters = filters
+        self.filters_tuple = _nested_dict_to_tuple(filters)
         self._session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
@@ -160,7 +161,7 @@ class OpenMetricsMetric:
                 if not _should_capture_metric(
                     name,
                     tuple(labels.items()),
-                    _nested_dict_to_tuple(self.filters),
+                    self.filters_tuple,
                 ):
                     continue
 
