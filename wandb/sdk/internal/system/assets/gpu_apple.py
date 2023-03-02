@@ -34,7 +34,7 @@ class _Stats(TypedDict):
     temp: float
     powerWatts: float  # noqa: N815
     powerPercent: float  # noqa: N815
-    # cpuWaitMs: float  # noqa: N815
+    # cpuWaitMs: float
 
 
 class GPUAppleStats:

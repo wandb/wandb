@@ -103,10 +103,25 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
+def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Parse a string as a dict."""
+    if isinstance(val, dict):
+        return val
+    try:
+        return dict(json.loads(val))
+    except (AttributeError, ValueError):
+        pass
+
+    # todo: remove this and only raise error once we are confident.
+    wandb.termwarn(
+        f"Could not parse value {val} as a dict. ",
+        repeat=False,
+    )
+    raise UsageError(f"Could not parse value {val} as a dict.")
+
+
 def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
-    """
-    Parse a (potentially comma-separated) string as a tuple.
-    """
+    """Parse a (potentially comma-separated) string as a tuple."""
     if isinstance(val, str):
         return tuple(val.split(","))
     return tuple(val)
@@ -407,6 +422,7 @@ class Settings:
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
+    _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -566,6 +582,13 @@ class Settings:
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
             _stats_neuron_monitor_config_path={
                 "hook": lambda x: self._path_convert(x),
+            },
+            _stats_open_metrics_endpoints={
+                # todo: opt-in to this feature
+                # "value": {
+                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
+                # },
+                "preprocessor": _str_as_dict,
             },
             _tmp_code_dir={
                 "value": "code",

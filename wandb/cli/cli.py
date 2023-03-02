@@ -662,7 +662,7 @@ def sync(
         _summary()
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")  # noqa: C901
+@cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
 @click.option("--project", "-p", default=None, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
@@ -733,7 +733,7 @@ def sweep(
     config_yaml_or_sweep_id,
     queue,
     project_queue,
-):  # noqa: C901
+):
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
     is_state_change_command = sum(lcls[k] for k in state_args)
@@ -1361,7 +1361,7 @@ def launch_agent(
     )
     api = _get_cling_api()
     agent_config, api = wandb_launch.resolve_agent_config(
-        api, entity, project, max_jobs, queues
+        api, entity, project, max_jobs, queues, config
     )
     if agent_config.get("project") is None:
         raise LaunchError(
