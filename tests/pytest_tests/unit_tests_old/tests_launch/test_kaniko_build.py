@@ -219,18 +219,19 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
 
 
 def test_build_image_success(
-    monkeypatch, mock_kubernetes_client, runner, mock_boto3, test_settings, capsys
+    monkeypatch,
+    mock_kubernetes_client,
+    runner,
+    mock_boto3,
+    test_settings,
+    capsys,
+    tmp_path,
 ):
-    build_config = {
-        "cloud-provider": "AWS",
-        "build-context-store": "s3",
-        "credentials": {
-            "secret-name": "aws-secret",
-            "secret-mount-path": "/root/.aws",
-        },
-    }
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch._project_spec.LaunchProject, "build_required", lambda x: True
     )
     with runner.isolated_filesystem():
         os.makedirs("./test/context/path/", exist_ok=True)
@@ -247,7 +248,6 @@ def test_build_image_success(
         )
         job_name = "mock_server_entity/test/job-artifact"
         job_version = 0
-
         kwargs = {
             "uri": None,
             "job": f"{job_name}:v{job_version}",
@@ -276,5 +276,5 @@ def test_build_image_success(
             in capsys.readouterr().err
         )
         assert (
-            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:b60e433c"
+            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:3afc0387"
         )

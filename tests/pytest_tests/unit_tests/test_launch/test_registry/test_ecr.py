@@ -53,12 +53,28 @@ def test_ecr_image_exists():
             }
         ]
     }
+    client.describe_registry.return_value = {"registryId": "123456789012"}
+    client.describe_repositories.return_value = {
+        "repositories": [
+            {"repositoryUri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"}
+        ]
+    }
     session = MagicMock()
     session.client.return_value = client
     environment = MagicMock()
     environment.get_session.return_value = session
     ecr = ElasticContainerRegistry("my-repo", environment)
-    assert ecr.check_image_exists("my-repo:latest") is True
+    assert (
+        ecr.check_image_exists(
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
+        )
+        is True
+    )
 
     client.describe_images.return_value = {"imageDetails": []}
-    assert ecr.check_image_exists("my-repo:latest") is False
+    assert (
+        ecr.check_image_exists(
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
+        )
+        is False
+    )
