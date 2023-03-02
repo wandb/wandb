@@ -37,6 +37,7 @@ _REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
 )
 _REQUEST_POOL_CONNECTIONS = 4
 _REQUEST_POOL_MAXSIZE = 4
+_REQUEST_TIMEOUT = 3
 
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,7 @@ def _setup_requests_session() -> requests.Session:
 
 
 class OpenMetricsMetric:
-    """
-    Container for all the COUNTER and GAUGE metrics extracted from an
-    OpenMetrics endpoint.
-    """
+    """Container for all the COUNTER and GAUGE metrics extracted from an OpenMetrics endpoint."""
 
     def __init__(self, name: str, url: str) -> None:
         self.name = name
@@ -96,7 +94,7 @@ class OpenMetricsMetric:
         assert prometheus_client_parser is not None
         assert self._session is not None
 
-        response = self._session.get(self.url)
+        response = self._session.get(self.url, timeout=_REQUEST_TIMEOUT)
         response.raise_for_status()
 
         text = response.text
@@ -192,7 +190,7 @@ class OpenMetrics:
         try:
             assert prometheus_client_parser is not None
             _session = _setup_requests_session()
-            response = _session.get(url)
+            response = _session.get(url, timeout=_REQUEST_TIMEOUT)
             response.raise_for_status()
 
             # check if the response is a valid OpenMetrics response

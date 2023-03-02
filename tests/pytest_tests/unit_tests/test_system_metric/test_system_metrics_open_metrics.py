@@ -50,6 +50,10 @@ def mocked_requests_get(*args, **kwargs):
     )
 
 
+def mocked_requests_get_timeout(*args, **kwargs):
+    raise requests.exceptions.ReadTimeout("Read Timeout")
+
+
 def mocked_requests_get_junk(*args, **kwargs):
     return mock.Mock(
         status_code=200,
@@ -96,6 +100,16 @@ def test_dcgm_not_available(test_settings, mocked_requests_get_method):
 
         url = "http://localhost:9400/metrics"
 
+        assert not OpenMetrics.is_available(url)
+
+
+def test_endpoint_hang(test_settings):
+    with mock.patch.object(
+        wandb.sdk.internal.system.assets.open_metrics.requests.Session,
+        "get",
+        mocked_requests_get_timeout,
+    ):
+        url = "http://localhost:9400/metrics"
         assert not OpenMetrics.is_available(url)
 
 
