@@ -1,4 +1,5 @@
 import os
+import pathlib
 import tempfile
 
 import pytest
@@ -77,3 +78,18 @@ def test_save_relative_path(mock_run, parse_records, record_q):
     file_record = parsed.files[0].files[0]
     assert file_record.path == os.path.relpath(test_path, root)
     assert file_record.policy == 0
+
+
+@pytest.mark.xfail(reason="This test is flaky")
+def test_save_path_object(mock_run, parse_records, record_q):
+    run = mock_run()
+
+    with open("test.rad", "w") as f:
+        f.write("something")
+    path = pathlib.Path("test.rad")
+    run.save(path)
+    assert os.path.exists(os.path.join(run.dir, "test.rad"))
+    parsed = parse_records(record_q)
+    file_record = parsed.files[0].files[0]
+    assert file_record.path == "test.rad"
+    assert file_record.policy == 2

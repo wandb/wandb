@@ -6,6 +6,7 @@ import json
 import logging
 import numbers
 import os
+import pathlib
 import re
 import sys
 import threading
@@ -1714,16 +1715,16 @@ class Run:
     @_run_decorator._attach
     def save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[Union[str, pathlib.Path]] = None,
+        base_path: Optional[Union[str, pathlib.Path]] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
-            glob_str: (string) a relative or absolute path to a unix glob or regular
-                path.  If this isn't specified the method is a noop.
-            base_path: (string) the base path to run the glob relative to
+            glob_str: (string, pathlib.Path) a relative or absolute path to a unix glob or regular
+                path. If this isn't specified the method is a noop.
+            base_path: (string, pathlib.Path) the base path to run the glob relative to
             policy: (string) on of `live`, `now`, or `end`
                 - live: upload the file as it changes, overwriting the previous version
                 - now: upload the file once now
@@ -1744,8 +1745,8 @@ class Run:
 
     def _save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[Union[str, pathlib.Path]] = None,
+        base_path: Optional[Union[str, pathlib.Path]] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         if policy not in ("live", "end", "now"):
@@ -1754,8 +1755,12 @@ class Run:
             )
         if isinstance(glob_str, bytes):
             glob_str = glob_str.decode("utf-8")
+        elif isinstance(glob_str, pathlib.Path):
+            glob_str = str(glob_str)
         if not isinstance(glob_str, str):
-            raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+            raise ValueError(
+                "Must call wandb.save(glob_str) with glob_str as str or pathlib.Path object"
+            )
 
         if base_path is None:
             if os.path.isabs(glob_str):
