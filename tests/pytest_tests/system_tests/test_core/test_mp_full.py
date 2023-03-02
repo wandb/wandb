@@ -1,6 +1,4 @@
-"""
-multiproc full tests.
-"""
+"""multiproc full tests."""
 import importlib
 import sys
 import time

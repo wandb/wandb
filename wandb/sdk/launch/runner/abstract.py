@@ -60,7 +60,7 @@ class AbstractRun(ABC):
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
     ) -> Optional[Union["subprocess.Popen[bytes]", bytes]]:
-        """Runs the command and returns a popen object or the stdout of the command.
+        """Run the command and returns a popen object or the stdout of the command.
 
         Arguments:
         cmd: The command to run
@@ -161,7 +161,6 @@ class AbstractRunner(ABC):
         self,
         launch_project: LaunchProject,
         builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

@@ -1,6 +1,4 @@
-"""
-file_stream tests.
-"""
+"""file_stream tests."""
 
 import json
 
@@ -23,7 +21,6 @@ def convert_history(history_data):
 
 
 def assert_history(relay_server, run, publish_util, dropped=None, inject=None):
-
     with relay_server(inject=inject) as relay:
         history = generate_history()
         publish_util(run=run, history=history)
@@ -113,7 +110,6 @@ def test_fstream_status_429(
     inject_file_stream_response,
 ):
     """Rate limiting test."""
-
     run = mock_run(use_magic_mock=True)
 
     injected_response = inject_file_stream_response(
