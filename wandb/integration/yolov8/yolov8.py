@@ -12,13 +12,14 @@ from wandb.sdk.lib import telemetry
 
 class WandbCallback:
     """
-    A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+    An internal YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
     Usage:
     ```python
-    from wandb.yolov8 import WandbLogger
+    from wandb.integration.yolov8.yolov8 import WandbCallback
     model = YOLO("yolov8n.pt")
-    with WandbLogger(model,) as wb_model:
-        wb_model.train(data="coco128.yaml", epochs=3, imgsz=640,)
+    wandb_logger = WandbCallback(model,)
+    for event, callback_fn in wandb_logger.callbacks.items():
+        model.add_callback(event, callback_fn)
     ```
     """
 
@@ -237,9 +238,9 @@ def add_callbacks(
 
     Usage:
     ```python
-    from wandb.yolov8 import add_callbacks
+    from wandb.integration.yolov8 import add_callbacks as add_wandb_callbacks
     model = YOLO("yolov8n.pt")
-    model = add_callbacks(model,)
+    add_wandb_callbacks(model,)
     model.train(data="coco128.yaml", epochs=3, imgsz=640,)
     ```
     """
