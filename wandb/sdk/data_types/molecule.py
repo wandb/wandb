@@ -21,8 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Molecule(BatchableMedia):
-    """
-    Wandb class for 3D Molecular data
+    """Wandb class for 3D Molecular data.
 
     Arguments:
         data_or_path: (string, io)
@@ -103,8 +102,7 @@ class Molecule(BatchableMedia):
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
-        """
-        Convert RDKit-supported file/object types to wandb.Molecule
+        """Convert RDKit-supported file/object types to wandb.Molecule.
 
         Arguments:
             data_or_path: (string, rdkit.Chem.rdchem.Mol)
@@ -171,8 +169,7 @@ class Molecule(BatchableMedia):
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
-        """
-        Convert SMILES string to wandb.Molecule
+        """Convert SMILES string to wandb.Molecule.
 
         Arguments:
             data: (string)

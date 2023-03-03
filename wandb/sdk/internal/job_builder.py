@@ -1,6 +1,4 @@
-"""
-job builder.
-"""
+"""job builder."""
 import json
 import os
 import sys

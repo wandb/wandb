@@ -5,7 +5,7 @@ The most commonly used functions/objects are:
   - wandb.config — track hyperparameters and metadata
   - wandb.log — log metrics and media over time within your training loop
 
-For guides and examples, see https://docs.wandb.com/guides.
+For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
@@ -193,7 +193,6 @@ if wandb_sdk.lib.ipython.in_jupyter():
 
     load_ipython_extension(get_ipython())
 
-wandb.require("service")
 
 __all__ = [
     "__version__",

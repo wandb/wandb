@@ -1,6 +1,4 @@
-"""
-api.
-"""
+"""api."""
 
 from typing import Callable
 

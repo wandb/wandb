@@ -26,29 +26,43 @@ logger = logging.getLogger(__name__)
 
 
 class Metric(Protocol):
-    """
-    Base protocol for individual metrics
-    """
+    """Base protocol for individual metrics."""
 
     name: str
     # samples: Sequence[Tuple[TimeStamp, Sample]]
     samples: "Deque[Any]"
 
     def sample(self) -> None:
+        """Sample the metric."""
         ...  # pragma: no cover
 
     def clear(self) -> None:
+        """Clear the samples."""
         ...  # pragma: no cover
 
     def aggregate(self) -> dict:
+        """Aggregate the samples."""
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class SetupTeardown(Protocol):
+    """Protocol for classes that require setup and teardown."""
+
+    def setup(self) -> None:
+        """Extra setup required for the metric beyond __init__."""
+        ...  # pragma: no cover
+
+    def teardown(self) -> None:
+        """Extra teardown required for the metric."""
         ...  # pragma: no cover
 
 
 @runtime_checkable
 class Asset(Protocol):
-    """
-    Base protocol to encapsulate everything relating to an "Asset"
-    e.g. CPU, GPU, TPU, Network, I/O etc.
+    """Base protocol encapsulate everything relating to an "Asset".
+
+    An asset can be CPU, GPU, TPU, Network, I/O etc.
     """
 
     name: str
@@ -60,19 +74,19 @@ class Asset(Protocol):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Check if the resource is available"""
+        """Check if the resource is available."""
         ...  # pragma: no cover
 
     def start(self) -> None:
-        """Start monitoring the resource"""
+        """Start monitoring the resource."""
         ...  # pragma: no cover
 
     def finish(self) -> None:
-        """finish monitoring the resource"""
+        """Finish monitoring the resource."""
         ...  # pragma: no cover
 
     def probe(self) -> dict:
-        """Get static information about the resource"""
+        """Get static information about the resource."""
         ...  # pragma: no cover
 
 
@@ -88,9 +102,7 @@ class Interface(Protocol):
 
 
 class MetricsMonitor:
-    """
-    Takes care of collecting, sampling, serializing, and publishing a set of metrics.
-    """
+    """Takes care of collecting, sampling, serializing, and publishing a set of metrics."""
 
     def __init__(
         self,
@@ -119,7 +131,7 @@ class MetricsMonitor:
         )
 
     def monitor(self) -> None:
-        """Poll the Asset metrics"""
+        """Poll the Asset metrics."""
         while not self._shutdown_event.is_set():
             for _ in range(self.samples_to_aggregate):
                 for metric in self.metrics:
@@ -133,7 +145,7 @@ class MetricsMonitor:
             self.publish()
 
     def aggregate(self) -> dict:
-        """Return a dict of metrics"""
+        """Return a dict of metrics."""
         aggregated_metrics = {}
         for metric in self.metrics:
             try:
@@ -147,7 +159,7 @@ class MetricsMonitor:
         return aggregated_metrics
 
     def publish(self) -> None:
-        """Publish the Asset metrics"""
+        """Publish the Asset metrics."""
         try:
             aggregated_metrics = self.aggregate()
             if aggregated_metrics:
@@ -158,21 +170,37 @@ class MetricsMonitor:
             logger.error(f"Failed to publish metrics: {e}")
 
     def start(self) -> None:
-        if self._process is None and not self._shutdown_event.is_set():
+        if (self._process is not None) or self._shutdown_event.is_set():
+            return None
+
+        thread_name = f"{self.asset_name[:15]}"  # thread names are limited to 15 chars
+        try:
+            for metric in self.metrics:
+                if isinstance(metric, SetupTeardown):
+                    metric.setup()
             self._process = threading.Thread(
                 target=self.monitor,
                 daemon=True,
-                name=f"{self.asset_name}",
+                name=thread_name,
             )
             self._process.start()
-            logger.info(f"Started {self._process.name}")
+            logger.info(f"Started {thread_name} monitoring")
+        except Exception as e:
+            logger.warning(f"Failed to start {thread_name} monitoring: {e}")
+            self._process = None
 
     def finish(self) -> None:
         if self._process is None:
             return None
+
+        thread_name = f"{self.asset_name[:15]}"
         try:
             self._process.join()
-            logger.info(f"Joined {self._process.name}")
+            logger.info(f"Joined {thread_name} monitor")
+            for metric in self.metrics:
+                if isinstance(metric, SetupTeardown):
+                    metric.teardown()
         except Exception as e:
-            logger.warning(f"Failed to join {self._process.name}: {e}")
-        self._process = None
+            logger.warning(f"Failed to finish {thread_name} monitoring: {e}")
+        finally:
+            self._process = None

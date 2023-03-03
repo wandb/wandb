@@ -75,8 +75,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Object3D(BatchableMedia):
-    """
-    Wandb class for 3D point clouds.
+    """Wandb class for 3D point clouds.
 
     Arguments:
         data_or_path: (numpy array, string, io)
