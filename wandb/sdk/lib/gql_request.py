@@ -11,11 +11,11 @@ class GraphQLSession(HTTPTransport):
     def __init__(
         self,
         url: str,
-        auth: Union[Tuple[str, str], Callable] = None,
+        auth: Optional[Union[Tuple[str, str], Callable]] = None,
         use_json: bool = False,
         timeout: Optional[Union[int, float]] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Setup a session for sending GraphQL queries and mutations.
 
         Args:
@@ -35,7 +35,7 @@ class GraphQLSession(HTTPTransport):
         document: ast.Node,
         variable_values: Optional[Dict] = None,
         timeout: Optional[Union[int, float]] = None,
-    ):
+    ) -> ExecutionResult:
         query_str = print_ast(document)
         payload = {"query": query_str, "variables": variable_values or {}}
 
