@@ -1,6 +1,6 @@
 #!/bin/bash
 # Example usage:
-# ./tools/loop.sh --loop-num 2 tox -e py38 -- tests/test_sender.py -k test_save_live_glob_multi_write
+# ./tools/loop.sh --loop-num 2 tox -e py38 -- tests/pytest_tests/system_tests/test_sender.py -k test_save_live_glob_multi_write
 
 DATE=`date +%Y%m%d_%H%M%S`
 RESULTS="loop-results"

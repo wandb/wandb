@@ -27,10 +27,11 @@ logger = logging.getLogger(__name__)
 
 class FilePusher:
     """Parallel file upload class.
+
     This manages uploading multiple files in parallel. It will restart a given file's
-    upload job if it receives a notification that that file has been modified.
-    The finish() method will block until all events have been processed and all
-    uploads are complete.
+    upload job if it receives a notification that that file has been modified. The
+    finish() method will block until all events have been processed and all uploads are
+    complete.
     """
 
     MAX_UPLOAD_JOBS = 64
@@ -117,6 +118,7 @@ class FilePusher:
         copy: bool = True,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
+
         Arguments:
             save_name: string logical location of the file relative to the run
                 directory.

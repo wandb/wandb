@@ -59,7 +59,7 @@ def filesystem_isolate(tmp_path):
 # todo: this fixture should probably be autouse=True
 @pytest.fixture(scope="function", autouse=False)
 def local_settings(filesystem_isolate):
-    """Place global settings in an isolated dir"""
+    """Place global settings in an isolated dir."""
     config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
     filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
 
@@ -75,8 +75,7 @@ def local_settings(filesystem_isolate):
 
 @pytest.fixture(scope="function", autouse=True)
 def local_netrc(filesystem_isolate):
-    """Never use our real credentials, put them in their own isolated dir"""
-
+    """Never use our real credentials, put them in their own isolated dir."""
     original_expanduser = os.path.expanduser  # TODO: this seems overkill...
 
     open(".netrc", "wb").close()  # Touch that netrc file

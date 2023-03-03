@@ -20,9 +20,7 @@ if TYPE_CHECKING:
 
 
 class IPUStats:
-    """
-    Stats for Graphcore IPU devices
-    """
+    """Stats for Graphcore IPU devices."""
 
     name = "ipu.{}.{}"
     samples: "Deque[dict]"

@@ -1,4 +1,4 @@
-"""Defines plots for regression models built with scikit-learn."""
+"""Define plots for regression models built with scikit-learn."""
 from warnings import simplefilter
 
 import numpy as np
@@ -34,7 +34,7 @@ def regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"):
 
     Example:
     ```python
-        wandb.sklearn.plot_regressor(reg, X_train, X_test, y_train, y_test, 'Ridge')
+    wandb.sklearn.plot_regressor(reg, X_train, X_test, y_train, y_test, "Ridge")
     ```
     """
     wandb.termlog("\nPlotting %s." % model_name)
@@ -72,7 +72,7 @@ def outlier_candidates(regressor=None, X=None, y=None):
 
     Example:
     ```python
-        wandb.sklearn.plot_outlier_candidates(model, X, y)
+    wandb.sklearn.plot_outlier_candidates(model, X, y)
     ```
     """
     is_missing = utils.test_missing(regressor=regressor, X=X, y=y)
@@ -106,7 +106,7 @@ def residuals(regressor=None, X=None, y=None):
 
     Example:
     ```python
-        wandb.sklearn.plot_residuals(model, X, y)
+    wandb.sklearn.plot_residuals(model, X, y)
     ```
     """
     not_missing = utils.test_missing(regressor=regressor, X=X, y=y)

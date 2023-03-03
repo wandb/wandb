@@ -1,0 +1,14 @@
+# This is a launch config template for running an agent on a GCE instance or your local machine.
+max_jobs: -1 # TODO: set the maximum number of concurrent jobs
+base_url: https://api.wandb.ai # TODO: set api url
+queues:
+  - vertex_queue # TODO: set to the names of your vertex queue
+environment:
+  type: gcp
+  region: us-central1 # TODO: fill in gcp region
+registry:
+  type: gcr
+  repository: # TODO: fill in artifact repository name
+  image_name: launch-images # TODO: fill in image name
+builder:
+  type: docker

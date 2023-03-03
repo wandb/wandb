@@ -1,4 +1,4 @@
-"""InterfaceSock - Derived from InterfaceShared using a socket to send to internal thread
+"""InterfaceSock - Derived from InterfaceShared using a socket to send to internal thread.
 
 See interface.py for how interface classes relate to each other.
 
