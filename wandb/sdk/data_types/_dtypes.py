@@ -593,8 +593,10 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
 
 
 def _valid_list_py_obj(py_obj: t.Optional[t.Any]) -> bool:
-    return isinstance(py_obj, (list, tuple, set, frozenset)) or hasattr(
-        py_obj, "tolist"
+    return (
+        isinstance(py_obj, (list, tuple, set, frozenset))
+        or hasattr(py_obj, "tolist")
+        or (np and isinstance(py_obj, np.ndarray))
     )
 
 
