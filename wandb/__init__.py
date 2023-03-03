@@ -5,7 +5,7 @@ The most commonly used functions/objects are:
   - wandb.config — track hyperparameters and metadata
   - wandb.log — log metrics and media over time within your training loop
 
-For guides and examples, see https://docs.wandb.com/guides.
+For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 

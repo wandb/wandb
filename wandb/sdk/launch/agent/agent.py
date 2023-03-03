@@ -17,17 +17,11 @@ from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
+from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
-from ..builder.loader import load_builder
+from ..builder.build import construct_builder_args
 from ..runner.abstract import AbstractRun
-from ..runner.loader import load_backend
-from ..utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
-    PROJECT_SYNCHRONOUS,
-    LaunchError,
-    resolve_build_and_registry_config,
-)
+from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -65,12 +59,10 @@ def _convert_access(access: str) -> str:
 def _max_from_config(
     config: Dict[str, Any], key: str, default: int = 1
 ) -> Union[int, float]:
-    """
-    Utility for parsing integers from the agent config with
-    a default, infinity handling, and integer parsing.
-    Raises more informative error if parse error
+    """Get an integer from the config, or float.inf if -1.
 
-    returns parsed value as int or infinity
+    Utility for parsing integers from the agent config with a default, infinity
+    handling, and integer parsing. Raises more informative error if parse error.
     """
     try:
         val = config.get(key)
@@ -88,9 +80,7 @@ def _max_from_config(
 
 
 def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
-    """
-    Utility for determining whether a job/runSpec is a sweep scheduler
-    """
+    """Determine whether a job/runSpec is a sweep scheduler."""
     if not run_spec:
         _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
 
@@ -101,8 +91,14 @@ class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
     def __init__(self, api: Api, config: Dict[str, Any]):
-        self._entity = config.get("entity")
-        self._project = config.get("project")
+        """Initialize a launch agent.
+
+        Arguments:
+            api: Api object to use for making requests to the backend.
+            config: Config dictionary for the agent.
+        """
+        self._entity = config["entity"]
+        self._project = config["project"]
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
@@ -144,18 +140,28 @@ class LaunchAgent:
 
     @property
     def num_running_schedulers(self) -> int:
-        """Returns just the number of schedulers"""
+        """Return just the number of schedulers."""
         with self._jobs_lock:
             return len([x for x in self._jobs if self._jobs[x].is_scheduler])
 
     @property
     def num_running_jobs(self) -> int:
-        """Returns the number of jobs not including schedulers"""
+        """Return the number of jobs not including schedulers."""
         with self._jobs_lock:
             return len([x for x in self._jobs if not self._jobs[x].is_scheduler])
 
     def pop_from_queue(self, queue: str) -> Any:
-        """Pops an item off the runqueue to run as a job."""
+        """Pops an item off the runqueue to run as a job.
+
+        Arguments:
+            queue: Queue to pop from.
+
+        Returns:
+            Item popped off the queue.
+
+        Raises:
+            Exception: if there is an error popping from the queue.
+        """
         try:
             ups = self._api.pop_from_run_queue(
                 queue,
@@ -189,6 +195,11 @@ class LaunchAgent:
         _logger.info(output_str)
 
     def update_status(self, status: str) -> None:
+        """Update the status of the agent.
+
+        Arguments:
+            status: Status to update the agent to.
+        """
         update_ret = self._api.update_launch_agent_status(
             self._id, status, self.gorilla_supports_agents
         )
@@ -212,7 +223,11 @@ class LaunchAgent:
             self.finish_thread_id(thread_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
-        """Sets up project and runs the job."""
+        """Set up project and run the job.
+
+        Arguments:
+            job: Job to run.
+        """
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
         wandb.termlog(_msg)
         _logger.info(_msg)
@@ -240,7 +255,11 @@ class LaunchAgent:
         )
 
     def loop(self) -> None:
-        """Main loop function for agent."""
+        """Loop infinitely to poll for jobs and run them.
+
+        Raises:
+            KeyboardInterrupt: if the agent is requested to stop.
+        """
         self.print_status()
         try:
             while True:
@@ -315,7 +334,6 @@ class LaunchAgent:
         default_config: Dict[str, Any],
         api: Api,
     ) -> None:
-
         try:
             self._thread_run_job(launch_spec, job, default_config, api)
         except Exception:
@@ -345,21 +363,20 @@ class LaunchAgent:
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        override_build_config = launch_spec.get("build")
-        override_registry_config = launch_spec.get("registry")
+        override_build_config = launch_spec.get("builder")
 
-        build_config, registry_config = resolve_build_and_registry_config(
-            default_config, override_build_config, override_registry_config
+        build_config, registry_config = construct_builder_args(
+            default_config, override_build_config
         )
-        builder = load_builder(build_config)
 
-        default_runner = default_config.get("runner", {}).get("type")
-        if default_runner == resource:
-            backend_config["runner"] = default_config.get("runner")
-        backend = load_backend(resource, api, backend_config)
-        backend.verify()
+        environment = loader.environment_from_config(
+            default_config.get("environment", {})
+        )
+        registry = loader.registry_from_config(registry_config, environment)
+        builder = loader.builder_from_config(build_config, environment, registry)
+        backend = loader.runner_from_config(resource, api, backend_config, environment)
         _logger.info("Backend loaded...")
-        run = backend.run(project, builder, registry_config)
+        run = backend.run(project, builder)
 
         if _job_is_scheduler(launch_spec):
             with self._jobs_lock:

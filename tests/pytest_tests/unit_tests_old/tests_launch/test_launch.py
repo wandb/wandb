@@ -14,7 +14,7 @@ import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
-from wandb.sdk.launch.builder.docker import DockerBuilder
+from wandb.sdk.launch.builder.docker_builder import DockerBuilder
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
@@ -141,7 +141,7 @@ def mock_load_backend():
         mock_props.kwargs = kwargs
         return mock_props
 
-    with mock.patch("wandb.sdk.launch.launch.loader.load_backend") as mock_load_backend:
+    with mock.patch("wandb.sdk.launch.loader.runner_from_config") as mock_load_backend:
         m = mock.Mock(side_effect=side_effect)
         m.run = mock.Mock(side_effect=side_effect)
         mock_load_backend.return_value = m
@@ -299,7 +299,6 @@ def test_launch_base_case(
     mock_load_backend,
     monkeypatch,
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -336,7 +335,6 @@ def test_launch_base_case(
 def test_launch_resource_args(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -564,7 +562,6 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
 def test_launch_code_artifact(
     runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
 ):
-
     run_with_artifacts = mock.MagicMock()
     code_artifact = mock.MagicMock()
     code_artifact.type = "code"
@@ -915,7 +912,6 @@ def test_fail_pull_docker_image():
 def test_bare_wandb_uri(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
-
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -1312,7 +1308,7 @@ def test_launch_build_config_file(
         "LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
-    launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
+    launch_config = {"build": {"type": "docker"}, "registry": {}}
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -1331,10 +1327,8 @@ def test_launch_build_config_file(
             "config": {"cuda": False},
         }
         args, _ = launch.run(**kwargs)
-        _, _, builder, registry_config = args
-        assert builder.builder_config == {"type": "docker"}
+        _, _, builder = args
         assert isinstance(builder, DockerBuilder)
-        assert registry_config == {"url": "test"}
 
 
 def test_resolve_agent_config(test_settings, monkeypatch, runner):
@@ -1358,7 +1352,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
                 f,
             )
         config, returned_api = launch.resolve_agent_config(
-            api, None, None, -1, ["diff-queue"]
+            api, None, None, -1, ["diff-queue"], None
         )
 
         assert config["registry"] == {"url": "test"}
