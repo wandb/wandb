@@ -136,9 +136,16 @@ def test_object_type():
 
 
 def test_list_type():
-    assert ListType(int).assign([]) == ListType(int, 0)
-    assert ListType(int).assign([1, 2, 3]) == ListType(int, 3)
+    assert ListType(int).assign([]) == ListType(int)
+    assert ListType(int, 0).assign([]) == ListType(int, 0)
+    assert ListType(int, 3).assign([]) == ListType(int)
+    assert ListType(int).assign([1, 2, 3]) == ListType(int)
+    assert ListType(int, 3).assign([1, 2, 3]) == ListType(int, 3)
+    assert ListType(int, 5).assign([1, 2, 3]) == ListType(int)
     assert ListType(int).assign([1, "a", 3]) == InvalidType()
+
+    assert ListType(str).assign("") == InvalidType()
+    assert ListType(str).assign({}) == InvalidType()
 
 
 def test_dict_type():

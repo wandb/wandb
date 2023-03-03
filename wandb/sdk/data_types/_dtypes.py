@@ -592,6 +592,12 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
     return UnionType([TypeRegistry.type_from_dtype(dtype), NoneType()])
 
 
+def _valid_list_py_obj(py_obj: t.Optional[t.Any]) -> bool:
+    return isinstance(py_obj, (list, tuple, set, frozenset)) or hasattr(
+        py_obj, "tolist"
+    )
+
+
 class ListType(Type):
     """Represents a list of homogenous types"""
 
@@ -612,8 +618,8 @@ class ListType(Type):
 
     @classmethod
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "ListType":
-        if py_obj is None or not hasattr(py_obj, "__iter__"):
-            raise TypeError("ListType.from_obj expects py_obj to by list-like")
+        if not _valid_list_py_obj(py_obj):
+            raise TypeError("ListType.from_obj expects py_obj to be list-like")
         else:
             if hasattr(py_obj, "tolist"):
                 py_list = py_obj.tolist()
@@ -655,16 +661,8 @@ class ListType(Type):
     def assign(
         self, py_obj: t.Optional[t.Any] = None
     ) -> t.Union["ListType", InvalidType]:
-        if hasattr(py_obj, "__iter__"):
-            new_element_type = self.params["element_type"]
-            # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
-            # error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
-            py_list = list(py_obj)  # type: ignore
-            for obj in py_list:
-                new_element_type = new_element_type.assign(obj)
-                if isinstance(new_element_type, InvalidType):
-                    return InvalidType()
-            return ListType(new_element_type, len(py_list))
+        if _valid_list_py_obj(py_obj):
+            return self.assign_type(ListType.from_obj(py_obj))
 
         return InvalidType()
 
