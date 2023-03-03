@@ -45,12 +45,14 @@ def test_max_scheduler_setup(mocker, num_schedulers):
     }
     agent = LaunchAgent(api=mocker.api, config=mock_config)
 
-    if num_schedulers == -1:
+    if num_schedulers is None:
+        num_schedulers = 1  # default for none
+    elif num_schedulers == -1:
         num_schedulers = float("inf")
     elif type(num_schedulers) is str:
         num_schedulers = int(num_schedulers)
 
-    assert agent._max_schedulers == max(0, num_schedulers)
+    assert agent._max_schedulers == num_schedulers
 
 
 @pytest.mark.parametrize(
