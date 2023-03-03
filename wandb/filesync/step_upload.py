@@ -306,7 +306,7 @@ class StepUpload:
 
         async def run_and_notify() -> None:
             try:
-                await self._do_upload_async(event, event.save_fn_async)
+                await self._do_upload_async(event)
             finally:
                 self._event_queue.put(
                     upload_job.EventJobDone(event, exc=sys.exc_info()[1])
