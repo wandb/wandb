@@ -1,10 +1,10 @@
 from ultralytics.yolo.engine.model import YOLO
-from wandb.yolov8 import add_callbacks
+from wandb.integration.yolov8 import add_callbacks as add_wandb_callbacks
 
 
 def main():
     model = YOLO("yolov8n-cls.pt")
-    model = add_callbacks(model)
+    add_wandb_callbacks(model)
     model.train(
         data="mnist160",
         epochs=2,
