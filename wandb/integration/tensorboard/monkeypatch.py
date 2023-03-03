@@ -33,8 +33,6 @@ def patch(
             "Tensorboard already patched, remove `sync_tensorboard=True` "
             "from `wandb.init` or only call `wandb.tensorboard.patch` once."
         )
-    print(root_logdir)
-    print("patching tensorboard")
 
     # TODO: Some older versions of tensorflow don't require tensorboard to be present.
     # we may want to lift this requirement, but it's safer to have it for now
