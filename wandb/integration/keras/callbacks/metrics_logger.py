@@ -21,8 +21,10 @@ patch_tf_keras()
 
 
 class WandbMetricsLogger(callbacks.Callback):
-    """`WandbMetricsLogger` automatically logs the `logs` dictionary
-    that callback methods take as argument to wandb.
+    """Logger that sends system metrics to W&B.
+
+    `WandbMetricsLogger` automatically logs the `logs` dictionary that callback methods
+    take as argument to wandb.
 
     This callback automatically logs the following to a W&B run page:
     * system (CPU/GPU/TPU) metrics,
@@ -30,12 +32,11 @@ class WandbMetricsLogger(callbacks.Callback):
     * learning rate (both for a fixed value or a learning rate scheduler)
 
     Notes:
-    If you resume training by passing `initial_epoch` to `model.fit` and
-    you are using a learning rate scheduler, make sure to pass
-    `initial_global_step` to `WandbMetricsLogger`. The `initial_global_step`
-    is `step_size * initial_step`, where `step_size` is number of training
-    steps per epoch. `step_size` can be calculated as the product of the
-    cardinality of the training dataset and the batch size.
+    If you resume training by passing `initial_epoch` to `model.fit` and you are using a
+    learning rate scheduler, make sure to pass `initial_global_step` to
+    `WandbMetricsLogger`. The `initial_global_step` is `step_size * initial_step`, where
+    `step_size` is number of training steps per epoch. `step_size` can be calculated as
+    the product of the cardinality of the training dataset and the batch size.
 
     Arguments:
         log_freq ("epoch", "batch", or int): if "epoch", logs metrics

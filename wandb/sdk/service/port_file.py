@@ -1,5 +1,4 @@
-"""port_file: write/read file containing port info.
-"""
+"""port_file: write/read file containing port info."""
 
 import os
 import tempfile

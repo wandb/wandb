@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Helper for codecov at wandb
+"""Helper for codecov at wandb.
 
 Usage:
     ./tools/coverage-tool.py jobs
@@ -17,7 +17,7 @@ import yaml
 
 
 def find_list_of_key_locations_and_dicts(data, search_key: str, root=None):
-    """Search for a dict with key search_key and value containing search_v
+    """Search for a dict with key search_key and value containing search_v.
 
     Returns:
        # location - list of indexes representing where to find the key
@@ -122,7 +122,6 @@ def parallelism_expand(cov_list, par_dict):
 
 
 def coverage_tasks(args: argparse.Namespace):
-
     ci_fname = args.circleci_yaml
 
     with open(ci_fname) as file:
