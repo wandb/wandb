@@ -11,8 +11,8 @@ from wandb.sdk.lib import telemetry
 
 
 class WandbCallback:
-    """
-    An internal YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+    """An internal YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+
     Usage:
     ```python
     from wandb.integration.yolov8.yolov8 import WandbCallback
@@ -32,8 +32,8 @@ class WandbCallback:
         resume: Optional[str] = None,
         **kwargs,
     ):
-        """
-        A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
+        """A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
+
         Args:
             yolo: A YOLOv8 model that's inherited from `:class:ultralytics.yolo.engine.model.YOLO`
             run_name: The name of the run to be created on Weights & Biases.
@@ -51,14 +51,12 @@ class WandbCallback:
         self.kwargs = kwargs
 
     def on_pretrain_routine_start(self, trainer: BaseTrainer):
-        """
-        Starts a new wandb run to track the training process and log to Weights & Biases.
+        """Starts a new wandb run to track the training process and log to Weights & Biases.
 
         Args:
             trainer: A task trainer that's inherited from `:class:ultralytics.yolo.engine.trainer.BaseTrainer`
                     that contains the model training and optimization routine.
         """
-
         if self.run is None:
             if wandb.run is None:
                 self.run = wandb.init(
@@ -93,7 +91,6 @@ class WandbCallback:
                 tel.feature.ultralytics_yolov8 = True
 
     def on_pretrain_routine_end(self, trainer: BaseTrainer):
-        """ """
         self.run.summary.update(
             {
                 "model/parameters": get_num_params(trainer.model),
@@ -102,16 +99,12 @@ class WandbCallback:
         )
 
     def on_train_epoch_start(self, trainer: BaseTrainer):
-        """
-        On train epoch start we only log epoch number to the Weights & Biases run
-        """
+        """On train epoch start we only log epoch number to the Weights & Biases run."""
         # We log the epoch number here to commit the previous step,
         self.run.log({"epoch": trainer.epoch + 1})
 
     def on_train_epoch_end(self, trainer: BaseTrainer):
-        """
-        On train epoch end we log all the metrics to the Weights & Biases run.
-        """
+        """On train epoch end we log all the metrics to the Weights & Biases run."""
         self.run.log(
             {
                 **trainer.metrics,
@@ -130,9 +123,7 @@ class WandbCallback:
             )
 
     def on_fit_epoch_end(self, trainer: BaseTrainer):
-        """
-        On fit epoch end we log all the best metrics and model detail to Weights & Biases run summary.
-        """
+        """On fit epoch end we log all the best metrics and model detail to Weights & Biases run summary."""
         if trainer.epoch == 0:
             speeds = [
                 trainer.validator.speed.get(
@@ -156,9 +147,7 @@ class WandbCallback:
             )
 
     def on_train_end(self, trainer: BaseTrainer):
-        """
-        On train end we log all the media, including plots, images and best model artifact to Weights & Biases.
-        """
+        """On train end we log all the media, including plots, images and best model artifact to Weights & Biases."""
         if not isinstance(trainer, ClassificationTrainer):
             self.run.log(
                 {
@@ -182,9 +171,7 @@ class WandbCallback:
             )
 
     def on_model_save(self, trainer: BaseTrainer):
-        """
-        On model save we log the model as an artifact to Weights & Biases.
-        """
+        """On model save we log the model as an artifact to Weights & Biases."""
         self.run.log_artifact(
             str(trainer.last),
             type="model",
@@ -193,9 +180,7 @@ class WandbCallback:
         )
 
     def teardown(self, _trainer: BaseTrainer):
-        """
-        On teardown we finish the Weights & Biases run and set it to None.
-        """
+        """On teardown we finish the Weights & Biases run and set it to None."""
         self.run.finish()
         self.run = None
 
@@ -203,9 +188,7 @@ class WandbCallback:
     def callbacks(
         self,
     ):
-        """
-        Contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging.
-        """
+        """Contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging."""
         return {
             "on_pretrain_routine_start": self.on_pretrain_routine_start,
             "on_pretrain_routine_end": self.on_pretrain_routine_end,
@@ -226,8 +209,8 @@ def add_callbacks(
     resume: Optional[str] = None,
     **kwargs,
 ) -> YOLO:
-    """
-    A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+    """A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+
     Args:
         yolo: A YOLO inherited from `:class:ultralytics.yolo.engine.model.YOLO` to add the callbacks to.
         run_name: The name of the Weights & Biases run.

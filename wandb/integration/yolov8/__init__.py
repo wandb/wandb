@@ -1,4 +1,4 @@
-"""Tools for integrating `wandb` with [`ultralytics YOLOv8`](https://docs.ultralytics.com/)
+"""Tools for integrating `wandb` with [`ultralytics YOLOv8`](https://docs.ultralytics.com/).
 
 YOLOv8 is a computer vision framework for training and deploying YOLOv8 models.
 """
