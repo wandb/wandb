@@ -600,6 +600,19 @@ def _valid_list_py_obj(py_obj: t.Optional[t.Any]) -> bool:
     )
 
 
+def _assign_list_length(
+    to_type_len: t.Optional[int], from_type_len: t.Optional[int]
+) -> t.Optional[int]:
+    if to_type_len is None:
+        return from_type_len
+    elif from_type_len is None:
+        return to_type_len
+    elif to_type_len == from_type_len:
+        return to_type_len
+    else:
+        return None
+
+
 class ListType(Type):
     """Represents a list of homogenous types"""
 
@@ -647,27 +660,15 @@ class ListType(Type):
 
     def assign_type(self, wb_type: "Type") -> t.Union["ListType", InvalidType]:
         if isinstance(wb_type, ListType):
-            if wb_type.params["length"] == 0 and isinstance(
-                wb_type.params["element_type"], UnknownType
-            ):
-                assigned_type = self.params["element_type"]
-            else:
-                assigned_type = self.params["element_type"].assign_type(
-                    wb_type.params["element_type"]
-                )
+            assigned_type = self.params["element_type"].assign_type(
+                wb_type.params["element_type"]
+            )
             if not isinstance(assigned_type, InvalidType):
-                if self.params["length"] == wb_type.params["length"]:
-                    length = self.params["length"]
-                elif self.params["length"] is None:
-                    length = wb_type.params["length"]
-                elif wb_type.params["length"] is None:
-                    length = self.params["length"]
-                else:
-                    length = None
-
                 return ListType(
                     assigned_type,
-                    length,
+                    _assign_list_length(
+                        self.params["length"], wb_type.params["length"]
+                    ),
                 )
 
         return InvalidType()
@@ -676,7 +677,18 @@ class ListType(Type):
         self, py_obj: t.Optional[t.Any] = None
     ) -> t.Union["ListType", InvalidType]:
         if _valid_list_py_obj(py_obj):
-            return self.assign_type(ListType.from_obj(py_obj))
+            new_element_type = self.params["element_type"]
+            # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
+            # error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
+            py_list = list(py_obj)  # type: ignore
+            for obj in py_list:
+                new_element_type = new_element_type.assign(obj)
+                if isinstance(new_element_type, InvalidType):
+                    return InvalidType()
+            return ListType(
+                new_element_type,
+                _assign_list_length(self.params["length"], len(py_list)),
+            )
 
         return InvalidType()
 
