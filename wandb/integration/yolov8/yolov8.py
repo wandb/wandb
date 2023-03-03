@@ -28,7 +28,7 @@ class WandbCallback:
         run_name: Optional[str] = None,
         project: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        resume: Optional[str] = "allow",
+        resume: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -222,7 +222,7 @@ def add_callbacks(
     run_name: Optional[str] = None,
     project: Optional[str] = None,
     tags: Optional[List[str]] = None,
-    resume: Optional[str] = "allow",
+    resume: Optional[str] = None,
     **kwargs,
 ) -> YOLO:
     """
