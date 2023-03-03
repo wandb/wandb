@@ -54,5 +54,5 @@ assert:
         - 1.0
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
-        - 46  # yolov8 used
+        - 47  # yolov8 used
     - :wandb:runs[0][exitcode]: 0
