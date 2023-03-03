@@ -29,8 +29,8 @@ from typing import (
 import click
 import requests
 import yaml
-from wandb_gql import Client, gql  # type: ignore
-from wandb_gql.client import RetryError  # type: ignore
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
 
 import wandb
 from wandb import __version__, env, util

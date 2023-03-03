@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import requests
 from wandb_gql.transport.http import HTTPTransport
@@ -14,7 +14,7 @@ class GraphQLSession(HTTPTransport):
         auth: Optional[Union[Tuple[str, str], Callable]] = None,
         use_json: bool = False,
         timeout: Optional[Union[int, float]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Setup a session for sending GraphQL queries and mutations.
 
