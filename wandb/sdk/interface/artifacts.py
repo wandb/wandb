@@ -9,18 +9,22 @@ from typing import (
     TYPE_CHECKING,
     ContextManager,
     Dict,
+    Generator,
     List,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
+    Type,
     Union,
 )
 
 import wandb
 from wandb import env, util
 from wandb.data_types import WBValue
-from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
+from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
+from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5, b64_to_hex_id
+from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
@@ -45,37 +49,34 @@ class ArtifactManifest:
     entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
-    # TODO: we don't need artifact here.
-    def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
+    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
         version = manifest_json["version"]
         for sub in cls.__subclasses__():
             if sub.version() == version:
-                return sub.from_manifest_json(artifact, manifest_json)
+                return sub.from_manifest_json(manifest_json)
         raise ValueError("Invalid manifest version.")
 
     @classmethod
-    def version(cls):
-        pass
+    def version(cls) -> int:
+        raise NotImplementedError
 
     def __init__(
         self,
-        artifact,
         storage_policy: "wandb_artifacts.WandbStoragePolicy",
-        entries=None,
+        entries: Optional[Mapping[str, "ArtifactManifestEntry"]] = None,
     ) -> None:
-        self.artifact = artifact
         self.storage_policy = storage_policy
-        self.entries = entries or {}
+        self.entries = dict(entries) if entries else {}
 
-    def to_manifest_json(self):
+    def to_manifest_json(self) -> Dict:
         raise NotImplementedError
 
-    def digest(self):
+    def digest(self) -> HexMD5:
         raise NotImplementedError
 
-    def add_entry(self, entry):
+    def add_entry(self, entry: "ArtifactManifestEntry") -> None:
         if (
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
@@ -86,7 +87,7 @@ class ArtifactManifest:
     def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
         return self.entries.get(path)
 
-    def get_entries_in_directory(self, directory):
+    def get_entries_in_directory(self, directory: str) -> List["ArtifactManifestEntry"]:
         return [
             self.entries[entry_key]
             for entry_key in self.entries
@@ -98,33 +99,30 @@ class ArtifactManifest:
 
 @dataclass
 class ArtifactManifestEntry:
-    path: util.LogicalFilePathStr
-    digest: Union[B64MD5, util.URIStr, util.FilePathStr, ETag]
-    ref: Optional[Union[util.FilePathStr, util.URIStr]] = None
+    path: LogicalFilePathStr
+    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
+    ref: Optional[Union[FilePathStr, URIStr]] = None
     birth_artifact_id: Optional[str] = None
     size: Optional[int] = None
     extra: Dict = field(default_factory=dict)
     local_path: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.path = util.to_forward_slash_path(self.path)
-        if self.extra is None:
-            self.extra = {}
+        self.extra = self.extra or {}
         if self.local_path and self.size is None:
             raise ValueError("size required when local_path specified")
 
     def parent_artifact(self) -> "Artifact":
-        """
-        Get the artifact to which this artifact entry belongs.
+        """Get the artifact to which this artifact entry belongs.
 
         Returns:
             (Artifact): The parent artifact
         """
         raise NotImplementedError
 
-    def download(self, root: Optional[str] = None) -> util.FilePathStr:
-        """
-        Downloads this artifact entry to the specified root path.
+    def download(self, root: Optional[str] = None) -> FilePathStr:
+        """Download this artifact entry to the specified root path.
 
         Arguments:
             root: (str, optional) The root path in which to download this
@@ -137,10 +135,11 @@ class ArtifactManifestEntry:
         raise NotImplementedError
 
     def ref_target(self) -> str:
-        """
-        Gets the reference URL that this artifact entry targets.
+        """Get the reference URL that is targeted by this artifact entry.
+
         Returns:
             (str): The reference URL of this artifact entry.
+
         Raises:
             ValueError: If this artifact entry was not a reference.
         """
@@ -149,9 +148,9 @@ class ArtifactManifestEntry:
         return self.ref
 
     def ref_url(self) -> str:
-        """
-        Gets a URL to this artifact entry such that it can be referenced
-        by another artifact.
+        """Get a URL to this artifact entry.
+
+        These URLs can be referenced by another artifact.
 
         Returns:
             (str): A URL representing this artifact entry.
@@ -166,186 +165,177 @@ class ArtifactManifestEntry:
         raise NotImplementedError
 
 
+class ArtifactNotLoggedError(Exception):
+    """Raised for Artifact methods or attributes that require the logged artifact."""
+
+    def __init__(
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
+    ):
+        desc = artifact.__class__.__name__ if artifact else "Artifact"
+        desc += f".{attr}" if attr else ""
+        super().__init__(
+            f"'{desc}' used prior to logging artifact or while in offline mode."
+            "Call wait() before accessing logged artifact properties."
+        )
+        # Follow the same pattern as AttributeError.
+        self.obj = artifact
+        self.name = attr
+
+
 class Artifact:
     @property
     def id(self) -> Optional[str]:
-        """
-        Returns:
-            (str): The artifact's ID
-        """
+        """The artifact's ID."""
         raise NotImplementedError
 
     @property
     def version(self) -> str:
-        """
-        Returns:
-            (str): The version of this artifact. For example, if this
-                is the first version of an artifact, its `version` will
-                be 'v0'.
+        """The version of this artifact.
+
+        For example, if this is the first version of an artifact, its `version` will be
+        'v0'.
         """
         raise NotImplementedError
 
     @property
     def source_version(self) -> Optional[str]:
-        """
-        Returns:
-            (str) The artifact's version index under its parent artifact collection. This will return
-            a string with the format "v{number}".
+        """The artifact's version index under its parent artifact collection.
+
+        A string with the format "v{number}".
         """
         raise NotImplementedError
 
     @property
     def name(self) -> str:
-        """
-        Returns:
-            (str): The artifact's name
-        """
+        """The artifact's name."""
         raise NotImplementedError
 
     @property
     def type(self) -> str:
-        """
-        Returns:
-            (str): The artifact's type
-        """
+        """The artifact's type."""
         raise NotImplementedError
 
     @property
     def entity(self) -> str:
-        """
-        Returns:
-            (str): The name of the entity this artifact belongs to.
-        """
+        """The name of the entity this artifact belongs to."""
         raise NotImplementedError
 
     @property
     def project(self) -> str:
-        """
-        Returns:
-            (str): The name of the project this artifact belongs to.
-        """
+        """The name of the project this artifact belongs to."""
         raise NotImplementedError
 
     @property
     def manifest(self) -> ArtifactManifest:
-        """
-        Returns:
-            (ArtifactManifest): The artifact's manifest, listing all of its contents.
-                You cannot add more files to an artifact once you've retrieved its
-                manifest.
+        """The artifact's manifest.
+
+        The manifest lists all of its contents, and can't be changed once the artifact
+        has been logged.
         """
         raise NotImplementedError
 
     @property
     def digest(self) -> str:
-        """
-        Returns:
-            (str): The artifact's logical digest, a checksum of its contents. If
-                an artifact has the same digest as the current `latest` version,
-                then `log_artifact` is a no-op.
+        """The logical digest of the artifact.
+
+        The digest is the checksum of the artifact's contents. If an artifact has the
+        same digest as the current `latest` version, then `log_artifact` is a no-op.
         """
         raise NotImplementedError
 
     @property
     def state(self) -> str:
-        """
-        Returns:
-            (str): The state of the artifact, which can be one of "PENDING",
-                "COMMITTED", or "DELETED".
-        """
+        """The status of the artifact. One of: "PENDING", "COMMITTED", or "DELETED"."""
         raise NotImplementedError
 
     @property
     def size(self) -> int:
-        """
+        """The total size of the artifact in bytes.
+
         Returns:
-            (int): The size in bytes of the artifact. Includes any references
-                tracked by this artifact.
+            (int): The size in bytes of the artifact. Includes any references tracked by
+                this artifact.
         """
         raise NotImplementedError
 
     @property
     def commit_hash(self) -> str:
-        """
+        """The hash returned when this artifact was committed.
+
         Returns:
-            (str): The artifact's commit hash which is used in http URLs
+            (str): The artifact's commit hash which is used in http URLs.
         """
         raise NotImplementedError
 
     @property
     def description(self) -> Optional[str]:
-        """
+        """The artifact description.
+
         Returns:
-            (str): Free text that offers a description of the artifact. The
-                description is markdown rendered in the UI, so this is a good place
-                to put links, etc.
+            (str): Free text that offers a user-set description of the artifact.
         """
         raise NotImplementedError
 
     @description.setter
     def description(self, desc: Optional[str]) -> None:
-        """
+        """The artifact description.
+
+        The description is markdown rendered in the UI, so this is a good place to put
+        links, etc.
+
         Arguments:
-            desc: Free text that offers a description of the artifact. The
-                description is markdown rendered in the UI, so this is a good place
-                to put links, etc.
+            desc: Free text that offers a description of the artifact.
         """
         raise NotImplementedError
 
     @property
     def metadata(self) -> dict:
-        """
+        """User-defined artifact metadata.
+
         Returns:
-            (dict): Structured data associated with the artifact,
-                for example class distribution of a dataset. This will eventually be queryable
-                and plottable in the UI. There is a hard limit of 100 total keys.
+            (dict): Structured data associated with the artifact.
         """
         raise NotImplementedError
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
-        """
+        """User-defined artifact metadata.
+
+        Metadata set this way will eventually be queryable and plottable in the UI; e.g.
+        the class distribution of a dataset.
+
+        Note: There is currently a limit of 100 total keys.
+
         Arguments:
-            metadata: (dict) Structured data associated with the artifact,
-                for example class distribution of a dataset. This will eventually be queryable
-                and plottable in the UI. There is a hard limit of 100 total keys.
+            metadata: (dict) Structured data associated with the artifact.
         """
         raise NotImplementedError
 
     @property
     def aliases(self) -> List[str]:
-        """
-        Returns:
-            (list): A list of the aliases associated with this artifact. The list is
-                mutable and calling `save()` will persist all alias changes.
+        """The aliases associated with this artifact.
+
+        The list is mutable and calling `save()` will persist all alias changes.
         """
         raise NotImplementedError
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
-        """
-        Arguments:
-            aliases: (list) The list of aliases associated with this artifact.
-        """
+        """The aliases associated with this artifact."""
         raise NotImplementedError
 
     def used_by(self) -> List["wandb.apis.public.Run"]:
-        """
-        Returns:
-            (list): A list of the runs that have used this artifact.
-        """
+        """Get a list of the runs that have used this artifact."""
         raise NotImplementedError
 
     def logged_by(self) -> "wandb.apis.public.Run":
-        """
-        Returns:
-            (Run): The run that first logged this artifact.
-        """
+        """Get the run that first logged this artifact."""
         raise NotImplementedError
 
-    def new_file(self, name: str, mode: str = "w", encoding: Optional[str] = None):
-        """
-        Open a new temporary file that will be automatically added to the artifact.
+    def new_file(
+        self, name: str, mode: str = "w", encoding: Optional[str] = None
+    ) -> ContextManager[IO]:
+        """Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
             name: (str) The name of the new file being added to the artifact.
@@ -371,26 +361,27 @@ class Artifact:
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
-    ):
-        """
-        Adds a local file to the artifact.
+    ) -> ArtifactManifestEntry:
+        """Add a local file to the artifact.
 
         Arguments:
             local_path: (str) The path to the file being added.
-            name: (str, optional) The path within the artifact to use for the file being added. Defaults
-                to the basename of the file.
-            is_tmp: (bool, optional) If true, then the file is renamed deterministically to avoid collisions.
-                (default: False)
+            name: (str, optional) The path within the artifact to use for the file being
+                added. Defaults to the basename of the file.
+            is_tmp: (bool, optional) If true, then the file is renamed deterministically
+                to avoid collisions. (default: False)
 
         Examples:
-            Adding a file without an explicit name:
+            Add a file without an explicit name:
             ```
-            artifact.add_file('path/to/file.txt') # Added as `file.txt'
+            # Add as `file.txt'
+            artifact.add_file('path/to/file.txt')
             ```
 
-            Adding a file with an explicit name:
+            Add a file with an explicit name:
             ```
-            artifact.add_file('path/to/file.txt', name='new/path/file.txt') # Added as 'new/path/file.txt'
+            # Add as 'new/path/file.txt'
+            artifact.add_file('path/to/file.txt', name='new/path/file.txt')
             ```
 
         Raises:
@@ -403,23 +394,24 @@ class Artifact:
         raise NotImplementedError
 
     def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
-        """
-        Adds a local directory to the artifact.
+        """Add a local directory to the artifact.
 
         Arguments:
             local_path: (str) The path to the directory being added.
-            name: (str, optional) The path within the artifact to use for the directory being added. Defaults
-                to files being added under the root of the artifact.
+            name: (str, optional) The path within the artifact to use for the directory
+                being added. Defaults to the root of the artifact.
 
         Examples:
-            Adding a directory without an explicit name:
+            Add a directory without an explicit name:
             ```
-            artifact.add_dir('my_dir/') # All files in `my_dir/` are added at the root of the artifact.
+            # All files in `my_dir/` are added at the root of the artifact.
+            artifact.add_dir('my_dir/')
             ```
 
-            Adding a directory without an explicit name:
+            Add a directory and name it explicitly:
             ```
-            artifact.add_dir('my_dir/', name='destination') # All files in `my_dir/` are added under `destination/`.
+            # All files in `my_dir/` are added under `destination/`.
+            artifact.add_dir('my_dir/', name='destination')
             ```
 
         Raises:
@@ -436,37 +428,43 @@ class Artifact:
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ):
-        """
-        Adds a reference denoted by a URI to the artifact. Unlike adding files or directories,
-        references are NOT uploaded to W&B. However, artifact methods such as `download()` can
-        be used regardless of whether the artifact contains references or uploaded files.
+    ) -> Sequence[ArtifactManifestEntry]:
+        """Add a reference denoted by a URI to the artifact.
 
-        By default, W&B offers special
-        handling for the following schemes:
+        Unlike adding files or directories, references are NOT uploaded to W&B. However,
+        artifact methods such as `download()` can be used regardless of whether the
+        artifact contains references or uploaded files.
 
-        - http(s): The size and digest of the file will be inferred by the `Content-Length` and
-            the `ETag` response headers returned by the server.
-        - s3: The checksum and size will be pulled from the object metadata. If bucket versioning
-            is enabled, then the version ID is also tracked.
-        - gs: The checksum and size will be pulled from the object metadata. If bucket versioning
-            is enabled, then the version ID is also tracked.
-        - file: The checksum and size will be pulled from the file system. This scheme is useful if
-            you have an NFS share or other externally mounted volume containing files you wish to track
-            but not necessarily upload.
+        By default, W&B offers special handling for the following schemes:
 
-        For any other scheme, the digest is just a hash of the URI and the size is left blank.
+        - http(s): The size and digest of the file will be inferred by the
+          `Content-Length` and the `ETag` response headers returned by the server.
+        - s3: The checksum and size will be pulled from the object metadata. If bucket
+          versioning is enabled, then the version ID is also tracked.
+        - gs: The checksum and size will be pulled from the object metadata. If bucket
+          versioning is enabled, then the version ID is also tracked.
+        - file: The checksum and size will be pulled from the file system. This scheme
+          is useful if you have an NFS share or other externally mounted volume
+          containing files you wish to track but not necessarily upload.
+
+        For any other scheme, the digest is just a hash of the URI and the size is left
+        blank.
 
         Arguments:
-            uri: (str) The URI path of the reference to add. Can be an object returned from
+            uri: (str) The URI path of the reference to add. Can be an object returned
+            from
                 Artifact.get_path to store a reference to another artifact's entry.
-            name: (str) The path within the artifact to place the contents of this reference
-            checksum: (bool, optional) Whether or not to checksum the resource(s) located at the
-                reference URI. Checksumming is strongly recommended as it enables automatic integrity
-                validation, however it can be disabled to speed up artifact creation. (default: True)
-            max_objects: (int, optional) The maximum number of objects to consider when adding a
-                reference that points to directory or bucket store prefix. For S3 and GCS, this limit
-                is 10,000 by default but is uncapped for other URI schemes. (default: None)
+            name: (str) The path within the artifact to place the contents of this
+            reference checksum: (bool, optional) Whether or not to checksum the
+            resource(s) located at the
+                reference URI. Checksumming is strongly recommended as it enables
+                automatic integrity validation, however it can be disabled to speed up
+                artifact creation. (default: True)
+            max_objects: (int, optional) The maximum number of objects to consider when
+            adding a
+                reference that points to directory or bucket store prefix. For S3 and
+                GCS, this limit is 10,000 by default but is uncapped for other URI
+                schemes. (default: None)
 
         Raises:
             Exception: If problem.
@@ -475,28 +473,28 @@ class Artifact:
             List[ArtifactManifestEntry]: The added manifest entries.
 
         Examples:
-            Adding an HTTP link:
-            ```
-            # Adds `file.txt` to the root of the artifact as a reference
-            artifact.add_reference('http://myserver.com/file.txt')
-            ```
+        Add an HTTP link:
+        ```python
+        # Adds `file.txt` to the root of the artifact as a reference.
+        artifact.add_reference("http://myserver.com/file.txt")
+        ```
 
-            Adding an S3 prefix without an explicit name:
-            ```
-            # All objects under `prefix/` will be added at the root of the artifact.
-            artifact.add_reference('s3://mybucket/prefix')
-            ```
+        Add an S3 prefix without an explicit name:
+        ```python
+        # All objects under `prefix/` will be added at the root of the artifact.
+        artifact.add_reference("s3://mybucket/prefix")
+        ```
 
-            Adding a GCS prefix with an explicit name:
-            ```
-            # All objects under `prefix/` will be added under `path/` at the top of the artifact.
-            artifact.add_reference('gs://mybucket/prefix', name='path')
-            ```
+        Add a GCS prefix with an explicit name:
+        ```python
+        # All objects under `prefix/` will be added under `path/` at the artifact root.
+        artifact.add_reference("gs://mybucket/prefix", name="path")
+        ```
         """
         raise NotImplementedError
 
-    def add(self, obj: WBValue, name: str):
-        """Adds wandb.WBValue `obj` to the artifact.
+    def add(self, obj: WBValue, name: str) -> ArtifactManifestEntry:
+        """Add wandb.WBValue `obj` to the artifact.
 
         ```
         obj = artifact.get(name)
@@ -521,7 +519,7 @@ class Artifact:
             wandb.log_artifact(artifact)
             ```
 
-            Retrieving an object:
+            Retrieve an object:
             ```
             artifact = wandb.use_artifact('my_table:latest')
             table = artifact.get("my_table")
@@ -530,8 +528,7 @@ class Artifact:
         raise NotImplementedError
 
     def get_path(self, name: str) -> ArtifactManifestEntry:
-        """
-        Gets the path to the file located at the artifact relative `name`.
+        """Get the path to the file located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
         `use_artifact`, fetched using the API, or `wait()` has been called.
@@ -563,8 +560,7 @@ class Artifact:
         raise NotImplementedError
 
     def get(self, name: str) -> WBValue:
-        """
-        Gets the WBValue object located at the artifact relative `name`.
+        """Get the WBValue object located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
         `use_artifact`, fetched using the API, or `wait()` has been called.
@@ -595,9 +591,8 @@ class Artifact:
 
     def download(
         self, root: Optional[str] = None, recursive: bool = False
-    ) -> util.FilePathStr:
-        """
-        Downloads the contents of the artifact to the specified root directory.
+    ) -> FilePathStr:
+        """Download the contents of the artifact to the specified root directory.
 
         NOTE: Any existing files at `root` are left untouched. Explicitly delete
         root before calling `download` if you want the contents of `root` to exactly
@@ -614,8 +609,7 @@ class Artifact:
         raise NotImplementedError
 
     def checkout(self, root: Optional[str] = None) -> str:
-        """
-        Replaces the specified root directory with the contents of the artifact.
+        """Replace the specified root directory with the contents of the artifact.
 
         WARNING: This will DELETE all files in `root` that are not included in the
         artifact.
@@ -629,10 +623,7 @@ class Artifact:
         raise NotImplementedError
 
     def verify(self, root: Optional[str] = None) -> bool:
-        """
-        Verify that the actual contents of an artifact at a specified directory
-        `root` match the expected contents of the artifact according to its
-        manifest.
+        """Verify that the actual contents of an artifact match the manifest.
 
         All files in the directory are checksummed and the checksums are then
         cross-referenced against the artifact's manifest.
@@ -649,8 +640,7 @@ class Artifact:
         raise NotImplementedError
 
     def save(self) -> None:
-        """
-        Persists any changes made to the artifact.
+        """Persist any changes made to the artifact.
 
         Returns:
             None
@@ -658,8 +648,7 @@ class Artifact:
         raise NotImplementedError
 
     def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
-        """
-        Links this artifact to a portfolio (a promoted collection of artifacts), with aliases.
+        """Link this artifact to a portfolio (a promoted collection of artifacts), with aliases.
 
         Arguments:
             target_path: (str) The path to the portfolio. It must take the form
@@ -673,8 +662,7 @@ class Artifact:
         raise NotImplementedError
 
     def delete(self) -> None:
-        """
-        Deletes this artifact, cleaning up all files associated with it.
+        """Delete this artifact, cleaning up all files associated with it.
 
         NOTE: Deletion is permanent and CANNOT be undone.
 
@@ -684,8 +672,7 @@ class Artifact:
         raise NotImplementedError
 
     def wait(self) -> "Artifact":
-        """
-        Waits for this artifact to finish logging, if needed.
+        """Wait for this artifact to finish logging, if needed.
 
         Returns:
             Artifact
@@ -693,8 +680,7 @@ class Artifact:
         raise NotImplementedError
 
     def __getitem__(self, name: str) -> Optional[WBValue]:
-        """
-        Gets the WBValue object located at the artifact relative `name`.
+        """Get the WBValue object located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
         `use_artifact`, fetched using the API, or `wait()` has been called.
@@ -723,9 +709,8 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def __setitem__(self, name: str, item: WBValue):
-        """
-        Adds `item` to the artifact at path `name`
+    def __setitem__(self, name: str, item: WBValue) -> "ArtifactManifestEntry":
+        """Add `item` to the artifact at path `name`.
 
         Arguments:
             name: (str) The path within the artifact to add the object.
@@ -760,22 +745,22 @@ class StorageLayout:
 
 class StoragePolicy:
     @classmethod
-    def lookup_by_name(cls, name):
+    def lookup_by_name(cls, name: str) -> Optional[Type["StoragePolicy"]]:
         for sub in cls.__subclasses__():
             if sub.name() == name:
                 return sub
         return None
 
     @classmethod
-    def name(cls):
-        pass
+    def name(cls) -> str:
+        raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config):
-        pass
+    def from_config(cls, config: Dict) -> "StoragePolicy":
+        raise NotImplementedError
 
-    def config(self):
-        pass
+    def config(self) -> Dict:
+        raise NotImplementedError
 
     def load_file(
         self, artifact: Artifact, manifest_entry: ArtifactManifestEntry
@@ -793,8 +778,13 @@ class StoragePolicy:
         raise NotImplementedError
 
     def store_reference(
-        self, artifact, path, name=None, checksum=True, max_objects=None
-    ):
+        self,
+        artifact: Artifact,
+        path: Union[URIStr, FilePathStr],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ) -> Sequence[ArtifactManifestEntry]:
         raise NotImplementedError
 
     def load_reference(
@@ -808,33 +798,36 @@ class StoragePolicy:
 class StorageHandler:
     @property
     def scheme(self) -> str:
-        """
+        """The scheme this handler applies to.
+
         :return: The scheme to which this handler applies.
         :rtype: str
         """
-        pass
+        raise NotImplementedError
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[util.URIStr, util.FilePathStr]:
-        """
-        Loads the file or directory within the specified artifact given its
-        corresponding index entry.
+    ) -> Union[URIStr, FilePathStr]:
+        """Load a file or directory given the corresponding index entry.
 
         :param manifest_entry: The index entry to load
         :type manifest_entry: ArtifactManifestEntry
         :return: A path to the file represented by `index_entry`
         :rtype: str
         """
-        pass
+        raise NotImplementedError
 
     def store_path(
-        self, artifact, path, name=None, checksum=True, max_objects=None
+        self,
+        artifact: Artifact,
+        path: Union[URIStr, FilePathStr],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        """
-        Stores the file or directory at the given path within the specified artifact.
+        """Store the file or directory at the given path to the specified artifact.
 
         :param path: The path to store
         :type path: str
@@ -843,42 +836,41 @@ class StorageHandler:
         :return: A list of manifest entries to store within the artifact
         :rtype: list(ArtifactManifestEntry)
         """
-        pass
+        raise NotImplementedError
 
 
 class ArtifactsCache:
-
     _TMP_PREFIX = "tmp"
 
-    def __init__(self, cache_dir):
+    def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = cache_dir
-        filesystem.mkdir_exists_ok(self._cache_dir)
+        mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self._artifacts_by_id = {}
+        self._artifacts_by_id: Dict[str, Artifact] = {}
         self._random = random.Random()
         self._random.seed()
-        self._artifacts_by_client_id = {}
+        self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
-    ) -> Tuple[util.FilePathStr, bool, "Opener"]:
+    ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True, opener
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
-        return path, False, opener
+            return FilePathStr(path), True, opener
+        mkdir_exists_ok(os.path.dirname(path))
+        return FilePathStr(path), False, opener
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
     def check_etag_obj_path(
         self,
-        url: util.URIStr,
+        url: URIStr,
         etag: ETag,
         size: int,
-    ) -> Tuple[util.FilePathStr, bool, "Opener"]:
+    ) -> Tuple[FilePathStr, bool, "Opener"]:
         hexhash = hashlib.sha256(
             hashlib.sha256(url.encode("utf-8")).digest()
             + hashlib.sha256(etag.encode("utf-8")).digest()
@@ -886,30 +878,34 @@ class ArtifactsCache:
         path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True, opener
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
-        return path, False, opener
+            return FilePathStr(path), True, opener
+        mkdir_exists_ok(os.path.dirname(path))
+        return FilePathStr(path), False, opener
 
-    def get_artifact(self, artifact_id):
+    def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
 
-    def store_artifact(self, artifact):
+    def store_artifact(self, artifact: "Artifact") -> None:
+        if not artifact.id:
+            raise ArtifactNotLoggedError(artifact, "store_artifact")
         self._artifacts_by_id[artifact.id] = artifact
 
-    def get_client_artifact(self, client_id):
+    def get_client_artifact(
+        self, client_id: str
+    ) -> Optional["wandb_artifacts.Artifact"]:
         return self._artifacts_by_client_id.get(client_id)
 
-    def store_client_artifact(self, artifact):
+    def store_client_artifact(self, artifact: "wandb_artifacts.Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
-        bytes_reclaimed: int = 0
-        paths: Dict[os.PathLike, os.stat_result] = {}
-        total_size: int = 0
+        bytes_reclaimed = 0
+        paths = {}
+        total_size = 0
         for root, _, files in os.walk(self._cache_dir):
             for file in files:
                 try:
-                    path = os.path.join(root, file)
+                    path = str(os.path.join(root, file))
                     stat = os.stat(path)
 
                     if file.startswith(ArtifactsCache._TMP_PREFIX):
@@ -935,10 +931,9 @@ class ArtifactsCache:
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
 
-    def _cache_opener(self, path):
+    def _cache_opener(self, path: StrPath) -> "Opener":
         @contextlib.contextmanager
-        def helper(mode="w"):
-
+        def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
@@ -989,10 +984,10 @@ def get_artifacts_cache() -> ArtifactsCache:
     return _artifacts_cache
 
 
-def get_staging_dir() -> util.FilePathStr:
+def get_staging_dir() -> FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    filesystem.mkdir_exists_ok(path)
-    return os.path.abspath(os.path.expanduser(path))
+    mkdir_exists_ok(path)
+    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
 
 
 def get_new_staging_file() -> IO:

@@ -1,6 +1,4 @@
-"""
-Utilities for wandb verify
-"""
+"""Utilities for wandb verify."""
 import getpass
 import os
 import time
