@@ -645,9 +645,14 @@ class ListType(Type):
 
     def assign_type(self, wb_type: "Type") -> t.Union["ListType", InvalidType]:
         if isinstance(wb_type, ListType):
-            assigned_type = self.params["element_type"].assign_type(
-                wb_type.params["element_type"]
-            )
+            if wb_type.params["length"] == 0 and isinstance(
+                wb_type.params["element_type"], UnknownType
+            ):
+                assigned_type = self.params["element_type"]
+            else:
+                assigned_type = self.params["element_type"].assign_type(
+                    wb_type.params["element_type"]
+                )
             if not isinstance(assigned_type, InvalidType):
                 return ListType(
                     assigned_type,
