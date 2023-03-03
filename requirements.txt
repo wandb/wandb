@@ -1,5 +1,5 @@
 Click>=7.0,!=8.0.0  # click 8.0.0 is broken
-GitPython>=1.0.0
+GitPython>=1.0.0,!=3.1.29  # CVE-2022-24439
 requests>=2.0.0,<3
 psutil>=5.0.0
 sentry-sdk>=1.0.0
