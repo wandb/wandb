@@ -58,7 +58,7 @@ from wandb.util import (
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
-    sentry_set_scope,
+    sentry,
     to_forward_slash_path,
 )
 from wandb.viz import CustomChart, Visualize, custom_chart
@@ -602,8 +602,8 @@ class Run:
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
-        sentry_set_scope(
-            settings_dict=self._settings,
+        sentry.set_scope(
+            settings=self._settings,
             process_context="user",
         )
 
@@ -1442,9 +1442,9 @@ class Run:
         self._update_settings(self._settings)
 
         # TODO: It feels weird to call this twice..
-        sentry_set_scope(
+        sentry.set_scope(
             process_context="user",
-            settings_dict=self._settings,
+            settings=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:

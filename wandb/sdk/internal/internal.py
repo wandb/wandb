@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, List, Optional
 import psutil
 
 import wandb
-from wandb.util import sentry_exc, sentry_set_scope
+from wandb.util import sentry
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog
@@ -69,7 +69,7 @@ def wandb_internal(
     started = time.time()
 
     # any sentry events in the internal process will be tagged as such
-    sentry_set_scope(process_context="internal")
+    sentry.set_scope(process_context="internal")
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register
@@ -175,7 +175,7 @@ def wandb_internal(
             logger.error(f"Thread {thread.name}:", exc_info=exc_info)
             print(f"Thread {thread.name}:", file=sys.stderr)
             traceback.print_exception(*exc_info)
-            sentry_exc(exc_info, delay=True)
+            sentry.exception(exc_info, delay=True)
             wandb.termerror("Internal wandb error: file data was not synced")
             if not settings.get("_disable_service"):
                 # TODO: We can make this more graceful by returning an error to streams.py

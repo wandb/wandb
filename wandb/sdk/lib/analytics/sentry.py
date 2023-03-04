@@ -93,7 +93,7 @@ class Sentry:
             time.sleep(2)
         return None
 
-    def sentry_reraise(self, exc: Any, delay: bool = False) -> None:
+    def reraise(self, exc: Any, delay: bool = False) -> None:
         """Re-raise an exception after logging it to Sentry.
 
         Use this for top-level exceptions when you want the user to see the traceback.
@@ -113,6 +113,9 @@ class Sentry:
         session = scope._session
 
         if session is None:
+            # wandb.termlog("IMMA START A SESSION")
+            # import threading
+            # wandb.termlog(f"{threading.main_thread().name}  {threading.current_thread().name}")
             self.hub.start_session()
 
     @_noop_if_disabled
