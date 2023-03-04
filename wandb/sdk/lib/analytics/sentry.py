@@ -9,7 +9,7 @@ from types import TracebackType
 from typing import Any, Callable, Optional, Tuple, Type, Union
 from urllib.parse import quote
 
-import sentry_sdk
+import sentry_sdk  # type: ignore
 
 import wandb
 import wandb.env
