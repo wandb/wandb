@@ -50,6 +50,7 @@ def resolve_agent_config(  # noqa: C901
         "entity": api.default_entity,
         "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
+        "max_schedulers": 1,
         "queues": [],
         "api_key": api.api_key,
         "base_url": api.settings("base_url"),

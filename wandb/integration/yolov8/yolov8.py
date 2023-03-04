@@ -1,3 +1,4 @@
+from typing import Any, Callable, Dict, List, Optional
 import pathlib
 from functools import partial
 from typing import List, Optional
@@ -130,8 +131,8 @@ def plot_detection_predictions(logger, validator, batch, preds, ni):
 
 
 class WandbCallback:
-    """
-    An internal YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+    """An internal YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+
     Usage:
     ```python
     from wandb.integration.yolov8.yolov8 import WandbCallback
@@ -149,70 +150,65 @@ class WandbCallback:
         project: Optional[str] = None,
         tags: Optional[List[str]] = None,
         resume: Optional[str] = None,
-        **kwargs,
-    ):
-        """
-        A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
+        **kwargs: Optional[Any],
+    ) -> None:
+        """A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
+
         Args:
             yolo: A YOLOv8 model that's inherited from `:class:ultralytics.yolo.engine.model.YOLO`
-            run_name: The name of the run to be created on Weights & Biases.
-            project: The name of the project to be created on Weights & Biases.
-            tags: A list of tags to be added to the run on Weights & Biases.
-            resume: Whether to resume a previous run on Weights & Biases.
+            run_name, str: The name of the Weights & Biases run, defaults to an auto generated run_name if `trainer.args.name` is not defined.
+            project, str: The name of the Weights & Biases project, defaults to `"YOLOv8"` if `trainer.args.project` is not defined.
+            tags, List[str]: A list of tags to be added to the Weights & Biases run, defaults to `["YOLOv8"]`.
+            resume, str: Whether to resume a previous run on Weights & Biases, defaults to `None`.
             **kwargs: Additional arguments to be passed to `wandb.init()`.
         """
         self.yolo = yolo
-        self.run = None
         self.run_name = run_name
         self.project = project
         self.tags = tags
         self.resume = resume
         self.kwargs = kwargs
 
-    def on_pretrain_routine_start(self, trainer: BaseTrainer):
-        """
-        Starts a new wandb run to track the training process and log to Weights & Biases.
+    def on_pretrain_routine_start(self, trainer: BaseTrainer) -> None:
+        """Starts a new wandb run to track the training process and log to Weights & Biases.
 
         Args:
             trainer: A task trainer that's inherited from `:class:ultralytics.yolo.engine.trainer.BaseTrainer`
                     that contains the model training and optimization routine.
         """
-
-        if self.run is None:
-            if wandb.run is None:
-                self.run = wandb.init(
-                    name=self.run_name if self.run_name else trainer.args.name,
-                    project=self.project
-                    if self.project
-                    else trainer.args.project or "YOLOv8",
-                    tags=self.tags if self.tags else ["YOLOv8"],
-                    config=vars(trainer.args),
-                    resume=self.resume if self.resume else "allow",
-                    **self.kwargs,
-                )
-            else:
-                self.run = wandb.run
-            self.run.define_metric("epoch", hidden=True)
-            self.run.define_metric(
-                "train/*", step_metric="epoch", step_sync=True, summary="min"
+        if wandb.run is None:
+            self.run = wandb.init(
+                name=self.run_name if self.run_name else trainer.args.name,
+                project=self.project
+                if self.project
+                else trainer.args.project or "YOLOv8",
+                tags=self.tags if self.tags else ["YOLOv8"],
+                config=vars(trainer.args),
+                resume=self.resume if self.resume else None,
+                **self.kwargs,
             )
+        else:
+            self.run = wandb.run
+        self.run.define_metric("epoch", hidden=True)
+        self.run.define_metric(
+            "train/*", step_metric="epoch", step_sync=True, summary="min"
+        )
 
-            self.run.define_metric(
-                "val/*", step_metric="epoch", step_sync=True, summary="min"
-            )
+        self.run.define_metric(
+            "val/*", step_metric="epoch", step_sync=True, summary="min"
+        )
 
-            self.run.define_metric(
-                "metrics/*", step_metric="epoch", step_sync=True, summary="max"
-            )
-            self.run.define_metric(
-                "lr/*", step_metric="epoch", step_sync=True, summary="last"
-            )
+        self.run.define_metric(
+            "metrics/*", step_metric="epoch", step_sync=True, summary="max"
+        )
+        self.run.define_metric(
+            "lr/*", step_metric="epoch", step_sync=True, summary="last"
+        )
 
-            with telemetry.context(run=wandb.run) as tel:
-                tel.feature.ultralytics_yolov8 = True
+        with telemetry.context(run=wandb.run) as tel:
+            tel.feature.ultralytics_yolov8 = True
 
-    def on_pretrain_routine_end(self, trainer: BaseTrainer):
-        """ """
+    def on_pretrain_routine_end(self, trainer: BaseTrainer) -> None:
         self.run.summary.update(
             {
                 "model/parameters": get_num_params(trainer.model),
@@ -220,17 +216,13 @@ class WandbCallback:
             }
         )
 
-    def on_train_epoch_start(self, trainer: BaseTrainer):
-        """
-        On train epoch start we only log epoch number to the Weights & Biases run
-        """
+    def on_train_epoch_start(self, trainer: BaseTrainer) -> None:
+        """On train epoch start we only log epoch number to the Weights & Biases run."""
         # We log the epoch number here to commit the previous step,
         self.run.log({"epoch": trainer.epoch + 1})
 
-    def on_train_epoch_end(self, trainer: BaseTrainer):
-        """
-        On train epoch end we log all the metrics to the Weights & Biases run.
-        """
+    def on_train_epoch_end(self, trainer: BaseTrainer) -> None:
+        """On train epoch end we log all the metrics to the Weights & Biases run."""
         self.run.log(
             {
                 **trainer.metrics,
@@ -238,6 +230,7 @@ class WandbCallback:
                 **trainer.lr,
             },
         )
+        # Currently only the detection and segmentation trainers save images to the save_dir
         if not isinstance(trainer, ClassificationTrainer):
             self.run.log(
                 {
@@ -248,10 +241,8 @@ class WandbCallback:
                 }
             )
 
-    def on_fit_epoch_end(self, trainer: BaseTrainer):
-        """
-        On fit epoch end we log all the best metrics and model detail to Weights & Biases run summary.
-        """
+    def on_fit_epoch_end(self, trainer: BaseTrainer) -> None:
+        """On fit epoch end we log all the best metrics and model detail to Weights & Biases run summary."""
         if trainer.epoch == 0:
             speeds = [
                 trainer.validator.speed.get(
@@ -274,10 +265,9 @@ class WandbCallback:
                 }
             )
 
-    def on_train_end(self, trainer: BaseTrainer):
-        """
-        On train end we log all the media, including plots, images and best model artifact to Weights & Biases.
-        """
+    def on_train_end(self, trainer: BaseTrainer) -> None:
+        """On train end we log all the media, including plots, images and best model artifact to Weights & Biases."""
+        # Currently only the detection and segmentation trainers save images to the save_dir
         if not isinstance(trainer, ClassificationTrainer):
             self.run.log(
                 {
@@ -300,10 +290,8 @@ class WandbCallback:
                 aliases=["best", f"epoch_{trainer.epoch + 1}"],
             )
 
-    def on_model_save(self, trainer: BaseTrainer):
-        """
-        On model save we log the model as an artifact to Weights & Biases.
-        """
+    def on_model_save(self, trainer: BaseTrainer) -> None:
+        """On model save we log the model as an artifact to Weights & Biases."""
         self.run.log_artifact(
             str(trainer.last),
             type="model",
@@ -311,10 +299,8 @@ class WandbCallback:
             aliases=["last", f"epoch_{trainer.epoch + 1}"],
         )
 
-    def teardown(self, _trainer: BaseTrainer):
-        """
-        On teardown we finish the Weights & Biases run and set it to None.
-        """
+    def teardown(self, _trainer: BaseTrainer) -> None:
+        """On teardown, we finish the Weights & Biases run and set it to None."""
         self.run.finish()
         self.run = None
 
@@ -328,10 +314,8 @@ class WandbCallback:
     @property
     def callbacks(
         self,
-    ):
-        """
-        Contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging.
-        """
+    ) -> Dict[str, Callable]:
+        """Property contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging."""
         return {
             "on_pretrain_routine_start": self.on_pretrain_routine_start,
             "on_pretrain_routine_end": self.on_pretrain_routine_end,
@@ -351,17 +335,17 @@ def add_callbacks(
     project: Optional[str] = None,
     tags: Optional[List[str]] = None,
     resume: Optional[str] = None,
-    **kwargs,
+    **kwargs: Optional[Any],
 ) -> YOLO:
-    """
-    A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+    """A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
+
     Args:
-        yolo: A YOLO inherited from `:class:ultralytics.yolo.engine.model.YOLO` to add the callbacks to.
-        run_name: The name of the Weights & Biases run.
-        project: The name of the Weights & Biases project.
-        tags: A list of tags to add to the Weights & Biases run.
-        resume: Whether to resume the Weights & Biases run if it exists.
-        **kwargs: Additional arguments to pass to the `wandb.init()` method.
+        yolo: A YOLOv8 model that's inherited from `:class:ultralytics.yolo.engine.model.YOLO`
+        run_name, str: The name of the Weights & Biases run, defaults to an auto generated name if `trainer.args.name` is not defined.
+        project, str: The name of the Weights & Biases project, defaults to `"YOLOv8"` if `trainer.args.project` is not defined.
+        tags, List[str]: A list of tags to be added to the Weights & Biases run, defaults to `["YOLOv8"]`.
+        resume, str: Whether to resume a previous run on Weights & Biases, defaults to `None`.
+        **kwargs: Additional arguments to be passed to `wandb.init()`.
 
     Usage:
     ```python

@@ -41,6 +41,7 @@ from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.artifacts import (
+    ArtifactFinalizedError,
     ArtifactManifest,
     ArtifactManifestEntry,
     ArtifactNotLoggedError,
@@ -138,9 +139,6 @@ class Artifact(ArtifactInterface):
         artifact.add_dir('mnist/')
         wandb.log_artifact(artifact)
         ```
-
-    Raises:
-        Exception: if problem.
 
     Returns:
         An `Artifact` object.
@@ -710,7 +708,7 @@ class Artifact(ArtifactInterface):
 
     def _ensure_can_add(self) -> None:
         if self._final:
-            raise ValueError("Can't add to finalized artifact.")
+            raise ArtifactFinalizedError(artifact=self)
 
     def _add_local_file(
         self, name: str, path: str, digest: Optional[B64MD5] = None
