@@ -1130,9 +1130,6 @@ def init(
     wandb.init(config=config)
     ```
 
-    Raises:
-        Exception: if problem.
-
     Returns:
         A `Run` object.
     """

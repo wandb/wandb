@@ -559,7 +559,11 @@ If you update one of those files, you need to:
 
 <!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
 
-You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
+You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing).
+The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found
+[here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py).
+Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`),
+can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
 
 #### Example usage:
 
@@ -735,6 +739,10 @@ The `Settings` object:
     (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
     and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
+- Note that individual settings may depend on other settings through validator methods and runtime hooks,
+  but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
+  modification order list with `tox -e generate` -- it will also automatically
+  detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated
 

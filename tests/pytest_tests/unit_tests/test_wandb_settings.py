@@ -12,7 +12,8 @@ import pytest
 import wandb
 from click.testing import CliRunner
 from wandb.errors import UsageError
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_settings
+from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
@@ -23,8 +24,6 @@ else:
     def get_type_hints(obj):
         return obj.__annotations__
 
-
-from wandb.sdk import wandb_settings
 
 Property = wandb_settings.Property
 Settings = wandb_settings.Settings
@@ -137,6 +136,65 @@ def test_property_strict_validation(capsys):
     captured = capsys.readouterr().err
     msg = "Invalid value for property api_key: 31415926"
     assert msg in captured
+
+
+def test_settings_validator_method_names():
+    # Settings validator methods should be named `_validate_<setting_name>`
+    s = wandb.Settings()
+    prefix = "_validate_"
+    symbols = set(dir(s))
+    validator_methods = tuple(m for m in symbols if m.startswith(prefix))
+
+    assert all(tuple(m.split(prefix)[1] in symbols for m in validator_methods))
+
+
+def test_settings_modification_order():
+    # Settings should be modified in the order that respects the dependencies
+    # between settings manifested in validator methods and runtime hooks.
+    s = wandb.Settings()
+    modification_order = s._Settings__modification_order
+    assert (
+        modification_order.index("base_url")
+        < modification_order.index("is_local")
+        < modification_order.index("api_key")
+    )
+
+
+def test_settings_modification_order_up_to_date():
+    # Assert that the modification order is up-to-date with the generated code
+    s = wandb.Settings()
+    props = tuple(get_type_hints(Settings).keys())
+    modification_order = s._Settings__modification_order
+
+    _settings_literal_list, _settings_topologically_sorted = _get_modification_order(s)
+
+    assert props == _settings_literal_list
+    assert modification_order == _settings_topologically_sorted
+
+
+def test_settings_detect_cycle_in_dependencies():
+    # Settings modification order generator
+    # should detect cycles in dependencies between settings
+
+    def _mock_default_props(self):
+        props = dict(
+            api_key={"validator": self._validate_api_key},
+            base_url={
+                "hook": lambda _: "https://localhost"
+                if self.is_local
+                else "https://api.wandb.ai",
+                "auto_hook": True,
+            },
+            is_local={
+                "hook": lambda _: self.base_url is not None,
+                "auto_hook": True,
+            },
+        )
+        return props
+
+    with mock.patch.object(Settings, "_default_props", _mock_default_props):
+        with pytest.raises(wandb.UsageError):
+            _get_modification_order(wandb.Settings())
 
 
 def test_property_update():
@@ -697,6 +755,23 @@ def test_preprocess_bool_settings(setting: str):
         s = Settings()
         s._apply_env_vars(environ=os.environ)
         assert s[setting] is True
+
+
+@pytest.mark.parametrize(
+    "setting, value",
+    [
+        ("_stats_open_metrics_endpoints", '{"DCGM":"http://localhvost"}'),
+        (
+            "_stats_open_metrics_filters",
+            '{"DCGM_FI_DEV_POWER_USAGE": {"pod": "dcgm-*"}}',
+        ),
+    ],
+)
+def test_preprocess_dict_settings(setting: str, value: str):
+    with mock.patch.dict(os.environ, {"WANDB_" + setting.upper(): value}):
+        s = Settings()
+        s._apply_env_vars(environ=os.environ)
+        assert s[setting] == json.loads(value)
 
 
 def test_redact():
