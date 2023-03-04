@@ -36,10 +36,10 @@ class WandbCallback:
 
         Args:
             yolo: A YOLOv8 model that's inherited from `:class:ultralytics.yolo.engine.model.YOLO`
-            run_name: The name of the run to be created on Weights & Biases.
-            project: The name of the project to be created on Weights & Biases.
-            tags: A list of tags to be added to the run on Weights & Biases.
-            resume: Whether to resume a previous run on Weights & Biases.
+            run_name, str: The name of the Weights & Biases run, defaults to an auto generated run_name if `trainer.args.name` is not defined.
+            project, str: The name of the Weights & Biases project, defaults to `"YOLOv8"` if `trainer.args.project` is not defined.
+            tags, List[str]: A list of tags to be added to the Weights & Biases run, defaults to `["YOLOv8"]`.
+            resume, str: Whether to resume a previous run on Weights & Biases, defaults to `None`.
             **kwargs: Additional arguments to be passed to `wandb.init()`.
         """
         self.yolo = yolo
@@ -212,12 +212,12 @@ def add_callbacks(
     """A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
 
     Args:
-        yolo: A YOLO inherited from `:class:ultralytics.yolo.engine.model.YOLO` to add the callbacks to.
-        run_name: The name of the Weights & Biases run.
-        project: The name of the Weights & Biases project.
-        tags: A list of tags to add to the Weights & Biases run.
-        resume: Whether to resume the Weights & Biases run if it exists.
-        **kwargs: Additional arguments to pass to the `wandb.init()` method.
+        yolo: A YOLOv8 model that's inherited from `:class:ultralytics.yolo.engine.model.YOLO`
+        run_name, str: The name of the Weights & Biases run, defaults to an auto generated name if `trainer.args.name` is not defined.
+        project, str: The name of the Weights & Biases project, defaults to `"YOLOv8"` if `trainer.args.project` is not defined.
+        tags, List[str]: A list of tags to be added to the Weights & Biases run, defaults to `["YOLOv8"]`.
+        resume, str: Whether to resume a previous run on Weights & Biases, defaults to `None`.
+        **kwargs: Additional arguments to be passed to `wandb.init()`.
 
     Usage:
     ```python
