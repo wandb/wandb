@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.engine.trainer import BaseTrainer
@@ -30,7 +30,7 @@ class WandbCallback:
         project: Optional[str] = None,
         tags: Optional[List[str]] = None,
         resume: Optional[str] = None,
-        **kwargs,
+        **kwargs: Optional[Any],
     ) -> None:
         """A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
 
@@ -43,7 +43,6 @@ class WandbCallback:
             **kwargs: Additional arguments to be passed to `wandb.init()`.
         """
         self.yolo = yolo
-        self.run = None
         self.run_name = run_name
         self.project = project
         self.tags = tags
@@ -57,38 +56,37 @@ class WandbCallback:
             trainer: A task trainer that's inherited from `:class:ultralytics.yolo.engine.trainer.BaseTrainer`
                     that contains the model training and optimization routine.
         """
-        if self.run is None:
-            if wandb.run is None:
-                self.run = wandb.init(
-                    name=self.run_name if self.run_name else trainer.args.name,
-                    project=self.project
-                    if self.project
-                    else trainer.args.project or "YOLOv8",
-                    tags=self.tags if self.tags else ["YOLOv8"],
-                    config=vars(trainer.args),
-                    resume=self.resume if self.resume else None,
-                    **self.kwargs,
-                )
-            else:
-                self.run = wandb.run
-            self.run.define_metric("epoch", hidden=True)
-            self.run.define_metric(
-                "train/*", step_metric="epoch", step_sync=True, summary="min"
+        if wandb.run is None:
+            self.run = wandb.init(
+                name=self.run_name if self.run_name else trainer.args.name,
+                project=self.project
+                if self.project
+                else trainer.args.project or "YOLOv8",
+                tags=self.tags if self.tags else ["YOLOv8"],
+                config=vars(trainer.args),
+                resume=self.resume if self.resume else None,
+                **self.kwargs,
             )
+        else:
+            self.run = wandb.run
+        self.run.define_metric("epoch", hidden=True)
+        self.run.define_metric(
+            "train/*", step_metric="epoch", step_sync=True, summary="min"
+        )
 
-            self.run.define_metric(
-                "val/*", step_metric="epoch", step_sync=True, summary="min"
-            )
+        self.run.define_metric(
+            "val/*", step_metric="epoch", step_sync=True, summary="min"
+        )
 
-            self.run.define_metric(
-                "metrics/*", step_metric="epoch", step_sync=True, summary="max"
-            )
-            self.run.define_metric(
-                "lr/*", step_metric="epoch", step_sync=True, summary="last"
-            )
+        self.run.define_metric(
+            "metrics/*", step_metric="epoch", step_sync=True, summary="max"
+        )
+        self.run.define_metric(
+            "lr/*", step_metric="epoch", step_sync=True, summary="last"
+        )
 
-            with telemetry.context(run=wandb.run) as tel:
-                tel.feature.ultralytics_yolov8 = True
+        with telemetry.context(run=wandb.run) as tel:
+            tel.feature.ultralytics_yolov8 = True
 
     def on_pretrain_routine_end(self, trainer: BaseTrainer) -> None:
         self.run.summary.update(
@@ -209,7 +207,7 @@ def add_callbacks(
     project: Optional[str] = None,
     tags: Optional[List[str]] = None,
     resume: Optional[str] = None,
-    **kwargs,
+    **kwargs: Optional[Any],
 ) -> YOLO:
     """A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
 
