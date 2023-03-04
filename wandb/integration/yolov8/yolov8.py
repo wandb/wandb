@@ -66,7 +66,7 @@ class WandbCallback:
                     else trainer.args.project or "YOLOv8",
                     tags=self.tags if self.tags else ["YOLOv8"],
                     config=vars(trainer.args),
-                    resume=self.resume if self.resume else "allow",
+                    resume=self.resume if self.resume else None,
                     **self.kwargs,
                 )
             else:
