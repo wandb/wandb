@@ -42,10 +42,10 @@ class Sentry:
     def __init__(self, disabled: bool = False) -> None:
         self._disabled = disabled
 
-        self.sentry_dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
+        self.dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
-        self.sentry_client: Optional["sentry_sdk.client.Client"] = None
-        self.sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
+        self.client: Optional["sentry_sdk.client.Client"] = None
+        self.hub: Optional["sentry_sdk.hub.Hub"] = None
 
     @property
     def environment(self) -> str:
@@ -58,20 +58,17 @@ class Sentry:
 
     @_noop_if_disabled
     def setup(self) -> None:
-        self.sentry_client = sentry_sdk.Client(
-            dsn=self.sentry_dsn,
+        self.client = sentry_sdk.Client(
+            dsn=self.dsn,
             default_integrations=False,
             environment=self.environment,
             release=wandb.__version__,
         )
-        self.sentry_hub = sentry_sdk.Hub(self.sentry_client)
-
-        # Track session to get metrics about error-free rate
-        self.sentry_hub.start_session()
+        self.hub = sentry_sdk.Hub(self.client)
 
     @_noop_if_disabled
     def message(self, message: str) -> None:
-        self.sentry_hub.capture_message(message)  # type: ignore
+        self.hub.capture_message(message)  # type: ignore
 
     @_noop_if_disabled
     def exception(
@@ -89,9 +86,9 @@ class Sentry:
         delay: bool = False,
     ) -> None:
         if isinstance(exc, str):
-            self.sentry_hub.capture_exception(Exception(exc))  # type: ignore
+            self.hub.capture_exception(Exception(exc))  # type: ignore
         else:
-            self.sentry_hub.capture_exception(exc)  # type: ignore
+            self.hub.capture_exception(exc)  # type: ignore
         if delay:
             time.sleep(2)
         return None
@@ -109,7 +106,16 @@ class Sentry:
         raise exc.with_traceback(sys.exc_info()[2])
 
     @_noop_if_disabled
-    def sentry_set_scope(
+    def start_session(self) -> None:
+        """Track session to get metrics about error-free rate."""
+        _, scope = self.hub._stack[-1]
+        session = scope._session
+
+        if session is None:
+            self.hub.start_session()
+
+    @_noop_if_disabled
+    def set_scope(
         self,
         settings: Optional[
             Union[
@@ -136,7 +142,7 @@ class Sentry:
             "_disable_service",
         )
 
-        with self.sentry_hub.configure_scope() as scope:
+        with self.hub.configure_scope() as scope:
             scope.set_tag("platform", wandb.util.get_platform_name())
 
             # set context
@@ -179,3 +185,5 @@ class Sentry:
 
             if hasattr(settings, "email"):
                 scope.user = {"email": settings.email}  # noqa
+
+        self.start_session()
