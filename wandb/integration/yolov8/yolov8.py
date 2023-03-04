@@ -112,6 +112,7 @@ class WandbCallback:
                 **trainer.lr,
             },
         )
+        # Currently only the detection and segmentation trainers save images to the save_dir
         if not isinstance(trainer, ClassificationTrainer):
             self.run.log(
                 {
@@ -148,6 +149,7 @@ class WandbCallback:
 
     def on_train_end(self, trainer: BaseTrainer) -> None:
         """On train end we log all the media, including plots, images and best model artifact to Weights & Biases."""
+        # Currently only the detection and segmentation trainers save images to the save_dir
         if not isinstance(trainer, ClassificationTrainer):
             self.run.log(
                 {
