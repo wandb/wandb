@@ -1,1 +1,3 @@
-from .sentry import Sentry  # noqa: F401
+__all__ = ("Sentry",)
+
+from .sentry import Sentry
