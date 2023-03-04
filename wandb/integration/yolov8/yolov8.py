@@ -1,13 +1,132 @@
+import pathlib
+from functools import partial
 from typing import List, Optional
 
+import numpy as np
+import torch
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.engine.trainer import BaseTrainer
+from ultralytics.yolo.engine.validator import BaseValidator
 from ultralytics.yolo.utils import RANK
+from ultralytics.yolo.utils.ops import xywh2xyxy
+from ultralytics.yolo.utils.plotting import output_to_target
 from ultralytics.yolo.utils.torch_utils import get_flops, get_num_params
 from ultralytics.yolo.v8.classify.train import ClassificationTrainer
+from ultralytics.yolo.v8.detect import DetectionValidator
 
 import wandb
 from wandb.sdk.lib import telemetry
+
+
+def load_boxes_data(i, batch_idx, cls, bboxes, names, h, w):
+    boxes_data = []
+    idx = batch_idx == i
+    boxes = xywh2xyxy(bboxes[idx, :4]).T
+    classes = cls[idx].astype("int")
+    labels = bboxes.shape[1] == 4
+    conf = None if labels else bboxes[idx, 4]
+    if boxes.shape[1]:
+        if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
+            boxes[[0, 2]] *= w  # scale to pixels
+            boxes[[1, 3]] *= h
+    for j, box in enumerate(boxes.T.tolist()):
+        box_data = {
+            "position": dict(zip(("minX", "minY", "maxX", "maxY"), box)),
+            "domain": "pixel",
+        }
+        c = classes[j]
+        box_data["class_id"] = int(c)
+        box_data["box_caption"] = names[c] if names else str(c)
+        if conf is not None:
+            box_data["scores"] = {"conf": float(conf[j])}
+        boxes_data.append(box_data)
+    return boxes_data
+
+
+def convert_to_wb_images(
+    batch,
+    cls,
+    bboxes,
+    masks,
+    batch_idx,
+    names,
+):
+    images = batch["img"]
+    captions = batch["im_file"]
+    if isinstance(images, torch.Tensor):
+        images = images.cpu().float().numpy()
+    if isinstance(cls, torch.Tensor):
+        cls = cls.cpu().numpy()
+    if isinstance(bboxes, torch.Tensor):
+        bboxes = bboxes.cpu().numpy()
+    if isinstance(masks, torch.Tensor):
+        masks = masks.cpu().numpy().astype(int)
+    if isinstance(batch_idx, torch.Tensor):
+        batch_idx = batch_idx.cpu().numpy()
+
+    if np.max(images[0]) <= 1:
+        images *= 255  # de-normalise (optional)
+
+    out_images = []
+    class_set = wandb.Classes([{"name": v, "id": int(k)} for k, v in names.items()])
+
+    if np.max(images[0]) <= 1:
+        images *= 255  # de-normalise (optional)
+    bs, _, h, w = images.shape
+    for i in range(len(images)):
+        if len(cls) > 0:
+            img = images[i].transpose(1, 2, 0)
+            image_kwargs = {
+                "data_or_path": img,
+                "caption": pathlib.Path(captions[i]).name,
+            }
+            prediction_boxes_data = load_boxes_data(
+                i, batch_idx, cls, bboxes, names, h, w
+            )
+            ground_truth_boxes_data = load_boxes_data(
+                i,
+                batch["batch_idx"].cpu().numpy(),
+                batch["cls"].squeeze(-1).cpu().numpy(),
+                batch["bboxes"].cpu().numpy(),
+                names,
+                h,
+                w,
+            )
+            image_kwargs["boxes"] = {
+                "predictions": {
+                    "box_data": prediction_boxes_data,
+                    "class_labels": names,
+                },
+                "ground_truth": {
+                    "box_data": ground_truth_boxes_data,
+                    "class_labels": names,
+                },
+            }
+            image_kwargs["classes"] = class_set
+            out_images.append(wandb.Image(**image_kwargs))
+    return out_images
+
+
+def plot_detection_predictions(logger, validator, batch, preds, ni):
+    (batch_idx, cls, bboxes) = output_to_target(preds, max_det=15)
+    wb_images = convert_to_wb_images(
+        batch=batch,
+        batch_idx=batch_idx,
+        cls=cls,
+        bboxes=bboxes,
+        masks=None,
+        names=validator.names,
+    )
+    logger.run.log(
+        {
+            "detection_predictions": wandb.Table(
+                columns=[
+                    "Image",
+                ],
+                data=[[im] for im in wb_images],
+            )
+        }
+    )
 
 
 class WandbCallback:
@@ -199,6 +318,13 @@ class WandbCallback:
         self.run.finish()
         self.run = None
 
+    def on_val_start(self, validator: BaseValidator):
+        if isinstance(validator, DetectionValidator):
+            print("overriding plot_predictions")
+            validator.plot_predictions = partial(
+                plot_detection_predictions, self, validator
+            )
+
     @property
     def callbacks(
         self,
@@ -215,6 +341,7 @@ class WandbCallback:
             "on_train_end": self.on_train_end,
             "on_model_save": self.on_model_save,
             "teardown": self.teardown,
+            "on_val_start": self.on_val_start,
         }
 
 
