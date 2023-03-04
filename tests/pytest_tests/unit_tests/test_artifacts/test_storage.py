@@ -332,7 +332,7 @@ def test_storage_policy_incomplete():
     }
     for method, kwargs in async_method_args.items():
         with pytest.raises(NotImplementedError):
-            asyncio.run(getattr(usp, method)(**kwargs))
+            asyncio.new_event_loop().run_until_complete(getattr(usp, method)(**kwargs))
 
     UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
 
