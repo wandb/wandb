@@ -108,6 +108,7 @@ class Sentry:
     @_noop_if_disabled
     def start_session(self) -> None:
         """Track session to get metrics about error-free rate."""
+        assert self.hub is not None
         _, scope = self.hub._stack[-1]
         session = scope._session
 
@@ -131,6 +132,7 @@ class Sentry:
         will send events to Sentry. It sets the tags that will be applied to
         all events sent from this thread.
         """
+        assert self.hub is not None
         settings_tags = (
             "entity",
             "project",
