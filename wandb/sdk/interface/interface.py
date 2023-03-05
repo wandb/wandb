@@ -1,4 +1,4 @@
-"""Interface base class - Used to send messages to the internal process
+"""Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
 InterfaceGrpc: Use gRPC to send and receive messages
@@ -267,7 +267,6 @@ class InterfaceBase:
             A new tree of dict's with large objects replaced with dictionaries
             with "_type" entries that say which type the original data was.
         """
-
         # Constructs a new `dict` tree in `json_value` that discards and/or
         # encodes objects that aren't JSON serializable.
 
@@ -396,7 +395,7 @@ class InterfaceBase:
         obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
-        proto_manifest.version = artifact_manifest.version()  # type: ignore
+        proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():

@@ -30,11 +30,13 @@ import wandb.env
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
-from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
+    ExecutionError,
+    LaunchError,
     check_logged_in,
     construct_launch_spec,
 )
@@ -87,15 +89,14 @@ class ClickWandbException(ClickException):
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
-            return "An Exception was raised, see %s for full traceback.\n" "%s: %s" % (
-                log_file,
-                orig_type,
-                self.message,
+            return (
+                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"{orig_type}: {self.message}"
             )
 
 
 def display_error(func):
-    """Function decorator for catching common errors and re-raising as wandb.Error"""
+    """Function decorator for catching common errors and re-raising as wandb.Error."""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -661,7 +662,7 @@ def sync(
         _summary()
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")  # noqa: C901
+@cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
 @click.option("--project", "-p", default=None, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
@@ -732,7 +733,7 @@ def sweep(
     config_yaml_or_sweep_id,
     queue,
     project_queue,
-):  # noqa: C901
+):
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
     is_state_change_command = sum(lcls[k] for k in state_args)
@@ -770,7 +771,7 @@ def sweep(
         config_yaml = config_yaml_or_sweep_id
 
     def _parse_settings(settings):
-        """settings could be json or comma seperated assignments."""
+        """Parse settings from json or comma separated assignments."""
         ret = {}
         # TODO(jhr): merge with magic:_parse_magic
         if settings.find("=") > 0:
@@ -902,63 +903,65 @@ def sweep(
             raise LaunchError(_msg)
 
         # Try and get job from sweep config
-        _job = config.get("job", None)
-        if _job is None:
-            wandb.termlog("No job found in sweep config, looking in launch config.")
-            _job = launch_config.get("job", None)
-            if _job is None:
+        _job = config.get("job")
+        _image_uri = config.get("image_uri")
+        if not _job and not _image_uri:  # don't allow empty string
+            raise LaunchError("No 'job' or 'image_uri' found in sweep config")
+        elif _job and _image_uri:
+            raise LaunchError("Sweep has both 'job' and 'image_uri'")
+
+        if not queue:
+            if launch_config.get("queue"):
+                queue = launch_config["queue"]
+            else:
                 raise LaunchError(
-                    "No job found in sweep or launch config for launch-sweep."
+                    "No queue passed from CLI or in launch config for launch-sweep."
                 )
 
-        launch_queue = queue or launch_config.get("queue")
-        if not launch_queue:
-            raise LaunchError(
-                "No queue passed from CLI or in launch config for launch-sweep."
-            )
-        else:
-            # multi-word queues must be quoted for scheduler command
-            if launch_queue.count(" ") > 1:
-                launch_queue = f"{launch_queue!r}"
+        scheduler_config = launch_config.get("scheduler", {})
+        num_workers = f'{scheduler_config.get("num_workers")}'
+        if num_workers is None or not str.isdigit(num_workers):
+            num_workers = "8"
+
+        scheduler_entrypoint = [
+            "wandb",
+            "scheduler",
+            "WANDB_SWEEP_ID",
+            "--queue",
+            f"{queue!r}",
+            "--project",
+            project,
+            "--num_workers",
+            num_workers,
+        ]
+
+        if _job:
+            scheduler_entrypoint += [
+                "--job",
+                _job,
+            ]
+        elif _image_uri:
+            scheduler_entrypoint += ["--image_uri", _image_uri]
 
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": launch_queue,
+                "queue": queue,
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        "placeholder-uri-scheduler",  # uri
+                        SCHEDULER_URI,  # uri
                         None,  # job
                         api,
                         "Scheduler.WANDB_SWEEP_ID",  # name,
                         project,
                         entity,
-                        launch_config.get("scheduler", {}).get(
-                            "docker_image", None
-                        ),  # docker_image,
-                        launch_config.get("scheduler", {}).get(
-                            "resource", "local-process"
-                        ),  # resource,
-                        [
-                            "wandb",
-                            "scheduler",
-                            "WANDB_SWEEP_ID",
-                            "--queue",
-                            launch_queue,
-                            "--project",
-                            project,
-                            "--job",
-                            _job,
-                            # TODO(hupo): Add num-workers as option in launch config
-                            # "--num_workers",
-                            # launch_config.get("scheduler", {}).get("num_workers", 1),
-                        ],  # entry_point,
+                        scheduler_config.get("docker_image"),  # docker_image,
+                        scheduler_config.get("resource", "local-process"),  # resource,
+                        scheduler_entrypoint,  # entrypoint
                         None,  # version,
                         None,  # parameters,
-                        launch_config.get("scheduler", {}).get(
-                            "resource_args", None
-                        ),  # resource_args,
+                        scheduler_config.get("resource_args"),  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
@@ -1187,14 +1190,15 @@ def launch(
     repository,
     project_queue,
 ):
-    """
-    Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
-    In the case of a wandb URI the arguments used in the original run will be used by default.
-    These arguments can be overridden using the args option, or specifying those arguments
-    in the config's 'overrides' key, 'args' field as a list of strings.
+    """Start a W&B run from the given URI.
 
-    Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
-    `wandb launch [URI] --queue [optional queuename]`.
+    The URI can bea wandb URI, a GitHub repo uri, or a local path). In the case of a
+    wandb URI the arguments used in the original run will be used by default. These
+    arguments can be overridden using the args option, or specifying those arguments in
+    the config's 'overrides' key, 'args' field as a list of strings.
+
+    Running `wandb launch [URI]` will launch the run directly. To add the run to a
+    queue, run `wandb launch [URI] --queue [optional queuename]`.
     """
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
@@ -1249,8 +1253,8 @@ def launch(
 
     try:
         check_logged_in(api)
-    except Exception as e:
-        print(e)
+    except Exception:
+        wandb.termerror(f"Error running job: {traceback.format_exc()}")
 
     run_id = config.get("run_id")
 
@@ -1362,7 +1366,7 @@ def launch_agent(
     )
     api = _get_cling_api()
     agent_config, api = wandb_launch.resolve_agent_config(
-        api, entity, project, max_jobs, queues
+        api, entity, project, max_jobs, queues, config
     )
     if agent_config.get("project") is None:
         raise LaunchError(
@@ -1423,13 +1427,17 @@ def scheduler(
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
+    # TODO(gst): remove this monstrosity
     # Future-proofing hack to pull any kwargs that get passed in through the CLI
     kwargs = {}
     for i, _arg in enumerate(ctx.args):
         if isinstance(_arg, str) and _arg.startswith("--"):
             # convert input kwargs from hyphens to underscores
             _key = _arg[2:].replace("-", "_")
-            kwargs[_key] = ctx.args[i + 1]
+            _args = ctx.args[i + 1]
+            if str.isdigit(_args):
+                _args = int(_args)
+            kwargs[_key] = _args
 
     _scheduler = load_scheduler("sweep")(
         api,
@@ -1455,11 +1463,10 @@ def controller(verbose, sweep_id):
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
 def docker_run(ctx, docker_run_args):
-    """Simple wrapper for `docker run` which adds WANDB_API_KEY and WANDB_DOCKER
-    environment variables to any docker run command.
+    """Wrap `docker run` and adds WANDB_API_KEY and WANDB_DOCKER environment variables.
 
-    This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
-    and --runtime wasn't set.
+    This will also set the runtime to nvidia if the nvidia-docker executable is present
+    on the system and --runtime wasn't set.
 
     See `docker run --help` for more details.
     """
@@ -1534,19 +1541,25 @@ def docker(
     cmd,
     no_tty,
 ):
-    """W&B docker lets you run your code in a docker image ensuring wandb is configured. It adds the WANDB_DOCKER and WANDB_API_KEY
-    environment variables to your container and mounts the current directory in /app by default.  You can pass additional
-    args which will be added to `docker run` before the image name is declared, we'll choose a default image for you if
-    one isn't passed:
+    """Run your code in a docker container.
 
+    W&B docker lets you run your code in a docker image ensuring wandb is configured. It
+    adds the WANDB_DOCKER and WANDB_API_KEY environment variables to your container and
+    mounts the current directory in /app by default.  You can pass additional args which
+    will be added to `docker run` before the image name is declared, we'll choose a
+    default image for you if one isn't passed:
+
+    ```sh
     wandb docker -v /mnt/dataset:/app/data
     wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
     wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
+    ```
 
-    By default, we override the entrypoint to check for the existence of wandb and install it if not present.  If you pass the --jupyter
-    flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
-    the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run
-    command.
+    By default, we override the entrypoint to check for the existence of wandb and
+    install it if not present.  If you pass the --jupyter flag we will ensure jupyter is
+    installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your
+    system we will use the nvidia runtime.  If you just want wandb to set environment
+    variable to an existing docker run command, see the wandb docker-run command.
     """
     api = InternalApi()
     if not find_executable("docker"):

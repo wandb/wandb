@@ -13,8 +13,7 @@ def confusion_matrix(
     class_names: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
 ):
-    """
-    Computes a multi-run confusion matrix.
+    """Compute a multi-run confusion matrix.
 
     Arguments:
         probs (2-d arr): Shape [n_examples, n_classes]
@@ -35,7 +34,6 @@ def confusion_matrix(
         wandb.log({'confusion_matrix': wandb.plot.confusion_matrix(probs, y_true=y_true, class_names=labels)})
         ```
     """
-
     np = util.get_module(
         "numpy",
         required="confusion matrix requires the numpy library, install with `pip install numpy`",
