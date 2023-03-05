@@ -145,13 +145,10 @@ message RunUpdateResult {
 message ErrorInfo {
   enum ErrorCode {
     UNKNOWN = 0;
-    INVALID = 1;
-    INTERNAL = 2;
-    NETWORK = 3;
-    USAGE = 4;
-    PERMISSION = 5;
-    AUTHENTICATION = 6;
-    TIMEOUT = 7;
+    INTERNAL = 1;
+    BACKEND = 2;
+    USAGE = 3;
+    UNSUPPORTED = 4;
   }
   string  message = 1;
   ErrorCode code = 2;

@@ -730,7 +730,7 @@ class SendManager:
         if not resume_status:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
                 error.message = (
                     "You provided an invalid value for the `resume` argument."
                     f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
@@ -745,7 +745,7 @@ class SendManager:
         #
         if self._settings.resume == "never":
             error = wandb_internal_pb2.ErrorInfo()
-            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
             error.message = (
                 "You provided an invalid value for the `resume` argument."
                 f" The value 'never' is not a valid option for resuming a run ({run.run_id}) that already exists."
@@ -778,7 +778,7 @@ class SendManager:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
                 error.message = "resume='must' but could not resume (%s) " % run.run_id
                 return error
 
