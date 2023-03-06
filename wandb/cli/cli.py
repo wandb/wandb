@@ -1341,6 +1341,13 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
+@click.option(
+    "--url",
+    "-u",
+    default=None,
+    hidden=True,
+    help="a wandb client registration URL, this is generated in the UI",
+)
 @display_error
 def launch_agent(
     ctx,
@@ -1349,10 +1356,15 @@ def launch_agent(
     queues=None,
     max_jobs=None,
     config=None,
+    url=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
+    if url is not None:
+        raise LaunchError(
+            "--url is not supported in this version, upgrade with: pip install -u wandb"
+        )
 
     from wandb.sdk.launch import launch as wandb_launch
 
