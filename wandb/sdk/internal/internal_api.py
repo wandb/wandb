@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict, total=False):
-        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
+        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql."""
 
         artifactID: str  # noqa: N815
         name: str
@@ -109,7 +109,7 @@ class _ThreadLocalData(threading.local):
 
 
 class Api:
-    """W&B Internal Api wrapper
+    """W&B Internal Api wrapper.
 
     Note:
         Settings are automatically overridden by looking for
@@ -254,7 +254,7 @@ class Api:
         self.client.transport.auth = self.auth
 
     def relocate(self) -> None:
-        """Ensures the current api points to the right server"""
+        """Ensure the current api points to the right server."""
         self.client.transport.url = "%s/graphql" % self.settings("base_url")
 
     def execute(self, *args: Any, **kwargs: Any) -> "_Response":
@@ -405,7 +405,7 @@ class Api:
     def parse_slug(
         self, slug: str, project: Optional[str] = None, run: Optional[str] = None
     ) -> Tuple[str, str]:
-        """Parses a slug into a project and run.
+        """Parse a slug into a project and run.
 
         Arguments:
             slug (str): The slug to parse
@@ -551,7 +551,6 @@ class Api:
 
     @normalize_exceptions
     def max_cli_version(self) -> Optional[str]:
-
         if self._max_cli_version is not None:
             return self._max_cli_version
 
@@ -624,7 +623,7 @@ class Api:
 
     @normalize_exceptions
     def list_projects(self, entity: Optional[str] = None) -> List[Dict[str, str]]:
-        """Lists projects in W&B scoped by entity.
+        """List projects in W&B scoped by entity.
 
         Arguments:
             entity (str, optional): The entity to scope this project to.
@@ -656,7 +655,7 @@ class Api:
 
     @normalize_exceptions
     def project(self, project: str, entity: Optional[str] = None) -> "_Response":
-        """Retrieve project
+        """Retrieve project.
 
         Arguments:
             project (str): The project to get details for
@@ -764,7 +763,7 @@ class Api:
     def list_runs(
         self, project: str, entity: Optional[str] = None
     ) -> List[Dict[str, str]]:
-        """Lists runs in W&B scoped by project.
+        """List runs in W&B scoped by project.
 
         Arguments:
             project (str): The project to scope the runs to
@@ -805,7 +804,7 @@ class Api:
     def run_config(
         self, project: str, run: Optional[str] = None, entity: Optional[str] = None
     ) -> Tuple[str, Dict[str, Any], Optional[str], Dict[str, Any]]:
-        """Get the relevant configs for a run
+        """Get the relevant configs for a run.
 
         Arguments:
             project (str): The project to download, (can include bucket)
@@ -994,7 +993,7 @@ class Api:
         description: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a new project
+        """Create a new project.
 
         Arguments:
             project (str): The project to create
@@ -1094,10 +1093,7 @@ class Api:
     def push_to_run_queue_by_name(
         self, entity: str, project: str, queue_name: str, run_spec: str
     ) -> Optional[Dict[str, Any]]:
-        """
-        Queryless mutation, should be used before legacy fallback method
-        """
-
+        """Queryless mutation, should be used before legacy fallback method."""
         mutation = gql(
             """
         mutation pushToRunQueueByName(
@@ -1466,7 +1462,7 @@ class Api:
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
-        """Update a run
+        """Update a run.
 
         Arguments:
             id (str, optional): The existing run to update
@@ -1489,7 +1485,6 @@ class Api:
             summary_metrics (str, optional): The JSON summary metrics
             num_retries (int, optional): Number of retries
         """
-
         query_string = """
         mutation UpsertBucket(
             $id: String,
@@ -1727,7 +1722,7 @@ class Api:
         entity: Optional[str] = None,
         description: Optional[str] = None,
     ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
-        """Generate temporary resumable upload urls
+        """Generate temporary resumable upload urls.
 
         Arguments:
             project (str): The project to download
@@ -1796,7 +1791,7 @@ class Api:
         run: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> Dict[str, Dict[str, str]]:
-        """Generate download urls
+        """Generate download urls.
 
         Arguments:
             project (str): The project to download
@@ -1855,7 +1850,7 @@ class Api:
         run: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> Optional[Dict[str, str]]:
-        """Generate download urls
+        """Generate download urls.
 
         Arguments:
             project (str): The project to download
@@ -1908,7 +1903,7 @@ class Api:
 
     @normalize_exceptions
     def download_file(self, url: str) -> Tuple[int, requests.Response]:
-        """Initiate a streaming download
+        """Initiate a streaming download.
 
         Arguments:
             url (str): The url to download
@@ -1926,7 +1921,7 @@ class Api:
         metadata: Dict[str, str],
         out_dir: Optional[str] = None,
     ) -> Tuple[str, Optional[requests.Response]]:
-        """Download a file from a run and write it to wandb/
+        """Download a file from a run and write it to wandb/.
 
         Arguments:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
@@ -1952,9 +1947,7 @@ class Api:
     def upload_file_azure(
         self, url: str, file: Any, extra_headers: Dict[str, str]
     ) -> None:
-        """
-        Upload a file to azure
-        """
+        """Upload a file to azure."""
         from azure.core.exceptions import AzureError  # type: ignore
 
         # Configure the client without retries so our existing logic can handle them
@@ -1993,7 +1986,7 @@ class Api:
         callback: Optional["ProgressFn"] = None,
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> Optional[requests.Response]:
-        """Uploads a file to W&B with failure resumption
+        """Upload a file to W&B with failure resumption.
 
         Arguments:
             url: The url to download
@@ -2060,7 +2053,7 @@ class Api:
         project_name: Optional[str] = None,
         entity: Optional[str] = None,
     ) -> dict:
-        """Register a new agent
+        """Register a new agent.
 
         Arguments:
             host (str): hostname
@@ -2339,7 +2332,7 @@ class Api:
 
     @normalize_exceptions
     def create_anonymous_api_key(self) -> str:
-        """Creates a new API key belonging to a new anonymous user."""
+        """Create a new API key belonging to a new anonymous user."""
         mutation = gql(
             """
         mutation CreateAnonymousApiKey {
@@ -2358,14 +2351,14 @@ class Api:
 
     @staticmethod
     def file_current(fname: str, md5: B64MD5) -> bool:
-        """Checksum a file and compare the md5 with the known md5"""
+        """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
     @normalize_exceptions
     def pull(
         self, project: str, run: Optional[str] = None, entity: Optional[str] = None
     ) -> "List[requests.Response]":
-        """Download files from W&B
+        """Download files from W&B.
 
         Arguments:
             project (str): The project to download
@@ -2400,7 +2393,7 @@ class Api:
         force: bool = True,
         progress: Union[TextIO, bool] = False,
     ) -> "List[Optional[requests.Response]]":
-        """Uploads multiple files to W&B
+        """Uploads multiple files to W&B.
 
         Arguments:
             files (list or dict): The filenames to upload, when dict the values are open files
@@ -2970,7 +2963,6 @@ class Api:
         self,
         client_id: str,
     ) -> Optional[str]:
-
         if client_id in self._client_id_mapping:
             return self._client_id_mapping[client_id]
 
@@ -3163,9 +3155,7 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Finish the sweep to stop running new runs and let currently running runs finish.
-        """
+        """Finish the sweep to stop running new runs and let currently running runs finish."""
         self.set_sweep_state(
             sweep=sweep, state="FINISHED", entity=entity, project=project
         )
@@ -3176,9 +3166,7 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Cancel the sweep to kill all running runs and stop running new runs.
-        """
+        """Cancel the sweep to kill all running runs and stop running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="CANCELED", entity=entity, project=project
         )
@@ -3189,9 +3177,7 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Pause the sweep to temporarily stop running new runs.
-        """
+        """Pause the sweep to temporarily stop running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="PAUSED", entity=entity, project=project
         )
@@ -3202,20 +3188,18 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
-        """
-        Resume the sweep to continue running new runs.
-        """
+        """Resume the sweep to continue running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="RUNNING", entity=entity, project=project
         )
 
     def _status_request(self, url: str, length: int) -> requests.Response:
-        """Ask google how much we've uploaded"""
+        """Ask google how much we've uploaded."""
         return requests.put(
             url=url,
             headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
         )
 
     def _flatten_edges(self, response: "_Response") -> List[Dict]:
-        """Return an array from the nested graphql relay structure"""
+        """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]

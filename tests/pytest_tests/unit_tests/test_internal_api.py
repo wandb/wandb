@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, Union
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
@@ -85,6 +85,12 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             assert response is not None
         else:
             assert response is None
+
+
+def test_internal_api_with_no_write_global_config_dir(tmp_path):
+    with patch.dict("os.environ", WANDB_CONFIG_DIR=str(tmp_path)):
+        os.chmod(tmp_path, 0o444)
+        internal.InternalApi()
 
 
 @pytest.fixture
@@ -211,6 +217,7 @@ class TestUploadFile:
             [
                 requests.exceptions.Timeout(),
                 requests.exceptions.ConnectionError(),
+                (400, {}, ""),
                 (500, {}, ""),
             ],
         )
@@ -232,7 +239,7 @@ class TestUploadFile:
             )
 
             progress_callback = Mock()
-            with pytest.raises(Exception):  # noqa: B017
+            with pytest.raises((retry.TransientError, requests.RequestException)):
                 internal.InternalApi().upload_file(
                     "http://example.com/upload-dst",
                     some_file.open("rb"),
@@ -368,7 +375,7 @@ class TestUploadFile:
 
 
 class TestUploadFileRetry:
-    """Tests the retry logic of upload_file_retry.
+    """Test the retry logic of upload_file_retry.
 
     Testing the file-upload logic itself is done in TestUploadFile, above;
     this class just tests the retry logic (though it does make a couple

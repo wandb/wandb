@@ -3,12 +3,30 @@ from typing import Optional
 
 
 class Api:
-    """Internal proxy to the official internal API.  Eventually these methods
-    should likely be moved to PublicApi"""
+    """Internal proxy to the official internal API."""
+
+    # TODO: Move these methods to PublicApi.
 
     def __init__(self, *args, **kwargs):
         self._api_args = args
         self._api_kwargs = kwargs
+        self._api = None
+
+    def __getstate__(self):
+        """Use for serializing.
+
+        self._api is not serializable, so it's dropped
+        """
+        state = self.__dict__.copy()
+        del state["_api"]
+        return state
+
+    def __setstate__(self, state):
+        """Used for deserializing.
+
+        Don't need to set self._api because it's constructed when needed.
+        """
+        self.__dict__.update(state)
         self._api = None
 
     @property

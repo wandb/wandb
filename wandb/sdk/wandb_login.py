@@ -1,6 +1,6 @@
-"""
-Log in to Weights & Biases, authenticating your machine to log data to your
-account.
+"""Log in to Weights & Biases.
+
+This authenticates your machine to log data to your account.
 """
 
 import enum
@@ -26,9 +26,11 @@ from .wandb_settings import Settings, Source
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
-    """Write the host parameter from wandb.login or wandb login to
-    the global settings file so that it is used automatically by
-    the application's APIs."""
+    """Write the host parameter to the global settings file.
+
+    This takes the parameter from wandb.login or wandb login for use by the
+    application's APIs.
+    """
     _api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):
         _api.clear_setting("base_url", globally=True, persist=True)
@@ -49,8 +51,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
 ) -> bool:
-    """
-    Log in to W&B.
+    """Log in to W&B.
 
     Arguments:
         anonymous: (string, optional) Can be "must", "allow", or "never".
@@ -69,7 +70,6 @@ def login(
     Raises:
         UsageError - if api_key cannot be configured and no tty
     """
-
     _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
         return True

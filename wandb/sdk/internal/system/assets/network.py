@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 
 
 class NetworkSent:
-    """
-    Network bytes sent.
-    """
+    """Network bytes sent."""
 
     name = "network.sent"
     samples: "Deque[float]"
@@ -45,9 +43,7 @@ class NetworkSent:
 
 
 class NetworkRecv:
-    """
-    Network bytes received.
-    """
+    """Network bytes received."""
 
     name = "network.recv"
     samples: "Deque[float]"
@@ -101,11 +97,11 @@ class Network:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Return a new instance of the CPU metrics"""
+        """Return a new instance of the CPU metrics."""
         return psutil is not None
 
     def probe(self) -> dict:
-        """Return a dict of the hardware information"""
+        """Return a dict of the hardware information."""
         # net_if_addrs = psutil.net_if_addrs()
 
         # return {

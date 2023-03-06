@@ -1,9 +1,6 @@
 import base64
 import hashlib
-import platform
-import tempfile
 
-import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from wandb.sdk.lib import hashutil
@@ -44,21 +41,17 @@ def test_md5_file_b64_no_files():
 
 
 @given(st.binary())
-@pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_md5_file_hex_single_file(data):
-    with tempfile.NamedTemporaryFile() as f:
-        f.write(data)
-        f.flush()
-        assert hashlib.md5(data).hexdigest() == hashutil.md5_file_hex(f.name)
+    open("binfile", "wb").write(data)
+    assert hashlib.md5(data).hexdigest() == hashutil.md5_file_hex("binfile")
 
 
 @given(st.binary(), st.text(), st.binary())
-@pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_md5_file_b64_three_files(data1, text, data2):
     open("a.bin", "wb").write(data1)
-    open("b.txt", "w").write(text)
+    open("b.txt", "w", encoding="utf-8").write(text)
     open("c.bin", "wb").write(data2)
-    data = data1 + text.encode("utf-8") + data2
+    data = data1 + open("b.txt", "rb").read() + data2
     # Intentionally provide the paths out of order (check sorting).
     path_hash = hashutil.md5_file_b64("c.bin", "a.bin", "b.txt")
     b64hash = base64.b64encode(hashlib.md5(data).digest()).decode("ascii")
@@ -66,12 +59,11 @@ def test_md5_file_b64_three_files(data1, text, data2):
 
 
 @given(st.binary(), st.text(), st.binary())
-@pytest.mark.skipif(platform.system() == "Windows", reason="Fails on Windows")
 def test_md5_file_hex_three_files(data1, text, data2):
     open("a.bin", "wb").write(data1)
-    open("b.txt", "w").write(text)
+    open("b.txt", "w", encoding="utf-8").write(text)
     open("c.bin", "wb").write(data2)
-    data = data1 + text.encode("utf-8") + data2
+    data = data1 + open("b.txt", "rb").read() + data2
     # Intentionally provide the paths out of order (check sorting).
     path_hash = hashutil.md5_file_hex("c.bin", "a.bin", "b.txt")
     assert hashlib.md5(data).hexdigest() == path_hash
