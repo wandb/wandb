@@ -157,7 +157,8 @@ message Feature {
   bool flow_control_custom = 44; // Flow control customized by user
   bool service_disabled = 45; // Service disabled by user
   bool open_metrics = 46; // Consuming metrics from an OpenMetrics endpoint
-  bool async_uploads = 47; // Async file uploads enabled by user
+  bool ultralytics_yolov8 = 47; // Ultralytics YOLOv8 integration callbacks used
+  bool async_uploads = 48; // Async file uploads enabled by user
 }
 
 message Env {
