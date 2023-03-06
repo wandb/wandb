@@ -395,14 +395,14 @@ class Api:
             inserted
             }
         }
-    """
+        """
     )
 
-    CREATE_PUBLIC_KEY = gql(
+    CREATE_CLIENT = gql(
         """
-    mutation CreatePublicKey($token: String!, $jwk: JSONString!) {
-        createPublicKey(input: {token: $token, JWK: $jwk}) {
-            publicKeyID
+    mutation CreateClient($token: String!, $jwk: JSONString!) {
+        createClient(input: {token: $token, JWK: $jwk}) {
+            clientId
         }
     }
         """

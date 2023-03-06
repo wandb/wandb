@@ -92,9 +92,9 @@ class JWKS:
         # TODO: add a flag to disable requiring api key
         api = Api(api_key="X" * 40)
         res = api.client.execute(
-            Api.CREATE_PUBLIC_KEY, {"jwk": self.public_jwk(), "token": token}
+            Api.CREATE_CLIENT, {"jwk": self.public_jwk(), "token": token}
         )
-        kid = res["createPublicKey"]["publicKeyID"]
+        kid = res["createClient"]["clientId"]
         # This scopes by entity id
         # TODO: maybe make the token do this?
         self.jwks.keys[0]._dict_data["kid"] = kid

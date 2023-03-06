@@ -14,6 +14,7 @@ import tempfile
 import textwrap
 import time
 import traceback
+from urllib.parse import urlparse, parse_qs
 from functools import wraps
 
 import click
@@ -216,7 +217,9 @@ def projects(entity, display=True):
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
-@click.option("--service", default=False, is_flag=True, help="Login as a service account")
+@click.option(
+    "--service", default=False, is_flag=True, help="Login as a service account"
+)
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
@@ -1343,6 +1346,12 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
+@click.option(
+    "--url",
+    "-u",
+    default=None,
+    help="a wandb client registration URL, this is generated in the UI",
+)
 @display_error
 def launch_agent(
     ctx,
@@ -1351,10 +1360,23 @@ def launch_agent(
     queues=None,
     max_jobs=None,
     config=None,
+    url=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
+    if url is not None:
+        login_settings = dict(_cli_only_mode=True, _service_account_mode=True)
+        parsed = urlparse(url)
+        host = f"{parsed.scheme}://{parsed.hostname}"
+        login_settings["base_url"] = host
+        qs = parse_qs(parsed.query)
+        # TODO: support other settings
+        queues = qs.get("q", [])
+        entity = parsed.username
+        token = parsed.password
+        wandb.setup(settings=login_settings)
+        wandb.login(key=token, host=host, force=True, relogin=True)
 
     from wandb.sdk.launch import launch as wandb_launch
 
