@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional, Tuple, Type, Union
 from urllib.parse import quote
 
 import sentry_sdk  # type: ignore
+import sentry_sdk.utils  # type: ignore
 
 import wandb
 import wandb.env
@@ -84,11 +85,27 @@ class Sentry:
             None,
         ],
         delay: bool = False,
+        handled: bool = False,
     ) -> None:
-        if isinstance(exc, str):
-            self.hub.capture_exception(Exception(exc))  # type: ignore
+        error = Exception(exc) if isinstance(exc, str) else exc
+        # self.hub.capture_exception(_exc)  # type: ignore
+        if error is not None:
+            exc_info = sentry_sdk.utils.exc_info_from_error(error)
         else:
-            self.hub.capture_exception(exc)  # type: ignore
+            exc_info = sys.exc_info()
+
+        event, hint = sentry_sdk.utils.event_from_exception(
+            exc_info,
+            client_options=self.hub.client.options,
+            mechanism={"type": "generic", "handled": handled},
+        )
+        try:
+            return self.hub.capture_event(event, hint=hint)
+        except Exception:
+            self.hub._capture_internal_exception(sys.exc_info())
+
+        if not handled:
+            self.mark_sessions_crashed()
         if delay:
             time.sleep(2)
         return None
@@ -117,6 +134,16 @@ class Sentry:
             # import threading
             # wandb.termlog(f"{threading.main_thread().name}  {threading.current_thread().name}")
             self.hub.start_session()
+
+    @_noop_if_disabled
+    def mark_sessions_crashed(self) -> None:
+        """Mark all sessions as crashed."""
+        assert self.hub is not None
+        _, scope = self.hub._stack[-1]
+        session = scope._session
+
+        if session is not None:
+            session.update(status="crashed")
 
     @_noop_if_disabled
     def set_scope(
