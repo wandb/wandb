@@ -38,6 +38,7 @@ from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
+from wandb.sdk.lib.probe import is_aws_lambda
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -382,6 +383,7 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _aws_lambda: bool
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
     _config_dict: Config
@@ -526,6 +528,10 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _aws_lambda={
+                "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_service={
                 "value": False,
