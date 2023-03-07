@@ -963,7 +963,6 @@ def sweep(
                         None,  # parameters,
                         scheduler_config.get("resource_args"),  # resource_args,
                         None,  # launch_config,
-                        None,  # cuda,
                         None,  # run_id,
                         launch_config.get("registry", {}).get(
                             "url", None
@@ -1137,14 +1136,6 @@ def sweep(
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
-    "--cuda",
-    is_flag=False,
-    flag_value=True,
-    default=None,
-    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
-    "built by default and you must set --cuda=False to build a CPU-only image.",
-)
-@click.option(
     "--build",
     "-b",
     is_flag=True,
@@ -1180,7 +1171,6 @@ def launch(
     queue,
     run_async,
     resource_args,
-    cuda,
     build,
     repository,
     project_queue,
@@ -1209,18 +1199,6 @@ def launch(
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
-
-    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
-    if cuda is not None:
-        # preserve cuda=None as unspecified, otherwise convert to bool
-        if cuda == "True":
-            cuda = True
-        elif cuda == "False":
-            cuda = False
-        else:
-            raise LaunchError(
-                f"Invalid value for --cuda: {cuda!r} is not a valid boolean."
-            )
 
     args_dict = util._user_args_to_dict(args_list)
 
@@ -1271,7 +1249,6 @@ def launch(
                 resource_args=resource_args,
                 config=config,
                 synchronous=(not run_async),
-                cuda=cuda,
                 run_id=run_id,
                 repository=repository,
             )
@@ -1298,7 +1275,6 @@ def launch(
             args_dict,
             project_queue,
             resource_args,
-            cuda=cuda,
             build=build,
             run_id=run_id,
             repository=repository,
@@ -1341,6 +1317,13 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
+@click.option(
+    "--url",
+    "-u",
+    default=None,
+    hidden=True,
+    help="a wandb client registration URL, this is generated in the UI",
+)
 @display_error
 def launch_agent(
     ctx,
@@ -1349,10 +1332,15 @@ def launch_agent(
     queues=None,
     max_jobs=None,
     config=None,
+    url=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
+    if url is not None:
+        raise LaunchError(
+            "--url is not supported in this version, upgrade with: pip install -u wandb"
+        )
 
     from wandb.sdk.launch import launch as wandb_launch
 
