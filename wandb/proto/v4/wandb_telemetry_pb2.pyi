@@ -539,6 +539,9 @@ class Env(google.protobuf.message.Message):
     MAYBE_MP_FIELD_NUMBER: builtins.int
     TRAINIUM_FIELD_NUMBER: builtins.int
     PEX_FIELD_NUMBER: builtins.int
+    COLAB_FIELD_NUMBER: builtins.int
+    IPYTHON_FIELD_NUMBER: builtins.int
+    AWS_LAMBDA_FIELD_NUMBER: builtins.int
     jupyter: builtins.bool
     """jupyter env detected"""
     kaggle: builtins.bool
@@ -561,6 +564,12 @@ class Env(google.protobuf.message.Message):
     """AWS Trainium env detected"""
     pex: builtins.bool
     """pex env detected"""
+    colab: builtins.bool
+    """colab env detected"""
+    ipython: builtins.bool
+    """ipython env detected"""
+    aws_lambda: builtins.bool
+    """running in AWS Lambda"""
     def __init__(
         self,
         *,
@@ -575,8 +584,11 @@ class Env(google.protobuf.message.Message):
         maybe_mp: builtins.bool = ...,
         trainium: builtins.bool = ...,
         pex: builtins.bool = ...,
+        colab: builtins.bool = ...,
+        ipython: builtins.bool = ...,
+        aws_lambda: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["aws_lambda", b"aws_lambda", "colab", b"colab", "ipython", b"ipython", "jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
 
 global___Env = Env
 
