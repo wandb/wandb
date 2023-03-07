@@ -13,7 +13,7 @@ def mock_shell():
 
 
 @pytest.mark.usefixtures("mock_shell")
-def test_buildx_not_installed():
-
-    assert is_buildx_installed() is False
-    assert wandb.docker._buildx_installed is False
+def test_buildx_not_installed(runner):
+    with runner.isolated_filesystem():
+        assert is_buildx_installed() is False
+        assert wandb.docker._buildx_installed is False
