@@ -194,9 +194,6 @@ class Scheduler(ABC):
         job_name = self._kwargs.get("job")
         if job_name:
             _public_api = public.Api()
-            if ":" not in job_name:
-                wandb.termwarn("No alias specified for job, defaulting to 'latest'")
-                job_name += ":latest"
 
             try:
                 _job_artifact = _public_api.artifact(job_name, type="job")

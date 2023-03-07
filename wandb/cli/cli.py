@@ -940,6 +940,10 @@ def sweep(
         ]
 
         if _job:
+            if ":" not in _job:
+                wandb.termwarn("No alias specified for job, defaulting to 'latest'")
+                _job += ":latest"
+
             scheduler_entrypoint += [
                 "--job",
                 _job,
