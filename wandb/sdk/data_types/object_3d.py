@@ -226,6 +226,14 @@ class Object3D(BatchableMedia):
         data_or_path: Union["TextIO", str],
         file_type: Optional["FileFormat3D"] = None,
     ) -> "Object3D":
+        """
+        Initializes Object3D from a file or stream
+
+        Arguments:
+            data_or_path (Union["TextIO", str]): A path to a file or a `TextIO` stream.
+            file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
+                `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
+        """
         # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
         #     raise ValueError(
         #         f"Unsupported file type: {file_type}. Supported types are: {cls.SUPPORTED_TYPES}"
@@ -238,7 +246,7 @@ class Object3D(BatchableMedia):
         Initializes Object3D from a numpy array.
 
         Arguments:
-            data: (numpy array): Each entry in the array will
+            data (numpy array): Each entry in the array will
                 represent one point in the point cloud.
 
 
@@ -277,9 +285,9 @@ class Object3D(BatchableMedia):
 
         Arguments:
             points (Sequence["Point"]): The points in the point cloud.
-            boxes (Sequence["Box3D"]): 3D bounding boxes intended to allow labeling parts of the point cloud. These
-                will be displayed in the point cloud visualization.
-            vectors (Optional[Sequence["Vector3D"]]): Each vector will be displayed in the point cloud
+            boxes (Sequence["Box3D"]): 3D bounding boxes for labeling the point cloud. Boxes
+            are displayed in point cloud visualizations.
+            vectors (Optional[Sequence["Vector3D"]]): Each vector is displayed in the point cloud
                 visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
             point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
         """
