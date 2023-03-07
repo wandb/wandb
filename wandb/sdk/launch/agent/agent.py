@@ -21,7 +21,13 @@ from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_builder_args
 from ..runner.abstract import AbstractRun
-from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError
+from ..utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
+    LaunchDockerError,
+    LaunchError,
+)
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -342,8 +348,15 @@ class LaunchAgent:
     ) -> None:
         try:
             self._thread_run_job(launch_spec, job, default_config, api)
-        except Exception:
-            wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
+        except Exception as e:
+            if isinstance(e, LaunchDockerError):
+                wandb.termerror(
+                    f"{LOG_PREFIX}agent {self._name} failed to connect to Docker daemon"
+                )
+            else:
+                wandb.termerror(
+                    f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
+                )
             api.ack_run_queue_item(job["runQueueItemId"])
 
     def _thread_run_job(
