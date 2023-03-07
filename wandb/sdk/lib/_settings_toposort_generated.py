@@ -12,6 +12,7 @@ else:
 
 _Setting = Literal[
     "_args",
+    "_aws_lambda",
     "_cli_only_mode",
     "_colab",
     "_config_dict",
@@ -162,6 +163,7 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "problem",
     "project",
     "start_method",
+    "_aws_lambda",
     "_colab",
     "_console",
     "_jupyter",
