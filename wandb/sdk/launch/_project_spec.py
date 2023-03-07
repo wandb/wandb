@@ -59,7 +59,6 @@ class LaunchProject:
         overrides: Dict[str, Any],
         resource: str,
         resource_args: Dict[str, Any],
-        cuda: Optional[bool],
         run_id: Optional[str],
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
@@ -75,10 +74,16 @@ class LaunchProject:
         self.target_entity = target_entity
         self.target_project = target_project.lower()
         self.name = name  # TODO: replace with run_id
+        # the builder key can be passed in through the resource args
+        # but these resource_args are then passed to the appropriate
+        # runner, so we need to pop the builder key out
+        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_version: Optional[str] = launch_spec.get("cuda_version")
+        self.cuda_base_image: Optional[str] = resource_args_build.get("cuda", {}).get(
+            "base_image"
+        )
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
@@ -95,7 +100,6 @@ class LaunchProject:
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
         self.deps_type: Optional[str] = None
-        self.cuda = cuda
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
         self._entry_points: Dict[
@@ -137,8 +141,6 @@ class LaunchProject:
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
-        if launch_spec.get("resource_args"):
-            self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()
@@ -276,24 +278,6 @@ class LaunchProject:
             )
             program_name = run_info.get("codePath") or run_info["program"]
 
-            if run_info.get("cudaVersion"):
-                original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
-
-                if self.cuda is None:
-                    # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Original wandb run {source_run_name} was run with cuda version {original_cuda_version}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False"
-                    )
-                    self.cuda_version = original_cuda_version
-                    self.cuda = True
-                if (
-                    self.cuda
-                    and self.cuda_version
-                    and self.cuda_version != original_cuda_version
-                ):
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Specified cuda version {self.cuda_version} differs from original cuda version {original_cuda_version}. Running with specified version {self.cuda_version}"
-                    )
             self.python_version = run_info.get("python", "3")
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -455,7 +439,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("overrides", {}),
         launch_spec.get("resource", None),
         launch_spec.get("resource_args", {}),
-        launch_spec.get("cuda", None),
         launch_spec.get("run_id", None),
     )
 

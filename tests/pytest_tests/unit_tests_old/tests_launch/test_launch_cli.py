@@ -370,41 +370,6 @@ def test_launch_supplied_docker_image(
     assert "test:tag" in result.output
 
 
-@pytest.mark.timeout(320)
-def test_launch_cuda_flag(
-    runner, live_mock_server, monkeypatch, mocked_fetchable_git_repo
-):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--entry-point",
-        "train.py",
-    ]
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            args + ["--cuda"],
-        )
-    print(result.output)
-    assert result.exit_code == 0
-
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            args + ["--cuda", "False"],
-        )
-    print(result.output)
-    assert result.exit_code == 0
-
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            args + ["--cuda", "asdf"],
-        )
-    print(result.output)
-    assert result.exit_code != 0
-    assert "Invalid value for --cuda:" in result.output
-
-
 def test_launch_agent_project_environment_variable(
     runner,
     test_settings,
