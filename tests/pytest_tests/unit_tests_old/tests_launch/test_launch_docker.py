@@ -34,7 +34,7 @@ def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_r
         "resource": "local-container",
         "resource_args": {
             "local-container": {
-                "build": {
+                "builder": {
                     "cuda": {
                         "base_image": "nvidia/cuda:11.0-runtime",
                     }
@@ -64,7 +64,7 @@ def test_run_cuda_version(
         "resource": "local-container",
         "resource_args": {
             "local-container": {
-                "build": {
+                "builder": {
                     "cuda": {
                         "base_image": "nvidia/cuda:11.0-runtime",
                     }

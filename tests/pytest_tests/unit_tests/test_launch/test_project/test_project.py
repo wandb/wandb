@@ -17,7 +17,6 @@ def test_project_build_required():
         "resource_args": {},
         "uri": None,
         "name": None,
-        "cuda": None,
         "run_id": None,
     }
     project = LaunchProject(**mock_args)
@@ -48,7 +47,6 @@ def test_project_image_source_string():
         "resource_args": {},
         "uri": None,
         "name": None,
-        "cuda": None,
         "run_id": None,
     }
 
