@@ -5,6 +5,8 @@ import subprocess
 import sys
 from typing import List, Optional, Set
 
+FAILED_PACKAGES_PREFIX = "ERROR: Failed to install:"
+FAILED_PACKAGES_POSTFIX = ". During automated build process."
 CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
 OPTS = []
@@ -40,9 +42,6 @@ def install_deps(
         subprocess.check_output(
             ["pip", "install"] + OPTS + clean_deps, stderr=subprocess.STDOUT
         )
-        if failed is not None and len(failed) > 0:
-            sys.stdout.write("ERROR: Unable to install: {}\n".format(", ".join(failed)))
-            sys.stdout.flush()
         return failed
     except subprocess.CalledProcessError as e:
         if failed is None:
@@ -50,10 +49,15 @@ def install_deps(
         num_failed = len(failed)
         for line in e.output.decode("utf8").splitlines():
             if line.startswith("ERROR:"):
-                dep = find_package_in_error_string(clean_deps, line)
-                if dep is not None:
-                    failed.add(dep)
-                    break
+                clean_dep = find_package_in_error_string(clean_deps, line)
+                if clean_dep is not None:
+                    if clean_dep in deps:
+                        failed.add(clean_dep)
+                    else:
+                        for d in deps:
+                            if clean_dep in d:
+                                failed.add(d.replace(" ", ""))
+                                break
         if len(set(clean_deps) - failed) == 0:
             return failed
         elif len(failed) > num_failed:
@@ -91,11 +95,10 @@ def main() -> None:
                 if deps_failed is not None:
                     failed = failed.union(deps_failed)
             with open("_wandb_bootstrap_errors.json", "w") as f:
-                print("WRITING FAILED", os.getcwd())
                 f.write(json.dumps({"pip": list(failed)}))
             if len(failed) > 0:
                 sys.stderr.write(
-                    "ERROR: Failed to install: {}".format(",".join(failed))
+                    FAILED_PACKAGES_PREFIX + ",".join(failed) + FAILED_PACKAGES_POSTFIX
                 )
                 sys.stderr.flush()
     else:

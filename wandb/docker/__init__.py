@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
@@ -83,22 +84,47 @@ def is_buildx_installed() -> bool:
 
 
 def build(
-    tags: List[str], file: str, context_path: str, return_stderr: bool = False
+    tags: List[str], file: str, context_path: str, show_output: bool = False
 ) -> str:
     command = ["buildx", "build"] if is_buildx_installed() else ["build"]
     command = ["build"]
-    command += ["--progress", "plain"]
+    # command += ["--progress", "plain"]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    stderr = run(
-        ["docker"] + command + build_tags + ["-f", file, context_path],
-        capture_stderr=True,
-        capture_stdout=True,
-        return_stderr=return_stderr,
+    args = ["docker"] + command + build_tags + ["-f", file, context_path]
+    print("RUNNING POPEN")
+    stdout, stderr = run_command_live(
+        args,
     )
-    print("STDERR", stderr)
-    return tags[0], return_stderr
+    return tags[0], (stdout, stderr)
+
+
+def run_command_live(args):
+    with subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+    ) as process:
+        stdout = ""
+        stderr = ""
+
+        while True:
+            line = process.stderr.readline()
+            if not line:
+                break
+            stderr += line
+            print(line, end="", file=sys.stderr)
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+            stdout += line
+            print(line, end="")
+
+    return_code = process.wait()
+    if return_code != 0:
+        raise DockerError(args, return_code, stdout, stderr)
+
+    return stdout, stderr
 
 
 def run(
@@ -118,7 +144,7 @@ def run(
     stderr_dest: Optional[int] = subprocess.PIPE if capture_stderr else None
 
     completed_process = subprocess.run(
-        args, input=input, stdout=stdout_dest, stderr=stderr_dest, env=subprocess_env
+        args, stdout=stdout_dest, stderr=stderr_dest, env=subprocess_env
     )
     if completed_process.returncode != 0:
         raise DockerError(
