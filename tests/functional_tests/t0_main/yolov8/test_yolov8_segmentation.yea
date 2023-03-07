@@ -1,0 +1,76 @@
+id: 0.yolov8.segmentation
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: test_yolov8_segmentation.py
+depend:
+    requirements:
+        - "ultralytics>=8.0.43"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][batch]: 16
+    - :wandb:runs[0][config][task]: segment
+    - :wandb:runs[0][summary][epoch]: 2
+    - :wandb:runs[0][summary][model/parameters]: 3409968
+    - :op:>=:
+        - :wandb:runs[0][summary][model/GFLOPs]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][model/speed(ms/img)]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/box_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/cls_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/seg_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/box_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/cls_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/seg_loss]
+        - 0.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/mAP50(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/mAP50(M)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/mAP50-95(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/mAP50-95(M)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/precision(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/precision(M)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/recall(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/recall(M)]
+        - 1.0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 47  # yolov8 used
+    - :wandb:runs[0][exitcode]: 0
