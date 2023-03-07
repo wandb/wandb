@@ -55,7 +55,7 @@ def resolve_agent_config(  # noqa: C901
         "api_key": api.api_key,
         "base_url": api.settings("base_url"),
         "registry": {},
-        "build": {},
+        "builder": {},
         "runner": {},
     }
     user_set_project = False

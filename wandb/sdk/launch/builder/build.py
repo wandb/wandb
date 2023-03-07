@@ -537,7 +537,7 @@ def construct_builder_args(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     registry_config = None
     if launch_config is not None:
-        build_config = launch_config.get("build")
+        build_config = launch_config.get("builder")
         registry_config = launch_config.get("registry")
 
     default_launch_config = None
