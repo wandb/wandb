@@ -348,15 +348,13 @@ class LaunchAgent:
     ) -> None:
         try:
             self._thread_run_job(launch_spec, job, default_config, api)
-        except Exception as e:
-            if isinstance(e, LaunchDockerError):
-                wandb.termerror(
-                    f"{LOG_PREFIX}agent {self._name} failed to connect to Docker daemon"
-                )
-            else:
-                wandb.termerror(
-                    f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
-                )
+        except LaunchDockerError:
+            wandb.termerror(
+                f"{LOG_PREFIX}agent {self._name} failed to connect to Docker daemon"
+            )
+            api.ack_run_queue_item(job["runQueueItemId"])
+        except Exception:
+            wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             api.ack_run_queue_item(job["runQueueItemId"])
 
     def _thread_run_job(
