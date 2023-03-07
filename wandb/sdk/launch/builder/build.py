@@ -193,7 +193,7 @@ def get_base_setup(
     """
     python_base_image = f"python:{py_version}-buster"
     if launch_project.cuda_base_image:
-        _logger.log(f"Using cuda base image: {launch_project.cuda_base_image}")
+        _logger.info(f"Using cuda base image: {launch_project.cuda_base_image}")
         # cuda image doesn't come with python tooling
         if py_major == "2":
             python_packages = [
