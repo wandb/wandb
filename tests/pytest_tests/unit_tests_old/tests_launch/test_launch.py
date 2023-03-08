@@ -7,10 +7,12 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
+
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
-import yaml
+from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
@@ -21,8 +23,6 @@ from wandb.sdk.launch.utils import (
     LaunchError,
 )
 from wandb.sdk.lib import runid
-
-from tests.pytest_tests.unit_tests_old.utils import fixture_open, notebook_path
 
 EMPTY_BACKEND_CONFIG = {
     PROJECT_SYNCHRONOUS: True,
@@ -1330,7 +1330,7 @@ def test_noop_builder(
     runner,
     monkeypatch,
 ):
-    launch_config = {"build": {"type": "noop"}, "registry": {"url": "test"}}
+    launch_config = {"builder": {"type": "noop"}, "registry": {"url": "test"}}
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
