@@ -87,7 +87,6 @@ class ElasticContainerRegistry(AbstractRegistry):
         try:
             session = self.environment.get_session()
             client = session.client("ecr")
-            response = client.describe_registry()
             response = client.describe_repositories(repositoryNames=[self.repo_name])
             self.uri = response["repositories"][0]["repositoryUri"].split("/")[0]
 
