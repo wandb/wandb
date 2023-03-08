@@ -15,6 +15,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module, load_json_yaml_dict
 
 from .._project_spec import LaunchProject, get_entry_point_command
@@ -420,6 +421,9 @@ def maybe_create_imagepull_secret(
     namespace: str,
 ) -> Optional["V1Secret"]:
     secret = None
+    if isinstance(registry, LocalRegistry):
+        # Secret not required
+        return None
     uname, token = registry.get_username_password()
     creds_info = {
         "auths": {
