@@ -16,8 +16,8 @@ from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 from .builder.templates._wandb_bootstrap import (
-    FAILED_PACKAGES_PREFIX,
     FAILED_PACKAGES_POSTFIX,
+    FAILED_PACKAGES_PREFIX,
 )
 
 FAILED_PACKAGES_REGEX = re.compile(

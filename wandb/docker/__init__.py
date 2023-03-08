@@ -83,24 +83,19 @@ def is_buildx_installed() -> bool:
     return _buildx_installed
 
 
-def build(
-    tags: List[str], file: str, context_path: str, show_output: bool = False
-) -> str:
+def build(tags: List[str], file: str, context_path: str) -> Tuple[str, str]:
     command = ["buildx", "build"] if is_buildx_installed() else ["build"]
-    command = ["build"]
-    # command += ["--progress", "plain"]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
     args = ["docker"] + command + build_tags + ["-f", file, context_path]
-    print("RUNNING POPEN")
-    stdout, stderr = run_command_live(
+    stdout, stderr = run_command_live_output(
         args,
     )
-    return tags[0], (stdout, stderr)
+    return stdout, stderr
 
 
-def run_command_live(args):
+def run_command_live_output(args: List[Any]) -> Tuple[str, str]:
     with subprocess.Popen(
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
     ) as process:
@@ -144,7 +139,7 @@ def run(
     stderr_dest: Optional[int] = subprocess.PIPE if capture_stderr else None
 
     completed_process = subprocess.run(
-        args, stdout=stdout_dest, stderr=stderr_dest, env=subprocess_env
+        args, input=input, stdout=stdout_dest, stderr=stderr_dest, env=subprocess_env
     )
     if completed_process.returncode != 0:
         raise DockerError(
