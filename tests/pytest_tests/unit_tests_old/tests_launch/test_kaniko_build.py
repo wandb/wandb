@@ -5,9 +5,8 @@ from unittest.mock import MagicMock
 import boto3
 import kubernetes
 import pytest
-from google.cloud import storage
-
 import wandb
+from google.cloud import storage
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko_builder import KanikoBuilder, _wait_for_completion
 from wandb.sdk.launch.registry.elastic_container_registry import (
