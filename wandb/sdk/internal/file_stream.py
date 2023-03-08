@@ -79,7 +79,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
                     util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
-                util.sentry.message(msg)
+                util.sentry.message(msg, repeat=False)
             else:
                 chunk_data.append(chunk.data)
 
@@ -97,7 +97,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
                 util.to_human_size(util.MAX_LINE_BYTES)
             )
             wandb.termerror(msg, repeat=False)
-            util.sentry.message(msg)
+            util.sentry.message(msg, repeat=False)
             return False
         return {"offset": 0, "content": [data]}
 
