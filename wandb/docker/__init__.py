@@ -120,7 +120,7 @@ def run_command_live_output(args: List[Any]) -> Tuple[str, str]:
 
     return_code = process.wait()
     if return_code != 0:
-        raise DockerError(args, return_code, stdout, stderr)
+        raise DockerError(args, return_code, stdout.encode(), stderr.encode())
 
     return stdout, stderr
 
