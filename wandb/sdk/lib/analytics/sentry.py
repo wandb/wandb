@@ -21,6 +21,10 @@ import wandb.util
 # SENTRY_DEFAULT_DSN = (
 #     "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
 # )
+# project sdk-new:
+# SENTRY_DEFAULT_DSN = (
+#     "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
+# )
 # project junk:
 SENTRY_DEFAULT_DSN = (
     "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.sentry.io/6438430"
@@ -68,7 +72,8 @@ class Sentry:
         self.hub = sentry_sdk.Hub(self.client)
 
     @_noop_if_disabled
-    def message(self, message: str) -> None:
+    def message(self, message: str, repeat: bool = True) -> None:
+        # todo: implement repeat similar to term.py
         self.hub.capture_message(message)  # type: ignore
 
     @_noop_if_disabled
@@ -94,13 +99,16 @@ class Sentry:
         else:
             exc_info = sys.exc_info()
 
+        assert self.hub is not None
+        assert self.hub.client is not None
+
         event, hint = sentry_sdk.utils.event_from_exception(
             exc_info,
             client_options=self.hub.client.options,
             mechanism={"type": "generic", "handled": handled},
         )
         try:
-            return self.hub.capture_event(event, hint=hint)
+            self.hub.capture_event(event, hint=hint)
         except Exception:
             self.hub._capture_internal_exception(sys.exc_info())
 
