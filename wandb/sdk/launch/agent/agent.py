@@ -346,8 +346,10 @@ class LaunchAgent:
         default_config: Dict[str, Any],
         api: Api,
     ) -> None:
+        thread_id = threading.current_thread().ident
+        assert thread_id is not None
         try:
-            self._thread_run_job(launch_spec, job, default_config, api)
+            self._thread_run_job(launch_spec, job, default_config, api, thread_id)
         except LaunchDockerError:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} failed to connect to Docker daemon"
@@ -356,6 +358,7 @@ class LaunchAgent:
         except Exception:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             api.ack_run_queue_item(job["runQueueItemId"])
+            self.finish_thread_id(thread_id)
 
     def _thread_run_job(
         self,
@@ -363,9 +366,8 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
+        thread_id: int,
     ) -> None:
-        thread_id = threading.current_thread().ident
-        assert thread_id is not None
         job_tracker = JobAndRunStatus()
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker
