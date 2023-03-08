@@ -1188,6 +1188,7 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
+    util.sentry_set_scope(process_context="launch_cli")
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
@@ -1337,6 +1338,7 @@ def launch_agent(
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
+    util.sentry_set_scope(process_context="launch_agent")
     if url is not None:
         raise LaunchError(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
@@ -1406,7 +1408,7 @@ def scheduler(
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
-
+    util.sentry_set_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
