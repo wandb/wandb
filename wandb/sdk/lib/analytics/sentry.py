@@ -46,6 +46,7 @@ class Sentry:
 
     def __init__(self, disabled: bool = False) -> None:
         self._disabled = disabled
+        self._sent_messages: set = set()
 
         self.dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
@@ -73,7 +74,9 @@ class Sentry:
 
     @_noop_if_disabled
     def message(self, message: str, repeat: bool = True) -> None:
-        # todo: implement repeat similar to term.py
+        if not repeat and message in self._sent_messages:
+            return
+        self._sent_messages.add(message)
         self.hub.capture_message(message)  # type: ignore
 
     @_noop_if_disabled
@@ -99,12 +102,9 @@ class Sentry:
         else:
             exc_info = sys.exc_info()
 
-        assert self.hub is not None
-        assert self.hub.client is not None
-
         event, hint = sentry_sdk.utils.event_from_exception(
             exc_info,
-            client_options=self.hub.client.options,
+            client_options=self.hub.client.options,  # type: ignore
             mechanism={"type": "generic", "handled": handled},
         )
         try:
