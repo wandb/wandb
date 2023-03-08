@@ -1408,6 +1408,7 @@ def scheduler(
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
+
     util.sentry_set_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
