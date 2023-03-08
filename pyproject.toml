@@ -30,15 +30,14 @@ classifiers = [
 ]
 dependencies = [
     "appdirs>=1.4.3",
-    "Click>=7.0,!=8.0.0  # click 8.0.0 is broken",
+    "Click>=7.0,!=8.0.0",  # click 8.0.0 is broken
     "dataclasses; python_version < '3.7'",
     "docker-pycreds>=0.4.0",
-    "GitPython>=1.0.0,!=3.1.29  # CVE-2022-24439",
-    "pathtools # supports vendored version of watchdog 0.9.0",
+    "GitPython>=1.0.0,!=3.1.29",  # CVE-2022-24439
+    "pathtools", # supports vendored version of watchdog 0.9.0
     "protobuf>=3.12.0,!=4.21.0,<5; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,<5; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' or sys_platform != 'linux'",
     "psutil>=5.0.0",
     "PyYAML",
     "requests>=2.0.0,<3",
