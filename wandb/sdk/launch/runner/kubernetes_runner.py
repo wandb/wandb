@@ -83,11 +83,11 @@ class KubernetesSubmittedRun(AbstractRun):
             name=self.name, namespace=self.namespace
         )
         status = job_response.status
-        try:
-            self.core_api.read_namespaced_pod_log(
-                name=self.pod_names[0], namespace=self.namespace
-            )
-        except Exception as e:
+
+        pod = self.core_api.read_namespaced_pod(
+            name=self.pod_names[0], namespace=self.namespace
+        )
+        if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
                 self._fail_first_msg_time = now
@@ -95,13 +95,11 @@ class KubernetesSubmittedRun(AbstractRun):
             self._fail_count += 1
             if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
                 wandb.termlog(
-                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes for job to start."
+                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
                 )
                 self._fail_last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
-                raise LaunchError(
-                    f"Failed to start job {self.name}, because of error {str(e)}"
-                )
+                raise LaunchError(f"Failed to start job {self.name}")
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         return_status = None
         if status.succeeded == 1:

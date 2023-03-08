@@ -9,6 +9,11 @@ from types import TracebackType
 from typing import Any, Callable, Optional, Tuple, Type, Union
 from urllib.parse import quote
 
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
 import sentry_sdk  # type: ignore
 import sentry_sdk.utils  # type: ignore
 
@@ -29,6 +34,8 @@ import wandb.util
 SENTRY_DEFAULT_DSN = (
     "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.sentry.io/6438430"
 )
+
+SessionStatus = Literal["ok", "exited", "crashed", "abnormal"]
 
 
 def _noop_if_disabled(func: Callable) -> Callable:
@@ -113,7 +120,7 @@ class Sentry:
             self.hub._capture_internal_exception(sys.exc_info())
 
         if not handled:
-            self.mark_sessions_crashed()
+            self.mark_session(status="crashed")
         if delay:
             time.sleep(2)
         return None
@@ -144,14 +151,14 @@ class Sentry:
             self.hub.start_session()
 
     @_noop_if_disabled
-    def mark_sessions_crashed(self) -> None:
+    def mark_session(self, status: Optional["SessionStatus"] = None) -> None:
         """Mark all sessions as crashed."""
         assert self.hub is not None
         _, scope = self.hub._stack[-1]
         session = scope._session
 
         if session is not None:
-            session.update(status="crashed")
+            session.update(status=status)
 
     @_noop_if_disabled
     def set_scope(
