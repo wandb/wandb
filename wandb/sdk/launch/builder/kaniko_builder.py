@@ -24,7 +24,12 @@ from .._project_spec import (
     create_metadata_file,
     get_entry_point_command,
 )
-from ..utils import LOG_PREFIX, get_kube_context_and_api_client, sanitize_wandb_api_key
+from ..utils import (
+    LOG_PREFIX,
+    get_kube_context_and_api_client,
+    sanitize_wandb_api_key,
+    warn_failed_packages_from_build_logs,
+)
 from .build import _create_docker_build_ctx, generate_dockerfile
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
@@ -248,6 +253,9 @@ class KanikoBuilder(AbstractBuilder):
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
+
+            logs = batch_v1.read_namespaced_job_log(build_job_name, "wandb")
+            warn_failed_packages_from_build_logs(logs, image_uri)
         except Exception as e:
             wandb.termerror(
                 f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
