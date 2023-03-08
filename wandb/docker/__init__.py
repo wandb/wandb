@@ -107,6 +107,8 @@ def run_command_live_output(args: List[Any]) -> Tuple[str, str]:
             if not p_stderr:
                 break
             stderr_line = p_stderr.readline()
+            if not stderr_line:
+                break
             stderr += stderr_line
             print(stderr_line, end="", file=sys.stderr)
         while True:
@@ -114,7 +116,8 @@ def run_command_live_output(args: List[Any]) -> Tuple[str, str]:
             if not p_stdout:
                 break
             stdout_line = p_stdout.readline()
-
+            if not stdout_line:
+                break
             stdout += stdout_line
             print(stdout_line, end="")
 
