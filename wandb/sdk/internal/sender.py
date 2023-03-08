@@ -1076,7 +1076,7 @@ class SendManager:
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
         self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        util.sentry.set_scope(settings=self._settings)
+        util.sentry.configure_scope(settings=self._settings)
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)

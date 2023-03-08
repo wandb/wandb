@@ -61,7 +61,7 @@ class _Service:
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
-        sentry.set_scope(process_context="service")
+        sentry.configure_scope(process_context="service")
 
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition

@@ -101,6 +101,7 @@ class Sentry:
         ],
         delay: bool = False,
         handled: bool = False,
+        status: Optional["SessionStatus"] = None,
     ) -> None:
         error = Exception(exc) if isinstance(exc, str) else exc
         # self.hub.capture_exception(_exc)  # type: ignore
@@ -115,12 +116,15 @@ class Sentry:
             mechanism={"type": "generic", "handled": handled},
         )
         try:
-            self.hub.capture_event(event, hint=hint)
+            self.hub.capture_event(event, hint=hint)  # type: ignore
         except Exception:
-            self.hub._capture_internal_exception(sys.exc_info())
+            self.hub._capture_internal_exception(sys.exc_info())  # type: ignore
 
-        if not handled:
-            self.mark_session(status="crashed")
+        # if the status is not explicitly set, we'll set it to "crashed" if the exception
+        # was unhandled, or "errored" if it was handled
+        status = status or ("crashed" if not handled else "errored")
+        self.mark_session(status=status)
+
         if delay:
             time.sleep(2)
         return None
@@ -151,6 +155,19 @@ class Sentry:
             self.hub.start_session()
 
     @_noop_if_disabled
+    def end_session(self) -> None:
+        """Track session to get metrics about error-free rate."""
+        assert self.hub is not None
+        _, scope = self.hub._stack[-1]
+        session = scope._session
+
+        if session is not None:
+            # wandb.termlog("IMMA END A SESSION")
+            # import threading
+            # wandb.termlog(f"{threading.main_thread().name}  {threading.current_thread().name}")
+            self.hub.end_session()
+
+    @_noop_if_disabled
     def mark_session(self, status: Optional["SessionStatus"] = None) -> None:
         """Mark all sessions as crashed."""
         assert self.hub is not None
@@ -161,7 +178,7 @@ class Sentry:
             session.update(status=status)
 
     @_noop_if_disabled
-    def set_scope(
+    def configure_scope(
         self,
         settings: Optional[
             Union[
@@ -187,6 +204,7 @@ class Sentry:
             "sweep_id",
             "deployment",
             "_disable_service",
+            "launch",
         )
 
         with self.hub.configure_scope() as scope:

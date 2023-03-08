@@ -69,7 +69,7 @@ def wandb_internal(
     started = time.time()
 
     # any sentry events in the internal process will be tagged as such
-    sentry.set_scope(process_context="internal")
+    sentry.configure_scope(process_context="internal")
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register

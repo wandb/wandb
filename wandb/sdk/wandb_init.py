@@ -1138,6 +1138,7 @@ def init(
         try:
             run = wi.init()
             except_exit = wi.settings._except_exit
+            # sentry.exception("LEMME CRASH THIS, AND NOT HANDLE IT", handled=False)
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
                 sentry.exception(e)
