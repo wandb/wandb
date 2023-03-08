@@ -278,17 +278,8 @@ class KanikoBuilder(AbstractBuilder):
         build_context_path: str,
     ) -> "client.V1Job":
         env = []
-        volume_mounts = [
-            client.V1VolumeMount(name="docker-config", mount_path="/kaniko/.docker/"),
-        ]
-        volumes = [
-            client.V1Volume(
-                name="docker-config",
-                config_map=client.V1ConfigMapVolumeSource(
-                    name=f"docker-config-{job_name}",
-                ),
-            ),
-        ]
+        volume_mounts = []
+        volumes = []
         if bool(self.secret_name) != bool(self.secret_key):
             raise LaunchError(
                 "Both secret_name and secret_key or neither must be specified "
@@ -302,8 +293,19 @@ class KanikoBuilder(AbstractBuilder):
                 )
             ]
         if self.secret_name and self.secret_key:
-            # TODO: We should validate that the secret exists and has the key
-            # before creating the job. Or when we create the builder.
+            volumes += [
+                client.V1Volume(
+                    name="docker-config",
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name=f"docker-config-{job_name}",
+                    ),
+                ),
+            ]
+            volume_mounts += [
+                client.V1VolumeMount(
+                    name="docker-config", mount_path="/kaniko/.docker/"
+                ),
+            ]
             # TODO: I don't like conditioning on the registry type here. As a
             # future change I want the registry and environment classes to provide
             # a list of environment variables and volume mounts that need to be
