@@ -78,7 +78,9 @@ class LaunchProject:
         # the builder key can be passed in through the resource args
         # but these resource_args are then passed to the appropriate
         # runner, so we need to pop the builder key out
-        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
+        resource_args_build = {}
+        if resource_args.get(resource):
+            resource_args_build = resource_args[resource].pop("builder", {})
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
