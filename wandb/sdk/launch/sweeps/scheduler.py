@@ -37,6 +37,15 @@ class SchedulerState(Enum):
     COMPLETED = 4
     FAILED = 5
     STOPPED = 6
+    CANCELLED = 7
+
+
+@dataclass
+class SweepState:
+    running: str = "RUNNING"
+    paused: str = "PAUSED"
+    finished: str = "FINISHED"
+    cancelled: str = "CANCELED"
 
 
 class RunState(Enum):
@@ -79,17 +88,20 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
+        self._sweep_id: str = sweep_id or "empty-sweep-id"
+        self._state: SchedulerState = SchedulerState.PENDING
+
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
             resp = self._api.sweep(
                 sweep_id, "{}", entity=self._entity, project=self._project
             )
+            if resp.get("state") == SweepState.cancelled:
+                self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
 
-        self._sweep_id: str = sweep_id or "empty-sweep-id"
-        self._state: SchedulerState = SchedulerState.PENDING
         # Dictionary of the runs being managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
@@ -131,12 +143,20 @@ class Scheduler(ABC):
             SchedulerState.COMPLETED,
             SchedulerState.FAILED,
             SchedulerState.STOPPED,
+            SchedulerState.CANCELLED,
         ]:
             return False
         return True
 
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
+        if not self.is_alive():
+            wandb.termerror(
+                f"{LOG_PREFIX}Sweep already stopped or cancelled! Exiting..."
+            )
+            self.exit()
+            return
+
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
