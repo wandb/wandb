@@ -103,7 +103,11 @@ wandb = "wandb.cli.cli:cli"
 wb = "wandb.cli.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/wandb/wandb"
+Homepage = "https://wandb.ai/site"
+Documentation = "https://docs.wandb.ai/"
+Source = "https://github.com/wandb/wandb"
+Tracker = "https://github.com/wandb/wandb/issues"
+History = "https://github.com/wandb/wandb/releases"
 
 [tool.hatch.version]
 path = "wandb/__init__.py"
