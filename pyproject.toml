@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "wandb"
 dynamic = ["version"]
 description = "A CLI and library for interacting with the Weights and Biases API."
-readme = "README.md"
+readme = "package_readme.md"
 license = "MIT"
 requires-python = ">=3.6"
 authors = [
