@@ -435,8 +435,8 @@ def pytest_addoption(parser):
 
 
 def random_string(length: int = 12) -> str:
-    """
-    Generate a random string of a given length.
+    """Generate a random string of a given length.
+
     :param length: Length of the string to generate.
     :return: Random string.
     """
@@ -474,8 +474,8 @@ def wandb_debug(request):
 def check_server_health(
     base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
 ) -> bool:
-    """
-    Check if wandb server is healthy.
+    """Check if wandb server is healthy.
+
     :param base_url:
     :param num_retries:
     :param sleep_time:
@@ -519,9 +519,10 @@ def check_server_up(
     wandb_server_tag: str = "master",
     wandb_server_pull: Literal["missing", "always"] = "missing",
 ) -> bool:
-    """
-    Check if wandb server is up and running;
-    if not on the CI and the server is not running, then start it first.
+    """Check if wandb server is up and running.
+
+    If not on the CI and the server is not running, then start it first.
+
     :param base_url:
     :param wandb_server_tag:
     :param wandb_server_pull:
@@ -577,8 +578,9 @@ def check_server_up(
 
 @dataclasses.dataclass
 class UserFixtureCommand:
-    command: Literal["up", "down", "down_all", "logout", "login"]
+    command: Literal["up", "down", "down_all", "logout", "login", "password"]
     username: Optional[str] = None
+    password: Optional[str] = None
     admin: bool = False
     endpoint: str = "db/user"
     port: str = FIXTURE_SERVICE_PORT
@@ -608,17 +610,18 @@ def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
             data = {"command": cmd.command}
             if cmd.username:
                 data["username"] = cmd.username
+            if cmd.password:
+                data["password"] = cmd.password
             if cmd.admin is not None:
                 data["admin"] = cmd.admin
         elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
             data = [
                 {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
-                {"email": "local@wandb.com", "delete": True},
             ]
         else:
             raise NotImplementedError(f"{cmd} is not implemented")
         # trigger fixture
-        print(f"Triggering fixture: {data}")
+        print(f"Triggering fixture on {endpoint}: {data}")
         response = getattr(requests, cmd.method)(endpoint, json=data)
         if response.status_code != 200:
             print(response.json())
@@ -639,6 +642,10 @@ def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
 def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
+    fixture_fn(command)
+    command = UserFixtureCommand(
+        command="password", username=username, password=username
+    )
     fixture_fn(command)
 
     with unittest.mock.patch.dict(
@@ -663,12 +670,23 @@ def debug(wandb_debug, fixture_fn, base_url):
         admin_username = f"admin-{random_string()}"
         # disable default user and create an admin account that can be used to log in to the app
         # and inspect the test runs.
+        command = UserFixtureCommand(command="down", username="local@wandb.com")
+        fixture_fn(command)
         command = UserFixtureCommand(
             command="up",
             username=admin_username,
             admin=True,
         )
         fixture_fn(command)
+
+        command = UserFixtureCommand(
+            command="password",
+            username=admin_username,
+            password=admin_username,
+            admin=True,
+        )
+        fixture_fn(command)
+
         command = AddAdminAndEnsureNoDefaultUser(
             email=admin_username,
             password=admin_username,
@@ -696,9 +714,7 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 @pytest.fixture(scope="function")
 def relay_server(base_url):
-    """
-    Creates a new relay server.
-    """
+    """Create a new relay server."""
 
     @contextmanager
     def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
@@ -749,7 +765,6 @@ def wandb_init(user, test_settings, request):
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,
     ):
-
         kwargs = dict(locals())
         # drop fixtures from kwargs
         for key in ("user", "test_settings", "request"):
@@ -791,7 +806,6 @@ def inject_file_stream_response(base_url, user):
         status: int = 200,
         application_pattern: str = "1",
     ) -> InjectedResponse:
-
         if status > 299:
             message = body if isinstance(body, str) else "::".join(body.args)
             body = DeliberateHTTPError(status_code=status, message=message)

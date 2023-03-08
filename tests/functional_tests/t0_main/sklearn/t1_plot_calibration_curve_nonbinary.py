@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Demonstrate non-binary plot calibration curve failure
+"""Demonstrate non-binary plot calibration curve failure.
 
 Reproduction for WB-6749.
 

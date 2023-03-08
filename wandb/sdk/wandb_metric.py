@@ -1,6 +1,4 @@
-"""
-metric.
-"""
+"""metric."""
 
 import logging
 from typing import Callable, Optional, Sequence, Tuple
@@ -11,9 +9,7 @@ logger = logging.getLogger("wandb")
 
 
 class Metric:
-    """
-    Metric object
-    """
+    """Metric object."""
 
     _callback: Optional[Callable[[pb.MetricRecord], None]]
     _name: str

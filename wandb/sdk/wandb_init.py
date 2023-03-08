@@ -124,7 +124,7 @@ class _WandbInit:
         self.printer = get_printer(settings._jupyter)
 
     def setup(self, kwargs: Any) -> None:  # noqa: C901
-        """Completes setup for `wandb.init()`.
+        """Complete setup for `wandb.init()`.
 
         This includes parsing all arguments, applying them with settings and enabling logging.
         """
@@ -161,13 +161,27 @@ class _WandbInit:
                 )
                 self.printer.display(line, level="warn")
 
-        self._wl = wandb_setup.setup()
+        # we add this logic to be backward compatible with the old behavior of disable
+        # where it would disable the service if the mode was set to disabled
+        mode = kwargs.get("mode")
+        settings_mode = (kwargs.get("settings") or {}).get("mode")
+        _disable_service = mode == "disabled" or settings_mode == "disabled"
+        setup_settings = {"_disable_service": _disable_service}
+
+        self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
+
+        # when using launch, we don't want to reuse the same run id from the singleton
+        # since users might launch multiple runs in the same process
+        # TODO(kdg): allow users to control this via launch settings
+        if settings.launch and singleton is not None:
+            settings.update({"run_id": None}, source=Source.INIT)
+
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
@@ -329,7 +343,7 @@ class _WandbInit:
                 config_target.setdefault(k, v)
 
     def _enable_logging(self, log_fname: str, run_id: Optional[str] = None) -> None:
-        """Enables logging to the global debug log.
+        """Enable logging to the global debug log.
 
         This adds a run_id to the log, in case of multiple processes on the same machine.
         Currently, there is no way to disable logging after it's enabled.
@@ -455,7 +469,7 @@ class _WandbInit:
         ipython.display_pub.publish = publish
 
     def _log_setup(self, settings: Settings) -> None:
-        """Sets up logging from settings."""
+        """Set up logging from settings."""
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_user))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_internal))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.sync_file))
@@ -547,7 +561,7 @@ class _WandbInit:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb, "
-                        "you should use multi-processing not threads"  # noqa: E501
+                        "you should use multi-processing not threads"
                     )
 
                 last_id = self._wl._global_run_stack[-1]._run_id
@@ -929,7 +943,7 @@ def init(
     id: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
-    r"""Starts a new run to track and log to W&B.
+    r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
     to the beginning of your training script as well as your evaluation
@@ -1000,7 +1014,7 @@ def init(
             a model against different test sets. Group gives you a way to
             organize runs together into a larger whole, and you can toggle this
             on and off in the UI. For more details, see our
-            [guide to grouping runs](https://docs.wandb.com/library/grouping).
+            [guide to grouping runs](https://docs.wandb.com/guides/runs/grouping).
         job_type: (str, optional) Specify the type of run, which is useful when
             you're grouping runs together into larger experiments using group.
             For example, you might have multiple jobs in a group, with job types
@@ -1042,7 +1056,7 @@ def init(
                 `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
                 wandb will automatically resume the run with the id. Otherwise,
                 wandb will crash.
-            See [our guide to resuming runs](https://docs.wandb.com/library/advanced/resuming)
+            See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming)
             for more.
         reinit: (bool, optional) Allow multiple `wandb.init()` calls in the same
             process. (default: `False`)
@@ -1077,13 +1091,13 @@ def init(
             tensorboardX and save the relevant events file. (default: `False`)
         monitor_gym: (bool, optional) Automatically log videos of environment when
             using OpenAI Gym. (default: `False`)
-            See [our guide to this integration](https://docs.wandb.com/library/integrations/openai-gym).
+            See [our guide to this integration](https://docs.wandb.com/guides/integrations/openai-gym).
         id: (str, optional) A unique ID for this run, used for resuming. It must
             be unique in the project, and if you delete a run you can't reuse
             the ID. Use the `name` field for a short descriptive name, or `config`
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
-            See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
+            See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
 
     Examples:
     ### Set where the run is logged
@@ -1112,9 +1126,6 @@ def init(
     config.update({"architecture": "resnet", "depth": 34})
     wandb.init(config=config)
     ```
-
-    Raises:
-        Exception: if problem.
 
     Returns:
         A `Run` object.

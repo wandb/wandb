@@ -1,42 +1,54 @@
-"""
-Implementation of launch agent.
-"""
-
+"""Implementation of launch agent."""
 import logging
 import os
 import pprint
+import threading
 import time
 import traceback
-from typing import Any, Dict, List, Union
+from dataclasses import dataclass
+from multiprocessing import Event
+from multiprocessing.pool import ThreadPool
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
+from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
-from ..builder.loader import load_builder
+from ..builder.build import construct_builder_args
 from ..runner.abstract import AbstractRun
-from ..runner.loader import load_backend
-from ..utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
-    PROJECT_SYNCHRONOUS,
-    resolve_build_and_registry_config,
-)
+from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError
 
 AGENT_POLLING_INTERVAL = 10
+ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
 
+MAX_THREADS = 64
+
 _logger = logging.getLogger(__name__)
 
 
+@dataclass
+class JobAndRunStatus:
+    run: Optional[AbstractRun] = None
+    failed_to_start: bool = False
+    completed: bool = False
+    is_scheduler: bool = False
+
+    @property
+    def job_completed(self) -> bool:
+        return self.completed or self.failed_to_start
+
+
 def _convert_access(access: str) -> str:
-    """Converts access string to a value accepted by wandb."""
+    """Convert access string to a value accepted by wandb."""
     access = access.upper()
     assert (
         access == "PROJECT" or access == "USER"
@@ -44,25 +56,72 @@ def _convert_access(access: str) -> str:
     return access
 
 
+def _max_from_config(
+    config: Dict[str, Any], key: str, default: int = 1
+) -> Union[int, float]:
+    """Get an integer from the config, or float.inf if -1.
+
+    Utility for parsing integers from the agent config with a default, infinity
+    handling, and integer parsing. Raises more informative error if parse error.
+    """
+    try:
+        val = config.get(key)
+        if val is None:
+            val = default
+        max_from_config = int(val)
+    except ValueError as e:
+        raise LaunchError(
+            f"Error when parsing LaunchAgent config key: ['{key}': "
+            f"{config.get(key)}]. Error: {str(e)}"
+        )
+    if max_from_config == -1:
+        return float("inf")
+
+    if max_from_config < 0:
+        raise LaunchError(
+            f"Error when parsing LaunchAgent config key: ['{key}': "
+            f"{config.get(key)}]. Error: negative value."
+        )
+    return max_from_config
+
+
+def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
+    """Determine whether a job/runSpec is a sweep scheduler."""
+    if not run_spec:
+        _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
+
+    return run_spec.get("uri") == SCHEDULER_URI
+
+
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
     def __init__(self, api: Api, config: Dict[str, Any]):
-        self._entity = config.get("entity")
-        self._project = config.get("project")
+        """Initialize a launch agent.
+
+        Arguments:
+            api: Api object to use for making requests to the backend.
+            config: Config dictionary for the agent.
+        """
+        self._entity = config["entity"]
+        self._project = config["project"]
         self._api = api
         self._base_url = self._api.settings().get("base_url")
-        self._jobs: Dict[Union[int, str], AbstractRun] = {}
         self._ticks = 0
-        self._running = 0
+        self._jobs: Dict[int, JobAndRunStatus] = {}
+        self._jobs_lock = threading.Lock()
+        self._jobs_event = Event()
+        self._jobs_event.set()
         self._cwd = os.getcwd()
         self._namespace = runid.generate_id()
         self._access = _convert_access("project")
-        max_jobs_from_config = int(config.get("max_jobs", 1))
-        if max_jobs_from_config == -1:
-            self._max_jobs = float("inf")
-        else:
-            self._max_jobs = max_jobs_from_config
+        self._max_jobs = _max_from_config(config, "max_jobs")
+        self._max_schedulers = _max_from_config(config, "max_schedulers")
+        self._pool = ThreadPool(
+            processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
+            # initializer=init_pool_processes,
+            initargs=(self._jobs, self._jobs_lock),
+        )
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
@@ -80,12 +139,35 @@ class LaunchAgent:
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
     @property
-    def job_ids(self) -> List[Union[int, str]]:
-        """Returns a list of keys running job ids for the agent."""
-        return list(self._jobs.keys())
+    def thread_ids(self) -> List[int]:
+        """Returns a list of keys running thread ids for the agent."""
+        with self._jobs_lock:
+            return list(self._jobs.keys())
+
+    @property
+    def num_running_schedulers(self) -> int:
+        """Return just the number of schedulers."""
+        with self._jobs_lock:
+            return len([x for x in self._jobs if self._jobs[x].is_scheduler])
+
+    @property
+    def num_running_jobs(self) -> int:
+        """Return the number of jobs not including schedulers."""
+        with self._jobs_lock:
+            return len([x for x in self._jobs if not self._jobs[x].is_scheduler])
 
     def pop_from_queue(self, queue: str) -> Any:
-        """Pops an item off the runqueue to run as a job."""
+        """Pops an item off the runqueue to run as a job.
+
+        Arguments:
+            queue: Queue to pop from.
+
+        Returns:
+            Item popped off the queue.
+
+        Raises:
+            Exception: if there is an error popping from the queue.
+        """
         try:
             ups = self._api.pop_from_run_queue(
                 queue,
@@ -100,41 +182,58 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        if self._project == LAUNCH_DEFAULT_PROJECT:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on queues {','.join(self._queues)} for jobs"
-            )
-        else:
-            wandb.termlog(
-                f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
-            )
+        output_str = "agent "
+        if self._name:
+            output_str += f"{self._name} "
+        if self.num_running_jobs < self._max_jobs:
+            output_str += "polling on "
+            if self._project != LAUNCH_DEFAULT_PROJECT:
+                output_str += f"project {self._project}, "
+            output_str += f"queues {','.join(self._queues)}, "
+        output_str += (
+            f"running {self.num_running_jobs} out of a maximum of {self._max_jobs} jobs"
+        )
+
+        wandb.termlog(f"{LOG_PREFIX}{output_str}")
+        if self.num_running_jobs > 0:
+            output_str += f": {','.join(str(job_id) for job_id in self.thread_ids)}"
+
+        _logger.info(output_str)
 
     def update_status(self, status: str) -> None:
+        """Update the status of the agent.
+
+        Arguments:
+            status: Status to update the agent to.
+        """
         update_ret = self._api.update_launch_agent_status(
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
-            wandb.termerror(f"Failed to update agent status to {status}")
+            wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_job_id(self, job_id: Union[str, int]) -> None:
+    def finish_thread_id(self, thread_id: int) -> None:
         """Removes the job from our list for now."""
         # TODO:  keep logs or something for the finished jobs
-        del self._jobs[job_id]
-        self._running -= 1
+        with self._jobs_lock:
+            del self._jobs[thread_id]
         # update status back to polling if no jobs are running
-        if self._running == 0:
+        if len(self.thread_ids) == 0:
             self.update_status(AGENT_POLLING)
 
-    def _update_finished(self, job_id: Union[int, str]) -> None:
+    def _update_finished(self, thread_id: int) -> None:
         """Check our status enum."""
-        try:
-            if self._jobs[job_id].get_status().state in ["failed", "finished"]:
-                self.finish_job_id(job_id)
-        except Exception:
-            self.finish_job_id(job_id)
+        with self._jobs_lock:
+            job = self._jobs[thread_id]
+        if job.job_completed:
+            self.finish_thread_id(thread_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
-        """Sets up project and runs the job."""
+        """Set up project and run the job.
+
+        Arguments:
+            job: Job to run.
+        """
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
         wandb.termlog(_msg)
         _logger.info(_msg)
@@ -151,9 +250,117 @@ class LaunchAgent:
                 launch_spec["overrides"].get("args", [])
             )
 
-        project = create_project_from_spec(launch_spec, self._api)
+        self._pool.apply_async(
+            self.thread_run_job,
+            (
+                launch_spec,
+                job,
+                self.default_config,
+                self._api,
+            ),
+        )
+
+    def loop(self) -> None:
+        """Loop infinitely to poll for jobs and run them.
+
+        Raises:
+            KeyboardInterrupt: if the agent is requested to stop.
+        """
+        self.print_status()
+        try:
+            while True:
+                self._ticks += 1
+                agent_response = self._api.get_launch_agent(
+                    self._id, self.gorilla_supports_agents
+                )
+                self._name = agent_response["name"]  # hack: first time we get name
+                if agent_response["stopPolling"]:
+                    # shutdown process and all jobs if requested from ui
+                    raise KeyboardInterrupt
+                if self.num_running_jobs < self._max_jobs:
+                    # only check for new jobs if we're not at max
+                    for queue in self._queues:
+                        job = self.pop_from_queue(queue)
+                        if job:
+                            if _job_is_scheduler(job.get("runSpec")):
+                                # If job is a scheduler, and we are already at the cap, ignore,
+                                #    don't ack, and it will be pushed back onto the queue in 1 min
+                                if self.num_running_schedulers >= self._max_schedulers:
+                                    wandb.termwarn(
+                                        f"{LOG_PREFIX}Agent already running the maximum number "
+                                        f"of sweep schedulers: {self._max_schedulers}. To set "
+                                        "this value use `max_schedulers` key in the agent config"
+                                    )
+                                    continue
+
+                            try:
+                                self.run_job(job)
+                            except Exception:
+                                wandb.termerror(
+                                    f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
+                                )
+                                try:
+                                    self._api.ack_run_queue_item(job["runQueueItemId"])
+                                except Exception:
+                                    _logger.error(
+                                        f"{LOG_PREFIX}Error acking job when job errored: {traceback.format_exc()}"
+                                    )
+
+                for thread_id in self.thread_ids:
+                    self._update_finished(thread_id)
+                if self._ticks % 2 == 0:
+                    if len(self.thread_ids) == 0:
+                        self.update_status(AGENT_POLLING)
+                    else:
+                        self.update_status(AGENT_RUNNING)
+                    self.print_status()
+
+                if (
+                    self.num_running_jobs == self._max_jobs
+                    or self.num_running_schedulers == 0
+                ):
+                    # all threads busy or no schedulers running
+                    time.sleep(AGENT_POLLING_INTERVAL)
+                else:
+                    time.sleep(ACTIVE_SWEEP_POLLING_INTERVAL)
+
+        except KeyboardInterrupt:
+            self._jobs_event.clear()
+            self.update_status(AGENT_KILLED)
+            wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
+            self.print_status()
+            self._pool.close()
+            self._pool.join()
+
+    # Threaded functions
+    def thread_run_job(
+        self,
+        launch_spec: Dict[str, Any],
+        job: Dict[str, Any],
+        default_config: Dict[str, Any],
+        api: Api,
+    ) -> None:
+        try:
+            self._thread_run_job(launch_spec, job, default_config, api)
+        except Exception:
+            wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
+            api.ack_run_queue_item(job["runQueueItemId"])
+
+    def _thread_run_job(
+        self,
+        launch_spec: Dict[str, Any],
+        job: Dict[str, Any],
+        default_config: Dict[str, Any],
+        api: Api,
+    ) -> None:
+        thread_id = threading.current_thread().ident
+        assert thread_id is not None
+        job_tracker = JobAndRunStatus()
+        with self._jobs_lock:
+            self._jobs[thread_id] = job_tracker
+        project = create_project_from_spec(launch_spec, api)
         _logger.info("Fetching and validating project...")
-        project = fetch_and_validate_project(project, self._api)
+        project = fetch_and_validate_project(project, api)
         _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
@@ -162,70 +369,85 @@ class LaunchAgent:
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        override_build_config = launch_spec.get("build")
-        override_registry_config = launch_spec.get("registry")
+        override_build_config = launch_spec.get("builder")
 
-        build_config, registry_config = resolve_build_and_registry_config(
-            self.default_config, override_build_config, override_registry_config
+        build_config, registry_config = construct_builder_args(
+            default_config, override_build_config
         )
-        builder = load_builder(build_config)
 
-        default_runner = self.default_config.get("runner", {}).get("type")
-        if default_runner == resource:
-            backend_config["runner"] = self.default_config.get("runner")
-        backend = load_backend(resource, self._api, backend_config)
-        backend.verify()
+        environment = loader.environment_from_config(
+            default_config.get("environment", {})
+        )
+        registry = loader.registry_from_config(registry_config, environment)
+        builder = loader.builder_from_config(build_config, environment, registry)
+        backend = loader.runner_from_config(resource, api, backend_config, environment)
         _logger.info("Backend loaded...")
-        run = backend.run(project, builder, registry_config)
-        if run:
-            self._jobs[run.id] = run
-            self._running += 1
+        run = backend.run(project, builder)
 
-    def loop(self) -> None:
-        """Main loop function for agent."""
-        self.print_status()
+        if _job_is_scheduler(launch_spec):
+            with self._jobs_lock:
+                self._jobs[thread_id].is_scheduler = True
+            wandb.termlog(
+                f"{LOG_PREFIX}Preparing to run sweep scheduler "
+                f"({self.num_running_schedulers}/{self._max_schedulers})"
+            )
+
+        if not run:
+            with self._jobs_lock:
+                job_tracker.failed_to_start = True
+            return
+        with self._jobs_lock:
+            job_tracker.run = run
+        while self._jobs_event.is_set():
+            if self._check_run_finished(job_tracker):
+                return
+            time.sleep(AGENT_POLLING_INTERVAL)
+        # temp: for local, kill all jobs. we don't yet have good handling for different
+        # types of runners in general
+        if isinstance(run, LocalSubmittedRun):
+            run.command_proc.kill()
+
+    def _check_run_finished(self, job_tracker: JobAndRunStatus) -> bool:
+        if job_tracker.completed:
+            return True
+
+        # the run can be done before the run has started
+        # but can also be none if the run failed to start
+        # so if there is no run, either the run hasn't started yet
+        # or it has failed
+        if job_tracker.run is None:
+            if job_tracker.failed_to_start:
+                return True
+            return False
+
+        known_error = False
         try:
-            while True:
-                self._ticks += 1
-                job = None
-
-                agent_response = self._api.get_launch_agent(
-                    self._id, self.gorilla_supports_agents
-                )
-                self._name = agent_response[
-                    "name"
-                ]  # hacky, but we don't return the name on create so this is first time
-                if agent_response["stopPolling"]:
-                    # shutdown process and all jobs if requested from ui
-                    raise KeyboardInterrupt
-                if self._running < self._max_jobs:
-                    # only check for new jobs if we're not at max
-                    for queue in self._queues:
-                        job = self.pop_from_queue(queue)
-                        if job:
-                            try:
-                                self.run_job(job)
-                            except Exception:
-                                wandb.termerror(
-                                    f"Error running job: {traceback.format_exc()}"
-                                )
-                                self._api.ack_run_queue_item(job["runQueueItemId"])
-                for job_id in self.job_ids:
-                    self._update_finished(job_id)
-                if self._ticks % 2 == 0:
-                    if self._running == 0:
-                        self.update_status(AGENT_POLLING)
-                        self.print_status()
-                    else:
-                        self.update_status(AGENT_RUNNING)
-                time.sleep(AGENT_POLLING_INTERVAL)
-
-        except KeyboardInterrupt:
-            # temp: for local, kill all jobs. we don't yet have good handling for different
-            # types of runners in general
-            for _, run in self._jobs.items():
-                if isinstance(run, LocalSubmittedRun):
-                    run.command_proc.kill()
-            self.update_status(AGENT_KILLED)
-            wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
-            self.print_status()
+            run = job_tracker.run
+            status = run.get_status().state
+            if status in ["stopped", "failed", "finished"]:
+                if job_tracker.is_scheduler:
+                    wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
+                else:
+                    wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
+                with self._jobs_lock:
+                    job_tracker.completed = True
+                return True
+            return False
+        except LaunchError as e:
+            wandb.termerror(
+                f"{LOG_PREFIX}Terminating job {run.id} because it failed to start: {str(e)}"
+            )
+            known_error = True
+            with self._jobs_lock:
+                job_tracker.failed_to_start = True
+        # TODO: make get_status robust to errors for each runner, and handle them
+        # TODO: add sentry to track this case and solve issues
+        except Exception:
+            wandb.termerror(f"{LOG_PREFIX}Error getting status for job {run.id}")
+            wandb.termerror(traceback.format_exc())
+            _logger.info("---")
+            _logger.info("Caught exception while getting status.")
+            _logger.info(f"Job ID: {run.id}")
+            _logger.info(traceback.format_exc())
+            _logger.info("---")
+        return known_error

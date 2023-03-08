@@ -4,7 +4,7 @@ import os
 import pytest
 import wandb
 from wandb.cli import cli
-from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LaunchError
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
@@ -254,6 +254,7 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                 {
                     "name": "My Sweep",
                     "method": "grid",
+                    "job": "test-job:v9",
                     "parameters": {"parameter1": {"values": [1, 2, 3]}},
                 },
                 f,
@@ -263,7 +264,6 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                 {
                     "queue": "default",
                     "resource": "local-process",
-                    "job": "mock-launch-job",
                     "scheduler": {
                         "resource": "local-process",
                     },
@@ -368,41 +368,6 @@ def test_launch_supplied_docker_image(
     assert " -e WANDB_CONFIG='{}'" in result.output
     assert "-e WANDB_ARTIFACTS='{}'" in result.output
     assert "test:tag" in result.output
-
-
-@pytest.mark.timeout(320)
-def test_launch_cuda_flag(
-    runner, live_mock_server, monkeypatch, mocked_fetchable_git_repo
-):
-    args = [
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--entry-point",
-        "train.py",
-    ]
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            args + ["--cuda"],
-        )
-    print(result.output)
-    assert result.exit_code == 0
-
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            args + ["--cuda", "False"],
-        )
-    print(result.output)
-    assert result.exit_code == 0
-
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            args + ["--cuda", "asdf"],
-        )
-    print(result.output)
-    assert result.exit_code != 0
-    assert "Invalid value for --cuda:" in result.output
 
 
 def test_launch_agent_project_environment_variable(
