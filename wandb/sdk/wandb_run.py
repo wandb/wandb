@@ -1441,7 +1441,6 @@ class Run:
         self._settings._apply_run_start(message_to_dict(self._run_obj))
         self._update_settings(self._settings)
 
-        # TODO: It feels weird to call this twice..
         sentry.configure_scope(
             process_context="user",
             settings=self._settings,

@@ -149,23 +149,18 @@ class Sentry:
         session = scope._session
 
         if session is None:
-            # wandb.termlog("IMMA START A SESSION")
-            # import threading
-            # wandb.termlog(f"{threading.main_thread().name}  {threading.current_thread().name}")
             self.hub.start_session()
 
     @_noop_if_disabled
     def end_session(self) -> None:
         """Track session to get metrics about error-free rate."""
         assert self.hub is not None
-        _, scope = self.hub._stack[-1]
+        client, scope = self.hub._stack[-1]
         session = scope._session
 
-        if session is not None:
-            # wandb.termlog("IMMA END A SESSION")
-            # import threading
-            # wandb.termlog(f"{threading.main_thread().name}  {threading.current_thread().name}")
+        if session is not None and client is not None:
             self.hub.end_session()
+            client.flush()
 
     @_noop_if_disabled
     def mark_session(self, status: Optional["SessionStatus"] = None) -> None:

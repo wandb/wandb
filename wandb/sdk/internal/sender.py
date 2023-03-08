@@ -1523,6 +1523,7 @@ class SendManager:
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+        util.sentry.end_session()
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()
