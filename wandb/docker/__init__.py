@@ -103,17 +103,20 @@ def run_command_live_output(args: List[Any]) -> Tuple[str, str]:
         stderr = ""
 
         while True:
-            line = process.stderr.readline()
-            if not line:
+            p_stderr = process.stderr
+            if not p_stderr:
                 break
-            stderr += line
-            print(line, end="", file=sys.stderr)
+            stderr_line = p_stderr.readline()
+            stderr += stderr_line
+            print(stderr_line, end="", file=sys.stderr)
         while True:
-            line = process.stdout.readline()
-            if not line:
+            p_stdout = process.stdout
+            if not p_stdout:
                 break
-            stdout += line
-            print(line, end="")
+            stdout_line = p_stdout.readline()
+
+            stdout += stdout_line
+            print(stdout_line, end="")
 
     return_code = process.wait()
     if return_code != 0:
