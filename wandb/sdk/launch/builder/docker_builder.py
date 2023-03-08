@@ -16,7 +16,7 @@ from .._project_spec import (
     get_entry_point_command,
 )
 from ..registry.local_registry import LocalRegistry
-from ..utils import LOG_PREFIX, LaunchError, sanitize_wandb_api_key
+from ..utils import LOG_PREFIX, LaunchDockerError, LaunchError, sanitize_wandb_api_key
 from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
@@ -130,7 +130,7 @@ class DockerBuilder(AbstractBuilder):
         try:
             docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
         except docker.DockerError as e:
-            raise LaunchError(f"Error communicating with docker client: {e}")
+            raise LaunchDockerError(f"Error communicating with docker client: {e}")
 
         try:
             os.remove(build_ctx_path)
