@@ -253,9 +253,13 @@ class KanikoBuilder(AbstractBuilder):
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
-
-            logs = batch_v1.read_namespaced_job_log(build_job_name, "wandb")
-            warn_failed_packages_from_build_logs(logs, image_uri)
+            try:
+                logs = batch_v1.read_namespaced_job_log(build_job_name, "wandb")
+                warn_failed_packages_from_build_logs(logs, image_uri)
+            except Exception as e:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Failed to get logs for kaniko job {build_job_name}: {e}"
+                )
         except Exception as e:
             wandb.termerror(
                 f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"

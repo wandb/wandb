@@ -666,8 +666,8 @@ def make_name_dns_safe(name: str) -> str:
 
 def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
+    print(match)
     if match:
-        failed_packages = [p.strip() for p in match.group(1).split(",")]
         wandb.termwarn(
-            f"Failed to install the following packages: {failed_packages} for image: {image_uri}. Will attempt launch"
+            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
         )
