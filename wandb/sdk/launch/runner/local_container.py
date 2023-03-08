@@ -220,9 +220,11 @@ def get_docker_command(
                 cmd += [prefix]
             else:
                 cmd += [prefix, shlex.quote(str(value))]
+
+    cmd += [shlex.quote(image)]
     if entry_cmd:
         cmd += ["--entrypoint"] + entry_cmd
-    cmd += [shlex.quote(image)]
+
     if additional_args:
         cmd += additional_args
     return cmd
