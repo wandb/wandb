@@ -108,7 +108,7 @@ def main() -> None:
 # hacky way to get the name of the requirement that failed
 # attempt last word which is the name of the package often
 # fall back to checking all words in the line for the package name
-def find_package_in_error_string(deps: List[str], line: str):
+def find_package_in_error_string(deps: List[str], line: str) -> Optional[str]:
     # if the last word in the error string is in the list of deps, return it
     last_word = line.split(" ")[-1]
     if last_word in deps:
