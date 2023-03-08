@@ -97,6 +97,9 @@ service = []
 sweeps = [
     "sweeps>=0.2.0",
 ]
+all = [
+    "wandb[aws,azure,gcp,grpc,kubeflow,launch,media,models,service,sweeps]"
+]
 
 [project.scripts]
 wandb = "wandb.cli.cli:cli"
