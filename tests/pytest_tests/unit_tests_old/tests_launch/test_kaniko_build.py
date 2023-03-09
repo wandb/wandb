@@ -219,18 +219,19 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
 
 
 def test_build_image_success(
-    monkeypatch, mock_kubernetes_client, runner, mock_boto3, test_settings, capsys
+    monkeypatch,
+    mock_kubernetes_client,
+    runner,
+    mock_boto3,
+    test_settings,
+    capsys,
+    tmp_path,
 ):
-    build_config = {
-        "cloud-provider": "AWS",
-        "build-context-store": "s3",
-        "credentials": {
-            "secret-name": "aws-secret",
-            "secret-mount-path": "/root/.aws",
-        },
-    }
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch._project_spec.LaunchProject, "build_required", lambda x: True
     )
     with runner.isolated_filesystem():
         os.makedirs("./test/context/path/", exist_ok=True)
@@ -246,9 +247,11 @@ def test_build_image_success(
         builder = KanikoBuilder(
             MagicMock(), registry, build_context_store="s3://test-bucket/test-prefix"
         )
+        job_name = "mock_server_entity/test/job-artifact"
+        job_version = 0
         kwargs = {
-            "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-            "job": None,
+            "uri": None,
+            "job": f"{job_name}:v{job_version}",
             "api": api,
             "launch_spec": {},
             "target_entity": "mock_server_entity",
@@ -262,6 +265,10 @@ def test_build_image_success(
             "run_id": None,
         }
         project = LaunchProject(**kwargs)
+        mock_artifact = MagicMock()
+        mock_artifact.name = job_name
+        mock_artifact.version = job_version
+        project._job_artifact = mock_artifact
         entry_point = EntryPoint("main.py", ["python", "main.py"])
         image_uri = builder.build_image(project, entry_point)
         assert (
@@ -269,6 +276,5 @@ def test_build_image_success(
             in capsys.readouterr().err
         )
         assert (
-            image_uri
-            == f"12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:{project.run_id}"
+            image_uri == "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo:b60e433c"
         )

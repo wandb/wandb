@@ -130,3 +130,32 @@ class ElasticContainerRegistry(AbstractRegistry):
             str: The uri of the repository.
         """
         return self.uri + "/" + self.repo_name
+
+    def check_image_exists(self, image_uri: str) -> bool:
+        """Check if the image tag exists.
+
+        Arguments:
+            image_uri (str): The full image_uri.
+
+        Returns:
+            bool: True if the image tag exists.
+        """
+        uri, tag = image_uri.split(":")
+        if uri != self.get_repo_uri():
+            raise LaunchError(
+                f"Image uri {image_uri} does not match Elastic Container Registry uri {self.get_repo_uri()}."
+            )
+
+        _logger.debug("Checking if image tag exists.")
+        try:
+            session = self.environment.get_session()
+            client = session.client("ecr")
+            response = client.describe_images(
+                repositoryName=self.repo_name, imageIds=[{"imageTag": tag}]
+            )
+            return len(response["imageDetails"]) > 0
+
+        except botocore.exceptions.ClientError as e:
+            code = e.response["Error"]["Code"]
+            msg = e.response["Error"]["Message"]
+            raise LaunchError(f"Error checking if image tag exists: {code} {msg}")
