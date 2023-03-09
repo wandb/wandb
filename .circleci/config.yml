@@ -1342,7 +1342,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           hatch_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
       #
       # Unit tests with pytest on Linux
@@ -1353,7 +1353,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           hatch_args: "tests/pytest_tests/unit_tests"
 
       #
@@ -1365,7 +1365,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
           hatch_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
 
       - win:
@@ -1374,7 +1374,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle"
           hatch_args: "tests/pytest_tests/unit_tests --timeout 300"
 
       - mac:
@@ -1383,7 +1383,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           hatch_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
 
       - mac:
@@ -1392,7 +1392,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           hatch_args: "tests/pytest_tests/unit_tests"
 
       #
@@ -1471,7 +1471,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [8]
           name: "system-sweeps-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           hatch_args: "tests/pytest_tests/system_tests/test_sweep"
 
       #
@@ -1483,7 +1483,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [8]
           name: "system-artifacts-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           hatch_args: "tests/pytest_tests/system_tests/test_artifacts"
 
       #
@@ -1496,14 +1496,14 @@ workflows:
               python_version_major: [3]
               python_version_minor: [6]
           name: "unit-linux-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
+          hatchenv: "unit-s_nb.py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-win-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          hatchenv: "unit-s_nb.py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
       - mac:
@@ -1512,7 +1512,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          hatchenv: "unit-s_nb.py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
       #

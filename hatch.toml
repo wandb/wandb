@@ -113,23 +113,23 @@ pytest = [
     "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:4} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail {args:tests/pytest_tests/unit_tests_old/tests_launch/}",
 ]
 
-[envs.unitshard_nb]
+[envs.unit-s_nb]
 template = "unitshard"
 extra-dependencies = ["ipykernel", "ipython", "nbclient"]
 
-[envs.unitshard_nb.env-vars]
+[envs.unit-s_nb.env-vars]
 COVERAGE_FILE = "{root}/{env_name}/.coverage"
 WINDIR = "C:\\Windows"
 WB_UNIT_SHARD = "s_nb"
 
-[envs.unitshard_nb.scripts]
+[envs.unit-s_nb.scripts]
 pytest = [
     "- mkdir -p test-results",
     "ipython kernel install --user --name=wandb_python",
     "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:{env:WB_UNIT_PARALLEL:4}} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail --timeout 300 {args:tests/pytest_tests/unit_tests_old/tests_{env:WB_UNIT_SHARD}/}",
 ]
 
-[[envs.unitshard_nb.matrix]]
+[[envs.unit-s_nb.matrix]]
 python = ["36", "37", "38", "39", "310"]
 
 [envs.empty]
