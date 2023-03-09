@@ -95,20 +95,20 @@ def _job_is_scheduler(run_spec: Dict[str, Any]) -> bool:
     """Determine whether a job/runSpec is a sweep scheduler."""
     if not run_spec:
         _logger.debug("Recieved runSpec in _job_is_scheduler that was empty")
-    
+
     if run_spec.get("uri") != SCHEDULER_URI:
         return False
 
-    if run_spec.get('resource') == 'local-process':
+    if run_spec.get("resource") == "local-process":
         # If a scheduler is a local-process (100%), also
         #    confirm command is in format: [wandb scheduler <sweep>]
-        cmd = run_spec.get('overrides', {}).get('entry_point', [])
+        cmd = run_spec.get("overrides", {}).get("entry_point", [])
         if len(cmd) < 3:
             return False
 
-        if cmd[:2] != ['wandb', 'scheduler']:
+        if cmd[:2] != ["wandb", "scheduler"]:
             return False
-    
+
     return True
 
 
