@@ -263,21 +263,22 @@ class ImporterRun:
 
 class Importer(ABC):
     @abstractmethod
-    def get_all_runs(self) -> Iterable[ImporterRun]:
+    def download_all_runs(self) -> Iterable[ImporterRun]:
         ...
 
-    def send_all(self, overrides: Optional[Dict[str, Any]] = None) -> None:
-        for run in tqdm(self.get_all_runs(), desc="Sending runs"):
-            self.send(run, overrides)
+    def import_all(self, overrides: Optional[Dict[str, Any]] = None) -> None:
+        for run in tqdm(self.download_all_runs(), desc="Sending runs"):
+            self.import_one(run, overrides)
 
-    def send_all_parallel(
+    def import_all_parallel(
         self, overrides: Optional[Dict[str, Any]] = None, **pool_kwargs: Any
     ) -> None:
-        runs = list(self.get_all_runs())
+        runs = list(self.download_all_runs())
         with tqdm(total=len(runs)) as pbar:
             with ProcessPoolExecutor(**pool_kwargs) as exc:
                 futures = {
-                    exc.submit(self.send, run, overrides=overrides): run for run in runs
+                    exc.submit(self.import_one, run, overrides=overrides): run
+                    for run in runs
                 }
                 for future in as_completed(futures):
                     run = futures[future]
@@ -286,7 +287,7 @@ class Importer(ABC):
                         f"Imported Run: {run.run_group()} {run.display_name()}"
                     )
 
-    def send(
+    def import_one(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
@@ -297,9 +298,9 @@ class Importer(ABC):
                 # `lambda: v` won't work!
                 # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
                 setattr(run, k, lambda v=v: v)
-        self._send(run)
+        self._import_one(run)
 
-    def _send(self, run: ImporterRun) -> None:
+    def _import_one(self, run: ImporterRun) -> None:
         with send_manager(run.run_dir) as sm:
             sm.send(run._make_run_record())
             sm.send(run._make_summary_record())

@@ -99,15 +99,15 @@ class MlflowImporter(Importer):
             mlflow.set_registry_uri(mlflow_registry_uri)
         self.mlflow_client = mlflow.tracking.MlflowClient(mlflow_tracking_uri)
 
-    def send(
+    def import_one(
         self,
         run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        super().send(run, overrides)
+        super().import_one(run, overrides)
 
-    def get_all_runs(self) -> Iterable[MlflowRun]:
+    def download_all_runs(self) -> Iterable[MlflowRun]:
         for exp in self.mlflow_client.search_experiments():
             for run in self.mlflow_client.search_runs(exp.experiment_id):
                 yield MlflowRun(run, self.mlflow_client)

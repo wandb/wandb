@@ -2345,4 +2345,4 @@ def mlflow(mlflow_tracking_uri, target_entity, target_project):
         "project": target_project,
     }
 
-    importer.send_all_parallel(overrides=overrides)
+    importer.import_all_parallel(overrides=overrides)
