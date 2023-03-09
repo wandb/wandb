@@ -50,9 +50,9 @@ import requests
 import yaml
 
 import wandb
-from wandb.env import error_reporting_enabled, get_app_url
+from wandb.env import get_app_url
 from wandb.errors import PermissionsError, UsageError, term
-from wandb.sdk.lib import analytics, filesystem, runid
+from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -128,12 +128,6 @@ def get_platform_name() -> str:
         return PLATFORM_BSD
     else:
         return PLATFORM_UNKNOWN
-
-
-# TODO(sentry): This code probably needs to be moved,
-#  sentry shouldn't be initialized as a side effect of loading a module.
-sentry = analytics.Sentry(disabled=not error_reporting_enabled())
-sentry.setup()
 
 
 POW_10_BYTES = [

@@ -12,8 +12,8 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from wandb import sentry
 from wandb.errors import Error
-from wandb.util import sentry
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface

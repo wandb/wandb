@@ -6,7 +6,7 @@ import os
 import sys
 import time
 from types import TracebackType
-from typing import Any, Callable, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Type, Union
 from urllib.parse import quote
 
 if sys.version_info >= (3, 8):
@@ -19,9 +19,10 @@ import sentry_sdk.utils  # type: ignore
 
 import wandb
 import wandb.env
-import wandb.sdk.internal
-import wandb.sdk.internal.settings_static
 import wandb.util
+
+if TYPE_CHECKING:
+    import wandb.sdk.internal.settings_static
 
 # SENTRY_DEFAULT_DSN = (
 #     "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
@@ -51,8 +52,8 @@ def _noop_if_disabled(func: Callable) -> Callable:
 class Sentry:
     _disabled: bool
 
-    def __init__(self, disabled: bool = False) -> None:
-        self._disabled = disabled
+    def __init__(self) -> None:
+        self._disabled = not wandb.env.error_reporting_enabled()
         self._sent_messages: set = set()
 
         self.dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
@@ -64,7 +65,7 @@ class Sentry:
     def environment(self) -> str:
         # check if we're in a git repo
         is_git = os.path.exists(
-            os.path.join(os.path.dirname(__file__), "../../../../..", ".git")
+            os.path.join(os.path.dirname(__file__), "../../", ".git")
         )
         # these match the environments for gorilla
         return "development" if is_git else "production"
@@ -122,7 +123,7 @@ class Sentry:
 
         # if the status is not explicitly set, we'll set it to "crashed" if the exception
         # was unhandled, or "errored" if it was handled
-        status = status or ("crashed" if not handled else "errored")
+        status = status or ("crashed" if not handled else "errored")  # type: ignore
         self.mark_session(status=status)
 
         if delay:
