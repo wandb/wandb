@@ -21,7 +21,13 @@ from .. import loader
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.build import construct_builder_args
 from ..runner.abstract import AbstractRun
-from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS, LaunchError
+from ..utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
+    LaunchDockerError,
+    LaunchError,
+)
 
 AGENT_POLLING_INTERVAL = 10
 ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
@@ -340,11 +346,20 @@ class LaunchAgent:
         default_config: Dict[str, Any],
         api: Api,
     ) -> None:
+        thread_id = threading.current_thread().ident
+        assert thread_id is not None
         try:
-            self._thread_run_job(launch_spec, job, default_config, api)
+            self._thread_run_job(launch_spec, job, default_config, api, thread_id)
+        except LaunchDockerError:
+            wandb.termerror(
+                f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
+            )
+            api.ack_run_queue_item(job["runQueueItemId"])
+            self.finish_thread_id(thread_id)
         except Exception:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             api.ack_run_queue_item(job["runQueueItemId"])
+            self.finish_thread_id(thread_id)
 
     def _thread_run_job(
         self,
@@ -352,9 +367,8 @@ class LaunchAgent:
         job: Dict[str, Any],
         default_config: Dict[str, Any],
         api: Api,
+        thread_id: int,
     ) -> None:
-        thread_id = threading.current_thread().ident
-        assert thread_id is not None
         job_tracker = JobAndRunStatus()
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker

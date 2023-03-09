@@ -13,12 +13,12 @@ import wandb.sdk.launch.launch as launch
 import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker_builder import DockerBuilder
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
     LaunchError,
+    pull_docker_image,
 )
 from wandb.sdk.lib import runid
 
@@ -923,9 +923,7 @@ def test_launch_project_spec_docker_image(
 
 
 def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
-    monkeypatch.setattr(
-        "wandb.sdk.launch.builder.build.docker_image_exists", lambda x: True
-    )
+    monkeypatch.setattr("wandb.sdk.launch.utils.docker_image_exists", lambda x: True)
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, project_dir: (cmd, project_dir),
@@ -1330,7 +1328,7 @@ def test_noop_builder(
     runner,
     monkeypatch,
 ):
-    launch_config = {"build": {"type": "noop"}, "registry": {"url": "test"}}
+    launch_config = {"builder": {"type": "noop"}, "registry": {"url": "test"}}
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
