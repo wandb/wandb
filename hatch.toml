@@ -95,9 +95,9 @@ run-pytest = [
 cover = [
     "- mkdir -p cover-results",
     "ls {root}",
-    "ls {root}/test.py*",
-    "ls {root}/test.py*/.coverage*",
-    "python -m coverage combine {root}/test.py*/.coverage*",
+    "ls {root}/{env_name}",
+    "ls {env:COVERAGE_FILE:}",
+    "python -m coverage combine {env:COVERAGE_FILE}",
     "coverage xml --ignore-errors",
     "cp .coverage coverage.xml cover-results/",
     "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
@@ -151,7 +151,7 @@ run-pytest = [
 ]
 cover = [
     "- mkdir -p cover-results",
-    "python -m coverage combine {root}/func-s*.py*/.coverage*",
+    "python -m coverage combine {env:COVERAGE_FILE}",
     "python -m coverage xml --ignore-errors",
     "cp .coverage coverage.xml cover-results/",
     "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
