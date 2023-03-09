@@ -264,9 +264,7 @@ jobs:
                 name: Install hatch
                 command: |
                   python3 -m pip install --upgrade pip
-                  python3 -m pip install pipx
-                  python3 -m pipx ensurepath
-                  pipx install hatch
+                  python3 -m pip install hatch
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -331,9 +329,7 @@ jobs:
                 name: Install hatch
                 command: |
                   python3 -m pip install --upgrade pip
-                  python3 -m pip install pipx
-                  python3 -m pipx ensurepath
-                  pipx install hatch
+                  python3 -m pip install hatch
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -543,9 +539,7 @@ jobs:
           name: Install hatch
           command: |
             python3 -m pip install --upgrade pip
-            python3 -m pip install pipx
-            python3 -m pipx ensurepath
-            pipx install hatch
+            python3 -m pip install hatch
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
@@ -572,9 +566,7 @@ jobs:
           name: Install python dependencies, build r2d
           command: |
             python3 -m pip install --upgrade pip
-            python3 -m pip install pipx
-            python3 -m pipx ensurepath
-            pipx install hatch
+            python3 -m pip install hatch
             python3 -m pip install chardet
             python3 -m pip install iso8601
       - run:
@@ -627,9 +619,7 @@ jobs:
                 name: Install hatch dependencies
                 command: |
                   python3 -m pip install --upgrade pip
-                  python3 -m pip install pipx
-                  python3 -m pipx ensurepath
-                  pipx install hatch
+                  python3 -m pip install hatch
             - run:
                 name: Install kubectl
                 command: |
