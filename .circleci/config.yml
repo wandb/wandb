@@ -270,7 +270,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 240m
                 command: |
-                  hatch env run << parameters.hatchenv >>:run-pytest -- << parameters.hatch_args >>
+                  hatch env run -e << parameters.hatchenv >> run-pytest -- << parameters.hatch_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -335,8 +335,8 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run << parameters.hatchenv >>:run-pytest -- << parameters.hatch_args >>
-                  hatch env run << parameters.hatchenv >>:cover
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e << parameters.hatchenv >> run-pytest -- << parameters.hatch_args >>
+                  hatch env run -e << parameters.hatchenv >> cover
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -399,7 +399,7 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             hatch env run <<parameters.hatchenv>>:run-pytest  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.hatch_args >>
-            hatch env run << parameters.hatchenv >>:cover
+            hatch env run -e << parameters.hatchenv >> cover
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -545,8 +545,8 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run << parameters.hatchenv >>:run-pytest -- << parameters.hatch_args >>
-            hatch env run << parameters.hatchenv >>:cover
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e << parameters.hatchenv >> run-pytest -- << parameters.hatch_args >>
+            hatch env run -e << parameters.hatchenv >> cover
           no_output_timeout: 10m
       - save-test-results
 
@@ -578,7 +578,7 @@ jobs:
           name: Run tests
           command: |
             hatch -vv run << parameters.hatchenv >>:run-pytest-launch
-            hatch env run << parameters.hatchenv >>:cover
+            hatch env run -e << parameters.hatchenv >> cover
           no_output_timeout: 10m
       - save-test-results
 
@@ -646,7 +646,7 @@ jobs:
             - run:
                 name: Run tests
                 command: |
-                  hatch env run << parameters.hatchenv >>:run-pytest
+                  hatch env run -e << parameters.hatchenv >> run-pytest
                 no_output_timeout: 25m
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
