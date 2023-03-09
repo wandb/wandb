@@ -1028,7 +1028,8 @@ class Api:
                 "check that you have access to this entity"
             )
 
-        return res["entity"]["isTeam"]
+        is_team: bool = res["entity"]["isTeam"]
+        return is_team
 
     @normalize_exceptions
     def get_project_run_queues(self, entity: str, project: str) -> List[Dict[str, str]]:

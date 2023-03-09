@@ -53,7 +53,7 @@ def test_non_team_entity_no_warning(mocker):
         "project": "test-project",
     }
     _ = LaunchAgent(api=mocker.api, config=mock_config)
-    assert not mocker.termwarn.call_args[0]
+    assert not mocker.termwarn.call_args
 
 
 @pytest.mark.parametrize(
