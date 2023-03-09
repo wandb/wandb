@@ -25,6 +25,12 @@ class LaunchError(Error):
     pass
 
 
+class LaunchDockerError(Error):
+    """Raised when Docker daemon is not running."""
+
+    pass
+
+
 class ExecutionError(Error):
     """Generic execution exception."""
 
@@ -146,7 +152,6 @@ def construct_launch_spec(
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
-    cuda: Optional[bool],
     run_id: Optional[str],
     repository: Optional[str],
 ) -> Dict[str, Any]:
@@ -202,8 +207,6 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
-    if cuda is not None:
-        launch_spec["cuda"] = cuda
 
     if run_id is not None:
         launch_spec["run_id"] = run_id
@@ -595,7 +598,14 @@ def get_kube_context_and_api_client(
             raise LaunchError(f"Specified context {context_name} was not found.")
         else:
             context = active_context
-
+        # TODO: We should not really be performing this check if the user is not
+        # using EKS but I don't see an obvious way to make an eks specific code path
+        # right here.
+        util.get_module(
+            "awscli",
+            "awscli is required to load a kubernetes context "
+            "from eks. Please run `pip install wandb[launch]` to install it.",
+        )
         kubernetes.config.load_kube_config(config_file, context["name"])
         api_client = kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
@@ -614,7 +624,7 @@ def resolve_build_and_registry_config(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     resolved_build_config: Dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
-        resolved_build_config = default_launch_config.get("build", {})
+        resolved_build_config = default_launch_config.get("builder", {})
     elif build_config is not None:
         resolved_build_config = build_config
     resolved_registry_config: Dict[str, Any] = {}
