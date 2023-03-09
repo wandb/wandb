@@ -194,10 +194,10 @@ if wandb_sdk.lib.ipython.in_jupyter():
     load_ipython_extension(get_ipython())
 
 
-from .analytics import Sentry
+from .analytics import Sentry as _Sentry
 
-sentry = Sentry()
-sentry.setup()
+_sentry = _Sentry()
+_sentry.setup()
 
 
 __all__ = (

@@ -79,7 +79,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
                     util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
-                wandb.sentry.message(msg, repeat=False)
+                wandb._sentry.message(msg, repeat=False)
             else:
                 chunk_data.append(chunk.data)
 
@@ -97,7 +97,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
                 util.to_human_size(util.MAX_LINE_BYTES)
             )
             wandb.termerror(msg, repeat=False)
-            wandb.sentry.message(msg, repeat=False)
+            wandb._sentry.message(msg, repeat=False)
             return False
         return {"offset": 0, "content": [data]}
 
@@ -494,7 +494,7 @@ class FileStreamApi:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
-            wandb.sentry.exception(exc_info, delay=True)
+            wandb._sentry.exception(exc_info, delay=True)
             raise e
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:

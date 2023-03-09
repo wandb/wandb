@@ -601,7 +601,7 @@ class Run:
 
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
-        wandb.sentry.configure_scope(
+        wandb._sentry.configure_scope(
             settings=self._settings,
             process_context="user",
         )
@@ -1440,7 +1440,7 @@ class Run:
         self._settings._apply_run_start(message_to_dict(self._run_obj))
         self._update_settings(self._settings)
 
-        wandb.sentry.configure_scope(
+        wandb._sentry.configure_scope(
             process_context="user",
             settings=self._settings,
         )
@@ -1869,7 +1869,7 @@ class Run:
             manager._inform_finish(run_id=self._run_id)
 
         # end sentry session
-        wandb.sentry.end_session()
+        wandb._sentry.end_session()
 
     @_run_decorator._noop
     @_run_decorator._attach

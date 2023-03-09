@@ -76,7 +76,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.sentry.exception(e)
+                wandb._sentry.exception(e)
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
                 if hasattr(e, "response"):
@@ -138,7 +138,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.sentry.exception(e)
+                wandb._sentry.exception(e)
                 if not self.silent:
                     wandb.termerror(
                         'Error uploading "{}": {}, {}'.format(

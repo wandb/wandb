@@ -1140,7 +1140,7 @@ def init(
             except_exit = wi.settings._except_exit
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
-                wandb.sentry.exception(e)
+                wandb._sentry.exception(e)
             if not (
                 wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
             ):
@@ -1167,7 +1167,7 @@ def init(
         logger.error("error", exc_info=e)
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
-        wandb.sentry.exception(e, delay=True)
+        wandb._sentry.exception(e, delay=True)
         # reraise(*sys.exc_info())
     finally:
         if error_seen:

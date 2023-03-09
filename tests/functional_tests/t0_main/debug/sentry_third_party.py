@@ -20,10 +20,10 @@ def main():
     import wandb.env
 
     # assert that importing wandb does not set Sentry's global hub/client
-    assert sentry_sdk.Hub.current.client.dsn != wandb.sentry.dsn
+    assert sentry_sdk.Hub.current.client.dsn != wandb._sentry.dsn
     # but an internal Sentry client for wandb is created ok if WANDB_ERROR_REPORTING != False
     if wandb.env.error_reporting_enabled():
-        assert isinstance(wandb.sentry.client, sentry_sdk.client.Client)
+        assert isinstance(wandb._sentry.client, sentry_sdk.client.Client)
 
     run = wandb.init()
 

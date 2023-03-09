@@ -15,7 +15,7 @@ def test_init(test_settings):
         with patch("wandb.sdk.wandb_init.logger", autospec=True), patch(
             "wandb.sdk.wandb_init.getcaller", autospec=True
         ), patch("os._exit", side_effect=MyExitError("")), patch(
-            "wandb.sdk.wandb_init.sentry.exception", autospec=True
+            "wandb.sdk.wandb_init.wandb._sentry.exception", autospec=True
         ), patch(
             "wandb._assert_is_user_process", side_effect=lambda: None
         ):
@@ -38,7 +38,6 @@ def test_init_reinit(test_settings):
     ) as mocked_run, patch(
         "wandb.sdk.wandb_init.Backend", autospec=True
     ) as mocked_backend:
-
         backend_instance = mocked_backend.return_value
         backend_instance._multiprocessing = MagicMock()
 
@@ -89,7 +88,6 @@ def test_init_internal_error(test_settings):
     ), patch("wandb.sdk.wandb_init.Mailbox", autospec=True), patch(
         "wandb.sdk.wandb_init.Backend", autospec=True
     ) as mocked_backend:
-
         backend_instance = mocked_backend.return_value
         backend_instance._multiprocessing = MagicMock()
 
