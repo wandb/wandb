@@ -18,6 +18,7 @@ from .._project_spec import (
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
+    LaunchDockerError,
     LaunchError,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
@@ -140,7 +141,7 @@ class DockerBuilder(AbstractBuilder):
             warn_failed_packages_from_build_logs(stderr, image_uri)
 
         except docker.DockerError as e:
-            raise LaunchError(f"Error communicating with docker client: {e}")
+            raise LaunchDockerError(f"Error communicating with docker client: {e}")
 
         try:
             os.remove(build_ctx_path)
