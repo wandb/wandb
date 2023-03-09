@@ -147,8 +147,6 @@ class LocalContainerRunner(AbstractRunner):
                 )
             ).strip()
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)
