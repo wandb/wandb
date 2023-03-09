@@ -2,22 +2,14 @@ from typing import Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 
-from . import (
-    AuthenticationError,
-    Error,
-    InternalError,
-    InvalidError,
-    PermissionsError,
-    UsageError,
-)
+from . import BackendError, Error, InternalError, UnsupportedError, UsageError
 
 to_exception_map = {
-    pb.ErrorInfo.AUTHENTICATION: AuthenticationError,
-    pb.ErrorInfo.INTERNAL: InternalError,
-    pb.ErrorInfo.INVALID: InvalidError,
-    pb.ErrorInfo.PERMISSION: PermissionsError,
     pb.ErrorInfo.UNKNOWN: Error,
+    pb.ErrorInfo.INTERNAL: InternalError,
     pb.ErrorInfo.USAGE: UsageError,
+    pb.ErrorInfo.BACKEND: BackendError,
+    pb.ErrorInfo.UNSUPPORTED: UnsupportedError,
 }
 
 from_exception_map = {v: k for k, v in to_exception_map.items()}

@@ -880,7 +880,6 @@ def _attach(
     mailbox = Mailbox()
     backend = Backend(settings=settings, manager=manager, mailbox=mailbox)
     backend.ensure_launched()
-    backend.server_connect()
     logger.info("attach backend started and connected")
 
     if run is None:
