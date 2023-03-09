@@ -1328,7 +1328,7 @@ def test_noop_builder(
     runner,
     monkeypatch,
 ):
-    launch_config = {"build": {"type": "noop"}, "registry": {"url": "test"}}
+    launch_config = {"builder": {"type": "noop"}, "registry": {"url": "test"}}
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
