@@ -5,6 +5,7 @@ from typing import List, Optional
 
 import numpy as np
 import torch
+
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.engine.trainer import BaseTrainer
 from ultralytics.yolo.engine.validator import BaseValidator
@@ -74,6 +75,7 @@ def convert_to_wb_images(
     if np.max(images[0]) <= 1:
         images *= 255  # de-normalise (optional)
     bs, _, h, w = images.shape
+    scores_data = []
     for i in range(len(images)):
         if len(cls) > 0:
             img = images[i].transpose(1, 2, 0)
@@ -104,13 +106,23 @@ def convert_to_wb_images(
                 },
             }
             image_kwargs["classes"] = class_set
+            object_confidences = {}
+            for prediction_box in prediction_boxes_data:
+                object_confidences[
+                    prediction_box["box_caption"]
+                ] = object_confidences.get(prediction_box["box_caption"], []) + [
+                    prediction_box["scores"]["conf"]
+                ]
+            for key, value in object_confidences.items():
+                object_confidences[key] = sum(value) / len(value)
+            scores_data.append(object_confidences)
             out_images.append(wandb.Image(**image_kwargs))
-    return out_images
+    return (out_images, scores_data)
 
 
 def plot_detection_predictions(logger, validator, batch, preds, ni):
     (batch_idx, cls, bboxes) = output_to_target(preds, max_det=15)
-    wb_images = convert_to_wb_images(
+    wb_images, scores = convert_to_wb_images(
         batch=batch,
         batch_idx=batch_idx,
         cls=cls,
@@ -118,13 +130,23 @@ def plot_detection_predictions(logger, validator, batch, preds, ni):
         masks=None,
         names=validator.names,
     )
+
+    objects = sorted(validator.names.values())
+    for item in scores:
+        for obj in objects:
+            if obj not in item:
+                item[obj] = 0.0
     logger.run.log(
         {
             "detection_predictions": wandb.Table(
-                columns=[
-                    "Image",
+                columns=["Image", *objects],
+                data=[
+                    [
+                        im,
+                        *map(lambda x: x[1], sorted(score.items(), key=lambda x: x[0])),
+                    ]
+                    for im, score in zip(wb_images, scores)
                 ],
-                data=[[im] for im in wb_images],
             )
         }
     )
@@ -306,10 +328,15 @@ class WandbCallback:
 
     def on_val_start(self, validator: BaseValidator):
         if isinstance(validator, DetectionValidator):
-            print("overriding plot_predictions")
+            self.og_plot_predictions = validator.plot_predictions
             validator.plot_predictions = partial(
                 plot_detection_predictions, self, validator
             )
+
+    def on_val_end(self, validator: BaseValidator):
+        if self.og_plot_predictions:
+            validator.plot_predictions = self.og_plot_predictions
+            self.og_plot_predictions = None
 
     @property
     def callbacks(
