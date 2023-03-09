@@ -17,6 +17,7 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    sanitize_entrypoint_key,
     sanitize_wandb_api_key,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -148,6 +149,7 @@ class LocalContainerRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
+        sanitized_cmd_str = sanitize_entrypoint_key(sanitized_cmd_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)

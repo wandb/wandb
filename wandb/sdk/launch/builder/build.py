@@ -528,7 +528,9 @@ def join(split_command: List[str]) -> str:
     Also remove quotes from double quoted strings. Ex:
     "'local container queue'" --> "local container queue"
     """
-    return " ".join(shlex.quote(arg.replace("'", "")) for arg in split_command)
+    clean = [arg.replace("'", "").replace('"', "") for arg in split_command]
+
+    return " ".join(shlex.quote(arg) for arg in clean)
 
 
 def construct_builder_args(

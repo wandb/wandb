@@ -54,6 +54,7 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
 )  # for testing, not sure if we wanna keep this
 
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
+ENTRYPOINT_KEY_REGEX = r"WANDB_ENTRYPOINT_COMMAND='.*'"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
@@ -89,6 +90,10 @@ def _is_git_uri(uri: str) -> bool:
 
 def sanitize_wandb_api_key(s: str) -> str:
     return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
+
+
+def sanitize_entrypoint_key(s: str) -> str:
+    return str(re.sub(ENTRYPOINT_KEY_REGEX, "WANDB_ENTRYPOINT_COMMAND", s))
 
 
 def get_project_from_job(job: str) -> Optional[str]:
