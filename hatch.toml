@@ -91,7 +91,7 @@ extra-dependencies = [ # TODO: remove after conftest.py refactor.
 
 [envs.test.env-vars]
 PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
-PIP_TIMEOUT = 600
+PIP_TIMEOUT = "600"
 COVERAGE_FILE = "{root}/{env_name}/.coverage"
 WINDIR = "C:\\Windows"
 
