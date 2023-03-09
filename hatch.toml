@@ -100,6 +100,14 @@ pytest = [
     "- mkdir -p test-results",
     "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:10} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail {args:tests/pytest_tests}",
 ]
+cover = [
+    "- mkdir -p cover-results",
+    "/usr/bin/env bash -c '{envpython} -m coverage combine {root}/py*/.coverage*'",
+    "coverage xml --ignore-errors",
+    "cp .coverage coverage.xml cover-results/",
+    "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
+    "codecov -e HATCHENV -F unittest",
+]
 
 [[envs.test.matrix]]
 python = ["36", "37", "38", "39", "310"]
@@ -156,9 +164,9 @@ CIRCLE_BUILD_NUM = "{env:CIRCLE_WORKFLOW_ID}"
 # TODO: separate this out to a "cover" command.
 pytest = [
     "mkdir -p cover-results",
-    "/usr/bin/env bash -c '{envpython} -m coverage combine {toxworkdir}/py*/.coverage*'",
+    "/usr/bin/env bash -c '{envpython} -m coverage combine {root}/py*/.coverage*'",
     "coverage xml --ignore-errors",
     "cp .coverage coverage.xml cover-results/",
     "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
-    "codecov -e TOXENV -F unittest",
+    "codecov -e HATCHENV -F unittest",
 ]
