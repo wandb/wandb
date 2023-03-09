@@ -175,7 +175,6 @@ def test_launch_repository_arg(
         resource_args,
         launch_config,
         synchronous,
-        cuda,
         run_id,
         repository,
     ):

@@ -11,12 +11,14 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
 from .._project_spec import LaunchProject, compute_command_args
-from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
+from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    docker_image_exists,
+    pull_docker_image,
     sanitize_wandb_api_key,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -85,10 +87,6 @@ class LocalContainerRunner(AbstractRunner):
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
             "local-container", {}
         )
-        # TODO: leaving this here because of existing CLI command
-        # we should likely just tell users to specify the gpus arg directly
-        if launch_project.cuda:
-            docker_args["gpus"] = "all"
 
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
