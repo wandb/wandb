@@ -397,7 +397,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<<parameters.xdist>> \
-            hatch env run -e <<parameters.hatchenv>>:run-pytest  \
+            hatch env run -e <<parameters.hatchenv>> run-pytest  \
               --wandb-server-tag <<pipeline.parameters.wandb_server_tag>> <<parameters.hatch_args>>
             hatch env run -e <<parameters.hatchenv>> cover
       - save-test-results
