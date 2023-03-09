@@ -190,7 +190,7 @@ class _Service:
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
             except Exception as e:
-                _sentry.reraise(e, delay=True)
+                _sentry.reraise(e)
             self._startup_debug_print("wait_ports_done")
             self._internal_proc = internal_proc
         self._startup_debug_print("launch_done")

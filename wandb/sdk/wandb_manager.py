@@ -160,7 +160,7 @@ class _Manager:
         try:
             self._service_connect()
         except ManagerConnectionError as e:
-            wandb._sentry.reraise(e, delay=True)
+            wandb._sentry.reraise(e)
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
