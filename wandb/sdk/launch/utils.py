@@ -25,6 +25,12 @@ class LaunchError(Error):
     pass
 
 
+class LaunchDockerError(Error):
+    """Raised when Docker daemon is not running."""
+
+    pass
+
+
 class ExecutionError(Error):
     """Generic execution exception."""
 
@@ -618,7 +624,7 @@ def resolve_build_and_registry_config(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     resolved_build_config: Dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
-        resolved_build_config = default_launch_config.get("build", {})
+        resolved_build_config = default_launch_config.get("builder", {})
     elif build_config is not None:
         resolved_build_config = build_config
     resolved_registry_config: Dict[str, Any] = {}
