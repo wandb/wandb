@@ -266,11 +266,6 @@ jobs:
                   pip install hatch
                 no_output_timeout: 5m
             - run:
-                name: Install test environment
-                command: |
-                  hatch env create << parameters.hatchenv >>
-                no_output_timeout: 10m
-            - run:
                 name: Run tests
                 no_output_timeout: 240m
                 command: |
@@ -335,11 +330,6 @@ jobs:
                   pip install hatch
                 no_output_timeout: 5m
             - run:
-                name: Install test environment
-                command: |
-                  hatch env create << parameters.hatchenv >>
-                no_output_timeout: 10m
-            - run:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
@@ -399,11 +389,6 @@ jobs:
             pip install hatch
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
-      - run:
-          name: Install test environment
-          command: |
-            hatch env create << parameters.hatchenv >>
-          no_output_timeout: 10m
       - run:
           name: Run tests
           no_output_timeout: 10m
@@ -550,11 +535,6 @@ jobs:
           name: Install hatch
           command: |
             python3 -m pip install hatch
-      - run:
-          name: Install test environment
-          command: |
-            hatch env create << parameters.hatchenv >>
-          no_output_timeout: 10m
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
