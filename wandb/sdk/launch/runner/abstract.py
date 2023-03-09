@@ -143,19 +143,6 @@ class AbstractRunner(ABC):
             sys.exit(1)
         return True
 
-    def ack_run_queue_item(self, launch_project: LaunchProject) -> bool:
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return False
-        return True
-
     @abstractmethod
     def run(
         self,

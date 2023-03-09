@@ -514,7 +514,7 @@ class Api:
         return res.get("LaunchAgentType") or None
     
     @normalize_exceptions
-    def fail_run_queue_item_introspection(self) -> bool
+    def fail_run_queue_item_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "failRunQueueItem" in mutations
 
