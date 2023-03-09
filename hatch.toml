@@ -109,7 +109,7 @@ python = ["36", "37", "38", "39", "310"]
 
 [envs.test-launch]
 template = "test"
-python = "3.7"
+python = "38"
 
 [envs.test-launch.scripts]
 pytest = "pytest -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tests_old/tests_launch/}"
