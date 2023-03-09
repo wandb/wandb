@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import click
 
 import wandb
+import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
@@ -659,3 +660,30 @@ def make_name_dns_safe(name: str) -> str:
     # Actual length limit is 253, but we want to leave room for the generated suffix
     resp = resp[:200]
     return resp
+
+
+def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
+    """Check if a specific image is already available.
+
+    Optionally raises an exception if the image is not found.
+    """
+    _logger.info("Checking if base image exists...")
+    try:
+        docker.run(["docker", "image", "inspect", docker_image])
+        return True
+    except (docker.DockerError, ValueError) as e:
+        if should_raise:
+            raise e
+        _logger.info("Base image not found. Generating new base image")
+        return False
+
+
+def pull_docker_image(docker_image: str) -> None:
+    """Pull the requested docker image."""
+    if docker_image_exists(docker_image):
+        # don't pull images if they exist already, eg if they are local images
+        return
+    try:
+        docker.run(["docker", "pull", docker_image])
+    except docker.DockerError as e:
+        raise LaunchError(f"Docker server returned error: {e}")
