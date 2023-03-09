@@ -4,11 +4,6 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from kubernetes import client  # type: ignore
-from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
-from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
-from kubernetes.client.models.v1_job import V1Job  # type: ignore
-from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
 
 import wandb
 from wandb.apis.internal import Api
@@ -28,6 +23,32 @@ from ..utils import (
     make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
+
+client = get_module(
+    "kubernetes.client",
+    required="Kubernetes runner requires the kubernetes package. Please"
+    " install it with `pip install wandb[launch]`.",
+)
+BatchV1Api = get_module(
+    "kubernetes.client.api.batch_v1_api.BatchV1Api",
+    required="Kubernetes runner requires the kubernetes package. Please"
+    " install it with `pip install wandb[launch]`.",
+)
+CoreV1Api = get_module(
+    "kubernetes.client.api.core_v1_api.CoreV1Api",
+    required="Kubernetes runner requires the kubernetes package. Please"
+    " install it with `pip install wandb[launch]`.",
+)
+V1Job = get_module(
+    "kubernetes.client.models.v1_job.V1Job",
+    required="Kubernetes runner requires the kubernetes package. Please"
+    " install it with `pip install wandb[launch]`.",
+)
+V1Secret = get_module(
+    "kubernetes.client.models.v1_secret.V1Secret",
+    required="Kubernetes runner requires the kubernetes package. Please"
+    " install it with `pip install wandb[launch]`.",
+)
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (

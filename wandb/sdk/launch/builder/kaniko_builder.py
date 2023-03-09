@@ -6,9 +6,6 @@ import tempfile
 import time
 from typing import Optional
 
-import kubernetes  # type: ignore
-from kubernetes import client
-
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -17,6 +14,7 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
+from wandb.util import get_module
 
 from .._project_spec import (
     EntryPoint,
@@ -34,6 +32,17 @@ from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
     image_tag_from_dockerfile_and_source,
+)
+
+kubernetes = get_module(
+    "kubernetes",
+    required="Kubernetes runner requires the kubernetes package. Please"
+    " install it with `pip install wandb[launch]`.",
+)
+client = get_module(
+    "kubernetes.client",
+    required="Kubernetes runner requires the kubernetes package. Please"
+    " install it with `pip install wandb[launch]`.",
 )
 
 _logger = logging.getLogger(__name__)
