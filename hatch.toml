@@ -124,7 +124,7 @@ pytest = "pytest -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tes
 
 [envs.unit-s_nb]
 template = "unitshard"
-extra-dependencies = ["ipykernel", "ipython", "nbclient"]
+extra-dependencies = ["ipykernel", "ipython", "nbclient", "matplotlib"]
 
 [envs.unit-s_nb.env-vars]
 COVERAGE_FILE = "{root}/{env_name}/.coverage"
