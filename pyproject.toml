@@ -8,6 +8,7 @@ dynamic = ["version"]
 description = "A CLI and library for interacting with the Weights and Biases API."
 readme = "package_readme.md"
 license = "MIT"
+license-files.paths = ["LICENSE"]
 requires-python = ">=3.6"
 authors = [
     { name = "Weights & Biases", email = "support@wandb.com" },
@@ -16,7 +17,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.6",
