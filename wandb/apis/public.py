@@ -1657,8 +1657,8 @@ class Runs(Paginator):
 
         return objs
 
-    def __repr__(self):
-        return f"<Runs {self.entity}/{self.project}>"
+    def __repr__(self) -> str:
+        return f"<Runs: {len(self)} in {self.entity}/{self.project}>"
 
 
 class Run(Attrs):
