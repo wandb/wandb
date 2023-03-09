@@ -36,7 +36,7 @@ import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
-from wandb.sdk.internal.system.system_info import is_aws_lambda
+from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.wandb_config import Config
