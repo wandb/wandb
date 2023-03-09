@@ -41,6 +41,8 @@ def main():
     num_third_party_sentry_events = len(third_party_sentry_events)
     run.log({"num_third_party_sentry_events": num_third_party_sentry_events})
 
+    time.sleep(2)
+
     # Triggers a FileNotFoundError from the internal process
     # because the internal process reads/writes to the current run directory.
     shutil.rmtree(run.dir)
@@ -51,8 +53,6 @@ def main():
 
     # no new events should be captured
     assert num_third_party_sentry_events == len(third_party_sentry_events)
-
-    time.sleep(2)
 
 
 if __name__ == "__main__":
