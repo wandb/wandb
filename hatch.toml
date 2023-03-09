@@ -140,6 +140,85 @@ pytest = [
 [[envs.unit-s_nb.matrix]]
 python = ["36", "37", "38", "39", "310"]
 
+
+[envs.func-s]
+extra-dependencies = ["yea-wandb{env:YEA_WANDB_VERSION:}"]
+
+[envs.func-s.env-vars]
+YEA_WANDB_VERSION = "0.9.5"
+WANDB__NETWORK_BUFFER = "1000"  # Low network buffer to exercise flow control logic.
+COVERAGE_FILE="{root}/.coverage"
+YEACOV_SOURCE="{root}/wandb/"
+# s_kfp: WB_PROBE_PACKAGE=true
+
+[envs.func-s.scripts]
+pytest = [
+    "- mkdir -p test-results",
+    "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict --shard {matrix:shard:default} run {args:--all}",
+]
+cover = [
+    "- mkdir -p cover-results",
+    "hatch env run -e {env_name} 'python -m coverage combine {root}/func-s*.py*/.coverage*'",
+    "hatch env run -e {env_name} 'python -m coverage xml --ignore-errors'",
+    "cp .coverage coverage.xml cover-results/",
+    "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
+    "codecov -e {env_name} -F functest",
+]
+
+[[envs.func-s.matrix]]
+python = ["36", "37", "38", "39", "310"]
+shard = [
+    "default",
+    "sklearn",
+    "metaflow",
+    "tf115",
+    "tf21",
+    "tf24",
+    "tf25",
+    "tf26",
+    "ray112",
+    "ray2",
+    "service",
+    "grpc",
+    "py310",
+    "imports1",
+    "imports2",
+    "imports3",
+    "imports4",
+    "imports5",
+    "imports6",
+    "imports7",
+    "imports8",
+    "imports9",
+    "imports10",
+    "imports11",
+    "imports12",
+    "noml",
+]
+
+[envs.func-s_docs]
+template = "func-s"
+
+[envs.func-s_docs.scripts]
+pytest = [
+    "- mkdir -p test-results",
+    "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict --yeadoc --shard docs run {args:--all}",
+]
+
+[[envs.func-s_docs.matrix]]
+python = ["36", "37", "38", "39", "310"]
+
+[envs.func-s_kfp]
+template = "func-s"
+python = ["37"]
+
+[envs.func-s_kfp.scripts]
+pytest = [
+    "- mkdir -p test-results",
+    "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict -p wandb:mockserver-bind=0.0.0.0 -p wandb:mockserver-host=__auto__ --shard kfp run {posargs:--all}",
+]
+
+
 [envs.empty]
 detached = true # Don't require package installation.
 

@@ -1440,11 +1440,11 @@ workflows:
       #
       - launch:
           name: "launch-mock-server"
-          hatchenv: "launch"
+          hatchenv: "test-launch"
 
       - pytest:
           name: "launch-relay-server"
-          hatchenv: "launch"
+          hatchenv: "test-launch"
           hatch_args: "tests/pytest_tests/system_tests/tests_launch"
 
       #
