@@ -7,9 +7,11 @@ include = [
 ]
 
 [envs.default]
+# The default environment includes all extras and all dev, build, and test dependencies.
 dependencies = [
     "bokeh",
     "boto3",
+    "bumpversion",
     "cloudpickle",
     "coverage",
     "docker",
@@ -17,6 +19,8 @@ dependencies = [
     "fastcore==1.3.29; python_version == '3.6'",
     "google-cloud-aiplatform",
     "google-cloud-storage",
+    "grpcio-tools>=1.46.3",
+    "grpcio>=1.46.3",
     "hypothesis",
     "imageio",
     "ipykernel",
@@ -24,16 +28,27 @@ dependencies = [
     "jax[cpu]; sys_platform == 'darwin' or sys_platform == 'linux'",
     "kfp",
     "kubernetes",
+    "libcst",
     "lightgbm",
     "matplotlib!=3.5.2",
     "metaflow>=2.3.5",
     "moviepy",
     "nbclient",
     "pandas",
+    "parameterized",
     "Pillow",
     "plotly",
     "prometheus_client",
     "pyarrow",
+    "pytest-cov",
+    "pytest-flakefinder",
+    "pytest-flask",
+    "pytest-mock",
+    "pytest-openfiles",
+    "pytest-rerunfailures",
+    "pytest-split",
+    "pytest-timeout",
+    "pytest-xdist",
     "pytest",
     "rdkit-pypi; python_version > '3.7' or sys_platform != 'darwin' or platform.machine != 'arm64'",
     "responses",
@@ -45,6 +60,7 @@ dependencies = [
     "torch",
     "torchvision",
     "tqdm",
+    "twine",
     "xgboost",
 ]
 features = [
@@ -52,6 +68,7 @@ features = [
 ]
 
 [envs.unit]
+template = "unit"  # Don't inherit from the default environment.
 dependencies = [
     "parameterized",
     "pytest-cov",
