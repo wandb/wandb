@@ -1519,7 +1519,17 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {"project": {"runQueues": []}}})
-
+        if "query EntityIsTeam" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "entity": {
+                            "id": 1,
+                            "isTeam": False,
+                        }
+                    }
+                }
+            )
         if "query GetRunQueueItem" in body["query"]:
             if ctx["run_queue_item_return_type"] == "claimed":
                 return json.dumps(
