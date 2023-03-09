@@ -6,7 +6,6 @@ import wandb
 import wandb.util
 
 if TYPE_CHECKING:
-
     from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
 
@@ -77,7 +76,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.util.sentry.exception(e)
+                wandb.sentry.exception(e)
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
                 if hasattr(e, "response"):
@@ -139,7 +138,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                wandb.util.sentry.exception(e)
+                wandb.sentry.exception(e)
                 if not self.silent:
                     wandb.termerror(
                         'Error uploading "{}": {}, {}'.format(
