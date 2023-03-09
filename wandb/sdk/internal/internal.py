@@ -174,7 +174,7 @@ def wandb_internal(
             logger.error(f"Thread {thread.name}:", exc_info=exc_info)
             print(f"Thread {thread.name}:", file=sys.stderr)
             traceback.print_exception(*exc_info)
-            wandb._sentry.exception(exc_info, delay=True)
+            wandb._sentry.exception(exc_info)
             wandb.termerror("Internal wandb error: file data was not synced")
             if not settings.get("_disable_service"):
                 # TODO: We can make this more graceful by returning an error to streams.py

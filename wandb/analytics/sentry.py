@@ -4,7 +4,6 @@ __all__ = ("Sentry",)
 import functools
 import os
 import sys
-import time
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Type, Union
 from urllib.parse import quote
@@ -100,7 +99,6 @@ class Sentry:
             ],
             None,
         ],
-        delay: bool = False,
         handled: bool = False,
         status: Optional["SessionStatus"] = None,
     ) -> None:
@@ -126,18 +124,19 @@ class Sentry:
         status = status or ("crashed" if not handled else "errored")  # type: ignore
         self.mark_session(status=status)
 
-        if delay:
-            time.sleep(2)
+        client, _ = self.hub._stack[-1]
+        client.flush()
+
         return None
 
-    def reraise(self, exc: Any, delay: bool = False) -> None:
+    def reraise(self, exc: Any) -> None:
         """Re-raise an exception after logging it to Sentry.
 
         Use this for top-level exceptions when you want the user to see the traceback.
 
         Must be called from within an exception handler.
         """
-        self.exception(exc, delay=delay)
+        self.exception(exc)
         # this will messily add this "reraise" function to the stack trace,
         # but hopefully it's not too bad
         raise exc.with_traceback(sys.exc_info()[2])

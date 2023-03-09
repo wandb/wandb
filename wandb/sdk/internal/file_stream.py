@@ -494,7 +494,7 @@ class FileStreamApi:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
-            wandb._sentry.exception(exc_info, delay=True)
+            wandb._sentry.exception(exc_info)
             raise e
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
