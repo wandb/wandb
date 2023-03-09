@@ -222,7 +222,7 @@ def get_docker_command(
                 cmd += [prefix, shlex.quote(str(value))]
 
     if entry_cmd:
-        cmd += ["--entrypoint"] + entry_cmd[0]
+        cmd += ["--entrypoint", entry_cmd[0]]
     cmd += [shlex.quote(image)]
     if len(entry_cmd) > 1:
         cmd += entry_cmd[1:]
