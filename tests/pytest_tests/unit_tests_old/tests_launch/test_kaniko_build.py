@@ -258,7 +258,6 @@ def test_build_image_success(
             "overrides": {"entry_point": ["python", "main.py"]},
             "resource": "kubernetes",
             "resource_args": {},
-            "cuda": None,
             "run_id": None,
         }
         project = LaunchProject(**kwargs)

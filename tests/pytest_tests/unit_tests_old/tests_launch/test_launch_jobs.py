@@ -73,7 +73,6 @@ def test_fetch_job_fail(api):
         "overrides": {},
         "resource": "local-container",
         "resource_args": {},
-        "cuda": None,
         "run_id": None,
     }
     launch_project = _project_spec.LaunchProject(**kwargs)
