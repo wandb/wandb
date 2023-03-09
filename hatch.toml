@@ -145,7 +145,7 @@ python = ["36", "37", "38", "39", "310"]
 extra-dependencies = ["yea-wandb{env:YEA_WANDB_VERSION:}"]
 
 [envs.func-s.env-vars]
-YEA_WANDB_VERSION = "0.9.5"
+YEA_WANDB_VERSION = "==0.9.5"
 WANDB__NETWORK_BUFFER = "1000"  # Low network buffer to exercise flow control logic.
 COVERAGE_FILE="{root}/.coverage"
 YEACOV_SOURCE="{root}/wandb/"

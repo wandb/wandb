@@ -1163,7 +1163,7 @@ workflows:
       #
       - kfp:
           name: "mach-kubeflow"
-          hatchenv: "func-s_kfp-py37"
+          hatchenv: "func-s_kfp.py37"
           execute: << pipeline.parameters.nightly_execute_kfp >>
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
@@ -1192,7 +1192,7 @@ workflows:
                 - "imports11"
                 - "imports12"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.<<matrix.shard>>"
           hatch_args: "tests/functional_tests"
           context: slack-secrets
           requires:
@@ -1411,7 +1411,7 @@ workflows:
               shard:
                 - "base"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.<<matrix.shard>>"
           hatch_args: "tests/functional_tests"
 
           parallelism: 4
@@ -1436,9 +1436,20 @@ workflows:
                 - "service"
                 - "noml"
                 - "grpc"
-                - "docs"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.<<matrix.shard>>"
+          hatch_args: "tests/functional_tests"
+
+      #
+      # Functional doc tests
+      #
+      - hatch-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
+          name: "func-linux-s_docs-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          hatchenv: "func-s_docs.py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           hatch_args: "tests/functional_tests"
 
       #
@@ -1450,7 +1461,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "func-win-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.default"
           hatch_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
