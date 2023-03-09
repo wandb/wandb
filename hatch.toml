@@ -79,14 +79,6 @@ dependencies = [
     "pytest",
 ]
 
-[envs.unitshard]
-template = "unit"
-extra-dependencies = [ # TODO: remove after conftest.py refactor.
-    "bokeh",
-    "nbclient",
-    "matplotlib!=3.5.2",
-]
-
 [envs.test]
 
 [envs.test.env-vars]
@@ -123,8 +115,8 @@ python = "3.7"
 pytest = "pytest -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tests_old/tests_launch/}"
 
 [envs.unit-s_nb]
-template = "unitshard"
-extra-dependencies = ["ipykernel", "ipython", "nbclient", "matplotlib"]
+template = "unit"
+extra-dependencies = ["ipykernel", "ipython", "nbclient", "matplotlib", "bokeh"]
 
 [envs.unit-s_nb.env-vars]
 COVERAGE_FILE = "{root}/{env_name}/.coverage"
