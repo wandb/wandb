@@ -263,9 +263,9 @@ jobs:
             - run:
                 name: Install hatch
                 command: |
-                  python -m pip install --upgrade pip
-                  python -m pip install pipx
-                  python -m pipx ensurepath
+                  python3 -m pip install --upgrade pip
+                  python3 -m pip install pipx
+                  python3 -m pipx ensurepath
                   pipx install hatch
                 no_output_timeout: 5m
             - run:
@@ -330,9 +330,9 @@ jobs:
             - run:
                 name: Install hatch
                 command: |
-                  python -m pip install --upgrade pip
-                  python -m pip install pipx
-                  python -m pipx ensurepath
+                  python3 -m pip install --upgrade pip
+                  python3 -m pip install pipx
+                  python3 -m pipx ensurepath
                   pipx install hatch
                 no_output_timeout: 5m
             - run:
@@ -392,10 +392,8 @@ jobs:
       - run:
           name: Install hatch
           command: |
-            python -m pip install --upgrade pip
-            python -m pip install pipx
-            python -m pipx ensurepath
-            pipx install hatch
+            python3 -m pip install --upgrade pip
+            python3 -m pip install hatch
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
@@ -486,10 +484,8 @@ jobs:
                 name: Install hatch
                 shell: bash.exe
                 command: |
-                  python -m pip install --upgrade pip
-                  python -m pip install pipx
-                  python -m pipx ensurepath
-                  pipx install hatch
+                  python3 -m pip install --upgrade pip
+                  python3 -m pip install hatch
             - run:
                 name: Temporary conda hack
                 shell: bash.exe
@@ -546,9 +542,9 @@ jobs:
       - run:
           name: Install hatch
           command: |
-            python -m pip install --upgrade pip
-            python -m pip install pipx
-            python -m pipx ensurepath
+            python3 -m pip install --upgrade pip
+            python3 -m pip install pipx
+            python3 -m pipx ensurepath
             pipx install hatch
       - run:
           name: Run tests
@@ -630,9 +626,9 @@ jobs:
             - run:
                 name: Install hatch dependencies
                 command: |
-                  python -m pip install --upgrade pip
-                  python -m pip install pipx
-                  python -m pipx ensurepath
+                  python3 -m pip install --upgrade pip
+                  python3 -m pip install pipx
+                  python3 -m pipx ensurepath
                   pipx install hatch
             - run:
                 name: Install kubectl

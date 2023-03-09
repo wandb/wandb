@@ -102,7 +102,7 @@ pytest = [
 ]
 cover = [
     "- mkdir -p cover-results",
-    "hatch env run -e {env_name} 'python -m coverage combine py*/.coverage*'",
+    "python -m coverage combine {root}/test.py*/.coverage*",
     "coverage xml --ignore-errors",
     "cp .coverage coverage.xml cover-results/",
     "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
@@ -142,7 +142,7 @@ python = ["36", "37", "38", "39", "310"]
 
 
 [envs.func-s]
-extra-dependencies = ["yea-wandb{env:YEA_WANDB_VERSION:}"]
+extra-dependencies = ["coverage", "yea-wandb{env:YEA_WANDB_VERSION:}"]
 
 [envs.func-s.env-vars]
 YEA_WANDB_VERSION = "==0.9.5"
@@ -158,8 +158,8 @@ pytest = [
 ]
 cover = [
     "- mkdir -p cover-results",
-    "hatch env run -e {env_name} 'python -m coverage combine {root}/func-s*.py*/.coverage*'",
-    "hatch env run -e {env_name} 'python -m coverage xml --ignore-errors'",
+    "python -m coverage combine {root}/func-s*.py*/.coverage*",
+    "python -m coverage xml --ignore-errors",
     "cp .coverage coverage.xml cover-results/",
     "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
     "codecov -e {env_name} -F functest",
