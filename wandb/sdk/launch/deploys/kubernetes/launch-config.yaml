@@ -15,12 +15,12 @@ metadata:
   namespace: wandb
   name: wandb-launch-agent
 rules:
-- apiGroups: [""]
-  resources: ["pods", "configmaps", "secrets", "pods/log"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
-- apiGroups: ["batch"]
-  resources: ["jobs", "jobs/status"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "secrets", "pods/log"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 ---
 # cluster role to creating ML jobs in desired namespaces
 apiVersion: rbac.authorization.k8s.io/v1
@@ -28,12 +28,12 @@ kind: ClusterRole
 metadata:
   name: job-creator
 rules:
-- apiGroups: [""]
-  resources: ["pods", "pods/log", "secrets"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
-- apiGroups: ["batch"]
-  resources: ["jobs", "jobs/status"]
-  verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "secrets"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status"]
+    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -48,9 +48,9 @@ metadata:
   name: wandb-launch-role-binding
   namespace: wandb
 subjects:
-- kind: ServiceAccount
-  name: wandb-launch-serviceaccount
-  namespace: wandb
+  - kind: ServiceAccount
+    name: wandb-launch-serviceaccount
+    namespace: wandb
 roleRef:
   kind: Role
   name: wandb-launch-agent
@@ -63,9 +63,9 @@ metadata:
   name: wandb-launch-cluster-role-binding
   namespace: default #TODO: SET YOUR TRAINING NAMESPACE
 subjects:
-- kind: ServiceAccount
-  name: wandb-launch-serviceaccount
-  namespace: wandb
+  - kind: ServiceAccount
+    name: wandb-launch-serviceaccount
+    namespace: wandb
 roleRef:
   kind: ClusterRole
   name: job-creator
@@ -82,13 +82,11 @@ data:
       credentials:
         secret-name: aws-secret # TODO: SET SECRET NAME HERE
         secret-mount-path: /root/.aws/ # SET MOUNT PATH HERE for aws /root/.aws
-    build:
+    builder:
       type: kaniko
-      cloud-provider: AWS # TODO: SET CLOUD PROVIDER HERE
-      credentials:
-        secret-name: aws-secret
-        secret-mount-path: /root/.aws/
-      build-context-store: wandb-build # name here
+      build-context-store: s3://wandb-build/build-contexts/ # name here
+      secret-name: aws-secret # TODO: SET SECRET NAME HERE
+      secret-key: credentials # TODO: SET SECRET KEY (i.e. name of credentials file) HERE
     runner:
       type: kubernetes
       namespace: wandb # TODO: set namespace here
@@ -105,4 +103,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: ""  ### API KEY HERE
+  password: "" ### API KEY HERE

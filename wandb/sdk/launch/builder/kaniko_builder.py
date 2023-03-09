@@ -155,7 +155,7 @@ class KanikoBuilder(AbstractBuilder):
         pass
 
     def _create_docker_ecr_config_map(
-        self, corev1_client: client.CoreV1Api, repository: str
+        self, job_name: str, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
         if self.registry is None:
             raise LaunchError("No registry specified for Kaniko build.")
@@ -165,7 +165,7 @@ class KanikoBuilder(AbstractBuilder):
             api_version="v1",
             kind="ConfigMap",
             metadata=client.V1ObjectMeta(
-                name="docker-config",
+                name=f"docker-config-{job_name}",
                 namespace="wandb",
             ),
             data={
@@ -177,8 +177,11 @@ class KanikoBuilder(AbstractBuilder):
         )
         corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
 
-    def _delete_docker_ecr_config_map(self, client: client.CoreV1Api) -> None:
-        client.delete_namespaced_config_map("docker-config", "wandb")
+    def _delete_docker_ecr_config_map(
+        self, job_name: str, client: client.CoreV1Api
+    ) -> None:
+        if self.secret_name:
+            client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")
 
     def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
@@ -240,7 +243,8 @@ class KanikoBuilder(AbstractBuilder):
 
         try:
             # core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
-            self._create_docker_ecr_config_map(core_v1, repo_uri)
+            if self.secret_name:
+                self._create_docker_ecr_config_map(build_job_name, core_v1, repo_uri)
             batch_v1.create_namespaced_job("wandb", build_job)
 
             # wait for double the job deadline since it might take time to schedule
@@ -258,7 +262,8 @@ class KanikoBuilder(AbstractBuilder):
             try:
                 # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
                 # core_v1.delete_namespaced_config_map(config_map_name, "wandb")
-                self._delete_docker_ecr_config_map(core_v1)
+                if self.secret_name:
+                    self._delete_docker_ecr_config_map(build_job_name, core_v1)
                 batch_v1.delete_namespaced_job(build_job_name, "wandb")
             except Exception as e:
                 raise LaunchError(f"Exception during Kubernetes resource clean up {e}")
@@ -273,25 +278,34 @@ class KanikoBuilder(AbstractBuilder):
         build_context_path: str,
     ) -> "client.V1Job":
         env = []
-        volume_mounts = [
-            client.V1VolumeMount(name="docker-config", mount_path="/kaniko/.docker/"),
-        ]
-        volumes = [
-            client.V1Volume(
-                name="docker-config",
-                config_map=client.V1ConfigMapVolumeSource(
-                    name="docker-config",
-                ),
-            ),
-        ]
+        volume_mounts = []
+        volumes = []
         if bool(self.secret_name) != bool(self.secret_key):
             raise LaunchError(
                 "Both secret_name and secret_key or neither must be specified "
                 "for kaniko build. You provided only one of them."
             )
+        if isinstance(self.registry, ElasticContainerRegistry):
+            env += [
+                client.V1EnvVar(
+                    name="AWS_REGION",
+                    value=self.registry.environment.region,
+                )
+            ]
         if self.secret_name and self.secret_key:
-            # TODO: We should validate that the secret exists and has the key
-            # before creating the job. Or when we create the builder.
+            volumes += [
+                client.V1Volume(
+                    name="docker-config",
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name=f"docker-config-{job_name}",
+                    ),
+                ),
+            ]
+            volume_mounts += [
+                client.V1VolumeMount(
+                    name="docker-config", mount_path="/kaniko/.docker/"
+                ),
+            ]
             # TODO: I don't like conditioning on the registry type here. As a
             # future change I want the registry and environment classes to provide
             # a list of environment variables and volume mounts that need to be
@@ -303,12 +317,6 @@ class KanikoBuilder(AbstractBuilder):
             if isinstance(self.registry, ElasticContainerRegistry):
                 mount_path = "/root/.aws"
                 key = "credentials"
-                env += [
-                    client.V1EnvVar(
-                        name="AWS_REGION",
-                        value=self.registry.environment.region,
-                    )
-                ]
             elif isinstance(self.registry, GoogleArtifactRegistry):
                 mount_path = "/kaniko/.config/gcloud"
                 key = "config.json"
