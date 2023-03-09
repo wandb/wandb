@@ -372,7 +372,6 @@ class HttpException(Exception):
 
 
 class SnoopRelay:
-
     _inject_count: int
     _inject_time: float
 
@@ -383,7 +382,6 @@ class SnoopRelay:
     def relay(self, func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-
             # Normal mockserver mode, disable live relay and call next function
             if not os.environ.get("MOCKSERVER_RELAY"):
                 return func(*args, **kwargs)
@@ -1519,17 +1517,7 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {"project": {"runQueues": []}}})
-        if "query EntityIsTeam" in body["query"]:
-            return json.dumps(
-                {
-                    "data": {
-                        "entity": {
-                            "id": 1,
-                            "isTeam": False,
-                        }
-                    }
-                }
-            )
+
         if "query GetRunQueueItem" in body["query"]:
             if ctx["run_queue_item_return_type"] == "claimed":
                 return json.dumps(
@@ -1669,7 +1657,6 @@ def create_app(user_ctx=None):
                 c["alerts"].append(adict)
             return {"data": {"notifyScriptableRunAlert": {"success": True}}}
         if "query SearchUsers" in body["query"]:
-
             return {
                 "data": {
                     "users": {
