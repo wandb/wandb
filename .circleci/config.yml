@@ -604,6 +604,7 @@ jobs:
         default: true
       notify_on_success:
         type: boolean
+        default: false
     machine:
       image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
