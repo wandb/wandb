@@ -270,7 +270,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 240m
                 command: |
-                  hatch -v run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
+                  hatch run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -335,8 +335,8 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch -v run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
-                  hatch -v run << parameters.hatchenv >>:cover
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
+                  hatch run << parameters.hatchenv >>:cover
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -397,7 +397,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            hatch -v run <<parameters.hatchenv>>:pytest  \
+            hatch run <<parameters.hatchenv>>:pytest  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.hatch_args >>
             hatch run << parameters.hatchenv >>:cover
       - save-test-results
@@ -506,7 +506,7 @@ jobs:
                   echo $GCLOUD_SERVICE_KEY > key.json
                   gcloud auth activate-service-account --key-file=key.json
                   yes | gcloud auth configure-docker
-                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch -v run << parameters.hatchenv >> -- << parameters.hatch_args >>
+                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch run << parameters.hatchenv >> -- << parameters.hatch_args >>
                 no_output_timeout: 10m
             - save-test-results
 
@@ -545,7 +545,7 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch -v run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
             hatch run << parameters.hatchenv >>:cover
           no_output_timeout: 10m
       - save-test-results
@@ -646,7 +646,7 @@ jobs:
             - run:
                 name: Run tests
                 command: |
-                  hatch -v run << parameters.hatchenv >>:pytest
+                  hatch run << parameters.hatchenv >>:pytest
                 no_output_timeout: 25m
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
