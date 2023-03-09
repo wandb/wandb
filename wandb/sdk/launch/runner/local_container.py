@@ -11,12 +11,14 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
 from .._project_spec import LaunchProject, compute_command_args
-from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
+from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    docker_image_exists,
+    pull_docker_image,
     sanitize_wandb_api_key,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
