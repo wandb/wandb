@@ -88,7 +88,7 @@ COVERAGE_FILE = "{root}/{env_name}/.coverage"
 WINDIR = "C:\\Windows"
 
 [envs.test.scripts]
-pytest = [
+run-pytest = [
     "- mkdir -p test-results",
     "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:10} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail {args:tests/pytest_tests}",
 ]
@@ -112,7 +112,7 @@ template = "test"
 python = "38"
 
 [envs.test-launch.scripts]
-pytest = "pytest -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tests_old/tests_launch/}"
+run-pytest-launch = "run-pytest -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tests_old/tests_launch/}"
 
 [envs.unit-s_nb]
 template = "unit"
@@ -124,7 +124,7 @@ WINDIR = "C:\\Windows"
 WB_UNIT_SHARD = "s_nb"
 
 [envs.unit-s_nb.scripts]
-pytest = [
+run-pytest = [
     "- mkdir -p test-results",
     "ipython kernel install --user --name=wandb_python",
     "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:{env:WB_UNIT_PARALLEL:4}} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail --timeout 300 {args:tests/pytest_tests/unit_tests_old/tests_{env:WB_UNIT_SHARD}/}",
@@ -145,7 +145,7 @@ YEACOV_SOURCE="{root}/wandb/"
 # s_kfp: WB_PROBE_PACKAGE=true
 
 [envs.func-s.scripts]
-pytest = [
+run-pytest = [
     "- mkdir -p test-results",
     "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict --shard {matrix:shard:default} run {args:--all}",
 ]
@@ -193,7 +193,7 @@ shard = [
 template = "func-s"
 
 [envs.func-s_docs.scripts]
-pytest = [
+run-pytest = [
     "- mkdir -p test-results",
     "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict --yeadoc --shard docs run {args:--all}",
 ]
@@ -206,7 +206,7 @@ template = "func-s"
 python = ["37"]
 
 [envs.func-s_kfp.scripts]
-pytest = [
+run-pytest = [
     "- mkdir -p test-results",
     "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict -p wandb:mockserver-bind=0.0.0.0 -p wandb:mockserver-host=__auto__ --shard kfp run {posargs:--all}",
 ]

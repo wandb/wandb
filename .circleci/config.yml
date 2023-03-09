@@ -270,7 +270,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 240m
                 command: |
-                  hatch run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
+                  hatch run << parameters.hatchenv >>:run-pytest -- << parameters.hatch_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -335,7 +335,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch run << parameters.hatchenv >>:run-pytest -- << parameters.hatch_args >>
                   hatch run << parameters.hatchenv >>:cover
             - save-test-results
             # conditionally post a notification to slack if the job failed
@@ -397,7 +397,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            hatch run <<parameters.hatchenv>>:pytest  \
+            hatch run <<parameters.hatchenv>>:run-pytest  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.hatch_args >>
             hatch run << parameters.hatchenv >>:cover
       - save-test-results
@@ -545,7 +545,7 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch run << parameters.hatchenv >>:pytest -- << parameters.hatch_args >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch run << parameters.hatchenv >>:run-pytest -- << parameters.hatch_args >>
             hatch run << parameters.hatchenv >>:cover
           no_output_timeout: 10m
       - save-test-results
@@ -577,7 +577,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            hatch -vv run << parameters.hatchenv >>:pytest
+            hatch -vv run << parameters.hatchenv >>:run-pytest-launch
             hatch run << parameters.hatchenv >>:cover
           no_output_timeout: 10m
       - save-test-results
@@ -646,7 +646,7 @@ jobs:
             - run:
                 name: Run tests
                 command: |
-                  hatch run << parameters.hatchenv >>:pytest
+                  hatch run << parameters.hatchenv >>:run-pytest
                 no_output_timeout: 25m
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
@@ -1178,7 +1178,7 @@ workflows:
                 - "imports11"
                 - "imports12"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.<<matrix.shard>>"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>-<<matrix.shard>>"
           hatch_args: "tests/functional_tests"
           context: slack-secrets
           requires:
@@ -1397,7 +1397,7 @@ workflows:
               shard:
                 - "base"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.<<matrix.shard>>"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>-<<matrix.shard>>"
           hatch_args: "tests/functional_tests"
 
           parallelism: 4
@@ -1423,7 +1423,7 @@ workflows:
                 - "noml"
                 - "grpc"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.<<matrix.shard>>"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>-<<matrix.shard>>"
           hatch_args: "tests/functional_tests"
 
       #
@@ -1447,7 +1447,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "func-win-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>.default"
+          hatchenv: "func-s.py<<matrix.python_version_major>><<matrix.python_version_minor>>-default"
           hatch_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
