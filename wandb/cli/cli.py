@@ -897,8 +897,12 @@ def sweep(
             launch_config = {}
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
 
-        if entity is None or project is None:
-            _msg = "Must specify --entity and --project flags when using launch."
+        if entity is None:
+            _msg = "Must specify --entity flag when using launch."
+            wandb.termerror(_msg)
+            raise LaunchError(_msg)
+        elif project is None:
+            _msg = "A project must be configured when using launch."
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
@@ -936,6 +940,10 @@ def sweep(
         ]
 
         if _job:
+            if ":" not in _job:
+                wandb.termwarn("No alias specified for job, defaulting to 'latest'")
+                _job += ":latest"
+
             scheduler_entrypoint += [
                 "--job",
                 _job,
@@ -950,23 +958,21 @@ def sweep(
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        SCHEDULER_URI,  # uri
-                        None,  # job
-                        api,
-                        "Scheduler.WANDB_SWEEP_ID",  # name,
-                        project,
-                        entity,
-                        scheduler_config.get("docker_image"),  # docker_image,
-                        scheduler_config.get("resource", "local-process"),  # resource,
-                        scheduler_entrypoint,  # entrypoint
-                        None,  # version,
-                        None,  # parameters,
-                        scheduler_config.get("resource_args"),  # resource_args,
-                        None,  # launch_config,
-                        None,  # run_id,
-                        launch_config.get("registry", {}).get(
-                            "url", None
-                        ),  # repository
+                        uri=SCHEDULER_URI,
+                        job=None,
+                        api=api,
+                        name="Scheduler.WANDB_SWEEP_ID",
+                        project=project,
+                        entity=entity,
+                        docker_image=scheduler_config.get("docker_image"),
+                        resource=scheduler_config.get("resource", "local-process"),
+                        entry_point=scheduler_entrypoint,
+                        version=None,
+                        parameters=None,
+                        resource_args=scheduler_config.get("resource_args", {}),
+                        launch_config=None,
+                        run_id=None,
+                        repository=launch_config.get("registry", {}).get("url", None),
                     )
                 ),
             }
