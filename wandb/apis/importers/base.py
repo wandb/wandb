@@ -19,7 +19,7 @@ Path = str
 
 
 def coalesce(*arg: Any) -> Any:
-    """Return the first non-none value in the list of arguments.  Similar to ?? in C#"""
+    """Return the first non-none value in the list of arguments.  Similar to ?? in C#."""
     return next((a for a in arg if a is not None), None)
 
 
@@ -63,8 +63,10 @@ class ImporterRun:
         return {}
 
     def metrics(self) -> List[Dict[str, float]]:
-        """
+        """Metrics for the run.
+
         We expect metrics in this shape:
+
         [
             {'metric1': 1, 'metric2': 1, '_step': 0},
             {'metric1': 2, 'metric2': 4, '_step': 1},
