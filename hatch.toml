@@ -84,7 +84,7 @@ template = "unit"
 extra-dependencies = [ # TODO: remove after conftest.py refactor.
     "bokeh",
     "nbclient",
-    "matplotlib<3.5.2",
+    "matplotlib!=3.5.2",
 ]
 
 [envs.test]

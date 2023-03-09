@@ -263,7 +263,10 @@ jobs:
             - run:
                 name: Install hatch
                 command: |
-                  pip install hatch
+                  python -m pip install --upgrade pip
+                  python -m pip install pipx
+                  python -m pipx ensurepath
+                  pipx install hatch
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -327,7 +330,10 @@ jobs:
             - run:
                 name: Install hatch
                 command: |
-                  pip install hatch
+                  python -m pip install --upgrade pip
+                  python -m pip install pipx
+                  python -m pipx ensurepath
+                  pipx install hatch
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -386,7 +392,10 @@ jobs:
       - run:
           name: Install hatch
           command: |
-            pip install hatch
+            python -m pip install --upgrade pip
+            python -m pip install pipx
+            python -m pipx ensurepath
+            pipx install hatch
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
@@ -477,7 +486,10 @@ jobs:
                 name: Install hatch
                 shell: bash.exe
                 command: |
-                  pip install hatch
+                  python -m pip install --upgrade pip
+                  python -m pip install pipx
+                  python -m pipx ensurepath
+                  pipx install hatch
             - run:
                 name: Temporary conda hack
                 shell: bash.exe
@@ -534,7 +546,10 @@ jobs:
       - run:
           name: Install hatch
           command: |
-            python3 -m pip install hatch
+            python -m pip install --upgrade pip
+            python -m pip install pipx
+            python -m pipx ensurepath
+            pipx install hatch
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
@@ -561,7 +576,9 @@ jobs:
           name: Install python dependencies, build r2d
           command: |
             python3 -m pip install --upgrade pip
-            python3 -m pip install hatch
+            python3 -m pip install pipx
+            python3 -m pipx ensurepath
+            pipx install hatch
             python3 -m pip install chardet
             python3 -m pip install iso8601
       - run:
@@ -613,7 +630,10 @@ jobs:
             - run:
                 name: Install hatch dependencies
                 command: |
-                  pip install hatch
+                  python -m pip install --upgrade pip
+                  python -m pip install pipx
+                  python -m pipx ensurepath
+                  pipx install hatch
             - run:
                 name: Install kubectl
                 command: |
