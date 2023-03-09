@@ -102,11 +102,11 @@ pytest = [
 ]
 cover = [
     "- mkdir -p cover-results",
-    "/usr/bin/env bash -c '{envpython} -m coverage combine {root}/py*/.coverage*'",
+    "hatch env run -e {env_name} 'python -m coverage combine py*/.coverage*'",
     "coverage xml --ignore-errors",
     "cp .coverage coverage.xml cover-results/",
     "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
-    "codecov -e HATCHENV -F unittest",
+    "codecov -e {env_name} -F unittest",
 ]
 
 [[envs.test.matrix]]
@@ -151,22 +151,4 @@ dependencies = [
     "grpcio>=1.46.3",
     "libcst",
     "twine",
-]
-
-[envs.covercircle]
-template = "empty"
-dependencies = ["pytest", "coverage", "codecov"]
-
-[envs.covercircle.env-vars]
-CIRCLE_BUILD_NUM = "{env:CIRCLE_WORKFLOW_ID}"
-
-[envs.covercircle.scripts]
-# TODO: separate this out to a "cover" command.
-pytest = [
-    "mkdir -p cover-results",
-    "/usr/bin/env bash -c '{envpython} -m coverage combine {root}/py*/.coverage*'",
-    "coverage xml --ignore-errors",
-    "cp .coverage coverage.xml cover-results/",
-    "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
-    "codecov -e HATCHENV -F unittest",
 ]

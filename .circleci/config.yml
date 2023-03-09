@@ -580,9 +580,10 @@ jobs:
       - run:
           name: Install python dependencies, build r2d
           command: |
-            pip install hatch
-            pip3 install chardet
-            pip3 install iso8601
+            python3 -m pip install --upgrade pip
+            python3 -m pip install hatch
+            python3 -m pip install chardet
+            python3 -m pip install iso8601
       - run:
           name: pull base docker images
           command: |
@@ -1410,7 +1411,7 @@ workflows:
               shard:
                 - "base"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          hatchenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           hatch_args: "tests/functional_tests"
 
           parallelism: 4
@@ -1437,7 +1438,7 @@ workflows:
                 - "grpc"
                 - "docs"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          hatchenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           hatch_args: "tests/functional_tests"
 
       #
@@ -1459,11 +1460,11 @@ workflows:
       #
       - launch:
           name: "launch-mock-server"
-          hatchenv: "pylaunch"
+          hatchenv: "launch"
 
       - pytest:
           name: "launch-relay-server"
-          hatchenv: "pylaunch"
+          hatchenv: "launch"
           hatch_args: "tests/pytest_tests/system_tests/tests_launch"
 
       #
@@ -1500,7 +1501,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [6]
           name: "unit-linux-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "unit-s_nb.py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
+          hatchenv: "unit-s_nb.py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       - win:
           matrix:
             parameters:
