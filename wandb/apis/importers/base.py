@@ -36,7 +36,7 @@ def send_manager(root_dir):
         sm.finish()
 
 
-class Run:
+class ImporterRun:
     def __init__(self) -> None:
         self.interface = InterfaceQueue()
         self.run_dir = f"./wandb-importer/{self.run_id()}"
@@ -137,7 +137,7 @@ class Run:
     def start_time(self) -> Optional[int]:
         ...
 
-    def make_run_record(self) -> pb.Record:
+    def _make_run_record(self) -> pb.Record:
         run = pb.RunRecord()
         run.run_id = self.run_id()
         run.entity = self.entity()
@@ -156,7 +156,7 @@ class Run:
         )  # is there a better way?
         return self.interface._make_record(run=run)
 
-    def make_summary_record(self) -> pb.Record:
+    def _make_summary_record(self) -> pb.Record:
         d: dict = {
             **self.summary(),
             "_runtime": self.runtime(),  # quirk of runtime -- it has to be here!
@@ -165,7 +165,7 @@ class Run:
         summary = self.interface._make_summary_from_dict(d)
         return self.interface._make_record(summary=summary)
 
-    def make_history_records(self) -> Iterable[pb.Record]:
+    def _make_history_records(self) -> Iterable[pb.Record]:
         for _, metrics in enumerate(self.metrics()):
             history = pb.HistoryRecord()
             for k, v in metrics.items():
@@ -174,7 +174,7 @@ class Run:
                 item.value_json = json.dumps(v)
             yield self.interface._make_record(history=history)
 
-    def make_files_record(self, files_dict) -> pb.Record:
+    def _make_files_record(self, files_dict) -> pb.Record:
         # when making the metadata file, it captures most things correctly
         # but notably it doesn't capture the start time!
         files_record = pb.FilesRecord()
@@ -184,13 +184,13 @@ class Run:
             f.policy = file_policy_to_enum(policy)  # is this always "end"?
         return self.interface._make_record(files=files_record)
 
-    def make_metadata_files_record(self) -> pb.Record:
+    def _make_metadata_files_record(self) -> pb.Record:
         self._make_metadata_file(self.run_dir)
-        return self.make_files_record(
+        return self._make_files_record(
             {"files": [[f"{self.run_dir}/files/wandb-metadata.json", "end"]]}
         )
 
-    def make_artifact_record(self) -> pb.Record:
+    def _make_artifact_record(self) -> pb.Record:
         art = wandb.Artifact(self.display_name(), "imported-artifacts")
         artifacts = self.artifacts()
         if artifacts is not None:
@@ -207,7 +207,7 @@ class Run:
             proto.aliases.append(tag)
         return self.interface._make_record(artifact=proto)
 
-    def make_telem_record(self) -> pb.Record:
+    def _make_telem_record(self) -> pb.Record:
         feature = telem_pb.Feature()
         feature.importer_mlflow = True
 
@@ -261,14 +261,14 @@ class Run:
 
 class Importer(ABC):
     @abstractmethod
-    def get_all_runs(self) -> Iterable[Run]:
+    def get_all_runs(self) -> Iterable[ImporterRun]:
         ...
 
-    def send_everything(self, overrides: Optional[Dict[str, Any]] = None) -> None:
+    def send_all(self, overrides: Optional[Dict[str, Any]] = None) -> None:
         for run in tqdm(self.get_all_runs(), desc="Sending runs"):
             self.send(run, overrides)
 
-    def send_everything_parallel(
+    def send_all_parallel(
         self, overrides: Optional[Dict[str, Any]] = None, **pool_kwargs: Any
     ) -> None:
         runs = list(self.get_all_runs())
@@ -286,7 +286,7 @@ class Importer(ABC):
 
     def send(
         self,
-        run: Run,
+        run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         # does this need to be here for pmap?
@@ -297,13 +297,13 @@ class Importer(ABC):
                 setattr(run, k, lambda v=v: v)
         self._send(run)
 
-    def _send(self, run: Run) -> None:
+    def _send(self, run: ImporterRun) -> None:
         with send_manager(run.run_dir) as sm:
-            sm.send(run.make_run_record())
-            sm.send(run.make_summary_record())
-            sm.send(run.make_metadata_files_record())
-            for history_record in run.make_history_records():
+            sm.send(run._make_run_record())
+            sm.send(run._make_summary_record())
+            sm.send(run._make_metadata_files_record())
+            for history_record in run._make_history_records():
                 sm.send(history_record)
             if run.artifacts() is not None:
-                sm.send(run.make_artifact_record())
-            sm.send(run.make_telem_record())
+                sm.send(run._make_artifact_record())
+            sm.send(run._make_telem_record())

@@ -2,7 +2,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from wandb.util import get_module
 
-from .base import Importer, Run
+from .base import Importer, ImporterRun
 
 mlflow = get_module(
     "mlflow",
@@ -10,7 +10,7 @@ mlflow = get_module(
 )
 
 
-class MlflowRun(Run):
+class MlflowRun(ImporterRun):
     def __init__(self, run, mlflow_client):
         self.run = run
         self.mlflow_client = mlflow_client
@@ -101,7 +101,7 @@ class MlflowImporter(Importer):
 
     def send(
         self,
-        run: Run,
+        run: ImporterRun,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
