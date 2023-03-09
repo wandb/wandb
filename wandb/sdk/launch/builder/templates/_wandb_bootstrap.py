@@ -81,11 +81,7 @@ def main() -> None:
                     reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
-                if len(reqs) >= CORES - 3:
-                    reqs.append("torch==0.1234")
-                    reqs.append("basdfhuiobdsahf")
-                    reqs.append("jifdgebn")
-                    reqs.reverse()
+                if len(reqs) >= CORES:
                     deps_failed = install_deps(reqs)
                     reqs = []
                     if deps_failed is not None:
