@@ -18,6 +18,7 @@ from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
+from wandb.wandb_agent import Agent
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -272,12 +273,13 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue.
 
         run_id: supplied by gorilla from agentHeartbeat
+        entry_point: sweep entrypoint overrides image_uri/job entrypoint
         config: launch config
         """
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
 
-        _sweep_config_uri = self._sweep_config.get("scheduler", {}).get("image_uri")
+        _sweep_config_uri = self._sweep_config.get("image_uri")
         _image_uri = self._kwargs.get("image_uri") or _sweep_config_uri
         if _job is None and _image_uri is None:
             raise SchedulerError(
@@ -285,6 +287,13 @@ class Scheduler(ABC):
             )
         elif _job is not None and _image_uri is not None:
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
+
+        if self._sweep_config.get("command"):
+            entry_point = Agent._create_sweep_command(self._sweep_config["command"])
+            wandb.termwarn(
+                f"{LOG_PREFIX}Sweep command {entry_point} will override"
+                f' {"job" if _job else "image_uri"} entrypoint'
+            )
 
         run_id = run_id or generate_id()
         queued_run = launch_add(
