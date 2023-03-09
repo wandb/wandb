@@ -26,6 +26,12 @@ class LaunchError(Error):
     pass
 
 
+class LaunchDockerError(Error):
+    """Raised when Docker daemon is not running."""
+
+    pass
+
+
 class ExecutionError(Error):
     """Generic execution exception."""
 
