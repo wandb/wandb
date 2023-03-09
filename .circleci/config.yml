@@ -255,7 +255,7 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
             - run:
-                name: Setup environment
+                name: Setup pyenv
                 command: |
                   curl https://pyenv.run | bash
                   echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
@@ -264,17 +264,25 @@ jobs:
                   source ~/.bashrc
                 no_output_timeout: 30m
             - run:
-                name: Install tox
+                # name: Install tox
+                # command: |
+                #   pip install tox==<< pipeline.parameters.tox_version >>
+                #   pip install -U pip
+                name: Install hatch
                 command: |
-                  pip install tox==<< pipeline.parameters.tox_version >>
-                  pip install -U pip
+                  pip install hatch
                 no_output_timeout: 5m
+            - run:
+                name: Install test environment
+                command: |
+                  hatch -v env create << parameters.toxenv >>
+                no_output_timeout: 10m
             - run:
                 name: Run tests
                 no_output_timeout: 240m
                 command: |
-                  source ~/.bashrc
-                  tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  hatch -v run << parameters.toxenv >>:pytest -- << parameters.tox_args >>
+                # tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -332,14 +340,20 @@ jobs:
             - run:
                 name: Install python dependencies
                 command: |
-                  pip install tox==<< pipeline.parameters.tox_version >>
-                  pip install -U pip
+                  pip install hatch
+                #  pip install tox==<< pipeline.parameters.tox_version >>
+                #  pip install -U pip
                 no_output_timeout: 5m
+            - run:
+                name: Install test environment
+                command: |
+                  hatch -v env create << parameters.toxenv >>
+                no_output_timeout: 10m
             - run:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch -v run << parameters.toxenv >>:pytest -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -391,16 +405,22 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            pip install tox==<< pipeline.parameters.tox_version >>
-            pip install -U pip
+            pip install hatch
             while ! curl http://localhost:8080/healthz; do sleep 1; done
+          #  pip install tox==<< pipeline.parameters.tox_version >>
+          #  pip install -U pip
           no_output_timeout: 5m
+      - run:
+          name: Install test environment
+          command: |
+            hatch env create << parameters.toxenv >>
+          no_output_timeout: 10m
       - run:
           name: Run tests
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox -v -e <<parameters.toxenv>>  \
+            hatch -v run <<parameters.toxenv>>:pytest  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
@@ -539,13 +559,19 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            pip3 install tox==<< pipeline.parameters.tox_version >>
+            pip install hatch
+          #  pip3 install tox==<< pipeline.parameters.tox_version >>
+      - run:
+          name: Install test environment
+          command: |
+            hatch env create << parameters.toxenv >>
+          no_output_timeout: 10m
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch -v run << parameters.toxenv >>:pytest -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
 
