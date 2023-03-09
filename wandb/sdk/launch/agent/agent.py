@@ -144,6 +144,11 @@ class LaunchAgent:
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
+        if self._api.entity_is_team(self._entity):
+            wandb.termwarn(
+                f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
+            )
+
     @property
     def thread_ids(self) -> List[int]:
         """Returns a list of keys running thread ids for the agent."""
