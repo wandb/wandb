@@ -268,7 +268,7 @@ jobs:
             - run:
                 name: Install test environment
                 command: |
-                  hatch -v env create << parameters.hatchenv >>
+                  hatch env create << parameters.hatchenv >>
                 no_output_timeout: 10m
             - run:
                 name: Run tests
@@ -337,7 +337,7 @@ jobs:
             - run:
                 name: Install test environment
                 command: |
-                  hatch -v env create << parameters.hatchenv >>
+                  hatch env create << parameters.hatchenv >>
                 no_output_timeout: 10m
             - run:
                 name: Run tests
