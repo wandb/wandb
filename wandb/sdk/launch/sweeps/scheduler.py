@@ -41,14 +41,6 @@ class SchedulerState(Enum):
     CANCELLED = 7
 
 
-@dataclass
-class SweepState:
-    running: str = "RUNNING"
-    paused: str = "PAUSED"
-    finished: str = "FINISHED"
-    cancelled: str = "CANCELED"
-
-
 class RunState(Enum):
     ALIVE = 0
     DEAD = 1
@@ -97,7 +89,7 @@ class Scheduler(ABC):
             resp = self._api.sweep(
                 sweep_id, "{}", entity=self._entity, project=self._project
             )
-            if resp.get("state") == SweepState.cancelled:
+            if resp.get("state") == SchedulerState.CANCELLED.name:
                 self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
@@ -151,14 +143,14 @@ class Scheduler(ABC):
 
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
+        wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         if not self.is_alive():
             wandb.termerror(
-                f"{LOG_PREFIX}Sweep already stopped or cancelled! Exiting..."
+                f"{LOG_PREFIX}Sweep already {self.state.name.lower()}! Exiting..."
             )
             self.exit()
             return
 
-        wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
             wandb.termerror(
