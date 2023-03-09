@@ -2,9 +2,7 @@
 path = "wandb/__init__.py"
 
 [build.targets.sdist]
-include = [
-    "/wandb",
-]
+include = ["/wandb"]
 
 [envs.default]
 # The default environment includes all extras and all dev, build, and test dependencies.
@@ -63,12 +61,10 @@ dependencies = [
     "twine",
     "xgboost",
 ]
-features = [
-    "all",
-]
+features = ["all"]
 
 [envs.unit]
-template = "unit"  # Don't inherit from the default environment.
+template = "unit" # Don't inherit from the default environment.
 dependencies = [
     "parameterized",
     "pytest-cov",
@@ -85,7 +81,7 @@ dependencies = [
 
 [envs.unitshard]
 template = "unit"
-extra-dependencies = [  # TODO: remove after conftest.py refactor.
+extra-dependencies = [ # TODO: remove after conftest.py refactor.
     "bokeh",
     "nbclient",
     "matplotlib<3.5.2",
@@ -119,11 +115,7 @@ pytest = [
 
 [envs.unitshard_nb]
 template = "unitshard"
-extra-dependencies = [
-    "ipykernel",
-    "ipython",
-    "nbclient",
-]
+extra-dependencies = ["ipykernel", "ipython", "nbclient"]
 
 [envs.unitshard_nb.env-vars]
 COVERAGE_FILE = "{root}/{env_name}/.coverage"
@@ -141,7 +133,7 @@ pytest = [
 python = ["36", "37", "38", "39", "310"]
 
 [envs.empty]
-detached = true  # Don't require package installation.
+detached = true # Don't require package installation.
 
 [envs.build]
 template = "empty"
@@ -151,4 +143,22 @@ dependencies = [
     "grpcio>=1.46.3",
     "libcst",
     "twine",
+]
+
+[envs.covercircle]
+template = "empty"
+dependencies = ["pytest", "coverage", "codecov"]
+
+[envs.covercircle.env-vars]
+CIRCLE_BUILD_NUM = "{env:CIRCLE_WORKFLOW_ID}"
+
+[envs.covercircle.scripts]
+# TODO: separate this out to a "cover" command.
+pytest = [
+    "mkdir -p cover-results",
+    "/usr/bin/env bash -c '{envpython} -m coverage combine {toxworkdir}/py*/.coverage*'",
+    "coverage xml --ignore-errors",
+    "cp .coverage coverage.xml cover-results/",
+    "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
+    "codecov -e TOXENV -F unittest",
 ]

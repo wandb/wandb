@@ -547,7 +547,7 @@ jobs:
       - run:
           name: Install hatch
           command: |
-            pip install hatch
+            python3 -m pip install hatch
       - run:
           name: Install test environment
           command: |
@@ -604,7 +604,6 @@ jobs:
         default: true
       notify_on_success:
         type: boolean
-        default: false
     machine:
       image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
@@ -734,7 +733,6 @@ jobs:
         default: true
       notify_on_failure:
         type: boolean
-        default: false
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
@@ -1332,7 +1330,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [6, 7, 8, 9, 10]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          hatchenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
           hatch_args: "tests/pytest_tests/system_tests/test_core"
       #
       # Unit tests with pytest on Linux, using the old mock server
