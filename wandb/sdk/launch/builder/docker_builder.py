@@ -137,8 +137,7 @@ class DockerBuilder(AbstractBuilder):
             output = docker.build(
                 tags=[image_uri], file=dockerfile, context_path=build_ctx_path
             )
-            _, stderr = output
-            warn_failed_packages_from_build_logs(stderr, image_uri)
+            warn_failed_packages_from_build_logs(output, image_uri)
 
         except docker.DockerError as e:
             raise LaunchDockerError(f"Error communicating with docker client: {e}")

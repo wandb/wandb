@@ -83,49 +83,45 @@ def is_buildx_installed() -> bool:
     return _buildx_installed
 
 
-def build(tags: List[str], file: str, context_path: str) -> Tuple[str, str]:
+def build(tags: List[str], file: str, context_path: str) -> str:
     command = ["buildx", "build"] if is_buildx_installed() else ["build"]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
     args = ["docker"] + command + build_tags + ["-f", file, context_path]
-    stdout, stderr = run_command_live_output(
+    stdout = run_command_live_output(
         args,
     )
-    return stdout, stderr
+    return stdout
 
 
-def run_command_live_output(args: List[Any]) -> Tuple[str, str]:
+def run_command_live_output(args: List[Any]) -> str:
     with subprocess.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
     ) as process:
         stdout = ""
-        stderr = ""
 
-        while True:
-            p_stderr = process.stderr
-            if not p_stderr:
-                break
-            stderr_line = p_stderr.readline()
-            if not stderr_line:
-                break
-            stderr += stderr_line
-            print(stderr_line, end="", file=sys.stderr)
         while True:
             p_stdout = process.stdout
             if not p_stdout:
                 break
-            stdout_line = p_stdout.readline()
+            stdout_line = ""
+            if p_stdout:
+                stdout_line = p_stdout.readline()
             if not stdout_line:
                 break
             stdout += stdout_line
-            print(stdout_line, end="")
+            if stdout_line:
+                print(stdout_line, end="")
 
     return_code = process.wait()
     if return_code != 0:
-        raise DockerError(args, return_code, stdout.encode(), stderr.encode())
+        raise DockerError(args, return_code, stdout.encode())
 
-    return stdout, stderr
+    return stdout
 
 
 def run(
