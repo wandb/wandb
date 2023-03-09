@@ -102,6 +102,9 @@ pytest = [
 ]
 cover = [
     "- mkdir -p cover-results",
+    "ls {root}",
+    "ls {root}/test.py*",
+    "ls {root}/test.py*/.coverage*",
     "python -m coverage combine {root}/test.py*/.coverage*",
     "coverage xml --ignore-errors",
     "cp .coverage coverage.xml cover-results/",
@@ -114,13 +117,10 @@ python = ["36", "37", "38", "39", "310"]
 
 [envs.test-launch]
 template = "test"
-python = "37"
+python = "3.7"
 
 [envs.test-launch.scripts]
-pytest = [
-    "- mkdir -p test-results",
-    "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:4} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail {args:tests/pytest_tests/unit_tests_old/tests_launch/}",
-]
+pytest = "pytest -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tests_old/tests_launch/}"
 
 [envs.unit-s_nb]
 template = "unitshard"
