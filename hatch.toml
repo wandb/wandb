@@ -114,6 +114,7 @@ python = ["36", "37", "38", "39", "310"]
 
 [envs.test-launch]
 template = "test"
+python = "37"
 
 [envs.test-launch.scripts]
 pytest = [
