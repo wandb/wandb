@@ -311,6 +311,9 @@ jobs:
       hatch_args:
         type: string
         default: ""
+      hatch_cmd:
+        type: string
+        default: "run-pytest"
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: <<parameters.parallelism>>
@@ -335,8 +338,7 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e <<parameters.hatchenv>> run-pytest -- <<parameters.hatch_args>>
-                  hatch env run -e <<parameters.hatchenv>> cover
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e <<parameters.hatchenv>> <<parameters.hatch_cmd>> -- <<parameters.hatch_args>>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -1309,9 +1311,27 @@ workflows:
       # Linting
       #
       - hatch-base:
+          name: "lint-check"
+          python_version_minor: 11
+          hatchenv: "lint"
+          hatch_cmd: "all"  # Equivalent to `hatch run lint:all`
+
+      #
+      # Checking types and generated files
+      #
+      - hatch-base:
           name: "code-check"
           python_version_minor: 8
-          hatchenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,ruff,flake8,docstrings"
+          hatchenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report"
+
+      #
+      # Checking types and generated files
+      #
+      - hatch-base:
+          name: "coverage-check"
+          python_version_minor: 11
+          hatchenv: "lint"
+          hatch_cmd: "coverage-check"
 
       #
       # System tests with pytest on Linux, using real wandb server

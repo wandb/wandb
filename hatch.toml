@@ -224,3 +224,29 @@ dependencies = [
     "libcst",
     "twine",
 ]
+
+
+[envs.lint]
+detached = true
+dependencies = [
+  "black==22.3.0",
+  "mypy>=1.0.0",
+  "ruff>=0.0.243",
+]
+
+[envs.lint.scripts]
+typing = "mypy --install-types --non-interactive --show-error-codes --config-file {root}/mypy.ini -p wandb --html-report mypy-results/ --cobertura-xml-report  mypy-results/ --lineprecision-report mypy-results/"
+style = [
+  "ruff {args:.}",
+  "black --check --diff {args:.}",
+]
+fmt = [
+  "black {args:.}",
+  "ruff --fix {args:.}",
+  "style",
+]
+all = [
+  "style",
+  "typing",
+]
+coverage-check = "python {root}/tools/coverage-tool.py check"
