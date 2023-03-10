@@ -1006,6 +1006,32 @@ class Api:
         return result
 
     @normalize_exceptions
+    def entity_is_team(self, entity: str) -> bool:
+        query = gql(
+            """
+            query EntityIsTeam($entity: String!) {
+                entity(name: $entity) {
+                    id
+                    isTeam
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+        }
+
+        res = self.gql(query, variable_values)
+        if res.get("entity") is None:
+            raise Exception(
+                f"Error fetching entity {entity} "
+                "check that you have access to this entity"
+            )
+
+        is_team: bool = res["entity"]["isTeam"]
+        return is_team
+
+    @normalize_exceptions
     def get_project_run_queues(self, entity: str, project: str) -> List[Dict[str, str]]:
         query = gql(
             """
