@@ -19,6 +19,7 @@ _global_watch_idx = 0
 
 def watch(
     models,
+    model_names=None,
     criterion=None,
     log: Optional[Literal["gradients", "parameters", "all"]] = "gradients",
     log_freq: int = 1000,
@@ -30,7 +31,8 @@ def watch(
     Should be extended to accept arbitrary ML models.
 
     Args:
-        models: (torch.Module) The model to hook, can be a tuple
+        models: (torch.Module) The model to hook, can be a tuple or dict
+        model_names: (str) The model names to watch, can be a tuple or dict
         criterion: (torch.F) An optional loss value being optimized
         log: (str) One of "gradients", "parameters", "all", or None
         log_freq: (int) log gradients and parameters every N batches
@@ -59,8 +61,20 @@ def watch(
     log_parameters = log in {"parameters", "all"}
     log_gradients = log in {"gradients", "all"}
 
-    if not isinstance(models, (tuple, list)):
+    if isinstance(models, dict):
+        model_names = list(models.keys())
+        models = list(models.values())
+    elif not isinstance(models, (tuple, list)):
         models = (models,)
+
+    if model_names is None:
+        model_names = [None] * len(models)
+    if not isinstance(model_names, (tuple, list)):
+        model_names = (model_names,)
+
+    assert len(models) == len(
+        model_names
+    ), "The number of models must match the number of model names"
 
     torch = wandb.util.get_module(
         "torch", required="wandb.watch only works with pytorch, couldn't import torch."
@@ -78,10 +92,13 @@ def watch(
 
     if idx is None:
         idx = _global_watch_idx
-    for local_idx, model in enumerate(models):
+    for local_idx, (model_name, model) in enumerate(zip(model_names, models)):
         global_idx = idx + local_idx
         _global_watch_idx += 1
-        if global_idx > 0:
+
+        if model_name is not None:
+            prefix = f"{model_name}/"
+        elif global_idx > 0:
             # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
             prefix = "graph_%i" % global_idx
 
