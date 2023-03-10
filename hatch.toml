@@ -226,11 +226,36 @@ dependencies = [
 ]
 
 
+[envs.coverage]
+detached = true
+dependencies = [
+  "coverage[toml]>=6.2",
+  "lxml",
+]
+post-install = "mkdir -p cover-results"
+
+[envs.coverage.env-vars]
+COVERAGE_FILE="{root}/.coverage"
+
+[envs.coverage.scripts]
+combine = "coverage combine {args:{env:COVERAGE_FILE}}"
+report-xml = "coverage xml --ignore-errors --skip-empty -o cover-results/coverage.xml"
+report = "coverage report --ignore-errors --skip-covered --omit 'wandb/vendor/*'"
+send-to-codecov = "codecov --env {env_name} --flags {args:{env_name}}"
+collect-and-report = [
+    "combine",
+    "report-xml",
+    "report",
+    "send-to-codecov",
+]
+
+
 [envs.lint]
 detached = true
 dependencies = [
-  "black==22.3.0",
+  "black[jupyter]==22.3.0",
   "mypy>=1.0.0",
+  "lxml",
   "ruff>=0.0.243",
 ]
 

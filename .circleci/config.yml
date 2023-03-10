@@ -1314,7 +1314,7 @@ workflows:
           name: "lint-check"
           python_version_minor: 11
           hatchenv: "lint"
-          hatch_cmd: "all"  # Equivalent to `hatch run lint:all`
+          hatch_cmd: "style"  # Equivalent to `hatch run lint:style`
 
       #
       # Checking types and generated files
