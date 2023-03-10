@@ -417,7 +417,7 @@ class Api:
                    ...fieldData
                 }
                 MutationType: __type(name: "Mutation") {
-                     ...fieldData
+                   ...fieldData
                 }
                ServerInfoType: __type(name: "ServerInfo") {
                    ...fieldData
