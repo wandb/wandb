@@ -13,7 +13,9 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
+from wandb.errors import CommError
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
@@ -44,8 +46,8 @@ _logger = logging.getLogger(__name__)
 @dataclass
 class JobAndRunStatus:
     runQueueItemId: str
-    run_id: Optional[str]
-    project: Optional[str]
+    run_id: Optional[str] = None
+    project: Optional[str] = None
     run: Optional[AbstractRun] = None
     failed_to_start: bool = False
     completed: bool = False
@@ -146,6 +148,7 @@ class LaunchAgent:
         self._gorilla_supports_fail_run_queue_items = (
             self._api.fail_run_queue_item_introspection()
         )
+        print("CAN FAIL", self._gorilla_supports_fail_run_queue_items)
         self._queues = config.get("queues", ["default"])
         create_response = self._api.create_launch_agent(
             self._entity,
@@ -240,14 +243,14 @@ class LaunchAgent:
 
         job_and_run_status = self._jobs[thread_id]
         if not job_and_run_status.run_id or not job_and_run_status.project:
-            self.fail_run_queue_item(job["runQueueItemId"])
+            self.fail_run_queue_item(job_and_run_status.runQueueItemId)
         else:
             try:
-                api.get_run_info(
+                self._api.get_run_info(
                     self._entity, job_and_run_status.project, job_and_run_status.run_id
                 )
             except CommError:
-                self.fail_run_queue_item(job["runQueueItemId"])
+                self.fail_run_queue_item(job_and_run_status.runQueueItemId)
 
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:

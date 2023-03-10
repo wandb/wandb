@@ -184,6 +184,9 @@ class Api:
     
     def fail_run_queue_item_introspection(self, *args, **kwargs):
         return self.api.fail_run_queue_item_introspection(*args, **kwargs)
+    
+    def fail_run_queue_item(self, *args, **kwargs):
+        return self.api.fail_run_queue_item(*args, **kwargs)
 
     def get_launch_agent(self, *args, **kwargs):
         return self.api.get_launch_agent(*args, **kwargs)

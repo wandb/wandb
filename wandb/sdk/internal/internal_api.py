@@ -519,6 +519,31 @@ class Api:
         return "failRunQueueItem" in mutations
 
     @normalize_exceptions
+    def fail_run_queue_item(self, runQueueItemId: str) -> bool:
+        mutation = gql(
+            """
+        mutation failRunQueueItem($runQueueItemId: ID!) {
+            failRunQueueItem(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                }
+            ) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "runQueueItemId": runQueueItemId,
+            },
+        )
+        result = response["failRunQueueItem"]["success"]
+        return result
+
+
+    @normalize_exceptions
     def viewer(self) -> Dict[str, Any]:
         query = gql(
             """
