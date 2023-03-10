@@ -88,7 +88,7 @@ def build(tags: List[str], file: str, context_path: str) -> str:
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    args = ["docker"] + command + build_tags + ["-f", file, context_path]
+    args = ["docker"]  + command + ["--no-cache"] + build_tags + ["-f", file, context_path]
     stdout = run_command_live_output(
         args,
     )
@@ -101,21 +101,25 @@ def run_command_live_output(args: List[Any]) -> str:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         universal_newlines=True,
+        bufsize=1
     ) as process:
         stdout = ""
+        
 
+        stdout = ""
         while True:
-            p_stdout = process.stdout
-            if not p_stdout:
+            chunk = os.read(process.stdout.fileno(), 4096)
+            if not chunk:
                 break
-            stdout_line = ""
-            if p_stdout:
-                stdout_line = p_stdout.readline()
-            if not stdout_line:
-                break
-            stdout += stdout_line
-            if stdout_line:
-                print(stdout_line, end="")
+            index = chunk.find(b"\r")
+            if index != -1:
+                print(chunk.decode(), end="")
+            else:
+                stdout += chunk.decode()
+                print(chunk.decode(), end="\r")
+            
+        print(stdout)
+            
 
     return_code = process.wait()
     if return_code != 0:

@@ -132,6 +132,9 @@ PIP_TEMPLATE = """
 RUN python -m venv /env
 # make sure we install into the env
 ENV PATH="/env/bin:$PATH"
+RUN pip install tqdm
+RUN python -c "from tqdm import trange; from time import sleep; [sleep(0.1) for _ in trange(100, desc='Counting up')]"
+
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
 """

@@ -5,7 +5,7 @@ import subprocess
 import sys
 from typing import List, Optional, Set
 
-FAILED_PACKAGES_PREFIX = "ERROR: Failed to install:"
+FAILED_PACKAGES_PREFIX = "ERROR: Failed to install: "
 FAILED_PACKAGES_POSTFIX = ". During automated build process."
 CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
