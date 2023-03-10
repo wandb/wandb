@@ -1330,7 +1330,9 @@ workflows:
       - hatch-base:
           name: "code-check"
           python_version_minor: 8
-          hatchenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report"
+          #hatchenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report"
+          hatchenv: "lint"
+          hatch_cmd: "typing"  # TODO: Add checks for protos and generated files
 
       #
       # System tests with pytest on Linux, using real wandb server

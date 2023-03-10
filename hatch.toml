@@ -223,6 +223,7 @@ combine = "coverage combine {args:{env:COVERAGE_FILE}}"
 report-xml = "coverage xml --ignore-errors --skip-empty -o cover-results/coverage.xml"
 report = "coverage report --ignore-errors --skip-covered --omit 'wandb/vendor/*'"
 send-to-codecov = "codecov --env {env_name} --flags {args:{env_name}}"
+coverage-check = "python {root}/tools/coverage-tool.py check"
 collect-and-report = [
     "combine",
     "report-xml",
@@ -255,4 +256,3 @@ all = [
   "style",
   "typing",
 ]
-coverage-check = "python {root}/tools/coverage-tool.py check"
