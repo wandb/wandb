@@ -88,7 +88,7 @@ def build(tags: List[str], file: str, context_path: str) -> str:
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    args = ["docker"]  + command + ["--no-cache"] + build_tags + ["-f", file, context_path]
+    args = ["docker"]  + command + build_tags + ["-f", file, context_path]
     stdout = run_command_live_output(
         args,
     )
