@@ -2935,7 +2935,7 @@ class Run:
         artifact_type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
-        if isinstance(artifact_or_path, StrPath):
+        if isinstance(artifact_or_path, (str, os.PathLike)):
             name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact_type = artifact_type or "dataset"
             artifact = wandb.Artifact(name, artifact_type)
