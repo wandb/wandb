@@ -365,7 +365,7 @@ def test_log_file_directly(example_file, wandb_init, path_type):
 
     assert artifact is not None
     assert artifact.id is not None
-    assert artifact.name == f"run-{run_id}-{Path(example_files).name}:v0"
+    assert artifact.name == f"run-{run_id}-{Path(example_file).name}:v0"
 
 
 def test_log_reference_directly(example_files, wandb_init):
