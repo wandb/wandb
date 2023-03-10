@@ -371,7 +371,7 @@ def test_log_file_directly(example_file, wandb_init, path_type):
 def test_log_reference_directly(example_files, wandb_init):
     with wandb_init() as run:
         run_id = run.id
-        artifact = run.log_artifact(example_file.resolve().as_uri())
+        artifact = run.log_artifact(example_files.resolve().as_uri())
     artifact.wait()
 
     assert artifact is not None
