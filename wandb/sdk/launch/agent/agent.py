@@ -57,9 +57,7 @@ class JobAndRunStatus:
     def job_completed(self) -> bool:
         return self.completed or self.failed_to_start
 
-    def update_run_info(
-        self, launch_project: LaunchProject
-    ) -> None:
+    def update_run_info(self, launch_project: LaunchProject) -> None:
         self.run_id = launch_project.run_id
         self.project = launch_project.target_project
 
@@ -259,7 +257,7 @@ class LaunchAgent:
         if not job_and_run_status.run_id or not job_and_run_status.project:
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         else:
-            run_info =  None
+            run_info = None
             # sweep runs exist but have no info before they are started
             # so run_info returned will be None
             # normal runs just throw a comm error
@@ -267,12 +265,12 @@ class LaunchAgent:
                 run_info = self._api.get_run_info(
                     self._entity, job_and_run_status.project, job_and_run_status.run_id
                 )
-            
+
             except CommError:
                 pass
             if run_info is None:
                 self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
-            
+
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
             del self._jobs[thread_id]
