@@ -351,6 +351,7 @@ class LaunchAgent:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
+                                self.fail_run_queue_item(job["runQueueItemId"])
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
@@ -396,9 +397,7 @@ class LaunchAgent:
             )
             self.finish_thread_id(thread_id)
         except Exception:
-            wandb.termerror(
-                f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
-            )
+            wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             self.finish_thread_id(thread_id)
 
     def _thread_run_job(

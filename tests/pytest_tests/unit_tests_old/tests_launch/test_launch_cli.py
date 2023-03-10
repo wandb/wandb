@@ -392,7 +392,7 @@ def test_launch_agent_launch_error_continue(
     runner, test_settings, live_mock_server, monkeypatch
 ):
     def print_then_exit():
-        print("except caught, acked item")
+        print("except caught, failed item")
         raise KeyboardInterrupt
 
     monkeypatch.setattr(
@@ -400,7 +400,7 @@ def test_launch_agent_launch_error_continue(
         lambda a, b: raise_(LaunchError("blah blah")),
     )
     monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.ack_run_queue_item",
+        "wandb.sdk.internal.internal_api.Api.fail_run_queue_item",
         lambda a, b: print_then_exit(),
     )
     with runner.isolated_filesystem():
