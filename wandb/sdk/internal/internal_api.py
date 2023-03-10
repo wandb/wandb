@@ -430,7 +430,11 @@ class Api:
                 }
             }
         """
-        if self.query_types is None or self.mutation_types is None or self.server_info_types is None:
+        if (
+            self.query_types is None
+            or self.mutation_types is None
+            or self.server_info_types is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
 
@@ -512,14 +516,14 @@ class Api:
 
         res = self.gql(query)
         return res.get("LaunchAgentType") or None
-    
+
     @normalize_exceptions
     def fail_run_queue_item_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "failRunQueueItem" in mutations
 
     @normalize_exceptions
-    def fail_run_queue_item(self, runQueueItemId: str) -> bool:
+    def fail_run_queue_item(self, run_queue_item_id: str) -> bool:
         mutation = gql(
             """
         mutation failRunQueueItem($runQueueItemId: ID!) {
@@ -536,12 +540,11 @@ class Api:
         response = self.gql(
             mutation,
             variable_values={
-                "runQueueItemId": runQueueItemId,
+                "runQueueItemId": run_queue_item_id,
             },
         )
         result = response["failRunQueueItem"]["success"]
         return result
-
 
     @normalize_exceptions
     def viewer(self) -> Dict[str, Any]:

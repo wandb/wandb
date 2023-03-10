@@ -45,7 +45,7 @@ _logger = logging.getLogger(__name__)
 
 @dataclass
 class JobAndRunStatus:
-    runQueueItemId: str
+    run_queue_item_id: str
     run_id: Optional[str] = None
     project: Optional[str] = None
     run: Optional[AbstractRun] = None
@@ -149,7 +149,6 @@ class LaunchAgent:
         self._max_schedulers = _max_from_config(config, "max_schedulers")
         self._pool = ThreadPool(
             processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
-            # initializer=init_pool_processes,
             initargs=(self._jobs, self._jobs_lock),
         )
         self.default_config: Dict[str, Any] = config
@@ -161,7 +160,7 @@ class LaunchAgent:
         self._gorilla_supports_fail_run_queue_items = (
             self._api.fail_run_queue_item_introspection()
         )
-        print("CAN FAIL", self._gorilla_supports_fail_run_queue_items)
+
         self._queues = config.get("queues", ["default"])
         create_response = self._api.create_launch_agent(
             self._entity,
@@ -171,7 +170,6 @@ class LaunchAgent:
         )
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
-
 
     def fail_run_queue_item(self, run_queue_item_id: str):
         if self._gorilla_supports_fail_run_queue_items:
@@ -256,15 +254,18 @@ class LaunchAgent:
 
         job_and_run_status = self._jobs[thread_id]
         if not job_and_run_status.run_id or not job_and_run_status.project:
-            self.fail_run_queue_item(job_and_run_status.runQueueItemId)
+            self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         else:
             try:
-                self._api.get_run_info(
+                run_info = self._api.get_run_info(
                     self._entity, job_and_run_status.project, job_and_run_status.run_id
                 )
+                # sweep runs exist but have no info before they are started
+                if run_info is None:
+                    self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+            # normal runs just have no info
             except CommError:
-                self.fail_run_queue_item(job_and_run_status.runQueueItemId)
-
+                self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
             del self._jobs[thread_id]
@@ -351,12 +352,6 @@ class LaunchAgent:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
-                                try:
-                                    self._api.ack_run_queue_item(job["runQueueItemId"])
-                                except Exception:
-                                    _logger.error(
-                                        f"{LOG_PREFIX}Error acking job when job errored: {traceback.format_exc()}"
-                                    )
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
@@ -402,7 +397,9 @@ class LaunchAgent:
             )
             self.finish_thread_id(thread_id)
         except Exception:
-            wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
+            wandb.termerror(
+                f"{LOG_PREFIX}Error running job threadd: {traceback.format_exc()}"
+            )
             self.finish_thread_id(thread_id)
 
     def _thread_run_job(
