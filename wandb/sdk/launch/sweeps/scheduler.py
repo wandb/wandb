@@ -248,13 +248,20 @@ class Scheduler(ABC):
         for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
-                if _state is None or _state in [
-                    "crashed",
-                    "failed",
-                    "killed",
-                    "finished",
-                ]:
-                    _logger.debug(f"Got runstate: {_state} for run: {run_id}")
+                if (
+                    not _state
+                    or _state
+                    in [
+                        "crashed",
+                        "failed",
+                        "killed",
+                        "finished",
+                    ]
+                    or run.queued_run.state == "failed"
+                ):
+                    _logger.debug(
+                        f"({run_id}) run-state:{_state}, rqi-state:{run.queued_run.state}"
+                    )
                     run.state = RunState.DEAD
                     _runs_to_remove.append(run_id)
                 elif _state in [
