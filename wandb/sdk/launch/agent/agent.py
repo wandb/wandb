@@ -171,7 +171,7 @@ class LaunchAgent:
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
-    def fail_run_queue_item(self, run_queue_item_id: str):
+    def fail_run_queue_item(self, run_queue_item_id: str) -> None:
         if self._gorilla_supports_fail_run_queue_items:
             self._api.fail_run_queue_item(run_queue_item_id)
 

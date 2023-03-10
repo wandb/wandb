@@ -543,7 +543,7 @@ class Api:
                 "runQueueItemId": run_queue_item_id,
             },
         )
-        result = response["failRunQueueItem"]["success"]
+        result: bool = response["failRunQueueItem"]["success"]
         return result
 
     @normalize_exceptions
