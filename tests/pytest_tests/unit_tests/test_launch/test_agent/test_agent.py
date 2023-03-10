@@ -1,7 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.errors import CommError
+from wandb.sdk.launch.agent.agent import JobAndRunStatus, LaunchAgent
 from wandb.sdk.launch.utils import LaunchError
 
 
@@ -9,7 +10,7 @@ def _setup(mocker):
     mocker.api = MagicMock()
     mock_agent_response = {"name": "test-name", "stopPolling": False}
     mocker.api.get_launch_agent = MagicMock(return_value=mock_agent_response)
-    mocker.api.ack_run_queue_item = MagicMock(side_effect=KeyboardInterrupt)
+    mocker.api.fail_run_queue_item = MagicMock(side_effect=KeyboardInterrupt)
     mocker.termlog = MagicMock()
     mocker.termwarn = MagicMock()
     mocker.termerror = MagicMock()
@@ -93,3 +94,103 @@ def test_max_scheduler_setup_fail(mocker, num_schedulers):
 
     with pytest.raises(LaunchError):
         LaunchAgent(api=mocker.api, config=mock_config)
+
+
+def _setup_thread_finish(mocker):
+    mocker.api = MagicMock()
+    mock_agent_response = {"name": "test-name", "stopPolling": False}
+    mocker.api.get_launch_agent = MagicMock(return_value=mock_agent_response)
+    mocker.api.fail_run_queue_item = MagicMock()
+    mocker.termlog = MagicMock()
+    mocker.termerror = MagicMock()
+    mocker.patch("wandb.termlog", mocker.termlog)
+    mocker.patch("wandb.termerror", mocker.termerror)
+
+
+def test_thread_finish_no_fail(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    mocker.api.get_run_info = MagicMock(return_value=lambda x: {"program": "blah"})
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    job = JobAndRunStatus("run_queue_item_id")
+    job.run_id = "test_run_id"
+    job.project = MagicMock()
+    agent._jobs = {"thread_1": job}
+    agent.finish_thread_id("thread_1")
+    assert len(agent._jobs) == 0
+    assert not mocker.api.fail_run_queue_item.called
+
+
+def test_thread_finish_sweep_fail(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    mocker.api.get_run_info = MagicMock(return_value=None)
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    job = JobAndRunStatus("run_queue_item_id")
+    job.run_id = "test_run_id"
+    job.project = MagicMock()
+    agent._jobs = {"thread_1": job}
+    agent.finish_thread_id("thread_1")
+    assert len(agent._jobs) == 0
+    assert mocker.api.fail_run_queue_item.called_once
+
+
+def test_thread_finish_run_fail(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    mocker.api.get_run_info = MagicMock(side_effect=[CommError("failed")])
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    job = JobAndRunStatus("run_queue_item_id")
+    job.run_id = "test_run_id"
+    job.project = MagicMock()
+    agent._jobs = {"thread_1": job}
+    agent.finish_thread_id("thread_1")
+    assert len(agent._jobs) == 0
+    assert mocker.api.fail_run_queue_item.called_once
+
+
+def test_thread_finish_run_fail_start(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    job = JobAndRunStatus("run_queue_item_id")
+    job.run_id = "test_run_id"
+    agent._jobs = {"thread_1": job}
+    agent._jobs_lock = MagicMock()
+    agent.finish_thread_id("thread_1")
+    assert len(agent._jobs) == 0
+    assert mocker.api.fail_run_queue_item.called_once
+
+
+def test_thread_finish_run_fail_start_old_server(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    agent._gorilla_supports_fail_run_queue_items = False
+    job = JobAndRunStatus("run_queue_item_id")
+    job.run_id = "test_run_id"
+    agent._jobs_lock = MagicMock()
+    agent._jobs = {"thread_1": job}
+    agent.finish_thread_id("thread_1")
+    assert len(agent._jobs) == 0
+    assert not mocker.api.fail_run_queue_item.called
