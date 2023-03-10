@@ -5,13 +5,13 @@ The most commonly used functions/objects are:
   - wandb.config — track hyperparameters and metadata
   - wandb.log — log metrics and media over time within your training loop
 
-For guides and examples, see https://docs.wandb.com/guides.
+For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.13.11.dev1"
+__version__ = "0.13.12.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"

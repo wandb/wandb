@@ -1,0 +1,43 @@
+id: 0.yolov8.classification
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: test_yolov8_classification.py
+depend:
+    requirements:
+        - "ultralytics>=8.0.43"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][batch]: 16
+    - :wandb:runs[0][config][task]: classify
+    - :wandb:runs[0][summary][epoch]: 2
+    - :wandb:runs[0][summary][model/parameters]: 1451098
+    - :op:>=:
+        - :wandb:runs[0][summary][model/GFLOPs]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][model/speed(ms/img)]
+        - 0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/epoch]
+        - 2
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/accuracy_top1]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][best/metrics/accuracy_top5]
+        - 1.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/loss]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/loss]
+        - 0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 47  # yolov8 used
+    - :wandb:runs[0][exitcode]: 0
