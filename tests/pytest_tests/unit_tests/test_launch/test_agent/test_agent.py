@@ -108,7 +108,7 @@ def test_thread_finish_sweep_fail(mocker):
         "project": "test-project",
     }
 
-    mocker.api.get_run_info = MagicMock(return_value=lambda x: None)
+    mocker.api.get_run_info = MagicMock(return_value=None)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     job = JobAndRunStatus("run_queue_item_id")
     job.run_id = "test_run_id"
@@ -126,10 +126,7 @@ def test_thread_finish_run_fail(mocker):
         "project": "test-project",
     }
 
-    def _raise():
-        raise CommError("failed")
-
-    mocker.api.get_run_info = MagicMock(return_value=lambda x: _raise)
+    mocker.api.get_run_info = MagicMock(side_effect=[CommError("failed")])
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     job = JobAndRunStatus("run_queue_item_id")
     job.run_id = "test_run_id"
