@@ -73,15 +73,24 @@ def test_max_scheduler_setup_fail(mocker, num_schedulers):
         LaunchAgent(api=mocker.api, config=mock_config)
 
 
+def _setup_thread_finish(mocker):
+    mocker.api = MagicMock()
+    mock_agent_response = {"name": "test-name", "stopPolling": False}
+    mocker.api.get_launch_agent = MagicMock(return_value=mock_agent_response)
+    mocker.api.fail_run_queue_item = MagicMock()
+    mocker.termlog = MagicMock()
+    mocker.termerror = MagicMock()
+    mocker.patch("wandb.termlog", mocker.termlog)
+    mocker.patch("wandb.termerror", mocker.termerror)
+
 def test_thread_finish_no_fail(mocker):
-    _setup(mocker)
+    _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
     }
 
     mocker.api.get_run_info = MagicMock(return_value=lambda x: {"program": "blah"})
-    mocker.api.fail_run_queue_item = MagicMock()
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     job = JobAndRunStatus("run_queue_item_id")
     job.run_id = "test_run_id"
@@ -93,14 +102,13 @@ def test_thread_finish_no_fail(mocker):
 
 
 def test_thread_finish_sweep_fail(mocker):
-    _setup(mocker)
+    _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
     }
 
     mocker.api.get_run_info = MagicMock(return_value=lambda x: None)
-    mocker.api.fail_run_queue_item = MagicMock()
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     job = JobAndRunStatus("run_queue_item_id")
     job.run_id = "test_run_id"
@@ -112,7 +120,7 @@ def test_thread_finish_sweep_fail(mocker):
 
 
 def test_thread_finish_run_fail(mocker):
-    _setup(mocker)
+    _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
@@ -122,7 +130,6 @@ def test_thread_finish_run_fail(mocker):
         raise CommError("failed")
 
     mocker.api.get_run_info = MagicMock(return_value=lambda x: _raise)
-    mocker.api.fail_run_queue_item = MagicMock()
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     job = JobAndRunStatus("run_queue_item_id")
     job.run_id = "test_run_id"
@@ -134,12 +141,12 @@ def test_thread_finish_run_fail(mocker):
 
 
 def test_thread_finish_run_fail_start(mocker):
-    _setup(mocker)
+    _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
     }
-    mocker.api.fail_run_queue_item = MagicMock()
+
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     job = JobAndRunStatus("run_queue_item_id")
     job.run_id = "test_run_id"
@@ -151,12 +158,12 @@ def test_thread_finish_run_fail_start(mocker):
 
 
 def test_thread_finish_run_fail_start_old_server(mocker):
-    _setup(mocker)
+    _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
     }
-    mocker.api.fail_run_queue_item = MagicMock()
+
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent._gorilla_supports_fail_run_queue_items = False
     job = JobAndRunStatus("run_queue_item_id")
