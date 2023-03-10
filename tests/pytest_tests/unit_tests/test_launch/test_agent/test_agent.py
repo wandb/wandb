@@ -1,9 +1,8 @@
-from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import CommError
-from wandb.sdk.launch.agent.agent import LaunchAgent, JobAndRunStatus
+from wandb.sdk.launch.agent.agent import JobAndRunStatus, LaunchAgent
 from wandb.sdk.launch.utils import LaunchError
 
 
@@ -82,6 +81,7 @@ def _setup_thread_finish(mocker):
     mocker.termerror = MagicMock()
     mocker.patch("wandb.termlog", mocker.termlog)
     mocker.patch("wandb.termerror", mocker.termerror)
+
 
 def test_thread_finish_no_fail(mocker):
     _setup_thread_finish(mocker)

@@ -400,7 +400,7 @@ def test_launch_agent_launch_error_continue(
         lambda a, b: raise_(LaunchError("blah blah")),
     )
     monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.fail_run_queue_item",
+        "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
         lambda a, b: print_then_exit(),
     )
     with runner.isolated_filesystem():
@@ -414,7 +414,7 @@ def test_launch_agent_launch_error_continue(
             ],
         )
         assert "blah blah" in result.output
-        assert "except caught, acked item" in result.output
+        assert "except caught, failed item" in result.output
 
 
 def test_launch_name_run_id_environment_variable(
