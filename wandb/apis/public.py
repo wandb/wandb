@@ -421,7 +421,6 @@ class Api:
             transport=RequestsHTTPTransport(
                 headers={
                     "User-Agent": self.user_agent,
-                    "Use-Admin-Privileges": "true",
                     **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
