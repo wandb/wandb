@@ -353,7 +353,7 @@ def test_log_dir_directly(example_files, wandb_init, path_type):
 
     assert artifact is not None
     assert artifact.id is not None  # It was successfully logged.
-    assert artifact.name == f"run-{run_id}-{example_files.name}"
+    assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
 @pytest.mark.parametrize("path_type", [str, Path])
@@ -365,7 +365,7 @@ def test_log_file_directly(example_file, wandb_init, path_type):
 
     assert artifact is not None
     assert artifact.id is not None
-    assert artifact.name == f"run-{run_id}-{example_files.name}"
+    assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
 def test_log_reference_directly(example_files, wandb_init):
@@ -376,4 +376,4 @@ def test_log_reference_directly(example_files, wandb_init):
 
     assert artifact is not None
     assert artifact.id is not None
-    assert artifact.name == f"run-{run_id}-{example_files.name}"
+    assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
