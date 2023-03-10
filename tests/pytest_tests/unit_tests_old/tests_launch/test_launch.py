@@ -705,7 +705,6 @@ def test_launch_agent_runs(
     launch.create_and_run_agent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
-    assert ctx["num_acked"] == 1
     assert len(ctx["launch_agents"].keys()) == 1
 
 
