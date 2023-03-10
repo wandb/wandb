@@ -33,6 +33,18 @@ class AbstractRegistry(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def check_image_exists(self, image_uri: str) -> bool:
+        """Check if an image exists in the registry.
+
+        Arguments:
+            image_uri (str): The URI of the image.
+
+        Returns:
+            bool: True if the image exists.
+        """
+        raise NotImplementedError
+
     @classmethod
     @abstractmethod
     def from_config(

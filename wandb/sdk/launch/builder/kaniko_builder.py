@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import tarfile
 import tempfile
 import time
@@ -16,7 +17,6 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
-from wandb.sdk.launch.utils import LaunchError
 
 from .._project_spec import (
     EntryPoint,
@@ -26,11 +26,18 @@ from .._project_spec import (
 )
 from ..utils import (
     LOG_PREFIX,
+    LaunchError,
     get_kube_context_and_api_client,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
-from .build import _create_docker_build_ctx, generate_dockerfile
+from .build import (
+    _create_docker_build_ctx,
+    generate_dockerfile,
+    image_tag_from_dockerfile_and_source,
+)
+
+_logger = logging.getLogger(__name__)
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
@@ -205,18 +212,26 @@ class KanikoBuilder(AbstractBuilder):
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
     ) -> str:
+        # TODO: this should probably throw an error if the registry is a local registry
         if not self.registry:
             raise LaunchError("No registry specified for Kaniko build.")
+        # kaniko builder doesn't seem to work with a custom user id, need more investigation
+        dockerfile_str = generate_dockerfile(
+            launch_project, entrypoint, launch_project.resource, "kaniko"
+        )
+        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
         repo_uri = self.registry.get_repo_uri()
-        image_uri = repo_uri + ":" + launch_project.image_tag
+        image_uri = repo_uri + ":" + image_tag
+
+        if not launch_project.build_required() and self.registry.check_image_exists(
+            image_uri
+        ):
+            return image_uri
+
+        _logger.info(f"Building image {image_uri}...")
 
         entry_cmd = " ".join(
             get_entry_point_command(entrypoint, launch_project.override_args)
-        )
-
-        # kaniko builder doesn't seem to work with a custom user id, need more investigation
-        dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, self.type
         )
 
         create_metadata_file(

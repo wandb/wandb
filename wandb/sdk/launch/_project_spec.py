@@ -2,7 +2,6 @@
 
 Arguments can come from a launch spec or call to wandb launch.
 """
-import binascii
 import enum
 import json
 import logging
@@ -103,8 +102,6 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
-        self._image_tag: str = self._initialize_image_job_tag() or self.run_id
-        wandb.termlog(f"{LOG_PREFIX}Launch project using image tag {self._image_tag}")
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -177,24 +174,15 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
-    def _initialize_image_job_tag(self) -> Optional[str]:
-        if self.job is not None:
-            job_name, alias = self.job.split(":")
-            # Alias is used to differentiate images between jobs of the same sequence
-            _image_tag = f"{alias}-{job_name}"
-            _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")
-            return wandb.util.make_docker_image_name_safe(_image_tag)
-        return None
-
-    @property
-    def image_uri(self) -> str:
-        if self.docker_image:
-            return self.docker_image
-        return f"{self.image_name}:{self.image_tag}"
-
-    @property
-    def image_tag(self) -> str:
-        return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
+    def build_required(self) -> bool:
+        """Checks the source to see if a build is required."""
+        # since the image tag for images built from jobs
+        # is based on the job version index, which is immutable
+        # we don't need to build the image for a job if that tag
+        # already exists
+        if self.source != LaunchSource.JOB:
+            return True
+        return False
 
     @property
     def docker_image(self) -> Optional[str]:
@@ -249,6 +237,31 @@ class LaunchProject:
         job.configure_launch_project(self)
         self._job_artifact = job._job_artifact
 
+    def get_image_source_string(self) -> str:
+        """Returns a unique string identifying the source of an image."""
+        if self.source == LaunchSource.LOCAL:
+            # TODO: more correct to get a hash of local uri contents
+            assert isinstance(self.uri, str)
+            return self.uri
+        elif self.source == LaunchSource.JOB:
+            assert self._job_artifact is not None
+            return f"{self._job_artifact.name}:v{self._job_artifact.version}"
+        elif self.source == LaunchSource.GIT:
+            assert isinstance(self.uri, str)
+            ret = self.uri
+            if self.git_version:
+                ret += self.git_version
+            return ret
+        elif self.source == LaunchSource.WANDB:
+            assert isinstance(self.uri, str)
+            return self.uri
+        elif self.source == LaunchSource.DOCKER:
+            assert isinstance(self.docker_image, str)
+            _logger.debug("")
+            return self.docker_image
+        else:
+            raise LaunchError("Unknown source type when determing image source string")
+
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         # these asserts are all guaranteed to pass, but are required by mypy
@@ -273,11 +286,7 @@ class LaunchProject:
                 internal_api,
                 self.project_dir,
             )
-            if downloaded_code_artifact:
-                self._image_tag = binascii.hexlify(
-                    downloaded_code_artifact.digest.encode()
-                ).decode()
-            else:
+            if not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise LaunchError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
@@ -292,12 +301,8 @@ class LaunchProject:
                 patch = utils.fetch_project_diff(
                     source_entity, source_project, source_run_name, internal_api
                 )
-                tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
-                    tag_string += patch
-
-                self._image_tag = binascii.hexlify(tag_string.encode()).decode()
 
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):

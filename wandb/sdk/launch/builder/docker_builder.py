@@ -26,6 +26,7 @@ from ..utils import (
 from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
+    image_tag_from_dockerfile_and_source,
     validate_docker_installation,
 )
 
@@ -116,15 +117,32 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
-        repository = None if not self.registry else self.registry.get_repo_uri()
-        if repository:
-            image_uri = f"{repository}:{launch_project.image_tag}"
-        else:
-            image_uri = launch_project.image_uri
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, "docker"
         )
+
+        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
+
+        repository = None if not self.registry else self.registry.get_repo_uri()
+        # if repo is set, use the repo name as the image name
+        if repository:
+            image_uri = f"{repository}:{image_tag}"
+        # otherwise, base the image name off of the source
+        # which the launch_project checks in image_name
+        else:
+            image_uri = f"{launch_project.image_name}:{image_tag}"
+
+        if not launch_project.build_required() and self.registry.check_image_exists(
+            image_uri
+        ):
+            return image_uri
+
+        _logger.info(
+            f"image {image_uri} does not already exist in repository, building."
+        )
+
+        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+
         create_metadata_file(
             launch_project,
             image_uri,
