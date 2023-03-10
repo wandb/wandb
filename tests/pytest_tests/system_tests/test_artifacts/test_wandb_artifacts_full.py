@@ -14,6 +14,13 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 @pytest.fixture
+def example_file(tmp_path: Path) -> Path:
+    new_file = tmp_path / "test.txt"
+    new_file.write_text("hello")
+    return new_file
+
+
+@pytest.fixture
 def example_files(tmp_path: Path) -> Path:
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()
@@ -337,11 +344,23 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch)
         assert file2.read_text() == "hello"
 
 
-def test_log_path_to_artifact(example_files, wandb_init):
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_log_dir_directly(example_files, wandb_init, path_type):
     with wandb_init() as run:
-        artifact = run.log_artifact(example_files)
+        run_id = run.id
+        artifact = run.log_artifact(path_type(example_files))
 
     assert artifact is not None
     assert artifact.id is not None  # It was successfully logged.
-    assert artifact.name.startswith("run-")
-    assert artifact.name.endswith(example_files.name)
+    assert artifact.name == f"run-{run_id}-{example_files.name}"
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_log_file_directly(example_file, wandb_init, path_type):
+    with wandb_init() as run:
+        run_id = run.id
+        artifact = run.log_artifact(path_type(example_file))
+
+    assert artifact is not None
+    assert artifact.id is not None
+    assert artifact.name == f"run-{run_id}-{example_files.name}"
