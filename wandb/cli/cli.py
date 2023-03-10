@@ -897,8 +897,12 @@ def sweep(
             launch_config = {}
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
 
-        if entity is None or project is None:
-            _msg = "Must specify --entity and --project flags when using launch."
+        if entity is None:
+            _msg = "Must specify --entity flag when using launch."
+            wandb.termerror(_msg)
+            raise LaunchError(_msg)
+        elif project is None:
+            _msg = "A project must be configured when using launch."
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
@@ -936,6 +940,10 @@ def sweep(
         ]
 
         if _job:
+            if ":" not in _job:
+                wandb.termwarn("No alias specified for job, defaulting to 'latest'")
+                _job += ":latest"
+
             scheduler_entrypoint += [
                 "--job",
                 _job,
@@ -950,24 +958,21 @@ def sweep(
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        SCHEDULER_URI,  # uri
-                        None,  # job
-                        api,
-                        "Scheduler.WANDB_SWEEP_ID",  # name,
-                        project,
-                        entity,
-                        scheduler_config.get("docker_image"),  # docker_image,
-                        scheduler_config.get("resource", "local-process"),  # resource,
-                        scheduler_entrypoint,  # entrypoint
-                        None,  # version,
-                        None,  # parameters,
-                        scheduler_config.get("resource_args"),  # resource_args,
-                        None,  # launch_config,
-                        None,  # cuda,
-                        None,  # run_id,
-                        launch_config.get("registry", {}).get(
-                            "url", None
-                        ),  # repository
+                        uri=SCHEDULER_URI,
+                        job=None,
+                        api=api,
+                        name="Scheduler.WANDB_SWEEP_ID",
+                        project=project,
+                        entity=entity,
+                        docker_image=scheduler_config.get("docker_image"),
+                        resource=scheduler_config.get("resource", "local-process"),
+                        entry_point=scheduler_entrypoint,
+                        version=None,
+                        parameters=None,
+                        resource_args=scheduler_config.get("resource_args", {}),
+                        launch_config=None,
+                        run_id=None,
+                        repository=launch_config.get("registry", {}).get("url", None),
                     )
                 ),
             }
@@ -1137,14 +1142,6 @@ def sweep(
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
-    "--cuda",
-    is_flag=False,
-    flag_value=True,
-    default=None,
-    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
-    "built by default and you must set --cuda=False to build a CPU-only image.",
-)
-@click.option(
     "--build",
     "-b",
     is_flag=True,
@@ -1180,7 +1177,6 @@ def launch(
     queue,
     run_async,
     resource_args,
-    cuda,
     build,
     repository,
     project_queue,
@@ -1209,18 +1205,6 @@ def launch(
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
-
-    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
-    if cuda is not None:
-        # preserve cuda=None as unspecified, otherwise convert to bool
-        if cuda == "True":
-            cuda = True
-        elif cuda == "False":
-            cuda = False
-        else:
-            raise LaunchError(
-                f"Invalid value for --cuda: {cuda!r} is not a valid boolean."
-            )
 
     args_dict = util._user_args_to_dict(args_list)
 
@@ -1271,7 +1255,6 @@ def launch(
                 resource_args=resource_args,
                 config=config,
                 synchronous=(not run_async),
-                cuda=cuda,
                 run_id=run_id,
                 repository=repository,
             )
@@ -1298,7 +1281,6 @@ def launch(
             args_dict,
             project_queue,
             resource_args,
-            cuda=cuda,
             build=build,
             run_id=run_id,
             repository=repository,
@@ -2343,3 +2325,30 @@ def verify(host):
         and url_success
     ):
         sys.exit(1)
+
+
+@cli.group("import", help="Commands for importing data from other systems")
+def importer():
+    pass
+
+
+@importer.command("mlflow", help="Import from MLFlow")
+@click.option("--mlflow-tracking-uri", help="MLFlow Tracking URI")
+@click.option(
+    "--target-entity", required=True, help="Override default entity to import data into"
+)
+@click.option(
+    "--target-project",
+    required=True,
+    help="Override default project to import data into",
+)
+def mlflow(mlflow_tracking_uri, target_entity, target_project):
+    from wandb.apis.importers import MlflowImporter
+
+    importer = MlflowImporter(mlflow_tracking_uri=mlflow_tracking_uri)
+    overrides = {
+        "entity": target_entity,
+        "project": target_project,
+    }
+
+    importer.import_all_parallel(overrides=overrides)
