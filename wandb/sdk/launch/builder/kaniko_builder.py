@@ -4,7 +4,7 @@ import logging
 import tarfile
 import tempfile
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -51,7 +51,9 @@ _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 
 def _wait_for_completion(
-    batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
+    batch_client: Any,  # has type BatchV1Api
+    job_name: str,
+    deadline_secs: Optional[int] = None,
 ) -> bool:
     start_time = time.time()
     while True:
@@ -175,7 +177,10 @@ class KanikoBuilder(AbstractBuilder):
         pass
 
     def _create_docker_ecr_config_map(
-        self, job_name: str, corev1_client: client.CoreV1Api, repository: str
+        self,
+        job_name: str,
+        corev1_client: Any,  # has type CoreV1Api
+        repository: str,
     ) -> None:
         if self.registry is None:
             raise LaunchError("No registry specified for Kaniko build.")
@@ -198,7 +203,7 @@ class KanikoBuilder(AbstractBuilder):
         corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
 
     def _delete_docker_ecr_config_map(
-        self, job_name: str, client: client.CoreV1Api
+        self, job_name: str, client: Any  # CoreV1Api
     ) -> None:
         if self.secret_name:
             client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")
@@ -304,7 +309,7 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
-    ) -> "client.V1Job":
+    ) -> Any:  # V1Job
         env = []
         volume_mounts = []
         volumes = []

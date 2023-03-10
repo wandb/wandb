@@ -4,7 +4,6 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -29,26 +28,6 @@ client = get_module(
     required="Kubernetes runner requires the kubernetes package. Please"
     " install it with `pip install wandb[launch]`.",
 )
-BatchV1Api = get_module(
-    "kubernetes.client.api.batch_v1_api.BatchV1Api",
-    required="Kubernetes runner requires the kubernetes package. Please"
-    " install it with `pip install wandb[launch]`.",
-)
-CoreV1Api = get_module(
-    "kubernetes.client.api.core_v1_api.CoreV1Api",
-    required="Kubernetes runner requires the kubernetes package. Please"
-    " install it with `pip install wandb[launch]`.",
-)
-V1Job = get_module(
-    "kubernetes.client.models.v1_job.V1Job",
-    required="Kubernetes runner requires the kubernetes package. Please"
-    " install it with `pip install wandb[launch]`.",
-)
-V1Secret = get_module(
-    "kubernetes.client.models.v1_secret.V1Secret",
-    required="Kubernetes runner requires the kubernetes package. Please"
-    " install it with `pip install wandb[launch]`.",
-)
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
@@ -62,12 +41,12 @@ _logger = logging.getLogger(__name__)
 class KubernetesSubmittedRun(AbstractRun):
     def __init__(
         self,
-        batch_api: "BatchV1Api",
-        core_api: "CoreV1Api",
+        batch_api: Any,  # BatchV1Api
+        core_api: Any,  # CoreV1Api
         name: str,
         pod_names: List[str],
         namespace: Optional[str] = "default",
-        secret: Optional["V1Secret"] = None,
+        secret: Any = None,  # Optional[V1Secret]
     ) -> None:
         self.batch_api = batch_api
         self.core_api = core_api
@@ -84,7 +63,7 @@ class KubernetesSubmittedRun(AbstractRun):
     def id(self) -> str:
         return self.name
 
-    def get_job(self) -> "V1Job":
+    def get_job(self) -> Any:  # V1Job
         return self.batch_api.read_namespaced_job(
             name=self.name, namespace=self.namespace
         )
@@ -258,7 +237,7 @@ class KubernetesRunner(AbstractRunner):
             )
 
     def wait_job_launch(
-        self, job_name: str, namespace: str, core_api: "CoreV1Api"
+        self, job_name: str, namespace: str, core_api: Any  # CoreV1Api
     ) -> List[str]:
         pods = core_api.list_namespaced_pod(
             label_selector=f"job-name={job_name}", namespace=namespace
@@ -295,7 +274,9 @@ class KubernetesRunner(AbstractRunner):
         builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:  # noqa: C901
         kubernetes = get_module(  # noqa: F811
-            "kubernetes", "KubernetesRunner requires kubernetes to be installed"
+            "kubernetes",
+            required="Kubernetes runner requires the kubernetes package. Please"
+            " install it with `pip install wandb[launch]`.",
         )
         resource_args = launch_project.resource_args.get("kubernetes", {})
         if not resource_args:
@@ -436,11 +417,11 @@ class KubernetesRunner(AbstractRunner):
 
 
 def maybe_create_imagepull_secret(
-    core_api: "CoreV1Api",
+    core_api: Any,  # CoreV1Api
     registry: AbstractRegistry,
     run_id: str,
     namespace: str,
-) -> Optional["V1Secret"]:
+) -> Any:  # Optional[V1Secret]
     secret = None
     if isinstance(registry, LocalRegistry):
         # Secret not required
