@@ -120,10 +120,9 @@ class Artifact(ArtifactInterface):
             can identify this artifact in the UI or reference it in `use_artifact`
             calls. Names can contain letters, numbers, underscores, hyphens, and
             dots. The name must be unique across a project.
-        type: (str, optional) The type of the artifact, which is used to organize and
-            differentiate artifacts. Common types include `dataset` or `model`, but you
-            can use any string containing letters, numbers, underscores, hyphens, and
-            dots. Defaults to "dataset".
+        type: (str) The type of the artifact, which is used to organize and differentiate
+            artifacts. Common types include `dataset` or `model`, but you can use any string
+            containing letters, numbers, underscores, hyphens, and dots.
         description: (str, optional) Free text that offers a description of the artifact. The
             description is markdown rendered in the UI, so this is a good place to place tables,
             links, etc.
@@ -156,7 +155,7 @@ class Artifact(ArtifactInterface):
     def __init__(
         self,
         name: str,
-        type: str = "dataset",
+        type: str,
         description: Optional[str] = None,
         metadata: Optional[dict] = None,
         incremental: Optional[bool] = None,
