@@ -2699,7 +2699,7 @@ class Run:
     @_run_decorator._attach
     def log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -2840,7 +2840,7 @@ class Run:
 
     def _log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
