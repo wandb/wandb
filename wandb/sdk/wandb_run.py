@@ -2942,7 +2942,7 @@ class Run:
                 artifact.add_file(artifact_or_path)
             elif os.path.isdir(artifact_or_path):
                 artifact.add_dir(artifact_or_path)
-            elif "://" in artifact_or_path:
+            elif "://" in str(artifact_or_path):
                 artifact.add_reference(artifact_or_path)
             else:
                 raise ValueError(
