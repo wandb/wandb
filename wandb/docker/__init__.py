@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import subprocess
-import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
@@ -88,7 +87,7 @@ def build(tags: List[str], file: str, context_path: str) -> str:
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    args = ["docker"]  + command + build_tags + ["-f", file, context_path]
+    args = ["docker"] + command + build_tags + ["-f", file, context_path]
     stdout = run_command_live_output(
         args,
     )
@@ -101,14 +100,11 @@ def run_command_live_output(args: List[Any]) -> str:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         universal_newlines=True,
-        bufsize=1
+        bufsize=1,
     ) as process:
         stdout = ""
-        
-
-        stdout = ""
         while True:
-            chunk = os.read(process.stdout.fileno(), 4096)
+            chunk = os.read(process.stdout.fileno(), 4096)  # type: ignore
             if not chunk:
                 break
             index = chunk.find(b"\r")
@@ -117,9 +113,8 @@ def run_command_live_output(args: List[Any]) -> str:
             else:
                 stdout += chunk.decode()
                 print(chunk.decode(), end="\r")
-            
+
         print(stdout)
-            
 
     return_code = process.wait()
     if return_code != 0:
