@@ -14,8 +14,8 @@ import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
-from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
 
@@ -251,7 +251,6 @@ class LaunchAgent:
 
     def finish_thread_id(self, thread_id: int) -> None:
         """Removes the job from our list for now."""
-
         job_and_run_status = self._jobs[thread_id]
         if not job_and_run_status.run_id or not job_and_run_status.project:
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
@@ -398,7 +397,7 @@ class LaunchAgent:
             self.finish_thread_id(thread_id)
         except Exception:
             wandb.termerror(
-                f"{LOG_PREFIX}Error running job threadd: {traceback.format_exc()}"
+                f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
             )
             self.finish_thread_id(thread_id)
 
