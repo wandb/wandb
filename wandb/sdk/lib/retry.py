@@ -109,7 +109,7 @@ class Retry(Generic[_R]):
         if num_retries is None:
             num_retries = 1000000
 
-        if os.environ.get("WANDB_TEST"):
+        if os.environ.get("DISABLE_RETRY"):
             num_retries = 0
 
         sleep_base: float = kwargs.pop("retry_sleep_base", 1)
