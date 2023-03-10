@@ -161,6 +161,9 @@ class Api:
     def get_run_state(self, *args, **kwargs):
         return self.api.get_run_state(*args, **kwargs)
 
+    def entity_is_team(self, *args, **kwargs):
+        return self.api.entity_is_team(*args, **kwargs)
+
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)
 

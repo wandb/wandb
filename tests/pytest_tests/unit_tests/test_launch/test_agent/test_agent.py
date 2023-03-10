@@ -12,8 +12,10 @@ def _setup(mocker):
     mocker.api.get_launch_agent = MagicMock(return_value=mock_agent_response)
     mocker.api.fail_run_queue_item = MagicMock(side_effect=KeyboardInterrupt)
     mocker.termlog = MagicMock()
+    mocker.termwarn = MagicMock()
     mocker.termerror = MagicMock()
     mocker.patch("wandb.termlog", mocker.termlog)
+    mocker.patch("wandb.termwarn", mocker.termwarn)
     mocker.patch("wandb.termerror", mocker.termerror)
 
 
@@ -31,6 +33,28 @@ def test_loop_capture_stack_trace(mocker):
     agent.loop()
 
     assert "Traceback (most recent call last):" in mocker.termerror.call_args[0][0]
+
+
+def test_team_entity_warning(mocker):
+    _setup(mocker)
+    mocker.api.entity_is_team = MagicMock(return_value=True)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    _ = LaunchAgent(api=mocker.api, config=mock_config)
+    assert "Agent is running on team entity" in mocker.termwarn.call_args[0][0]
+
+
+def test_non_team_entity_no_warning(mocker):
+    _setup(mocker)
+    mocker.api.entity_is_team = MagicMock(return_value=False)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    _ = LaunchAgent(api=mocker.api, config=mock_config)
+    assert not mocker.termwarn.call_args
 
 
 @pytest.mark.parametrize(

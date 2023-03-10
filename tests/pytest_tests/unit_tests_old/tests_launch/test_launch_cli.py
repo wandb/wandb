@@ -128,6 +128,10 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
         "print_status",
         lambda x: raise_(KeyboardInterrupt),
     )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.entity_is_team",
+        lambda c, entity: False,
+    )
 
     # m = mock.Mock()
     # m.sleep = lambda x: raise_(KeyboardInterrupt)
@@ -151,6 +155,10 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         # patch to no result, agent should read stopPolling and stop
         return None
 
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.entity_is_team",
+        lambda c, entity: False,
+    )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
         lambda c, queue: patched_pop_empty_queue(c, queue),
@@ -402,6 +410,10 @@ def test_launch_agent_launch_error_continue(
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
         lambda a, b: print_then_exit(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.entity_is_team",
+        lambda c, entity: False,
     )
     with runner.isolated_filesystem():
         result = runner.invoke(

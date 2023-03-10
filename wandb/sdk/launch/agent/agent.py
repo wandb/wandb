@@ -57,7 +57,7 @@ class JobAndRunStatus:
     def job_completed(self) -> bool:
         return self.completed or self.failed_to_start
 
-    def populate_run_info_from_launch_project(
+    def update_run_info(
         self, launch_project: LaunchProject
     ) -> None:
         self.run_id = launch_project.run_id
@@ -170,6 +170,10 @@ class LaunchAgent:
         )
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
+        if self._api.entity_is_team(self._entity):
+            wandb.termwarn(
+                f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
+            )
 
     def fail_run_queue_item(self, run_queue_item_id: str) -> None:
         if self._gorilla_supports_fail_run_queue_items:
@@ -255,16 +259,20 @@ class LaunchAgent:
         if not job_and_run_status.run_id or not job_and_run_status.project:
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         else:
+            run_info =  None
+            # sweep runs exist but have no info before they are started
+            # so run_info returned will be None
+            # normal runs just throw a comm error
             try:
                 run_info = self._api.get_run_info(
                     self._entity, job_and_run_status.project, job_and_run_status.run_id
                 )
-                # sweep runs exist but have no info before they are started
-                if run_info is None:
-                    self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
-            # normal runs just have no info
+            
             except CommError:
+                pass
+            if run_info is None:
                 self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+            
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
             del self._jobs[thread_id]
@@ -412,7 +420,7 @@ class LaunchAgent:
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker
         project = create_project_from_spec(launch_spec, api)
-        job_tracker.populate_run_info_from_launch_project(project)
+        job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, api)
         _logger.info("Fetching resource...")
