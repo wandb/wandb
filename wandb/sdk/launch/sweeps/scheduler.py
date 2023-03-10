@@ -257,7 +257,7 @@ class Scheduler(ABC):
                         "killed",
                         "finished",
                     ]
-                    or run.queued_run.state == "failed"
+                    or (run.queued_run and run.queued_run.state == "failed")
                 ):
                     _logger.debug(
                         f"({run_id}) run-state:{_state}, rqi-state:{run.queued_run.state}"
