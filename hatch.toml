@@ -88,20 +88,9 @@ COVERAGE_FILE = "{root}/{env_name}/.coverage"
 WINDIR = "C:\\Windows"
 
 [envs.test.scripts]
-run-pytest = [
+test = [
     "- mkdir -p test-results",
     "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:10} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail {args:tests/pytest_tests}",
-]
-cover = [
-    "- mkdir -p cover-results",
-    "ls {root}",
-    "ls {root}/{env_name}",
-    "ls {env:COVERAGE_FILE:}",
-    "python -m coverage combine {env:COVERAGE_FILE}",
-    "coverage xml --ignore-errors",
-    "cp .coverage coverage.xml cover-results/",
-    "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
-    "codecov -e {env_name} -F unittest",
 ]
 
 [[envs.test.matrix]]
@@ -112,7 +101,7 @@ template = "test"
 python = "38"
 
 [envs.test-launch.scripts]
-run-pytest-launch = "run-pytest -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tests_old/tests_launch/}"
+test-launch = "test -n={env:CI_PYTEST_PARALLEL:4} {args:tests/pytest_tests/unit_tests_old/tests_launch/}"
 
 [envs.unit-s_nb]
 template = "unit"
@@ -124,7 +113,7 @@ WINDIR = "C:\\Windows"
 WB_UNIT_SHARD = "s_nb"
 
 [envs.unit-s_nb.scripts]
-run-pytest = [
+test = [
     "- mkdir -p test-results",
     "ipython kernel install --user --name=wandb_python",
     "python -m pytest {env:CI_PYTEST_SPLIT_ARGS:} -n={env:CI_PYTEST_PARALLEL:{env:WB_UNIT_PARALLEL:4}} --durations=20 --reruns 3 --reruns-delay 1 --junitxml=test-results/junit.xml --cov-config=.coveragerc --cov --cov-report= --no-cov-on-fail --timeout 300 {args:tests/pytest_tests/unit_tests_old/tests_{env:WB_UNIT_SHARD}/}",
@@ -145,17 +134,9 @@ YEACOV_SOURCE="{root}/wandb/"
 # s_kfp: WB_PROBE_PACKAGE=true
 
 [envs.func-s.scripts]
-run-pytest = [
+test = [
     "- mkdir -p test-results",
     "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict --shard {matrix:shard:default} run {args:--all}",
-]
-cover = [
-    "- mkdir -p cover-results",
-    "python -m coverage combine {env:COVERAGE_FILE}",
-    "python -m coverage xml --ignore-errors",
-    "cp .coverage coverage.xml cover-results/",
-    "coverage report --ignore-errors --skip-covered --omit \"wandb/vendor/*\"",
-    "codecov -e {env_name} -F functest",
 ]
 
 [[envs.func-s.matrix]]
@@ -193,7 +174,7 @@ shard = [
 template = "func-s"
 
 [envs.func-s_docs.scripts]
-run-pytest = [
+test = [
     "- mkdir -p test-results",
     "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict --yeadoc --shard docs run {args:--all}",
 ]
@@ -206,7 +187,7 @@ template = "func-s"
 python = ["37"]
 
 [envs.func-s_kfp.scripts]
-run-pytest = [
+test = [
     "- mkdir -p test-results",
     "yea {env:CI_PYTEST_SPLIT_ARGS:} --strict -p wandb:mockserver-bind=0.0.0.0 -p wandb:mockserver-host=__auto__ --shard kfp run {posargs:--all}",
 ]

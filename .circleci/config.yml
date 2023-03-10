@@ -249,8 +249,7 @@ jobs:
           steps:
             - run:
                 name: Install system deps
-                command: |
-                  apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
+                command: apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
             - run:
                 name: Setup pyenv
                 command: |
@@ -269,8 +268,10 @@ jobs:
             - run:
                 name: Run tests
                 no_output_timeout: 240m
-                command: |
-                  hatch env run -e <<parameters.hatchenv>> run-pytest -- <<parameters.hatch_args>>
+                command: hatch env run -e <<parameters.hatchenv>> test -- <<parameters.hatch_args>>
+            - run:
+                name: Upload coverage results
+                command: hatch env run -e coverage collect-and-report
             #            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -313,7 +314,7 @@ jobs:
         default: ""
       hatch_cmd:
         type: string
-        default: "run-pytest"
+        default: "test"
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     parallelism: <<parameters.parallelism>>
@@ -337,8 +338,10 @@ jobs:
             - run:
                 name: Run tests
                 no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e <<parameters.hatchenv>> <<parameters.hatch_cmd>> -- <<parameters.hatch_args>>
+                command: CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e <<parameters.hatchenv>> <<parameters.hatch_cmd>> -- <<parameters.hatch_args>>
+            - run:
+                name: Upload coverage results
+                command: hatch env run -e coverage collect-and-report
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -399,9 +402,10 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<<parameters.xdist>> \
-            hatch env run -e <<parameters.hatchenv>> run-pytest  \
-              -- --wandb-server-tag <<pipeline.parameters.wandb_server_tag>> <<parameters.hatch_args>>
-            hatch env run -e <<parameters.hatchenv>> cover
+            hatch env run -e <<parameters.hatchenv>> test -- --wandb-server-tag <<pipeline.parameters.wandb_server_tag>> <<parameters.hatch_args>>
+      - run:
+          name: Upload coverage results
+          command: hatch env run -e coverage collect-and-report
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -547,9 +551,11 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<<parameters.xdist>> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e <<parameters.hatchenv>> run-pytest -- <<parameters.hatch_args>>
-            hatch env run -e <<parameters.hatchenv>> cover
+            CI_PYTEST_PARALLEL=<<parameters.xdist>> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" hatch env run -e <<parameters.hatchenv>> test -- <<parameters.hatch_args>>
           no_output_timeout: 10m
+      - run:
+          name: Upload coverage results
+          command: hatch env run -e coverage collect-and-report
       - save-test-results
 
   launch:
@@ -579,9 +585,11 @@ jobs:
       - run:
           name: Run tests
           command: |
-            hatch -vv run <<parameters.hatchenv>>:run-pytest-launch
-            hatch env run -e <<parameters.hatchenv>> cover
+            hatch -vv run <<parameters.hatchenv>>:test-launch
           no_output_timeout: 10m
+      - run:
+          name: Upload coverage results
+          command: hatch env run -e coverage collect-and-report
       - save-test-results
 
   kfp:
@@ -648,7 +656,7 @@ jobs:
             - run:
                 name: Run tests
                 command: |
-                  hatch env run -e <<parameters.hatchenv>> run-pytest
+                  hatch env run -e <<parameters.hatchenv>> test
                 no_output_timeout: 25m
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
@@ -1325,15 +1333,6 @@ workflows:
           hatchenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report"
 
       #
-      # Checking types and generated files
-      #
-      - hatch-base:
-          name: "coverage-check"
-          python_version_minor: 11
-          hatchenv: "lint"
-          hatch_cmd: "coverage-check"
-
-      #
       # System tests with pytest on Linux, using real wandb server
       #
       - pytest:
@@ -1355,6 +1354,7 @@ workflows:
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           hatchenv: "test.py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           hatch_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
+
       #
       # Unit tests with pytest on Linux
       #
@@ -1421,6 +1421,7 @@ workflows:
           hatch_args: "tests/functional_tests"
 
           parallelism: 4
+
       #
       # Functional tests with yea on Linux
       #
