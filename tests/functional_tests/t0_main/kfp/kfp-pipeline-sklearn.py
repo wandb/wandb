@@ -56,7 +56,7 @@ def preprocess_data(
 @wandb_log
 def train_model(
     X_train_path: components.InputPath("np_array"),  # noqa: F821,N803
-    y_train_path: components.InputPath("np_array"),  # noqa: F821,N803
+    y_train_path: components.InputPath("np_array"),  # noqa: F821
     model_path: components.OutputPath("sklearn_model"),  # noqa: F821
 ):
     import joblib

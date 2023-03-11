@@ -93,7 +93,7 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     # TODO: we should also check the PID (also contained in the tfevents
     #     filename). Can we assume that our parent pid is the user process
     #     that wrote these files?
-    return created_time >= int(start_time)  # noqa: W503
+    return created_time >= int(start_time)
 
 
 class TBWatcher:

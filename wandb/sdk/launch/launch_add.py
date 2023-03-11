@@ -44,7 +44,6 @@ def launch_add(
     params: Optional[Dict[str, Any]] = None,
     project_queue: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
-    cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
@@ -70,7 +69,6 @@ def launch_add(
         the parameters used to run the original run.
     resource_args: Resource related arguments for launching runs onto a remote backend.
         Will be stored on the constructed launch config under ``resource_args``.
-    cuda: Whether to build a CUDA-enabled docker image or not
     run_id: optional string indicating the id of the launched run
     build: optional flag defaulting to false, requires queue to be set
         if build, an image is created, creates a job artifact, pushes a reference
@@ -117,7 +115,6 @@ def launch_add(
         params,
         project_queue,
         resource_args,
-        cuda,
         run_id=run_id,
         build=build,
         repository=repository,
@@ -141,7 +138,6 @@ def _launch_add(
     params: Optional[Dict[str, Any]],
     project_queue: Optional[str],
     resource_args: Optional[Dict[str, Any]] = None,
-    cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
@@ -161,7 +157,6 @@ def _launch_add(
         params,
         resource_args,
         config,
-        cuda,
         run_id,
         repository,
         sweep_id,
@@ -178,7 +173,7 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project, api, config)
+        docker_image_uri = build_image_from_project(launch_project, api, config or {})
         run = wandb.run or wandb.init(
             project=launch_spec["project"],
             entity=launch_spec["entity"],

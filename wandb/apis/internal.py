@@ -161,6 +161,9 @@ class Api:
     def get_run_state(self, *args, **kwargs):
         return self.api.get_run_state(*args, **kwargs)
 
+    def entity_is_team(self, *args, **kwargs):
+        return self.api.entity_is_team(*args, **kwargs)
+
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)
 
@@ -181,6 +184,12 @@ class Api:
 
     def launch_agent_introspection(self, *args, **kwargs):
         return self.api.launch_agent_introspection(*args, **kwargs)
+
+    def fail_run_queue_item_introspection(self, *args, **kwargs):
+        return self.api.fail_run_queue_item_introspection(*args, **kwargs)
+
+    def fail_run_queue_item(self, *args, **kwargs):
+        return self.api.fail_run_queue_item(*args, **kwargs)
 
     def get_launch_agent(self, *args, **kwargs):
         return self.api.get_launch_agent(*args, **kwargs)

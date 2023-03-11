@@ -10,10 +10,20 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import click
 
 import wandb
+import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
+
+from .builder.templates._wandb_bootstrap import (
+    FAILED_PACKAGES_POSTFIX,
+    FAILED_PACKAGES_PREFIX,
+)
+
+FAILED_PACKAGES_REGEX = re.compile(
+    f"{re.escape(FAILED_PACKAGES_PREFIX)}(.*){re.escape(FAILED_PACKAGES_POSTFIX)}"
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
@@ -21,6 +31,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class LaunchError(Error):
     """Raised when a known error occurs in wandb launch."""
+
+    pass
+
+
+class LaunchDockerError(Error):
+    """Raised when Docker daemon is not running."""
 
     pass
 
@@ -146,7 +162,6 @@ def construct_launch_spec(
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
-    cuda: Optional[bool],
     run_id: Optional[str],
     repository: Optional[str],
     sweep_id: Optional[str] = None,
@@ -205,8 +220,6 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
-    if cuda is not None:
-        launch_spec["cuda"] = cuda
 
     if run_id is not None:
         launch_spec["run_id"] = run_id
@@ -577,8 +590,8 @@ def validate_build_and_registry_configs(
 
 
 def get_kube_context_and_api_client(
-    kubernetes: Any,  # noqa: F811
-    resource_args: Dict[str, Any],  # noqa: F811
+    kubernetes: Any,
+    resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
     config_file = resource_args.get("config_file", None)
     context = None
@@ -598,7 +611,14 @@ def get_kube_context_and_api_client(
             raise LaunchError(f"Specified context {context_name} was not found.")
         else:
             context = active_context
-
+        # TODO: We should not really be performing this check if the user is not
+        # using EKS but I don't see an obvious way to make an eks specific code path
+        # right here.
+        util.get_module(
+            "awscli",
+            "awscli is required to load a kubernetes context "
+            "from eks. Please run `pip install wandb[launch]` to install it.",
+        )
         kubernetes.config.load_kube_config(config_file, context["name"])
         api_client = kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
@@ -617,7 +637,7 @@ def resolve_build_and_registry_config(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     resolved_build_config: Dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
-        resolved_build_config = default_launch_config.get("build", {})
+        resolved_build_config = default_launch_config.get("builder", {})
     elif build_config is not None:
         resolved_build_config = build_config
     resolved_registry_config: Dict[str, Any] = {}
@@ -652,3 +672,38 @@ def make_name_dns_safe(name: str) -> str:
     # Actual length limit is 253, but we want to leave room for the generated suffix
     resp = resp[:200]
     return resp
+
+
+def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
+    match = FAILED_PACKAGES_REGEX.search(log)
+    if match:
+        wandb.termwarn(
+            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
+        )
+
+
+def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
+    """Check if a specific image is already available.
+
+    Optionally raises an exception if the image is not found.
+    """
+    _logger.info("Checking if base image exists...")
+    try:
+        docker.run(["docker", "image", "inspect", docker_image])
+        return True
+    except (docker.DockerError, ValueError) as e:
+        if should_raise:
+            raise e
+        _logger.info("Base image not found. Generating new base image")
+        return False
+
+
+def pull_docker_image(docker_image: str) -> None:
+    """Pull the requested docker image."""
+    if docker_image_exists(docker_image):
+        # don't pull images if they exist already, eg if they are local images
+        return
+    try:
+        docker.run(["docker", "pull", docker_image])
+    except docker.DockerError as e:
+        raise LaunchError(f"Docker server returned error: {e}")

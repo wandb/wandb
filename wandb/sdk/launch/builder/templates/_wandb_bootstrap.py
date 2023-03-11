@@ -5,6 +5,8 @@ import subprocess
 import sys
 from typing import List, Optional, Set
 
+FAILED_PACKAGES_PREFIX = "ERROR: Failed to install: "
+FAILED_PACKAGES_POSTFIX = ". During automated build process."
 CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
 OPTS = []
@@ -35,26 +37,30 @@ def install_deps(
     try:
         # Include only uri if @ is present
         clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
-
         print("installing {}...".format(", ".join(clean_deps)))
         sys.stdout.flush()
         subprocess.check_output(
             ["pip", "install"] + OPTS + clean_deps, stderr=subprocess.STDOUT
         )
-        if failed is not None and len(failed) > 0:
-            sys.stderr.write(
-                "ERROR: Unable to install: {}".format(", ".join(clean_deps))
-            )
-            sys.stderr.flush()
         return failed
     except subprocess.CalledProcessError as e:
         if failed is None:
             failed = set()
         num_failed = len(failed)
-        for line in e.output.decode("utf8"):
+        for line in e.output.decode("utf8").splitlines():
             if line.startswith("ERROR:"):
-                failed.add(line.split(" ")[-1])
-        if len(failed) > num_failed:
+                clean_dep = find_package_in_error_string(clean_deps, line)
+                if clean_dep is not None:
+                    if clean_dep in deps:
+                        failed.add(clean_dep)
+                    else:
+                        for d in deps:
+                            if clean_dep in d:
+                                failed.add(d.replace(" ", ""))
+                                break
+        if len(set(clean_deps) - failed) == 0:
+            return failed
+        elif len(failed) > num_failed:
             return install_deps(list(set(clean_deps) - failed), failed)
         else:
             return failed
@@ -88,11 +94,30 @@ def main() -> None:
                 f.write(json.dumps({"pip": list(failed)}))
             if len(failed) > 0:
                 sys.stderr.write(
-                    "ERROR: Failed to install: {}".format(",".join(failed))
+                    FAILED_PACKAGES_PREFIX + ",".join(failed) + FAILED_PACKAGES_POSTFIX
                 )
                 sys.stderr.flush()
     else:
         print("No frozen requirements found")
+
+
+# hacky way to get the name of the requirement that failed
+# attempt last word which is the name of the package often
+# fall back to checking all words in the line for the package name
+def find_package_in_error_string(deps: List[str], line: str) -> Optional[str]:
+    # if the last word in the error string is in the list of deps, return it
+    last_word = line.split(" ")[-1]
+    if last_word in deps:
+        return last_word
+    # if the last word is not in the list of deps, check all words
+    # TODO: this could report the wrong package if the error string
+    # contains a reference to another package in the deps
+    # before the package that failed to install
+    for word in line.split(" "):
+        if word in deps:
+            return word
+    # if we can't find the package, return None
+    return None
 
 
 if __name__ == "__main__":
