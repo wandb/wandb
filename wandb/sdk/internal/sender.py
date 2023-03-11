@@ -466,7 +466,6 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
-        print("stop req")
         result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
         status_resp.run_should_stop = False
@@ -477,7 +476,6 @@ class SendManager:
                 )
             except Exception as e:
                 logger.warning("Failed to check stop requested status: %s", e)
-        print("stop res", result)
         self._respond_result(result)
 
     def _maybe_update_config(self, always: bool = False) -> None:
