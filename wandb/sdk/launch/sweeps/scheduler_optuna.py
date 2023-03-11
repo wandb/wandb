@@ -1,5 +1,6 @@
 import base64
 from collections import defaultdict
+from enum import Enum
 import logging
 import queue
 import socket
@@ -23,7 +24,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
 )
 from wandb.wandb_agent import _create_sweep_command_args
 
-from wandb.apis.public import Artifact, QueuedRun, Api as PublicApi
+from wandb.apis.public import Artifact, QueuedRun
 from wandb.sdk.wandb_run import Run as SdkRun
 from wandb.apis.public import Run
 
@@ -32,8 +33,14 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
 LOG_PREFIX = f"{click.style('optuna sched:', fg='bright_blue')} "
-OPTUNA_WANDB_FILENAME = "optuna_wandb.py"
-OPTUNA_WANDB_STORAGE = "optuna.db"
+
+
+class OptunaComponents(Enum):
+    main_file = "optuna_wandb.py"
+    storage = "optuna.db"
+    study = "optuna-study"
+    pruner = "optuna-pruner"
+    sampler = "optuna-sampler"
 
 
 @dataclass
@@ -43,7 +50,7 @@ class _OptunaRun:
     sweep_run: SweepRun
 
 
-def _encoded(run_id: str) -> str:
+def _encode(run_id: str) -> str:
     """
     Helper to hash the run id for backend format
     """
@@ -60,9 +67,10 @@ def _get_module(
         loader = SourceFileLoader(module_name, filepath)
         mod = ModuleType(loader.name)
         loader.exec_module(mod)
-        return mod, None
     except Exception as e:
         return None, str(e)
+
+    return mod, None
 
 
 class OptunaScheduler(Scheduler):
@@ -74,29 +82,50 @@ class OptunaScheduler(Scheduler):
     ):
         super().__init__(*args, **kwargs)
         self._workers: Dict[int, _Worker] = {}
-        self._num_workers: int = 2  # num_workers
+        self._num_workers: num_workers
         self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
 
         # Scheduler controller run
-        # TODO(gst): what if the scheduler is resumed?
-        self._wandb_run: SdkRun = wandb.init(name=f"sweep-scheduler-{self._sweep_id}")
+        self._wandb_run: SdkRun = self._init_wandb_run()
 
         # Optuna
         self.study: optuna.study.Study = None
         self._trial_func = self._make_trial
         self._optuna_runs: Dict[str, _OptunaRun] = {}
 
+    def _init_wandb_run(self) -> SdkRun:
+        """
+        Controls resume or init logic for a scheduler wandb run
+        """
+        if self._kwargs.get("run_id"):  # resume
+            return wandb.init(run_id=self._kwargs["run_id"], resume="must")
+
+        return wandb.init(name=f"optuna-scheduler-{self._sweep_id}")
+
     def _validate_optuna_study(self, study: optuna.Study) -> Optional[str]:
         """
         Accepts an optuna study, runs validation
         Returns an error string if validation fails
         """
+        if study.trials > 0:
+            wandb.termlog(f"{LOG_PREFIX}User provided study has prior trials")
 
-        # TODO(gst): implement
+        if study.user_attrs:
+            wandb.termwarn(
+                f"{LOG_PREFIX}Provided user_attrs are ignored from provided study ({study.user_attrs})"
+            )
+
+        if study._storage is not None:
+            wandb.termlog(
+                f"{LOG_PREFIX}User provided study has storage:{study._storage}"
+            )
+
+        # TODO(gst): implement *requirements*
         return None
 
-    def _load_optuna_artifacts(
+    def _load_optuna_from_artifact(
         self,
+        artifact_name: str,
     ) -> Tuple[
         Optional[optuna.Study],
         Optional[optuna.pruners.BasePruner],
@@ -110,10 +139,6 @@ class OptunaScheduler(Scheduler):
             pruner: a custom optuna pruner supplied by user
             sampler: a custom optuna sampler supplied by user
         """
-        artifact_name = self._sweep_config.get("optuna", {}).get("artifact")
-        if not artifact_name:
-            return None, None, None
-
         wandb.termlog(f"{LOG_PREFIX}User set optuna.artifact, attempting download.")
         artifact = self._wandb_run.use_artifact(artifact_name, type="optuna")
         if not artifact:
@@ -122,7 +147,7 @@ class OptunaScheduler(Scheduler):
             )
 
         path = artifact.download()
-        mod, err = _get_module("optuna", f"{path}/{OPTUNA_WANDB_FILENAME}")
+        mod, err = _get_module("optuna", f"{path}/{OptunaComponents.main_file}")
         if not mod:
             raise SchedulerError(
                 f"{LOG_PREFIX}Failed to load optuna from artifact: "
@@ -147,40 +172,106 @@ class OptunaScheduler(Scheduler):
         sampler = mod.sampler() if mod.sampler else None
         return None, pruner, sampler
 
+    def _get_and_download_artifact(self, component_name: str) -> Optional[Artifact]:
+        """
+        Finds and downloads an artifact, returns name of downloaded artifact
+        """
+        # TODO(gst): type these so they can be actually used in load_study
+        try:
+            component_artifact = (
+                f"{self._entity}/{self._project}{self._wandb_run.id}/{component_name}"
+            )
+            component: Artifact = self._wandb_run.use_artifact(component_artifact)
+            component.download()
+        # TODO(gst): catch not found and return None
+        # except NotFound:
+        except Exception as e:
+            raise SchedulerError(str(e))
+
+        return component
+
+    def _load_optuna_from_wandb_run(self) -> Tuple[Optional[optuna.Study]]:
+        # our scheduler was resumed, try to load state
+        study = self._get_and_download_artifact(OptunaComponents.study)
+        if study:  # done
+            return study
+
+        # TODO(gst): when could this ever happen????? maybe we just want to save storage
+
+        # recreate study from saved individual components
+        storage = self._get_and_download_artifact(OptunaComponents.storage)
+        pruner = self._get_and_download_artifact(OptunaComponents.pruner)
+        sampler = self._get_and_download_artifact(OptunaComponents.sampler)
+
+        return optuna.load_study(
+            study_name=f"optuna-study-{self._sweep_id}",
+            storage=f"sqlite:///{storage.name}",
+            pruner=pruner,
+            sampler=sampler,
+        )
+
     def _load_optuna(self) -> None:
         """
+        If our run was resumed, attempt to resture optuna artifacts from run state
+
         Create an optuna study with a sqlite backened for loose state management
         """
-        study, pruner, sampler = self._load_optuna_artifacts()
-        if study:
+        optuna_artifact_name = self._sweep_config.get("optuna", {}).get("artifact")
+        if optuna_artifact_name:
+            study, pruner, sampler = self._load_optuna_from_artifact(
+                optuna_artifact_name
+            )
+        elif self._wandb_run.resumed:
+            study, pruner, sampler = self._load_optuna_from_wandb_run()
+
+        if study:  # study supercedes pruner and sampler
             self.study = study
             return
 
-        if not pruner:
-            pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
+        # making a new study
+
+        pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
+        if pruner and pruner_args and optuna_artifact_name:
+            wandb.termwarn(
+                f"{LOG_PREFIX}Loaded pruner from given artifact, `pruner_args` are ignored"
+            )
+        elif pruner_args:
             pruner = self._make_optuna_pruner(pruner_args)
+        else:
+            wandb.termlog(f"{LOG_PREFIX}No pruner args, using Optuna defaults")
+
+        sampler_args = self._sweep_config.get("optuna", {}).get("sampler", {})
+        if sampler and sampler_args and optuna_artifact_name:
+            wandb.termwarn(
+                f"{LOG_PREFIX}Loaded sampler from given artifact, `sampler_args` are ignored"
+            )
+        elif sampler_args:
+            sampler = self._make_optuna_sampler(sampler_args)
+        else:
+            wandb.termlog(f"{LOG_PREFIX}No sampler args, using Optuna defaults")
 
         study_name = f"optuna-study-{self._sweep_id}"
-        storage_name = f"{study_name}.db"
+        storage_name = f"sqlite:///{study_name}.db"
+        direction = self._sweep_config.get("metric", {}).get("goal")
 
-        # TODO(gst): this doesn't work
-        if self._wandb_run.resumed:
-            # our scheduler was resumed, try to load state
-            storage_artifact = f"{self._entity}/{self._project}{self._wandb_run.id}/{OPTUNA_WANDB_STORAGE}"
-            storage: Artifact = self._wandb_run.use_artifact(storage_artifact)
-            storage.download()
-            storage_name = storage.name
-
-        wandb.termlog(
-            f"{LOG_PREFIX}Creating optuna study with direction: {self._sweep_config.get('metric', {}).get('goal')}"
+        _create_msg = (
+            f"{LOG_PREFIX}Creating optuna study: {study_name} [storage:{storage_name}"
         )
+        if direction:
+            _create_msg += f", direction:{direction}"
+        if pruner:
+            _create_msg += f", pruner:{pruner.__class__}"
+        if sampler:
+            _create_msg += f", sampler:{sampler.__class__}"
+
+        wandb.termlog(f"{_create_msg}]")
         self.study = optuna.create_study(
             study_name=study_name,
-            storage=f"sqlite:///{storage_name}",
+            storage=storage_name,
             pruner=pruner,
             sampler=sampler,
-            load_if_exists=True,  # TODO(gst): verify this is correct functionality
-            direction=self._sweep_config.get("metric", {}).get("goal"),
+            # load_if_exists=True,  # TODO(gst): verify this is correct functionality
+            direction=direction,
         )
 
     def _load_scheduler_state(self) -> None:
@@ -192,10 +283,10 @@ class OptunaScheduler(Scheduler):
     def _save_scheduler_state(self) -> None:
         """
         Save optuna study sqlite data to an artifact in the controller run
+
+        TODO(gst): extend this to the other objects? study? pruner? sampler?
         """
-        artifact_name = (
-            f"{self._entity}/{self._project}{self._wandb_run.id}/{OPTUNA_WANDB_STORAGE}"
-        )
+        artifact_name = f"{self._entity}/{self._project}{self._wandb_run.id}/{OptunaComponents.storage}"
         scheduler_artifact = wandb.Artifact(artifact_name, type="scheduler")
         scheduler_artifact.add_file(f".{self.study._storage}")
         self._wandb_run.log_artifact(scheduler_artifact)
@@ -203,6 +294,8 @@ class OptunaScheduler(Scheduler):
             f"{LOG_PREFIX}Saved scheduler state to run: {self._wandb_run.id} "
             f"in artifact: {scheduler_artifact.name}"
         )
+
+        # TODO(gst): consider wandb.save() and wandb.restore() for state storage
 
     def _start(self) -> None:
         """
@@ -238,7 +331,7 @@ class OptunaScheduler(Scheduler):
                 config=config,
             )[0]
             srun = SweepRun(
-                id=_encoded(run["id"]),
+                id=_encode(run["id"]),
                 args=config,
                 worker_id=worker_id,
             )
@@ -417,8 +510,8 @@ class OptunaScheduler(Scheduler):
         return config, new_trial
 
     def _make_optuna_pruner(
-        self, pruner_args: Dict, epochs: Optional[int] = 100
-    ) -> Optional[Union[HyperbandPruner, SuccessiveHalvingPruner]]:
+        self, pruner_args: Dict[str, Any], epochs: Optional[int] = 100
+    ) -> Union[HyperbandPruner, SuccessiveHalvingPruner]:
         """
         Uses sweep config values in the optuna dict to configure pruner.
         Example sweep_config.yaml:
@@ -433,10 +526,7 @@ class OptunaScheduler(Scheduler):
         ```
         """
         type_ = pruner_args.get("type")
-        if not type_:
-            wandb.termwarn(f"{LOG_PREFIX}No pruner args, using Optuna defaults")
-            return None
-        elif type_ == "HyperbandPruner":
+        if type_ == "HyperbandPruner":
             wandb.termlog(f"{LOG_PREFIX}Using the optuna HyperbandPruner")
             return HyperbandPruner(
                 min_resource=pruner_args.get("min_resource", 1),
@@ -449,9 +539,18 @@ class OptunaScheduler(Scheduler):
                 min_resource=pruner_args.get("min_resource", 1),
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
-        else:
-            wandb.termwarn(f"Pruner: {type_} not *yet* supported.")
-            return None
+
+        raise SchedulerError(f"Pruner: {type_} not yet supported.")
+
+    def _make_optuna_sampler(
+        self, sampler_args: Dict[str, Any]
+    ) -> optuna.samplers.BaseSampler:
+        type_ = sampler_args.get("type")
+
+        if type_ == "RandomSampler":
+            return optuna.samplers.RandomSampler(seed=sampler_args.get("seed"))
+
+        raise SchedulerError(f"Pruner: {type_} not yet supported.")
 
     def _exit(self) -> None:
         pass

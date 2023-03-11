@@ -21,12 +21,7 @@ from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
 from wandb.wandb_agent import Agent
 
-<<<<<<< HEAD
-
-logger = logging.getLogger(__name__)
-=======
 _logger = logging.getLogger(__name__)
->>>>>>> 436788097eee21cae61c7e98c9c4e8705b011848
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 
 
@@ -222,7 +217,9 @@ class Scheduler(ABC):
         """
         if self._kwargs.get("job"):
             try:
-                _job_artifact = self._public_api.artifact(self._kwargs["job"], type="job")
+                _job_artifact = self._public_api.artifact(
+                    self._kwargs["job"], type="job"
+                )
                 wandb.termlog(
                     f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
                 )
@@ -253,7 +250,7 @@ class Scheduler(ABC):
             run.state = RunState.DEAD
 
             if not run.queued_run:
-                logger.debug(
+                _logger.debug(
                     f"tried to _stop_run but run not queued yet (run_id:{run.id})"
                 )
 
