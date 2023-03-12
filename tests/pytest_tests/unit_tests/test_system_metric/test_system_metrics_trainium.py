@@ -895,7 +895,7 @@ MOCK_DATA = [
 
 def neuron_monitor_mock(self: NeuronCoreStats):
     """Generate a stream of mock raw data for NeuronCoreStats to sample."""
-    self.check_neuron_monitor_config()
+    self.write_neuron_monitor_config()
 
     for data in itertools.cycle(MOCK_DATA):
         if self.shutdown_event.is_set():

@@ -98,7 +98,8 @@ class NeuronCoreStats:
     name: str = "trn.{key}"
     samples: "Deque[_Stats]"
 
-    def check_neuron_monitor_config(self) -> None:
+    def write_neuron_monitor_config(self) -> None:
+        """Write neuron monitor config file."""
         # mkdir if not exists
         pathlib.Path(self.neuron_monitor_config_path).parent.mkdir(
             parents=True, exist_ok=True
@@ -108,7 +109,8 @@ class NeuronCoreStats:
             json.dump(NEURON_MONITOR_DEFAULT_CONFIG, f, indent=4)
 
     def neuron_monitor(self) -> None:
-        self.check_neuron_monitor_config()
+        """Run neuron-monitor in a separate process to collect raw data."""
+        self.write_neuron_monitor_config()
 
         try:
             command = [
@@ -179,7 +181,11 @@ class NeuronCoreStats:
             self.neuron_monitor_thread = None
 
     def _is_matching_entry(self, entry: dict) -> bool:
-        """For now, only check if the pid in the entry matches the pid of the process.
+        """Check if the entry should be saved.
+
+        Checks if the pid in the entry matches the pid of the process.
+        If not (as in the case of multi-process training with torchrun),
+        checks if the LOCAL_RANK environment variable is set.
 
         todo: add matching by neuron_runtime_tag
         """
@@ -258,7 +264,13 @@ class NeuronCoreStats:
                 return
             elif isinstance(value, dict):
                 for kk, vv in value.items():
-                    helper(f"{key}.{kk}", vv)
+                    if isinstance(kk, int):
+                        # top-level keys are neuron core ids,
+                        # so we swap the order to comply with the
+                        # frontend expectations
+                        helper(f"{kk}.{key}", vv)
+                    else:
+                        helper(f"{key}.{kk}", vv)
                 return
             elif isinstance(value, list):
                 for i, val in enumerate(value):
