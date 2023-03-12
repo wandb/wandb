@@ -3,6 +3,7 @@ import dataclasses
 import json
 import logging
 import multiprocessing as mp
+import os
 import pathlib
 import shutil
 import subprocess
@@ -82,12 +83,12 @@ class _HostMemoryUsage:
 
 @dataclasses.dataclass
 class _Stats:
-    neuroncore_utilization: List[float]  # per neuron core utilization
+    neuroncore_utilization: Dict[int, float]  # per neuron core utilization
     host_total_memory_usage: int  # total memory usage in bytes
     neuron_device_total_memory_usage: int  # total memory usage
     host_memory_usage: _HostMemoryUsage  # host memory usage breakdown
-    neuroncore_memory_usage: List[
-        _NeuronCoreMemoryUsage
+    neuroncore_memory_usage: Dict[
+        int, _NeuronCoreMemoryUsage
     ]  # per core memory usage breakdown
 
 
@@ -182,7 +183,7 @@ class NeuronCoreStats:
 
         todo: add matching by neuron_runtime_tag
         """
-        return int(entry["pid"]) == int(self.pid)
+        return (int(entry["pid"]) == int(self.pid)) or "LOCAL_RANK" in os.environ
 
     def sample(self) -> None:
         try:
@@ -199,9 +200,10 @@ class NeuronCoreStats:
                 "neuroncores_in_use"
             ]
             # per-core utilization stats:
-            neuroncore_utilization = [
-                v["neuroncore_utilization"] for k, v in neuroncores_in_use.items()
-            ]
+            neuroncore_utilization = {
+                int(k): v["neuroncore_utilization"]
+                for k, v in neuroncores_in_use.items()
+            }
             # memory usage
             neuron_runtime_used_bytes = neuron_runtime_data["memory_used"][
                 "neuron_runtime_used_bytes"
@@ -214,10 +216,20 @@ class NeuronCoreStats:
             # memory usage breakdown
             usage_breakdown = neuron_runtime_used_bytes["usage_breakdown"]
             host_memory_usage = _HostMemoryUsage(**usage_breakdown["host"])
-            neuroncore_memory_usage = [
-                _NeuronCoreMemoryUsage(**v)
-                for v in usage_breakdown["neuroncore_memory_usage"].values()
-            ]
+            neuroncore_memory_usage = {
+                int(k): _NeuronCoreMemoryUsage(**v)
+                for k, v in usage_breakdown["neuroncore_memory_usage"].items()
+            }
+
+            # executed with torchrun? only keep the local_rank stats
+            local_rank = int(os.environ.get("LOCAL_RANK", -1337))
+            if local_rank >= 0:
+                neuroncore_utilization = {
+                    local_rank: neuroncore_utilization[local_rank]
+                }
+                neuroncore_memory_usage = {
+                    local_rank: neuroncore_memory_usage[local_rank]
+                }
 
             stats: _Stats = _Stats(
                 neuroncore_utilization=neuroncore_utilization,
