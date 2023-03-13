@@ -43,7 +43,6 @@ if "kubernetes" not in sys.modules:
 import kubernetes  # type: ignore
 from kubernetes import client
 
-
 _logger = logging.getLogger(__name__)
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
