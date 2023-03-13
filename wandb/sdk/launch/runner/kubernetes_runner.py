@@ -4,17 +4,12 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from kubernetes import client  # type: ignore
-from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
-from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
-from kubernetes.client.models.v1_job import V1Job  # type: ignore
-from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
-
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module, load_json_yaml_dict
 
 from .._project_spec import LaunchProject, get_entry_point_command
@@ -27,6 +22,17 @@ from ..utils import (
     make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
+
+get_module(
+    "kubernetes",
+    required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+)
+
+from kubernetes import client  # type: ignore # noqa: E402
+from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
+from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
@@ -273,7 +279,9 @@ class KubernetesRunner(AbstractRunner):
         builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:  # noqa: C901
         kubernetes = get_module(  # noqa: F811
-            "kubernetes", "KubernetesRunner requires kubernetes to be installed"
+            "kubernetes",
+            required="Kubernetes runner requires the kubernetes package. Please"
+            " install it with `pip install wandb[launch]`.",
         )
         resource_args = launch_project.resource_args.get("kubernetes", {})
         if not resource_args:
@@ -390,9 +398,6 @@ class KubernetesRunner(AbstractRunner):
         job_dict["metadata"] = job_metadata
         job_dict["status"] = job_status
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
-
         _logger.info(f"Creating Kubernetes job from: {job_dict}")
         job_response = kubernetes.utils.create_from_yaml(
             api_client, yaml_objects=[job_dict], namespace=namespace
@@ -420,6 +425,9 @@ def maybe_create_imagepull_secret(
     namespace: str,
 ) -> Optional["V1Secret"]:
     secret = None
+    if isinstance(registry, LocalRegistry):
+        # Secret not required
+        return None
     uname, token = registry.get_username_password()
     creds_info = {
         "auths": {
