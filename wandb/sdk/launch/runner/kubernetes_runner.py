@@ -23,11 +23,16 @@ from ..utils import (
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
-client = get_module(
-    "kubernetes.client",
+kubernetes = get_module(
+    "kubernetes",
     required="Kubernetes runner requires the kubernetes package. Please"
     " install it with `pip install wandb[launch]`.",
 )
+client = kubernetes.client
+BatchV1Api = kubernetes.client.api.BatchV1Api
+CoreV1Api = kubernetes.client.api.CoreV1Api
+V1Job = kubernetes.client.models.V1Job
+V1Secret = kubernetes.client.models.V1Secret
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
@@ -41,18 +46,18 @@ _logger = logging.getLogger(__name__)
 class KubernetesSubmittedRun(AbstractRun):
     def __init__(
         self,
-        batch_api: Any,  # BatchV1Api
-        core_api: Any,  # CoreV1Api
+        batch_api: BatchV1Api,  # type: ignore
+        core_api: CoreV1Api,  # type: ignore
         name: str,
         pod_names: List[str],
         namespace: Optional[str] = "default",
-        secret: Any = None,  # Optional[V1Secret]
+        secret: Optional[V1Secret] = None,  # type: ignore
     ) -> None:
         self.batch_api = batch_api
         self.core_api = core_api
         self.name = name
         self.namespace = namespace
-        self.job = self.batch_api.read_namespaced_job(
+        self.job = self.batch_api.read_namespaced_job(  # type: ignore[attr-defined]
             name=self.name, namespace=self.namespace
         )
         self._fail_count = 0
@@ -63,8 +68,8 @@ class KubernetesSubmittedRun(AbstractRun):
     def id(self) -> str:
         return self.name
 
-    def get_job(self) -> Any:  # V1Job
-        return self.batch_api.read_namespaced_job(
+    def get_job(self) -> V1Job:  # type: ignore
+        return self.batch_api.read_namespaced_job(  # type: ignore
             name=self.name, namespace=self.namespace
         )
 
@@ -80,12 +85,12 @@ class KubernetesSubmittedRun(AbstractRun):
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
     def get_status(self) -> Status:
-        job_response = self.batch_api.read_namespaced_job_status(
+        job_response = self.batch_api.read_namespaced_job_status(  # type: ignore[attr-defined]
             name=self.name, namespace=self.namespace
         )
         status = job_response.status
 
-        pod = self.core_api.read_namespaced_pod(
+        pod = self.core_api.read_namespaced_pod(  # type: ignore[attr-defined]
             name=self.pod_names[0], namespace=self.namespace
         )
         if pod.status.phase in ["Pending", "Unknown"]:
@@ -117,7 +122,7 @@ class KubernetesSubmittedRun(AbstractRun):
             return_status.state in ["stopped", "failed", "finished"]
             and self.secret is not None
         ):
-            try:
+            try:  # type: ignore[unreachable]
                 self.core_api.delete_namespaced_secret(
                     self.secret.metadata.name, self.namespace
                 )
@@ -129,17 +134,17 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def suspend(self) -> None:
         self.job.spec.suspend = True
-        self.batch_api.patch_namespaced_job(
+        self.batch_api.patch_namespaced_job(  # type: ignore[attr-defined]
             name=self.name, namespace=self.namespace, body=self.job
         )
         timeout = TIMEOUT
-        job_response = self.batch_api.read_namespaced_job_status(
+        job_response = self.batch_api.read_namespaced_job_status(  # type: ignore[attr-defined]
             name=self.name, namespace=self.namespace
         )
         while job_response.status.conditions is None and timeout > 0:
             time.sleep(1)
             timeout -= 1
-            job_response = self.batch_api.read_namespaced_job_status(
+            job_response = self.batch_api.read_namespaced_job_status(  # type: ignore[attr-defined]
                 name=self.name, namespace=self.namespace
             )
 
@@ -152,7 +157,7 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def cancel(self) -> None:
         self.suspend()
-        self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
+        self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)  # type: ignore[attr-defined]
 
 
 class KubernetesRunner(AbstractRunner):
@@ -237,16 +242,16 @@ class KubernetesRunner(AbstractRunner):
             )
 
     def wait_job_launch(
-        self, job_name: str, namespace: str, core_api: Any  # CoreV1Api
+        self, job_name: str, namespace: str, core_api: CoreV1Api  # type: ignore
     ) -> List[str]:
-        pods = core_api.list_namespaced_pod(
+        pods = core_api.list_namespaced_pod(  # type: ignore[attr-defined]
             label_selector=f"job-name={job_name}", namespace=namespace
         )
         timeout = TIMEOUT
         while len(pods.items) == 0 and timeout > 0:
             time.sleep(1)
             timeout -= 1
-            pods = core_api.list_namespaced_pod(
+            pods = core_api.list_namespaced_pod(  # type: ignore[attr-defined]
                 label_selector=f"job-name={job_name}", namespace=namespace
             )
 
@@ -385,7 +390,7 @@ class KubernetesRunner(AbstractRunner):
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:
-            pod_spec["imagePullSecrets"] = [
+            pod_spec["imagePullSecrets"] = [  # type: ignore[unreachable]
                 {"name": f"regcred-{launch_project.run_id}"}
             ]
         job_spec["template"] = pod_template
@@ -414,11 +419,11 @@ class KubernetesRunner(AbstractRunner):
 
 
 def maybe_create_imagepull_secret(
-    core_api: Any,  # CoreV1Api
+    core_api: CoreV1Api,  # type: ignore
     registry: AbstractRegistry,
     run_id: str,
     namespace: str,
-) -> Any:  # Optional[V1Secret]
+) -> Optional[V1Secret]:  # type: ignore
     secret = None
     if isinstance(registry, LocalRegistry):
         # Secret not required
@@ -443,6 +448,6 @@ def maybe_create_imagepull_secret(
         type="kubernetes.io/dockerconfigjson",
     )
     try:
-        return core_api.create_namespaced_secret(namespace, secret)
+        return core_api.create_namespaced_secret(namespace, secret)  # type: ignore
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")

@@ -4,7 +4,7 @@ import logging
 import tarfile
 import tempfile
 import time
-from typing import Any, Optional
+from typing import Optional
 
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -40,11 +40,10 @@ kubernetes = get_module(
     required="Kubernetes runner requires the kubernetes package. Please"
     " install it with `pip install wandb[launch]`.",
 )
-client = get_module(
-    "kubernetes.client",
-    required="Kubernetes runner requires the kubernetes package. Please"
-    " install it with `pip install wandb[launch]`.",
-)
+client = kubernetes.client
+BatchV1Api = kubernetes.client.api.BatchV1Api
+CoreV1Api = kubernetes.client.api.CoreV1Api
+V1Job = kubernetes.client.models.V1Job
 
 _logger = logging.getLogger(__name__)
 
@@ -52,13 +51,13 @@ _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 
 def _wait_for_completion(
-    batch_client: Any,  # has type BatchV1Api
+    batch_client: BatchV1Api,  # type: ignore
     job_name: str,
     deadline_secs: Optional[int] = None,
 ) -> bool:
     start_time = time.time()
     while True:
-        job = batch_client.read_namespaced_job_status(job_name, "wandb")
+        job = batch_client.read_namespaced_job_status(job_name, "wandb")  # type: ignore[attr-defined]
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
@@ -180,7 +179,7 @@ class KanikoBuilder(AbstractBuilder):
     def _create_docker_ecr_config_map(
         self,
         job_name: str,
-        corev1_client: Any,  # has type CoreV1Api
+        corev1_client: CoreV1Api,  # type: ignore
         repository: str,
     ) -> None:
         if self.registry is None:
@@ -201,13 +200,13 @@ class KanikoBuilder(AbstractBuilder):
             },
             immutable=True,
         )
-        corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
+        corev1_client.create_namespaced_config_map("wandb", ecr_config_map)  # type: ignore[attr-defined]
 
     def _delete_docker_ecr_config_map(
-        self, job_name: str, client: Any  # CoreV1Api
+        self, job_name: str, client: CoreV1Api  # type: ignore
     ) -> None:
         if self.secret_name:
-            client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")
+            client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")  # type: ignore[attr-defined]
 
     def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
@@ -317,7 +316,7 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
-    ) -> Any:  # V1Job
+    ) -> V1Job:  # type: ignore
         env = []
         volume_mounts = []
         volumes = []
@@ -424,4 +423,4 @@ class KanikoBuilder(AbstractBuilder):
             ),
             spec=spec,
         )
-        return job
+        return job  # type: ignore[no-any-return]
