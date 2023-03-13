@@ -205,8 +205,7 @@ def test_launch_cli_with_config_file_and_params(
                 "config.json",
                 "-a",
                 "epochs=1",
-                "-u"
-                "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                "-u" "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
         assert result.exit_code == 0
@@ -333,6 +332,7 @@ def test_launch_queue_error(runner):
         result = runner.invoke(
             cli.launch,
             [
+                "-u",
                 "https://github.com/test/repo.git",
                 "--entry-point",
                 "train.py",
