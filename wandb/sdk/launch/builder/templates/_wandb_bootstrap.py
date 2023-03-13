@@ -40,10 +40,9 @@ def install_deps(
     try:
         # Include only uri if @ is present
         clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
-        if extra_index:
-            extra_index = ["--extra-index-url", extra_index]
+        index_args = ["--extra-index-url", extra_index] if extra_index else []
         print("installing {}...".format(", ".join(clean_deps)))
-        args = ["pip", "install"] + OPTS + clean_deps + (extra_index or [])
+        args = ["pip", "install"] + OPTS + clean_deps + index_args
         sys.stdout.flush()
         subprocess.check_output(args, stderr=subprocess.STDOUT)
         return failed
