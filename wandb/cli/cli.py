@@ -1036,7 +1036,7 @@ def sweep(
     "uri of the form https://wandb.ai/entity/project/runs/run_id, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
-@click.argument("uri", nargs=1, required=False)
+@click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
     "--job",
     "-j",
@@ -1058,6 +1058,7 @@ def sweep(
     "--git-version",
     "-g",
     metavar="GIT-VERSION",
+    hidden=True,
     help="Version of the project to run, as a Git commit reference for Git projects.",
 )
 @click.option(
@@ -1145,6 +1146,7 @@ def sweep(
     "--build",
     "-b",
     is_flag=True,
+    hidden=True,
     help="Flag to build an associated job and push to queue as an image job.",
 )
 @click.option(
@@ -1152,6 +1154,7 @@ def sweep(
     "-rg",
     is_flag=False,
     default=None,
+    hidden=True,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
 # TODO: this is only included for back compat. But we should remove this in the future
