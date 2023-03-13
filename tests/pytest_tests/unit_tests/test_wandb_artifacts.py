@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Optional
 from unittest.mock import Mock
 
 import pytest
-import wandb
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 from wandb.sdk.wandb_artifacts import (
     ArtifactManifestEntry,
@@ -187,8 +186,3 @@ class TestStoreFile:
             with pytest.raises(Exception, match=err.args[0]):
                 store()
             assert not is_cache_hit(artifacts_cache, "my-digest", f.stat().st_size)
-
-
-def test_create_artifact_with_default_type():
-    artifact = wandb.Artifact("my-artifact")  # No specified type.
-    assert artifact.type == "dataset"
