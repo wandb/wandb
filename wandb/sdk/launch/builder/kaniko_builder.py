@@ -175,10 +175,7 @@ class KanikoBuilder(AbstractBuilder):
         pass
 
     def _create_docker_ecr_config_map(
-        self,
-        job_name: str,
-        corev1_client: client.CoreV1Api,
-        repository: str,
+        self, job_name: str, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
         if self.registry is None:
             raise LaunchError("No registry specified for Kaniko build.")
@@ -314,7 +311,7 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
-    ) -> client.V1Job:
+    ) -> "client.V1Job":
         env = []
         volume_mounts = []
         volumes = []
