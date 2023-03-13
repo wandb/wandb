@@ -1,7 +1,6 @@
 import base64
 import json
 import logging
-import sys
 import time
 from typing import Any, Dict, List, Optional
 
@@ -24,15 +23,16 @@ from ..utils import (
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
-if "kubernetes" not in sys.modules:
-    msg = "Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`."
-    wandb.Error(msg)
-    raise ModuleNotFoundError(msg)
-from kubernetes import client  # type: ignore
-from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
-from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
-from kubernetes.client.models.v1_job import V1Job  # type: ignore
-from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
+get_module(
+    "kubernetes",
+    required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+)
+
+from kubernetes import client  # type: ignore # noqa: E402
+from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
+from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (

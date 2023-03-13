@@ -1,7 +1,6 @@
 import base64
 import json
 import logging
-import sys
 import tarfile
 import tempfile
 import time
@@ -15,6 +14,7 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
+from wandb.util import get_module
 
 from .._project_spec import (
     EntryPoint,
@@ -35,13 +35,13 @@ from .build import (
     image_tag_from_dockerfile_and_source,
 )
 
-if "kubernetes" not in sys.modules:
-    msg = "Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`."
-    wandb.Error(msg)
-    raise ModuleNotFoundError(msg)
+get_module(
+    "kubernetes",
+    required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+)
 
-import kubernetes  # type: ignore
-from kubernetes import client
+import kubernetes  # type: ignore # noqa: E402
+from kubernetes import client  # noqa: E402
 
 _logger = logging.getLogger(__name__)
 
