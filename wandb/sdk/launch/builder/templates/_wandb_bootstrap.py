@@ -27,7 +27,7 @@ def install_deps(
     deps: List[str],
     failed: Optional[Set[str]] = None,
     extra_index: Optional[str] = None,
-    opts: List[str] = [],
+    opts: Optional[List[str]] = None,
 ) -> Optional[Set[str]]:
     """Install pip dependencies.
 
@@ -43,6 +43,7 @@ def install_deps(
         clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
         index_args = ["--extra-index-url", extra_index] if extra_index else []
         print("installing {}...".format(", ".join(clean_deps)))
+        opts = opts or []
         args = ["pip", "install"] + opts + clean_deps + index_args
         sys.stdout.flush()
         subprocess.check_output(args, stderr=subprocess.STDOUT)
