@@ -49,9 +49,7 @@ _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 
 def _wait_for_completion(
-    batch_client: client.BatchV1Api,
-    job_name: str,
-    deadline_secs: Optional[int] = None,
+    batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
     start_time = time.time()
     while True:
