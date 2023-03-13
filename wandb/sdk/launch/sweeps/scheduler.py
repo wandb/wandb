@@ -38,6 +38,7 @@ class SchedulerState(Enum):
     COMPLETED = 4
     FAILED = 5
     STOPPED = 6
+    CANCELLED = 7
 
 
 class RunState(Enum):
@@ -80,17 +81,20 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
+        self._sweep_id: str = sweep_id or "empty-sweep-id"
+        self._state: SchedulerState = SchedulerState.PENDING
+
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
             resp = self._api.sweep(
                 sweep_id, "{}", entity=self._entity, project=self._project
             )
+            if resp.get("state") == SchedulerState.CANCELLED.name:
+                self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
 
-        self._sweep_id: str = sweep_id or "empty-sweep-id"
-        self._state: SchedulerState = SchedulerState.PENDING
         # Dictionary of the runs being managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
@@ -132,6 +136,7 @@ class Scheduler(ABC):
             SchedulerState.COMPLETED,
             SchedulerState.FAILED,
             SchedulerState.STOPPED,
+            SchedulerState.CANCELLED,
         ]:
             return False
         return True
@@ -139,6 +144,13 @@ class Scheduler(ABC):
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
+        if not self.is_alive():
+            wandb.termerror(
+                f"{LOG_PREFIX}Sweep already {self.state.name.lower()}! Exiting..."
+            )
+            self.exit()
+            return
+
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
             wandb.termerror(
@@ -236,13 +248,21 @@ class Scheduler(ABC):
         for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
-                if _state is None or _state in [
-                    "crashed",
-                    "failed",
-                    "killed",
-                    "finished",
-                ]:
-                    _logger.debug(f"Got runstate: {_state} for run: {run_id}")
+                _rqi_state = run.queued_run.state if run.queued_run else None
+                if (
+                    not _state
+                    or _state
+                    in [
+                        "crashed",
+                        "failed",
+                        "killed",
+                        "finished",
+                    ]
+                    or _rqi_state == "failed"
+                ):
+                    _logger.debug(
+                        f"({run_id}) run-state:{_state}, rqi-state:{_rqi_state}"
+                    )
                     run.state = RunState.DEAD
                     _runs_to_remove.append(run_id)
                 elif _state in [
