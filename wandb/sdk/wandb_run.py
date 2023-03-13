@@ -2939,7 +2939,7 @@ class Run:
     ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
         if isinstance(artifact_or_path, (str, os.PathLike)):
             name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
-            artifact = wandb.Artifact(name, type or "dataset")
+            artifact = wandb.Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
             elif os.path.isdir(artifact_or_path):
