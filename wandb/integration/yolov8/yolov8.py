@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any, Callable, Dict, List, Optional
 import pathlib
 from functools import partial
@@ -116,7 +117,15 @@ def convert_to_wb_images(
             for key, value in object_confidences.items():
                 object_confidences[key] = sum(value) / len(value)
             scores_data.append(object_confidences)
-            out_images.append(wandb.Image(**image_kwargs))
+            ground_truth_kwargs = deepcopy(image_kwargs)
+            ground_truth_kwargs["boxes"].pop("predictions")
+            image_kwargs["boxes"].pop("ground_truth")
+            out_images.append(
+                (
+                    wandb.Image(**ground_truth_kwargs),
+                    wandb.Image(**image_kwargs),
+                )
+            )
     return (out_images, scores_data)
 
 
@@ -139,10 +148,10 @@ def plot_detection_predictions(logger, validator, batch, preds, ni):
     logger.run.log(
         {
             "detection_predictions": wandb.Table(
-                columns=["Image", *objects],
+                columns=["Ground Truth", "Prediction", *objects],
                 data=[
                     [
-                        im,
+                        *im,
                         *map(lambda x: x[1], sorted(score.items(), key=lambda x: x[0])),
                     ]
                     for im, score in zip(wb_images, scores)
