@@ -1,6 +1,4 @@
-"""
-sync.
-"""
+"""sync."""
 
 import datetime
 import fnmatch
@@ -121,7 +119,7 @@ class SyncThread(threading.Thread):
         return tb_event_files, tb_logdirs, tb_root
 
     def _setup_tensorboard(self, tb_root, tb_logdirs, tb_event_files, sync_item):
-        """Returns true if this sync item can be synced as tensorboard"""
+        """Return true if this sync item can be synced as tensorboard."""
         if tb_root is not None:
             if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
                 wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
@@ -144,6 +142,7 @@ class SyncThread(threading.Thread):
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
+        proto_run.telemetry.feature.sync_tfevents = True
 
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
@@ -218,7 +217,7 @@ class SyncThread(threading.Thread):
         send_manager.finish()
 
     def _robust_scan(self, ds):
-        """Attempt to scan data, handling incomplete files"""
+        """Attempt to scan data, handling incomplete files."""
         try:
             return ds.scan_data()
         except AssertionError as e:

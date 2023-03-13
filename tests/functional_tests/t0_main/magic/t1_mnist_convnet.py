@@ -23,7 +23,7 @@ W&B Notes:
 import numpy as np
 from tensorflow import keras
 from tensorflow.keras import layers
-from wandb import magic  # noqa: F401
+from wandb import magic
 
 # Make sure this is reproducible
 np.random.seed(1)

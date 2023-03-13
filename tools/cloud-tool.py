@@ -77,8 +77,7 @@ class Logger:
 
 
 class GKE:
-    """
-    A simple CLI for managing GKE clusters.
+    """A simple CLI for managing GKE clusters.
 
     It is assumed that the user has installed the Google Cloud SDK with
     the required components (gke-gcloud-auth-plugin and kubectl) and has
@@ -91,7 +90,6 @@ class GKE:
         verbose: bool = False,
         log_level: int = logging.INFO,
     ) -> None:
-
         self.config = config
         self.logger = Logger(__name__.lower(), verbose, log_level)
 
@@ -167,8 +165,7 @@ class GCE:
         subprocess.run(["gcloud", "--quiet", "components", "update"])
 
     def create_vm(self) -> int:
-        """
-        Create the VM
+        """Create the VM.
 
         - The first command creates a VM similar to the one
           the user can get from the GCP marketplace.
@@ -246,8 +243,7 @@ class GCE:
         # return p.returncode
 
     def run(self) -> int:
-        """
-        Run the VM
+        """Run the VM.
 
         :return:
         """
@@ -270,8 +266,8 @@ class GCE:
         return p.returncode
 
     def delete_vm(self) -> int:
-        """
-        Delete the VM
+        """Delete the VM.
+
         :return:
         """
         p = subprocess.run(
