@@ -3,7 +3,6 @@
 Backend server process can be connected to using tcp sockets or grpc transport.
 """
 
-import datetime
 import os
 import platform
 import shutil
@@ -166,20 +165,11 @@ class _Service:
 
             executable = self._settings._executable
             exec_cmd_list = [executable, "-m"]
-            exec_cmd_list = [
-                executable,
-                "-m",
-                "memray",
-                "run",
-                "-o",
-                f"service.{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.bin",
-                "/Users/dimaduev/dev/client/cli.py",
-            ]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
             service_args = [
-                # "wandb",
+                "wandb",
                 "service",
                 "--port-filename",
                 fname,
