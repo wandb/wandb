@@ -391,9 +391,6 @@ class KubernetesRunner(AbstractRunner):
         job_dict["metadata"] = job_metadata
         job_dict["status"] = job_status
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
-
         _logger.info(f"Creating Kubernetes job from: {job_dict}")
         job_response = kubernetes.utils.create_from_yaml(
             api_client, yaml_objects=[job_dict], namespace=namespace

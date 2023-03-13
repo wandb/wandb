@@ -1,10 +1,13 @@
 """Local registry implementation."""
+import logging
 from typing import Tuple
 
-from wandb.sdk.launch.utils import LaunchError
+from wandb.sdk.launch.utils import LaunchError, docker_image_exists
 
 from ..environment.abstract import AbstractEnvironment
 from .abstract import AbstractRegistry
+
+_logger = logging.getLogger(__name__)
 
 
 class LocalRegistry(AbstractRegistry):
@@ -46,3 +49,14 @@ class LocalRegistry(AbstractRegistry):
         Returns: An empty string.
         """
         return ""
+
+    def check_image_exists(self, image_uri: str) -> bool:
+        """Check if an image exists in the local registry.
+
+        Arguments:
+            image_uri (str): The uri of the image.
+
+        Returns:
+            bool: True.
+        """
+        return docker_image_exists(image_uri)
