@@ -1,6 +1,7 @@
 import json
 import multiprocessing
 import os
+import re
 import subprocess
 import sys
 from typing import List, Optional, Set
@@ -23,7 +24,9 @@ else:
 
 
 def install_deps(
-    deps: List[str], failed: Optional[Set[str]] = None
+    deps: List[str],
+    failed: Optional[Set[str]] = None,
+    extra_index: Optional[str] = None,
 ) -> Optional[Set[str]]:
     """Install pip dependencies.
 
@@ -37,11 +40,12 @@ def install_deps(
     try:
         # Include only uri if @ is present
         clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
+        if extra_index:
+            extra_index = ["--extra-index-url", extra_index]
         print("installing {}...".format(", ".join(clean_deps)))
+        args = ["pip", "install"] + OPTS + clean_deps + (extra_index or [])
         sys.stdout.flush()
-        subprocess.check_output(
-            ["pip", "install"] + OPTS + clean_deps, stderr=subprocess.STDOUT
-        )
+        subprocess.check_output(args, stderr=subprocess.STDOUT)
         return failed
     except subprocess.CalledProcessError as e:
         if failed is None:
@@ -61,13 +65,16 @@ def install_deps(
         if len(set(clean_deps) - failed) == 0:
             return failed
         elif len(failed) > num_failed:
-            return install_deps(list(set(clean_deps) - failed), failed)
+            return install_deps(
+                list(set(clean_deps) - failed), failed, extra_index=extra_index
+            )
         else:
             return failed
 
 
 def main() -> None:
     """Install deps in requirements.frozen.txt."""
+    extra_index = None
     if os.path.exists("requirements.frozen.txt"):
         with open("requirements.frozen.txt") as f:
             print("Installing frozen dependencies...")
@@ -78,16 +85,23 @@ def main() -> None:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
+                    match = re.match(
+                        r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:cpu))?",
+                        req,
+                    )
+                    if match:
+                        variant = match.group(2)[1:]
+                        extra_index = f"https://download.pytorch.org/whl/{variant}"
                     reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:
-                    deps_failed = install_deps(reqs)
+                    deps_failed = install_deps(reqs, extra_index=extra_index)
                     reqs = []
                     if deps_failed is not None:
                         failed = failed.union(deps_failed)
             if len(reqs) > 0:
-                deps_failed = install_deps(reqs)
+                deps_failed = install_deps(reqs, extra_index=extra_index)
                 if deps_failed is not None:
                     failed = failed.union(deps_failed)
             with open("_wandb_bootstrap_errors.json", "w") as f:
