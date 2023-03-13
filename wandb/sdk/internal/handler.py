@@ -390,10 +390,7 @@ class HandleManager:
             return True, list(history_dict.keys())
         updated = False
         updated_keys = []
-        # time.sleep(0.3)
-        # print("\n\nIMMA GONNA UPDATE")
         for k, v in history_dict.items():
-            # print("UPDATING", k, v)
             if self._update_summary_list(kl=[k], v=v):
                 updated = True
                 updated_keys.append(k)
@@ -513,8 +510,6 @@ class HandleManager:
         self._save_history(record.history)
         updated, updated_keys = self._update_summary(history_dict)
         if updated:
-            # time.sleep(0.3)
-            # print(self._consolidated_summary, "LOL\n\n")
             updated_items = {k: self._consolidated_summary[k] for k in updated_keys}
             self._save_summary(updated_items)
 
