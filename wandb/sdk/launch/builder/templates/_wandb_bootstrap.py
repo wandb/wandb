@@ -88,9 +88,12 @@ def main() -> None:
                         r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:cpu))?",
                         req,
                     )
-                    variant = match.group(2)
-                    if variant:
-                        extra_index = f"https://download.pytorch.org/whl/{variant[1:]}"
+                    if match:
+                        variant = match.group(2)
+                        if variant:
+                            extra_index = (
+                                f"https://download.pytorch.org/whl/{variant[1:]}"
+                            )
                     reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
