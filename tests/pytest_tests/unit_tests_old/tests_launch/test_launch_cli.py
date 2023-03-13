@@ -205,6 +205,7 @@ def test_launch_cli_with_config_file_and_params(
                 "config.json",
                 "-a",
                 "epochs=1",
+                "-u"
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
@@ -231,6 +232,7 @@ def test_launch_cli_with_config_and_params(
                 json.dumps(config),
                 "-a",
                 "epochs=1",
+                "-u",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
@@ -249,7 +251,7 @@ def test_launch_no_docker_exec(
     )
     result = runner.invoke(
         cli.launch,
-        ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
+        ["-u", "https://wandb.ai/mock_server_entity/test_project/runs/1"],
     )
     assert result.exit_code == 1
     assert "Could not find Docker executable" in str(result.exception)
@@ -297,6 +299,7 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
         result = runner.invoke(
             cli.launch,
             [
+                "-u",
                 "https://github.com/test/repo.git",
                 "--entry-point",
                 "python train.py",
@@ -318,7 +321,7 @@ def test_launch_local_dir(runner, live_mock_server):
             f.write("wandb\n")
         result = runner.invoke(
             cli.launch,
-            ["repo"],
+            ["-u", "repo"],
         )
 
     assert result.exit_code == 0
@@ -437,6 +440,7 @@ def test_launch_name_run_id_environment_variable(
     run_id = "test_run_id"
     run_name = "test_run_name"
     args = [
+        "-u",
         "https://github.com/test/repo.git",
         "--entry-point",
         "train.py",
