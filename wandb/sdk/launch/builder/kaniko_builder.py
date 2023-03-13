@@ -37,7 +37,7 @@ from .build import (
 
 get_module(
     "kubernetes",
-    required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+    required="Kaniko builder requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
 )
 
 import kubernetes  # type: ignore # noqa: E402
