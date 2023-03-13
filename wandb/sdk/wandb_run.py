@@ -2500,6 +2500,40 @@ class Run:
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
+    # TODO(kdg): remove all artifact swapping logic
+    def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
+        artifact_key_string = use_as or artifact_name
+        replacement_artifact_info = self._launch_artifact_mapping.get(
+            artifact_key_string
+        )
+        if replacement_artifact_info is not None:
+            new_name = replacement_artifact_info.get("name")
+            entity = replacement_artifact_info.get("entity")
+            project = replacement_artifact_info.get("project")
+            if new_name is None or entity is None or project is None:
+                raise ValueError(
+                    "Misconfigured artifact in launch config. Must include name, project and entity keys."
+                )
+            return f"{entity}/{project}/{new_name}"
+        elif replacement_artifact_info is None and use_as is None:
+            sequence_name = artifact_name.split(":")[0].split("/")[-1]
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
+            )
+            if unique_artifact_replacement_info is not None:
+                new_name = unique_artifact_replacement_info.get("name")
+                entity = unique_artifact_replacement_info.get("entity")
+                project = unique_artifact_replacement_info.get("project")
+                if new_name is None or entity is None or project is None:
+                    raise ValueError(
+                        "Misconfigured artifact in launch config. Must include name, project and entity keys."
+                    )
+                return f"{entity}/{project}/{new_name}"
+
+        else:
+            return artifact_name
+
+        return artifact_name
 
     def _detach(self) -> None:
         pass
@@ -2583,7 +2617,10 @@ class Run:
         api.set_current_run_id(self._run_id)
 
         if isinstance(artifact_or_name, str):
-            name = artifact_or_name
+            if self._launch_artifact_mapping:
+                name = self._swap_artifact_name(artifact_or_name, use_as)
+            else:
+                name = artifact_or_name
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
