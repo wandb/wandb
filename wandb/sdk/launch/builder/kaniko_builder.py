@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import sys
 import tarfile
 import tempfile
 import time
@@ -14,7 +15,6 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
-from wandb.util import get_module
 
 from .._project_spec import (
     EntryPoint,
@@ -35,15 +35,14 @@ from .build import (
     image_tag_from_dockerfile_and_source,
 )
 
-kubernetes = get_module(
-    "kubernetes",
-    required="Kubernetes runner requires the kubernetes package. Please"
-    " install it with `pip install wandb[launch]`.",
-)
-client = kubernetes.client
-BatchV1Api = kubernetes.client.api.BatchV1Api
-CoreV1Api = kubernetes.client.api.CoreV1Api
-V1Job = kubernetes.client.models.V1Job
+if "kubernetes" not in sys.modules:
+    wandb.Error(
+        "Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`."
+    )
+
+import kubernetes  # type: ignore
+from kubernetes import client
+
 
 _logger = logging.getLogger(__name__)
 
@@ -51,13 +50,13 @@ _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 
 def _wait_for_completion(
-    batch_client: BatchV1Api,  # type: ignore
+    batch_client: client.BatchV1Api,
     job_name: str,
     deadline_secs: Optional[int] = None,
 ) -> bool:
     start_time = time.time()
     while True:
-        job = batch_client.read_namespaced_job_status(job_name, "wandb")  # type: ignore[attr-defined]
+        job = batch_client.read_namespaced_job_status(job_name, "wandb")
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
@@ -179,7 +178,7 @@ class KanikoBuilder(AbstractBuilder):
     def _create_docker_ecr_config_map(
         self,
         job_name: str,
-        corev1_client: CoreV1Api,  # type: ignore
+        corev1_client: client.CoreV1Api,
         repository: str,
     ) -> None:
         if self.registry is None:
@@ -200,13 +199,13 @@ class KanikoBuilder(AbstractBuilder):
             },
             immutable=True,
         )
-        corev1_client.create_namespaced_config_map("wandb", ecr_config_map)  # type: ignore[attr-defined]
+        corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
 
     def _delete_docker_ecr_config_map(
-        self, job_name: str, client: CoreV1Api  # type: ignore
+        self, job_name: str, client: client.CoreV1Api
     ) -> None:
         if self.secret_name:
-            client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")  # type: ignore[attr-defined]
+            client.delete_namespaced_config_map(f"docker-config-{job_name}", "wandb")
 
     def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
@@ -316,7 +315,7 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
-    ) -> V1Job:  # type: ignore
+    ) -> client.V1Job:
         env = []
         volume_mounts = []
         volumes = []
@@ -423,4 +422,4 @@ class KanikoBuilder(AbstractBuilder):
             ),
             spec=spec,
         )
-        return job  # type: ignore[no-any-return]
+        return job
