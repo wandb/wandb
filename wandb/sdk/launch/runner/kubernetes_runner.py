@@ -25,9 +25,9 @@ from ..utils import (
 from .abstract import AbstractRun, AbstractRunner, Status
 
 if "kubernetes" not in sys.modules:
-    wandb.Error(
-        "Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`."
-    )
+    msg = "Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`."
+    wandb.Error(msg)
+    raise ModuleNotFoundError(msg)
 from kubernetes import client  # type: ignore
 from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
