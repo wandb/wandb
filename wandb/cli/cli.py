@@ -1264,31 +1264,36 @@ def launch(
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
+            util.sentry_exc(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.error("=== %s ===", e)
+            util.sentry_exc(e)
             sys.exit(e)
     else:
-        _launch_add(
-            api,
-            uri,
-            job,
-            config,
-            project,
-            entity,
-            queue,
-            resource,
-            entry_point,
-            name,
-            git_version,
-            docker_image,
-            args_dict,
-            project_queue,
-            resource_args,
-            build=build,
-            run_id=run_id,
-            repository=repository,
-        )
+        try:
+            _launch_add(
+                api,
+                uri,
+                job,
+                config,
+                project,
+                entity,
+                queue,
+                resource,
+                entry_point,
+                name,
+                git_version,
+                docker_image,
+                args_dict,
+                project_queue,
+                resource_args,
+                build=build,
+                run_id=run_id,
+                repository=repository,
+            )
+        except Exception as e:
+            util.sentry_exc(e)
 
 
 @cli.command(
@@ -1375,7 +1380,11 @@ def launch_agent(
     check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
-    wandb_launch.create_and_run_agent(api, agent_config)
+    try:
+        wandb_launch.create_and_run_agent(api, agent_config)
+    except Exception as e:
+        util.sentry_exc(e)
+        
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
