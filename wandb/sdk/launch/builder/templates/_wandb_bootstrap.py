@@ -27,6 +27,7 @@ def install_deps(
     deps: List[str],
     failed: Optional[Set[str]] = None,
     extra_index: Optional[str] = None,
+    opts: List[str] = [],
 ) -> Optional[Set[str]]:
     """Install pip dependencies.
 
@@ -42,7 +43,7 @@ def install_deps(
         clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
         index_args = ["--extra-index-url", extra_index] if extra_index else []
         print("installing {}...".format(", ".join(clean_deps)))
-        args = ["pip", "install"] + OPTS + clean_deps + index_args
+        args = ["pip", "install"] + opts + clean_deps + index_args
         sys.stdout.flush()
         subprocess.check_output(args, stderr=subprocess.STDOUT)
         return failed
@@ -74,6 +75,7 @@ def install_deps(
 def main() -> None:
     """Install deps in requirements.frozen.txt."""
     extra_index = None
+    torch_reqs = []
     if os.path.exists("requirements.frozen.txt"):
         with open("requirements.frozen.txt") as f:
             print("Installing frozen dependencies...")
@@ -94,16 +96,18 @@ def main() -> None:
                             extra_index = (
                                 f"https://download.pytorch.org/whl/{variant[1:]}"
                             )
-                    reqs.append(req.strip().replace(" ", ""))
+                        torch_reqs.append(req.strip().replace(" ", ""))
+                    else:
+                        reqs.append(req.strip().replace(" ", ""))
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:
-                    deps_failed = install_deps(reqs, extra_index=extra_index)
+                    deps_failed = install_deps(reqs, opts=OPTS)
                     reqs = []
                     if deps_failed is not None:
                         failed = failed.union(deps_failed)
             if len(reqs) > 0:
-                deps_failed = install_deps(reqs, extra_index=extra_index)
+                deps_failed = install_deps(reqs, opts=OPTS)
                 if deps_failed is not None:
                     failed = failed.union(deps_failed)
             with open("_wandb_bootstrap_errors.json", "w") as f:
@@ -113,6 +117,7 @@ def main() -> None:
                     FAILED_PACKAGES_PREFIX + ",".join(failed) + FAILED_PACKAGES_POSTFIX
                 )
                 sys.stderr.flush()
+        install_deps(torch_reqs, extra_index=extra_index)
     else:
         print("No frozen requirements found")
 
