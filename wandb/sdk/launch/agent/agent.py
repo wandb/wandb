@@ -353,10 +353,11 @@ class LaunchAgent:
 
                             try:
                                 self.run_job(job)
-                            except Exception:
+                            except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
+                                util.sentry_exc(e)
                                 self.fail_run_queue_item(job["runQueueItemId"])
 
                 for thread_id in self.thread_ids:
@@ -397,14 +398,16 @@ class LaunchAgent:
         assert thread_id is not None
         try:
             self._thread_run_job(launch_spec, job, default_config, api, thread_id)
-        except LaunchDockerError:
+        except LaunchDockerError as e:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
             self.finish_thread_id(thread_id)
-        except Exception:
+            util.sentry_exc(e)
+        except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             self.finish_thread_id(thread_id)
+            util.sentry_exc(e)
 
     def _thread_run_job(
         self,
