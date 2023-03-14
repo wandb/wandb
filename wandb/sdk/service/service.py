@@ -4,6 +4,7 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 """
 import datetime
 import os
+import pathlib
 import platform
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb.errors import Error
-from wandb.util import sentry_reraise, sentry_set_scope
+from wandb.util import get_module, sentry_reraise, sentry_set_scope
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -165,20 +166,11 @@ class _Service:
 
             executable = self._settings._executable
             exec_cmd_list = [executable, "-m"]
-            exec_cmd_list = [
-                executable,
-                "-m",
-                "memray",
-                "run",
-                "-o",
-                f"service.{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.bin",
-                "/Users/dimaduev/dev/client/cli.py",
-            ]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
             service_args = [
-                # "wandb",
+                "wandb",
                 "service",
                 "--port-filename",
                 fname,
@@ -190,6 +182,41 @@ class _Service:
                 service_args.append("--serve-grpc")
             else:
                 service_args.append("--serve-sock")
+
+            if os.environ.get("WANDB_SERVICE_MEMORY_PROFILE"):
+                # enable memory profiling
+                import wandb
+
+                _ = get_module(
+                    "memray",
+                    required=(
+                        "wandb service memory profiling requires memray, "
+                        "install with `pip install memray`"
+                    ),
+                )
+                time_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                output_file = f"wandb_service.memray.{time_tag}.bin"
+                cli_executable = (
+                    pathlib.Path(__file__).parent.parent.parent.parent
+                    / "tools"
+                    / "cli.py"
+                )
+                exec_cmd_list = [
+                    executable,
+                    "-m",
+                    "memray",
+                    "run",
+                    "-o",
+                    output_file,
+                ]
+                service_args[0] = str(cli_executable)
+                wandb.termlog(
+                    f"wandb service memory profiling enabled, output file: {output_file}"
+                )
+                wandb.termlog(
+                    f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
+                )
+
             internal_proc = subprocess.Popen(
                 exec_cmd_list + service_args,
                 env=os.environ,
