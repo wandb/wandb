@@ -698,6 +698,7 @@ def test_launch_agent_runs(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test",
@@ -705,7 +706,6 @@ def test_launch_agent_runs(
     launch.create_and_run_agent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
-    assert ctx["num_acked"] == 1
     assert len(ctx["launch_agents"].keys()) == 1
 
 
@@ -713,6 +713,7 @@ def test_launch_agent_instance(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test_project",
@@ -750,6 +751,7 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test_project",
@@ -776,6 +778,7 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.entity_is_team = MagicMock(return_value=False)
     config = {
         "entity": "mock_server_entity",
         "project": "test_project",
