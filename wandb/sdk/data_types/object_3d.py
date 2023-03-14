@@ -263,7 +263,7 @@ class Object3D(BatchableMedia):
                 The shape of the numpy array must be one of either
                                 [[x y z],       ...] nx3
                                  [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                                 [x y z r g b], ...] nx4 where rgb is color
+                                 [x y z r g b], ...] nx6 where rgb is color
                 """
             )
 
