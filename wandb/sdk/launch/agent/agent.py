@@ -353,7 +353,7 @@ class LaunchAgent:
 
                             try:
                                 self.run_job(job)
-                            except Exception:
+                            except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
