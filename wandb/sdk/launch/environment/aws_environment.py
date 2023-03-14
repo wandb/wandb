@@ -70,6 +70,10 @@ class AwsEnvironment(AbstractEnvironment):
             session = boto3.Session()
             region = region or session.region_name
             credentials = session.get_credentials()
+            if not credentials:
+                raise LaunchError(
+                    "Could not create AWS environment from default environment. Please verify that your AWS credentials are configured correctly."
+                )
             access_key = credentials.access_key
             secret_key = credentials.secret_key
             session_token = credentials.token
