@@ -382,19 +382,17 @@ class HandleManager:
                 v[nk] = nv
         return v
 
-    def _update_summary(self, history_dict: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    def _update_summary(self, history_dict: Dict[str, Any]) -> List[str]:
         # keep old behavior fast path if no define metrics have been used
         if not self._metric_defines:
             history_dict = self._update_summary_media_objects(history_dict)
             self._consolidated_summary.update(history_dict)
-            return True, list(history_dict.keys())
-        updated = False
+            return list(history_dict.keys())
         updated_keys = []
         for k, v in history_dict.items():
             if self._update_summary_list(kl=[k], v=v):
-                updated = True
                 updated_keys.append(k)
-        return updated, updated_keys
+        return updated_keys
 
     def _history_assign_step(
         self,
@@ -508,8 +506,8 @@ class HandleManager:
         self._history_update(record.history, history_dict)
         self._dispatch_record(record)
         self._save_history(record.history)
-        updated, updated_keys = self._update_summary(history_dict)
-        if updated:
+        updated_keys = self._update_summary(history_dict)
+        if updated_keys:
             updated_items = {k: self._consolidated_summary[k] for k in updated_keys}
             self._save_summary(updated_items)
 
