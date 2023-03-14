@@ -67,7 +67,10 @@ def install_deps(
             return failed
         elif len(failed) > num_failed:
             return install_deps(
-                list(set(clean_deps) - failed), failed, extra_index=extra_index
+                list(set(clean_deps) - failed),
+                failed,
+                extra_index=extra_index,
+                opts=opts,
             )
         else:
             return failed
