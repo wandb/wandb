@@ -219,7 +219,9 @@ class RunStatusChecker:
                     return
                 set_handle(local_handle)
             try:
+                print("b4wait", local_handle)
                 result = local_handle.wait(timeout=timeout)
+                print("afterwait", local_handle, result)
             except MailboxError:
                 # background threads are oportunistically getting results
                 # from the internal process but the internal process could
