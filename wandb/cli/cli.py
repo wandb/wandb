@@ -1294,6 +1294,7 @@ def launch(
             )
         except Exception as e:
             util.sentry_exc(e)
+            raise e
 
 
 @cli.command(
@@ -1384,6 +1385,7 @@ def launch_agent(
         wandb_launch.create_and_run_agent(api, agent_config)
     except Exception as e:
         util.sentry_exc(e)
+        raise e
         
 
 
