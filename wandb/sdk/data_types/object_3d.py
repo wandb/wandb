@@ -226,8 +226,7 @@ class Object3D(BatchableMedia):
         data_or_path: Union["TextIO", str],
         file_type: Optional["FileFormat3D"] = None,
     ) -> "Object3D":
-        """
-        Initializes Object3D from a file or stream
+        """Initializes Object3D from a file or stream.
 
         Arguments:
             data_or_path (Union["TextIO", str]): A path to a file or a `TextIO` stream.
@@ -242,8 +241,7 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":
-        """
-        Initializes Object3D from a numpy array.
+        """Initializes Object3D from a numpy array.
 
         Arguments:
             data (numpy array): Each entry in the array will
@@ -280,8 +278,7 @@ class Object3D(BatchableMedia):
         point_cloud_type: "PointCloudType" = "lidar/beta",
         # camera: Optional[Camera] = None,
     ) -> "Object3D":
-        """
-        Initializes Object3D from a python object.
+        """Initializes Object3D from a python object.
 
         Arguments:
             points (Sequence["Point"]): The points in the point cloud.
