@@ -253,6 +253,7 @@ class Object3D(BatchableMedia):
         [[x y z],       ...] nx3
         [[x y z c],     ...] nx4 where c is a category with supported range [1, 14]
         [[x y z r g b], ...] nx6 where is rgb is color
+        ```
         """
         if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
@@ -260,7 +261,7 @@ class Object3D(BatchableMedia):
         if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
             raise ValueError(
                 """
-                The shape of the numpy array must be one of either
+                The shape of the numpy array must be one of either:
                                 [[x y z],       ...] nx3
                                  [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
                                  [x y z r g b], ...] nx6 where rgb is color
