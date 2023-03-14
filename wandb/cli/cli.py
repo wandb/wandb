@@ -1386,7 +1386,6 @@ def launch_agent(
     except Exception as e:
         util.sentry_exc(e)
         raise e
-        
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1444,13 +1443,16 @@ def scheduler(
             if str.isdigit(_args):
                 _args = int(_args)
             kwargs[_key] = _args
-
-    _scheduler = load_scheduler("sweep")(
-        api,
-        sweep_id=sweep_id,
-        **kwargs,
-    )
-    _scheduler.start()
+    try:
+        _scheduler = load_scheduler("sweep")(
+            api,
+            sweep_id=sweep_id,
+            **kwargs,
+        )
+        _scheduler.start()
+    except Exception as e:
+        util.sentry_exc(e)
+        raise e
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
