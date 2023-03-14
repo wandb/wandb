@@ -87,8 +87,6 @@ data:
     builder:
       type: kaniko
       build-context-store: s3://my-bucket/... # TODO: set your build context store here
-      secret-name: wandb-build-aws-credentials # TODO: set your secret name here
-      secret-key: credentials # TODO: set your secret key here, i.e. the key in the secret that contains your aws credentials file
 
 kind: ConfigMap
 metadata:

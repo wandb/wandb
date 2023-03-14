@@ -14,7 +14,7 @@ import wandb.sdk.interface as wandb_interface
 from wandb import util, wandb_sdk
 from wandb.sdk import wandb_artifacts
 from wandb.sdk.lib.hashutil import md5_string
-from wandb.sdk.wandb_artifacts import ArtifactNotLoggedError
+from wandb.sdk.wandb_artifacts import ArtifactFinalizedError, ArtifactNotLoggedError
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -194,7 +194,7 @@ def test_add_new_file():
 def test_add_after_finalize():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.finalize()
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(ArtifactFinalizedError) as e:
         artifact.add_file("file1.txt")
     assert "Can't add to finalized artifact" in str(e.value)
 

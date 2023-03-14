@@ -233,6 +233,8 @@ class RunStatusChecker:
 
             if result:
                 process(result)
+                # if request finished, clear the handle to send on the next interval
+                local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
             wait_time = max(self._stop_polling_interval - time_elapsed, 0)
@@ -2498,6 +2500,7 @@ class Run:
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
+    # TODO(kdg): remove all artifact swapping logic
     def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
         artifact_key_string = use_as or artifact_name
         replacement_artifact_info = self._launch_artifact_mapping.get(
@@ -2513,10 +2516,6 @@ class Run:
                 )
             return f"{entity}/{project}/{new_name}"
         elif replacement_artifact_info is None and use_as is None:
-            wandb.termwarn(
-                f"Could not find {artifact_name} in launch artifact mapping. "
-                f"Searching for unique artifacts with sequence name: {artifact_name}"
-            )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
             unique_artifact_replacement_info = (
                 self._unique_launch_artifact_sequence_names.get(sequence_name)
@@ -2532,14 +2531,8 @@ class Run:
                 return f"{entity}/{project}/{new_name}"
 
         else:
-            wandb.termwarn(
-                f"Could not find swappable artifact at key: {use_as}. Using {artifact_name}"
-            )
             return artifact_name
 
-        wandb.termwarn(
-            f"Could not find {artifact_key_string} in launch artifact mapping. Using {artifact_name}"
-        )
         return artifact_name
 
     def _detach(self) -> None:
