@@ -1,10 +1,8 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import logging
 import os
-import platform
 import re
 import subprocess
-import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
@@ -141,10 +139,6 @@ def set_project_entity_defaults(
         if launch_config:
             config_entity = launch_config.get("entity")
         entity = config_entity or api.default_entity
-    prefix = ""
-    if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
-        prefix = "🚀 "
-    wandb.termlog(f"{LOG_PREFIX}{prefix}Launching run into {entity}/{project}")
     return project, entity
 
 

@@ -15,6 +15,7 @@ from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
     LAUNCH_DEFAULT_PROJECT,
+    LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
     ExecutionError,
     LaunchError,
@@ -189,6 +190,7 @@ def _run(
     builder = loader.builder_from_config(build_config, environment, registry)
     backend = loader.runner_from_config(resource, api, runner_config, environment)
     if backend:
+        wandb.termlog(f"{LOG_PREFIX}Launching run into {entity}/{project}")
         submitted_run = backend.run(launch_project, builder)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config

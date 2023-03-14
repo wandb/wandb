@@ -190,6 +190,7 @@ def _launch_add(
         project_queue = LAUNCH_DEFAULT_PROJECT
 
     validate_launch_spec_source(launch_spec)
+    wandb.termlog(f"{LOG_PREFIX}Launching run into {entity}/{project}")
     res = push_to_queue(api, queue_name, launch_spec, project_queue)
 
     if res is None or "runQueueItemId" not in res:
