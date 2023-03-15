@@ -178,9 +178,10 @@ class OptunaScheduler(Scheduler):
             path = component_artifact.download()
 
             storage_files = os.listdir(path)
-            # TODO(gst): support multiple storage files?
-            if len(storage_files) > 0:
-                return f"artifacts/{component.name}:{component_artifact.version}/{component.value}"
+            if component.value in storage_files:
+                if path.startswith("./"):  # TODO(gst): robust way of handling this
+                    path = path[2:]
+                return f"{path}/{component.value}"
         except wandb.errors.CommError as e:
             raise SchedulerError(str(e))
         except Exception as e:
@@ -269,7 +270,7 @@ class OptunaScheduler(Scheduler):
             storage=f"sqlite:///{self._storage_path}",
             pruner=pruner,
             sampler=sampler,
-            load_if_exists=True,  # TODO(gst): verify this is correct functionality for existing_storage
+            load_if_exists=True,
             direction=direction,
         )
 
