@@ -148,15 +148,6 @@ class UploadBlockingMockApi(Mock):
             **kwargs,
         }
 
-        kwargs = {
-            **dict(
-                upload_urls=Mock(wraps=mock_upload_urls),
-                upload_file_retry=Mock(wraps=self._mock_upload),
-                upload_file_retry_async=Mock(wraps=self._mock_upload_async),
-            ),
-            **kwargs,
-        }
-
         super().__init__(
             *args,
             **kwargs,
