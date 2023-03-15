@@ -1,164 +1,23 @@
-from copy import deepcopy
-from typing import Any, Callable, Dict, List, Optional
-import pathlib
+"""
+Yolov8 integration for Weights & Biases
+"""
 from functools import partial
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import numpy as np
 import torch
-
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.engine.trainer import BaseTrainer
 from ultralytics.yolo.engine.validator import BaseValidator
 from ultralytics.yolo.utils import RANK
-from ultralytics.yolo.utils.ops import xywh2xyxy
 from ultralytics.yolo.utils.plotting import output_to_target
 from ultralytics.yolo.utils.torch_utils import get_flops, get_num_params
 from ultralytics.yolo.v8.classify.train import ClassificationTrainer
 from ultralytics.yolo.v8.detect import DetectionValidator
+from ultralytics.yolo.v8.segment import SegmentationValidator
 
 import wandb
+from wandb.integration.yolov8.utils import convert_to_wb_images
 from wandb.sdk.lib import telemetry
-
-
-def load_boxes_data(i, batch_idx, cls, bboxes, names, h, w):
-    boxes_data = []
-    idx = batch_idx == i
-    boxes = xywh2xyxy(bboxes[idx, :4]).T
-    classes = cls[idx].astype("int")
-    labels = bboxes.shape[1] == 4
-    conf = None if labels else bboxes[idx, 4]
-    if boxes.shape[1]:
-        if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
-            boxes[[0, 2]] *= w  # scale to pixels
-            boxes[[1, 3]] *= h
-    for j, box in enumerate(boxes.T.tolist()):
-        box_data = {
-            "position": dict(zip(("minX", "minY", "maxX", "maxY"), box)),
-            "domain": "pixel",
-        }
-        c = classes[j]
-        box_data["class_id"] = int(c)
-        box_data["box_caption"] = names[c] if names else str(c)
-        if conf is not None:
-            box_data["scores"] = {"conf": float(conf[j])}
-        boxes_data.append(box_data)
-    return boxes_data
-
-
-def convert_to_wb_images(
-    batch,
-    cls,
-    bboxes,
-    masks,
-    batch_idx,
-    names,
-):
-    images = batch["img"]
-    captions = batch["im_file"]
-    if isinstance(images, torch.Tensor):
-        images = images.cpu().float().numpy()
-    if isinstance(cls, torch.Tensor):
-        cls = cls.cpu().numpy()
-    if isinstance(bboxes, torch.Tensor):
-        bboxes = bboxes.cpu().numpy()
-    if isinstance(masks, torch.Tensor):
-        masks = masks.cpu().numpy().astype(int)
-    if isinstance(batch_idx, torch.Tensor):
-        batch_idx = batch_idx.cpu().numpy()
-
-    if np.max(images[0]) <= 1:
-        images *= 255  # de-normalise (optional)
-
-    out_images = []
-    class_set = wandb.Classes([{"name": v, "id": int(k)} for k, v in names.items()])
-
-    if np.max(images[0]) <= 1:
-        images *= 255  # de-normalise (optional)
-    bs, _, h, w = images.shape
-    scores_data = []
-    for i in range(len(images)):
-        if len(cls) > 0:
-            img = images[i].transpose(1, 2, 0)
-            image_kwargs = {
-                "data_or_path": img,
-                "caption": pathlib.Path(captions[i]).name,
-            }
-            prediction_boxes_data = load_boxes_data(
-                i, batch_idx, cls, bboxes, names, h, w
-            )
-            ground_truth_boxes_data = load_boxes_data(
-                i,
-                batch["batch_idx"].cpu().numpy(),
-                batch["cls"].squeeze(-1).cpu().numpy(),
-                batch["bboxes"].cpu().numpy(),
-                names,
-                h,
-                w,
-            )
-            image_kwargs["boxes"] = {
-                "predictions": {
-                    "box_data": prediction_boxes_data,
-                    "class_labels": names,
-                },
-                "ground_truth": {
-                    "box_data": ground_truth_boxes_data,
-                    "class_labels": names,
-                },
-            }
-            image_kwargs["classes"] = class_set
-            object_confidences = {}
-            for prediction_box in prediction_boxes_data:
-                object_confidences[
-                    prediction_box["box_caption"]
-                ] = object_confidences.get(prediction_box["box_caption"], []) + [
-                    prediction_box["scores"]["conf"]
-                ]
-            for key, value in object_confidences.items():
-                object_confidences[key] = sum(value) / len(value)
-            scores_data.append(object_confidences)
-            ground_truth_kwargs = deepcopy(image_kwargs)
-            ground_truth_kwargs["boxes"].pop("predictions")
-            image_kwargs["boxes"].pop("ground_truth")
-            out_images.append(
-                (
-                    wandb.Image(**ground_truth_kwargs),
-                    wandb.Image(**image_kwargs),
-                )
-            )
-    return (out_images, scores_data)
-
-
-def plot_detection_predictions(logger, validator, batch, preds, ni):
-    (batch_idx, cls, bboxes) = output_to_target(preds, max_det=15)
-    wb_images, scores = convert_to_wb_images(
-        batch=batch,
-        batch_idx=batch_idx,
-        cls=cls,
-        bboxes=bboxes,
-        masks=None,
-        names=validator.names,
-    )
-
-    objects = sorted(validator.names.values())
-    for item in scores:
-        for obj in objects:
-            if obj not in item:
-                item[obj] = 0.0
-    logger.run.log(
-        {
-            "detection_predictions": wandb.Table(
-                columns=["Ground Truth", "Prediction", *objects],
-                data=[
-                    [
-                        *im,
-                        *map(lambda x: x[1], sorted(score.items(), key=lambda x: x[0])),
-                    ]
-                    for im, score in zip(wb_images, scores)
-                ],
-            )
-        }
-    )
 
 
 class WandbCallback:
@@ -199,6 +58,8 @@ class WandbCallback:
         self.tags = tags
         self.resume = resume
         self.kwargs = kwargs
+        self.og_plot_predictions = None
+        self.validation_table = None
 
     def on_pretrain_routine_start(self, trainer: BaseTrainer) -> None:
         """Starts a new wandb run to track the training process and log to Weights & Biases.
@@ -335,17 +196,38 @@ class WandbCallback:
         self.run.finish()
         self.run = None
 
-    def on_val_start(self, validator: BaseValidator):
+    def on_val_start(
+        self,
+        validator: BaseValidator,
+    ) -> None:
+        """On validation start we create a wandb table to store the sample predictions
+        and patch the validator's `plot_predictions` method to plot the predictions to the wandb table .
+        """
+        class_names = sorted(validator.names.values())
+        self.validation_table = wandb.Table(
+            columns=["Batch", "Ground Truth", "Prediction", *class_names]
+        )
+
         if isinstance(validator, DetectionValidator):
             self.og_plot_predictions = validator.plot_predictions
             validator.plot_predictions = partial(
                 plot_detection_predictions, self, validator
             )
 
-    def on_val_end(self, validator: BaseValidator):
-        if self.og_plot_predictions:
+        if isinstance(validator, SegmentationValidator):
+            self.og_plot_predictions = validator.plot_predictions
+            validator.plot_predictions = partial(
+                plot_segmentation_predictions, self, validator
+            )
+
+    def on_val_end(self, validator: BaseValidator) -> None:
+        """On validation end we log the validation table and unpatch the validator's `plot_predictions` method."""
+        if isinstance(self.validation_table, wandb.Table):
+            self.run.log({"sample_predictions": self.validation_table})
+        if self.og_plot_predictions is not None:
             validator.plot_predictions = self.og_plot_predictions
             self.og_plot_predictions = None
+            self.validation_table = None
 
     @property
     def callbacks(
@@ -362,7 +244,82 @@ class WandbCallback:
             "on_model_save": self.on_model_save,
             "teardown": self.teardown,
             "on_val_start": self.on_val_start,
+            "on_val_end": self.on_val_end,
         }
+
+
+def add_images_to_validation_table(
+    logger: WandbCallback,
+    validator: BaseValidator,
+    images: List[Tuple[wandb.Image, wandb.Image]],
+    scores: List[Dict[str, float]],
+    batch_id: int,
+) -> None:
+    """
+    Utility to add a wandb.Image, predictions and scores to the validation table
+    """
+    objects = sorted(validator.names.values())
+    for item in scores:
+        for obj in objects:
+            if obj not in item:
+                item[obj] = 0.0
+    for im, score in zip(
+        images,
+        scores,
+    ):
+        logger.validation_table.add_data(
+            batch_id,
+            *im,
+            *map(lambda x: x[1], sorted(score.items(), key=lambda x: x[0])),
+        )
+
+
+def plot_detection_predictions(
+    logger: WandbCallback,
+    validator: BaseValidator,
+    batch: Dict[str, Any],
+    predictions: Any,
+    batch_id: int,
+) -> None:
+    """
+    Utility to plot predictions from the `DetectionValidator` to a wandb.Table
+    """
+    (batch_idx, cls, bboxes) = output_to_target(predictions, max_det=15)
+    wb_images, scores = convert_to_wb_images(
+        batch=batch,
+        batch_idx=batch_idx,
+        cls=cls,
+        bboxes=bboxes,
+        masks=None,
+        names=validator.names,
+    )
+
+    add_images_to_validation_table(logger, validator, wb_images, scores, batch_id)
+
+
+def plot_segmentation_predictions(
+    logger: WandbCallback,
+    validator: BaseValidator,
+    batch: Dict[str, Any],
+    predictions: Any,
+    ni: int,
+) -> None:
+    """
+    Utility to plot predictions from the `SegmentationValidator` to a wandb.Table
+    """
+    (batch_idx, cls, bboxes) = output_to_target(predictions[0], max_det=15)
+    wb_images, scores = convert_to_wb_images(
+        batch=batch,
+        batch_idx=batch_idx,
+        cls=cls,
+        bboxes=bboxes,
+        masks=torch.cat(validator.plot_masks, dim=0)
+        if len(validator.plot_masks)
+        else validator.plot_masks,
+        names=validator.names,
+    )
+    validator.plot_masks.clear()
+    add_images_to_validation_table(logger, validator, wb_images, scores, ni)
 
 
 def add_callbacks(
