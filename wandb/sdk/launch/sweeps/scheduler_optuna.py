@@ -3,6 +3,7 @@ import base64
 from collections import defaultdict
 from enum import Enum
 import logging
+from pprint import pformat
 import queue
 import socket
 import time
@@ -95,6 +96,21 @@ class OptunaScheduler(Scheduler):
             return self.study.study_name
 
         return f"optuna-study-{self._sweep_id}"
+
+    @property
+    def trials_pretty(self) -> str:
+        trials = {}
+        for trial in self.study.trials:
+            i = trial.number + 1
+            vals = list(trial.intermediate_values.values())
+            if len(vals) > 0:
+                best = max(vals) if self.study.direction == "maximize" else min(vals)
+                trials[
+                    f"trial-{i}"
+                ] = f"total: {len(vals)}, best: {round(best, 5)}, last: {round(vals[-1], 5)}"
+            else:
+                trials[f"trial-{i}"] = "total: 0, best: None, last: None"
+        return pformat(trials)
 
     def _validate_optuna_study(self, study: optuna.Study) -> Optional[str]:
         """
@@ -189,22 +205,6 @@ class OptunaScheduler(Scheduler):
 
         return None
 
-    def _save_optuna_component(
-        self, component: OptunaComponents, filename: str
-    ) -> bool:
-        """
-        Saves an optuna component as an artifact
-        """
-        artifact = wandb.Artifact(component.name, type="optuna")
-        artifact.add_file(filename)
-        self._wandb_run.log_artifact(artifact)
-        wandb.termlog(
-            f"{LOG_PREFIX}Saved component to run: {self._wandb_run.id} "
-            f"in artifact: {filename}"
-        )
-
-        return True
-
     def _load_optuna(self) -> None:
         """
         If our run was resumed, attempt to resture optuna artifacts from run state
@@ -276,7 +276,8 @@ class OptunaScheduler(Scheduler):
 
         if existing_storage:
             wandb.termlog(
-                f"{LOG_PREFIX}Loaded ({len(self.study.trials)}) prior runs from storage: {existing_storage}"
+                f"{LOG_PREFIX}Loaded ({len(self.study.trials)}) prior runs from storage: "
+                f"{existing_storage}:\n {self.trials_pretty}"
             )
 
     def _load_state(self) -> None:
@@ -291,13 +292,14 @@ class OptunaScheduler(Scheduler):
         Called when Scheduler class invokes exit()
 
         Save optuna study sqlite data to an artifact in the controller run
-
-        TODO(gst): extend this to the other objects? study? pruner? sampler?
         """
-        self._save_optuna_component(
-            OptunaComponents.storage,
-            self._storage_path,
-        )
+        artifact = wandb.Artifact(OptunaComponents.storage.name, type="optuna")
+        artifact.add_file(self._storage_path)
+        self._wandb_run.log_artifact(artifact)
+
+        wandb.termlog(f"{LOG_PREFIX}Saved study with trials:\n{self.trials_pretty}")
+
+        return True
 
     def _start(self) -> None:
         """
@@ -441,7 +443,6 @@ class OptunaScheduler(Scheduler):
 
         # run hasn't started or is complete
         if orun.num_metrics == 0:  # hasn't started yet
-            # TODO(gst): differentiate this case from a crashed run
             logger.debug(f"Run ({orun.sweep_run.id}) completed but logged no metrics!")
             return False
         else:  # run is complete
@@ -452,6 +453,9 @@ class OptunaScheduler(Scheduler):
                 trial=orun.trial,
                 state=optuna.trial.TrialState.COMPLETE,
                 values=last_value,
+            )
+            wandb.termlog(
+                f"{LOG_PREFIX}Completing trail with num-metrics: {orun.num_metrics}"
             )
 
         return True
@@ -464,15 +468,6 @@ class OptunaScheduler(Scheduler):
         """
         # TODO(gst): make threadsafe?
         wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
-
-        print(
-            "trials:",
-            [
-                (f"trial: {i}", f"num metrics: {len(x.intermediate_values.keys())}")
-                for i, x in enumerate(self.study.trials)
-            ],
-        )
-
         to_kill = []
         for run_id, orun in self._optuna_runs.items():
             run_finished = self._poll_run(orun)
