@@ -138,8 +138,6 @@ class VertexRunner(AbstractRunner):
                 entry_point,
             )
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
         # TODO: how to handle this?
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 

@@ -267,7 +267,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     assert len(_scheduler._runs) == 1
     assert isinstance(_scheduler._runs["foo_run"].queued_run, public.QueuedRun)
     assert _scheduler._runs["foo_run"].state == RunState.DEAD
-    assert _scheduler._runs["foo_run"].queued_run.args()[-3] == _project
+    assert _scheduler._runs["foo_run"].queued_run.args()[-2] == _project
 
     _project_queue = "test-project-queue"
     _scheduler2 = Scheduler(
@@ -279,7 +279,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         job=_job,
     )
     _scheduler2.start()
-    assert _scheduler2._runs["foo_run"].queued_run.args()[-3] == _project_queue
+    assert _scheduler2._runs["foo_run"].queued_run.args()[-2] == _project_queue
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
