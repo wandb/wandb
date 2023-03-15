@@ -1,3 +1,6 @@
 keras-cv
 pycocotools
 mmengine
+diffusers
+trl
+git+https://github.com/CarperAI/trlx
