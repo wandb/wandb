@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import wandb
-from wandb.keras import WandbEvalCallback
+from wandb.keras import WandbTablesBuilderCallback
 
 tf.keras.utils.set_random_seed(1234)
 
@@ -26,7 +26,7 @@ model.compile(
 )
 
 
-class WandbClfEvalCallback(WandbEvalCallback):
+class WandbClfEvalCallback(WandbTablesBuilderCallback):
     def __init__(
         self, validation_data, data_table_columns, pred_table_columns, num_samples=100
     ):
