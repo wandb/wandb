@@ -77,6 +77,7 @@ class Scheduler(ABC):
         project: Optional[str] = None,
         project_queue: Optional[str] = None,
         num_workers: int = 2,
+        *args: Optional[Any],
         **kwargs: Optional[Any],
     ):
         self._api = api
@@ -119,11 +120,11 @@ class Scheduler(ABC):
         self._workers: Dict[int, _Worker] = {}
         self._num_workers: int = num_workers
 
-        # Scheduler controller run
-        self._wandb_run: SdkRun = self._init_wandb_run(self._kwargs.get("sweep_type"))
-
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
+
+        # Scheduler controller run
+        self._wandb_run: SdkRun = self._init_wandb_run()
 
     @abstractmethod
     def _start(self) -> None:
@@ -155,12 +156,19 @@ class Scheduler(ABC):
         _logger.debug(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
         self._state = value
 
-    def _init_wandb_run(self, name: Optional[str] = "sweep") -> SdkRun:
+    def _init_wandb_run(self) -> SdkRun:
         """
         Controls resume or init logic for a scheduler wandb run
         """
         if self._kwargs.get("run_id"):  # resume
-            return wandb.init(run_id=self._kwargs["run_id"], resume="must")
+            # return wandb.init(
+            #     project=self._project,
+            #     id=self._kwargs["run_id"],
+            #     resume="must"
+            # )
+            return wandb.init(resume=self._kwargs["run_id"])
+
+        name = self._kwargs.get("sweep_type")
 
         return wandb.init(name=f"{name}-scheduler-{self._sweep_id}")
 

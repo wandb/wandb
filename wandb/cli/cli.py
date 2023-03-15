@@ -714,6 +714,12 @@ def sync(
     help="Specify sweeps launch project",
 )
 @click.argument("config_yaml_or_sweep_id")
+@click.option(
+    "--run_id",
+    "-rid",
+    default=None,
+    help="Run id of launch scheduler run.",
+)
 @display_error
 def sweep(
     ctx,
@@ -733,6 +739,7 @@ def sweep(
     config_yaml_or_sweep_id,
     queue,
     project_queue,
+    run_id,
 ):
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -941,6 +948,9 @@ def sweep(
             "--sweep_type",
             _type,
         ]
+
+        if run_id:
+            scheduler_entrypoint += ["--run_id", run_id]
 
         if _job:
             if ":" not in _job:
@@ -1448,7 +1458,7 @@ def scheduler(
             kwargs[_key] = _args
     try:
         sweep_type = kwargs.get("sweep_type", "sweep")
-        _scheduler = load_scheduler(sweep_type)(
+        _scheduler = load_scheduler(scheduler_type=sweep_type)(
             api,
             sweep_id=sweep_id,
             **kwargs,
