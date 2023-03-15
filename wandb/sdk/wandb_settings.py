@@ -235,7 +235,7 @@ class Property:
         "show_errors",
         "base_url",
         "login_timeout",
-        "async_upload_concurrency_limit",
+        "_async_upload_concurrency_limit",
     }
 
     def __init__(  # pylint: disable=unused-argument
@@ -383,6 +383,7 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
     _config_dict: Config
@@ -519,7 +520,6 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
-    async_upload_concurrency_limit: Optional[int]
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -528,6 +528,10 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _async_upload_concurrency_limit={
+                "preprocessor": int,
+                "validator": self._validate__async_upload_concurrency_limit,
+            },
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_service={
                 "value": False,
@@ -748,10 +752,6 @@ class Settings:
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
-            },
-            async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate_async_upload_concurrency_limit,
             },
             timespec={
                 "hook": (
@@ -1006,12 +1006,9 @@ class Settings:
         return True
 
     @staticmethod
-    def _validate_async_upload_concurrency_limit(value: int) -> bool:
-        if not isinstance(value, int):
-            raise UsageError("async_upload_concurrency_limit must be an int")
-
+    def _validate__async_upload_concurrency_limit(value: int) -> bool:
         if value <= 0:
-            raise UsageError("async_upload_concurrency_limit must be positive")
+            raise UsageError("_async_upload_concurrency_limit must be positive")
 
         try:
             import resource  # not always available on Windows
@@ -1026,10 +1023,10 @@ class Settings:
             if value > file_limit:
                 wandb.termwarn(
                     (
-                        "async_upload_concurrency_limit setting of"
+                        "_async_upload_concurrency_limit setting of"
                         f" {value} exceeds this process's limit"
                         f" on open files ({file_limit}); may cause file-upload failures."
-                        " Try decreasing async_upload_concurrency_limit,"
+                        " Try decreasing _async_upload_concurrency_limit,"
                         " or increasing your file limit with `ulimit -n`."
                     ),
                     repeat=False,

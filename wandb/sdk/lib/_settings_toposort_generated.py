@@ -12,6 +12,7 @@ else:
 
 _Setting = Literal[
     "_args",
+    "_async_upload_concurrency_limit",
     "_cli_only_mode",
     "_colab",
     "_config_dict",
@@ -147,16 +148,15 @@ _Setting = Literal[
     "tmp_dir",
     "username",
     "wandb_dir",
-    "async_upload_concurrency_limit",
 ]
 
 SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
+    "_async_upload_concurrency_limit",
     "_service_wait",
     "_stats_sample_rate_seconds",
     "_stats_samples_to_average",
     "anonymous",
     "api_key",
-    "async_upload_concurrency_limit",
     "base_url",
     "console",
     "mode",
