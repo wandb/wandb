@@ -1,14 +1,13 @@
 import abc
 from typing import Any, Dict, List, Optional
 
-import tensorflow as tf
 from tensorflow.keras.callbacks import Callback  # type: ignore
 
 import wandb
 from wandb.sdk.lib import telemetry
 
 
-class WandbTablesBuilderCallback(tf.keras.callbacks.Callback, abc.ABC):
+class WandbTablesBuilderCallback(Callback, abc.ABC):
     """Abstract base class to build Keras callbacks for model prediction visualization.
 
     You can build callbacks for visualizing model predictions `on_epoch_end`
