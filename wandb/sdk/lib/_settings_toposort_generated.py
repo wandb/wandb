@@ -148,7 +148,6 @@ _Setting = Literal[
     "tmp_dir",
     "username",
     "wandb_dir",
-    "async_upload_concurrency_limit",
 ]
 
 SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
@@ -158,7 +157,6 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "_stats_samples_to_average",
     "anonymous",
     "api_key",
-    "async_upload_concurrency_limit",
     "base_url",
     "console",
     "mode",

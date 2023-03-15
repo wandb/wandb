@@ -520,7 +520,6 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
-    async_upload_concurrency_limit: Optional[int]
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -753,10 +752,6 @@ class Settings:
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
-            },
-            async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate_async_upload_concurrency_limit,
             },
             timespec={
                 "hook": (

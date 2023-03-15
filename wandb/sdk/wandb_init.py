@@ -649,7 +649,7 @@ class _WandbInit:
             if self.settings.launch:
                 tel.feature.launch = True
 
-            if self.settings.async_upload_concurrency_limit:
+            if self.settings._async_upload_concurrency_limit:
                 tel.feature.async_uploads = True
 
             for module_name in telemetry.list_telemetry_imports(only_imported=True):
