@@ -27,6 +27,14 @@ class WandbTablesBuilderCallback(tf.keras.callbacks.Callback, abc.ABC):
         Check out the example below to see how it's done.
     - Log the tables to W&B as W&B Artifacts.
     - Each new `pred_table` is logged as a new version with aliases.
+    - After training, the table artifacts corresponding to each epoch can be
+        compiled into a single table using the weave query:
+        ```
+        project().artifact("table-artifact-name").versions.file("eval_data.table.json")
+        ```
+    - There is also an optional in-memory mode enabled using the flag `in_memory`
+        that enables us to log a single table at the end of training directly to the
+        W&B dashboard with epoch-wise visualization of samples.
 
     Example:
         ```
@@ -35,11 +43,13 @@ class WandbTablesBuilderCallback(tf.keras.callbacks.Callback, abc.ABC):
                 self,
                 validation_data,
                 data_table_columns,
-                pred_table_columns
+                pred_table_columns,
+                in_memory
             ):
                 super().__init__(
                     data_table_columns,
-                    pred_table_columns
+                    pred_table_columns,
+                    in_memory
                 )
 
                 self.x = validation_data[0]
@@ -58,15 +68,14 @@ class WandbTablesBuilderCallback(tf.keras.callbacks.Callback, abc.ABC):
                 preds = tf.argmax(preds, axis=-1)
 
                 data_table_ref = self.data_table_ref
-                table_idxs = data_table_ref.get_index()
 
-                for idx in table_idxs:
+                for idx, (image, label) in enumerate(zip(self.x, self.y)):
                     pred = preds[idx]
                     self.pred_table.add_data(
                         epoch,
-                        data_table_ref.data[idx][0],
-                        data_table_ref.data[idx][1],
-                        data_table_ref.data[idx][2],
+                        data_table_ref.data[idx][0] if not self.in_memory else idx,
+                        data_table_ref.data[idx][1] if not self.in_memory else wandb.Image(image),
+                        data_table_ref.data[idx][2] if not self.in_memory else label,
                         pred
                     )
 
