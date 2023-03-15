@@ -8,12 +8,12 @@ __all__ = (
     "WandbCallback",
     "WandbMetricsLogger",
     "WandbModelCheckpoint",
-    "WandbEvalCallback",
+    "WandbTablesBuilderCallback",
 )
 
 from wandb.integration.keras import (
     WandbCallback,
-    WandbEvalCallback,
+    WandbTablesBuilderCallback,
     WandbMetricsLogger,
     WandbModelCheckpoint,
 )

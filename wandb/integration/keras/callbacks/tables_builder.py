@@ -1,13 +1,14 @@
 import abc
 from typing import Any, Dict, List, Optional
 
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback  # type: ignore
 
 import wandb
 from wandb.sdk.lib import telemetry
 
 
-class WandbEvalCallback(Callback, abc.ABC):
+class WandbTablesBuilderCallback(tf.keras.callbacks.Callback, abc.ABC):
     """Abstract base class to build Keras callbacks for model prediction visualization.
 
     You can build callbacks for visualizing model predictions `on_epoch_end`
@@ -29,7 +30,7 @@ class WandbEvalCallback(Callback, abc.ABC):
 
     Example:
         ```
-        class WandbClfEvalCallback(WandbEvalCallback):
+        class WandbClfEvalCallback(WandbTablesBuilderCallback):
             def __init__(
                 self,
                 validation_data,
@@ -92,6 +93,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self,
         data_table_columns: List[str],
         pred_table_columns: List[str],
+        in_memory: Optional[bool] = False,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -107,14 +109,16 @@ class WandbEvalCallback(Callback, abc.ABC):
 
         self.data_table_columns = data_table_columns
         self.pred_table_columns = pred_table_columns
+        self.in_memory = in_memory
 
     def on_train_begin(self, logs: Optional[Dict[str, float]] = None) -> None:
-        # Initialize the data_table
-        self.init_data_table(column_names=self.data_table_columns)
-        # Log the ground truth data
-        self.add_ground_truth(logs)
-        # Log the data_table as W&B Artifacts
-        self.log_data_table()
+        if not self.in_memory:
+            # Initialize the data_table
+            self.init_data_table(column_names=self.data_table_columns)
+            # Log the ground truth data
+            self.add_ground_truth(logs)
+            # Log the data_table as W&B Artifacts
+            self.log_data_table()
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, float]] = None) -> None:
         # Initialize the pred_table
@@ -124,7 +128,10 @@ class WandbEvalCallback(Callback, abc.ABC):
         # Log the pred_table as W&B Artifacts
         self.log_pred_table()
 
-    @abc.abstractmethod
+    def on_train_end(self, logs=None):
+        if self.in_memory:
+            wandb.log({"Evaluation-Table": self.pred_table})
+
     def add_ground_truth(self, logs: Optional[Dict[str, float]] = None) -> None:
         """Add ground truth data to `data_table`.
 
@@ -141,7 +148,8 @@ class WandbEvalCallback(Callback, abc.ABC):
             ```
         This method is called once `on_train_begin` or equivalent hook.
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.add_ground_truth")
+        if not self.in_memory:
+            raise NotImplementedError(f"{self.__class__.__name__}.add_ground_truth")
 
     @abc.abstractmethod
     def add_model_predictions(
@@ -236,6 +244,7 @@ class WandbEvalCallback(Callback, abc.ABC):
             aliases (List[str]): List of aliases for the prediction table.
         """
         assert wandb.run is not None
-        pred_artifact = wandb.Artifact(f"run_{wandb.run.id}_pred", type=type)
-        pred_artifact.add(self.pred_table, table_name)
-        wandb.run.log_artifact(pred_artifact, aliases=aliases or ["latest"])
+        if not self.in_memory:
+            pred_artifact = wandb.Artifact(f"run_{wandb.run.id}_pred", type=type)
+            pred_artifact.add(self.pred_table, table_name)
+            wandb.run.log_artifact(pred_artifact, aliases=aliases or ["latest"])
