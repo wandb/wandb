@@ -711,15 +711,17 @@ def sync(
 @click.option(
     "--project-queue",
     default=LAUNCH_DEFAULT_PROJECT,
+    hidden=True,
     help="Specify sweeps launch project",
 )
-@click.argument("config_yaml_or_sweep_id")
 @click.option(
-    "--run_id",
-    "-rid",
+    "--resume-sweep-id",
+    "-rs",
     default=None,
-    help="Run id of launch scheduler run.",
+    hidden=True,
+    help="Temp hack to resume a launch sweep.",
 )
+@click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
     ctx,
@@ -739,7 +741,7 @@ def sweep(
     config_yaml_or_sweep_id,
     queue,
     project_queue,
-    run_id,
+    resume_sweep_id,
 ):
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -949,62 +951,70 @@ def sweep(
             _type,
         ]
 
-        if run_id:
-            scheduler_entrypoint += ["--run_id", run_id]
+        if resume_sweep_id:
+            scheduler_entrypoint[2] = resume_sweep_id
+            scheduler_entrypoint += ["--resumed", "True"]
 
         if _job:
             if ":" not in _job:
                 wandb.termwarn("No alias specified for job, defaulting to 'latest'")
                 _job += ":latest"
 
-            scheduler_entrypoint += [
-                "--job",
-                _job,
-            ]
+            scheduler_entrypoint += ["--job", _job]
         elif _image_uri:
             scheduler_entrypoint += ["--image_uri", _image_uri]
 
         # Launch job spec for the Scheduler
-        _launch_scheduler_spec = json.dumps(
-            {
-                "queue": queue,
-                "run_queue_project": project_queue,
-                "run_spec": json.dumps(
-                    construct_launch_spec(
-                        uri=SCHEDULER_URI,
-                        job=None,
-                        api=api,
-                        name="Scheduler.WANDB_SWEEP_ID",
-                        project=project,
-                        entity=entity,
-                        docker_image=scheduler_config.get("docker_image"),
-                        resource=scheduler_config.get("resource", "local-process"),
-                        entry_point=scheduler_entrypoint,
-                        version=None,
-                        parameters=None,
-                        resource_args=scheduler_config.get("resource_args", {}),
-                        launch_config=None,
-                        run_id=None,
-                        repository=launch_config.get("registry", {}).get("url", None),
-                    )
-                ),
-            }
+        launch_spec = construct_launch_spec(
+            uri=SCHEDULER_URI,
+            job=None,
+            api=api,
+            name="Scheduler.WANDB_SWEEP_ID",
+            project=project,
+            entity=entity,
+            docker_image=scheduler_config.get("docker_image"),
+            resource=scheduler_config.get("resource", "local-process"),
+            entry_point=scheduler_entrypoint,
+            version=None,
+            parameters=None,
+            resource_args=scheduler_config.get("resource_args", {}),
+            launch_config=None,
+            run_id=None,
+            repository=launch_config.get("registry", {}).get("url", None),
         )
+        _launch_scheduler_spec = {
+            "queue": queue,
+            "run_queue_project": project_queue,
+            "run_spec": json.dumps(launch_spec),
+        }
 
-    sweep_id, warnings = api.upsert_sweep(
-        config,
-        project=project,
-        entity=entity,
-        obj_id=sweep_obj_id,
-        launch_scheduler=_launch_scheduler_spec,
-    )
-    util.handle_sweep_config_violations(warnings)
-
-    wandb.termlog(
-        "{} sweep with ID: {}".format(
-            "Updated" if sweep_obj_id else "Created", click.style(sweep_id, fg="yellow")
+    if resume_sweep_id and _launch_scheduler_spec:
+        # TODO(gst): align these names, how is every single one wrong??
+        api.push_to_run_queue(
+            queue_name=queue,
+            launch_spec=launch_spec,
+            project_queue=project_queue,
         )
-    )
+        sweep_id = resume_sweep_id
+        wandb.termlog(
+            f"Pushing sweep scheduler for sweep: {sweep_id} to queue: {queue}"
+        )
+    else:
+        sweep_id, warnings = api.upsert_sweep(
+            config,
+            project=project,
+            entity=entity,
+            obj_id=sweep_obj_id,
+            launch_scheduler=json.dumps(_launch_scheduler_spec),
+        )
+        util.handle_sweep_config_violations(warnings)
+
+        wandb.termlog(
+            "{} sweep with ID: {}".format(
+                "Updated" if sweep_obj_id else "Created",
+                click.style(sweep_id, fg="yellow"),
+            )
+        )
 
     sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
@@ -1175,6 +1185,7 @@ def sweep(
     "--project-queue",
     "-pq",
     default=None,
+    hidden=True,
     help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
 )
 @display_error

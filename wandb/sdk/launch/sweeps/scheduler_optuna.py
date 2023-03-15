@@ -84,9 +84,17 @@ class OptunaScheduler(Scheduler):
         self._polling_sleep = 2  # seconds
 
         # Optuna
-        self.study: optuna.study.Study = None
+        self.study: Optional[optuna.study.Study] = None
+        self._storage_path: Optional[str] = None
         self._trial_func = self._make_trial
         self._optuna_runs: Dict[str, _OptunaRun] = {}
+
+    @property
+    def study_name(self):
+        if self.study:
+            return self.study.study_name
+
+        return f"optuna-study-{self._sweep_id}"
 
     def _validate_optuna_study(self, study: optuna.Study) -> Optional[str]:
         """
@@ -160,23 +168,25 @@ class OptunaScheduler(Scheduler):
         sampler = mod.sampler() if mod.sampler else None
         return None, pruner, sampler
 
-    def _get_and_download_artifact(
-        self, component: OptunaComponents
-    ) -> Optional[Artifact]:
+    def _get_and_download_artifact(self, component: OptunaComponents) -> Optional[str]:
         """
         Finds and downloads an artifact, returns name of downloaded artifact
         """
-        # TODO(gst): type these so they can be actually used in load_study
         try:
-            artifact_name = f"{self._entity}/{self._project}/{component.value}:latest"
+            artifact_name = f"{self._entity}/{self._project}/{component.name}:latest"
             component_artifact: Artifact = self._wandb_run.use_artifact(artifact_name)
             path = component_artifact.download()
+
+            storage_files = os.listdir(path)
+            # TODO(gst): support multiple storage files?
+            if len(storage_files) > 0:
+                return f"artifacts/{component.name}:{component_artifact.version}/{component.value}"
         except wandb.errors.CommError as e:
             raise SchedulerError(str(e))
         except Exception as e:
             raise SchedulerError(str(e))
 
-        return path
+        return None
 
     def _save_optuna_component(
         self, component: OptunaComponents, filename: str
@@ -184,8 +194,7 @@ class OptunaScheduler(Scheduler):
         """
         Saves an optuna component as an artifact
         """
-        # artifact_name = f"{self._entity}/{self._project}/{self._wandb_run.id}/{component.name}"
-        artifact = wandb.Artifact(component.value, type=component.name)
+        artifact = wandb.Artifact(component.name, type="optuna")
         artifact.add_file(filename)
         self._wandb_run.log_artifact(artifact)
         wandb.termlog(
@@ -209,12 +218,12 @@ class OptunaScheduler(Scheduler):
         else:
             study, pruner, sampler = None, None, None
 
-        storage = None
-        if self._wandb_run.resumed:
-            storage = self._get_and_download_artifact(OptunaComponents.storage)
+        existing_storage = None
+        if self._wandb_run.resumed or self._kwargs.get("resumed"):
+            existing_storage = self._get_and_download_artifact(OptunaComponents.storage)
 
         if study:  # study supercedes pruner and sampler
-            if storage:
+            if existing_storage:
                 wandb.termwarn("Resuming state w/ user-provided study is unsupported")
 
             self.study = study
@@ -242,18 +251,11 @@ class OptunaScheduler(Scheduler):
             wandb.termlog(f"{LOG_PREFIX}No sampler args, using Optuna defaults")
 
         direction = self._sweep_config.get("metric", {}).get("goal")
-        study_name = f"optuna-study-{self._sweep_id}"
-
-        if storage:  # resumed
-            storage_files = os.listdir(storage)
-            if len(storage_files) == 0:
-                raise SchedulerError(f"{storage} not found in current context.")
-
-            storage_name = f"sqlite:///{storage_files[0]}"
-        else:
-            storage_name = f"sqlite:///{study_name}.db"
-
-        _create_msg = f"{LOG_PREFIX}{'Creating' if not storage else 'Loading'} optuna study: {study_name} [storage:'{storage_name}'"
+        _create_msg = f"{LOG_PREFIX} {'Loading' if existing_storage else 'Creating'}"
+        self._storage_path = existing_storage or OptunaComponents.storage.value
+        _create_msg += (
+            f" optuna study: {self.study_name} [storage:'{self._storage_path}'"
+        )
         if direction:
             _create_msg += f", direction:'{direction}'"
         if pruner:
@@ -263,13 +265,18 @@ class OptunaScheduler(Scheduler):
 
         wandb.termlog(f"{_create_msg}]")
         self.study = optuna.create_study(
-            study_name=study_name,
-            storage=storage_name,
+            study_name=self.study_name,
+            storage=f"sqlite:///{self._storage_path}",
             pruner=pruner,
             sampler=sampler,
-            load_if_exists=True,  # TODO(gst): verify this is correct functionality
+            load_if_exists=True,  # TODO(gst): verify this is correct functionality for existing_storage
             direction=direction,
         )
+
+        if existing_storage:
+            wandb.termlog(
+                f"{LOG_PREFIX}Loaded ({len(self.study.trials)}) prior runs from storage: {existing_storage}"
+            )
 
     def _load_state(self) -> None:
         """
@@ -287,7 +294,8 @@ class OptunaScheduler(Scheduler):
         TODO(gst): extend this to the other objects? study? pruner? sampler?
         """
         self._save_optuna_component(
-            OptunaComponents.storage, f"{self.study.study_name}.db"
+            OptunaComponents.storage,
+            self._storage_path,
         )
 
     def _start(self) -> None:
@@ -436,12 +444,13 @@ class OptunaScheduler(Scheduler):
             logger.debug(f"Run ({orun.sweep_run.id}) completed but logged no metrics!")
             return False
         else:  # run is complete
+            last_value = orun.trial._cached_frozen_trial.intermediate_values[
+                orun.num_metrics - 1
+            ]
             self.study.tell(
                 trial=orun.trial,
                 state=optuna.trial.TrialState.COMPLETE,
-                values=orun.trial._cached_frozen_trial.intermediate_values[
-                    orun.num_metrics - 1
-                ],
+                values=last_value,
             )
 
         return True

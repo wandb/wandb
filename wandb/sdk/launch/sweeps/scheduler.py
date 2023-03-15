@@ -161,16 +161,11 @@ class Scheduler(ABC):
         Controls resume or init logic for a scheduler wandb run
         """
         if self._kwargs.get("run_id"):  # resume
-            # return wandb.init(
-            #     project=self._project,
-            #     id=self._kwargs["run_id"],
-            #     resume="must"
-            # )
             return wandb.init(resume=self._kwargs["run_id"])
 
         name = self._kwargs.get("sweep_type")
 
-        return wandb.init(name=f"{name}-scheduler-{self._sweep_id}")
+        return wandb.init(name=f"{name}-scheduler-{self._sweep_id}", resume="allow")
 
     def is_alive(self) -> bool:
         if self.state in [
@@ -296,11 +291,7 @@ class Scheduler(ABC):
             ).decode("utf-8")
 
             # TODO(gst): improve performance here
-            success = self._api.stop_run(
-                run_id=encoded_run_id,
-            )
-
-            wandb.termlog(f"----- success: {success}")
+            success = self._api.stop_run(run_id=encoded_run_id)
             if success:
                 wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
             else:
