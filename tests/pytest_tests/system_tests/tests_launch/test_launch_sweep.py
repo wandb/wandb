@@ -87,7 +87,6 @@ def test_sweeps_on_launch(
                         None,  # parameters,
                         None,  # resource_args,
                         None,  # launch_config,
-                        None,  # cuda,
                         None,  # run_id,
                         None,  # repository
                     )
@@ -183,7 +182,6 @@ def test_launch_agent_scheduler(
                     None,  # parameters,
                     None,  # resource_args,
                     None,  # launch_config,
-                    None,  # cuda,
                     None,  # run_id,
                     None,  # repository
                 )

@@ -235,6 +235,7 @@ class Api:
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
         self.query_types: Optional[List[str]] = None
+        self.mutation_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
@@ -439,10 +440,13 @@ class Api:
         return project, run
 
     @normalize_exceptions
-    def server_info_introspection(self) -> Tuple[List[str], List[str]]:
+    def server_info_introspection(self) -> Tuple[List[str], List[str], List[str]]:
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+                MutationType: __type(name: "Mutation") {
                    ...fieldData
                 }
                ServerInfoType: __type(name: "ServerInfo") {
@@ -456,7 +460,11 @@ class Api:
                 }
             }
         """
-        if self.query_types is None or self.server_info_types is None:
+        if (
+            self.query_types is None
+            or self.mutation_types is None
+            or self.server_info_types is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
 
@@ -464,11 +472,15 @@ class Api:
                 field.get("name", "")
                 for field in res.get("QueryType", {}).get("fields", [{}])
             ]
+            self.mutation_types = [
+                field.get("name", "")
+                for field in res.get("MutationType", {}).get("fields", [{}])
+            ]
             self.server_info_types = [
                 field.get("name", "")
                 for field in res.get("ServerInfoType", {}).get("fields", [{}])
             ]
-        return self.query_types, self.server_info_types
+        return self.query_types, self.server_info_types, self.mutation_types
 
     @normalize_exceptions
     def server_settings_introspection(self) -> None:
@@ -536,6 +548,35 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
+    def fail_run_queue_item_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "failRunQueueItem" in mutations
+
+    @normalize_exceptions
+    def fail_run_queue_item(self, run_queue_item_id: str) -> bool:
+        mutation = gql(
+            """
+        mutation failRunQueueItem($runQueueItemId: ID!) {
+            failRunQueueItem(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                }
+            ) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "runQueueItemId": run_queue_item_id,
+            },
+        )
+        result: bool = response["failRunQueueItem"]["success"]
+        return result
+
+    @normalize_exceptions
     def viewer(self) -> Dict[str, Any]:
         query = gql(
             """
@@ -563,7 +604,7 @@ class Api:
         if self._max_cli_version is not None:
             return self._max_cli_version
 
-        query_types, server_info_types = self.server_info_introspection()
+        query_types, server_info_types, _ = self.server_info_introspection()
         cli_version_exists = (
             "serverInfo" in query_types and "cliVersionInfo" in server_info_types
         )
@@ -609,7 +650,7 @@ class Api:
             _CLI_QUERY_
         }
         """
-        query_types, server_info_types = self.server_info_introspection()
+        query_types, server_info_types, _ = self.server_info_introspection()
 
         cli_version_exists = (
             "serverInfo" in query_types and "cliVersionInfo" in server_info_types
@@ -1036,6 +1077,32 @@ class Api:
         return result
 
     @normalize_exceptions
+    def entity_is_team(self, entity: str) -> bool:
+        query = gql(
+            """
+            query EntityIsTeam($entity: String!) {
+                entity(name: $entity) {
+                    id
+                    isTeam
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+        }
+
+        res = self.gql(query, variable_values)
+        if res.get("entity") is None:
+            raise Exception(
+                f"Error fetching entity {entity} "
+                "check that you have access to this entity"
+            )
+
+        is_team: bool = res["entity"]["isTeam"]
+        return is_team
+
+    @normalize_exceptions
     def get_project_run_queues(self, entity: str, project: str) -> List[Dict[str, str]]:
         query = gql(
             """
@@ -1058,10 +1125,19 @@ class Api:
 
         res = self.gql(query, variable_values)
         if res.get("project") is None:
-            raise Exception(
-                f"Error fetching run queues for {entity}/{project} "
-                "check that you have access to this entity and project"
-            )
+            # circular dependency: (LAUNCH_DEFAULT_PROJECT = model-registry)
+            if project == "model-registry":
+                msg = (
+                    f"Error fetching run queues for {entity} "
+                    "check that you have access to this entity and project"
+                )
+            else:
+                msg = (
+                    f"Error fetching run queues for {entity}/{project} "
+                    "check that you have access to this entity and project"
+                )
+
+            raise Exception(msg)
 
         project_run_queues: List[Dict[str, str]] = res["project"]["runQueues"]
         return project_run_queues

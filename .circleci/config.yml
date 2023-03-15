@@ -79,7 +79,7 @@ parameters:
     default: true
   nightly_execute_imports:
     type: boolean
-    default: true
+    default: false
   nightly_execute_regression:
     type: boolean
     default: true
