@@ -148,3 +148,15 @@ class SweepScheduler(Scheduler):
 
     def _exit(self) -> None:
         pass
+
+    def _save_state(self) -> None:
+        """
+        This sweep scheduler is currently stateless, might consider saving some
+        metrics to store in the scheduler run.
+
+        TODO(gst): add metrics on launched runs in scheduler
+        """
+        pass
+
+    def _load_state(self) -> None:
+        pass

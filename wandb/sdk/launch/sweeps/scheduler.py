@@ -19,6 +19,7 @@ from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.wandb_run import Run as SdkRun
 from wandb.wandb_agent import Agent
 
 _logger = logging.getLogger(__name__)
@@ -71,11 +72,11 @@ class Scheduler(ABC):
     def __init__(
         self,
         api: Api,
-        *args: Optional[Any],
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
         project_queue: Optional[str] = None,
+        num_workers: int = 2,
         **kwargs: Optional[Any],
     ):
         self._api = api
@@ -116,6 +117,10 @@ class Scheduler(ABC):
         # (emulating a real agent) and add new runs to the launch queue. The
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
+        self._num_workers: int = num_workers
+
+        # Scheduler controller run
+        self._wandb_run: SdkRun = self._init_wandb_run(self._kwargs.get("sweep_type"))
 
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
@@ -132,6 +137,14 @@ class Scheduler(ABC):
     def _exit(self) -> None:
         pass
 
+    @abstractmethod
+    def _save_state(self) -> None:
+        pass
+
+    @abstractmethod
+    def _load_state(self) -> None:
+        pass
+
     @property
     def state(self) -> SchedulerState:
         _logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
@@ -141,6 +154,15 @@ class Scheduler(ABC):
     def state(self, value: SchedulerState) -> None:
         _logger.debug(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
         self._state = value
+
+    def _init_wandb_run(self, name: Optional[str] = "sweep") -> SdkRun:
+        """
+        Controls resume or init logic for a scheduler wandb run
+        """
+        if self._kwargs.get("run_id"):  # resume
+            return wandb.init(run_id=self._kwargs["run_id"], resume="must")
+
+        return wandb.init(name=f"{name}-scheduler-{self._sweep_id}")
 
     def is_alive(self) -> bool:
         if self.state in [
@@ -164,11 +186,10 @@ class Scheduler(ABC):
 
         self._state = SchedulerState.STARTING
         if not self._try_load_executable():
-            wandb.termerror(
-                f"{LOG_PREFIX}No 'job' or 'image_uri' loaded from sweep config."
-            )
             self.exit()
             return
+
+        self._load_state()
         self._start()
         self.run()
 
@@ -210,6 +231,8 @@ class Scheduler(ABC):
             SchedulerState.STOPPED,
         ]:
             self.state = SchedulerState.FAILED
+
+        self._save_state()
         self._stop_runs()
 
     def _try_load_executable(self) -> bool:
@@ -264,14 +287,10 @@ class Scheduler(ABC):
                 f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
             ).decode("utf-8")
 
+            # TODO(gst): improve performance here
             success = self._api.stop_run(
                 run_id=encoded_run_id,
             )
-
-            # success = self._api.update_run_state(
-            #     id=encoded_run_id,
-            #     state="finished",
-            # )
 
             wandb.termlog(f"----- success: {success}")
             if success:

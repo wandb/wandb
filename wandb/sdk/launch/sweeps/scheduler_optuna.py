@@ -25,7 +25,6 @@ from wandb.sdk.launch.sweeps.scheduler import (
 from wandb.wandb_agent import _create_sweep_command_args
 
 from wandb.apis.public import Artifact, QueuedRun
-from wandb.sdk.wandb_run import Run as SdkRun
 from wandb.apis.public import Run
 
 logger = logging.getLogger(__name__)
@@ -76,33 +75,16 @@ def _get_module(
 class OptunaScheduler(Scheduler):
     def __init__(
         self,
-        *args: Any,
-        num_workers: int = 2,
         **kwargs: Any,
     ):
-        super().__init__(*args, **kwargs)
-        self._workers: Dict[int, _Worker] = {}
-        self._num_workers: int = num_workers  # TODO refactor out to Scheduler
+        super().__init__(**kwargs)
         self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
-
         self._polling_sleep = 2  # seconds
-
-        # Scheduler controller run
-        self._wandb_run: SdkRun = self._init_wandb_run()
 
         # Optuna
         self.study: optuna.study.Study = None
         self._trial_func = self._make_trial
         self._optuna_runs: Dict[str, _OptunaRun] = {}
-
-    def _init_wandb_run(self) -> SdkRun:
-        """
-        Controls resume or init logic for a scheduler wandb run
-        """
-        if self._kwargs.get("run_id"):  # resume
-            return wandb.init(run_id=self._kwargs["run_id"], resume="must")
-
-        return wandb.init(name=f"optuna-scheduler-{self._sweep_id}")
 
     def _validate_optuna_study(self, study: optuna.Study) -> Optional[str]:
         """
@@ -278,14 +260,17 @@ class OptunaScheduler(Scheduler):
             direction=direction,
         )
 
-    def _load_scheduler_state(self) -> None:
+    def _load_state(self) -> None:
         """
+        Called when Scheduler class invokes start()
         Load optuna study sqlite data from an artifact in controller run
         """
-        raise NotImplementedError
+        self._load_optuna()
 
-    def _save_scheduler_state(self) -> None:
+    def _save_state(self) -> None:
         """
+        Called when Scheduler class invokes exit()
+
         Save optuna study sqlite data to an artifact in the controller run
 
         TODO(gst): extend this to the other objects? study? pruner? sampler?
@@ -299,13 +284,10 @@ class OptunaScheduler(Scheduler):
             f"in artifact: {scheduler_artifact.name}"
         )
 
-        # TODO(gst): consider wandb.save() and wandb.restore() for state storage
-
     def _start(self) -> None:
         """
         Load optuna state, then register workers as agents
         """
-        self._load_optuna()
         for worker_id in range(self._num_workers):
             wandb.termlog(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}")
             agent_config = self._api.register_agent(
@@ -402,7 +384,7 @@ class OptunaScheduler(Scheduler):
                 return []
 
             # TODO(gst): just noop here
-            queued_run.wait_until_running()
+            # queued_run.wait_until_running()
 
         try:
             api_run: Run = self._public_api.run(self._runs[run_id].full_name)
@@ -412,7 +394,6 @@ class OptunaScheduler(Scheduler):
 
         metric_name = self._sweep_config["metric"]["name"]
 
-        # TODO(gst): cache these values
         # TODO(gst): make this more robust to typos --> warn if None? Scan for likely other metrics?
         # TODO(gst): how do we get metrics for already finished runs?
         history = api_run.scan_history(keys=["_step", metric_name])
@@ -593,7 +574,7 @@ class OptunaScheduler(Scheduler):
         if type_ == "RandomSampler":
             return optuna.samplers.RandomSampler(seed=sampler_args.get("seed"))
 
-        raise SchedulerError(f"Pruner: {type_} not yet supported.")
+        raise SchedulerError(f"Sampler: {type_} not yet supported.")
 
     def _exit(self) -> None:
         pass
