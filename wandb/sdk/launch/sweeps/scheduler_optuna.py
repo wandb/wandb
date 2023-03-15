@@ -82,8 +82,10 @@ class OptunaScheduler(Scheduler):
     ):
         super().__init__(*args, **kwargs)
         self._workers: Dict[int, _Worker] = {}
-        self._num_workers: num_workers
+        self._num_workers: int = num_workers  # TODO refactor out to Scheduler
         self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
+
+        self._polling_sleep = 2  # seconds
 
         # Scheduler controller run
         self._wandb_run: SdkRun = self._init_wandb_run()
@@ -223,6 +225,8 @@ class OptunaScheduler(Scheduler):
             )
         elif self._wandb_run.resumed:
             study, pruner, sampler = self._load_optuna_from_wandb_run()
+        else:
+            study, pruner, sampler = None, None, None
 
         if study:  # study supercedes pruner and sampler
             self.study = study
@@ -303,7 +307,7 @@ class OptunaScheduler(Scheduler):
         """
         self._load_optuna()
         for worker_id in range(self._num_workers):
-            wandb.termlog(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
+            wandb.termlog(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}")
             agent_config = self._api.register_agent(
                 f"{socket.gethostname()}-{worker_id}",  # host
                 sweep_id=self._sweep_id,
@@ -366,8 +370,12 @@ class OptunaScheduler(Scheduler):
         try:
             srun: SweepRun = self._job_queue.get(timeout=self._queue_timeout)
         except queue.Empty:
-            wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
-            time.sleep(self._queue_sleep)
+            if len(self._runs) == 0:
+                wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
+                time.sleep(self._queue_sleep)
+            else:
+                # wait on actively running runs
+                time.sleep(self._polling_sleep)
             return
 
         # If run is already stopped just ignore the request
@@ -391,7 +399,7 @@ class OptunaScheduler(Scheduler):
         if run_id in self._runs:
             queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
             if not queued_run or queued_run.state == "pending":
-                return [], False
+                return []
 
             # TODO(gst): just noop here
             queued_run.wait_until_running()
@@ -400,29 +408,56 @@ class OptunaScheduler(Scheduler):
             api_run: Run = self._public_api.run(self._runs[run_id].full_name)
         except Exception as e:
             logger.debug(f"Failed to poll run from public api with error: {str(e)}")
-            return [], True
+            return []
 
         metric_name = self._sweep_config["metric"]["name"]
+
+        # TODO(gst): cache these values
+        # TODO(gst): make this more robust to typos --> warn if None? Scan for likely other metrics?
+        # TODO(gst): how do we get metrics for already finished runs?
         history = api_run.scan_history(keys=["_step", metric_name])
         metrics = [x[metric_name] for x in history]
 
-        return metrics, api_run.state == "finished"
+        return metrics
 
     def _poll_run(self, orun: _OptunaRun) -> bool:
         """
         Polls metrics for a run, returns true if finished
         """
-        metrics, run_finished = self._get_run_history(orun.sweep_run.id)
+        metrics = self._get_run_history(orun.sweep_run.id)
         for i, metric in enumerate(metrics[orun.num_metrics :]):
             logger.debug(f"{orun.sweep_run.id} (step:{i+orun.num_metrics}) {metrics}")
-            orun.trial.report(metric, orun.num_metrics + i)
-            orun.num_metrics = len(metrics)
+            # check if already logged
+            if (
+                orun.num_metrics + i
+                not in orun.trial._cached_frozen_trial.intermediate_values
+            ):
+                orun.trial.report(metric, orun.num_metrics + i)
 
             if orun.trial.should_prune():
                 wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {orun.sweep_run.id}")
                 self.study.tell(orun.trial, state=optuna.trial.TrialState.PRUNED)
                 return True
-        return run_finished
+
+        if len(metrics) != 0:
+            orun.num_metrics = len(metrics)
+            return False
+
+        # run hasn't started or is complete
+        if orun.num_metrics == 0:  # hasn't started yet
+            # TODO(gst): differentiate this case from a crashed run
+            logger.debug(f"Run ({orun.sweep_run.id}) completed but logged no metrics!")
+            return False
+        else:  # run is complete
+            self.study.tell(
+                trial=orun.trial,
+                state=optuna.trial.TrialState.COMPLETE,
+                values=orun.trial._cached_frozen_trial.intermediate_values[
+                    orun.num_metrics - 1
+                ],
+            )
+
+        return True
 
     def _poll_running_runs(self) -> List[str]:
         """
@@ -432,15 +467,23 @@ class OptunaScheduler(Scheduler):
         """
         # TODO(gst): make threadsafe?
         wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
+
+        print(
+            "trials:",
+            [
+                (f"trial: {i}", f"num metrics: {len(x.intermediate_values.keys())}")
+                for i, x in enumerate(self.study.trials)
+            ],
+        )
+
         to_kill = []
         for run_id, orun in self._optuna_runs.items():
             run_finished = self._poll_run(orun)
-
-            if run_finished:  # Does this ever happen?
-                self.study.tell(orun.trial, state=optuna.trial.TrialState.COMPLETE)
+            if run_finished:
                 wandb.termlog(f"{LOG_PREFIX}Run: {run_id} finished.")
                 logger.debug(f"Finished run, study state: {self.study.trials}")
                 to_kill += [run_id]
+
         return to_kill
 
     def _make_trial(self) -> Tuple[Dict[str, Any], optuna.Trial]:

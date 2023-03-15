@@ -89,6 +89,12 @@ class Api:
             project, id=id, description=description, entity=entity
         )
 
+    def upsert_run(self, *args, **kwargs):
+        return self.api.upsert_run(*args, **kwargs)
+
+    def update_run_state(self, *args, **kwargs):
+        return self.api.update_run_state(*args, **kwargs)
+
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)
 

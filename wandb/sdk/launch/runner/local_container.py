@@ -105,9 +105,9 @@ class LocalContainerRunner(AbstractRunner):
             and sys.platform == "darwin"
         ):
             _, _, port = self._api.settings("base_url").split(":")
-            env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
+            env_vars["WANDB_BASE_URL"] = f"http://localhost:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
-            env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
+            env_vars["WANDB_BASE_URL"] = "http://localhost:9002"
 
         if launch_project.docker_image:
             # user has provided their own docker image

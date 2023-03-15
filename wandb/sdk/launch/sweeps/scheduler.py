@@ -60,9 +60,9 @@ class SweepRun:
 
     @property
     def full_name(self) -> Optional[str]:
-        qr = self.queued_run.queued_run
+        qr = self.queued_run
         if qr:
-            return f"{qr.entity}/{qr.project}/{qr.id}"
+            return f"{qr.entity}/{qr.project}/{qr._run_id}"
 
 
 class Scheduler(ABC):
@@ -109,7 +109,7 @@ class Scheduler(ABC):
         self._threading_lock: threading.Lock = threading.Lock()
         self._project_queue = project_queue
         # Queue args
-        self._queue_sleep = 1.0
+        self._queue_sleep = 5.0
         self._queue_timeout = 1.0
         # Optionally run multiple workers in (pseudo-)parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages
@@ -188,12 +188,14 @@ class Scheduler(ABC):
                         wandb.termlog(f"{LOG_PREFIX}Done polling on runs, exiting.")
                         self.state = SchedulerState.STOPPED
         except KeyboardInterrupt:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
+            wandb.termwarn(
+                f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting."
+            )
             self.state = SchedulerState.STOPPED
             self.exit()
             return
         except Exception as e:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler failed with exception {e}")
+            wandb.termerror(f"{LOG_PREFIX}Scheduler failed with exception {e}")
             self.state = SchedulerState.FAILED
             self.exit()
             raise e
@@ -239,7 +241,11 @@ class Scheduler(ABC):
             yield from self._runs.items()
 
     def _stop_runs(self) -> None:
+        to_delete = []
         for run_id, _ in self._yield_runs():
+            to_delete += [run_id]
+
+        for run_id in to_delete:
             wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
             self._stop_run(run_id)
 
@@ -258,10 +264,15 @@ class Scheduler(ABC):
                 f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
             ).decode("utf-8")
 
-            success = self._api.upsert_run(
-                id=encoded_run_id,
-                state="finished",
+            success = self._api.stop_run(
+                run_id=encoded_run_id,
             )
+
+            # success = self._api.update_run_state(
+            #     id=encoded_run_id,
+            #     state="finished",
+            # )
+
             wandb.termlog(f"----- success: {success}")
             if success:
                 wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
@@ -316,7 +327,7 @@ class Scheduler(ABC):
         with self._threading_lock:
             for run_id in _runs_to_remove:
                 wandb.termlog(f"{LOG_PREFIX}Cleaning up dead run {run_id}.")
-                self._stop_run(run_id)
+                del self._runs[run_id]
 
     def _add_to_launch_queue(
         self,

@@ -3254,6 +3254,10 @@ class Api:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
 
+    def update_run_state(self, run_id, state) -> None:
+        # TODO(gst): this is probbaly the most extendible way of managing run state
+        return False
+
     def stop_run(
         self,
         run_id,
