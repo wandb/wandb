@@ -9,6 +9,7 @@ __all__ = (
     "WandbMetricsLogger",
     "WandbModelCheckpoint",
     "WandbEvalCallback",
+    "load_model_from_artifact",
 )
 
 from wandb.integration.keras import (
@@ -16,4 +17,5 @@ from wandb.integration.keras import (
     WandbEvalCallback,
     WandbMetricsLogger,
     WandbModelCheckpoint,
+    load_model_from_artifact,
 )

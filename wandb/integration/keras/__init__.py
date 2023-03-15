@@ -7,7 +7,9 @@ __all__ = (
     "WandbMetricsLogger",
     "WandbModelCheckpoint",
     "WandbEvalCallback",
+    "load_model_from_artifact",
 )
 
 from .callbacks import WandbEvalCallback, WandbMetricsLogger, WandbModelCheckpoint
 from .keras import WandbCallback  # todo: legacy callback to be deprecated
+from .utils import load_model_from_artifact
