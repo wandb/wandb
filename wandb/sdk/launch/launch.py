@@ -218,10 +218,9 @@ def run(
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
 ) -> AbstractRun:
-    """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
+    """Run a W&B launch experiment.
 
     Arguments:
-    uri: URI of experiment to run. A wandb run uri or a Git repository URI.
     job: string reference to a wandb.Job eg: wandb/test/my-job:latest
     api: An instance of a wandb Api from wandb.apis.internal.
     entry_point: Entry point to run within the project. Defaults to using the entry point used
@@ -249,12 +248,12 @@ def run(
 
     Example:
         import wandb
-        project_uri = "https://github.com/wandb/examples"
+        job = "wandb/test-job/my-job:latest"
         params = {"alpha": 0.5, "l1_ratio": 0.01}
         # Run W&B project and create a reproducible docker environment
         # on a local host
         api = wandb.apis.internal.Api()
-        wandb.launch(project_uri, api, parameters=params)
+        wandb.launch(api, job=job, parameters=params)
 
 
     Returns:

@@ -1032,9 +1032,7 @@ def sweep(
 
 
 @cli.command(
-    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
-    "or a git uri pointing to a remote repository, or path to a local directory.",
+    help=f"Launch or queue a job from a job (Experimental). See the guide: {wburls.get('launch_guide')}",
 )
 @click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
@@ -1184,15 +1182,10 @@ def launch(
     repository,
     project_queue,
 ):
-    """Start a W&B run from the given URI.
+    f"""Start a W&B run from the given W&B Job. To learn more about launch see the guide: {wburls.get('launch_guide')}
 
-    The URI can bea wandb URI, a GitHub repo uri, or a local path). In the case of a
-    wandb URI the arguments used in the original run will be used by default. These
-    arguments can be overridden using the args option, or specifying those arguments in
-    the config's 'overrides' key, 'args' field as a list of strings.
-
-    Running `wandb launch [URI]` will launch the run directly. To add the run to a
-    queue, run `wandb launch [URI] --queue [optional queuename]`.
+    Running `wandb launch -j <entity>/<project>/<job>:<alias>` will launch the job directly.
+    To add the job to a queue, run `wandb launch -j <job> --queue [optional queuename]`.
     """
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="

@@ -51,7 +51,6 @@ def launch_add(
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
     Arguments:
-    uri: URI of experiment to run. A wandb run uri or a Git repository URI.
     job: string reference to a wandb.Job eg: wandb/test/my-job:latest
     config: A dictionary containing the configuration for the run. May also contain
         resource specific arguments under the key "resource_args"
@@ -80,12 +79,12 @@ def launch_add(
 
     Example:
         import wandb
-        project_uri = "https://github.com/wandb/examples"
+        job = "wandb/test-job/my-job:latest"
         params = {"alpha": 0.5, "l1_ratio": 0.01}
         # Run W&B project and create a reproducible docker environment
         # on a local host
         api = wandb.apis.internal.Api()
-        wandb.launch_add(uri=project_uri, parameters=params)
+        wandb.launch_add(job=job, parameters=params)
 
 
     Returns:

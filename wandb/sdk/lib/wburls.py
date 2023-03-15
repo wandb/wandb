@@ -33,6 +33,8 @@ class WBURLs:
             multiprocess="http://wandb.me/init-multiprocess",
             wandb_init="https://wandb.me/wandb-init",
             wandb_server="https://wandb.me/wandb-server",
+            launch_guide="https://docs.wandb.ai/guides/launch",
+            launch_jobs_guide="https://docs.wandb.ai/guides/launch/launch-jobs",
         )
 
     def get(self, s: "URLS") -> str:
