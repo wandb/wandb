@@ -21,11 +21,11 @@ def teardown():
 
 
 @pytest.mark.parametrize("num_files", [10, 100, 1_000, 10_000])
-@pytest.mark.parametrize("async_upload_concurrency_limit", [None, 200])
+@pytest.mark.parametrize("_async_upload_concurrency_limit", [None, 200])
 def test_benchmark_upload_artifact(
     tmp_path: pathlib.Path,
     benchmark,
-    async_upload_concurrency_limit: Optional[int],
+    _async_upload_concurrency_limit: Optional[int],
     num_files: int,
 ):
     data_dir = tmp_path / "data"
@@ -38,7 +38,9 @@ def test_benchmark_upload_artifact(
 
     with patch.dict(os.environ, {"WANDB_CACHE_DIR": str(tmp_path / "cache")}):
         with wandb.init(
-            settings={"async_upload_concurrency_limit": async_upload_concurrency_limit},
+            settings={
+                "_async_upload_concurrency_limit": _async_upload_concurrency_limit
+            },
         ) as run:
             artifact = wandb.Artifact("benchmark", "benchmark")
             artifact.add_dir(data_dir)

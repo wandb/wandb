@@ -17,7 +17,6 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def test_add_table_from_dataframe(wandb_init):
-
     import pandas as pd
 
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
@@ -56,7 +55,6 @@ def test_add_table_from_dataframe(wandb_init):
 
 
 def test_artifact_error_for_invalid_aliases(wandb_init):
-
     run = wandb_init()
     artifact = wandb.Artifact("test-artifact", "dataset")
     error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
@@ -75,7 +73,6 @@ def test_artifact_error_for_invalid_aliases(wandb_init):
 
 
 def test_artifact_upsert_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -92,7 +89,6 @@ def test_artifact_upsert_no_id(wandb_init):
 
 
 def test_artifact_upsert_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -109,7 +105,6 @@ def test_artifact_upsert_group_id(wandb_init):
 
 
 def test_artifact_upsert_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -126,7 +121,6 @@ def test_artifact_upsert_distributed_id(wandb_init):
 
 
 def test_artifact_finish_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -141,7 +135,6 @@ def test_artifact_finish_no_id(wandb_init):
 
 
 def test_artifact_finish_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -156,7 +149,6 @@ def test_artifact_finish_group_id(wandb_init):
 
 
 def test_artifact_finish_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -229,7 +221,6 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
 
 def test_local_references(wandb_init):
-
     run = wandb_init()
 
     def make_table():
@@ -275,14 +266,14 @@ def test_artifact_wait_failure(wandb_init, timeout):
 @pytest.mark.skip(
     reason="often makes tests time out on CI (despite only taking 3x10 seconds locally)"
 )
-@pytest.mark.parametrize("async_upload_concurrency_limit", [None, 1, 10])
+@pytest.mark.parametrize("_async_upload_concurrency_limit", [None, 1, 10])
 def test_artifact_upload_succeeds_with_async(
     wandb_init: Callable[..., Run],
-    async_upload_concurrency_limit: Optional[int],
+    _async_upload_concurrency_limit: Optional[int],
     tmp_path: Path,
 ):
     with wandb_init(
-        settings=dict(async_upload_concurrency_limit=async_upload_concurrency_limit)
+        settings=dict(_async_upload_concurrency_limit=_async_upload_concurrency_limit)
     ) as run:
         artifact = wandb.Artifact("art", type="dataset")
         (tmp_path / "my-file.txt").write_text("my contents")

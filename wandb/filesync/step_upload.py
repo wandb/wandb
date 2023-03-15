@@ -82,7 +82,6 @@ class AsyncExecutor:
         pool: concurrent.futures.ThreadPoolExecutor,
         concurrency_limit: Optional[int],
     ) -> None:
-
         self.loop = asyncio.new_event_loop()
         self.loop.set_default_executor(pool)
         self.loop_thread = threading.Thread(
@@ -142,9 +141,9 @@ class StepUpload:
         self._async_executor = (
             AsyncExecutor(
                 pool=self._pool,
-                concurrency_limit=settings.async_upload_concurrency_limit,
+                concurrency_limit=settings._async_upload_concurrency_limit,
             )
-            if settings is not None and settings.async_upload_concurrency_limit
+            if settings is not None and settings._async_upload_concurrency_limit
             else None
         )
 
