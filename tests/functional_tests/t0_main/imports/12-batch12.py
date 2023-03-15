@@ -36,11 +36,11 @@ assert:
     - 85 # trlx
 """
 
+import diffusers  # noqa: F401
 import keras_cv  # noqa: F401
 import mmengine  # noqa: F401
-import diffusers # noqa: F401
-import trl # noqa: F401
-import trlx # noqa: F401
+import trl  # noqa: F401
+import trlx  # noqa: F401
 import wandb
 
 run = wandb.init()
