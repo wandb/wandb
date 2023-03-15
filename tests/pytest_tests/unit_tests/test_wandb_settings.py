@@ -873,7 +873,7 @@ def test_log_internal(test_settings):
 class TestAsyncUploadConcurrency:
     def test_default_is_none(self, test_settings):
         settings = test_settings()
-        assert settings.async_upload_concurrency_limit is None
+        assert settings._async_upload_concurrency_limit is None
 
     @pytest.mark.parametrize(
         ["value", "ok"],
@@ -890,11 +890,11 @@ class TestAsyncUploadConcurrency:
     )
     def test_err_iff_bad_value(self, value: Optional[int], ok: bool, test_settings):
         if ok:
-            settings = test_settings({"async_upload_concurrency_limit": value})
-            assert settings.async_upload_concurrency_limit == value
+            settings = test_settings({"_async_upload_concurrency_limit": value})
+            assert settings._async_upload_concurrency_limit == value
         else:
             with pytest.raises((UsageError, ValueError)):
-                test_settings({"async_upload_concurrency_limit": value})
+                test_settings({"_async_upload_concurrency_limit": value})
 
     @pytest.mark.parametrize(
         ["value", "warn"], [(None, False), (1, False), (9999999, True)]
@@ -908,7 +908,7 @@ class TestAsyncUploadConcurrency:
         warn: bool,
     ):
         pytest.importorskip("resource")
-        test_settings({"async_upload_concurrency_limit": value})
+        test_settings({"_async_upload_concurrency_limit": value})
 
         if warn:
             termwarn.assert_called_once()

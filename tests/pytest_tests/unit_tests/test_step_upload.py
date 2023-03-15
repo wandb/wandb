@@ -80,7 +80,6 @@ def make_step_upload(
 
 
 def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
-
     if "save_fn" in kwargs:
         # We want a lot of tests to run against both sync and async
         # upload implementations. For convenience, we let tests
@@ -128,7 +127,7 @@ def make_api(**kwargs: Any) -> Mock:
 
 def make_async_settings(concurrency_limit: Optional[int]) -> SettingsStatic:
     return SettingsStatic(
-        Settings(async_upload_concurrency_limit=concurrency_limit).make_static()
+        Settings(_async_upload_concurrency_limit=concurrency_limit).make_static()
     )
 
 
@@ -140,6 +139,14 @@ def finish_and_wait(command_queue: queue.Queue):
 
 class UploadBlockingMockApi(Mock):
     def __init__(self, *args, **kwargs):
+        kwargs = {
+            **dict(
+                upload_urls=Mock(wraps=mock_upload_urls),
+                upload_file_retry=Mock(wraps=self._mock_upload),
+                upload_file_retry_async=Mock(wraps=self._mock_upload_async),
+            ),
+            **kwargs,
+        }
 
         kwargs = {
             **dict(
@@ -358,7 +365,6 @@ class TestUpload:
         copied: bool,
         async_settings: SettingsStatic,
     ):
-
         f = make_tmp_file(tmp_path)
 
         api = UploadBlockingMockApi()
@@ -676,7 +682,7 @@ class TestUpload:
             settings=async_settings,
         )
 
-        if async_settings.async_upload_concurrency_limit:
+        if async_settings._async_upload_concurrency_limit:
             save_fn_async.assert_called_once()
             save_fn_sync.assert_not_called()
         else:
