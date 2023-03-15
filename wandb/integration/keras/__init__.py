@@ -9,5 +9,9 @@ __all__ = (
     "WandbTablesBuilderCallback",
 )
 
-from .callbacks import WandbTablesBuilderCallback, WandbMetricsLogger, WandbModelCheckpoint
+from .callbacks import (
+    WandbTablesBuilderCallback,
+    WandbMetricsLogger,
+    WandbModelCheckpoint,
+)
 from .keras import WandbCallback  # todo: legacy callback to be deprecated
