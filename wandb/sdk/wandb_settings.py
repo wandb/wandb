@@ -695,6 +695,9 @@ class Settings:
                 "preprocessor": lambda x: str(x),
                 "value": os.path.abspath(os.getcwd()),
             },
+            run_id={
+                "validator": self._validate_run_id,
+            },
             run_mode={
                 "hook": lambda _: "offline-run" if self._offline else "run",
                 "auto_hook": True,
@@ -869,6 +872,14 @@ class Settings:
         choices: Set[str] = {"allow", "must", "never", "false", "true"}
         if value not in choices:
             raise UsageError(f"Settings field `anonymous`: {value!r} not in {choices}")
+        return True
+
+    @staticmethod
+    def _validate_run_id(value: str) -> bool:
+        # if len(value) > len(value.strip()):
+        #     raise UsageError("Run ID cannot start or end with whitespace")
+        if value.isspace() or len(value) == 0:
+            return False
         return True
 
     @staticmethod
