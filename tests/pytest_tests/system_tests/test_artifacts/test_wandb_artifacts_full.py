@@ -16,8 +16,23 @@ from wandb.sdk.wandb_run import Run
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
-def test_add_table_from_dataframe(wandb_init):
+@pytest.fixture
+def example_file(tmp_path: Path) -> Path:
+    new_file = tmp_path / "test.txt"
+    new_file.write_text("hello")
+    return new_file
 
+
+@pytest.fixture
+def example_files(tmp_path: Path) -> Path:
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    for i in range(3):
+        (artifact_dir / f"artifact_{i}.txt").write_text(f"file-{i}")
+    return artifact_dir
+
+
+def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
@@ -56,7 +71,6 @@ def test_add_table_from_dataframe(wandb_init):
 
 
 def test_artifact_error_for_invalid_aliases(wandb_init):
-
     run = wandb_init()
     artifact = wandb.Artifact("test-artifact", "dataset")
     error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
@@ -75,7 +89,6 @@ def test_artifact_error_for_invalid_aliases(wandb_init):
 
 
 def test_artifact_upsert_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -92,7 +105,6 @@ def test_artifact_upsert_no_id(wandb_init):
 
 
 def test_artifact_upsert_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -109,7 +121,6 @@ def test_artifact_upsert_group_id(wandb_init):
 
 
 def test_artifact_upsert_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -126,7 +137,6 @@ def test_artifact_upsert_distributed_id(wandb_init):
 
 
 def test_artifact_finish_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -141,7 +151,6 @@ def test_artifact_finish_no_id(wandb_init):
 
 
 def test_artifact_finish_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -156,7 +165,6 @@ def test_artifact_finish_group_id(wandb_init):
 
 
 def test_artifact_finish_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -229,7 +237,6 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
 
 def test_local_references(wandb_init):
-
     run = wandb_init()
 
     def make_table():
@@ -362,3 +369,38 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch)
         assert file1 == file2  # Same path, but the content should have changed.
         assert file2.is_file()
         assert file2.read_text() == "hello"
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_log_dir_directly(example_files, wandb_init, path_type):
+    with wandb_init() as run:
+        run_id = run.id
+        artifact = run.log_artifact(path_type(example_files))
+    artifact.wait()
+
+    assert artifact is not None
+    assert artifact.id is not None  # It was successfully logged.
+    assert artifact.name == f"run-{run_id}-{Path(example_files).name}:v0"
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_log_file_directly(example_file, wandb_init, path_type):
+    with wandb_init() as run:
+        run_id = run.id
+        artifact = run.log_artifact(path_type(example_file))
+    artifact.wait()
+
+    assert artifact is not None
+    assert artifact.id is not None
+    assert artifact.name == f"run-{run_id}-{Path(example_file).name}:v0"
+
+
+def test_log_reference_directly(example_files, wandb_init):
+    with wandb_init() as run:
+        run_id = run.id
+        artifact = run.log_artifact(example_files.resolve().as_uri())
+    artifact.wait()
+
+    assert artifact is not None
+    assert artifact.id is not None
+    assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
