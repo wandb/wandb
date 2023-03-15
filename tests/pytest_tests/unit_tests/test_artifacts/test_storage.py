@@ -7,6 +7,7 @@ from multiprocessing import Pool
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.interface import artifacts
 
 
 def test_opener_rejects_append_mode(cache):
@@ -355,3 +356,15 @@ def test_storage_handler_incomplete():
         ush.load_path(manifest_entry=None)
     with pytest.raises(NotImplementedError):
         ush.store_path(artifact=None, path="")
+
+
+def test_unwritable_staging_dir(monkeypatch):
+    # Use a non-writable directory as the staging directory.
+    # CI just doesn't care about permissions, so we're patching os.makedirs 🙃
+    def nope(*args, **kwargs):
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "makedirs", nope)
+
+    with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
+        _ = artifacts.get_new_staging_file()
