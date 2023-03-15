@@ -673,7 +673,7 @@ def sync(
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
-    "--convert-unsafe", default=None, help="Pass in config to convert", hidden=True
+    "--convert-unsafe", is_flag=True, help="Pass in config to convert", hidden=True
 )
 @click.option(
     "--launch_config",
@@ -852,8 +852,8 @@ def sweep(
 
     if convert_unsafe:
         wandb.termwarn(
-            "!! Conversion of sweep config files is unsafe, it does not "
-            "gaurantee the safety of using the supported wandb config format !!"
+            "!! Conversion of sweep config files is unsafe, no guarantee "
+            "of a correct conversion to the supported wandb config format !!"
         )
         config = util.convert_sweep_config_unsafe(config)
 
