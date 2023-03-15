@@ -99,6 +99,12 @@ class OptunaScheduler(Scheduler):
 
     @property
     def trials_pretty(self) -> str:
+        """
+        Prints out trials from the current optuna study in a pleasing
+        format, showing the total/best/last metrics
+
+        returns a string with whitespace
+        """
         trials = {}
         for trial in self.study.trials:
             i = trial.number + 1
