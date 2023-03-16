@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from typing import Optional
 from unittest import mock
 
 import pytest
@@ -152,10 +153,14 @@ def test_settings_modification_order():
     # between settings manifested in validator methods and runtime hooks.
     s = wandb.Settings()
     modification_order = s._Settings__modification_order
-    assert (
-        modification_order.index("base_url")
-        < modification_order.index("is_local")
-        < modification_order.index("api_key")
+    # todo: uncomment once api_key validation is restored:
+    # assert (
+    #     modification_order.index("base_url")
+    #     < modification_order.index("is_local")
+    #     < modification_order.index("api_key")
+    # )
+    assert modification_order.index("_network_buffer") < modification_order.index(
+        "_flow_control_custom"
     )
 
 
@@ -863,6 +868,53 @@ def test_log_internal(test_settings):
     assert run_id == test_settings.run_id
     assert log_dir == "logs"
     assert fname == "debug-internal.log"
+
+
+class TestAsyncUploadConcurrency:
+    def test_default_is_none(self, test_settings):
+        settings = test_settings()
+        assert settings._async_upload_concurrency_limit is None
+
+    @pytest.mark.parametrize(
+        ["value", "ok"],
+        [
+            (None, True),
+            (1, True),
+            (2, True),
+            (10, True),
+            (100, True),
+            (99999999, True),
+            (-10, False),
+            ("not an int", False),
+        ],
+    )
+    def test_err_iff_bad_value(self, value: Optional[int], ok: bool, test_settings):
+        if ok:
+            settings = test_settings({"_async_upload_concurrency_limit": value})
+            assert settings._async_upload_concurrency_limit == value
+        else:
+            with pytest.raises((UsageError, ValueError)):
+                test_settings({"_async_upload_concurrency_limit": value})
+
+    @pytest.mark.parametrize(
+        ["value", "warn"], [(None, False), (1, False), (9999999, True)]
+    )
+    @mock.patch("wandb.termwarn")
+    def test_warns_if_exceeds_filelimit(
+        self,
+        termwarn: mock.Mock,
+        test_settings,
+        value: Optional[int],
+        warn: bool,
+    ):
+        pytest.importorskip("resource")
+        test_settings({"_async_upload_concurrency_limit": value})
+
+        if warn:
+            termwarn.assert_called_once()
+            assert "exceeds this process's limit" in termwarn.call_args[0][0]
+        else:
+            termwarn.assert_not_called()
 
 
 # --------------------------

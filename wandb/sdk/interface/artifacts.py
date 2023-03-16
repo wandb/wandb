@@ -165,21 +165,48 @@ class ArtifactManifestEntry:
         raise NotImplementedError
 
 
-class ArtifactNotLoggedError(Exception):
-    """Raised for Artifact methods or attributes that require the logged artifact."""
+class ArtifactStatusError(AttributeError):
+    """Raised when an artifact is in an invalid state for the requested operation."""
+
+    def __init__(
+        self,
+        artifact: Optional["Artifact"] = None,
+        attr: Optional[str] = None,
+        msg: str = "Artifact is in an invalid state for the requested operation.",
+    ):
+        object_name = artifact.__class__.__name__ if artifact else "Artifact"
+        method_id = f"{object_name}.{attr}" if attr else object_name
+        super().__init__(msg.format(artifact=artifact, attr=attr, method_id=method_id))
+        # Follow the same pattern as AttributeError.
+        self.obj = artifact
+        self.name = attr
+
+
+class ArtifactNotLoggedError(ArtifactStatusError):
+    """Raised for Artifact methods or attributes only available after logging."""
 
     def __init__(
         self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
     ):
-        desc = artifact.__class__.__name__ if artifact else "Artifact"
-        desc += f".{attr}" if attr else ""
         super().__init__(
-            f"'{desc}' used prior to logging artifact or while in offline mode."
-            "Call wait() before accessing logged artifact properties."
+            artifact,
+            attr,
+            "'{method_id}' used prior to logging artifact or while in offline mode. "
+            "Call wait() before accessing logged artifact properties.",
         )
-        # Follow the same pattern as AttributeError.
-        self.obj = artifact
-        self.name = attr
+
+
+class ArtifactFinalizedError(ArtifactStatusError):
+    """Raised for Artifact methods or attributes that can't be changed after logging."""
+
+    def __init__(
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
+    ):
+        super().__init__(
+            artifact,
+            attr,
+            "'{method_id}' used on logged artifact. Can't add to finalized artifact.",
+        )
 
 
 class Artifact:
@@ -353,6 +380,9 @@ class Artifact:
         Returns:
             (file): A new file object that can be written to. Upon closing,
                 the file will be automatically added to the artifact.
+
+        Raises:
+            ArtifactFinalizedError: if the artifact has already been finalized.
         """
         raise NotImplementedError
 
@@ -385,7 +415,7 @@ class Artifact:
             ```
 
         Raises:
-            Exception: if problem
+            ArtifactFinalizedError: if the artifact has already been finalized.
 
         Returns:
             ArtifactManifestEntry: the added manifest entry
@@ -415,7 +445,7 @@ class Artifact:
             ```
 
         Raises:
-            Exception: if problem.
+            ArtifactFinalizedError: if the artifact has already been finalized.
 
         Returns:
             None
@@ -467,7 +497,7 @@ class Artifact:
                 schemes. (default: None)
 
         Raises:
-            Exception: If problem.
+            ArtifactFinalizedError: if the artifact has already been finalized.
 
         Returns:
             List[ArtifactManifestEntry]: The added manifest entries.
@@ -509,6 +539,9 @@ class Artifact:
         Returns:
             ArtifactManifestEntry: the added manifest entry
 
+        Raises:
+            ArtifactFinalizedError: if the artifact has already been finalized.
+
         Examples:
             Basic usage
             ```
@@ -530,14 +563,11 @@ class Artifact:
     def get_path(self, name: str) -> ArtifactManifestEntry:
         """Get the path to the file located at the artifact relative `name`.
 
-        NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact`, fetched using the API, or `wait()` has been called.
-
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            Exception: if problem
+            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
             Basic usage
@@ -562,14 +592,11 @@ class Artifact:
     def get(self, name: str) -> WBValue:
         """Get the WBValue object located at the artifact relative `name`.
 
-        NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact`, fetched using the API, or `wait()` has been called.
-
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            Exception: if problem
+            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
             Basic usage
@@ -682,14 +709,11 @@ class Artifact:
     def __getitem__(self, name: str) -> Optional[WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
-        NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact`, fetched using the API, or `wait()` has been called.
-
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            Exception: if problem
+            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
 
         Examples:
             Basic usage
@@ -707,7 +731,7 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        raise NotImplementedError
+        return self.get(name)
 
     def __setitem__(self, name: str, item: WBValue) -> "ArtifactManifestEntry":
         """Add `item` to the artifact at path `name`.
@@ -719,6 +743,9 @@ class Artifact:
         Returns:
             ArtifactManifestEntry: the added manifest entry
 
+        Raises:
+            ArtifactFinalizedError: if the artifact has already been finalized.
+
         Examples:
             Basic usage
             ```
@@ -735,7 +762,7 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        raise NotImplementedError
+        return self.add(item, name)
 
 
 class StorageLayout:
@@ -767,7 +794,7 @@ class StoragePolicy:
     ) -> str:
         raise NotImplementedError
 
-    def store_file(
+    def store_file_sync(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -775,6 +802,17 @@ class StoragePolicy:
         preparer: "StepPrepare",
         progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
+        raise NotImplementedError
+
+    async def store_file_async(
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactManifestEntry,
+        preparer: "StepPrepare",
+        progress_callback: Optional["progress.ProgressFn"] = None,
+    ) -> bool:
+        """Async equivalent to `store_file_sync`."""
         raise NotImplementedError
 
     def store_reference(
@@ -986,7 +1024,14 @@ def get_artifacts_cache() -> ArtifactsCache:
 
 def get_staging_dir() -> FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    mkdir_exists_ok(path)
+    try:
+        mkdir_exists_ok(path)
+    except OSError as e:
+        raise PermissionError(
+            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"{env.DATA_DIR} to a directory where you have the necessary write access."
+        ) from e
+
     return FilePathStr(os.path.abspath(os.path.expanduser(path)))
 
 
