@@ -37,6 +37,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -234,6 +235,7 @@ class Property:
         "show_errors",
         "base_url",
         "login_timeout",
+        "_async_upload_concurrency_limit",
     }
 
     def __init__(  # pylint: disable=unused-argument
@@ -381,6 +383,7 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
     _config_dict: Config
@@ -423,6 +426,8 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
+    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
+    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -510,11 +515,11 @@ class Settings:
     sync_symlink_latest: str
     system_sample: int
     system_sample_seconds: int
+    table_raise_on_max_row_limit_exceeded: bool
     timespec: str
     tmp_dir: str
     username: str
     wandb_dir: str
-    table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -522,7 +527,11 @@ class Settings:
         Helper method that is used in `__init__` together with the class attributes.
         Note that key names must be the same as the class attribute names.
         """
-        return dict(
+        props: Dict[str, Dict[str, Any]] = dict(
+            _async_upload_concurrency_limit={
+                "preprocessor": int,
+                "validator": self._validate__async_upload_concurrency_limit,
+            },
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_service={
                 "value": False,
@@ -588,6 +597,13 @@ class Settings:
                 # "value": {
                 #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
                 # },
+                "preprocessor": _str_as_dict,
+            },
+            _stats_open_metrics_filters={
+                # capture all metrics by default
+                "value": {
+                    ".*": {},
+                },
                 "preprocessor": _str_as_dict,
             },
             _tmp_code_dir={
@@ -763,6 +779,7 @@ class Settings:
                 "auto_hook": True,
             },
         )
+        return props
 
     # helper methods for validating values
     @staticmethod
@@ -859,6 +876,7 @@ class Settings:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
+        # todo: move this check to the post-init validation step
         # if value.startswith("local") and not self.is_local:
         #     raise UsageError(
         #         "Attempting to use a local API key to connect to https://api.wandb.ai"
@@ -987,6 +1005,35 @@ class Settings:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
         return True
 
+    @staticmethod
+    def _validate__async_upload_concurrency_limit(value: int) -> bool:
+        if value <= 0:
+            raise UsageError("_async_upload_concurrency_limit must be positive")
+
+        try:
+            import resource  # not always available on Windows
+
+            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+        except Exception:
+            # Couldn't get the open-file-limit for some reason,
+            # probably very platform-specific. Not a problem,
+            # we just won't use it to cap the concurrency.
+            pass
+        else:
+            if value > file_limit:
+                wandb.termwarn(
+                    (
+                        "_async_upload_concurrency_limit setting of"
+                        f" {value} exceeds this process's limit"
+                        f" on open files ({file_limit}); may cause file-upload failures."
+                        " Try decreasing _async_upload_concurrency_limit,"
+                        " or increasing your file limit with `ulimit -n`."
+                    ),
+                    repeat=False,
+                )
+
+        return True
+
     # other helper methods
     @staticmethod
     def _path_convert(*args: str) -> str:
@@ -1077,6 +1124,8 @@ class Settings:
         self.__frozen: bool = False
         self.__initialized: bool = False
 
+        self.__modification_order = SETTINGS_TOPOLOGICALLY_SORTED
+
         # todo: this is collect telemetry on validation errors and unexpected args
         # values are stored as strings to avoid potential json serialization errors down the line
         self.__preprocessing_warnings: Dict[str, str] = dict()
@@ -1148,6 +1197,14 @@ class Settings:
 
             # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
+        # automatically inspect setting validators and runtime hooks and topologically sort them
+        # so that we can safely update them. throw error if there are cycles.
+        for prop in self.__modification_order:
+            if prop in kwargs:
+                source = Source.RUN if self.__dict__[prop].is_policy else Source.BASE
+                self.update({prop: kwargs[prop]}, source=source)
+                kwargs.pop(prop)
+
         for k, v in kwargs.items():
             # todo: double-check this logic:
             source = Source.RUN if self.__dict__[k].is_policy else Source.BASE
@@ -1190,6 +1247,12 @@ class Settings:
         # get attributes that are instances of the Property class:
         attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
         new = Settings()
+        # update properties that have deps or are dependent on in the topologically-sorted order
+        for prop in self.__modification_order:
+            new.update({prop: attributes[prop]._value}, source=attributes[prop].source)
+            attributes.pop(prop)
+
+        # update the remaining attributes
         for k, v in attributes.items():
             # make sure to use the raw property value (v._value),
             # not the potential result of runtime hooks applied to it (v.value)
@@ -1204,7 +1267,7 @@ class Settings:
     # attribute access methods
     @no_type_check  # this is a hack to make mypy happy
     def __getattribute__(self, name: str) -> Any:
-        """Expose attribute.value if attribute is a Property."""
+        """Expose `attribute.value` if `attribute` is a Property."""
         item = object.__getattribute__(self, name)
         if isinstance(item, Property):
             return item.value
@@ -1278,9 +1341,20 @@ class Settings:
         if unknown_properties:
             raise KeyError(f"Unknown settings: {unknown_properties}")
         # only if all keys are valid, update them
+
+        # store settings to be updated in a dict to preserve stats on preprocessing and validation errors
+        updated_settings = settings.copy()
+
+        # update properties that have deps or are dependent on in the topologically-sorted order
+        for key in self.__modification_order:
+            if key in settings:
+                self.__dict__[key].update(settings.pop(key), source=source)
+
+        # update the remaining properties
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
+        for key in updated_settings.keys():
             # todo: this is to collect stats on preprocessing and validation errors
             if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
                 self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
@@ -1328,6 +1402,11 @@ class Settings:
         attributes = {
             k: v for k, v in settings.__dict__.items() if isinstance(v, Property)
         }
+        # update properties that have deps or are dependent on in the topologically-sorted order
+        for prop in self.__modification_order:
+            self.update({prop: attributes[prop]._value}, source=attributes[prop].source)
+            attributes.pop(prop)
+        # update the remaining properties
         for k, v in attributes.items():
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)

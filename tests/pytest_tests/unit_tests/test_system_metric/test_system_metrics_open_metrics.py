@@ -10,6 +10,10 @@ import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import OpenMetrics
 from wandb.sdk.internal.system.assets.interfaces import Asset
+from wandb.sdk.internal.system.assets.open_metrics import (
+    _nested_dict_to_tuple,
+    _should_capture_metric,
+)
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
@@ -158,3 +162,59 @@ def test_dcgm(test_settings):
 
         while not interface.metrics_queue.empty():
             print(interface.metrics_queue.get())
+
+
+@pytest.mark.parametrize(
+    "filters,metric_name,metric_labels,should_capture",
+    [
+        (
+            {"DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "wandb-1337"},
+            True,
+        ),
+        (
+            {"DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "not-wandb-1337"},
+            False,
+        ),
+        (
+            {"DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "wandb-1337", "container": "wandb"},
+            True,
+        ),
+        (
+            {"DCGM_.*": {}},
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "wandb-1337", "container": "not-wandb"},
+            True,
+        ),
+        (
+            {".*": {}},
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "wandb-1337", "container": "not-wandb"},
+            True,
+        ),
+        (
+            {"DCGM_.*": {"pod": "wandb-.*"}},
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "wandb-1337"},
+            True,
+        ),
+        (
+            {"DCGM_.*": {"pod": "wandb-.*"}},
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "not-wandb-1337"},
+            False,
+        ),
+    ],
+)
+def test_metric_filters(filters, metric_name, metric_labels, should_capture):
+    assert (
+        _should_capture_metric(
+            metric_name, tuple(metric_labels.items()), _nested_dict_to_tuple(filters)
+        )
+        is should_capture
+    )

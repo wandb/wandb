@@ -19,6 +19,7 @@ class SettingsStatic:
     _stats_join_assets: bool
     _stats_neuron_monitor_config_path: Optional[str]
     _stats_open_metrics_endpoints: Mapping[str, str]
+    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str
@@ -60,6 +61,7 @@ class SettingsStatic:
     _flow_control_disabled: bool
     _flow_control_custom: bool
     disable_job_creation: bool
+    _async_upload_concurrency_limit: Optional[int]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

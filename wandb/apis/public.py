@@ -5253,12 +5253,6 @@ class Artifact(artifacts.Artifact):
                 run_obj["name"],
             )
 
-    def __setitem__(self, name, item):
-        return self.add(item, name)
-
-    def __getitem__(self, name):
-        return self.get(name)
-
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
@@ -5562,7 +5556,6 @@ class Job:
         queue=None,
         resource="local-container",
         resource_args=None,
-        cuda=False,
         project_queue=None,
     ):
         from wandb.sdk.launch import launch_add
@@ -5589,6 +5582,5 @@ class Job:
             resource=resource,
             project_queue=project_queue,
             resource_args=resource_args,
-            cuda=cuda,
         )
         return queued_run

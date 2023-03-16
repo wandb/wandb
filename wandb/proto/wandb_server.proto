@@ -79,6 +79,10 @@ message StringStringMapValue {
     map<string, string> map_values = 1;
 }
 
+message NestedStringStringMapValue {
+    map<string, StringStringMapValue> nested_map_values = 1;
+}
+
 message SettingsValue {
   oneof value_type {
     int64 int_value = 1;
@@ -89,6 +93,7 @@ message SettingsValue {
     StringTupleValue tuple_value = 6;
     string timestamp_value = 7;
     StringStringMapValue map_value = 8;
+    NestedStringStringMapValue nested_map_value = 9;
   }
 }
 
