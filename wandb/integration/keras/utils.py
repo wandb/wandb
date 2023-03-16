@@ -26,23 +26,36 @@ def load_model_from_artifact(
 
     Arguments:
         artifact_address (str): address of Weights & Biases artifact storing the Keras model.
-        artifact_type (str): type of Weights & Biases artifact storing the Keras model.
+        artifact_type (str): type of Weights & Biases artifact storing the Keras model. By
+            default, it is set to `"model"`.
         track_lineage (bool): whether to track the lineage of the model artifact usage or not.
             This enables us to track the exact code, hyperparameters, and training dataset used
-            to produce the model thus enabling model reproducibility.
+            to produce the model thus enabling model reproducibility. By default, it is set to
+            `True`.
         model_filepaths (Optional[List[str, os.PathLike]]): a list of filepaths denoting the
             model files inside the artifact. If your artifact is a single savedmodel, then this
-            argument is not necessary, otherwise this argument should be specified.
+            argument is not necessary, otherwise this argument should be specified. It is an
+            optional argumet and by default, it is set to `None`.
         verbose (bool): a flag denoting the verbosity of the function. If set to True, the it
             will display messages related to loading the models. This is useful when loading
-            multiple models from an artifact.
+            multiple models from an artifact. It is an optional argumet and by default, it is
+            set to `True`.
         custom_objects (Optional[Union[Union[Any, None], List[Union[Any, None]]]]): Optional
             dictionary mapping names (strings) to custom classes or functions to be considered
-            during deserialization.
-        compile (Union[bool, List[bool]]): whether to compile the model after loading.
+            during deserialization. It should either be a single dictionary of custom objects
+            or a list of dictionary of custom objects corresponding to each model filepath
+            specified by the `model_filepaths` argument. It is an optional argumet and by default,
+            it is set to `None`.
+        compile (Union[bool, List[bool]]): whether to compile the model after loading. It should
+            either be a single boolean value or a list of boolean values corresponding to each
+            model filepath specified by the `model_filepaths` argument. It is an optional argumet
+            and by default, it is set to `True`.
         options (Optional[Union[Union[Any, None], List[Union[Any, None]]]]): Optional
             [`tf.saved_model.LoadOptions`](https://www.tensorflow.org/api_docs/python/tf/saved_model/LoadOptions
-            object that specifies options for loading from SavedModel.
+            object that specifies options for loading from SavedModel. It should either be a single
+            `tf.saved_model.LoadOptions` object or a list of `tf.saved_model.LoadOptions` objects
+            corresponding to each model filepath specified by the `model_filepaths` argument. It is
+            an optional argumet and by default, it is set to `None`.
 
     Returns:
         (Union[tf.keras.Model, List[tf.keras.Model]]): a Keras model or a list of Keras models.
