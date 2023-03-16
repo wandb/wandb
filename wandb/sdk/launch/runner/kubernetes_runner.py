@@ -170,8 +170,7 @@ class KubernetesRunner(AbstractRunner):
     def populate_job_spec(
         self, job_spec: Dict[str, Any], resource_args: Dict[str, Any]
     ) -> None:
-        if resource_args.get("backoff_limit"):
-            job_spec["backoffLimit"] = resource_args.get("backoff_limit", 0)
+        job_spec["backoffLimit"] = resource_args.get("backoff_limit", 0)
         if resource_args.get("completions"):
             job_spec["completions"] = resource_args.get("completions")
         if resource_args.get("parallelism"):
