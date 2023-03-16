@@ -1,10 +1,10 @@
-import os
 import logging
-from typing import Any, List, Union, Optional
+import os
+from typing import Any, List, Optional, Union
 
-import wandb
 import tensorflow as tf
 
+import wandb
 
 logger = logging.getLogger(__name__)
 
