@@ -16,6 +16,8 @@ assert:
     - :wandb:runs[0][config][task]: detect
     - :wandb:runs[0][summary][epoch]: 2
     - :wandb:runs[0][summary][model/parameters]: 3157200
+    - :wandb:runs[0][summary][sample_predictions][_type]: table-file
+    - :wandb:runs[0][summary][sample_predictions][nrows]: 96
     - :op:>=:
         - :wandb:runs[0][summary][model/GFLOPs]
         - 0
