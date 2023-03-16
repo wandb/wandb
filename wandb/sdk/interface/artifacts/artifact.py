@@ -97,7 +97,7 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def manifest(self) -> ArtifactManifest:
+    def manifest(self) -> "ArtifactManifest":
         """The artifact's manifest.
 
         The manifest lists all of its contents, and can't be changed once the artifact
