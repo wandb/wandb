@@ -154,6 +154,9 @@ class TeardownHook(NamedTuple):
     stage: TeardownStage
 
 
+warnings.filterwarnings("always", category=UserWarning)
+
+
 class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
@@ -348,7 +351,7 @@ class _run_decorator:  # noqa: N801
                     f"Run ({self.id}) is finished. The call to `{func.__name__}` will be ignored. "
                     f"Please make sure that you are using an active run."
                 )
-                warnings.warn(message or default_message, UserWarning)
+                warnings.warn(message or default_message, UserWarning, stacklevel=2)
 
             return wrapper_fn
 

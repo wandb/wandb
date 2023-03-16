@@ -232,23 +232,44 @@ def test_run_deepcopy():
 @pytest.mark.parametrize(
     "method, args",
     [
+        ("alert", ["test", "test"]),
+        ("define_metric", ["test"]),
         ("log", [{"test": 2}]),
+        ("log_code", []),
+        ("mark_preempting", []),
         ("save", []),
         ("status", []),
-        ("define_metric", ["test"]),
         ("link_artifact", [wandb.Artifact("test", type="dataset"), "input"]),
         ("use_artifact", ["test"]),
         ("log_artifact", ["test"]),
         ("upsert_artifact", ["test"]),
         ("finish_artifact", ["test"]),
-        ("alert", ["test", "test"]),
-        ("mark_preempting", []),
-        ("log_code", []),
     ],
 )
-def test_raise_error_when_using_finished_run(mock_run, method, args):
+def test_warn_when_using_methods_of_finished_run(mock_run, method, args):
     run = mock_run(use_magic_mock=True)
     run.finish()
     assert run._is_finished
     with pytest.warns(UserWarning):
         getattr(run, method)(*args)
+
+
+@pytest.mark.parametrize(
+    "attribute, value",
+    [
+        ("config", ["test", 2]),
+        ("summary", ["test", 2]),
+        ("name", "test"),
+        ("notes", "test"),
+        ("tags", "test"),
+    ],
+)
+def test_warn_when_using_attributes_of_finished_run(mock_run, attribute, value):
+    run = mock_run(use_magic_mock=True)
+    run.finish()
+    assert run._is_finished
+    with pytest.warns(UserWarning):
+        if isinstance(value, list):
+            setattr(getattr(run, attribute), *value)
+        else:
+            setattr(run, attribute, value)
