@@ -1407,6 +1407,10 @@ class Run:
         if console_pid != os.getpid():
             return
 
+        _is_finished = getattr(self, "_is_finished", False)
+        if _is_finished:
+            return
+
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output_raw(name, data)
 
