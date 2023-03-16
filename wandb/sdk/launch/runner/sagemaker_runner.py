@@ -164,9 +164,6 @@ class SageMakerRunner(AbstractRunner):
             )
             _logger.info(f"Docker image built with uri {image}")
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
-
         _logger.info("Connecting to sagemaker client")
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
