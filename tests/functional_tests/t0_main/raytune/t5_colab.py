@@ -29,7 +29,7 @@ def train_mnist(config):
         model.parameters(), lr=config["lr"], momentum=config["momentum"]
     )
 
-    for _i in range(10):
+    for _i in range(5):
         train(model, optimizer, train_loader, device=device)
         acc = test(model, test_loader, device=device)
 
