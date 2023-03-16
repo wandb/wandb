@@ -5253,12 +5253,6 @@ class Artifact(artifacts.Artifact):
                 run_obj["name"],
             )
 
-    def __setitem__(self, name, item):
-        return self.add(item, name)
-
-    def __getitem__(self, name):
-        return self.get(name)
-
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
