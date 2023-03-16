@@ -1738,6 +1738,7 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def save(
         self,
@@ -1911,6 +1912,7 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def status(
         self,
@@ -2403,6 +2405,7 @@ class Run:
             printer=self._printer,
         )
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def define_metric(
         self,
@@ -2565,6 +2568,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def link_artifact(
         self,
@@ -2608,6 +2612,7 @@ class Run:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def use_artifact(
         self,
@@ -2715,6 +2720,7 @@ class Run:
             self._backend.interface.publish_use_artifact(artifact)
         return artifact
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def log_artifact(
         self,
@@ -2751,6 +2757,7 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def upsert_artifact(
         self,
@@ -2804,6 +2811,7 @@ class Run:
             finalize=False,
         )
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def finish_artifact(
         self,
@@ -2978,6 +2986,7 @@ class Run:
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def alert(
         self,
@@ -3025,6 +3034,7 @@ class Run:
         self._finish(exit_code)
         return exc_type is None
 
+    @_run_decorator._check_finished
     @_run_decorator._attach
     def mark_preempting(self) -> None:
         """Mark this run as preempting.
