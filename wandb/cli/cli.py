@@ -1036,7 +1036,7 @@ def sweep(
     "uri of the form https://wandb.ai/entity/project/runs/run_id, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
-@click.argument("uri", nargs=1, required=False)
+@click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
     "--job",
     "-j",
@@ -1058,6 +1058,7 @@ def sweep(
     "--git-version",
     "-g",
     metavar="GIT-VERSION",
+    hidden=True,
     help="Version of the project to run, as a Git commit reference for Git projects.",
 )
 @click.option(
@@ -1145,6 +1146,7 @@ def sweep(
     "--build",
     "-b",
     is_flag=True,
+    hidden=True,
     help="Flag to build an associated job and push to queue as an image job.",
 )
 @click.option(
@@ -1152,6 +1154,7 @@ def sweep(
     "-rg",
     is_flag=False,
     default=None,
+    hidden=True,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
 # TODO: this is only included for back compat. But we should remove this in the future
@@ -1194,6 +1197,7 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
+    util.sentry_set_scope(process_context="launch_cli")
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
@@ -1260,31 +1264,37 @@ def launch(
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
+            util.sentry_exc(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.error("=== %s ===", e)
+            util.sentry_exc(e)
             sys.exit(e)
     else:
-        _launch_add(
-            api,
-            uri,
-            job,
-            config,
-            project,
-            entity,
-            queue,
-            resource,
-            entry_point,
-            name,
-            git_version,
-            docker_image,
-            args_dict,
-            project_queue,
-            resource_args,
-            build=build,
-            run_id=run_id,
-            repository=repository,
-        )
+        try:
+            _launch_add(
+                api,
+                uri,
+                job,
+                config,
+                project,
+                entity,
+                queue,
+                resource,
+                entry_point,
+                name,
+                git_version,
+                docker_image,
+                args_dict,
+                project_queue,
+                resource_args,
+                build=build,
+                run_id=run_id,
+                repository=repository,
+            )
+        except Exception as e:
+            util.sentry_exc(e)
+            raise e
 
 
 @cli.command(
@@ -1343,6 +1353,7 @@ def launch_agent(
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
+    util.sentry_set_scope(process_context="launch_agent")
     if url is not None:
         raise LaunchError(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
@@ -1370,7 +1381,11 @@ def launch_agent(
     check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
-    wandb_launch.create_and_run_agent(api, agent_config)
+    try:
+        wandb_launch.create_and_run_agent(api, agent_config)
+    except Exception as e:
+        util.sentry_exc(e)
+        raise e
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1413,6 +1428,7 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
+    util.sentry_set_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
@@ -1427,13 +1443,16 @@ def scheduler(
             if str.isdigit(_args):
                 _args = int(_args)
             kwargs[_key] = _args
-
-    _scheduler = load_scheduler("sweep")(
-        api,
-        sweep_id=sweep_id,
-        **kwargs,
-    )
-    _scheduler.start()
+    try:
+        _scheduler = load_scheduler("sweep")(
+            api,
+            sweep_id=sweep_id,
+            **kwargs,
+        )
+        _scheduler.start()
+    except Exception as e:
+        util.sentry_exc(e)
+        raise e
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
@@ -2325,3 +2344,30 @@ def verify(host):
         and url_success
     ):
         sys.exit(1)
+
+
+@cli.group("import", help="Commands for importing data from other systems")
+def importer():
+    pass
+
+
+@importer.command("mlflow", help="Import from MLFlow")
+@click.option("--mlflow-tracking-uri", help="MLFlow Tracking URI")
+@click.option(
+    "--target-entity", required=True, help="Override default entity to import data into"
+)
+@click.option(
+    "--target-project",
+    required=True,
+    help="Override default project to import data into",
+)
+def mlflow(mlflow_tracking_uri, target_entity, target_project):
+    from wandb.apis.importers import MlflowImporter
+
+    importer = MlflowImporter(mlflow_tracking_uri=mlflow_tracking_uri)
+    overrides = {
+        "entity": target_entity,
+        "project": target_project,
+    }
+
+    importer.import_all_parallel(overrides=overrides)

@@ -239,6 +239,7 @@ def sentry_set_scope(
         "sweep_id",
         "deployment",
         "_disable_service",
+        "launch",
     ]
 
     s = settings_dict
@@ -1604,8 +1605,11 @@ def _has_internet() -> bool:
         return False
 
 
-def rand_alphanumeric(length: int = 8, rand: Optional[random.Random] = None) -> str:
-    rand = rand or random.Random()
+def rand_alphanumeric(
+    length: int = 8, rand: Optional[Union[ModuleType, random.Random]] = None
+) -> str:
+    wandb.termerror("rand_alphanumeric is deprecated, use 'secrets.token_hex'")
+    rand = rand or random
     return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
