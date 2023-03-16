@@ -235,7 +235,7 @@ class Artifact:
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
-    ) -> ArtifactManifestEntry:
+    ) -> "ArtifactManifestEntry":
         """Add a local file to the artifact.
 
         Arguments:
@@ -298,11 +298,11 @@ class Artifact:
 
     def add_reference(
         self,
-        uri: Union[ArtifactManifestEntry, str],
+        uri: Union["ArtifactManifestEntry", str],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> Sequence["ArtifactManifestEntry"]:
         """Add a reference denoted by a URI to the artifact.
 
         Unlike adding files or directories, references are NOT uploaded to W&B. However,
@@ -344,7 +344,7 @@ class Artifact:
             ArtifactFinalizedError: if the artifact has already been finalized.
 
         Returns:
-            List[ArtifactManifestEntry]: The added manifest entries.
+            List["ArtifactManifestEntry"]: The added manifest entries.
 
         Examples:
         Add an HTTP link:
@@ -367,7 +367,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add(self, obj: WBValue, name: str) -> ArtifactManifestEntry:
+    def add(self, obj: WBValue, name: str) -> "ArtifactManifestEntry":
         """Add wandb.WBValue `obj` to the artifact.
 
         ```
@@ -404,7 +404,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> ArtifactManifestEntry:
+    def get_path(self, name: str) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
 
         Arguments:
