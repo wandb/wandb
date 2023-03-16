@@ -1,14 +1,15 @@
 """Batching file prepare requests to our API."""
 
+import concurrent.futures
+import functools
 import os
 import queue
 import shutil
 import threading
 from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
-import wandb.util
 from wandb.filesync import dir_watcher, step_upload
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
     import tempfile
@@ -29,13 +30,14 @@ class RequestStoreManifestFiles(NamedTuple):
     manifest: "artifacts.ArtifactManifest"
     artifact_id: str
     save_fn: "internal_artifacts.SaveFn"
+    save_fn_async: "internal_artifacts.SaveFnAsync"
 
 
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
-    before_commit: Optional[step_upload.PreCommitFn]
-    on_commit: Optional[step_upload.PostCommitFn]
+    before_commit: step_upload.PreCommitFn
+    result_future: "concurrent.futures.Future[None]"
 
 
 class RequestFinish(NamedTuple):
@@ -73,7 +75,7 @@ class StepChecksum:
                 if req.copy:
                     path = os.path.join(
                         self._tempdir.name,
-                        f"{wandb.util.generate_id()}-{req.save_name}",
+                        f"{runid.generate_id()}-{req.save_name}",
                     )
                     filesystem.mkdir_exists_ok(os.path.dirname(path))
                     try:
@@ -93,19 +95,12 @@ class StepChecksum:
                         req.copy,
                         None,
                         None,
+                        None,
                     )
                 )
             elif isinstance(req, RequestStoreManifestFiles):
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
-                        # This stupid thing is needed so the closure works correctly.
-                        def make_save_fn_with_entry(
-                            save_fn: "internal_artifacts.SaveFn",
-                            entry: "artifacts.ArtifactManifestEntry",
-                        ) -> step_upload.SaveFn:
-                            return lambda progress_callback: save_fn(
-                                entry, progress_callback
-                            )
 
                         self._stats.init_file(
                             entry.local_path,
@@ -121,14 +116,18 @@ class StepChecksum:
                                 req.artifact_id,
                                 entry.digest,
                                 False,
-                                make_save_fn_with_entry(req.save_fn, entry),
+                                functools.partial(req.save_fn, entry),
+                                functools.partial(req.save_fn_async, entry),
                                 entry.digest,
                             )
                         )
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(
                     step_upload.RequestCommitArtifact(
-                        req.artifact_id, req.finalize, req.before_commit, req.on_commit
+                        req.artifact_id,
+                        req.finalize,
+                        req.before_commit,
+                        req.result_future,
                     )
                 )
             elif isinstance(req, RequestFinish):

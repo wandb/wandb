@@ -1,7 +1,5 @@
-"""
-static settings.
-"""
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
+"""static settings."""
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
@@ -9,14 +7,19 @@ SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 class SettingsStatic:
     # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
     _offline: Optional[bool]
+    _sync: bool
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
+    _flow_control: bool
     _start_time: float
     _start_datetime: str
     _stats_pid: int
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: bool
+    _stats_neuron_monitor_config_path: Optional[str]
+    _stats_open_metrics_endpoints: Mapping[str, str]
+    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str
@@ -28,7 +31,8 @@ class SettingsStatic:
     _jupyter_path: Optional[str]
     _jupyter_name: Optional[str]
     _jupyter_root: Optional[str]
-    _require_service: Optional[str]
+    _network_buffer: Optional[int]
+    _disable_service: Optional[bool]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
     program: Optional[str]
@@ -51,6 +55,13 @@ class SettingsStatic:
     host: Optional[str]
     username: Optional[str]
     _executable: str
+    run_url: Optional[str]
+    run_name: Optional[str]
+    sync_file: str
+    _flow_control_disabled: bool
+    _flow_control_custom: bool
+    disable_job_creation: bool
+    _async_upload_concurrency_limit: Optional[int]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

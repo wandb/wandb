@@ -1,13 +1,14 @@
+import concurrent.futures
 import json
 import os
 import sys
 import tempfile
-import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
 from wandb import util
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 
 from ..interface.artifacts import (
     ArtifactManifest,
@@ -30,7 +31,13 @@ if TYPE_CHECKING:
     class SaveFn(Protocol):
         def __call__(
             self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
-        ) -> Any:
+        ) -> bool:
+            pass
+
+    class SaveFnAsync(Protocol):
+        def __call__(
+            self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
+        ) -> Awaitable[bool]:
             pass
 
 
@@ -79,7 +86,7 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest = ArtifactManifest.from_manifest_json(None, manifest_json)
+        self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
         self._is_user_created = is_user_created
         self._server_artifact = None
 
@@ -220,7 +227,14 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file(
+            lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
+                artifact_id,
+                artifact_manifest_id,
+                entry,
+                step_prepare,
+                progress_callback=progress_callback,
+            ),
+            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
                 artifact_manifest_id,
                 entry,
@@ -229,14 +243,12 @@ class ArtifactSaver:
             ),
         )
 
-        commit_event = threading.Event()
-
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
-            digest = wandb.util.md5_file(path)
+            digest = md5_file_b64(path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
@@ -271,24 +283,25 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        def on_commit() -> None:
-            if finalize and use_after_commit:
-                self._api.use_artifact(artifact_id)
-            step_prepare.shutdown()
-            commit_event.set()
+        commit_result: "concurrent.futures.Future[None]" = concurrent.futures.Future()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
             artifact_id,
             finalize=finalize,
             before_commit=before_commit,
-            on_commit=on_commit,
+            result_future=commit_result,
         )
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
-        while not commit_event.is_set():
-            commit_event.wait()
+        try:
+            commit_result.result()
+        finally:
+            step_prepare.shutdown()
+
+        if finalize and use_after_commit:
+            self._api.use_artifact(artifact_id)
 
         return self._server_artifact
 
@@ -304,7 +317,7 @@ class ArtifactSaver:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = util.URIStr(
                         "wandb-artifact://{}/{}".format(
-                            util.b64_to_hex_id(artifact_id), artifact_file_path
+                            b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )
                     )
 

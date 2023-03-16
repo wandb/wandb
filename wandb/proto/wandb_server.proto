@@ -17,6 +17,7 @@ service InternalService {
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
   rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
+  rpc RunStatus(RunStatusRequest) returns (RunStatusResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
   rpc Metric(MetricRecord) returns (MetricResult) {}
@@ -31,6 +32,7 @@ service InternalService {
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
   rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
+  rpc UseArtifact(UseArtifactRecord) returns (UseArtifactResult) {}
 
   // rpc messages for async operations: Send, Poll, Cancel, Release
   rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}
@@ -38,6 +40,7 @@ service InternalService {
   // rpc ArtifactCancel(ArtifactCancelRequest) returns (ArtifactCancelResponse) {}
   // rpc ArtifactRelease(ArtifactReleaseRequest) returns (ArtifactReleaseResponse) {}
 
+  rpc Cancel(CancelRequest) returns (CancelResponse) {}
   rpc Keepalive(KeepaliveRequest) returns (KeepaliveResponse) {}
 
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
@@ -72,6 +75,14 @@ message StringTupleValue {
     repeated string string_values = 1;
 }
 
+message StringStringMapValue {
+    map<string, string> map_values = 1;
+}
+
+message NestedStringStringMapValue {
+    map<string, StringStringMapValue> nested_map_values = 1;
+}
+
 message SettingsValue {
   oneof value_type {
     int64 int_value = 1;
@@ -81,6 +92,8 @@ message SettingsValue {
     bool null_value = 5;
     StringTupleValue tuple_value = 6;
     string timestamp_value = 7;
+    StringStringMapValue map_value = 8;
+    NestedStringStringMapValue nested_map_value = 9;
   }
 }
 

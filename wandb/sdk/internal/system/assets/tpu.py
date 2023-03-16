@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class TPUUtilization:
-    """
-    Google Cloud TPU utilization in percent.
-    """
+    """Google Cloud TPU utilization in percent."""
 
     name = "tpu"
     samples: "Deque[float]"
@@ -130,7 +128,6 @@ class TPU:
 
     @classmethod
     def is_available(cls) -> bool:
-
         if os.environ.get("TPU_NAME", False) is False:
             return False
 

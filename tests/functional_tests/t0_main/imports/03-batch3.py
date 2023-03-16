@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test a batch of import telemetry
+"""Test a batch of import telemetry.
 
 ---
 id: 0.imports.03-batch3
@@ -8,13 +8,15 @@ tag:
 plugin:
   - wandb
 depend:
-  pip_install_timeout: 1500  # 25m
+  pip_install_timeout: 600  # 10m
   pip_install_options:
     - -f
     - https://download.pytorch.org/whl/cpu/torch_stable.html
-    - -qq
+    - -f
+    - https://data.pyg.org/whl/torch-1.13.0+cpu.html
   requirements:
     - torch
+    - torch-cluster
     - -r 03-batch3-requirements.txt
 assert:
   - :wandb:runs_len: 1

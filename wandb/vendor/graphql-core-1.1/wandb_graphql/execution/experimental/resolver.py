@@ -2,7 +2,7 @@ import sys
 from collections.abc import Iterable
 from functools import partial
 
-from promise import Promise, is_thenable
+from wandb_promise import Promise, is_thenable
 
 from ...error import GraphQLError, GraphQLLocatedError
 from ...type import (GraphQLEnumType, GraphQLInterfaceType, GraphQLList,

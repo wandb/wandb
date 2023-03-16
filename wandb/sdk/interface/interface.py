@@ -1,4 +1,4 @@
-"""Interface base class - Used to send messages to the internal process
+"""Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
 InterfaceGrpc: Use gRPC to send and receive messages
@@ -180,12 +180,19 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run_obj: "Run") -> None:
-        run = self._make_run(run_obj)
+    def publish_run(self, run: "pb.RunRecord") -> None:
         self._publish_run(run)
 
     @abstractmethod
     def _publish_run(self, run: pb.RunRecord) -> None:
+        raise NotImplementedError
+
+    def publish_cancel(self, cancel_slot: str) -> None:
+        cancel = pb.CancelRequest(cancel_slot=cancel_slot)
+        self._publish_cancel(cancel)
+
+    @abstractmethod
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         raise NotImplementedError
 
     def publish_config(
@@ -260,7 +267,6 @@ class InterfaceBase:
             A new tree of dict's with large objects replaced with dictionaries
             with "_type" entries that say which type the original data was.
         """
-
         # Constructs a new `dict` tree in `json_value` that discards and/or
         # encodes objects that aren't JSON serializable.
 
@@ -389,7 +395,7 @@ class InterfaceBase:
         obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
-        proto_manifest.version = artifact_manifest.version()  # type: ignore
+        proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
@@ -438,6 +444,23 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        raise NotImplementedError
+
+    def publish_use_artifact(
+        self,
+        artifact: Artifact,
+    ) -> None:
+        # use_artifact is either a public.Artifact or a wandb.Artifact that has been
+        # waited on and has an id
+        assert artifact.id is not None, "Artifact must have an id"
+        use_artifact = pb.UseArtifactRecord(
+            id=artifact.id, type=artifact.type, name=artifact.name
+        )
+
+        self._publish_use_artifact(use_artifact)
+
+    @abstractmethod
+    def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
     def communicate_artifact(
@@ -721,12 +744,58 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
-        run = self._make_run(run_obj)
+    def deliver_run(self, run: "pb.RunRecord") -> MailboxHandle:
         return self._deliver_run(run)
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
+        return self._deliver_run_start(run_start)
+
+    @abstractmethod
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_attach(self, attach_id: str) -> MailboxHandle:
+        attach = pb.AttachRequest(attach_id=attach_id)
+        return self._deliver_attach(attach)
+
+    @abstractmethod
+    def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_check_version(
+        self, current_version: Optional[str] = None
+    ) -> MailboxHandle:
+        check_version = pb.CheckVersionRequest()
+        if current_version:
+            check_version.current_version = current_version
+        return self._deliver_check_version(check_version)
+
+    @abstractmethod
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_stop_status(self) -> MailboxHandle:
+        status = pb.StopStatusRequest()
+        return self._deliver_stop_status(status)
+
+    @abstractmethod
+    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_network_status(self) -> MailboxHandle:
+        status = pb.NetworkStatusRequest()
+        return self._deliver_network_status(status)
+
+    @abstractmethod
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_get_summary(self) -> MailboxHandle:
@@ -770,5 +839,15 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_run_status(self) -> MailboxHandle:
+        run_status = pb.RunStatusRequest()
+        return self._deliver_request_run_status(run_status)
+
+    @abstractmethod
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         raise NotImplementedError

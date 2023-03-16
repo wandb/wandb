@@ -1,6 +1,8 @@
-"""This tests the guardrail for when history step was introduced into the SDK (0.12.12).
-Basically, it grabs the max_cli_version that the backend (either cloud or local) knows about and
-makes sure that we only include the history step info into the gql query if this max_cli_version >= 0.12.12.
+"""Test the guardrail for when history step was introduced into the SDK (0.12.12).
+
+Basically, it grabs the max_cli_version that the backend (either cloud or local) knows
+about and makes sure that we only include the history step info into the gql query if
+this max_cli_version >= 0.12.12.
 """
 
 import wandb
