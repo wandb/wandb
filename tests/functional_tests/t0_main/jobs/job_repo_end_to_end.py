@@ -45,7 +45,6 @@ kwargs = {
     "overrides": {},
     "resource": "local",
     "resource_args": {},
-    "cuda": False,
     "run_id": None,
 }
 lp = LaunchProject(**kwargs)

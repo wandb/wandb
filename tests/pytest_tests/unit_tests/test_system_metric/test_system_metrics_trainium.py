@@ -909,7 +909,7 @@ def neuron_monitor_mock(self: NeuronCoreStats):
         self.shutdown_event.wait(1)
 
 
-def _is_matching_entry_mock(self: NeuronCoreStats, entry: dict) -> bool:  # noqa
+def _is_matching_entry_mock(self: NeuronCoreStats, entry: dict) -> bool:
     # bypass pid check on the mock data
     return True
 

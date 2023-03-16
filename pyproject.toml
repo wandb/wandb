@@ -28,7 +28,7 @@ skip_gitignore = "True"
 [tool.commitizen]
 name = "cz_conventional_commits"
 major_version_zero = true
-version = "0.13.11.dev1"
+version = "0.14.1.dev1"
 version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
 tag_format = "v$major.$minor.$patch$prerelease"
 changelog_incremental = true
@@ -80,6 +80,9 @@ exclude = [
     "wandb/wandb_torch.py",
 ]
 target-version = "py37"
+
+[tool.ruff.isort]
+split-on-trailing-comma = false
 
 [tool.ruff.per-file-ignores]
 "**/__init__.py" = ["E402", "F401"]

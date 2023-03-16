@@ -239,6 +239,7 @@ def sentry_set_scope(
         "sweep_id",
         "deployment",
         "_disable_service",
+        "launch",
     ]
 
     s = settings_dict
@@ -717,7 +718,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
 
 def json_friendly(  # noqa: C901
     obj: Any,
-) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
+) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:
     """Convert an object into something that's more becoming of JSON."""
     converted = True
     typename = get_full_typename(obj)
@@ -1624,7 +1625,7 @@ def fsync_open(
 def _is_kaggle() -> bool:
     return (
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules  # noqa: W503
+        or "kaggle_environments" in sys.modules
     )
 
 

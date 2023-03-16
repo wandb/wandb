@@ -46,6 +46,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
+from wandb.sdk.lib.filesystem import StrPath
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -233,6 +234,8 @@ class RunStatusChecker:
 
             if result:
                 process(result)
+                # if request finished, clear the handle to send on the next interval
+                local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
             wait_time = max(self._stop_polling_interval - time_elapsed, 0)
@@ -427,7 +430,7 @@ class Run:
     and then log information only from that process, or you can create a run in each process,
     logging from each separately, and group the results together with the `group` argument
     to `wandb.init`. For more details on distributed training with W&B, check out
-    [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
+    [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
 
     Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
@@ -1537,7 +1540,7 @@ class Run:
         the summary values for these metrics.
 
         Visualize logged data in the workspace at [wandb.ai](https://wandb.ai),
-        or locally on a [self-hosted instance](https://docs.wandb.ai/self-hosted)
+        or locally on a [self-hosted instance](https://docs.wandb.ai/guides/hosting)
         of the W&B app, or export data to visualize and explore locally, e.g. in
         Jupyter notebooks, with [our API](https://docs.wandb.ai/guides/track/public-api-guide).
 
@@ -1547,7 +1550,7 @@ class Run:
         Logged values don't have to be scalars. Logging any wandb object is supported.
         For example `wandb.log({"example": wandb.Image("myimage.jpg")})` will log an
         example image which will be displayed nicely in the W&B UI.
-        See the [reference documentation](https://docs.wandb.com/library/reference/data_types)
+        See the [reference documentation](https://docs.wandb.com/ref/python/data-types)
         for all of the different supported types or check out our
         [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
         from 3D molecular structures and segmentation masks to PR curves and histograms.
@@ -1873,7 +1876,7 @@ class Run:
     @_run_decorator._noop
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
-        """Deprecated alias for `finish()` - use finish instead."""  # noqa: D401
+        """Deprecated alias for `finish()` - use finish instead."""
         deprecate.deprecate(
             field_name=deprecate.Deprecated.run__join,
             warning_message=(
@@ -2498,6 +2501,7 @@ class Run:
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
+    # TODO(kdg): remove all artifact swapping logic
     def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
         artifact_key_string = use_as or artifact_name
         replacement_artifact_info = self._launch_artifact_mapping.get(
@@ -2513,10 +2517,6 @@ class Run:
                 )
             return f"{entity}/{project}/{new_name}"
         elif replacement_artifact_info is None and use_as is None:
-            wandb.termwarn(
-                f"Could not find {artifact_name} in launch artifact mapping. "
-                f"Searching for unique artifacts with sequence name: {artifact_name}"
-            )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
             unique_artifact_replacement_info = (
                 self._unique_launch_artifact_sequence_names.get(sequence_name)
@@ -2532,14 +2532,8 @@ class Run:
                 return f"{entity}/{project}/{new_name}"
 
         else:
-            wandb.termwarn(
-                f"Could not find swappable artifact at key: {use_as}. Using {artifact_name}"
-            )
             return artifact_name
 
-        wandb.termwarn(
-            f"Could not find {artifact_key_string} in launch artifact mapping. Using {artifact_name}"
-        )
         return artifact_name
 
     def _detach(self) -> None:
@@ -2689,7 +2683,7 @@ class Run:
             else:
                 raise ValueError(
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
-                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
+                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"
                 )
         if self._backend and self._backend.interface:
             self._backend.interface.publish_use_artifact(artifact)
@@ -2698,7 +2692,7 @@ class Run:
     @_run_decorator._attach
     def log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -2839,7 +2833,7 @@ class Run:
 
     def _log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -2929,20 +2923,19 @@ class Run:
 
     def _prepare_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
-        if isinstance(artifact_or_path, str):
-            if name is None:
-                name = f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
-            artifact = wandb.Artifact(name, type)
+        if isinstance(artifact_or_path, (str, os.PathLike)):
+            name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
+            artifact = wandb.Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
             elif os.path.isdir(artifact_or_path):
                 artifact.add_dir(artifact_or_path)
-            elif "://" in artifact_or_path:
+            elif "://" in str(artifact_or_path):
                 artifact.add_reference(artifact_or_path)
             else:
                 raise ValueError(
