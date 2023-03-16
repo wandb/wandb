@@ -2,12 +2,30 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 class Api:
-    """Internal proxy to the official internal API.  Eventually these methods
-    should likely be moved to PublicApi"""
+    """Internal proxy to the official internal API."""
+
+    # TODO: Move these methods to PublicApi.
 
     def __init__(self, *args, **kwargs):
         self._api_args = args
         self._api_kwargs = kwargs
+        self._api = None
+
+    def __getstate__(self):
+        """Use for serializing.
+
+        self._api is not serializable, so it's dropped
+        """
+        state = self.__dict__.copy()
+        del state["_api"]
+        return state
+
+    def __setstate__(self, state):
+        """Used for deserializing.
+
+        Don't need to set self._api because it's constructed when needed.
+        """
+        self.__dict__.update(state)
         self._api = None
 
     @property
@@ -137,11 +155,17 @@ class Api:
     def upload_file_retry(self, *args, **kwargs):
         return self.api.upload_file_retry(*args, **kwargs)
 
+    async def upload_file_retry_async(self, *args, **kwargs):
+        return await self.api.upload_file_retry_async(*args, **kwargs)
+
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
 
     def get_run_state(self, *args, **kwargs):
         return self.api.get_run_state(*args, **kwargs)
+
+    def entity_is_team(self, *args, **kwargs):
+        return self.api.entity_is_team(*args, **kwargs)
 
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)
@@ -163,6 +187,12 @@ class Api:
 
     def launch_agent_introspection(self, *args, **kwargs):
         return self.api.launch_agent_introspection(*args, **kwargs)
+
+    def fail_run_queue_item_introspection(self, *args, **kwargs):
+        return self.api.fail_run_queue_item_introspection(*args, **kwargs)
+
+    def fail_run_queue_item(self, *args, **kwargs):
+        return self.api.fail_run_queue_item(*args, **kwargs)
 
     def get_launch_agent(self, *args, **kwargs):
         return self.api.get_launch_agent(*args, **kwargs)

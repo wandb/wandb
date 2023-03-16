@@ -16,7 +16,7 @@ torch = None
 
 
 def nested_shape(array_or_tuple, seen=None):
-    """Figures out the shape of tensors possibly embedded in tuples
+    """Figure out the shape of tensors possibly embedded in tuples
     i.e
     [0,0] returns (2)
     ([0,0], [0,0]) returns (2,2)

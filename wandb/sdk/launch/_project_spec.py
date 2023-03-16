@@ -1,8 +1,7 @@
+"""Convert launch arguments into a runnable wandb launch script.
+
+Arguments can come from a launch spec or call to wandb launch.
 """
-Internal utility for converting arguments from a launch spec or call to wandb launch
-into a runnable wandb launch script
-"""
-import binascii
 import enum
 import json
 import logging
@@ -15,11 +14,11 @@ import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
-from .utils import LOG_PREFIX
+from .utils import LOG_PREFIX, LaunchError
 
 _logger = logging.getLogger(__name__)
 
@@ -60,7 +59,6 @@ class LaunchProject:
         overrides: Dict[str, Any],
         resource: str,
         resource_args: Dict[str, Any],
-        cuda: Optional[bool],
         run_id: Optional[str],
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
@@ -68,17 +66,24 @@ class LaunchProject:
             _logger.info(f"{LOG_PREFIX}Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
-        wandb.termlog(f"{LOG_PREFIX}Launch project got job {job}")
+        if job is not None:
+            wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
         self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project.lower()
         self.name = name  # TODO: replace with run_id
+        # the builder key can be passed in through the resource args
+        # but these resource_args are then passed to the appropriate
+        # runner, so we need to pop the builder key out
+        resource_args_build = resource_args.get(resource, {}).pop("builder", {})
         self.resource = resource
         self.resource_args = resource_args
         self.python_version: Optional[str] = launch_spec.get("python_version")
-        self.cuda_version: Optional[str] = launch_spec.get("cuda_version")
+        self.cuda_base_image: Optional[str] = resource_args_build.get("cuda", {}).get(
+            "base_image"
+        )
         self._base_image: Optional[str] = launch_spec.get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
@@ -95,11 +100,8 @@ class LaunchProject:
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
         self.deps_type: Optional[str] = None
-        self.cuda = cuda
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
-        self._image_tag: str = self._initialize_image_job_tag() or self.run_id
-        wandb.termlog(f"{LOG_PREFIX}Launch project using image tag {self._image_tag}")
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -139,15 +141,13 @@ class LaunchProject:
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
-        if launch_spec.get("resource_args"):
-            self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()
 
     @property
     def base_image(self) -> str:
-        """Returns {PROJECT}_base:{PYTHON_VERSION}"""
+        """Returns {PROJECT}_base:{PYTHON_VERSION}."""
         # TODO: this should likely be source_project when we have it...
 
         # don't make up a separate base image name if user provides a docker image
@@ -174,25 +174,15 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
-    def _initialize_image_job_tag(self) -> Optional[str]:
-        if self.job is not None:
-            job_name, alias = self.job.split(":")
-            # Alias is used to differentiate images between jobs of the same sequence
-            _image_tag = f"{alias}-{job_name}"
-            _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")
-            return wandb.util.make_docker_image_name_safe(_image_tag)
-        return None
-
-    @property
-    def image_uri(self) -> str:
-        if self.docker_image:
-            return self.docker_image
-        return f"{self.image_name}:{self.image_tag}"
-
-    @property
-    def image_tag(self) -> str:
-
-        return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
+    def build_required(self) -> bool:
+        """Checks the source to see if a build is required."""
+        # since the image tag for images built from jobs
+        # is based on the job version index, which is immutable
+        # we don't need to build the image for a job if that tag
+        # already exists
+        if self.source != LaunchSource.JOB:
+            return True
+        return False
 
     @property
     def docker_image(self) -> Optional[str]:
@@ -225,7 +215,7 @@ class LaunchProject:
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, command: List[str]) -> "EntryPoint":
-        """Adds an entry point to the project."""
+        """Add an entry point to the project."""
         entry_point = command[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint
@@ -243,9 +233,36 @@ class LaunchProject:
         try:
             job = public_api.job(self.job, path=job_dir)
         except CommError:
-            raise LaunchError(f"Job {self.job} not found")
+            raise LaunchError(
+                f"Job {self.job} not found. Jobs have the format: <entity>/<project>/<name>:<alias>"
+            )
         job.configure_launch_project(self)
         self._job_artifact = job._job_artifact
+
+    def get_image_source_string(self) -> str:
+        """Returns a unique string identifying the source of an image."""
+        if self.source == LaunchSource.LOCAL:
+            # TODO: more correct to get a hash of local uri contents
+            assert isinstance(self.uri, str)
+            return self.uri
+        elif self.source == LaunchSource.JOB:
+            assert self._job_artifact is not None
+            return f"{self._job_artifact.name}:v{self._job_artifact.version}"
+        elif self.source == LaunchSource.GIT:
+            assert isinstance(self.uri, str)
+            ret = self.uri
+            if self.git_version:
+                ret += self.git_version
+            return ret
+        elif self.source == LaunchSource.WANDB:
+            assert isinstance(self.uri, str)
+            return self.uri
+        elif self.source == LaunchSource.DOCKER:
+            assert isinstance(self.docker_image, str)
+            _logger.debug("")
+            return self.docker_image
+        else:
+            raise LaunchError("Unknown source type when determing image source string")
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
@@ -263,24 +280,6 @@ class LaunchProject:
             )
             program_name = run_info.get("codePath") or run_info["program"]
 
-            if run_info.get("cudaVersion"):
-                original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
-
-                if self.cuda is None:
-                    # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Original wandb run {source_run_name} was run with cuda version {original_cuda_version}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False"
-                    )
-                    self.cuda_version = original_cuda_version
-                    self.cuda = True
-                if (
-                    self.cuda
-                    and self.cuda_version
-                    and self.cuda_version != original_cuda_version
-                ):
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Specified cuda version {self.cuda_version} differs from original cuda version {original_cuda_version}. Running with specified version {self.cuda_version}"
-                    )
             self.python_version = run_info.get("python", "3")
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -289,11 +288,7 @@ class LaunchProject:
                 internal_api,
                 self.project_dir,
             )
-            if downloaded_code_artifact:
-                self._image_tag = binascii.hexlify(
-                    downloaded_code_artifact.digest.encode()
-                ).decode()
-            else:
+            if not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise LaunchError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
@@ -308,12 +303,8 @@ class LaunchProject:
                 patch = utils.fetch_project_diff(
                     source_entity, source_project, source_run_name, internal_api
                 )
-                tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
-                    tag_string += patch
-
-                self._image_tag = binascii.hexlify(tag_string.encode()).decode()
 
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):
@@ -434,7 +425,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     Returns:
         An initialized `LaunchProject` object
     """
-
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
@@ -451,7 +441,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("overrides", {}),
         launch_spec.get("resource", None),
         launch_spec.get("resource_args", {}),
-        launch_spec.get("cuda", None),
         launch_spec.get("run_id", None),
     )
 
