@@ -119,6 +119,11 @@ class WandbTablesBuilderCallback(Callback, abc.ABC):
         self.pred_table_columns = pred_table_columns
         self.in_memory = in_memory
 
+        if self.in_memory:
+            wandb.termwarn(
+                "The data to be logged at the end of training is stored in memory and that this should not be used for logging large validations sets as it can consume system RAM."
+            )
+
     def on_train_begin(self, logs: Optional[Dict[str, float]] = None) -> None:
         if not self.in_memory:
             # Initialize the data_table
