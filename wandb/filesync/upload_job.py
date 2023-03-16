@@ -4,7 +4,6 @@ import os
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
-import wandb.util
 
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats, step_upload
@@ -186,7 +185,7 @@ class UploadJobAsync:
             # Fall back to the "normal" synchronous upload.
             loop = asyncio.get_event_loop()
             logger.exception("async upload failed", exc_info=e)
-            loop.run_in_executor(None, wandb.util.sentry_exc, e)
+            loop.run_in_executor(None, wandb._sentry.exception, e)
             wandb.termwarn(
                 "Async file upload failed; falling back to sync", repeat=False
             )
