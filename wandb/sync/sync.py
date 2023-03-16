@@ -142,6 +142,7 @@ class SyncThread(threading.Thread):
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
+        proto_run.telemetry.feature.sync_tfevents = True
 
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
