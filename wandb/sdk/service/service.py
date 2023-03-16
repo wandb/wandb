@@ -183,8 +183,8 @@ class _Service:
             else:
                 service_args.append("--serve-sock")
 
-            if os.environ.get("WANDB_SERVICE_MEMORY_PROFILE"):
-                # enable memory profiling
+            if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
+                # enable memory profiling with memray
                 import wandb
 
                 _ = get_module(
