@@ -1,6 +1,10 @@
 """Abstract Scheduler class."""
+import base64
 import logging
 import os
+import socket
+import time
+import yaml
 import threading
 import traceback
 from abc import ABC, abstractmethod
@@ -9,7 +13,6 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
-import yaml
 
 import wandb
 import wandb.apis.public as public
@@ -18,7 +21,8 @@ from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
-from wandb.wandb_agent import Agent
+from wandb.sdk.wandb_run import Run as SdkRun
+from wandb.wandb_agent import Agent, _create_sweep_command_args
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
@@ -28,6 +32,7 @@ LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 class _Worker:
     agent_config: Dict[str, Any]
     agent_id: str
+    run_id: str
 
 
 class SchedulerState(Enum):
@@ -50,12 +55,11 @@ class RunState(Enum):
 @dataclass
 class SweepRun:
     id: str
+    worker_id: int
     state: RunState = RunState.ALIVE
     queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
-    # Threading can be used to run multiple workers in parallel
-    worker_id: Optional[int] = None
 
 
 class Scheduler(ABC):
@@ -110,11 +114,7 @@ class Scheduler(ABC):
         self._kwargs: Dict[str, Any] = kwargs
 
     @abstractmethod
-    def _start(self) -> None:
-        pass
-
-    @abstractmethod
-    def _run(self) -> None:
+    def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         pass
 
     @abstractmethod
@@ -131,6 +131,7 @@ class Scheduler(ABC):
         _logger.debug(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
         self._state = value
 
+    @property
     def is_alive(self) -> bool:
         if self.state in [
             SchedulerState.COMPLETED,
@@ -141,12 +142,47 @@ class Scheduler(ABC):
             return False
         return True
 
+    @property
+    def num_active_runs(self) -> int:
+        return len(self._runs)
+
+    @property
+    def busy_workers(self) -> Dict[int, _Worker]:
+        """
+        Returns dict of id:worker already assigned to a launch run
+
+        runs should always have a worker_id, but are created before
+        workers are assigned to the run
+        """
+        busy_workers = {}
+        for _, r in self._yield_runs():
+            busy_workers[r.worker_id] = self._workers[r.worker_id]
+        return busy_workers
+
+    @property
+    def available_workers(self) -> Dict[int, _Worker]:
+        """
+        Returns dict of id:worker ready to launch another run
+        """
+        return {_id: w for _id, w in self._workers if _id not in self.busy_workers}
+
+    def _init_wandb_run(self) -> SdkRun:
+        """
+        Controls resume or init logic for a scheduler wandb run
+        """
+        if self._kwargs.get("run_id"):  # resume
+            return wandb.init(resume=self._kwargs["run_id"])
+
+        name = self._kwargs.get("sweep_type")
+
+        return wandb.init(name=f"{name}-scheduler-{self._sweep_id}", resume="allow")
+
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
-        if not self.is_alive():
+        if not self.is_alive:
             wandb.termerror(
-                f"{LOG_PREFIX}Sweep already {self.state.name.lower()}! Exiting..."
+                f"{LOG_PREFIX}Sweep already in completed state ({self.state.name.lower()}). Exiting..."
             )
             self.exit()
             return
@@ -158,26 +194,39 @@ class Scheduler(ABC):
             )
             self.exit()
             return
-        self._start()
+
+        self._load_state()
+        self._register_agents()
         self.run()
 
     def run(self) -> None:
-        """Main run function for all external schedulers."""
-        wandb.termlog(f"{LOG_PREFIX}Scheduler Running.")
+        """Main run function."""
+        wandb.termlog(f"{LOG_PREFIX}Scheduler running")
         self.state = SchedulerState.RUNNING
         try:
             while True:
-                if not self.is_alive():
+                wandb.termlog(f"{LOG_PREFIX}Polling for new runs to launch")
+                if not self.is_alive:
                     break
+
                 self._update_run_states()
-                self._run()
-                # if we hit the run_cap, now set to stopped after launching runs
                 if self.state == SchedulerState.FLUSH_RUNS:
-                    if len(self._runs.keys()) == 0:
-                        wandb.termlog(f"{LOG_PREFIX}Done polling on runs, exiting.")
-                        self.state = SchedulerState.STOPPED
+                    if self.num_active_runs == 0:
+                        wandb.termlog(f"{LOG_PREFIX}Done polling on runs, exiting")
+                        break
+                    time.sleep(self._polling_sleep)
+                    continue
+
+                for worker_id in self.available_workers:
+                    run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
+                    if not run:
+                        break
+
+                    self._add_to_launch_queue(run)
+
+                time.sleep(self._polling_sleep)
         except KeyboardInterrupt:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
+            wandb.termwarn(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting")
             self.state = SchedulerState.STOPPED
             self.exit()
             return
@@ -187,7 +236,7 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
-            wandb.termlog(f"{LOG_PREFIX}Scheduler completed.")
+            wandb.termlog(f"{LOG_PREFIX}Scheduler completed")
             self.exit()
 
     def exit(self) -> None:
@@ -200,7 +249,8 @@ class Scheduler(ABC):
         self._stop_runs()
 
     def _try_load_executable(self) -> bool:
-        """Check existance of valid executable for a run.
+        """
+        Check existance of valid executable for a run.
 
         logs and returns False when job is unreachable
         """
@@ -209,7 +259,7 @@ class Scheduler(ABC):
             try:
                 _job_artifact = _public_api.artifact(self._kwargs["job"], type="job")
                 wandb.termlog(
-                    f"{LOG_PREFIX}Successfully loaded job: {_job_artifact.name} in scheduler"
+                    f"{LOG_PREFIX}Successfully loaded job ({_job_artifact.name}) in scheduler"
                 )
             except Exception:
                 wandb.termerror(f"{LOG_PREFIX}{traceback.format_exc()}")
@@ -221,23 +271,58 @@ class Scheduler(ABC):
         else:
             return False
 
+    def _register_agents(self) -> None:
+        for worker_id in range(self._num_workers):
+            _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
+            agent_config = self._api.register_agent(
+                f"{socket.gethostname()}-{worker_id}",  # host
+                sweep_id=self._sweep_id,
+                project_name=self._project,
+                entity=self._entity,
+            )
+            self._workers[worker_id] = _Worker(
+                agent_config=agent_config,
+                agent_id=agent_config["id"],
+            )
+
     def _yield_runs(self) -> Iterator[Tuple[str, SweepRun]]:
         """Thread-safe way to iterate over the runs."""
         with self._threading_lock:
             yield from self._runs.items()
 
     def _stop_runs(self) -> None:
+        to_delete = []
         for run_id, _ in self._yield_runs():
-            wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
+            to_delete += [run_id]
+
+        for run_id in to_delete:
+            wandb.termlog(f"{LOG_PREFIX}Stopping run ({run_id})")
             self._stop_run(run_id)
 
-    def _stop_run(self, run_id: str) -> None:
-        """Stop a run and removes it from the scheduler."""
-        if run_id in self._runs:
-            run: SweepRun = self._runs[run_id]
+    def _stop_run(self, run_id: str) -> bool:
+        """Stops a run and removes it from the scheduler"""
+        if run_id in self._yield_runs():
+            run = self._runs[run_id]
             run.state = RunState.DEAD
-            # TODO(hupo): Send command to backend to stop run
-            wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
+
+            if not run.queued_run:
+                _logger.debug(f"tried to _stop_run but run ({run.id}) not queued yet")
+                return False
+
+            encoded_run_id = base64.standard_b64encode(
+                f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
+            ).decode("utf-8")
+
+            # TODO(gst): improve performance here
+            success = self._api.stop_run(run_id=encoded_run_id)
+            if success:
+                wandb.termlog(f"{LOG_PREFIX}Stopped run ({run_id})")
+            else:
+                wandb.termlog(f"{LOG_PREFIX}Failed while stopping run ({run_id})")
+
+            del self._runs[run_id]
+
+            return success
 
     def _update_run_states(self) -> None:
         """Iterate through runs.
@@ -273,29 +358,19 @@ class Scheduler(ABC):
                 ]:
                     run.state = RunState.ALIVE
             except CommError as e:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
+                _logger.debug(
+                    f"Issue when getting state for run ({run_id}) with error: {e}"
                 )
                 run.state = RunState.UNKNOWN
                 continue
         # Remove any runs that are dead
         with self._threading_lock:
             for run_id in _runs_to_remove:
-                wandb.termlog(f"{LOG_PREFIX}Cleaning up dead run {run_id}.")
+                wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run {run_id}.")
                 del self._runs[run_id]
 
-    def _add_to_launch_queue(
-        self,
-        run_id: Optional[str] = None,
-        entry_point: Optional[List[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> "public.QueuedRun":
-        """Add a launch job to the Launch RunQueue.
-
-        run_id: supplied by gorilla from agentHeartbeat
-        entry_point: sweep entrypoint overrides image_uri/job entrypoint
-        config: launch config
-        """
+    def _add_to_launch_queue(self, run: SweepRun) -> "public.QueuedRun":
+        """Add a launch job to the Launch RunQueue"""
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
 
@@ -303,7 +378,7 @@ class Scheduler(ABC):
         _image_uri = self._kwargs.get("image_uri") or _sweep_config_uri
         if _job is None and _image_uri is None:
             raise SchedulerError(
-                f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run_id})"
+                f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run.id})"
             )
         elif _job is not None and _image_uri is not None:
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
@@ -315,11 +390,14 @@ class Scheduler(ABC):
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
 
-        run_id = run_id or generate_id()
+        _args = _create_sweep_command_args({"args": run.args})["args_dict"]
+        launch_config = {"overrides": {"run_config": _args}}
+
+        run_id = run.id or generate_id()
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,
-            config=config,
+            config=launch_config,
             docker_image=_image_uri,  # TODO(gst): make agnostic (github? run uri?)
             job=_job,
             project=self._project,
@@ -329,8 +407,9 @@ class Scheduler(ABC):
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
         )
-        self._runs[run_id].queued_run = queued_run
+        run.queued_run = queued_run
+        self._runs[run_id] = run
         wandb.termlog(
-            f"{LOG_PREFIX}Added run to Launch queue: {self._kwargs.get('queue')} RunID:{run_id}."
+            f"{LOG_PREFIX}Added run ({run_id}) to queue ({self._kwargs.get('queue')})"
         )
         return queued_run
