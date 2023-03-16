@@ -1181,7 +1181,7 @@ class SendManager:
             # shut down threads
             output_raw._writer_thr.join(timeout=5)
             if output_raw._writer_thr.is_alive():
-                logger.info("processing outputwandb.sdk..")
+                logger.info("processing output...")
                 output_raw._writer_thr.join()
             output_raw._reader_thr.join()
 
