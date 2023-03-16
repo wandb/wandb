@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import traceback
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -336,17 +337,22 @@ class _run_decorator:  # noqa: N801
         return wrapper
 
     @classmethod
-    def _check_finished(cls, func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
-            if getattr(self, "_is_finished", False):
-                raise errors.UsageError(
-                    f"Cannot call `{func.__name__}` on a run ({self.id}) that is finished. "
+    def _noop_on_finish(cls, message: Optional[str] = None) -> Callable:
+        def decorator_fn(func: Callable) -> Callable:
+            @functools.wraps(func)
+            def wrapper_fn(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+                if not getattr(self, "_is_finished", False):
+                    return func(self, *args, **kwargs)
+
+                default_message = (
+                    f"Run ({self.id}) is finished. The call to `{func.__name__}` will be ignored. "
                     f"Please make sure that you are using an active run before attempting to call `{func.__name__}`."
                 )
-            return func(self, *args, **kwargs)
+                warnings.warn(message or default_message, UserWarning)
 
-        return wrapper
+            return wrapper_fn
+
+        return decorator_fn
 
     @classmethod
     def _noop(cls, func: Callable) -> Callable:
@@ -890,6 +896,7 @@ class Run:
         return self._run_obj.notes
 
     @notes.setter
+    @_run_decorator._noop_on_finish()
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
@@ -908,6 +915,7 @@ class Run:
         return None
 
     @tags.setter
+    @_run_decorator._noop_on_finish()
     def tags(self, tags: Sequence) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
@@ -1542,7 +1550,7 @@ class Run:
             self._step += 1
 
     @_run_decorator._noop
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log(
         self,
@@ -1738,7 +1746,7 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def save(
         self,
@@ -1912,7 +1920,7 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def status(
         self,
@@ -2405,7 +2413,7 @@ class Run:
             printer=self._printer,
         )
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def define_metric(
         self,
@@ -2568,7 +2576,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def link_artifact(
         self,
@@ -2612,7 +2620,7 @@ class Run:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def use_artifact(
         self,
@@ -2720,7 +2728,7 @@ class Run:
             self._backend.interface.publish_use_artifact(artifact)
         return artifact
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log_artifact(
         self,
@@ -2757,7 +2765,7 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def upsert_artifact(
         self,
@@ -2811,7 +2819,7 @@ class Run:
             finalize=False,
         )
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def finish_artifact(
         self,
@@ -2986,7 +2994,7 @@ class Run:
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def alert(
         self,
@@ -3034,7 +3042,7 @@ class Run:
         self._finish(exit_code)
         return exc_type is None
 
-    @_run_decorator._check_finished
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def mark_preempting(self) -> None:
         """Mark this run as preempting.
