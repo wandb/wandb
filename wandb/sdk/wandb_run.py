@@ -337,7 +337,7 @@ class _run_decorator:  # noqa: N801
         return wrapper
 
     @classmethod
-    def _noop_on_finish(cls, message: Optional[str] = None) -> Callable:
+    def _noop_on_finish(cls, message: str = "") -> Callable:
         def decorator_fn(func: Callable) -> Callable:
             @functools.wraps(func)
             def wrapper_fn(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
@@ -346,7 +346,7 @@ class _run_decorator:  # noqa: N801
 
                 default_message = (
                     f"Run ({self.id}) is finished. The call to `{func.__name__}` will be ignored. "
-                    f"Please make sure that you are using an active run before attempting to call `{func.__name__}`."
+                    f"Please make sure that you are using an active run."
                 )
                 warnings.warn(message or default_message, UserWarning)
 
@@ -873,6 +873,7 @@ class Run:
         return self._run_obj.display_name
 
     @name.setter
+    @_run_decorator._noop_on_finish()
     def name(self, name: str) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
@@ -1050,6 +1051,7 @@ class Run:
         """Name of the W&B project associated with the run."""
         return self.project_name()
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log_code(
         self,
@@ -1270,6 +1272,7 @@ class Run:
     ) -> Dict[str, str]:
         return {"text/html": self.to_html(hidden=True)}
 
+    @_run_decorator._noop_on_finish()
     def _config_callback(
         self,
         key: Optional[Union[Tuple[str, ...], str]] = None,
@@ -1320,6 +1323,7 @@ class Run:
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
 
+    @_run_decorator._noop_on_finish()
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
@@ -1404,6 +1408,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
+    @_run_decorator._noop_on_finish()
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
 
@@ -1413,10 +1418,6 @@ class Run:
         # write function of stdout and stderr streams.
         console_pid = getattr(self, "_attach_pid", 0)
         if console_pid != os.getpid():
-            return
-
-        _is_finished = getattr(self, "_is_finished", False)
-        if _is_finished:
             return
 
         if self._backend and self._backend.interface:

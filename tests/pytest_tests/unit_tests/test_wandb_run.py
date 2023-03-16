@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import UsageError
 
 
 def test_run_step_property(mock_run):
@@ -230,9 +229,26 @@ def test_run_deepcopy():
     assert id(run) == id(run2)
 
 
-def test_raise_error_when_using_finished_run(mock_run):
+@pytest.mark.parametrize(
+    "method, args",
+    [
+        ("log", [{"test": 2}]),
+        ("save", []),
+        ("status", []),
+        ("define_metric", ["test"]),
+        ("link_artifact", [wandb.Artifact("test", type="dataset"), "input"]),
+        ("use_artifact", ["test"]),
+        ("log_artifact", ["test"]),
+        ("upsert_artifact", ["test"]),
+        ("finish_artifact", ["test"]),
+        ("alert", ["test", "test"]),
+        ("mark_preempting", []),
+        ("log_code", []),
+    ],
+)
+def test_raise_error_when_using_finished_run(mock_run, method, args):
     run = mock_run(use_magic_mock=True)
     run.finish()
     assert run._is_finished
-    with pytest.raises(UsageError):
-        run.log({"a": 2})
+    with pytest.warns(UserWarning):
+        getattr(run, method)(*args)
