@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from typing import Dict
 
 from wandb.sdk.launch.utils import LaunchError
 from wandb.util import get_module
@@ -20,9 +21,9 @@ botocore = get_module(
     "it with `pip install wandb[launch]`.",
 )
 
-s3_uri_re = re.compile(r"s3://([^/]+)/(.+)")
-
 _logger = logging.getLogger(__name__)
+
+S3_URI_RE = re.compile(r"s3://([^/]+)/(.+)")
 
 
 class AwsEnvironment(AbstractEnvironment):
@@ -38,7 +39,7 @@ class AwsEnvironment(AbstractEnvironment):
     ) -> None:
         """Initialize the AWS environment.
 
-        Args:
+        Arguments:
             region (str): The AWS region.
 
         Raises:
@@ -57,7 +58,7 @@ class AwsEnvironment(AbstractEnvironment):
     def from_default(cls, region: str, verify: bool = True) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 
-        Args:
+        Arguments:
             region (str): The AWS region.
             verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
 
@@ -67,7 +68,12 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.info("Creating AWS environment from default credentials.")
         try:
             session = boto3.Session()
+            region = region or session.region_name
             credentials = session.get_credentials()
+            if not credentials:
+                raise LaunchError(
+                    "Could not create AWS environment from default environment. Please verify that your AWS credentials are configured correctly."
+                )
             access_key = credentials.access_key
             secret_key = credentials.secret_key
             session_token = credentials.token
@@ -82,6 +88,38 @@ class AwsEnvironment(AbstractEnvironment):
             session_token=session_token,
             verify=verify,
         )
+
+    @classmethod
+    def from_config(
+        cls, config: Dict[str, str], verify: bool = True
+    ) -> "AwsEnvironment":
+        """Create an AWS environment from the default AWS environment.
+
+        Arguments:
+            config (dict): Configuration dictionary.
+            verify (bool, optional): Whether to verify the AWS environment. Defaults to True.
+
+        Returns:
+            AwsEnvironment: The AWS environment.
+        """
+        region = str(config.get("region", ""))
+        if not region:
+            raise LaunchError(
+                "Could not create AWS environment from config. Region not specified."
+            )
+        return cls.from_default(
+            region=region,
+            verify=verify,
+        )
+
+    @property
+    def region(self) -> str:
+        """The AWS region."""
+        return self._region
+
+    @region.setter
+    def region(self, region: str) -> None:
+        self._region = region
 
     def verify(self) -> None:
         """Verify that the AWS environment is configured correctly.
@@ -129,7 +167,7 @@ class AwsEnvironment(AbstractEnvironment):
         destination is "s3://bucket/key", the file "foo/bar" will be uploaded
         to "s3://bucket/key/bar".
 
-        Args:
+        Arguments:
             source (str): The path to the file or directory.
             destination (str): The uri of the storage destination. This should
                 be a valid s3 URI, e.g. s3://bucket/key.
@@ -141,7 +179,7 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading {source} to {destination}")
         if not os.path.isfile(source):
             raise LaunchError(f"Source {source} does not exist.")
-        match = s3_uri_re.match(destination)
+        match = S3_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
         bucket = match.group(1)
@@ -165,7 +203,7 @@ class AwsEnvironment(AbstractEnvironment):
         destination is "s3://bucket/key", the contents of "foo/bar" will be uploaded
         to "s3://bucket/key/bar".
 
-        Args:
+        Arguments:
             source (str): The path to the file or directory.
             destination (str): The URI of the storage.
             recursive (bool, optional): If True, copy the directory recursively. Defaults to False.
@@ -177,7 +215,7 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.debug(f"Uploading {source} to {destination}")
         if not os.path.isdir(source):
             raise LaunchError(f"Source {source} does not exist.")
-        match = s3_uri_re.match(destination)
+        match = S3_URI_RE.match(destination)
         if not match:
             raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
         bucket = match.group(1)
@@ -213,7 +251,7 @@ class AwsEnvironment(AbstractEnvironment):
         This will check that the bucket exists and that the credentials are
         configured correctly.
 
-        Args:
+        Arguments:
             uri (str): The URI of the storage.
 
         Raises:
@@ -224,7 +262,7 @@ class AwsEnvironment(AbstractEnvironment):
             None
         """
         _logger.debug(f"Verifying storage {uri}")
-        match = s3_uri_re.match(uri)
+        match = S3_URI_RE.match(uri)
         if not match:
             raise LaunchError(f"Destination {uri} is not a valid s3 URI.")
         bucket = match.group(1)

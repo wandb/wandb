@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -15,8 +16,12 @@ from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
+from wandb.sdk.launch.loader import (
+    builder_from_config,
+    environment_from_config,
+    registry_from_config,
+)
 
-from ...lib.git import GitRepo
 from .._project_spec import (
     EntryPoint,
     EntrypointDefaults,
@@ -32,7 +37,6 @@ from ..utils import (
     resolve_build_and_registry_config,
 )
 from .abstract import AbstractBuilder
-from .loader import load_builder
 
 _logger = logging.getLogger(__name__)
 
@@ -128,6 +132,7 @@ PIP_TEMPLATE = """
 RUN python -m venv /env
 # make sure we install into the env
 ENV PATH="/env/bin:$PATH"
+
 COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
 """
@@ -188,8 +193,8 @@ def get_base_setup(
     CPU version is built on python, GPU version is built on nvidia:cuda.
     """
     python_base_image = f"python:{py_version}-buster"
-    if launch_project.cuda:
-        cuda_version = launch_project.cuda_version or DEFAULT_CUDA_VERSION
+    if launch_project.cuda_base_image:
+        _logger.info(f"Using cuda base image: {launch_project.cuda_base_image}")
         # cuda image doesn't come with python tooling
         if py_major == "2":
             python_packages = [
@@ -206,7 +211,7 @@ def get_base_setup(
                 "python3-setuptools",
             ]
         base_setup = CUDA_SETUP_TEMPLATE.format(
-            cuda_base_image=f"nvidia/cuda:{cuda_version}-runtime",
+            cuda_base_image=launch_project.cuda_base_image,
             python_packages=" \\\n".join(python_packages),
             py_version=py_version,
         )
@@ -386,57 +391,6 @@ def generate_dockerfile(
     return dockerfile_contents
 
 
-_inspected_images = {}
-
-
-def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
-    """Check if a specific image is already available.
-
-    Optionally raises an exception if the image is not found.
-    """
-    _logger.info("Checking if base image exists...")
-    try:
-        data = docker.run(["docker", "image", "inspect", docker_image])
-        # always true, since return stderr defaults to false
-        assert isinstance(data, str)
-        parsed = json.loads(data)[0]
-        _inspected_images[docker_image] = parsed
-        return True
-    except (docker.DockerError, ValueError) as e:
-        if should_raise:
-            raise e
-        _logger.info("Base image not found. Generating new base image")
-        return False
-
-
-def docker_image_inspect(docker_image: str) -> Dict[str, Any]:
-    """Get the parsed json result of docker inspect image_name."""
-    if _inspected_images.get(docker_image) is None:
-        docker_image_exists(docker_image, True)
-    return _inspected_images.get(docker_image, {})
-
-
-def pull_docker_image(docker_image: str) -> None:
-    """Pull the requested docker image."""
-    if docker_image_exists(docker_image):
-        # don't pull images if they exist already, eg if they are local images
-        return
-    try:
-        docker.run(["docker", "pull", docker_image])
-    except docker.DockerError as e:
-        raise LaunchError(f"Docker server returned error: {e}")
-
-
-def construct_gcp_image_uri(
-    launch_project: LaunchProject,
-    gcp_repo: str,
-    gcp_project: str,
-    gcp_registry: str,
-) -> str:
-    base_uri = launch_project.image_uri
-    return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
-
-
 def construct_gcp_registry_uri(
     gcp_repo: str, gcp_project: str, gcp_registry: str
 ) -> str:
@@ -468,24 +422,6 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                     continue
         requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
     return requirements_line
-
-
-def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> str:
-    """Create a Docker image URI for a project.
-
-    The resulting URI is based on the git hash of the specified working directory.
-    :param name: The URI of the Docker repository with which to tag the image. The
-                           repository URI is used as the prefix of the image URI.
-    :param work_dir: Path to the working directory in which to search for a git commit hash.
-    """
-    name = name.replace(" ", "-") if name else "wandb-launch"
-    # Optionally include first 7 digits of git SHA in tag name, if available.
-
-    git_commit = GitRepo(work_dir).last_commit
-    version_string = (
-        ":" + str(git_commit[:7]) + image_id if git_commit else ":" + image_id
-    )
-    return name + version_string
 
 
 def _create_docker_build_ctx(
@@ -533,7 +469,7 @@ def construct_builder_args(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     registry_config = None
     if launch_config is not None:
-        build_config = launch_config.get("build")
+        build_config = launch_config.get("builder")
         registry_config = launch_config.get("registry")
 
     default_launch_config = None
@@ -551,14 +487,12 @@ def construct_builder_args(
 def build_image_with_builder(
     builder: AbstractBuilder,
     launch_project: LaunchProject,
-    repository: Optional[Any],
     entry_point: EntryPoint,
 ) -> Optional[str]:
     """Build image with testing and logging."""
     wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
     image_uri: Optional[str] = builder.build_image(
         launch_project,
-        repository,
         entry_point,
     )
     return image_uri
@@ -567,42 +501,69 @@ def build_image_with_builder(
 def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
-    launch_config: Optional[Dict[str, Any]] = None,
-    default_builder_type: Optional[str] = "docker",
+    launch_config: Dict[str, Any],
 ) -> str:
-    """Create a docker image uri based on the project, config, and api.
+    """Construct a docker image from a project and returns the URI of the image.
 
-    Accept a reference to the Api class and a pre-computed launch_spec object, with an
-    optional launch_config to set things like repository which is used in naming the
-    output docker image, and build_type defaulting to docker (but could be used to build
-    kube resource jobs w/ "kaniko").
+    Arguments:
+        launch_project: The project to build an image from.
+        api: The API object to use for fetching the project.
+        launch_config: The launch config to use for building the image.
 
-    Returns the uri after updating the launch_project with it.
+    Returns:
+        The URI of the built image.
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
+    launch_config = launch_config or {}
+    env_config = launch_config.get("environment", {})
+    if not isinstance(env_config, dict):
+        wrong_type = type(env_config).__name__
+        raise LaunchError(
+            f"Invalid environment config: {env_config} of type {wrong_type} "
+            "loaded from launch config. Expected dict."
+        )
+    environment = environment_from_config(env_config)
 
-    builder_config, registry_config = construct_builder_args(launch_config)
+    registry_config = launch_config.get("registry", {})
+    if not isinstance(registry_config, dict):
+        wrong_type = type(registry_config).__name__
+        raise LaunchError(
+            f"Invalid registry config: {registry_config} of type {wrong_type}"
+            " loaded from launch config. Expected dict."
+        )
+    registry = registry_from_config(registry_config, environment)
+
+    builder_config = launch_config.get("builder", {})
+    if not isinstance(builder_config, dict):
+        wrong_type = type(builder_config).__name__
+        raise LaunchError(
+            f"Invalid builder config: {builder_config} of type {wrong_type} "
+            "loaded from launch config. Expected dict."
+        )
+    builder = builder_from_config(builder_config, environment, registry)
+
+    if not builder:
+        raise LaunchError("Unable to build image. No builder found.")
+
     launch_project = fetch_and_validate_project(launch_project, api)
-    # Currently support either url or repository keywords in registry
-    repository = registry_config.get("url") or registry_config.get("repository")
 
-    if not builder_config.get("type"):
-        wandb.termlog(f"{LOG_PREFIX}No builder found, defaulting to docker")
-        builder_config["type"] = default_builder_type
-
-    builder = load_builder(builder_config)
     entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
         name=EntrypointDefaults.PYTHON[-1],
         command=EntrypointDefaults.PYTHON,
     )
-
-    image_uri = build_image_with_builder(
-        builder,
-        launch_project,
-        repository,
-        entry_point,
-    )
+    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
+    image_uri = builder.build_image(launch_project, entry_point)
     if not image_uri:
         raise LaunchError("Error building image uri")
     else:
         return image_uri
+
+
+def image_tag_from_dockerfile_and_source(
+    launch_project: LaunchProject, dockerfile_contents: str
+) -> str:
+    """Hashes the source and dockerfile contents into a unique tag."""
+    image_source_string = launch_project.get_image_source_string()
+    unique_id_string = image_source_string + dockerfile_contents
+    image_tag = hashlib.sha256(unique_id_string.encode("utf-8")).hexdigest()[:8]
+    return image_tag

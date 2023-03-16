@@ -8,14 +8,17 @@ from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
 from .._project_spec import LaunchProject, compute_command_args
-from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
+from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    docker_image_exists,
+    pull_docker_image,
     sanitize_wandb_api_key,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -66,20 +69,24 @@ class LocalSubmittedRun(AbstractRun):
 class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
+    def __init__(
+        self,
+        api: wandb.apis.internal.Api,
+        backend_config: Dict[str, Any],
+        environment: AbstractEnvironment,
+    ) -> None:
+        super().__init__(api, backend_config)
+        self.environment = environment
+
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
+        builder: Optional[AbstractBuilder],
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = launch_project.resource_args.get(
             "local-container", {}
         )
-        # TODO: leaving this here because of existing CLI command
-        # we should likely just tell users to specify the gpus arg directly
-        if launch_project.cuda:
-            docker_args["gpus"] = "all"
 
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
@@ -122,11 +129,10 @@ class LocalContainerRunner(AbstractRunner):
             ).strip()
         else:
             assert entry_point is not None
-            repository: Optional[str] = registry_config.get("url")
             _logger.info("Building docker image...")
+            assert builder is not None
             image_uri = builder.build_image(
                 launch_project,
-                repository,
                 entry_point,
             )
             _logger.info(f"Docker image built with uri {image_uri}")
@@ -141,8 +147,6 @@ class LocalContainerRunner(AbstractRunner):
                 )
             ).strip()
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)
@@ -216,9 +220,12 @@ def get_docker_command(
                 cmd += [prefix]
             else:
                 cmd += [prefix, shlex.quote(str(value))]
+
     if entry_cmd:
-        cmd += ["--entrypoint"] + entry_cmd
+        cmd += ["--entrypoint", entry_cmd[0]]
     cmd += [shlex.quote(image)]
+    if entry_cmd and len(entry_cmd) > 1:
+        cmd += entry_cmd[1:]
     if additional_args:
         cmd += additional_args
     return cmd

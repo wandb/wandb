@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
     from wandb.sdk.internal import artifacts as internal_artifacts
     from wandb.sdk.internal import file_stream, internal_api
+    from wandb.sdk.internal.settings_static import SettingsStatic
 
 
 # Temporary directory for copies we make of some file types to
@@ -40,7 +41,7 @@ class FilePusher:
         self,
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
-        silent: Optional[bool] = False,
+        settings: Optional["SettingsStatic"] = None,
     ) -> None:
         self._api = api
 
@@ -66,7 +67,7 @@ class FilePusher:
             self._event_queue,
             self.MAX_UPLOAD_JOBS,
             file_stream=file_stream,
-            silent=bool(silent),
+            settings=settings,
         )
         self._step_upload.start()
 
@@ -143,8 +144,11 @@ class FilePusher:
         manifest: "artifacts.ArtifactManifest",
         artifact_id: str,
         save_fn: "internal_artifacts.SaveFn",
+        save_fn_async: "internal_artifacts.SaveFnAsync",
     ) -> None:
-        event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
+        event = step_checksum.RequestStoreManifestFiles(
+            manifest, artifact_id, save_fn, save_fn_async
+        )
         self._incoming_queue.put(event)
 
     def commit_artifact(

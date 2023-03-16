@@ -4,14 +4,12 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from kubernetes import client  # type: ignore
-from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
-from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
-from kubernetes.client.models.v1_job import V1Job  # type: ignore
-from kubernetes.client.models.v1_secret import V1Secret  # type: ignore
-
 import wandb
+from wandb.apis.internal import Api
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.environment.abstract import AbstractEnvironment
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module, load_json_yaml_dict
 
 from .._project_spec import LaunchProject, get_entry_point_command
@@ -24,6 +22,17 @@ from ..utils import (
     make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
+
+get_module(
+    "kubernetes",
+    required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+)
+
+from kubernetes import client  # type: ignore # noqa: E402
+from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
+from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
+from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
 
 TIMEOUT = 5
 MAX_KUBERNETES_RETRIES = (
@@ -80,11 +89,11 @@ class KubernetesSubmittedRun(AbstractRun):
             name=self.name, namespace=self.namespace
         )
         status = job_response.status
-        try:
-            self.core_api.read_namespaced_pod_log(
-                name=self.pod_names[0], namespace=self.namespace
-            )
-        except Exception as e:
+
+        pod = self.core_api.read_namespaced_pod(
+            name=self.pod_names[0], namespace=self.namespace
+        )
+        if pod.status.phase in ["Pending", "Unknown"]:
             now = time.time()
             if self._fail_count == 0:
                 self._fail_first_msg_time = now
@@ -92,13 +101,11 @@ class KubernetesSubmittedRun(AbstractRun):
             self._fail_count += 1
             if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
                 wandb.termlog(
-                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes for job to start."
+                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
                 )
                 self._fail_last_msg_time = now
             if self._fail_count > MAX_KUBERNETES_RETRIES:
-                raise LaunchError(
-                    f"Failed to start job {self.name}, because of error {str(e)}"
-                )
+                raise LaunchError(f"Failed to start job {self.name}")
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         return_status = None
         if status.succeeded == 1:
@@ -154,6 +161,12 @@ class KubernetesSubmittedRun(AbstractRun):
 
 
 class KubernetesRunner(AbstractRunner):
+    def __init__(
+        self, api: Api, backend_config: Dict[str, Any], environment: AbstractEnvironment
+    ) -> None:
+        super().__init__(api, backend_config)
+        self.environment = environment
+
     def populate_job_spec(
         self, job_spec: Dict[str, Any], resource_args: Dict[str, Any]
     ) -> None:
@@ -189,7 +202,6 @@ class KubernetesRunner(AbstractRunner):
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
     ) -> None:
-
         if resource_args.get("container_name"):
             if len(containers) > 1:
                 raise LaunchError(
@@ -264,13 +276,13 @@ class KubernetesRunner(AbstractRunner):
     def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
-    ) -> Optional[AbstractRun]:
-        kubernetes = get_module(
-            "kubernetes", "KubernetesRunner requires kubernetes to be installed"
+        builder: Optional[AbstractBuilder],
+    ) -> Optional[AbstractRun]:  # noqa: C901
+        kubernetes = get_module(  # noqa: F811
+            "kubernetes",
+            required="Kubernetes runner requires the kubernetes package. Please"
+            " install it with `pip install wandb[launch]`.",
         )
-
         resource_args = launch_project.resource_args.get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
@@ -348,21 +360,17 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
                 )
-            given_reg = resource_args.get("registry", "")
-            repository: Optional[str] = (
-                given_reg if given_reg != "" else registry_config.get("url")
-            )
-            if repository is None:
-                # allow local registry usage for eg local clusters but throw a warning
-                wandb.termwarn(
-                    f"{LOG_PREFIX}Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
-                )
             assert entry_point is not None
-            image_uri = builder.build_image(launch_project, repository, entry_point)
+            assert builder is not None
+            image_uri = builder.build_image(launch_project, entry_point)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
+            if not builder.registry:
+                raise LaunchError(
+                    "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
+                )
             secret = maybe_create_imagepull_secret(
-                core_api, registry_config, launch_project.run_id, namespace
+                core_api, builder.registry, launch_project.run_id, namespace
             )
 
             containers[0]["image"] = image_uri
@@ -390,9 +398,6 @@ class KubernetesRunner(AbstractRunner):
         job_dict["metadata"] = job_metadata
         job_dict["status"] = job_status
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
-
         _logger.info(f"Creating Kubernetes job from: {job_dict}")
         job_response = kubernetes.utils.create_from_yaml(
             api_client, yaml_objects=[job_dict], namespace=namespace
@@ -415,57 +420,34 @@ class KubernetesRunner(AbstractRunner):
 
 def maybe_create_imagepull_secret(
     core_api: "CoreV1Api",
-    registry_config: Dict[str, Any],
+    registry: AbstractRegistry,
     run_id: str,
     namespace: str,
 ) -> Optional["V1Secret"]:
     secret = None
-    ecr_provider = registry_config.get("ecr-provider", "").lower()
-    if (
-        ecr_provider
-        and ecr_provider == "aws"
-        and registry_config.get("url") is not None
-        and registry_config.get("credentials") is not None
-    ):
-        boto3 = get_module(
-            "boto3", "AWS ECR requires boto3,  install with pip install wandb[launch]"
-        )
-        ecr_client = boto3.client("ecr")
-        try:
-            encoded_token = ecr_client.get_authorization_token()["authorizationData"][
-                0
-            ]["authorizationToken"]
-            decoded_token = base64.b64decode(encoded_token.encode()).decode()
-            uname, token = decoded_token.split(":")
-        except Exception as e:
-            raise LaunchError(f"Could not get authorization token for ECR, error: {e}")
-        creds_info = {
-            "auths": {
-                registry_config.get("url"): {
-                    "username": uname,
-                    "password": token,
-                    # need an email but the use is deprecated
-                    "email": "deprecated@wandblaunch.com",
-                    "auth": encoded_token,
-                }
+    if isinstance(registry, LocalRegistry):
+        # Secret not required
+        return None
+    uname, token = registry.get_username_password()
+    creds_info = {
+        "auths": {
+            registry.uri: {
+                "auth": base64.b64encode(f"{uname}:{token}".encode()).decode(),
+                # need an email but the use is deprecated
+                "email": "deprecated@wandblaunch.com",
             }
         }
-        secret_data = {
-            ".dockerconfigjson": base64.b64encode(
-                json.dumps(creds_info).encode()
-            ).decode()
-        }
-        secret = client.V1Secret(
-            data=secret_data,
-            metadata=client.V1ObjectMeta(name=f"regcred-{run_id}", namespace=namespace),
-            kind="Secret",
-            type="kubernetes.io/dockerconfigjson",
-        )
-        try:
-            core_api.create_namespaced_secret(namespace, secret)
-        except Exception as e:
-            raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
-    # TODO: support other ecr providers
-    elif ecr_provider and ecr_provider != "aws":
-        raise LaunchError(f"Registry provider not supported: {ecr_provider}")
-    return secret
+    }
+    secret_data = {
+        ".dockerconfigjson": base64.b64encode(json.dumps(creds_info).encode()).decode()
+    }
+    secret = client.V1Secret(
+        data=secret_data,
+        metadata=client.V1ObjectMeta(name=f"regcred-{run_id}", namespace=namespace),
+        kind="Secret",
+        type="kubernetes.io/dockerconfigjson",
+    )
+    try:
+        return core_api.create_namespaced_secret(namespace, secret)
+    except Exception as e:
+        raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
