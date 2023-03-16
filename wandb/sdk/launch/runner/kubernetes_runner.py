@@ -170,6 +170,7 @@ class KubernetesRunner(AbstractRunner):
     def populate_job_spec(
         self, job_spec: Dict[str, Any], resource_args: Dict[str, Any]
     ) -> None:
+        job_spec["ttlSecondsAfterFinished"] = resource_args.get("ttl_seconds_after_finished", 100)
         if resource_args.get("backoff_limit"):
             job_spec["backoffLimit"] = resource_args.get("backoff_limit")
         if resource_args.get("completions"):
