@@ -62,8 +62,9 @@ def load_model_from_artifact(
             )
 
     if model_filepaths is None:
-        wandb.termlog("loading model")
-        logger.info("loading model")
+        if verbose:
+            wandb.termlog("loading model")
+            logger.info("loading model")
         return tf.keras.models.load_model(
             model_artifact_dir,
             custom_objects=custom_objects,
