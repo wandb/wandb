@@ -1,6 +1,4 @@
-"""
-sender.
-"""
+"""sender."""
 
 
 import json
@@ -21,6 +19,7 @@ from typing import (
     NewType,
     Optional,
     Tuple,
+    Union,
     cast,
 )
 
@@ -28,10 +27,11 @@ import requests
 
 import wandb
 from wandb import util
-from wandb.errors import ContextCancelledError
+from wandb.errors import CommError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
+from wandb.sdk.lib.mailbox import ContextCancelledError
 
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
@@ -269,8 +269,9 @@ class SendManager:
         self._debounce_status_time = time_now
 
     @classmethod
-    def setup(cls, root_dir: str) -> "SendManager":
-        """This is a helper class method to set up a standalone SendManager.
+    def setup(cls, root_dir: str, resume: Union[None, bool, str]) -> "SendManager":
+        """Set up a standalone SendManager.
+
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
@@ -280,7 +281,7 @@ class SendManager:
             root_dir=root_dir,
             _start_time=0,
             git_remote=None,
-            resume=None,
+            resume=resume,
             program=None,
             ignore_globs=(),
             run_id=None,
@@ -298,6 +299,8 @@ class SendManager:
             _sync=True,
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
+            disable_job_creation=False,
+            _async_upload_concurrency_limit=None,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
@@ -427,7 +430,7 @@ class SendManager:
         self._maybe_report_status(always=True)
 
     def send_request_check_version(self, record: "Record") -> None:
-        assert record.control.req_resp
+        assert record.control.req_resp or record.control.mailbox_slot
         result = proto_util._result_from_record(record)
         current_version = (
             record.request.check_version.current_version or wandb.__version__
@@ -456,7 +459,7 @@ class SendManager:
         resp.run.CopyFrom(self._run)
 
     def send_request_attach(self, record: "Record") -> None:
-        assert record.control.req_resp
+        assert record.control.req_resp or record.control.mailbox_slot
         result = proto_util._result_from_record(record)
         self._send_request_attach(
             record.request.attach, result.response.attach_response
@@ -708,8 +711,7 @@ class SendManager:
     def _maybe_setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
-        """This maybe queries the backend for a run and fails if the settings are
-        incompatible."""
+        """Queries the backend for a run; fail if the settings are incompatible."""
         if not self._settings.resume:
             return None
 
@@ -848,7 +850,7 @@ class SendManager:
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
     def _sync_spell(self) -> None:
-        """Syncs this run with spell"""
+        """Sync this run with spell."""
         if not self._run:
             return
         try:
@@ -924,7 +926,19 @@ class SendManager:
             config_value_dict = self._config_format(None)
             self._config_save(config_value_dict)
 
-        self._init_run(run, config_value_dict)
+        try:
+            self._init_run(run, config_value_dict)
+        except CommError as e:
+            logger.error(e, exc_info=True)
+            if record.control.req_resp or record.control.mailbox_slot:
+                result = proto_util._result_from_record(record)
+                result.run_result.run.CopyFrom(run)
+                error = wandb_internal_pb2.ErrorInfo()
+                error.message = str(e)
+                result.run_result.error.CopyFrom(error)
+                self._respond_result(result)
+            return
+
         assert self._run  # self._run is configured in _init_run()
 
         if record.control.req_resp or record.control.mailbox_slot:
@@ -1058,7 +1072,7 @@ class SendManager:
             settings_dict=self._settings,
         )
         self._fs.start()
-        self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
+        self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
         self._dir_watcher = DirWatcher(
             cast(Settings, self._settings), self._pusher, file_dir
         )
@@ -1358,9 +1372,9 @@ class SendManager:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
 
     def send_use_artifact(self, record: "Record") -> None:
-        """
-        This function doesn't actually send anything, it is just used
-        internally
+        """Pretend to send a used artifact.
+
+        This function doesn't actually send anything, it is just used internally.
         """
         use = record.use_artifact
         if use.type == "job":
@@ -1485,7 +1499,7 @@ class SendManager:
                     wait_duration=alert.wait_duration,
                 )
             except Exception as e:
-                logger.error(f'send_alert: failed for alert "{alert.title}": {e}')
+                logger.error(f"send_alert: failed for alert {alert.title!r}: {e}")
 
     def finish(self) -> None:
         logger.info("shutting down sender")
@@ -1528,10 +1542,11 @@ class SendManager:
         return self._cached_server_info
 
     def get_local_info(self) -> "LocalInfo":
-        """
-        This is a helper function that queries the server to get the local version information.
-        First, we perform an introspection, if it returns empty we deduce that the docker image is
-        out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
+        """Queries the server to get the local version information.
+
+        First, we perform an introspection, if it returns empty we deduce that the
+        docker image is out-of-date. Otherwise, we use the returned values to deduce the
+        state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
         if self._settings._offline:
@@ -1554,24 +1569,28 @@ class SendManager:
         return local_info
 
     def _flush_job(self) -> None:
+        if self._job_builder.disable or self._settings.get("_offline", False):
+            return
         self._job_builder.set_config(
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
         )
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        if not self._settings.get("_offline", False) and not self._job_builder.disable:
-            artifact = self._job_builder.build()
-            if artifact is not None and self._run is not None:
-                proto_artifact = self._interface._make_artifact(artifact)
-                proto_artifact.run_id = self._run.run_id
-                proto_artifact.project = self._run.project
-                proto_artifact.entity = self._run.entity
-                proto_artifact.user_created = True
-                proto_artifact.use_after_commit = True
-                proto_artifact.finalize = True
+        artifact = self._job_builder.build()
+        if artifact is not None and self._run is not None:
+            proto_artifact = self._interface._make_artifact(artifact)
+            proto_artifact.run_id = self._run.run_id
+            proto_artifact.project = self._run.project
+            proto_artifact.entity = self._run.entity
+            # TODO: this should be removed when the latest tag is handled
+            # by the backend (WB-12116)
+            proto_artifact.aliases.append("latest")
+            proto_artifact.user_created = True
+            proto_artifact.use_after_commit = True
+            proto_artifact.finalize = True
 
-                self._interface._publish_artifact(proto_artifact)
+            self._interface._publish_artifact(proto_artifact)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)

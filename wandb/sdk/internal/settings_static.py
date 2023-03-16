@@ -1,7 +1,5 @@
-"""
-static settings.
-"""
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
+"""static settings."""
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
@@ -20,6 +18,8 @@ class SettingsStatic:
     _stats_samples_to_average: int
     _stats_join_assets: bool
     _stats_neuron_monitor_config_path: Optional[str]
+    _stats_open_metrics_endpoints: Mapping[str, str]
+    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str
@@ -32,7 +32,7 @@ class SettingsStatic:
     _jupyter_name: Optional[str]
     _jupyter_root: Optional[str]
     _network_buffer: Optional[int]
-    _require_service: Optional[str]
+    _disable_service: Optional[bool]
     _live_policy_rate_limit: Optional[int]
     resume: Optional[str]
     program: Optional[str]
@@ -60,6 +60,8 @@ class SettingsStatic:
     sync_file: str
     _flow_control_disabled: bool
     _flow_control_custom: bool
+    disable_job_creation: bool
+    _async_upload_concurrency_limit: Optional[int]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

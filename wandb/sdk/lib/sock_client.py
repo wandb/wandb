@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class SockClientClosedError(Exception):
-    """Socket has been closed"""
+    """Socket has been closed."""
 
     pass
 

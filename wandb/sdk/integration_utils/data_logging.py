@@ -44,7 +44,7 @@ class ValidationDataLogger:
         class_labels: Optional[List[str]] = None,
         infer_missing_processors: bool = True,
     ) -> None:
-        """Initializes a new ValidationDataLogger.
+        """Initialize a new ValidationDataLogger.
 
         Args:
             inputs: A list of input vectors or dictionary of lists of input vectors
@@ -143,7 +143,7 @@ class ValidationDataLogger:
     def make_predictions(
         self, predict_fn: Callable
     ) -> Union[Sequence, Dict[str, Sequence]]:
-        """Produces predictions by passing `validation_inputs` to `predict_fn`.
+        """Produce predictions by passing `validation_inputs` to `predict_fn`.
 
         Args:
             predict_fn (Callable): Any function which can accept `validation_inputs` and produce
@@ -162,7 +162,7 @@ class ValidationDataLogger:
         table_name: str = "validation_predictions",
         commit: bool = True,
     ) -> wandb.data_types.Table:
-        """Logs a set of predictions.
+        """Log a set of predictions.
 
         Intended usage:
 
@@ -221,7 +221,7 @@ def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
 
 
 def _get_example_shape(example: Union[Sequence, Any]):
-    """Gets the shape of an object if applicable."""
+    """Get the shape of an object if applicable."""
     shape = []
     if type(example) is not str and hasattr(example, "__len__"):
         length = len(example)
@@ -232,7 +232,7 @@ def _get_example_shape(example: Union[Sequence, Any]):
 
 
 def _bind(lambda_fn: Callable, **closure_kwargs: Any) -> Callable:
-    """Creates a closure around a lambda function by binding `closure_kwargs` to the function."""
+    """Create a closure around a lambda function by binding `closure_kwargs` to the function."""
 
     def closure(*args: Any, **kwargs: Any) -> Any:
         _k = {}
