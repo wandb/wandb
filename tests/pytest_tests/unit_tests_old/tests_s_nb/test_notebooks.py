@@ -32,7 +32,7 @@ def test_login_timeout(notebook, monkeypatch):
         output = nb.cell_output(1)
         print(output)
         print(type(output))
-        assert output[-1]["data"]["text/plain"] == ""
+        assert output[-1]["text"] == ""
 
 
 def test_one_cell(notebook):
@@ -40,10 +40,7 @@ def test_one_cell(notebook):
         nb.execute_all()
         output = nb.cell_output(0)
         print(output)
-        assert any(
-            "lovely-dawn-32" in (x.get("data", {}) or {}).get("text/html", "")
-            for x in output
-        )
+        assert any("lovely-dawn-32" in x.get("text", "") for x in output)
 
 
 def test_magic(notebook):
@@ -54,11 +51,11 @@ def test_magic(notebook):
         for c, cell in enumerate(nb.cells):
             for i, out in enumerate(cell["outputs"]):
                 print(f"CELL {c} output {i}: ", out)
-                if not out.get("data", {}).get("text/html"):
+                if not out.get("text"):
                     continue
                 if c == 0 and i == 0:
                     assert "display:none" in out
-                text += out["data"]["text/html"]
+                text += out["text"]
             iframes += 1
         assert notebook.base_url in text
         assert iframes == 5
@@ -182,7 +179,6 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
 
 
 def test_notebook_exits(live_mock_server, test_settings):
-
     script_fname = utils.notebook_path("ipython_exit.py")
     bindir = os.path.dirname(sys.executable)
     ipython = os.path.join(bindir, "ipython")
