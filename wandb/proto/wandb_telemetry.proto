@@ -111,6 +111,9 @@ message Imports {
   bool diffusers = 83;
   bool trl = 84;
   bool trlx = 85;
+  bool langchain = 86;
+  bool llama_index = 87;
+  bool stability_sdk = 88;
 }
 
 message Feature {
