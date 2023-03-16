@@ -72,6 +72,29 @@ def load_model_from_artifact(
             options=options,
         )
     else:
+        if isinstance(custom_objects, list) and len(custom_objects) != len(
+            model_filepaths
+        ):
+            error_message = (
+                "Number of custom objects do not match the number of model filepaths"
+            )
+            wandb.termerror(error_message)
+            raise ValueError(error_message)
+
+        if isinstance(compile, list) and len(compile) != len(model_filepaths):
+            error_message = (
+                "Number of compile flags do not match the number of model filepaths"
+            )
+            wandb.termerror(error_message)
+            raise ValueError(error_message)
+
+        if isinstance(options, list) and len(compile) != len(model_filepaths):
+            error_message = (
+                "Number of options do not match the number of model filepaths"
+            )
+            wandb.termerror(error_message)
+            raise ValueError(error_message)
+
         models = []
         for idx, filepath in enumerate(model_filepaths):
             if verbose:
