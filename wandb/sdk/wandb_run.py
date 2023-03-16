@@ -154,9 +154,6 @@ class TeardownHook(NamedTuple):
     stage: TeardownStage
 
 
-warnings.filterwarnings("always", category=UserWarning)
-
-
 class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
@@ -340,7 +337,7 @@ class _run_decorator:  # noqa: N801
         return wrapper
 
     @classmethod
-    def _noop_on_finish(cls, message: str = "") -> Callable:
+    def _noop_on_finish(cls, message: str = "", only_warn: bool = False) -> Callable:
         def decorator_fn(func: Callable) -> Callable:
             @functools.wraps(func)
             def wrapper_fn(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
@@ -351,7 +348,11 @@ class _run_decorator:  # noqa: N801
                     f"Run ({self.id}) is finished. The call to `{func.__name__}` will be ignored. "
                     f"Please make sure that you are using an active run."
                 )
-                warnings.warn(message or default_message, UserWarning, stacklevel=2)
+                resolved_message = message or default_message
+                if only_warn:
+                    warnings.warn(resolved_message, UserWarning, stacklevel=2)
+                else:
+                    raise errors.UsageError(resolved_message)
 
             return wrapper_fn
 
@@ -1411,7 +1412,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
-    @_run_decorator._noop_on_finish()
+    @_run_decorator._noop_on_finish(only_warn=True)
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
 

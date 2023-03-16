@@ -246,11 +246,11 @@ def test_run_deepcopy():
         ("finish_artifact", ["test"]),
     ],
 )
-def test_warn_when_using_methods_of_finished_run(mock_run, method, args):
+def test_error_when_using_methods_of_finished_run(mock_run, method, args):
     run = mock_run(use_magic_mock=True)
     run.finish()
     assert run._is_finished
-    with pytest.warns(UserWarning):
+    with pytest.raises(wandb.errors.UsageError):
         getattr(run, method)(*args)
 
 
@@ -264,11 +264,11 @@ def test_warn_when_using_methods_of_finished_run(mock_run, method, args):
         ("tags", "test"),
     ],
 )
-def test_warn_when_using_attributes_of_finished_run(mock_run, attribute, value):
+def test_error_when_using_attributes_of_finished_run(mock_run, attribute, value):
     run = mock_run(use_magic_mock=True)
     run.finish()
     assert run._is_finished
-    with pytest.warns(UserWarning):
+    with pytest.raises(wandb.errors.UsageError):
         if isinstance(value, list):
             setattr(getattr(run, attribute), *value)
         else:
