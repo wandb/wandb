@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import os
 import random
@@ -6,6 +7,7 @@ from multiprocessing import Pool
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.interface import artifacts
 
 
 def test_opener_rejects_append_mode(cache):
@@ -313,7 +315,7 @@ def test_storage_policy_incomplete():
         "from_config": dict(config={}),
         "config": {},
         "load_file": dict(artifact=None, manifest_entry=None),
-        "store_file": dict(
+        "store_file_sync": dict(
             artifact_id="", artifact_manifest_id="", entry=None, preparer=None
         ),
         "store_reference": dict(artifact=None, path=""),
@@ -323,6 +325,15 @@ def test_storage_policy_incomplete():
     for method, kwargs in abstract_method_args.items():
         with pytest.raises(NotImplementedError):
             getattr(usp, method)(**kwargs)
+
+    async_method_args = {
+        "store_file_async": dict(
+            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
+        )
+    }
+    for method, kwargs in async_method_args.items():
+        with pytest.raises(NotImplementedError):
+            asyncio.new_event_loop().run_until_complete(getattr(usp, method)(**kwargs))
 
     UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
 
@@ -345,3 +356,15 @@ def test_storage_handler_incomplete():
         ush.load_path(manifest_entry=None)
     with pytest.raises(NotImplementedError):
         ush.store_path(artifact=None, path="")
+
+
+def test_unwritable_staging_dir(monkeypatch):
+    # Use a non-writable directory as the staging directory.
+    # CI just doesn't care about permissions, so we're patching os.makedirs 🙃
+    def nope(*args, **kwargs):
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "makedirs", nope)
+
+    with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
+        _ = artifacts.get_new_staging_file()
