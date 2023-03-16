@@ -732,12 +732,6 @@ class Artifact(ArtifactInterface):
         self._added_local_paths[path] = entry
         return entry
 
-    def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactManifestEntry:
-        return self.add(item, name)
-
-    def __getitem__(self, name: str) -> Optional[data_types.WBValue]:
-        return self.get(name)
-
 
 class ArtifactManifestV1(ArtifactManifest):
     @classmethod
@@ -942,7 +936,7 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception(f"unrecognized storage layout: {storage_layout}")
 
-    def store_file(
+    def store_file_sync(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -956,14 +950,14 @@ class WandbStoragePolicy(StoragePolicy):
             True if the file was a duplicate (did not need to be uploaded),
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
-        resp = preparer.prepare(
+        resp = preparer.prepare_sync(
             {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-        )
+        ).get()
 
         entry.birth_artifact_id = resp.birth_artifact_id
         if resp.upload_url is None:
@@ -982,6 +976,53 @@ class WandbStoragePolicy(StoragePolicy):
                     for header in (resp.upload_headers or {})
                 },
             )
+        self._write_cache(entry)
+
+        return False
+
+    async def store_file_async(
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactManifestEntry,
+        preparer: "StepPrepare",
+        progress_callback: Optional["progress.ProgressFn"] = None,
+    ) -> bool:
+        """Async equivalent to `store_file_sync`."""
+        resp = await preparer.prepare_async(
+            {
+                "artifactID": artifact_id,
+                "artifactManifestID": artifact_manifest_id,
+                "name": entry.path,
+                "md5": entry.digest,
+            }
+        )
+
+        entry.birth_artifact_id = resp.birth_artifact_id
+        if resp.upload_url is None:
+            return True
+        if entry.local_path is None:
+            return False
+
+        with open(entry.local_path, "rb") as file:
+            # This fails if we don't send the first byte before the signed URL expires.
+            await self._api.upload_file_retry_async(
+                resp.upload_url,
+                file,
+                progress_callback,
+                extra_headers={
+                    header.split(":", 1)[0]: header.split(":", 1)[1]
+                    for header in (resp.upload_headers or {})
+                },
+            )
+
+        self._write_cache(entry)
+
+        return False
+
+    def _write_cache(self, entry: ArtifactManifestEntry) -> None:
+        if entry.local_path is None:
+            return
 
         # Cache upon successful upload.
         _, hit, cache_open = self._cache.check_md5_obj_path(
@@ -991,8 +1032,6 @@ class WandbStoragePolicy(StoragePolicy):
         if not hit:
             with cache_open() as f:
                 shutil.copyfile(entry.local_path, f.name)
-
-        return False
 
 
 # Don't use this yet!

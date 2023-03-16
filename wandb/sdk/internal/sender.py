@@ -301,6 +301,7 @@ class SendManager:
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
             disable_job_creation=False,
+            _async_upload_concurrency_limit=None,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
@@ -1080,7 +1081,7 @@ class SendManager:
             settings_dict=self._settings,
         )
         self._fs.start()
-        self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
+        self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
         self._dir_watcher = DirWatcher(
             cast(Settings, self._settings), self._pusher, file_dir
         )

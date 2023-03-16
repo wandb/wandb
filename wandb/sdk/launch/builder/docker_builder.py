@@ -16,7 +16,13 @@ from .._project_spec import (
     get_entry_point_command,
 )
 from ..registry.local_registry import LocalRegistry
-from ..utils import LOG_PREFIX, LaunchDockerError, LaunchError, sanitize_wandb_api_key
+from ..utils import (
+    LOG_PREFIX,
+    LaunchDockerError,
+    LaunchError,
+    sanitize_wandb_api_key,
+    warn_failed_packages_from_build_logs,
+)
 from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
@@ -146,7 +152,11 @@ class DockerBuilder(AbstractBuilder):
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
-            docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
+            output = docker.build(
+                tags=[image_uri], file=dockerfile, context_path=build_ctx_path
+            )
+            warn_failed_packages_from_build_logs(output, image_uri)
+
         except docker.DockerError as e:
             raise LaunchDockerError(f"Error communicating with docker client: {e}")
 

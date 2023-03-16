@@ -16,6 +16,15 @@ from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
 
+from .builder.templates._wandb_bootstrap import (
+    FAILED_PACKAGES_POSTFIX,
+    FAILED_PACKAGES_PREFIX,
+)
+
+FAILED_PACKAGES_REGEX = re.compile(
+    f"{re.escape(FAILED_PACKAGES_PREFIX)}(.*){re.escape(FAILED_PACKAGES_POSTFIX)}"
+)
+
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
 
@@ -660,6 +669,14 @@ def make_name_dns_safe(name: str) -> str:
     # Actual length limit is 253, but we want to leave room for the generated suffix
     resp = resp[:200]
     return resp
+
+
+def warn_failed_packages_from_build_logs(log: str, image_uri: str) -> None:
+    match = FAILED_PACKAGES_REGEX.search(log)
+    if match:
+        wandb.termwarn(
+            f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
+        )
 
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
