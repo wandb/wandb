@@ -339,7 +339,7 @@ class _run_decorator:  # noqa: N801
     def _check_finished(cls, func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
-            if self._is_finished:
+            if getattr(self, "_is_finished", False):
                 raise errors.UsageError(
                     f"Cannot call `{func.__name__}` on a run ({self.id}) that is finished. "
                     f"Please make sure that you are using an active run before attempting to call `{func.__name__}`."
@@ -801,7 +801,11 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=self._attach_id, _init_pid=self._init_pid)
+        return dict(
+            _attach_id=_attach_id,
+            _init_pid=self._init_pid,
+            _is_finished=self._is_finished,
+        )
 
     def __setstate__(self, state: Any) -> None:
         """Set run state from a custom pickle."""
