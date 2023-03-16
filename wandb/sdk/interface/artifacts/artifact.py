@@ -1,212 +1,29 @@
-import contextlib
-import hashlib
-import os
-import secrets
-import tempfile
-from dataclasses import dataclass, field
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    ContextManager,
-    Dict,
-    Generator,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, Union
 
 import wandb
-from wandb import env, util
 from wandb.data_types import WBValue
-from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
-from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5, b64_to_hex_id
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
-    # need this import for type annotations, but want to avoid circular dependency
-    import sys
-
     import wandb.apis.public
-    from wandb.filesync.step_prepare import StepPrepare
-    from wandb.sdk import wandb_artifacts
-    from wandb.sdk.internal import progress
-
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
-
-    class Opener(Protocol):
-        def __call__(self, mode: str = ...) -> ContextManager[IO]:
-            pass
+    from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 
 
-class ArtifactManifest:
-    entries: Dict[str, "ArtifactManifestEntry"]
-
-    @classmethod
-    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
-        if "version" not in manifest_json:
-            raise ValueError("Invalid manifest format. Must contain version field.")
-        version = manifest_json["version"]
-        for sub in cls.__subclasses__():
-            if sub.version() == version:
-                return sub.from_manifest_json(manifest_json)
-        raise ValueError("Invalid manifest version.")
-
-    @classmethod
-    def version(cls) -> int:
-        raise NotImplementedError
+class ArtifactNotLoggedError(Exception):
+    """Raised for Artifact methods or attributes that require the logged artifact."""
 
     def __init__(
-        self,
-        storage_policy: "wandb_artifacts.WandbStoragePolicy",
-        entries: Optional[Mapping[str, "ArtifactManifestEntry"]] = None,
-    ) -> None:
-        self.storage_policy = storage_policy
-        self.entries = dict(entries) if entries else {}
-
-    def to_manifest_json(self) -> Dict:
-        raise NotImplementedError
-
-    def digest(self) -> HexMD5:
-        raise NotImplementedError
-
-    def add_entry(self, entry: "ArtifactManifestEntry") -> None:
-        if (
-            entry.path in self.entries
-            and entry.digest != self.entries[entry.path].digest
-        ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
-        self.entries[entry.path] = entry
-
-    def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
-        return self.entries.get(path)
-
-    def get_entries_in_directory(self, directory: str) -> List["ArtifactManifestEntry"]:
-        return [
-            self.entries[entry_key]
-            for entry_key in self.entries
-            if entry_key.startswith(
-                directory + "/"
-            )  # entries use forward slash even for windows
-        ]
-
-
-@dataclass
-class ArtifactManifestEntry:
-    path: LogicalFilePathStr
-    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
-    ref: Optional[Union[FilePathStr, URIStr]] = None
-    birth_artifact_id: Optional[str] = None
-    size: Optional[int] = None
-    extra: Dict = field(default_factory=dict)
-    local_path: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        self.path = util.to_forward_slash_path(self.path)
-        self.extra = self.extra or {}
-        if self.local_path and self.size is None:
-            raise ValueError("size required when local_path specified")
-
-    def parent_artifact(self) -> "Artifact":
-        """Get the artifact to which this artifact entry belongs.
-
-        Returns:
-            (Artifact): The parent artifact
-        """
-        raise NotImplementedError
-
-    def download(self, root: Optional[str] = None) -> FilePathStr:
-        """Download this artifact entry to the specified root path.
-
-        Arguments:
-            root: (str, optional) The root path in which to download this
-                artifact entry. Defaults to the artifact's root.
-
-        Returns:
-            (str): The path of the downloaded artifact entry.
-
-        """
-        raise NotImplementedError
-
-    def ref_target(self) -> str:
-        """Get the reference URL that is targeted by this artifact entry.
-
-        Returns:
-            (str): The reference URL of this artifact entry.
-
-        Raises:
-            ValueError: If this artifact entry was not a reference.
-        """
-        if self.ref is None:
-            raise ValueError("Only reference entries support ref_target().")
-        return self.ref
-
-    def ref_url(self) -> str:
-        """Get a URL to this artifact entry.
-
-        These URLs can be referenced by another artifact.
-
-        Returns:
-            (str): A URL representing this artifact entry.
-
-        Examples:
-            Basic usage
-            ```
-            ref_url = source_artifact.get_path('file.txt').ref_url()
-            derived_artifact.add_reference(ref_url)
-            ```
-        """
-        raise NotImplementedError
-
-
-class ArtifactStatusError(AttributeError):
-    """Raised when an artifact is in an invalid state for the requested operation."""
-
-    def __init__(
-        self,
-        artifact: Optional["Artifact"] = None,
-        attr: Optional[str] = None,
-        msg: str = "Artifact is in an invalid state for the requested operation.",
+        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
     ):
-        object_name = artifact.__class__.__name__ if artifact else "Artifact"
-        method_id = f"{object_name}.{attr}" if attr else object_name
-        super().__init__(msg.format(artifact=artifact, attr=attr, method_id=method_id))
+        desc = artifact.__class__.__name__ if artifact else "Artifact"
+        desc += f".{attr}" if attr else ""
+        super().__init__(
+            f"'{desc}' used prior to logging artifact or while in offline mode."
+            "Call wait() before accessing logged artifact properties."
+        )
         # Follow the same pattern as AttributeError.
         self.obj = artifact
         self.name = attr
-
-
-class ArtifactNotLoggedError(ArtifactStatusError):
-    """Raised for Artifact methods or attributes only available after logging."""
-
-    def __init__(
-        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
-    ):
-        super().__init__(
-            artifact,
-            attr,
-            "'{method_id}' used prior to logging artifact or while in offline mode. "
-            "Call wait() before accessing logged artifact properties.",
-        )
-
-
-class ArtifactFinalizedError(ArtifactStatusError):
-    """Raised for Artifact methods or attributes that can't be changed after logging."""
-
-    def __init__(
-        self, artifact: Optional["Artifact"] = None, attr: Optional[str] = None
-    ):
-        super().__init__(
-            artifact,
-            attr,
-            "'{method_id}' used on logged artifact. Can't add to finalized artifact.",
-        )
 
 
 class Artifact:
@@ -253,7 +70,7 @@ class Artifact:
         raise NotImplementedError
 
     @property
-    def manifest(self) -> ArtifactManifest:
+    def manifest(self) -> "ArtifactManifest":
         """The artifact's manifest.
 
         The manifest lists all of its contents, and can't be changed once the artifact
@@ -380,9 +197,6 @@ class Artifact:
         Returns:
             (file): A new file object that can be written to. Upon closing,
                 the file will be automatically added to the artifact.
-
-        Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
         """
         raise NotImplementedError
 
@@ -391,7 +205,7 @@ class Artifact:
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
-    ) -> ArtifactManifestEntry:
+    ) -> "ArtifactManifestEntry":
         """Add a local file to the artifact.
 
         Arguments:
@@ -415,7 +229,7 @@ class Artifact:
             ```
 
         Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
+            Exception: if problem
 
         Returns:
             ArtifactManifestEntry: the added manifest entry
@@ -445,7 +259,7 @@ class Artifact:
             ```
 
         Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
+            Exception: if problem.
 
         Returns:
             None
@@ -454,11 +268,11 @@ class Artifact:
 
     def add_reference(
         self,
-        uri: Union[ArtifactManifestEntry, str],
+        uri: Union["ArtifactManifestEntry", str],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> Sequence["ArtifactManifestEntry"]:
         """Add a reference denoted by a URI to the artifact.
 
         Unlike adding files or directories, references are NOT uploaded to W&B. However,
@@ -497,7 +311,7 @@ class Artifact:
                 schemes. (default: None)
 
         Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
+            Exception: If problem.
 
         Returns:
             List[ArtifactManifestEntry]: The added manifest entries.
@@ -523,7 +337,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add(self, obj: WBValue, name: str) -> ArtifactManifestEntry:
+    def add(self, obj: WBValue, name: str) -> "ArtifactManifestEntry":
         """Add wandb.WBValue `obj` to the artifact.
 
         ```
@@ -538,9 +352,6 @@ class Artifact:
 
         Returns:
             ArtifactManifestEntry: the added manifest entry
-
-        Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
 
         Examples:
             Basic usage
@@ -560,14 +371,17 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> ArtifactManifestEntry:
+    def get_path(self, name: str) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
+
+        NOTE: This will raise an error unless the artifact has been fetched using
+        `use_artifact`, fetched using the API, or `wait()` has been called.
 
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
+            Exception: if problem
 
         Examples:
             Basic usage
@@ -592,11 +406,14 @@ class Artifact:
     def get(self, name: str) -> WBValue:
         """Get the WBValue object located at the artifact relative `name`.
 
+        NOTE: This will raise an error unless the artifact has been fetched using
+        `use_artifact`, fetched using the API, or `wait()` has been called.
+
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
+            Exception: if problem
 
         Examples:
             Basic usage
@@ -709,11 +526,14 @@ class Artifact:
     def __getitem__(self, name: str) -> Optional[WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
+        NOTE: This will raise an error unless the artifact has been fetched using
+        `use_artifact`, fetched using the API, or `wait()` has been called.
+
         Arguments:
             name: (str) The artifact relative name to get
 
         Raises:
-            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
+            Exception: if problem
 
         Examples:
             Basic usage
@@ -731,7 +551,7 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        return self.get(name)
+        raise NotImplementedError
 
     def __setitem__(self, name: str, item: WBValue) -> "ArtifactManifestEntry":
         """Add `item` to the artifact at path `name`.
@@ -743,9 +563,6 @@ class Artifact:
         Returns:
             ArtifactManifestEntry: the added manifest entry
 
-        Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized.
-
         Examples:
             Basic usage
             ```
@@ -762,271 +579,4 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        return self.add(item, name)
-
-
-class StorageLayout:
-    V1 = "V1"
-    V2 = "V2"
-
-
-class StoragePolicy:
-    @classmethod
-    def lookup_by_name(cls, name: str) -> Optional[Type["StoragePolicy"]]:
-        for sub in cls.__subclasses__():
-            if sub.name() == name:
-                return sub
-        return None
-
-    @classmethod
-    def name(cls) -> str:
         raise NotImplementedError
-
-    @classmethod
-    def from_config(cls, config: Dict) -> "StoragePolicy":
-        raise NotImplementedError
-
-    def config(self) -> Dict:
-        raise NotImplementedError
-
-    def load_file(
-        self, artifact: Artifact, manifest_entry: ArtifactManifestEntry
-    ) -> str:
-        raise NotImplementedError
-
-    def store_file_sync(
-        self,
-        artifact_id: str,
-        artifact_manifest_id: str,
-        entry: ArtifactManifestEntry,
-        preparer: "StepPrepare",
-        progress_callback: Optional["progress.ProgressFn"] = None,
-    ) -> bool:
-        raise NotImplementedError
-
-    async def store_file_async(
-        self,
-        artifact_id: str,
-        artifact_manifest_id: str,
-        entry: ArtifactManifestEntry,
-        preparer: "StepPrepare",
-        progress_callback: Optional["progress.ProgressFn"] = None,
-    ) -> bool:
-        """Async equivalent to `store_file_sync`."""
-        raise NotImplementedError
-
-    def store_reference(
-        self,
-        artifact: Artifact,
-        path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
-        checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactManifestEntry]:
-        raise NotImplementedError
-
-    def load_reference(
-        self,
-        manifest_entry: ArtifactManifestEntry,
-        local: bool = False,
-    ) -> str:
-        raise NotImplementedError
-
-
-class StorageHandler:
-    @property
-    def scheme(self) -> str:
-        """The scheme this handler applies to.
-
-        :return: The scheme to which this handler applies.
-        :rtype: str
-        """
-        raise NotImplementedError
-
-    def load_path(
-        self,
-        manifest_entry: ArtifactManifestEntry,
-        local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
-        """Load a file or directory given the corresponding index entry.
-
-        :param manifest_entry: The index entry to load
-        :type manifest_entry: ArtifactManifestEntry
-        :return: A path to the file represented by `index_entry`
-        :rtype: str
-        """
-        raise NotImplementedError
-
-    def store_path(
-        self,
-        artifact: Artifact,
-        path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
-        checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactManifestEntry]:
-        """Store the file or directory at the given path to the specified artifact.
-
-        :param path: The path to store
-        :type path: str
-        :param name: If specified, the logical name that should map to `path`
-        :type name: str
-        :return: A list of manifest entries to store within the artifact
-        :rtype: list(ArtifactManifestEntry)
-        """
-        raise NotImplementedError
-
-
-class ArtifactsCache:
-    _TMP_PREFIX = "tmp"
-
-    def __init__(self, cache_dir: StrPath) -> None:
-        self._cache_dir = cache_dir
-        mkdir_exists_ok(self._cache_dir)
-        self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
-        self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self._artifacts_by_id: Dict[str, Artifact] = {}
-        self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
-
-    def check_md5_obj_path(
-        self, b64_md5: B64MD5, size: int
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
-        hex_md5 = b64_to_hex_id(b64_md5)
-        path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
-
-    # TODO(spencerpearson): this method at least needs its signature changed.
-    # An ETag is not (necessarily) a checksum.
-    def check_etag_obj_path(
-        self,
-        url: URIStr,
-        etag: ETag,
-        size: int,
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
-        hexhash = hashlib.sha256(
-            hashlib.sha256(url.encode("utf-8")).digest()
-            + hashlib.sha256(etag.encode("utf-8")).digest()
-        ).hexdigest()
-        path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
-        opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
-
-    def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
-        return self._artifacts_by_id.get(artifact_id)
-
-    def store_artifact(self, artifact: "Artifact") -> None:
-        if not artifact.id:
-            raise ArtifactNotLoggedError(artifact, "store_artifact")
-        self._artifacts_by_id[artifact.id] = artifact
-
-    def get_client_artifact(
-        self, client_id: str
-    ) -> Optional["wandb_artifacts.Artifact"]:
-        return self._artifacts_by_client_id.get(client_id)
-
-    def store_client_artifact(self, artifact: "wandb_artifacts.Artifact") -> None:
-        self._artifacts_by_client_id[artifact._client_id] = artifact
-
-    def cleanup(self, target_size: int) -> int:
-        bytes_reclaimed = 0
-        paths = {}
-        total_size = 0
-        for root, _, files in os.walk(self._cache_dir):
-            for file in files:
-                try:
-                    path = str(os.path.join(root, file))
-                    stat = os.stat(path)
-
-                    if file.startswith(ArtifactsCache._TMP_PREFIX):
-                        os.remove(path)
-                        bytes_reclaimed += stat.st_size
-                        continue
-                except OSError:
-                    continue
-                paths[path] = stat
-                total_size += stat.st_size
-
-        sorted_paths = sorted(paths.items(), key=lambda x: x[1].st_atime)
-        for path, stat in sorted_paths:
-            if total_size < target_size:
-                return bytes_reclaimed
-
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
-            total_size -= stat.st_size
-            bytes_reclaimed += stat.st_size
-        return bytes_reclaimed
-
-    def _cache_opener(self, path: StrPath) -> "Opener":
-        @contextlib.contextmanager
-        def helper(mode: str = "w") -> Generator[IO, None, None]:
-            if "a" in mode:
-                raise ValueError("Appending to cache files is not supported")
-
-            dirname = os.path.dirname(path)
-            tmp_file = os.path.join(
-                dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
-            )
-            with util.fsync_open(tmp_file, mode=mode) as f:
-                yield f
-
-            try:
-                # Use replace where we can, as it implements an atomic
-                # move on most platforms. If it doesn't exist, we have
-                # to use rename which isn't atomic in all cases but there
-                # isn't a better option.
-                #
-                # The atomic replace is important in the event multiple processes
-                # attempt to write to / read from the cache at the same time. Each
-                # writer firsts stages its writes to a temporary file in the cache.
-                # Once it is finished, we issue an atomic replace operation to update
-                # the cache. Although this can result in redundant downloads, this
-                # guarantees that readers can NEVER read incomplete files from the
-                # cache.
-                #
-                # IMPORTANT: Replace is NOT atomic across different filesystems. This why
-                # it is critical that the temporary files sit directly in the cache --
-                # they need to be on the same filesystem!
-                os.replace(tmp_file, path)
-            except AttributeError:
-                os.rename(tmp_file, path)
-
-        return helper
-
-
-_artifacts_cache = None
-
-
-def get_artifacts_cache() -> ArtifactsCache:
-    global _artifacts_cache
-    if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-        _artifacts_cache = ArtifactsCache(cache_dir)
-    return _artifacts_cache
-
-
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    try:
-        mkdir_exists_ok(path)
-    except OSError as e:
-        raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
-            f"{env.DATA_DIR} to a directory where you have the necessary write access."
-        ) from e
-
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
-
-
-def get_new_staging_file() -> IO:
-    return tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False)
