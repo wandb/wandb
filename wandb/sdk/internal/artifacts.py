@@ -1,27 +1,24 @@
 import concurrent.futures
 import json
 import os
-import sys
 import tempfile
 from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
-from wandb import util
+from wandb import env, util
+from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-
-from ..interface.artifacts import (
-    ArtifactManifest,
-    ArtifactManifestEntry,
-    get_staging_dir,
-)
+from wandb.util import FilePathStr, URIStr
 
 if TYPE_CHECKING:
+    import sys
+
     from wandb.proto import wandb_internal_pb2
+    from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
-
-    from .file_pusher import FilePusher
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -39,6 +36,19 @@ if TYPE_CHECKING:
             self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
         ) -> Awaitable[bool]:
             pass
+
+
+def get_staging_dir() -> FilePathStr:
+    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+    try:
+        mkdir_exists_ok(path)
+    except OSError as e:
+        raise PermissionError(
+            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"{env.DATA_DIR} to a directory where you have the necessary write access."
+        ) from e
+
+    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
@@ -315,7 +325,7 @@ class ArtifactSaver:
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = util.URIStr(
+                    entry.ref = URIStr(
                         "wandb-artifact://{}/{}".format(
                             b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )

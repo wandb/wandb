@@ -34,13 +34,10 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-from wandb.sdk.internal import progress
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
-
-from . import lib as wandb_lib
-from .data_types._dtypes import Type, TypeRegistry
-from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.artifacts import (
+from wandb.sdk import lib as wandb_lib
+from wandb.sdk.data_types._dtypes import Type, TypeRegistry
+from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
+from wandb.sdk.interface.artifacts import (
     ArtifactFinalizedError,
     ArtifactManifest,
     ArtifactManifestEntry,
@@ -50,10 +47,11 @@ from .interface.artifacts import (
     StorageLayout,
     StoragePolicy,
     get_artifacts_cache,
-    get_new_staging_file,
 )
-from .lib import filesystem, runid
-from .lib.hashutil import (
+from wandb.sdk.internal import progress
+from wandb.sdk.internal.artifact_saver import get_staging_dir
+from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
     HexMD5,
@@ -62,6 +60,7 @@ from .lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
+from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
@@ -717,7 +716,7 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        with get_new_staging_file() as f:
+        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
 

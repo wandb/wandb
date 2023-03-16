@@ -79,7 +79,7 @@ class ArtifactManifestEntry:
 
 
 class ArtifactManifest:
-    entries: Dict[str, ArtifactManifestEntry]
+    entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
     def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
