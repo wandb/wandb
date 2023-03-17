@@ -1485,12 +1485,13 @@ workflows:
               python_version_minor: [9]
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          tox_args: "tests/pytest_tests/system_tests/test_notebooks"
 #      - win:
 #          matrix:
 #            parameters:
 #              python_version_major: [3]
 #              python_version_minor: [9]
-#          name: "system-win-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          name: "system-notebooks-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 #          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 #          parallelism: 1
 #          xdist: 1
@@ -1499,7 +1500,7 @@ workflows:
 #            parameters:
 #              python_version_major: [3]
 #              python_version_minor: [9]
-#          name: "system-macos-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+#          name: "system-notebooks-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 #          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 #          parallelism: 1
 #          xdist: 1
