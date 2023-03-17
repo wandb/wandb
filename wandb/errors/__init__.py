@@ -44,10 +44,6 @@ class UnsupportedError(UsageError):
     """Raised when trying to use a feature that is not supported"""
 
 
-class DependencyError(UsageError):
-    """Raised when there is a missing or invalid dependency"""
-
-
 class InternalError(Error):
     """Raised when an SDK internal error occurs"""
 
