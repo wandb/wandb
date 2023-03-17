@@ -47,9 +47,9 @@ from wandb.sdk.interface.artifacts import (
     StorageLayout,
     StoragePolicy,
     get_artifacts_cache,
-    get_new_staging_file,
 )
 from wandb.sdk.internal import progress
+from wandb.sdk.internal.artifacts import get_staging_dir
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.hashutil import (
     B64MD5,
@@ -716,7 +716,7 @@ class Artifact(ArtifactInterface):
         size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
 
-        with get_new_staging_file() as f:
+        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
 
