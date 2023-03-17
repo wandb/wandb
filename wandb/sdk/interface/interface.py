@@ -180,6 +180,14 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
+    def publish_attach(self, attach_id: str) -> None:
+        attach = pb.AttachRequest(attach_id=attach_id)
+        self._publish_attach(attach)
+
+    @abstractmethod
+    def _publish_attach(self, attach: pb.AttachRequest) -> None:
+        raise NotImplementedError
+
     def publish_run(self, run: "pb.RunRecord") -> None:
         self._publish_run(run)
 

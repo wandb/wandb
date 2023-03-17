@@ -873,18 +873,12 @@ def _attach(
         raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
+    response = {}
     if manager:
         response = manager._inform_attach(attach_id=attach_id)
 
     settings: Settings = copy.copy(_wl._settings)
-    settings.update(
-        {
-            "run_id": attach_id,
-            "_start_time": response["_start_time"],
-            "_start_datetime": response["_start_datetime"],
-        },
-        source=Source.INIT,
-    )
+    settings.update(response, source=Source.INIT)
 
     # TODO: consolidate this codepath with wandb.init()
     mailbox = Mailbox()
@@ -903,16 +897,23 @@ def _attach(
     assert backend.interface
 
     mailbox.enable_keepalive()
-    attach_handle = backend.interface.deliver_attach(attach_id)
-    # TODO: add progress to let user know we are doing something
-    attach_result = attach_handle.wait(timeout=30)
-    if not attach_result:
-        attach_handle.abandon()
-        raise UsageError("Timeout attaching to run")
-    attach_response = attach_result.response.attach_response
-    if attach_response.error and attach_response.error.message:
-        raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
-    run._set_run_obj(attach_response.run)
+    if run._settings._offline:
+        backend.interface.publish_attach(attach_id)
+        run_proto = backend.interface._make_run(run)
+        run._set_run_obj_offline(run_proto)
+    else:
+        attach_handle = backend.interface.deliver_attach(attach_id)
+        # TODO: add progress to let user know we are doing something
+        attach_result = attach_handle.wait(timeout=30)
+        if not attach_result:
+            attach_handle.abandon()
+            raise UsageError("Timeout attaching to run")
+        attach_response = attach_result.response.attach_response
+        if attach_response.error and attach_response.error.message:
+            raise UsageError(
+                f"Failed to attach to run: {attach_response.error.message}"
+            )
+        run._set_run_obj(attach_response.run)
     run._on_attach()
     return run
 
