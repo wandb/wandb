@@ -50,7 +50,7 @@ class Html(BatchableMedia):
 
         if inject or not data_is_path:
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".html")
-            with open(tmp_path, "w") as out:
+            with open(tmp_path, "w", encoding="utf-8") as out:
                 out.write(self.html)
 
             self._set_file(tmp_path, is_tmp=True)
