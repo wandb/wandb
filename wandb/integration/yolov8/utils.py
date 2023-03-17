@@ -15,7 +15,7 @@ from wandb import Image
 
 
 def convert_to_wb_images(
-    batch: Union[torch.Tensor, np.ndarray],
+    batch: Dict[str, Union[torch.Tensor, np.ndarray]],
     cls: Union[torch.Tensor, np.ndarray],
     bboxes: Union[torch.Tensor, np.ndarray],
     masks: Optional[Union[torch.Tensor, np.ndarray]],
@@ -45,8 +45,6 @@ def convert_to_wb_images(
     out_images = []
     class_set = wandb.Classes([{"name": v, "id": int(k)} for k, v in names.items()])
 
-    if np.max(images[0]) <= 1:
-        images *= 255  # de-normalise (optional)
     bs, _, h, w = images.shape
     scores_data = []
     for i in range(len(images)):
@@ -94,7 +92,7 @@ def convert_to_wb_images(
                     "class_labels": names,
                 }
             image_kwargs["classes"] = class_set
-            object_confidences = {}
+            object_confidences: Dict[str, Any] = {}
             for prediction_box in prediction_boxes_data:
                 object_confidences[
                     prediction_box["box_caption"]
@@ -123,7 +121,7 @@ def convert_to_wb_images(
 
 def load_boxes_data(
     i: int,
-    batch_idx: int,
+    batch_idx: np.array,
     cls: np.array,
     bboxes: np.array,
     masks: np.array,
@@ -145,7 +143,7 @@ def load_boxes_data(
             boxes[[0, 2]] *= w  # scale to pixels
             boxes[[1, 3]] *= h
     for j, box in enumerate(boxes.T.tolist()):
-        box_data = {
+        box_data: Dict[str, Any] = {
             "position": dict(zip(("minX", "minY", "maxX", "maxY"), box)),
             "domain": "pixel",
         }
@@ -167,7 +165,7 @@ def load_boxes_data(
             image_masks = np.where(image_masks == index, 1.0, 0.0)
         image_mask = np.ones(shape=image_masks.shape[1:]) * -1
         for j, _ in enumerate(boxes.T.tolist()):
-            if labels or conf[j] > 0.25:  # 0.25 conf thresh
+            if labels or (conf is not None and conf[j] > 0.25):
                 mask = image_masks[j].astype(np.bool_)
                 image_mask[np.where(mask)] = classes[j]
         mh, mw = image_mask.shape

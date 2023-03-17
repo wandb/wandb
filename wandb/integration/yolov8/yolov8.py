@@ -2,7 +2,7 @@
 Yolov8 integration for Weights & Biases
 """
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from ultralytics.yolo.engine.model import YOLO
@@ -58,8 +58,8 @@ class WandbCallback:
         self.tags = tags
         self.resume = resume
         self.kwargs = kwargs
-        self.og_plot_predictions = None
-        self.validation_table = None
+        self.og_plot_predictions: Union[None, Callable] = None
+        self.validation_table: Union[None, wandb.Table] = None
 
     def on_pretrain_routine_start(self, trainer: BaseTrainer) -> None:
         """Starts a new wandb run to track the training process and log to Weights & Biases.
@@ -204,17 +204,19 @@ class WandbCallback:
         and patch the validator's `plot_predictions` method to plot the predictions to the wandb table .
         """
         class_names = sorted(validator.names.values())
-        self.validation_table = wandb.Table(
-            columns=["Batch", "Ground Truth", "Prediction", *class_names]
-        )
-
         if isinstance(validator, DetectionValidator):
+            self.validation_table = wandb.Table(
+                columns=["Batch", "Ground Truth", "Prediction", *class_names]
+            )
             self.og_plot_predictions = validator.plot_predictions
             validator.plot_predictions = partial(
                 plot_detection_predictions, self, validator
             )
 
         if isinstance(validator, SegmentationValidator):
+            self.validation_table = wandb.Table(
+                columns=["Batch", "Ground Truth", "Prediction", *class_names]
+            )
             self.og_plot_predictions = validator.plot_predictions
             validator.plot_predictions = partial(
                 plot_segmentation_predictions, self, validator
@@ -222,7 +224,7 @@ class WandbCallback:
 
     def on_val_end(self, validator: BaseValidator) -> None:
         """On validation end we log the validation table and unpatch the validator's `plot_predictions` method."""
-        if isinstance(self.validation_table, wandb.Table):
+        if self.validation_table is not None:
             self.run.log({"sample_predictions": self.validation_table})
         if self.og_plot_predictions is not None:
             validator.plot_predictions = self.og_plot_predictions
@@ -267,11 +269,12 @@ def add_images_to_validation_table(
         images,
         scores,
     ):
-        logger.validation_table.add_data(
-            batch_id,
-            *im,
-            *map(lambda x: x[1], sorted(score.items(), key=lambda x: x[0])),
-        )
+        if logger.validation_table is not None:
+            logger.validation_table.add_data(
+                batch_id,
+                *im,
+                *map(lambda x: x[1], sorted(score.items(), key=lambda x: x[0])),
+            )
 
 
 def plot_detection_predictions(
