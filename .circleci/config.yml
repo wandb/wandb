@@ -1483,7 +1483,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [6]
+              python_version_minor: [9]
           name: "unit-linux-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
