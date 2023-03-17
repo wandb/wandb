@@ -295,7 +295,6 @@ def test_add_reference_local_file_no_checksum(tmp_path):
 
 
 def test_add_reference_local_dir():
-
     with open("file1.txt", "w") as f:
         f.write("hello")
     os.mkdir("nest")
@@ -328,7 +327,6 @@ def test_add_reference_local_dir():
 
 
 def test_add_reference_local_dir_no_checksum():
-
     path_1 = os.path.join("file1.txt")
     with open(path_1, "w") as f:
         f.write("hello")
@@ -369,7 +367,6 @@ def test_add_reference_local_dir_no_checksum():
 
 
 def test_add_reference_local_dir_with_name():
-
     with open("file1.txt", "w") as f:
         f.write("hello")
     os.mkdir("nest")
@@ -419,7 +416,6 @@ def test_add_reference_local_dir_by_uri(tmp_path):
 
 
 def test_add_s3_reference_object():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact)
     artifact.add_reference("s3://my-bucket/my_object.pb")
@@ -435,7 +431,6 @@ def test_add_s3_reference_object():
 
 
 def test_add_s3_reference_object_with_version():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact)
     artifact.add_reference("s3://my-bucket/my_object.pb?versionId=2")
@@ -451,7 +446,6 @@ def test_add_s3_reference_object_with_version():
 
 
 def test_add_s3_reference_object_with_name():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact)
     artifact.add_reference("s3://my-bucket/my_object.pb", name="renamed.pb")
@@ -503,7 +497,6 @@ def test_add_s3_reference_path_with_content_type(runner, capsys):
 
 
 def test_add_s3_max_objects():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact, path=True)
     with pytest.raises(ValueError):
@@ -511,7 +504,6 @@ def test_add_s3_max_objects():
 
 
 def test_add_reference_s3_no_checksum():
-
     with open("file1.txt", "w") as f:
         f.write("hello")
     artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -528,7 +520,6 @@ def test_add_reference_s3_no_checksum():
 
 
 def test_add_gs_reference_object():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb")
@@ -544,7 +535,6 @@ def test_add_gs_reference_object():
 
 
 def test_add_gs_reference_object_with_version():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb#2")
@@ -560,7 +550,6 @@ def test_add_gs_reference_object_with_version():
 
 
 def test_add_gs_reference_object_with_name():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
@@ -594,7 +583,6 @@ def test_add_gs_reference_path(runner, capsys):
 
 
 def test_add_http_reference_path():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_http(
         artifact,
@@ -635,7 +623,6 @@ def test_add_reference_named_local_file(tmp_path):
 
 
 def test_add_reference_unknown_handler():
-
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("ref://example.com/somefile.txt", name="ref")
 
@@ -995,7 +982,6 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path):
 
 
 def test_add_partition_folder():
-
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
     artifact_name = "simple_dataset"
@@ -1097,7 +1083,7 @@ def test_tracking_storage_handler():
 def test_manifest_json_version():
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
     pd_manifest.version = 1
-    manifest = wandb.sdk.internal.artifacts._manifest_json_from_proto(pd_manifest)
+    manifest = wandb.sdk.internal.sender._manifest_json_from_proto(pd_manifest)
     assert manifest["version"] == 1
 
 
@@ -1113,7 +1099,7 @@ def test_manifest_json_invalid_version(version):
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
     pd_manifest.version = version
     with pytest.raises(Exception) as e:
-        wandb.sdk.internal.artifacts._manifest_json_from_proto(pd_manifest)
+        wandb.sdk.internal.sender._manifest_json_from_proto(pd_manifest)
     assert "manifest version" in str(e.value)
 
 
