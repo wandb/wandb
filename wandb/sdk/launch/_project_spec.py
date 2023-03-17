@@ -233,7 +233,9 @@ class LaunchProject:
         try:
             job = public_api.job(self.job, path=job_dir)
         except CommError:
-            raise LaunchError(f"Job {self.job} not found")
+            raise LaunchError(
+                f"Job {self.job} not found. Jobs have the format: <entity>/<project>/<name>:<alias>"
+            )
         job.configure_launch_project(self)
         self._job_artifact = job._job_artifact
 
