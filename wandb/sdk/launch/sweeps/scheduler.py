@@ -175,6 +175,8 @@ class Scheduler(ABC):
         """
         Returns dict of id:worker ready to launch another run
         """
+        if len(self._workers) == 0:
+            return {}
         return {
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
