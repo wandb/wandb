@@ -429,7 +429,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     )
 
     def mock_get_run_state(*args, **kwargs):
-        return "runnning"
+        return "finished"
 
     api.get_run_state = mock_get_run_state
 
