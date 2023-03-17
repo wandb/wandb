@@ -906,6 +906,7 @@ def _attach(
     attach_response = attach_result.response.attach_response
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
+    # todo: handle offline mode properly
     run._set_run_obj(attach_response.run)
     run._on_attach()
     return run
