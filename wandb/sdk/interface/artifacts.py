@@ -1,7 +1,7 @@
 import contextlib
 import hashlib
 import os
-import random
+import secrets
 import tempfile
 from dataclasses import dataclass, field
 from typing import (
@@ -731,7 +731,7 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        raise NotImplementedError
+        return self.get(name)
 
     def __setitem__(self, name: str, item: WBValue) -> "ArtifactManifestEntry":
         """Add `item` to the artifact at path `name`.
@@ -762,7 +762,7 @@ class Artifact:
             table = artifact["my_table"]
             ```
         """
-        raise NotImplementedError
+        return self.add(item, name)
 
 
 class StorageLayout:
@@ -886,8 +886,6 @@ class ArtifactsCache:
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = {}
-        self._random = random.Random()
-        self._random.seed()
         self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
 
     def check_md5_obj_path(
@@ -977,12 +975,7 @@ class ArtifactsCache:
 
             dirname = os.path.dirname(path)
             tmp_file = os.path.join(
-                dirname,
-                "%s_%s"
-                % (
-                    ArtifactsCache._TMP_PREFIX,
-                    util.rand_alphanumeric(length=8, rand=self._random),
-                ),
+                dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
             )
             with util.fsync_open(tmp_file, mode=mode) as f:
                 yield f
