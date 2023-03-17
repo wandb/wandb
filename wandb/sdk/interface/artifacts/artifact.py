@@ -149,7 +149,7 @@ class Artifact:
 
     @description.setter
     def description(self, desc: Optional[str]) -> None:
-        """The artifact description.
+        """Set the description of the artifact.
 
         The description is markdown rendered in the UI, so this is a good place to put
         links, etc.
@@ -192,7 +192,7 @@ class Artifact:
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
-        """The aliases associated with this artifact."""
+        """Set the aliases associated with this artifact."""
         raise NotImplementedError
 
     def used_by(self) -> List["wandb.apis.public.Run"]:
