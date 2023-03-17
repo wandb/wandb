@@ -58,8 +58,12 @@ def in_jupyter() -> bool:
     return _get_python_type() == "jupyter"
 
 
+def in_notebook() -> bool:
+    return _get_python_type() != "python"
+
+
 def display_html(html: str):  # type: ignore
-    """Display HTML in notebooks, is a noop outside of a jupyter context."""
+    """Display HTML in notebooks, is a noop outside a jupyter context."""
     if wandb.run and wandb.run._settings.silent:
         return
     try:

@@ -188,13 +188,13 @@ def load_ipython_extension(ipython):
     ipython.register_magics(wandb.jupyter.WandBMagics)
 
 
-if wandb_sdk.lib.ipython.in_jupyter():
+if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython
 
     load_ipython_extension(get_ipython())
 
 
-__all__ = [
+__all__ = (
     "__version__",
     "init",
     "setup",
@@ -217,4 +217,4 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
-]
+)
