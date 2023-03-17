@@ -333,7 +333,7 @@ class Scheduler(ABC):
             f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
         ).decode("utf-8")
 
-        # TODO(gst): improve performance here
+        # TODO(gst): Also set run.state = Stopped
         success: bool = self._api.stop_run(run_id=encoded_run_id)
         if success:
             wandb.termlog(f"{LOG_PREFIX}Stopped run ({run_id})")
@@ -379,9 +379,7 @@ class Scheduler(ABC):
                 del self._runs[run_id]
 
     def _add_to_launch_queue(self, run: SweepRun) -> "public.QueuedRun":
-        """Convert a sweeprun into a launch job format.
-        Thn push to runqueue
-        """
+        """Convert a sweeprun into a launch job then push to runqueue."""
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
         _sweep_config_uri = self._sweep_config.get("image_uri")

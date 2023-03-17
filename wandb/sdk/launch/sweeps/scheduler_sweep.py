@@ -28,7 +28,8 @@ class SweepScheduler(Scheduler):
 
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         """Called by the main scheduler execution loop.
-        expected to return a properly formatted SweepRun if the scheduler
+        
+        Expected to return a properly formatted SweepRun if the scheduler
         is alive, or None and set the appropriate scheduler state
         """
         commands: List[Dict[str, Any]] = self._get_sweep_commands(worker_id)
