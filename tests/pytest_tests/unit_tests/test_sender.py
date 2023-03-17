@@ -18,7 +18,7 @@ def test_config_save_preserver_order(tmp_path, test_settings):
 
     original_config = {"b": 1, "a": 2}
     sender._config_save(original_config)
-    with open(config_file, "r") as f:
+    with open(config_file) as f:
         saved_config = yaml.safe_load(f)
     saved_config.pop("wandb_version")
 
