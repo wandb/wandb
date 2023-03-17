@@ -90,3 +90,9 @@ class SweepScheduler(Scheduler):
 
     def _exit(self) -> None:
         pass
+
+    def _load_state(self) -> None:
+        pass
+
+    def _save_state(self) -> None:
+        pass
