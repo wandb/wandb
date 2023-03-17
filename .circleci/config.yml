@@ -1483,7 +1483,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "system-linux-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
 #      - win:
 #          matrix:
