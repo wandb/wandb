@@ -1,6 +1,5 @@
 """sender."""
 
-
 import json
 import logging
 import os
@@ -30,31 +29,38 @@ from wandb import util
 from wandb.errors import CommError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.lib import redirect
-from wandb.sdk.lib.mailbox import ContextCancelledError
-
-from ..interface import interface
-from ..interface.interface_queue import InterfaceQueue
-from ..lib import (
+from wandb.sdk.interface import interface
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import (
+    artifacts,
+    context,
+    datastore,
+    file_stream,
+    internal_api,
+    update,
+)
+from wandb.sdk.internal.file_pusher import FilePusher
+from wandb.sdk.internal.job_builder import JobBuilder
+from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.lib import (
     config_util,
     filenames,
     filesystem,
     printer,
     proto_util,
+    redirect,
     telemetry,
     tracelog,
 )
-from ..lib.proto_util import message_to_dict
-from ..wandb_settings import Settings
-from . import artifacts, context, datastore, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .job_builder import JobBuilder
-from .settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.sdk.lib.proto_util import message_to_dict
+from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
 
     from wandb.proto.wandb_internal_pb2 import (
+        ArtifactManifest,
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
@@ -98,6 +104,37 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
         ("tensorflow", "tensorflow"),
         ("sklearn", "sklearn"),
     ]
+
+
+def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
+    if manifest.version == 1:
+        contents = {
+            content.path: {
+                "digest": content.digest,
+                "birthArtifactID": content.birth_artifact_id
+                if content.birth_artifact_id
+                else None,
+                "ref": content.ref if content.ref else None,
+                "size": content.size if content.size is not None else None,
+                "local_path": content.local_path if content.local_path else None,
+                "extra": {
+                    extra.key: json.loads(extra.value_json) for extra in content.extra
+                },
+            }
+            for content in manifest.contents
+        }
+    else:
+        raise ValueError(f"unknown artifact manifest version: {manifest.version}")
+
+    return {
+        "version": manifest.version,
+        "storagePolicy": manifest.storage_policy,
+        "storagePolicyConfig": {
+            config.key: json.loads(config.value_json)
+            for config in manifest.storage_policy_config
+        },
+        "contents": contents,
+    }
 
 
 class ResumeState:
@@ -300,6 +337,7 @@ class SendManager:
             _live_policy_rate_limit=None,
             _live_policy_wait_time=None,
             disable_job_creation=False,
+            _async_upload_concurrency_limit=None,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
@@ -1071,7 +1109,7 @@ class SendManager:
             settings_dict=self._settings,
         )
         self._fs.start()
-        self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
+        self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
         self._dir_watcher = DirWatcher(
             cast(Settings, self._settings), self._pusher, file_dir
         )
@@ -1442,7 +1480,7 @@ class SendManager:
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
-            manifest_json=artifacts._manifest_json_from_proto(artifact.manifest),
+            manifest_json=_manifest_json_from_proto(artifact.manifest),
             file_pusher=self._pusher,
             is_user_created=artifact.user_created,
         )

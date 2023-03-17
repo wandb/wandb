@@ -43,6 +43,7 @@ def test_launch_build_succeeds(
     override_config,
 ):
     base_args = [
+        "-u",
         "https://github.com/wandb/examples.git",
         "--entity",
         user,
@@ -94,6 +95,7 @@ def test_launch_build_fails(
     args,
 ):
     base_args = [
+        "-u",
         "https://foo:bar@github.com/FooTest/Foo.git",
         "--entity",
         user,
@@ -155,6 +157,7 @@ def test_launch_repository_arg(
     test_settings,
 ):
     base_args = [
+        "-u",
         "https://github.com/wandb/examples",
         "--entity",
         user,
@@ -217,6 +220,7 @@ def test_launch_repository_arg(
 
 def test_launch_bad_api_key(runner, monkeypatch, user):
     args = [
+        "-u",
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entity",
         user,
@@ -237,6 +241,7 @@ def test_launch_build_with_local(
     runner,
 ):
     base_args = [
+        "-u",
         "https://foo:bar@github.com/FooTest/Foo.git",
         "--entity",
         user,
