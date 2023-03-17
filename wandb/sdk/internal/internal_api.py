@@ -3389,8 +3389,8 @@ class Api:
 
     def stop_run(
         self,
-        run_id,
-    ) -> None:
+        run_id: str,
+    ) -> bool:
         mutation = gql(
             """
             mutation stopRun($id: ID!) {
@@ -3411,4 +3411,6 @@ class Api:
             },
         )
 
-        return response["stopRun"].get("success")
+        success: bool = response["stopRun"].get("success")
+
+        return success

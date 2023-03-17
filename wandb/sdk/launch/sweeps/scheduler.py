@@ -3,9 +3,8 @@ import base64
 import logging
 import os
 import socket
-import time
-import yaml
 import threading
+import time
 import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -13,6 +12,7 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
+import yaml
 
 import wandb
 import wandb.apis.public as public
@@ -68,8 +68,8 @@ class Scheduler(ABC):
         self,
         api: Api,
         *args: Optional[Any],
-        num_workers: Optional[int] = 8,
-        polling_sleep: Optional[int] = 5,
+        num_workers: int = 8,
+        polling_sleep: int = 5.0,
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
@@ -98,7 +98,9 @@ class Scheduler(ABC):
                 self._state = SchedulerState.CANCELLED
             self._sweep_config = yaml.safe_load(resp["config"])
         except Exception as e:
-            raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
+            raise SchedulerError(
+                f"{LOG_PREFIX}Exception when finding sweep ({sweep_id}) {e}"
+            )
 
         # Dictionary of the runs being managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
@@ -159,8 +161,7 @@ class Scheduler(ABC):
 
     @property
     def busy_workers(self) -> Dict[int, _Worker]:
-        """
-        Returns dict of id:worker already assigned to a launch run
+        """Returns dict of id:worker already assigned to a launch run
 
         runs should always have a worker_id, but are created before
         workers are assigned to the run
@@ -172,9 +173,7 @@ class Scheduler(ABC):
 
     @property
     def available_workers(self) -> Dict[int, _Worker]:
-        """
-        Returns dict of id:worker ready to launch another run
-        """
+        """Returns dict of id:worker ready to launch another run"""
         if len(self._workers) == 0:
             return {}
         return {
@@ -182,22 +181,26 @@ class Scheduler(ABC):
         }
 
     def _init_wandb_run(self) -> SdkRun:
-        """
-        Controls resume or init logic for a scheduler wandb run
-        """
+        """Controls resume or init logic for a scheduler wandb run"""
         if self._kwargs.get("run_id"):  # resume
-            return wandb.init(resume=self._kwargs["run_id"])
+            run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
+            return run
 
-        name = self._kwargs.get("sweep_type")
+        _type = self._kwargs.get("sweep_type")
 
-        return wandb.init(name=f"{name}-scheduler-{self._sweep_id}", resume="allow")
+        run: SdkRun = wandb.init(
+            name=f"{_type}-scheduler-{self._sweep_id}",
+            job_type="sweep-controller",
+            resume="allow",
+        )
+        return run
 
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         if not self.is_alive:
             wandb.termerror(
-                f"{LOG_PREFIX}Sweep already in completed state ({self.state.name.lower()}). Exiting..."
+                f"{LOG_PREFIX}Sweep already in state ({self.state.name.lower()}). Exiting..."
             )
             self.exit()
             return
@@ -264,8 +267,7 @@ class Scheduler(ABC):
         self._stop_runs()
 
     def _try_load_executable(self) -> bool:
-        """
-        Check existance of valid executable for a run.
+        """Check existance of valid executable for a run.
 
         logs and returns False when job is unreachable
         """
@@ -332,7 +334,7 @@ class Scheduler(ABC):
         ).decode("utf-8")
 
         # TODO(gst): improve performance here
-        success = self._api.stop_run(run_id=encoded_run_id)
+        success: bool = self._api.stop_run(run_id=encoded_run_id)
         if success:
             wandb.termlog(f"{LOG_PREFIX}Stopped run ({run_id})")
         else:
@@ -347,33 +349,22 @@ class Scheduler(ABC):
 
         Get state from backend and deletes runs if not in running state. Threadsafe.
         """
+        # TODO(gst): move to better constants place
+        end_states = ["crashed", "failed", "killed", "finished"]
+        run_states = ["running", "pending", "preempted", "preempting"]
+
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
                 _rqi_state = run.queued_run.state if run.queued_run else None
-                if (
-                    not _state
-                    or _state
-                    in [
-                        "crashed",
-                        "failed",
-                        "killed",
-                        "finished",
-                    ]
-                    or _rqi_state == "failed"
-                ):
+                if not _state or _state in end_states or _rqi_state == "failed":
                     _logger.debug(
                         f"({run_id}) run-state:{_state}, rqi-state:{_rqi_state}"
                     )
                     run.state = RunState.DEAD
                     _runs_to_remove.append(run_id)
-                elif _state in [
-                    "running",
-                    "pending",
-                    "preempted",
-                    "preempting",
-                ]:
+                elif _state in run_states:
                     run.state = RunState.ALIVE
             except CommError as e:
                 _logger.debug(
@@ -384,20 +375,20 @@ class Scheduler(ABC):
         # Remove any runs that are dead
         with self._threading_lock:
             for run_id in _runs_to_remove:
-                wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run {run_id}.")
+                wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
                 del self._runs[run_id]
 
     def _add_to_launch_queue(self, run: SweepRun) -> "public.QueuedRun":
-        """Add a launch job to the Launch RunQueue"""
+        """Convert a sweeprun into a launch job format, then push
+        to runqueue
+        """
+
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
-
         _sweep_config_uri = self._sweep_config.get("image_uri")
         _image_uri = self._kwargs.get("image_uri") or _sweep_config_uri
         if _job is None and _image_uri is None:
-            raise SchedulerError(
-                f"{LOG_PREFIX}No 'job' nor 'image_uri' (run: {run.id})"
-            )
+            raise SchedulerError(f"{LOG_PREFIX}No 'job' nor 'image_uri' ({run.id})")
         elif _job is not None and _image_uri is not None:
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
 
@@ -423,8 +414,8 @@ class Scheduler(ABC):
             entity=self._entity,
             queue_name=self._kwargs.get("queue"),
             project_queue=self._project_queue,
-            resource=self._kwargs.get("resource", None),
-            resource_args=self._kwargs.get("resource_args", None),
+            resource=self._kwargs.get("resource"),
+            resource_args=self._kwargs.get("resource_args"),
         )
         run.queued_run = queued_run
         self._runs[run_id] = run
