@@ -364,95 +364,6 @@ def live_mock_server(request, worker_id):
         yield server
 
 
-@pytest.fixture
-def notebook(live_mock_server, test_dir):
-    """This launches a live server, configures a notebook to use it, and enables
-    devs to execute arbitrary cells.  See tests/test_notebooks.py
-    """
-
-    @contextmanager
-    def notebook_loader(nb_path, kernel_name="wandb_python", save_code=True, **kwargs):
-        with open(utils.notebook_path("setup.ipynb")) as f:
-            setupnb = nbformat.read(f, as_version=4)
-            setupcell = setupnb["cells"][0]
-            # Ensure the notebooks talks to our mock server
-            new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__",
-                live_mock_server.base_url,
-            )
-            if save_code:
-                new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
-            else:
-                new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", "")
-            setupcell["source"] = new_source
-
-        nb_path = utils.notebook_path(nb_path)
-        shutil.copy(nb_path, os.path.join(os.getcwd(), os.path.basename(nb_path)))
-        with open(nb_path) as f:
-            nb = nbformat.read(f, as_version=4)
-        nb["cells"].insert(0, setupcell)
-
-        try:
-            client = utils.WandbNotebookClient(nb, kernel_name=kernel_name)
-            with client.setup_kernel(**kwargs):
-                # Run setup commands for mocks
-                client.execute_cells(-1, store_history=False)
-                yield client
-        finally:
-            with open(os.path.join(os.getcwd(), "notebook.log"), "w") as f:
-                f.write(client.all_output_text())
-            wandb.termlog("Find debug logs at: %s" % os.getcwd())
-            wandb.termlog(client.all_output_text())
-
-    notebook_loader.base_url = live_mock_server.base_url
-
-    return notebook_loader
-
-
-@pytest.fixture
-def mocked_module(monkeypatch):
-    """This allows us to mock modules loaded via wandb.util.get_module"""
-
-    def mock_get_module(module):
-        orig_get_module = wandb.util.get_module
-        mocked_module = MagicMock()
-
-        def get_module(mod):
-            if mod == module:
-                return mocked_module
-            else:
-                return orig_get_module(mod)
-
-        monkeypatch.setattr(wandb.util, "get_module", get_module)
-        return mocked_module
-
-    return mock_get_module
-
-
-@pytest.fixture
-def mocked_ipython(mocker):
-    mocker.patch("wandb.sdk.lib.ipython._get_python_type", lambda: "jupyter")
-    mocker.patch("wandb.sdk.wandb_settings._get_python_type", lambda: "jupyter")
-    html_mock = mocker.MagicMock()
-    mocker.patch("wandb.sdk.lib.ipython.display_html", html_mock)
-    ipython = MagicMock()
-    ipython.html = html_mock
-
-    def run_cell(cell):
-        print("Running cell: ", cell)
-        exec(cell)
-
-    ipython.run_cell = run_cell
-    # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
-    orig_get_ipython = wandb.jupyter.get_ipython
-    orig_display = wandb.jupyter.display
-    wandb.jupyter.get_ipython = lambda: ipython
-    wandb.jupyter.display = lambda obj: html_mock(obj._repr_html_())
-    yield ipython
-    wandb.jupyter.get_ipython = orig_get_ipython
-    wandb.jupyter.display = orig_display
-
-
 def default_wandb_args():
     """This allows us to parameterize the wandb_init_run fixture
     The most general arg is "env", you can call:
@@ -955,7 +866,6 @@ def publish_util(
 @pytest.fixture
 def tbwatcher_util(mocked_run, mock_server, internal_hm, backend_interface, parse_ctx):
     def fn(write_function, logdir="./", save=True, root_dir="./"):
-
         with backend_interface() as interface:
             proto_run = pb.RunRecord()
             mocked_run._make_proto_run(proto_run)
