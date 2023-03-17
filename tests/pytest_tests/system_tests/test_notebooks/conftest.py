@@ -174,6 +174,7 @@ def notebook(user, run_id, assets_path):
             wandb_env["WANDB_SAVE_CODE"] = "false"
             wandb_env["WANDB_NOTEBOOK_NAME"] = ""
         else:
+            wandb_env["WANDB_SAVE_CODE"] = "true"
             wandb_env["WANDB_NOTEBOOK_NAME"] = nb_name
         setup_cell.write("import os\n")
         for k, v in wandb_env.items():
