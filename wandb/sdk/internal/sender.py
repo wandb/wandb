@@ -1,6 +1,5 @@
 """sender."""
 
-
 import json
 import logging
 import os
@@ -30,26 +29,32 @@ from wandb import util
 from wandb.errors import CommError
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.lib import redirect
-from wandb.sdk.lib.mailbox import ContextCancelledError
-
-from ..interface import interface
-from ..interface.interface_queue import InterfaceQueue
-from ..lib import (
+from wandb.sdk.interface import interface
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import (
+    artifacts,
+    context,
+    datastore,
+    file_stream,
+    internal_api,
+    update,
+)
+from wandb.sdk.internal.file_pusher import FilePusher
+from wandb.sdk.internal.job_builder import JobBuilder
+from wandb.sdk.internal.settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.lib import (
     config_util,
     filenames,
     filesystem,
     printer,
     proto_util,
+    redirect,
     telemetry,
     tracelog,
 )
-from ..lib.proto_util import message_to_dict
-from ..wandb_settings import Settings
-from . import artifacts, context, datastore, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .job_builder import JobBuilder
-from .settings_static import SettingsDict, SettingsStatic
+from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.sdk.lib.proto_util import message_to_dict
+from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     import sys
