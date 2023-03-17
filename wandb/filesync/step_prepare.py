@@ -1,5 +1,7 @@
 """Batching file prepare requests to our API."""
 
+import asyncio
+import functools
 import queue
 import threading
 import time
@@ -26,7 +28,10 @@ if TYPE_CHECKING:
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
     file_spec: "CreateArtifactFileSpecInput"
-    response_queue: "queue.Queue[ResponsePrepare]"
+    response_channel: Union[
+        "queue.Queue[ResponsePrepare]",
+        Tuple["asyncio.AbstractEventLoop", "asyncio.Future[ResponsePrepare]"],
+    ]
 
 
 class RequestFinish(NamedTuple):
@@ -124,9 +129,15 @@ class StepPrepare:
                     upload_url = response_file["uploadUrl"]
                     upload_headers = response_file["uploadHeaders"]
                     birth_artifact_id = response_file["artifact"]["id"]
-                    prepare_request.response_queue.put(
-                        ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
+
+                    response = ResponsePrepare(
+                        upload_url, upload_headers, birth_artifact_id
                     )
+                    if isinstance(prepare_request.response_channel, queue.Queue):
+                        prepare_request.response_channel.put(response)
+                    else:
+                        loop, future = prepare_request.response_channel
+                        loop.call_soon_threadsafe(future.set_result, response)
             if finish:
                 break
 
@@ -146,19 +157,21 @@ class StepPrepare:
 
     def prepare_async(
         self, file_spec: "CreateArtifactFileSpecInput"
-    ) -> "queue.Queue[ResponsePrepare]":
-        """Request the backend to prepare a file for upload.
+    ) -> "asyncio.Future[ResponsePrepare]":
+        """Request the backend to prepare a file for upload."""
+        response: "asyncio.Future[ResponsePrepare]" = asyncio.Future()
+        self._request_queue.put(
+            RequestPrepare(file_spec, (asyncio.get_event_loop(), response))
+        )
+        return response
 
-        Returns:
-            response_queue: a queue containing the prepare result. The prepare result is
-                either a file upload url, or None if the file doesn't need to be uploaded.
-        """
+    @functools.wraps(prepare_async)
+    def prepare_sync(
+        self, file_spec: "CreateArtifactFileSpecInput"
+    ) -> "queue.Queue[ResponsePrepare]":
         response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
         self._request_queue.put(RequestPrepare(file_spec, response_queue))
         return response_queue
-
-    def prepare(self, file_spec: "CreateArtifactFileSpecInput") -> ResponsePrepare:
-        return self.prepare_async(file_spec).get()
 
     def start(self) -> None:
         self._thread.start()

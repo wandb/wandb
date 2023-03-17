@@ -34,13 +34,11 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-from wandb.sdk.internal import progress
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
-
-from . import lib as wandb_lib
-from .data_types._dtypes import Type, TypeRegistry
-from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.artifacts import (
+from wandb.sdk import lib as wandb_lib
+from wandb.sdk.data_types._dtypes import Type, TypeRegistry
+from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
+from wandb.sdk.interface.artifacts import (
+    ArtifactFinalizedError,
     ArtifactManifest,
     ArtifactManifestEntry,
     ArtifactNotLoggedError,
@@ -51,8 +49,9 @@ from .interface.artifacts import (
     get_artifacts_cache,
     get_new_staging_file,
 )
-from .lib import filesystem, runid
-from .lib.hashutil import (
+from wandb.sdk.internal import progress
+from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
     HexMD5,
@@ -61,6 +60,7 @@ from .lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
+from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
@@ -138,9 +138,6 @@ class Artifact(ArtifactInterface):
         artifact.add_dir('mnist/')
         wandb.log_artifact(artifact)
         ```
-
-    Raises:
-        Exception: if problem.
 
     Returns:
         An `Artifact` object.
@@ -710,7 +707,7 @@ class Artifact(ArtifactInterface):
 
     def _ensure_can_add(self) -> None:
         if self._final:
-            raise ValueError("Can't add to finalized artifact.")
+            raise ArtifactFinalizedError(artifact=self)
 
     def _add_local_file(
         self, name: str, path: str, digest: Optional[B64MD5] = None
@@ -733,12 +730,6 @@ class Artifact(ArtifactInterface):
         self._manifest.add_entry(entry)
         self._added_local_paths[path] = entry
         return entry
-
-    def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactManifestEntry:
-        return self.add(item, name)
-
-    def __getitem__(self, name: str) -> Optional[data_types.WBValue]:
-        return self.get(name)
 
 
 class ArtifactManifestV1(ArtifactManifest):
@@ -944,7 +935,7 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception(f"unrecognized storage layout: {storage_layout}")
 
-    def store_file(
+    def store_file_sync(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -958,14 +949,14 @@ class WandbStoragePolicy(StoragePolicy):
             True if the file was a duplicate (did not need to be uploaded),
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
-        resp = preparer.prepare(
+        resp = preparer.prepare_sync(
             {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-        )
+        ).get()
 
         entry.birth_artifact_id = resp.birth_artifact_id
         if resp.upload_url is None:
@@ -984,6 +975,53 @@ class WandbStoragePolicy(StoragePolicy):
                     for header in (resp.upload_headers or {})
                 },
             )
+        self._write_cache(entry)
+
+        return False
+
+    async def store_file_async(
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactManifestEntry,
+        preparer: "StepPrepare",
+        progress_callback: Optional["progress.ProgressFn"] = None,
+    ) -> bool:
+        """Async equivalent to `store_file_sync`."""
+        resp = await preparer.prepare_async(
+            {
+                "artifactID": artifact_id,
+                "artifactManifestID": artifact_manifest_id,
+                "name": entry.path,
+                "md5": entry.digest,
+            }
+        )
+
+        entry.birth_artifact_id = resp.birth_artifact_id
+        if resp.upload_url is None:
+            return True
+        if entry.local_path is None:
+            return False
+
+        with open(entry.local_path, "rb") as file:
+            # This fails if we don't send the first byte before the signed URL expires.
+            await self._api.upload_file_retry_async(
+                resp.upload_url,
+                file,
+                progress_callback,
+                extra_headers={
+                    header.split(":", 1)[0]: header.split(":", 1)[1]
+                    for header in (resp.upload_headers or {})
+                },
+            )
+
+        self._write_cache(entry)
+
+        return False
+
+    def _write_cache(self, entry: ArtifactManifestEntry) -> None:
+        if entry.local_path is None:
+            return
 
         # Cache upon successful upload.
         _, hit, cache_open = self._cache.check_md5_obj_path(
@@ -993,8 +1031,6 @@ class WandbStoragePolicy(StoragePolicy):
         if not hit:
             with cache_open() as f:
                 shutil.copyfile(entry.local_path, f.name)
-
-        return False
 
 
 # Don't use this yet!
