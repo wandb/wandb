@@ -69,7 +69,7 @@ class Scheduler(ABC):
         api: Api,
         *args: Optional[Any],
         num_workers: int = 8,
-        polling_sleep: int = 5.0,
+        polling_sleep: float = 5.0,
         sweep_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
@@ -161,7 +161,7 @@ class Scheduler(ABC):
 
     @property
     def busy_workers(self) -> Dict[int, _Worker]:
-        """Returns dict of id:worker already assigned to a launch run
+        """Returns dict of id:worker already assigned to a launch run.
 
         runs should always have a worker_id, but are created before
         workers are assigned to the run
@@ -173,7 +173,7 @@ class Scheduler(ABC):
 
     @property
     def available_workers(self) -> Dict[int, _Worker]:
-        """Returns dict of id:worker ready to launch another run"""
+        """Returns dict of id:worker ready to launch another run."""
         if len(self._workers) == 0:
             return {}
         return {
@@ -181,10 +181,10 @@ class Scheduler(ABC):
         }
 
     def _init_wandb_run(self) -> SdkRun:
-        """Controls resume or init logic for a scheduler wandb run"""
+        """Controls resume or init logic for a scheduler wandb run."""
         if self._kwargs.get("run_id"):  # resume
-            run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
-            return run
+            resumed_run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
+            return resumed_run
 
         _type = self._kwargs.get("sweep_type")
 
@@ -317,7 +317,7 @@ class Scheduler(ABC):
             self._stop_run(run_id)
 
     def _stop_run(self, run_id: str) -> bool:
-        """Stops a run and removes it from the scheduler"""
+        """Stops a run and removes it from the scheduler."""
         if run_id not in self._runs:
             wandb.termwarn(f"Tried to delete a nonexistent run ({run_id})")
             return False
@@ -379,10 +379,9 @@ class Scheduler(ABC):
                 del self._runs[run_id]
 
     def _add_to_launch_queue(self, run: SweepRun) -> "public.QueuedRun":
-        """Convert a sweeprun into a launch job format, then push
-        to runqueue
+        """Convert a sweeprun into a launch job format.
+        Thn push to runqueue
         """
-
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
         _sweep_config_uri = self._sweep_config.get("image_uri")
