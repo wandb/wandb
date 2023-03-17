@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import os
+import sys
 import tempfile
 from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
@@ -10,14 +11,13 @@ from wandb import env, util
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.util import FilePathStr, URIStr
+from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
-    import sys
-
-    from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
+
+    from .file_pusher import FilePusher
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -280,7 +280,7 @@ class ArtifactSaver:
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = URIStr(
+                    entry.ref = util.URIStr(
                         "wandb-artifact://{}/{}".format(
                             b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )
