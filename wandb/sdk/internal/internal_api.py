@@ -30,9 +30,8 @@ from typing import (
 import click
 import requests
 import yaml
-from wandb_gql import Client, gql  # type: ignore
-from wandb_gql.client import RetryError  # type: ignore
-from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
 
 import wandb
 from wandb import __version__, env, util
@@ -40,6 +39,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry
@@ -195,7 +195,7 @@ class Api:
             "heartbeat_seconds": 30,
         }
         self.client = Client(
-            transport=RequestsHTTPTransport(
+            transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
