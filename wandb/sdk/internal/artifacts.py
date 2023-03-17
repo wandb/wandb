@@ -8,13 +8,12 @@ from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 import wandb
 import wandb.filesync.step_prepare
 from wandb import util
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-
-from ..interface.artifacts import (
+from wandb.sdk.interface.artifacts import (
     ArtifactManifest,
     ArtifactManifestEntry,
     get_staging_dir,
 )
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
