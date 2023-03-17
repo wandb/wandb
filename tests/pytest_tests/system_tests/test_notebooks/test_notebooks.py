@@ -1,5 +1,6 @@
 import json
 import os
+import pathlib
 import platform
 import subprocess
 import sys
@@ -10,7 +11,6 @@ import wandb
 import wandb.jupyter
 import wandb.sdk.lib.apikey
 import wandb.util
-from conftest import notebook_path
 
 
 def test_login_timeout(notebook, monkeypatch):
@@ -57,8 +57,9 @@ def test_magic(mocker, notebook):
         assert iframes == 6
 
 
-def test_notebook_exits(user):
-    script_fname = notebook_path("ipython_exit.py")
+def test_notebook_exits(user, assets_path):
+    nb_path = pathlib.Path("notebooks") / "ipython_exit.py"
+    script_fname = assets_path(nb_path)
     bindir = os.path.dirname(sys.executable)
     ipython = os.path.join(bindir, "ipython")
     cmd = [ipython, script_fname]

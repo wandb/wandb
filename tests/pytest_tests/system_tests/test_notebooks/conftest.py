@@ -130,14 +130,6 @@ class WandbNotebookClient(NotebookClient):
         return text.getvalue()
 
 
-def notebook_path(path: str) -> pathlib.Path:
-    """Returns the absolute path to a notebook."""
-    full_path = (
-        pathlib.Path(__file__).parent.parent.parent / "assets" / "notebooks" / path
-    )
-    return full_path.absolute()
-
-
 @pytest.fixture
 def run_id() -> str:
     """Fixture to return a fixed run id for testing."""
@@ -145,7 +137,7 @@ def run_id() -> str:
 
 
 @pytest.fixture
-def notebook(user, run_id):
+def notebook(user, run_id, assets_path):
     """Fixture to load a notebook and work with it.
 
     This launches a live server,
@@ -167,7 +159,7 @@ def notebook(user, run_id):
         save_code: bool = True,
         **kwargs: Any,
     ):
-        nb_path = notebook_path(nb_name)
+        nb_path = assets_path(pathlib.Path("notebooks") / nb_name)
         shutil.copy(nb_path, os.path.join(os.getcwd(), os.path.basename(nb_path)))
         with open(nb_path) as f:
             nb = nbformat.read(f, as_version=4)
