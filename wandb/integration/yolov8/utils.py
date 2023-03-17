@@ -22,8 +22,7 @@ def convert_to_wb_images(
     batch_idx: Union[torch.Tensor, np.ndarray],
     names: Dict[int, str],
 ) -> Tuple[List[Tuple[Image, Image]], List[Dict[Any, Union[float, Any]]]]:
-    """
-    Utility to convert a batch of images, bounding boxes and masks from YOLO validator to a list of wandb.Image objects
+    """Utility to convert a batch of images, bounding boxes and masks from YOLO validator to list of wandb.Image objects
     Additionally, returns a list of dictionaries with the average confidences for each class
     """
     images = batch["img"]
@@ -129,9 +128,7 @@ def load_boxes_data(
     h: int,
     w: int,
 ) -> Tuple[List[Dict[str, Any]], Optional[np.array]]:
-    """
-    Utility to parse and convert bounding boxes and masks from YOLO validator wandb.Image format
-    """
+    """Utility to parse and convert bounding boxes and masks from YOLO validator wandb.Image format"""
     boxes_data = []
     idx = batch_idx == i
     boxes = xywh2xyxy(bboxes[idx, :4]).T

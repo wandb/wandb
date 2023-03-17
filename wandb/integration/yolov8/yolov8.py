@@ -257,9 +257,7 @@ def add_images_to_validation_table(
     scores: List[Dict[str, float]],
     batch_id: int,
 ) -> None:
-    """
-    Utility to add a wandb.Image, predictions and scores to the validation table
-    """
+    """Utility to add a wandb.Image, predictions and scores to the validation table"""
     objects = sorted(validator.names.values())
     for item in scores:
         for obj in objects:
@@ -284,9 +282,7 @@ def plot_detection_predictions(
     predictions: Any,
     batch_id: int,
 ) -> None:
-    """
-    Utility to plot predictions from the `DetectionValidator` to a wandb.Table
-    """
+    """Utility to plot predictions from the `DetectionValidator` to a wandb.Table"""
     (batch_idx, cls, bboxes) = output_to_target(predictions, max_det=15)
     wb_images, scores = convert_to_wb_images(
         batch=batch,
@@ -307,9 +303,7 @@ def plot_segmentation_predictions(
     predictions: Any,
     ni: int,
 ) -> None:
-    """
-    Utility to plot predictions from the `SegmentationValidator` to a wandb.Table
-    """
+    """Utility to plot predictions from the `SegmentationValidator` to a wandb.Table"""
     (batch_idx, cls, bboxes) = output_to_target(predictions[0], max_det=15)
     wb_images, scores = convert_to_wb_images(
         batch=batch,
