@@ -347,10 +347,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(run=run)
         self._publish(rec)
 
-    def _publish_attach(self, attach: pb.AttachRequest) -> None:
-        rec = self._make_request(attach=attach)
-        self._publish(rec)
-
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         rec = self._make_record(config=cfg)
         self._publish(rec)

@@ -492,8 +492,9 @@ class SendManager:
     ) -> None:
         attach_id = req.attach_id
         assert attach_id
-        assert self._run
-        resp.run.CopyFrom(self._run)
+        # assert self._run
+        if self._run:
+            resp.run.CopyFrom(self._run)
 
     def send_request_attach(self, record: "Record") -> None:
         assert record.control.req_resp or record.control.mailbox_slot

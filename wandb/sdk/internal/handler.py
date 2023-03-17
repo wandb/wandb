@@ -624,7 +624,7 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:
-        self._dispatch_record(record)
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)

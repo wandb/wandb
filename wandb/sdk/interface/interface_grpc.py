@@ -73,11 +73,6 @@ class InterfaceGrpc(InterfaceBase):
         run_result = self._stub.RunUpdate(run)
         return run_result  # type: ignore
 
-    def _publish_attach(self, attach: pb.AttachRequest) -> None:
-        assert self._stub
-        self._assign(attach)
-        _ = self._stub.Attach(attach)
-
     def _publish_run(self, run: pb.RunRecord) -> None:
         assert self._stub
         self._assign(run)

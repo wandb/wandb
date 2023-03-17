@@ -48,8 +48,6 @@ class InterfaceSock(InterfaceShared):
 
     def _publish(self, record: "pb.Record", local: Optional[bool] = None) -> None:
         self._assign(record)
-        print("InterfaceSock._publish", record)
-        print("=" * 80)
         self._sock_client.send_record_publish(record)
 
     def _communicate_async(
