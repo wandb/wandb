@@ -38,19 +38,6 @@ if TYPE_CHECKING:
             pass
 
 
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    try:
-        mkdir_exists_ok(path)
-    except OSError as e:
-        raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
-            f"{env.DATA_DIR} to a directory where you have the necessary write access."
-        ) from e
-
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
-
-
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
     if manifest.version == 1:
         contents = {
@@ -345,3 +332,16 @@ class ArtifactSaver:
                     os.remove(entry.local_path)
                 except OSError:
                     pass
+
+
+def get_staging_dir() -> FilePathStr:
+    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+    try:
+        mkdir_exists_ok(path)
+    except OSError as e:
+        raise PermissionError(
+            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"{env.DATA_DIR} to a directory where you have the necessary write access."
+        ) from e
+
+    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
