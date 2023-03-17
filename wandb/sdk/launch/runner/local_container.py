@@ -147,8 +147,6 @@ class LocalContainerRunner(AbstractRunner):
                 )
             ).strip()
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
         _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
         wandb.termlog(_msg)
@@ -222,9 +220,12 @@ def get_docker_command(
                 cmd += [prefix]
             else:
                 cmd += [prefix, shlex.quote(str(value))]
+
     if entry_cmd:
-        cmd += ["--entrypoint"] + entry_cmd
+        cmd += ["--entrypoint", entry_cmd[0]]
     cmd += [shlex.quote(image)]
+    if entry_cmd and len(entry_cmd) > 1:
+        cmd += entry_cmd[1:]
     if additional_args:
         cmd += additional_args
     return cmd
