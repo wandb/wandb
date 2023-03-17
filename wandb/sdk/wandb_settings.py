@@ -878,9 +878,7 @@ class Settings:
     def _validate_run_id(value: str) -> bool:
         # if len(value) > len(value.strip()):
         #     raise UsageError("Run ID cannot start or end with whitespace")
-        if value.isspace() or len(value) == 0:
-            return False
-        return True
+        return bool(value.strip())
 
     @staticmethod
     def _validate_api_key(value: str) -> bool:
