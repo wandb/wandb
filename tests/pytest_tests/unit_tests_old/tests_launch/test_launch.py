@@ -790,9 +790,11 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
 
 
 @pytest.mark.timeout(320)
+@pytest.mark.skip(reason="The nb tests are now run against the unmock server.")
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython, monkeypatch
 ):
+    # TODO: make this test work with the unmock server
     live_mock_server.set_ctx({"run_script_type": "notebook"})
 
     api = wandb.sdk.internal.internal_api.Api(
