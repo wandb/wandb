@@ -642,8 +642,8 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings._disable_service:
-            self._attach_id = self._settings.run_id
+        # if not self._settings._disable_service:
+        self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid
@@ -779,7 +779,8 @@ class Run:
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
         # We only pickle in service mode
-        if not self._settings or self._settings._disable_service:
+        # if not self._settings or self._settings._disable_service:
+        if not self._settings:
             return
 
         _attach_id = self._attach_id
@@ -1871,8 +1872,7 @@ class Run:
 
         # inform manager this run is finished
         manager = self._wl and self._wl._get_manager()
-        if manager:
-            manager._inform_finish(run_id=self._run_id)
+        manager._inform_finish(run_id=self._run_id)
 
     @_run_decorator._noop
     @_run_decorator._attach
@@ -2115,13 +2115,6 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-
-        manager = self._wl and self._wl._get_manager()
-        if not manager:
-            self._hooks.hook()
-            # NB: manager will perform atexit hook like behavior for outstanding runs
-            atexit.register(lambda: self._atexit_cleanup())
-
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:

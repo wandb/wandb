@@ -1059,12 +1059,7 @@ class Settings:
         )
         console: str = str(self.console)
         if console == "auto":
-            if (
-                self._jupyter
-                or (self.start_method == "thread")
-                or not self._disable_service
-                or self._windows
-            ):
+            if self._jupyter or not self._disable_service or self._windows:
                 console = "wrap"
             else:
                 console = "redirect"

@@ -27,6 +27,7 @@ from wandb.sdk.lib.mailbox import (
 )
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
+from wandb.sdk.internal.internal import wandb_internal
 
 from ..interface.interface_relay import InterfaceRelay
 
@@ -216,7 +217,7 @@ class StreamMux:
             logging.DEBUG
         )  # Note: not including this in the stream's settings to try and keep only Settings arguments
         thread = StreamThread(
-            target=wandb.wandb_sdk.internal.internal.wandb_internal,
+            target=wandb_internal,
             kwargs=dict(
                 settings=settings_dict,
                 record_q=stream._record_q,

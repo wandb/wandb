@@ -247,6 +247,8 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             print("frozen, could be trouble")
 
     def _setup(self) -> None:
+        if self._settings.mode == "disabled":
+            return
         self._setup_manager()
 
         sweep_path = self._settings.sweep_param_path
@@ -272,8 +274,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._teardown_manager(exit_code=exit_code)
 
     def _setup_manager(self) -> None:
-        if self._settings._disable_service:
-            return
         self._manager = wandb_manager._Manager(settings=self._settings)
 
     def _teardown_manager(self, exit_code: int) -> None:

@@ -238,7 +238,7 @@ def sentry_set_scope(
         "sweep_url",
         "sweep_id",
         "deployment",
-        "_disable_service",
+        # "_disable_service",
         "launch",
     ]
 

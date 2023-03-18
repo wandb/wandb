@@ -166,8 +166,11 @@ class _WandbInit:
         # where it would disable the service if the mode was set to disabled
         mode = kwargs.get("mode")
         settings_mode = (kwargs.get("settings") or {}).get("mode")
-        _disable_service = mode == "disabled" or settings_mode == "disabled"
-        setup_settings = {"_disable_service": _disable_service}
+
+        _disable = mode == "disabled" or settings_mode == "disabled"
+        setup_settings = None
+        if _disable:
+            setup_settings = {"mode": "disabled"}
 
         self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
@@ -586,7 +589,7 @@ class _WandbInit:
         elif isinstance(wandb.run, Run):
             manager = self._wl._get_manager()
             # We shouldn't return a stale global run if we are in a new pid
-            if not manager or os.getpid() == wandb.run._init_pid:
+            if os.getpid() == wandb.run._init_pid:
                 logger.info("wandb.init() called when a run is still active")
                 with telemetry.context() as tel:
                     tel.feature.init_return_run = True
@@ -595,9 +598,8 @@ class _WandbInit:
         logger.info("starting backend")
 
         manager = self._wl._get_manager()
-        if manager:
-            logger.info("setting up manager")
-            manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
+        logger.info("setting up manager")
+        manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
         mailbox = Mailbox()
         backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
@@ -661,8 +663,7 @@ class _WandbInit:
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
 
-            if manager:
-                tel.feature.service = True
+            tel.feature.service = True
             if self.settings._flow_control_disabled:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
@@ -734,7 +735,7 @@ class _WandbInit:
             run_init_handle = backend.interface.deliver_run(run_proto)
             result = run_init_handle.wait(
                 timeout=timeout,
-                on_progress=self._on_progress_init,
+                # on_progress=self._on_progress_init,
                 cancel=True,
             )
             if result:
@@ -756,11 +757,6 @@ class _WandbInit:
 
             if error is not None:
                 logger.error(f"encountered error: {error}")
-                if not manager:
-                    # Shutdown the backend and get rid of the logger
-                    # we don't need to do console cleanup at this point
-                    backend.cleanup()
-                    self.teardown()
                 raise error
 
             assert run_result is not None  # for mypy
@@ -783,8 +779,7 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
 
-        if manager:
-            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+        manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         assert backend.interface
         assert run_obj
@@ -866,8 +861,7 @@ def _attach(
         raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
-    if manager:
-        response = manager._inform_attach(attach_id=attach_id)
+    response = manager._inform_attach(attach_id=attach_id)
 
     settings: Settings = copy.copy(_wl._settings)
     settings.update(

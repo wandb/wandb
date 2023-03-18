@@ -177,11 +177,11 @@ def wandb_internal(
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
             wandb.termerror("Internal wandb error: file data was not synced")
-            if not settings.get("_disable_service"):
-                # TODO: We can make this more graceful by returning an error to streams.py
-                # and potentially just fail the one stream.
-                os._exit(-1)
-            sys.exit(-1)
+            # if not settings.get("_disable_service"):
+            # TODO: We can make this more graceful by returning an error to streams.py
+            # and potentially just fail the one stream.
+            os._exit(-1)
+            # sys.exit(-1)
 
     close_internal_log()
 
