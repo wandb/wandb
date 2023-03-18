@@ -873,11 +873,15 @@ def _attach(
         raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
-    response = {}
+    response = {"run_id": attach_id}
     if manager:
         response = manager._inform_attach(attach_id=attach_id)
 
     settings: Settings = copy.copy(_wl._settings)
+    if response["run_id"] != attach_id:
+        raise wandb.Error(
+            "An internal error occurred. The run id provided does not match the run id returned by the internal process."
+        )
     settings.update(response, source=Source.INIT)
 
     # TODO: consolidate this codepath with wandb.init()
@@ -906,8 +910,11 @@ def _attach(
     attach_response = attach_result.response.attach_response
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
-    # todo: handle offline mode properly
-    run._set_run_obj(attach_response.run)
+    if run._settings._offline:
+        run_proto = backend.interface._make_run(run)
+        run._set_run_obj_offline(run_proto)
+    else:
+        run._set_run_obj(attach_response.run)
     run._on_attach()
     return run
 
