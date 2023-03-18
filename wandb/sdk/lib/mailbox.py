@@ -1,6 +1,4 @@
-"""
-mailbox.
-"""
+"""mailbox."""
 
 import secrets
 import string
@@ -8,7 +6,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
-from wandb.errors import MailboxError
+from wandb.errors import Error
 from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:
@@ -20,6 +18,18 @@ def _generate_address(length: int = 12) -> str:
         secrets.choice(string.ascii_lowercase + string.digits) for i in range(length)
     )
     return address
+
+
+class MailboxError(Error):
+    """Generic Mailbox Exception."""
+
+    pass
+
+
+class ContextCancelledError(MailboxError):
+    """Context cancelled Exception."""
+
+    pass
 
 
 class _MailboxWaitAll:

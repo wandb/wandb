@@ -12,7 +12,7 @@ from wandb.errors import Error
 
 
 class DockerError(Error):
-    """Raised when attempting to execute a docker command"""
+    """Raised when attempting to execute a docker command."""
 
     def __init__(
         self,
@@ -51,9 +51,10 @@ log = logging.getLogger(__name__)
 
 
 def shell(cmd: List[str]) -> Optional[str]:
-    """Simple wrapper for calling docker,
+    """Simple wrapper for calling docker,.
 
-    returning None on error and the output on success"""
+    returning None on error and the output on success
+    """
     try:
         return (
             subprocess.check_output(["docker"] + cmd, stderr=subprocess.STDOUT)
@@ -69,7 +70,7 @@ _buildx_installed = None
 
 
 def is_buildx_installed() -> bool:
-    """Returns `True` if docker buildx is installed and working."""
+    """Return `True` if docker buildx is installed and working."""
     global _buildx_installed
     if _buildx_installed is not None:
         return _buildx_installed  # type: ignore
@@ -86,12 +87,40 @@ def build(tags: List[str], file: str, context_path: str) -> str:
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    run(
-        ["docker"] + command + build_tags + ["-f", file, context_path],
-        capture_stderr=False,
-        capture_stdout=False,
+    args = ["docker"] + command + build_tags + ["-f", file, context_path]
+    stdout = run_command_live_output(
+        args,
     )
-    return tags[0]
+    return stdout
+
+
+def run_command_live_output(args: List[Any]) -> str:
+    with subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
+    ) as process:
+        stdout = ""
+        while True:
+            chunk = os.read(process.stdout.fileno(), 4096)  # type: ignore
+            if not chunk:
+                break
+            index = chunk.find(b"\r")
+            if index != -1:
+                print(chunk.decode(), end="")
+            else:
+                stdout += chunk.decode()
+                print(chunk.decode(), end="\r")
+
+        print(stdout)
+
+    return_code = process.wait()
+    if return_code != 0:
+        raise DockerError(args, return_code, stdout.encode())
+
+    return stdout
 
 
 def run(
@@ -165,7 +194,7 @@ def parse(image_name: str) -> Tuple[str, str, str]:
 
 
 def auth_token(registry: str, repo: str) -> Dict[str, str]:
-    """Makes a request to the root of a v2 docker registry to get the auth url.
+    """Make a request to the root of a v2 docker registry to get the auth url.
 
     Always returns a dictionary, if there's no token key we couldn't authenticate
     """
@@ -208,7 +237,7 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
 
 
 def image_id_from_registry(image_name: str) -> Optional[str]:
-    """Get the docker id from a public or private registry"""
+    """Get the docker id from a public or private registry."""
     registry, repository, tag = parse(image_name)
     res = None
     try:
@@ -232,7 +261,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
 
 
 def image_id(image_name: str) -> Optional[str]:
-    """Retreve the image id from the local docker daemon or remote registry"""
+    """Retreve the image id from the local docker daemon or remote registry."""
     if "@sha256:" in image_name:
         return image_name
     else:
@@ -247,23 +276,23 @@ def image_id(image_name: str) -> Optional[str]:
 
 
 def get_image_uid(image_name: str) -> int:
-    """Retrieve the image default uid through brute force"""
+    """Retrieve the image default uid through brute force."""
     image_uid = shell(["run", image_name, "id", "-u"])
     return int(image_uid) if image_uid else -1
 
 
 def push(image: str, tag: str) -> Optional[str]:
-    """Push an image to a remote registry"""
+    """Push an image to a remote registry."""
     return shell(["push", f"{image}:{tag}"])
 
 
 def login(username: str, password: str, registry: str) -> Optional[str]:
-    """Login to a registry"""
+    """Login to a registry."""
     return shell(["login", "--username", username, "--password", password, registry])
 
 
 def tag(image_name: str, tag: str) -> Optional[str]:
-    """Tag an image"""
+    """Tag an image."""
     return shell(["tag", image_name, tag])
 
 

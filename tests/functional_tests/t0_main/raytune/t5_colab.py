@@ -1,7 +1,7 @@
 """ray-tune test.
 
 Based on:
-    https://docs.wandb.ai/guides/integrations/other/ray-tune
+    https://docs.wandb.ai/guides/integrations/ray-tune
     https://colab.research.google.com/github/wandb/examples/blob/master/colabs/raytune/RayTune_with_wandb.ipynb
 """
 
@@ -29,7 +29,7 @@ def train_mnist(config):
         model.parameters(), lr=config["lr"], momentum=config["momentum"]
     )
 
-    for _i in range(10):
+    for _i in range(5):
         train(model, optimizer, train_loader, device=device)
         acc = test(model, test_loader, device=device)
 

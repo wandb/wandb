@@ -34,13 +34,11 @@ class _Stats(TypedDict):
     temp: float
     powerWatts: float  # noqa: N815
     powerPercent: float  # noqa: N815
-    # cpuWaitMs: float  # noqa: N815
+    # cpuWaitMs: float
 
 
 class GPUAppleStats:
-    """
-    Apple GPU stats available on Arm Macs.
-    """
+    """Apple GPU stats available on Arm Macs."""
 
     name = "gpu.0.{}"
     samples: "Deque[_Stats]"

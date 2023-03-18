@@ -37,6 +37,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -62,8 +63,7 @@ else:
 
 
 def _get_wandb_dir(root_dir: str) -> str:
-    """
-    Get the full path to the wandb directory.
+    """Get the full path to the wandb directory.
 
     The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
     We add the `__stage_dir__` to it to get the full `wandb_dir`
@@ -87,9 +87,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
 # todo: should either return bool or error out. fix once confident.
 def _str_as_bool(val: Union[str, bool]) -> bool:
-    """
-    Parse a string as a bool.
-    """
+    """Parse a string as a bool."""
     if isinstance(val, bool):
         return val
     try:
@@ -106,6 +104,30 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
+def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Parse a string as a dict."""
+    if isinstance(val, dict):
+        return val
+    try:
+        return dict(json.loads(val))
+    except (AttributeError, ValueError):
+        pass
+
+    # todo: remove this and only raise error once we are confident.
+    wandb.termwarn(
+        f"Could not parse value {val} as a dict. ",
+        repeat=False,
+    )
+    raise UsageError(f"Could not parse value {val} as a dict.")
+
+
+def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
+    """Parse a (potentially comma-separated) string as a tuple."""
+    if isinstance(val, str):
+        return tuple(val.split(","))
+    return tuple(val)
+
+
 def _redact_dict(
     d: Dict[str, Any],
     unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
@@ -119,7 +141,7 @@ def _redact_dict(
     return safe_dict
 
 
-def _get_program() -> Optional[Any]:
+def _get_program() -> Optional[str]:
     program = os.getenv(wandb.env.PROGRAM)
     if program is not None:
         return program
@@ -186,16 +208,15 @@ class SettingsConsole(enum.IntEnum):
 
 
 class Property:
-    """
-    A class to represent attributes (individual settings) of the Settings object.
+    """A class to represent attributes (individual settings) of the Settings object.
 
-        - Encapsulates the logic of how to preprocess and validate values of settings
-          throughout the lifetime of a class instance.
-        - Allows for runtime modification of settings with hooks, e.g. in the case when
-          a setting depends on another setting.
-        - The update() method is used to update the value of a setting.
-        - The `is_policy` attribute determines the source priority when updating the property value.
-          E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
+    - Encapsulates the logic of how to preprocess and validate values of settings
+    throughout the lifetime of a class instance.
+    - Allows for runtime modification of settings with hooks, e.g. in the case when
+    a setting depends on another setting.
+    - The update() method is used to update the value of a setting.
+    - The `is_policy` attribute determines the source priority when updating the property value.
+    E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
 
     # todo: this is a temporary measure to bypass validation of the settings
@@ -214,6 +235,7 @@ class Property:
         "show_errors",
         "base_url",
         "login_timeout",
+        "_async_upload_concurrency_limit",
     }
 
     def __init__(  # pylint: disable=unused-argument
@@ -356,13 +378,12 @@ class Property:
 
 
 class Settings:
-    """
-    Settings for the wandb client.
-    """
+    """Settings for the wandb client."""
 
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
     _config_dict: Config
@@ -404,6 +425,9 @@ class Settings:
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
+    _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
+    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
+    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -491,19 +515,23 @@ class Settings:
     sync_symlink_latest: str
     system_sample: int
     system_sample_seconds: int
+    table_raise_on_max_row_limit_exceeded: bool
     timespec: str
     tmp_dir: str
     username: str
     wandb_dir: str
-    table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Helper method that is used in `__init__` together with the class attributes
-        to initialize instance attributes (individual settings) as Property objects.
+        """Initialize instance attributes (individual settings) as Property objects.
+
+        Helper method that is used in `__init__` together with the class attributes.
         Note that key names must be the same as the class attribute names.
         """
-        return dict(
+        props: Dict[str, Dict[str, Any]] = dict(
+            _async_upload_concurrency_limit={
+                "preprocessor": int,
+                "validator": self._validate__async_upload_concurrency_limit,
+            },
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_service={
                 "value": False,
@@ -564,6 +592,20 @@ class Settings:
             _stats_neuron_monitor_config_path={
                 "hook": lambda x: self._path_convert(x),
             },
+            _stats_open_metrics_endpoints={
+                # todo: opt-in to this feature
+                # "value": {
+                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
+                # },
+                "preprocessor": _str_as_dict,
+            },
+            _stats_open_metrics_filters={
+                # capture all metrics by default
+                "value": {
+                    ".*": {},
+                },
+                "preprocessor": _str_as_dict,
+            },
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -579,6 +621,7 @@ class Settings:
                 "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
+            config_paths={"prepocessor": _str_as_tuple},
             console={"value": "auto", "validator": self._validate_console},
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
@@ -651,6 +694,9 @@ class Settings:
             root_dir={
                 "preprocessor": lambda x: str(x),
                 "value": os.path.abspath(os.getcwd()),
+            },
+            run_id={
+                "validator": self._validate_run_id,
             },
             run_mode={
                 "hook": lambda _: "offline-run" if self._offline else "run",
@@ -736,14 +782,14 @@ class Settings:
                 "auto_hook": True,
             },
         )
+        return props
 
     # helper methods for validating values
     @staticmethod
     def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """
-        Factory for type validators, given a type hint:
-        Convert the type hint of a setting into a function
-        that checks if the argument is of the correct type
+        """Return a factory for type validators.
+
+        Given a type hint for a setting into a function that type checks the argument.
         """
         origin, args = get_origin(hint), get_args(hint)
 
@@ -829,10 +875,17 @@ class Settings:
         return True
 
     @staticmethod
+    def _validate_run_id(value: str) -> bool:
+        # if len(value) > len(value.strip()):
+        #     raise UsageError("Run ID cannot start or end with whitespace")
+        return bool(value.strip())
+
+    @staticmethod
     def _validate_api_key(value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
+        # todo: move this check to the post-init validation step
         # if value.startswith("local") and not self.is_local:
         #     raise UsageError(
         #         "Attempting to use a local API key to connect to https://api.wandb.ai"
@@ -843,8 +896,7 @@ class Settings:
 
     @staticmethod
     def _validate_base_url(value: Optional[str]) -> bool:
-        """
-        Validate the base url of the wandb server.
+        """Validate the base url of the wandb server.
 
         param value: URL to validate
 
@@ -962,12 +1014,39 @@ class Settings:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
         return True
 
+    @staticmethod
+    def _validate__async_upload_concurrency_limit(value: int) -> bool:
+        if value <= 0:
+            raise UsageError("_async_upload_concurrency_limit must be positive")
+
+        try:
+            import resource  # not always available on Windows
+
+            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+        except Exception:
+            # Couldn't get the open-file-limit for some reason,
+            # probably very platform-specific. Not a problem,
+            # we just won't use it to cap the concurrency.
+            pass
+        else:
+            if value > file_limit:
+                wandb.termwarn(
+                    (
+                        "_async_upload_concurrency_limit setting of"
+                        f" {value} exceeds this process's limit"
+                        f" on open files ({file_limit}); may cause file-upload failures."
+                        " Try decreasing _async_upload_concurrency_limit,"
+                        " or increasing your file limit with `ulimit -n`."
+                    ),
+                    repeat=False,
+                )
+
+        return True
+
     # other helper methods
     @staticmethod
     def _path_convert(*args: str) -> str:
-        """
-        Join path and apply os.path.expanduser to it.
-        """
+        """Join path and apply os.path.expanduser to it."""
         return os.path.expanduser(os.path.join(*args))
 
     def _convert_console(self) -> SettingsConsole:
@@ -1018,9 +1097,7 @@ class Settings:
         return f"{project_url}{query}"
 
     def _run_url(self) -> str:
-        """
-        Return the run url.
-        """
+        """Return the run url."""
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -1029,8 +1106,8 @@ class Settings:
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
     def _set_run_start_time(self, source: int = Source.BASE) -> None:
-        """
-        Set the time stamps for the settings.
+        """Set the time stamps for the settings.
+
         Called once the run is initialized.
         """
         time_stamp: float = time.time()
@@ -1044,9 +1121,7 @@ class Settings:
         )
 
     def _sweep_url(self) -> str:
-        """
-        Return the sweep url.
-        """
+        """Return the sweep url."""
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""
@@ -1057,6 +1132,8 @@ class Settings:
     def __init__(self, **kwargs: Any) -> None:
         self.__frozen: bool = False
         self.__initialized: bool = False
+
+        self.__modification_order = SETTINGS_TOPOLOGICALLY_SORTED
 
         # todo: this is collect telemetry on validation errors and unexpected args
         # values are stored as strings to avoid potential json serialization errors down the line
@@ -1118,7 +1195,6 @@ class Settings:
         unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
-
             # todo: remove this and raise error instead once we are confident
             self.__unexpected_args.update(unexpected_arguments)
             wandb.termwarn(
@@ -1129,6 +1205,14 @@ class Settings:
                 kwargs.pop(k)
 
             # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
+
+        # automatically inspect setting validators and runtime hooks and topologically sort them
+        # so that we can safely update them. throw error if there are cycles.
+        for prop in self.__modification_order:
+            if prop in kwargs:
+                source = Source.RUN if self.__dict__[prop].is_policy else Source.BASE
+                self.update({prop: kwargs[prop]}, source=source)
+                kwargs.pop(prop)
 
         for k, v in kwargs.items():
             # todo: double-check this logic:
@@ -1165,14 +1249,19 @@ class Settings:
         return f"<Settings {representation}>"
 
     def __copy__(self) -> "Settings":
-        """
-        Ensure that a copy of the settings object is a truly deep copy
+        """Ensure that a copy of the settings object is a truly deep copy.
 
         Note that the copied object will not be frozen  todo? why is this needed?
         """
         # get attributes that are instances of the Property class:
         attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
         new = Settings()
+        # update properties that have deps or are dependent on in the topologically-sorted order
+        for prop in self.__modification_order:
+            new.update({prop: attributes[prop]._value}, source=attributes[prop].source)
+            attributes.pop(prop)
+
+        # update the remaining attributes
         for k, v in attributes.items():
             # make sure to use the raw property value (v._value),
             # not the potential result of runtime hooks applied to it (v.value)
@@ -1187,7 +1276,7 @@ class Settings:
     # attribute access methods
     @no_type_check  # this is a hack to make mypy happy
     def __getattribute__(self, name: str) -> Any:
-        """Expose attribute.value if attribute is a Property."""
+        """Expose `attribute.value` if `attribute` is a Property."""
         item = object.__getattribute__(self, name)
         if isinstance(item, Property):
             return item.value
@@ -1222,7 +1311,7 @@ class Settings:
         source: int = Source.OVERRIDE,
         **kwargs: Any,
     ) -> None:
-        """Update individual settings using the Property.update() method."""
+        """Update individual settings."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
             raise TypeError("Settings object is frozen")
 
@@ -1261,9 +1350,20 @@ class Settings:
         if unknown_properties:
             raise KeyError(f"Unknown settings: {unknown_properties}")
         # only if all keys are valid, update them
+
+        # store settings to be updated in a dict to preserve stats on preprocessing and validation errors
+        updated_settings = settings.copy()
+
+        # update properties that have deps or are dependent on in the topologically-sorted order
+        for key in self.__modification_order:
+            if key in settings:
+                self.__dict__[key].update(settings.pop(key), source=source)
+
+        # update the remaining properties
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
+        for key in updated_settings.keys():
             # todo: this is to collect stats on preprocessing and validation errors
             if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
                 self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
@@ -1311,6 +1411,11 @@ class Settings:
         attributes = {
             k: v for k, v in settings.__dict__.items() if isinstance(v, Property)
         }
+        # update properties that have deps or are dependent on in the topologically-sorted order
+        for prop in self.__modification_order:
+            self.update({prop: attributes[prop]._value}, source=attributes[prop].source)
+            attributes.pop(prop)
+        # update the remaining properties
         for k, v in attributes.items():
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)
@@ -1400,7 +1505,6 @@ class Settings:
         self, _logger: Optional[_EarlyLogger] = None
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
-
         settings: Dict[str, Union[bool, str, Sequence, None]] = dict()
         # disable symlinks if on windows (requires admin or developer setup)
         settings["symlink"] = True

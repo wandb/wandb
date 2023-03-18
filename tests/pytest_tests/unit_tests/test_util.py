@@ -15,6 +15,7 @@ import pytest
 import requests
 import tensorflow as tf
 import wandb
+import wandb.errors as errors
 from wandb import util
 
 try:
@@ -35,9 +36,7 @@ def pt_variable(nested_list, requires_grad=True):
 
 
 def nested_list(*shape):
-    """Makes a nested list of lists with a "shape" argument like numpy,
-    TensorFlow, etc.
-    """
+    """Make a nested list of lists with a "shape" argument like numpy, TensorFlow, etc."""
     if not shape:
         # reduce precision so we can use == for comparison regardless
         # of conversions between other libraries
@@ -312,7 +311,7 @@ def test_to_human_size():
 
 
 def matplotlib_with_image():
-    """Creates a matplotlib figure with an image"""
+    """Create a matplotlib figure with an image."""
     fig, ax = plt.subplots(3)
     ax[0].plot([1, 2, 3])
     ax[1].imshow(np.random.rand(200, 200, 3))
@@ -321,7 +320,7 @@ def matplotlib_with_image():
 
 
 def matplotlib_without_image():
-    """Creates a matplotlib figure without an image"""
+    """Create a matplotlib figure without an image."""
     fig, ax = plt.subplots(2)
     ax[0].plot([1, 2, 3])
     ax[1].plot([1, 2, 3])
@@ -329,8 +328,7 @@ def matplotlib_without_image():
 
 
 def test_matplotlib_contains_images():
-    """Ensures that the utility function can properly detect if immages are in a
-    matplotlib figure"""
+    """Test detecting images in a matplotlib figure."""
     # fig true
     fig = matplotlib_with_image()
     assert util.matplotlib_contains_images(fig)
@@ -353,8 +351,7 @@ def test_matplotlib_contains_images():
 
 
 def test_matplotlib_to_plotly():
-    """Ensures that the utility function can properly transform a pyplot object to a
-    plotly object (not the wandb.* versions"""
+    """Test transforming a pyplot object to a plotly object (not the wandb.* versions)."""
     fig = matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(fig)) == plotly.graph_objs._figure.Figure
     plt.close()
@@ -487,7 +484,7 @@ def test_no_retry_auth():
         assert not util.no_retry_auth(e)
     e.response.status_code = 401
     e.response.reason = "Unauthorized"
-    with pytest.raises(wandb.CommError):
+    with pytest.raises(errors.AuthenticationError):
         util.no_retry_auth(e)
     e.response.status_code = 403
     e.response.reason = "Forbidden"

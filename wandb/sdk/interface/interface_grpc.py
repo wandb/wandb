@@ -1,4 +1,4 @@
-"""Backend Sender - Send to internal process
+"""Backend Sender - Send to internal process.
 
 Manage backend sender.
 

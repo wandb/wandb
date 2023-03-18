@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
     from wandb.sdk.internal import artifacts as internal_artifacts
     from wandb.sdk.internal import file_stream, internal_api
+    from wandb.sdk.internal.settings_static import SettingsStatic
 
 
 # Temporary directory for copies we make of some file types to
@@ -27,10 +28,11 @@ logger = logging.getLogger(__name__)
 
 class FilePusher:
     """Parallel file upload class.
+
     This manages uploading multiple files in parallel. It will restart a given file's
-    upload job if it receives a notification that that file has been modified.
-    The finish() method will block until all events have been processed and all
-    uploads are complete.
+    upload job if it receives a notification that that file has been modified. The
+    finish() method will block until all events have been processed and all uploads are
+    complete.
     """
 
     MAX_UPLOAD_JOBS = 64
@@ -39,7 +41,7 @@ class FilePusher:
         self,
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
-        silent: Optional[bool] = False,
+        settings: Optional["SettingsStatic"] = None,
     ) -> None:
         self._api = api
 
@@ -65,7 +67,7 @@ class FilePusher:
             self._event_queue,
             self.MAX_UPLOAD_JOBS,
             file_stream=file_stream,
-            silent=bool(silent),
+            settings=settings,
         )
         self._step_upload.start()
 
@@ -117,6 +119,7 @@ class FilePusher:
         copy: bool = True,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
+
         Arguments:
             save_name: string logical location of the file relative to the run
                 directory.
@@ -141,8 +144,11 @@ class FilePusher:
         manifest: "artifacts.ArtifactManifest",
         artifact_id: str,
         save_fn: "internal_artifacts.SaveFn",
+        save_fn_async: "internal_artifacts.SaveFnAsync",
     ) -> None:
-        event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
+        event = step_checksum.RequestStoreManifestFiles(
+            manifest, artifact_id, save_fn, save_fn_async
+        )
         self._incoming_queue.put(event)
 
     def commit_artifact(
