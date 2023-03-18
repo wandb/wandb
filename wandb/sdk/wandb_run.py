@@ -335,40 +335,40 @@ class _run_decorator:  # noqa: N801
 
         return wrapper
 
-    @classmethod
-    def _noop(cls, func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
-            # `_attach_id` is only assigned in service hence for all service cases
-            # it will be a passthrough. We don't pickle non-service so again a way
-            # to see that we are in non-service case
-            if getattr(self, "_attach_id", None) is None:
-                # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
-                #   - for non-fork case the object is shared through pickling,
-                #     and we don't pickle non-service so will be None
-                #   - for fork case the new process share mem space hence the value would be of parent process.
-                _init_pid = getattr(self, "_init_pid", None)
-                if _init_pid != os.getpid():
-                    message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
-                        func.__name__,
-                        os.getpid(),
-                        _init_pid,
-                        wburls.get("multiprocess"),
-                    )
-                    # - if this process was pickled in non-service case,
-                    #   we ignore the attributes (since pickle is not supported)
-                    # - for fork case will use the settings of the parent process
-                    # - only point of inconsistent behavior from forked and non-forked cases
-                    settings = getattr(self, "_settings", None)
-                    if settings and settings["strict"]:
-                        wandb.termerror(message, repeat=False)
-                        raise errors.UnsupportedError(
-                            f"`{func.__name__}` does not support multiprocessing"
-                        )
-                    wandb.termwarn(message, repeat=False)
-                    return cls.Dummy()
+    # @classmethod
+    # def _noop(cls, func: Callable) -> Callable:
+    #     @functools.wraps(func)
+    #     def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+    #         # `_attach_id` is only assigned in service hence for all service cases
+    #         # it will be a passthrough. We don't pickle non-service so again a way
+    #         # to see that we are in non-service case
+    #         if getattr(self, "_attach_id", None) is None:
+    #             # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
+    #             #   - for non-fork case the object is shared through pickling,
+    #             #     and we don't pickle non-service so will be None
+    #             #   - for fork case the new process share mem space hence the value would be of parent process.
+    #             _init_pid = getattr(self, "_init_pid", None)
+    #             if _init_pid != os.getpid():
+    #                 message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
+    #                     func.__name__,
+    #                     os.getpid(),
+    #                     _init_pid,
+    #                     wburls.get("multiprocess"),
+    #                 )
+    #                 # - if this process was pickled in non-service case,
+    #                 #   we ignore the attributes (since pickle is not supported)
+    #                 # - for fork case will use the settings of the parent process
+    #                 # - only point of inconsistent behavior from forked and non-forked cases
+    #                 settings = getattr(self, "_settings", None)
+    #                 if settings and settings["strict"]:
+    #                     wandb.termerror(message, repeat=False)
+    #                     raise errors.UnsupportedError(
+    #                         f"`{func.__name__}` does not support multiprocessing"
+    #                     )
+    #                 wandb.termwarn(message, repeat=False)
+    #                 return cls.Dummy()
 
-            return func(self, *args, **kwargs)
+    #         return func(self, *args, **kwargs)
 
         return wrapper
 
@@ -1519,7 +1519,7 @@ class Run:
         if (step is None and commit is None) or commit:
             self._step += 1
 
-    @_run_decorator._noop
+    # @_run_decorator._noop
     @_run_decorator._attach
     def log(
         self,
@@ -1831,7 +1831,7 @@ class Run:
             root or self._settings.files_dir,
         )
 
-    @_run_decorator._noop
+    # @_run_decorator._noop
     @_run_decorator._attach
     def finish(
         self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
@@ -1874,7 +1874,7 @@ class Run:
         manager = self._wl and self._wl._get_manager()
         manager._inform_finish(run_id=self._run_id)
 
-    @_run_decorator._noop
+    # @_run_decorator._noop
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
