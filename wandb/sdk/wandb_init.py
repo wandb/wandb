@@ -873,14 +873,15 @@ def _attach(
         raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
-    response = {"run_id": attach_id}
+    response = {}
     if manager:
         response = manager._inform_attach(attach_id=attach_id)
 
     settings: Settings = copy.copy(_wl._settings)
-    if response["run_id"] != attach_id:
+    response_run_id = response.get("run_id")
+    if response_run_id != attach_id:
         raise wandb.Error(
-            "An internal error occurred. The run id provided does not match the run id returned by the internal process."
+            f"An internal error occurred. The run id ({attach_id}) provided does not match the run id ({response_run_id}) returned by the service process."
         )
     settings.update(response, source=Source.INIT)
 
