@@ -2210,6 +2210,10 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+        if not self._settings.resume:
+            if os.path.exists(self._settings.resume_fname):
+                os.remove(self._settings.resume_fname)
+
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         import pkg_resources
 
