@@ -15,6 +15,7 @@ import pytest
 import requests
 import tensorflow as tf
 import wandb
+import wandb.errors as errors
 from wandb import util
 
 try:
@@ -483,7 +484,7 @@ def test_no_retry_auth():
         assert not util.no_retry_auth(e)
     e.response.status_code = 401
     e.response.reason = "Unauthorized"
-    with pytest.raises(wandb.UsageError):
+    with pytest.raises(errors.AuthenticationError):
         util.no_retry_auth(e)
     e.response.status_code = 403
     e.response.reason = "Forbidden"

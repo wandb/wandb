@@ -9,9 +9,8 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import WaitTimeoutError
 from wandb.sdk.wandb_artifacts import Artifact
-from wandb.sdk.wandb_run import Run
+from wandb.sdk.wandb_run import Run, WaitTimeoutError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 

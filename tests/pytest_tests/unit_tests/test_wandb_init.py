@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import wandb
-from wandb.errors import InternalError
+from wandb.errors import Error
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.wandb_init import _WandbInit
 
@@ -38,7 +38,6 @@ def test_init_reinit(test_settings):
     ) as mocked_run, patch(
         "wandb.sdk.wandb_init.Backend", autospec=True
     ) as mocked_backend:
-
         backend_instance = mocked_backend.return_value
         backend_instance._multiprocessing = MagicMock()
 
@@ -89,7 +88,6 @@ def test_init_internal_error(test_settings):
     ), patch("wandb.sdk.wandb_init.Mailbox", autospec=True), patch(
         "wandb.sdk.wandb_init.Backend", autospec=True
     ) as mocked_backend:
-
         backend_instance = mocked_backend.return_value
         backend_instance._multiprocessing = MagicMock()
 
@@ -114,7 +112,7 @@ def test_init_internal_error(test_settings):
         )
 
         with patch("wandb.sdk.wandb_init.wandb.run", return_value=None):
-            with pytest.raises(InternalError):
+            with pytest.raises(Error):
                 wandbinit.init()
 
         assert interface_instance.publish_header.call_count == 1
