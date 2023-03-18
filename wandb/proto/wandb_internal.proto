@@ -145,8 +145,8 @@ message RunUpdateResult {
 message ErrorInfo {
   enum ErrorCode {
     UNKNOWN = 0;
-    INTERNAL = 1;
-    BACKEND = 2;
+    COMMUNICATION = 1;
+    AUTHENTICATION = 2;
     USAGE = 3;
     UNSUPPORTED = 4;
   }

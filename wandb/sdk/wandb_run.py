@@ -3678,6 +3678,10 @@ class InvalidArtifact:
         return False
 
 
+class WaitTimeoutError(errors.Error):
+    """Raised when wait() timeout occurs before process is finished."""
+
+
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
     _instance: Union[ArtifactInterface, InvalidArtifact]
@@ -3695,7 +3699,7 @@ class _LazyArtifact(ArtifactInterface):
         if not self._instance:
             future_get = self._future.get(timeout)
             if not future_get:
-                raise errors.WaitTimeoutError(
+                raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
                 )
             resp = future_get.response.log_artifact_response

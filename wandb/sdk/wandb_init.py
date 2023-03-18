@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 import wandb
 import wandb.env
 from wandb import trigger
-from wandb.errors import CommError, Error, InternalError, UsageError
+from wandb.errors import CommError, Error, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -743,7 +743,7 @@ class _WandbInit:
                     f"\nPlease refer to the documentation for additional information: {wburls.get('doc_start_err')}"
                 )
                 # We're not certain whether the error we encountered is due to an issue
-                # with the server (a "BackendError") or if it's a problem within the SDK (an "InternalError").
+                # with the server (a "CommError") or if it's a problem within the SDK (an "Error").
                 # This means that the error could be a result of the server being unresponsive,
                 # or it could be because we were unable to communicate with the wandb service.
                 error = CommError(error_message)
@@ -763,7 +763,7 @@ class _WandbInit:
             assert run_result is not None  # for mypy
 
             if not run_result.HasField("run"):
-                raise InternalError(
+                raise Error(
                     "It appears that something have gone wrong during the program execution as an unexpected missing field was encountered. "
                     "(run_result is missing the 'run' field)"
                 )
@@ -1117,7 +1117,10 @@ def init(
     ```
 
     Raises:
-        Error: if some error happened during the run initialization.
+        Error: if some unknown or internal error happened during the run initialization.
+        AuthenticationError: if the user failed to provide valid credentials.
+        CommError: if there was a problem communicating with the WandB server.
+        UsageError: if the user provided invalid arguments.
         KeyboardInterrupt: if user interrupts the run.
 
     Returns:
