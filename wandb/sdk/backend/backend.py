@@ -6,12 +6,9 @@ Manage backend.
 
 import logging
 import multiprocessing
-
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
-
 from ..interface.interface import InterfaceBase
-
 from ..lib.mailbox import Mailbox
 from ..wandb_manager import _Manager
 from ..wandb_settings import Settings
