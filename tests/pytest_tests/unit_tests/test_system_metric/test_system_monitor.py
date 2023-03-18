@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 import time
 from collections import deque
 from typing import TYPE_CHECKING, Any
@@ -137,7 +137,7 @@ def test_metrics_monitor(capsys, test_settings):
             )
         ).make_static()
     )
-    shutdown_event = mp.Event()
+    shutdown_event = threading.Event()
 
     metrics_monitor = MetricsMonitor(
         asset_name="test_metrics_monitor",
