@@ -7,13 +7,11 @@ from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
-from wandb import util
-from wandb.sdk.interface.artifacts import (
-    ArtifactManifest,
-    ArtifactManifestEntry,
-    get_staging_dir,
-)
+from wandb import env, util
+from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -302,3 +300,16 @@ class ArtifactSaver:
                     os.remove(entry.local_path)
                 except OSError:
                     pass
+
+
+def get_staging_dir() -> FilePathStr:
+    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+    try:
+        mkdir_exists_ok(path)
+    except OSError as e:
+        raise PermissionError(
+            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"{env.DATA_DIR} to a directory where you have the necessary write access."
+        ) from e
+
+    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
