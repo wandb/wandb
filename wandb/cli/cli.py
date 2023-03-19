@@ -943,11 +943,22 @@ def sweep(
         _type = "optuna" if config.get("method") == "optuna" else "sweep"
 
         # Do basic validation on optuna config
+        # TODO(gst): do we want to load the optuna artifact for validation in the
+        #            artifact case too?
+        optuna_artifact = config.get("optuna", {}).get("artifact")
         if config.get("optuna", {}).get("pruner"):
+            if optuna_artifact:
+                wandb.termwarn(
+                    "User provided optuna artifact will override `pruner.args` if a pruner is provided"
+                )
             if not validate_optuna_pruner(config["optuna"]["pruner"]):
                 return
 
         if config.get("optuna", {}).get("sampler"):
+            if optuna_artifact:
+                wandb.termwarn(
+                    "User provided optuna artifact will override `sampler.args` if a sampler is provided"
+                )
             if not validate_optuna_sampler(config["optuna"]["sampler"]):
                 return
 
