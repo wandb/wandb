@@ -886,6 +886,8 @@ def sweep(
         if launch_config is None:
             raise LaunchError(f"Invalid format for launch config at {launch_config}")
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
+    else:
+        launch_config = {}
 
     queue = queue or launch_config.get("queue")
     if launch_config and not queue:
