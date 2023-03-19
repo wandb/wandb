@@ -228,7 +228,7 @@ class OptunaScheduler(Scheduler):
         pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
         if pruner_args:
             pruner = load_optuna_pruner(pruner_args["type"], pruner_args.get("args"))
-            wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner.__class__})")
+            wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner})")
         else:
             wandb.termlog(f"{LOG_PREFIX}No pruner args, defaulting to MedianPruner")
 
@@ -237,7 +237,7 @@ class OptunaScheduler(Scheduler):
             sampler = load_optuna_sampler(
                 sampler_args["type"], sampler_args.get("args")
             )
-            wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler.__class__})")
+            wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler})")
         else:
             wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
 
