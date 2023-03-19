@@ -3387,6 +3387,7 @@ class Api:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
 
+    @normalize_exceptions
     def stop_run(
         self,
         run_id: str,
