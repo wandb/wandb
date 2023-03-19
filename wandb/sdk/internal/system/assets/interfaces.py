@@ -139,6 +139,7 @@ class MetricsMonitor:
                         metric.sample()
                     except Exception as e:
                         logger.error(f"Failed to sample metric: {e}")
+                        self._shutdown_event.set()
                 self._shutdown_event.wait(self.sampling_interval)
                 if self._shutdown_event.is_set():
                     break
