@@ -2,8 +2,6 @@ import base64
 import logging
 import os
 import queue
-import socket
-import time
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
@@ -18,8 +16,7 @@ import optuna
 import wandb
 from wandb.apis.public import Artifact, QueuedRun, Run
 from wandb.sdk.launch.sweeps import SchedulerError
-from wandb.sdk.launch.sweeps.scheduler import RunState, Scheduler, SweepRun, _Worker
-from wandb.wandb_agent import _create_sweep_command_args
+from wandb.sdk.launch.sweeps.scheduler import Scheduler, SweepRun
 
 logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -305,95 +302,25 @@ class OptunaScheduler(Scheduler):
 
         return True
 
-    def _start(self) -> None:
-        """
-        Load optuna state, then register workers as agents
-        """
-        for worker_id in range(self._num_workers):
-            wandb.termlog(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}")
-            agent_config = self._api.register_agent(
-                f"{socket.gethostname()}-{worker_id}",  # host
-                sweep_id=self._sweep_id,
-                project_name=self._project,
-                entity=self._entity,
-            )
-            self._workers[worker_id] = _Worker(
-                agent_config=agent_config,
-                agent_id=agent_config["id"],
-            )
-
-    def _heartbeat(self, worker_id: int) -> None:
-        """
-        Query job queue for available jobs if we have space in our worker cap
-        """
-        if not self.is_alive():
-            return
-
-        if self._job_queue.empty() and len(self._runs) < self._num_workers:
-            config, trial = self._trial_func()
-            run: dict = self._api.upsert_run(
-                project=self._project,
-                entity=self._entity,
-                sweep_name=self._sweep_id,
-                config=config,
-            )[0]
-            srun = SweepRun(
-                id=_encode(run["id"]),
-                args=config,
-                worker_id=worker_id,
-            )
-            # internal scheduler handling needs this
-            self._runs[srun.id] = srun
-            self._job_queue.put(srun)
-            # track the trial and metrics for optuna
-            self._optuna_runs[srun.id] = _OptunaRun(
-                num_metrics=0,
-                trial=trial,
-                sweep_run=srun,
-            )
-
-    def _run(self) -> None:
-        """
-        Poll currently known runs for new metrics
-        report new metrics to optuna
-        send kill signals to existing runs if pruned
-        hearbeat workers with backend
-        create new runs if necessary from optuna suggestions
-        launch new runs
-        """
-        # go through every run we know is alive and get metrics
-        to_kill = self._poll_running_runs()
-        for run_id in to_kill:
-            del self._optuna_runs[run_id]
-            self._stop_run(run_id)
-
-        for worker_id in self._workers:
-            self._heartbeat(worker_id)
-
-        try:
-            srun: SweepRun = self._job_queue.get(timeout=self._queue_timeout)
-        except queue.Empty:
-            if len(self._runs) == 0:
-                wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
-                time.sleep(self._queue_sleep)
-            else:
-                # wait on actively running runs
-                time.sleep(self._polling_sleep)
-            return
-
-        # If run is already stopped just ignore the request
-        if srun.state in [
-            RunState.DEAD,
-            RunState.UNKNOWN,
-        ]:
-            return
-
-        # send to launch
-        command = _create_sweep_command_args({"args": srun.args})["args_dict"]
-        self._add_to_launch_queue(
-            run_id=srun.id,
-            config={"overrides": {"run_config": command}},
+    def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
+        config, trial = self._trial_func()
+        run: dict = self._api.upsert_run(
+            project=self._project,
+            entity=self._entity,
+            sweep_name=self._sweep_id,
+            config=config,
+        )[0]
+        srun = SweepRun(
+            id=_encode(run["id"]),
+            args=config,
+            worker_id=worker_id,
         )
+        self._optuna_runs[srun.id] = _OptunaRun(
+            num_metrics=0,
+            trial=trial,
+            sweep_run=srun,
+        )
+        return srun
 
     def _get_run_history(self, run_id: str) -> Tuple[List[int], bool]:
         """
