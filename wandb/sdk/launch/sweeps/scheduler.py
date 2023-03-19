@@ -114,6 +114,7 @@ class Scheduler(ABC):
         # launch agent is the one that actually runs the training workloads.
         self._workers: Dict[int, _Worker] = {}
         self._num_workers = num_workers
+        self._num_runs_launched = 0
 
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
@@ -156,6 +157,15 @@ class Scheduler(ABC):
         return True
 
     @property
+    def at_runcap(self) -> bool:
+        """False if under user-specified cap on # of runs."""
+        # TODO(gst): Count previous runs for resumed sweeps
+        run_cap = self._sweep_config.get("run_cap")
+        if not run_cap:
+            return False
+        return self._num_runs_launched >= run_cap
+
+    @property
     def num_active_runs(self) -> int:
         return len(self._runs)
 
@@ -183,6 +193,7 @@ class Scheduler(ABC):
     def _init_wandb_run(self) -> SdkRun:
         """Controls resume or init logic for a scheduler wandb run."""
         if self._kwargs.get("run_id"):  # resume
+            # TODO(gst): tie to sweep name logic, not run_id
             resumed_run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
             return resumed_run
 
@@ -236,11 +247,19 @@ class Scheduler(ABC):
                     continue
 
                 for worker_id in self.available_workers:
+                    if self.at_runcap:
+                        wandb.termlog(
+                            f"{LOG_PREFIX}Sweep at run_cap ({self._num_runs_launched})"
+                        )
+                        self.state = SchedulerState.FLUSH_RUNS
+                        break
+
                     run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
                     if not run:
                         break
 
-                    self._add_to_launch_queue(run)
+                    if self._add_to_launch_queue(run):
+                        self._num_runs_launched += 1
 
                 time.sleep(self._polling_sleep)
         except KeyboardInterrupt:
@@ -381,7 +400,7 @@ class Scheduler(ABC):
                 wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
                 del self._runs[run_id]
 
-    def _add_to_launch_queue(self, run: SweepRun) -> "public.QueuedRun":
+    def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
         # job and image first from CLI args, then from sweep config
         _job = self._kwargs.get("job") or self._sweep_config.get("job")
@@ -422,4 +441,4 @@ class Scheduler(ABC):
         wandb.termlog(
             f"{LOG_PREFIX}Added run ({run_id}) to queue ({self._kwargs.get('queue')})"
         )
-        return queued_run
+        return True
