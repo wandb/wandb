@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import optuna
-from optuna.pruners import HyperbandPruner, SuccessiveHalvingPruner
 
 import wandb
 from wandb.apis.public import Artifact, QueuedRun, Run
@@ -236,7 +235,10 @@ class OptunaScheduler(Scheduler):
                 f"{LOG_PREFIX}Loaded pruner from given artifact, `pruner_args` are ignored"
             )
         elif pruner_args:
-            pruner = self._make_optuna_pruner(pruner_args)
+            pruner = load_optuna_pruner(pruner_args)
+            wandb.termlog(
+                f"{LOG_PREFIX}User defined optuna pruner ({pruner.__class__})"
+            )
         else:
             wandb.termlog(f"{LOG_PREFIX}No pruner args, using Optuna defaults")
 
@@ -246,7 +248,10 @@ class OptunaScheduler(Scheduler):
                 f"{LOG_PREFIX}Loaded sampler from given artifact, `sampler_args` are ignored"
             )
         elif sampler_args:
-            sampler = self._make_optuna_sampler(sampler_args)
+            sampler = load_optuna_sampler(sampler_args)
+            wandb.termlog(
+                f"{LOG_PREFIX}User defined optuna sampler ({sampler.__class__})"
+            )
         else:
             wandb.termlog(f"{LOG_PREFIX}No sampler args, using Optuna defaults")
 
@@ -543,51 +548,6 @@ class OptunaScheduler(Scheduler):
 
         return config, new_trial
 
-    def _make_optuna_pruner(
-        self, pruner_args: Dict[str, Any]
-    ) -> optuna.pruners.BasePruner:
-        """
-        Uses sweep config values in the optuna dict to configure pruner.
-        Example sweep_config.yaml:
-
-        ```
-        method: optuna
-        optuna:
-           pruner:
-              type: SuccessiveHalvingPruner
-              min_resource: 10
-              reduction_factor: 3
-        ```
-        """
-        optuna.pruners.__all__
-
-        type_ = pruner_args.get("type")
-        if type_ == "HyperbandPruner":
-            wandb.termlog(f"{LOG_PREFIX}Using the optuna HyperbandPruner")
-            return HyperbandPruner(
-                min_resource=pruner_args.get("min_resource", 1),
-                max_resource=pruner_args.get("epochs"),
-                reduction_factor=pruner_args.get("reduction_factor", 3),
-            )
-        elif type_ == "SuccessiveHalvingPruner":
-            wandb.termlog(f"{LOG_PREFIX}Using the optuna SuccessiveHalvingPruner")
-            return SuccessiveHalvingPruner(
-                min_resource=pruner_args.get("min_resource", 1),
-                reduction_factor=pruner_args.get("reduction_factor", 3),
-            )
-
-        raise SchedulerError(f"Pruner: {type_} not yet supported.")
-
-    def _make_optuna_sampler(
-        self, sampler_args: Dict[str, Any]
-    ) -> optuna.samplers.BaseSampler:
-        type_ = sampler_args.get("type")
-
-        if type_ == "RandomSampler":
-            return optuna.samplers.RandomSampler(seed=sampler_args.get("seed"))
-
-        raise SchedulerError(f"Sampler: {type_} not yet supported.")
-
     def _exit(self) -> None:
         pass
 
@@ -595,7 +555,7 @@ class OptunaScheduler(Scheduler):
 def validate_optuna_pruner(args: Dict[str, Any]) -> bool:
     _type = args.get("type")
     try:
-        _ = load_optuna_pruner(_type, args)
+        _ = load_optuna_pruner(_type, args.get("args"))
     except Exception as e:
         wandb.termerror(str(e))
         return False
@@ -605,14 +565,17 @@ def validate_optuna_pruner(args: Dict[str, Any]) -> bool:
 def validate_optuna_sampler(args: Dict[str, Any]) -> bool:
     _type = args.get("type")
     try:
-        _ = load_optuna_sampler(_type, args)
+        _ = load_optuna_sampler(_type, args.get("args"))
     except Exception as e:
         wandb.termerror(str(e))
         return False
     return True
 
 
-def load_optuna_pruner(_type: str, args: Dict[str, Any]) -> optuna.pruners.BasePruner:
+def load_optuna_pruner(
+    _type: str,
+    args: Optional[Dict[str, Any]],
+) -> optuna.pruners.BasePruner:
     if _type == "BasePruner":
         return optuna.pruners.BasePruner(**args)
     elif _type == "NopPruner":
@@ -634,7 +597,8 @@ def load_optuna_pruner(_type: str, args: Dict[str, Any]) -> optuna.pruners.BaseP
 
 
 def load_optuna_sampler(
-    _type: str, args: Dict[str, Any]
+    _type: str,
+    args: Optional[Dict[str, Any]],
 ) -> optuna.samplers.BaseSampler:
     if _type == "BaseSampler":
         return optuna.samplers.BaseSampler(**args)
