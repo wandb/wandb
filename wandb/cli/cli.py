@@ -33,6 +33,10 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
+from wandb.sdk.launch.sweeps.scheduler_optuna import (
+    validate_optuna_pruner,
+    validate_optuna_sampler,
+)
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -937,6 +941,16 @@ def sweep(
             num_workers = "8"
 
         _type = "optuna" if config.get("method") == "optuna" else "sweep"
+
+        # Do basic validation on optuna config
+        if config.get("optuna", {}).get("pruner"):
+            if not validate_optuna_pruner(config["optuna"]["pruner"]):
+                return
+
+        if config.get("optuna", {}).get("sampler"):
+            if not validate_optuna_sampler(config["optuna"]["sampler"]):
+                return
+
         scheduler_entrypoint = [
             "wandb",
             "scheduler",

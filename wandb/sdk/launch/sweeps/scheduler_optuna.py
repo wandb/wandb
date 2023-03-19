@@ -1,33 +1,26 @@
-import os
 import base64
-from collections import defaultdict
-from enum import Enum
 import logging
-from pprint import pformat
+import os
 import queue
 import socket
 import time
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from types import ModuleType
+from enum import Enum
 from importlib.machinery import SourceFileLoader
+from pprint import pformat
+from types import ModuleType
+from typing import Any, Dict, List, Optional, Tuple
+
 import click
 import optuna
 from optuna.pruners import HyperbandPruner, SuccessiveHalvingPruner
 
 import wandb
+from wandb.apis.public import Artifact, QueuedRun, Run
 from wandb.sdk.launch.sweeps import SchedulerError
-from wandb.sdk.launch.sweeps.scheduler import (
-    _Worker,
-    RunState,
-    Scheduler,
-    SweepRun,
-)
+from wandb.sdk.launch.sweeps.scheduler import RunState, Scheduler, SweepRun, _Worker
 from wandb.wandb_agent import _create_sweep_command_args
-
-from wandb.apis.public import Artifact, QueuedRun
-from wandb.apis.public import Run
 
 logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -551,8 +544,8 @@ class OptunaScheduler(Scheduler):
         return config, new_trial
 
     def _make_optuna_pruner(
-        self, pruner_args: Dict[str, Any], epochs: Optional[int] = 100
-    ) -> Union[HyperbandPruner, SuccessiveHalvingPruner]:
+        self, pruner_args: Dict[str, Any]
+    ) -> optuna.pruners.BasePruner:
         """
         Uses sweep config values in the optuna dict to configure pruner.
         Example sweep_config.yaml:
@@ -566,12 +559,14 @@ class OptunaScheduler(Scheduler):
               reduction_factor: 3
         ```
         """
+        optuna.pruners.__all__
+
         type_ = pruner_args.get("type")
         if type_ == "HyperbandPruner":
             wandb.termlog(f"{LOG_PREFIX}Using the optuna HyperbandPruner")
             return HyperbandPruner(
                 min_resource=pruner_args.get("min_resource", 1),
-                max_resource=epochs,
+                max_resource=pruner_args.get("epochs"),
                 reduction_factor=pruner_args.get("reduction_factor", 3),
             )
         elif type_ == "SuccessiveHalvingPruner":
@@ -595,3 +590,74 @@ class OptunaScheduler(Scheduler):
 
     def _exit(self) -> None:
         pass
+
+
+def validate_optuna_pruner(args: Dict[str, Any]) -> bool:
+    _type = args.get("type")
+    try:
+        _ = load_optuna_pruner(_type, args)
+    except Exception as e:
+        wandb.termerror(str(e))
+        return False
+    return True
+
+
+def validate_optuna_sampler(args: Dict[str, Any]) -> bool:
+    _type = args.get("type")
+    try:
+        _ = load_optuna_sampler(_type, args)
+    except Exception as e:
+        wandb.termerror(str(e))
+        return False
+    return True
+
+
+def load_optuna_pruner(_type: str, args: Dict[str, Any]) -> optuna.pruners.BasePruner:
+    if _type == "BasePruner":
+        return optuna.pruners.BasePruner(**args)
+    elif _type == "NopPruner":
+        return optuna.pruners.NopPruner(**args)
+    elif _type == "MedianPruner":
+        return optuna.pruners.MedianPruner(**args)
+    elif _type == "HyperbandPruner":
+        return optuna.pruners.HyperbandPruner(**args)
+    elif _type == "PatientPruner":
+        return optuna.pruners.PatientPruner(**args)
+    elif _type == "PercentilePruner":
+        return optuna.pruners.PercentilePruner(**args)
+    elif _type == "SuccessiveHalvingPruner":
+        return optuna.pruners.SuccessiveHalvingPruner(**args)
+    elif _type == "ThresholdPruner":
+        return optuna.pruners.ThresholdPruner(**args)
+
+    raise Exception(f"Optuna pruner type: {_type} not supported")
+
+
+def load_optuna_sampler(
+    _type: str, args: Dict[str, Any]
+) -> optuna.samplers.BaseSampler:
+    if _type == "BaseSampler":
+        return optuna.samplers.BaseSampler(**args)
+    elif _type == "BruteForceSampler":
+        return optuna.samplers.BruteForceSampler(**args)
+    elif _type == "CmaEsSampler":
+        return optuna.samplers.CmaEsSampler(**args)
+    elif _type == "GridSampler":
+        # TODO(gst): pretty sure this doens't work
+        return optuna.samplers.GridSampler(**args)
+    elif _type == "IntersectionSearchSpace":
+        return optuna.samplers.IntersectionSearchSpace(**args)
+    elif _type == "MOTPESampler":
+        return optuna.samplers.MOTPESampler(**args)
+    elif _type == "NSGAIISampler":
+        return optuna.samplers.NSGAIISampler(**args)
+    elif _type == "PartialFixedSampler":
+        return optuna.samplers.PartialFixedSampler(**args)
+    elif _type == "RandomSampler":
+        return optuna.samplers.RandomSampler(**args)
+    elif _type == "TPESampler":
+        return optuna.samplers.TPESampler(**args)
+    elif _type == "QMCSampler":
+        return optuna.samplers.QMCSampler(**args)
+
+    raise Exception(f"Optuna sampler type: {_type} not supported")
