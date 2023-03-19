@@ -896,7 +896,11 @@ def sweep(
         )
 
     launch_scheduler_spec = None
-    if queue:
+    if not queue:
+        if not config.get("program"):
+            wandb.termerror("No 'program' found in sweep config")
+            return
+    else:
         if entity is None:
             raise LaunchError("Must specify entity when using launch")
         elif project is None:
