@@ -206,19 +206,18 @@ class OptunaScheduler(Scheduler):
 
         Create an optuna study with a sqlite backened for loose state management
         """
+        study, pruner, sampler = None, None, None
         optuna_artifact_name = self._sweep_config.get("optuna", {}).get("artifact")
         if optuna_artifact_name:
             study, pruner, sampler = self._load_optuna_from_user_provided_artifact(
                 optuna_artifact_name
             )
-        else:
-            study, pruner, sampler = None, None, None
 
         existing_storage = None
         if self._wandb_run.resumed or self._kwargs.get("resumed"):
             existing_storage = self._get_and_download_artifact(OptunaComponents.storage)
 
-        if study:  # study supercedes pruner and sampler
+        if study:  # user provided a valid study in downloaded artifact
             if existing_storage:
                 wandb.termwarn("Resuming state w/ user-provided study is unsupported")
 
@@ -227,30 +226,20 @@ class OptunaScheduler(Scheduler):
 
         # making a new study
         pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
-        if pruner and pruner_args and optuna_artifact_name:
-            wandb.termwarn(
-                f"{LOG_PREFIX}Loaded pruner from given artifact, `pruner_args` are ignored"
-            )
-        elif pruner_args:
-            pruner = load_optuna_pruner(pruner_args)
-            wandb.termlog(
-                f"{LOG_PREFIX}User defined optuna pruner ({pruner.__class__})"
-            )
+        if pruner_args:
+            pruner = load_optuna_pruner(pruner_args["type"], pruner_args.get("args"))
+            wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner.__class__})")
         else:
-            wandb.termlog(f"{LOG_PREFIX}No pruner args, using Optuna defaults")
+            wandb.termlog(f"{LOG_PREFIX}No pruner args, defaulting to MedianPruner")
 
         sampler_args = self._sweep_config.get("optuna", {}).get("sampler", {})
-        if sampler and sampler_args and optuna_artifact_name:
-            wandb.termwarn(
-                f"{LOG_PREFIX}Loaded sampler from given artifact, `sampler_args` are ignored"
+        if sampler_args:
+            sampler = load_optuna_sampler(
+                sampler_args["type"], sampler_args.get("args")
             )
-        elif sampler_args:
-            sampler = load_optuna_sampler(sampler_args)
-            wandb.termlog(
-                f"{LOG_PREFIX}User defined optuna sampler ({sampler.__class__})"
-            )
+            wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler.__class__})")
         else:
-            wandb.termlog(f"{LOG_PREFIX}No sampler args, using Optuna defaults")
+            wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
 
         direction = self._sweep_config.get("metric", {}).get("goal")
         _create_msg = f"{LOG_PREFIX} {'Loading' if existing_storage else 'Creating'}"
@@ -277,8 +266,8 @@ class OptunaScheduler(Scheduler):
 
         if existing_storage:
             wandb.termlog(
-                f"{LOG_PREFIX}Loaded ({len(self.study.trials)}) prior runs from storage: "
-                f"{existing_storage}:\n {self.trials_pretty}"
+                f"{LOG_PREFIX}Loaded prior runs ({len(self.study.trials)}) from storage "
+                f"({existing_storage})\n {self.trials_pretty}"
             )
 
     def _load_state(self) -> None:
@@ -386,7 +375,7 @@ class OptunaScheduler(Scheduler):
                 values=last_value,
             )
             wandb.termlog(
-                f"{LOG_PREFIX}Completing trail with num-metrics: {orun.num_metrics}"
+                f"{LOG_PREFIX}Completing trail with {orun.num_metrics} logged metrics"
             )
 
         return True
@@ -503,6 +492,7 @@ def load_optuna_pruner(
     _type: str,
     args: Optional[Dict[str, Any]],
 ) -> optuna.pruners.BasePruner:
+    args = args or {}
     if _type == "BasePruner":
         return optuna.pruners.BasePruner(**args)
     elif _type == "NopPruner":
@@ -527,6 +517,7 @@ def load_optuna_sampler(
     _type: str,
     args: Optional[Dict[str, Any]],
 ) -> optuna.samplers.BaseSampler:
+    args = args or {}
     if _type == "BaseSampler":
         return optuna.samplers.BaseSampler(**args)
     elif _type == "BruteForceSampler":
