@@ -317,30 +317,33 @@ class Scheduler(ABC):
             self._stop_run(run_id)
 
     def _stop_run(self, run_id: str) -> bool:
-        """Stops a run and removes it from the scheduler."""
+        """Stops a run and removes it from the scheduler"""
         if run_id not in self._runs:
-            wandb.termwarn(f"Tried to delete a nonexistent run ({run_id})")
             return False
 
         run = self._runs[run_id]
-        run.state = RunState.DEAD
+        del self._runs[run_id]
 
         if not run.queued_run:
-            _logger.debug(f"tried to _stop_run but run ({run.id}) not queued yet")
+            _logger.debug(
+                f"tried to _stop_run but run not queued yet (run_id:{run.id})"
+            )
             return False
 
+        if run.state == RunState.DEAD:
+            # run already dead, just delete reference
+            return True
+
+        # run still alive, send stop signal
         encoded_run_id = base64.standard_b64encode(
             f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
         ).decode("utf-8")
 
-        # TODO(gst): Also set run.state = Stopped
-        success: bool = self._api.stop_run(run_id=encoded_run_id)
+        success = self._api.stop_run(run_id=encoded_run_id)
         if success:
-            wandb.termlog(f"{LOG_PREFIX}Stopped run ({run_id})")
+            wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
         else:
-            wandb.termlog(f"{LOG_PREFIX}Failed while stopping run ({run_id})")
-
-        del self._runs[run_id]
+            wandb.termlog(f"{LOG_PREFIX}Failed while stopping run {run_id}.")
 
         return success
 
