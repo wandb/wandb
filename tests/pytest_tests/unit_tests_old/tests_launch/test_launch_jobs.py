@@ -7,7 +7,6 @@ import pytest
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
-from wandb.errors import CommError
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.utils import LaunchError
@@ -241,5 +240,5 @@ def test_launch_add_container_queued_run(
     )
 
     queued_run = launch_add(job="test-job:v0")
-    with pytest.raises(CommError):
+    with pytest.raises(LaunchError):
         queued_run.wait_until_finished()
