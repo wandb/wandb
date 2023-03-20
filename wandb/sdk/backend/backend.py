@@ -1,4 +1,4 @@
-"""Backend - Send to internal process
+"""Backend - Send to internal process.
 
 Manage backend.
 
@@ -241,10 +241,6 @@ class Backend:
             result_q=self.result_q,
             mailbox=self._mailbox,
         )
-
-    def server_connect(self) -> None:
-        """Connect to server."""
-        pass
 
     def server_status(self) -> None:
         """Report server status."""

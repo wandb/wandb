@@ -1,23 +1,19 @@
+import concurrent.futures
 import json
 import os
 import sys
 import tempfile
-import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
-from wandb import util
+from wandb import env, util
+from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-
-from ..interface.artifacts import (
-    ArtifactManifest,
-    ArtifactManifestEntry,
-    get_staging_dir,
-)
+from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
-    from wandb.proto import wandb_internal_pb2
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
 
@@ -31,39 +27,14 @@ if TYPE_CHECKING:
     class SaveFn(Protocol):
         def __call__(
             self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
-        ) -> Any:
+        ) -> bool:
             pass
 
-
-def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
-    if manifest.version == 1:
-        contents = {
-            content.path: {
-                "digest": content.digest,
-                "birthArtifactID": content.birth_artifact_id
-                if content.birth_artifact_id
-                else None,
-                "ref": content.ref if content.ref else None,
-                "size": content.size if content.size is not None else None,
-                "local_path": content.local_path if content.local_path else None,
-                "extra": {
-                    extra.key: json.loads(extra.value_json) for extra in content.extra
-                },
-            }
-            for content in manifest.contents
-        }
-    else:
-        raise Exception(f"unknown artifact manifest version: {manifest.version}")
-
-    return {
-        "version": manifest.version,
-        "storagePolicy": manifest.storage_policy,
-        "storagePolicyConfig": {
-            config.key: json.loads(config.value_json)
-            for config in manifest.storage_policy_config
-        },
-        "contents": contents,
-    }
+    class SaveFnAsync(Protocol):
+        def __call__(
+            self, entry: ArtifactManifestEntry, progress_callback: "ProgressFn"
+        ) -> Awaitable[bool]:
+            pass
 
 
 class ArtifactSaver:
@@ -80,7 +51,7 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest = ArtifactManifest.from_manifest_json(None, manifest_json)
+        self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
         self._is_user_created = is_user_created
         self._server_artifact = None
 
@@ -221,7 +192,14 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file(
+            lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
+                artifact_id,
+                artifact_manifest_id,
+                entry,
+                step_prepare,
+                progress_callback=progress_callback,
+            ),
+            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
                 artifact_manifest_id,
                 entry,
@@ -229,8 +207,6 @@ class ArtifactSaver:
                 progress_callback=progress_callback,
             ),
         )
-
-        commit_event = threading.Event()
 
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
@@ -272,24 +248,25 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        def on_commit() -> None:
-            if finalize and use_after_commit:
-                self._api.use_artifact(artifact_id)
-            step_prepare.shutdown()
-            commit_event.set()
+        commit_result: "concurrent.futures.Future[None]" = concurrent.futures.Future()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
             artifact_id,
             finalize=finalize,
             before_commit=before_commit,
-            on_commit=on_commit,
+            result_future=commit_result,
         )
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
-        while not commit_event.is_set():
-            commit_event.wait()
+        try:
+            commit_result.result()
+        finally:
+            step_prepare.shutdown()
+
+        if finalize and use_after_commit:
+            self._api.use_artifact(artifact_id)
 
         return self._server_artifact
 
@@ -323,3 +300,16 @@ class ArtifactSaver:
                     os.remove(entry.local_path)
                 except OSError:
                     pass
+
+
+def get_staging_dir() -> FilePathStr:
+    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+    try:
+        mkdir_exists_ok(path)
+    except OSError as e:
+        raise PermissionError(
+            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"{env.DATA_DIR} to a directory where you have the necessary write access."
+        ) from e
+
+    return FilePathStr(os.path.abspath(os.path.expanduser(path)))

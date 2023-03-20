@@ -1,6 +1,4 @@
-"""
-module sdk
-"""
+"""module sdk."""
 
 from . import wandb_helper as helper  # noqa: F401
 from .wandb_alerts import AlertLevel  # noqa: F401

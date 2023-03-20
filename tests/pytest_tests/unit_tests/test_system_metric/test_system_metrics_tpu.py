@@ -1,4 +1,4 @@
-# import multiprocessing as mp
+# import threading
 # import time
 # from unittest import mock
 
@@ -40,7 +40,7 @@ class MockProfilerClient:
 
 # class MockTPUClusterResolver:
 #     @staticmethod
-#     def TPUClusterResolver(*args, **kwargs):  # noqa: N802
+#     def TPUClusterResolver(*args, **kwargs):
 #         return MockTPUClusterResolver()
 #
 #     def get_master(self) -> str:
@@ -89,7 +89,7 @@ def test_tpu_instance():
 #                 )
 #             ).make_static()
 #         )
-#         shutdown_event = mp.Event()
+#         shutdown_event = threading.Event()
 #
 #         tpu = TPU(
 #             interface=interface,

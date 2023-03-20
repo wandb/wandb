@@ -6,16 +6,18 @@ from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Generator, Union
 
-import git
-import pytest
-import wandb
-import wandb.old.settings
-import wandb.util
-from click.testing import CliRunner
-from wandb import Api
-from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.git import GitRepo
+os.environ["WANDB_ERROR_REPORTING"] = "false"
+
+import git  # noqa: E402
+import pytest  # noqa: E402
+import wandb  # noqa: E402
+import wandb.old.settings  # noqa: E402
+import wandb.util  # noqa: E402
+from click.testing import CliRunner  # noqa: E402
+from wandb import Api  # noqa: E402
+from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
+from wandb.sdk.lib import filesystem, runid  # noqa: E402
+from wandb.sdk.lib.git import GitRepo  # noqa: E402
 
 # --------------------------------
 # Misc Fixtures utilities
@@ -59,7 +61,7 @@ def filesystem_isolate(tmp_path):
 # todo: this fixture should probably be autouse=True
 @pytest.fixture(scope="function", autouse=False)
 def local_settings(filesystem_isolate):
-    """Place global settings in an isolated dir"""
+    """Place global settings in an isolated dir."""
     config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
     filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
 
@@ -75,8 +77,7 @@ def local_settings(filesystem_isolate):
 
 @pytest.fixture(scope="function", autouse=True)
 def local_netrc(filesystem_isolate):
-    """Never use our real credentials, put them in their own isolated dir"""
-
+    """Never use our real credentials, put them in their own isolated dir."""
     original_expanduser = os.path.expanduser  # TODO: this seems overkill...
 
     open(".netrc", "wb").close()  # Touch that netrc file

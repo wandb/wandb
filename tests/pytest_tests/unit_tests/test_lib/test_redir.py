@@ -1,4 +1,4 @@
-"""redirect tests"""
+"""redirect tests."""
 
 import os
 import re

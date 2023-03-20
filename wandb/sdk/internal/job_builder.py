@@ -1,6 +1,4 @@
-"""
-job builder.
-"""
+"""job builder."""
 import json
 import os
 import sys
@@ -75,7 +73,7 @@ class JobBuilder:
         self._config = None
         self._summary = None
         self._logged_code_artifact = None
-        self._disable = False
+        self._disable = settings.disable_job_creation
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -144,8 +142,7 @@ class JobBuilder:
             ],
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-
-        name = f"job-{self._logged_code_artifact['name']}"
+        name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
         return artifact, source

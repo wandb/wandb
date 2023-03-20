@@ -1,4 +1,4 @@
-"""Backend Sender - Send to internal process
+"""Backend Sender - Send to internal process.
 
 Manage backend sender.
 
@@ -348,6 +348,26 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(run)
         run_result = self._stub.RunUpdate(run)
         result = pb.Result(run_result=run_result)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_check_version(
+        self, check_version: pb.CheckVersionRequest
+    ) -> MailboxHandle:
+        assert self._stub
+        self._assign(check_version)
+        check_version_response = self._stub.CheckVersion(check_version)
+        response = pb.Response(check_version_response=check_version_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_attach(self, attach: pb.AttachRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(attach)
+        attach_response = self._stub.Attach(attach)
+        response = pb.Response(attach_response=attach_response)
+        result = pb.Result(response=response)
         handle = self._deliver(result)
         return handle
 

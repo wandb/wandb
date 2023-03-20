@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List
 
@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 
 
 class DiskUsage:
-    """
-    Total system disk usage in percent.
-    """
+    """Total system disk usage in percent."""
 
     # name = "disk_usage"
     name = "disk"
@@ -48,7 +46,7 @@ class Disk:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [DiskUsage()]
@@ -62,7 +60,7 @@ class Disk:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Return a new instance of the CPU metrics"""
+        """Return a new instance of the CPU metrics."""
         return psutil is not None
 
     def probe(self) -> dict:

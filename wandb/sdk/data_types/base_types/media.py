@@ -31,11 +31,10 @@ def _wb_filename(
 
 
 class Media(WBValue):
-    """A WBValue that we store as a file outside JSON and show in a media panel
-    on the front end.
+    """A WBValue stored as a file outside JSON that can be rendered in a media panel.
 
-    If necessary, we move or copy the file into the Run's media directory so
-    that it gets uploaded.
+    If necessary, we move or copy the file into the Run's media directory so that it
+    gets uploaded.
     """
 
     _path: Optional[str]
@@ -98,9 +97,8 @@ class Media(WBValue):
     ) -> None:
         """Bind this object to a particular Run.
 
-        Calling this function is necessary so that we have somewhere specific to
-        put the file associated with this object, from which other Runs can
-        refer to it.
+        Calling this function is necessary so that we have somewhere specific to put the
+        file associated with this object, from which other Runs can refer to it.
         """
         assert self.file_is_set(), "bind_to_run called before _set_file"
 
@@ -146,12 +144,15 @@ class Media(WBValue):
             _datatypes_callback(media_path)
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
-        is a wandb.Run then `self.bind_to_run()` must have been previously been called.
+        """Serialize the object into a JSON blob.
+
+        Uses run or artifact to store additional data. If `run_or_artifact` is a
+        wandb.Run then `self.bind_to_run()` must have been previously been called.
 
         Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
+            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which
+                this object should be generating JSON for - this is useful to to store
+                additional data if needed.
 
         Returns:
             dict: JSON representation
@@ -254,11 +255,11 @@ class Media(WBValue):
     def from_json(
         cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "Media":
-        """Likely will need to override for any more complicated media objects"""
+        """Likely will need to override for any more complicated media objects."""
         return cls(source_artifact.get_path(json_obj["path"]).download())
 
     def __eq__(self, other: object) -> bool:
-        """Likely will need to override for any more complicated media objects"""
+        """Likely will need to override for any more complicated media objects."""
         return (
             isinstance(other, self.__class__)
             and hasattr(self, "_sha256")
@@ -272,11 +273,10 @@ class Media(WBValue):
 
 
 class BatchableMedia(Media):
-    """Parent class for Media we treat specially in batches, like images and
-    thumbnails.
+    """Media that is treated in batches.
 
-    Apart from images, we just use these batches to help organize files by name
-    in the media directory.
+    E.g. images and thumbnails. Apart from images, we just use these batches to help
+    organize files by name in the media directory.
     """
 
     def __init__(self) -> None:
