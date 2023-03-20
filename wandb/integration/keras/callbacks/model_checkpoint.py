@@ -46,28 +46,27 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         - Save the model either in SavedModel format or in `.h5` format.
 
     Arguments:
-        filepath (Union[str, os.PathLike]): path to save the model file.
-        monitor (str): The metric name to monitor.
-        verbose (int): Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
+        filepath: (Union[str, os.PathLike]) path to save the model file.
+        monitor: (str) The metric name to monitor.
+        verbose: (int) Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
             displays messages when the callback takes an action.
-        save_best_only (bool): if `save_best_only=True`, it only saves when the model
+        save_best_only: (bool) if `save_best_only=True`, it only saves when the model
             is considered the "best" and the latest best model according to the
             quantity monitored will not be overwritten.
-        save_weights_only (bool): if True, then only the model's weights will be saved.
-        mode (Mode): one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
+        save_weights_only: (bool) if True, then only the model's weights will be saved.
+        mode: (Mode) one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
             for `val_loss` this should be `min`, etc.
-        save_weights_only (bool): if True, then only the model's weights will be saved
-        save_freq (Union[SaveStrategy, int]): `epoch` or integer. When using `'epoch'`,
+        save_weights_only: (bool) if True, then only the model's weights will be saved
+        save_freq: (Union[SaveStrategy, int]) `epoch` or integer. When using `'epoch'`,
             the callback saves the model after each epoch. When using an integer, the
             callback saves the model at end of this many batches.
             Note that when monitoring validation metrics such as `val_acc` or `val_loss`,
             save_freq must be set to "epoch" as those metrics are only available at the
             end of an epoch.
-
-        options (Optional[str]): Optional `tf.train.CheckpointOptions` object if
+        options: (Optional[str]) Optional `tf.train.CheckpointOptions` object if
             `save_weights_only` is true or optional `tf.saved_model.SaveOptions`
             object if `save_weights_only` is false.
-        initial_value_threshold (Optional[float]): Floating point initial "best" value of the metric
+        initial_value_threshold: (Optional[float]) Floating point initial "best" value of the metric
             to be monitored.
     """
 
