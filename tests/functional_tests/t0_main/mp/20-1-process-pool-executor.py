@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Simple example of using ProcessPoolExecutor with service.
-    This example is base on issue https://wandb.atlassian.net/browse/WB-8733
+
+This example is base on issue https://wandb.atlassian.net/browse/WB-8733.
 """
 
 from concurrent.futures import ProcessPoolExecutor

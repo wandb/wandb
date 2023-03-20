@@ -1,19 +1,16 @@
 __all__ = [
     "Error",
-    "UsageError",
     "CommError",
-    "LogError",
-    "LogMultiprocessError",
-    "MultiprocessError",
-    "RequireError",
-    "WaitTimeoutError",
+    "AuthenticationError",
+    "UsageError",
+    "UnsupportedError",
 ]
 
-from typing import List, Optional
+from typing import Optional
 
 
 class Error(Exception):
-    """Base W&B Error"""
+    """Base W&B Error."""
 
     def __init__(self, message, context: Optional[dict] = None) -> None:
         super().__init__(message)
@@ -22,51 +19,23 @@ class Error(Exception):
         if context:
             self.context = context
 
-    # For python 2 support
-    def encode(self, encoding):
-        return self.message
-
 
 class CommError(Error):
-    """Error communicating with W&B"""
+    """Error communicating with W&B servers."""
 
     def __init__(self, msg, exc=None) -> None:
-        super().__init__(msg)
-        self.message = msg
         self.exc = exc
+        self.message = msg
+        super().__init__(self.message)
+
+
+class AuthenticationError(CommError):
+    """Raised when authentication fails."""
 
 
 class UsageError(Error):
-    """API Usage Error"""
-
-    pass
+    """Raised when an invalid usage of the SDK API is detected."""
 
 
-class LogError(Error):
-    """Raised when wandb.log() fails"""
-
-    pass
-
-
-class LogMultiprocessError(LogError):
-    """Raised when wandb.log() fails because of multiprocessing"""
-
-    pass
-
-
-class MultiprocessError(Error):
-    """Raised when fails because of multiprocessing"""
-
-    pass
-
-
-class RequireError(Error):
-    """Raised when wandb.require() fails"""
-
-    pass
-
-
-class WaitTimeoutError(Error):
-    """Raised when wait() timeout occurs before process is finished"""
-
-    pass
+class UnsupportedError(UsageError):
+    """Raised when trying to use a feature that is not supported."""

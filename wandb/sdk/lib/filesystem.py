@@ -90,6 +90,7 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
     Args:
         source_path: The path to the file to copy.
         target_path: The path to copy the file to.
+
     Returns:
         The path to the copied file (which may be different from target_path).
     """

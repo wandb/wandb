@@ -1,11 +1,6 @@
 #!/usr/bin/env python
 
-"""
-test_git_repo
-----------------------------------
-
-Tests for the `wandb.GitRepo` module.
-"""
+"""Tests for the `wandb.GitRepo` module."""
 from typing import Callable, Optional
 
 import git

@@ -87,7 +87,7 @@ def _id_generator(size=10, chars=string.ascii_lowercase + string.digits):
 
 
 class ControllerError(Exception):
-    """Base class for sweep errors"""
+    """Base class for sweep errors."""
 
     pass
 
@@ -128,7 +128,6 @@ class _WandbController:
     """
 
     def __init__(self, sweep_id_or_config=None, entity=None, project=None):
-
         # sweep id configured in constuctor
         self._sweep_id: Optional[str] = None
 
@@ -327,7 +326,7 @@ class _WandbController:
             self._create["parameters"][name]["b"] = b
 
     def configure_controller(self, type):
-        """configure controller to local if type == 'local'."""
+        """Configure controller to local if type == 'local'."""
         self._configure_check()
         self._create.setdefault("controller", {})
         self._create["controller"].setdefault("type", type)
