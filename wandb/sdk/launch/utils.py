@@ -164,6 +164,7 @@ def construct_launch_spec(
     launch_config: Optional[Dict[str, Any]],
     run_id: Optional[str],
     repository: Optional[str],
+    author: Optional[str],
 ) -> Dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -181,6 +182,7 @@ def construct_launch_spec(
         launch_config,
     )
     launch_spec["entity"] = entity
+    launch_spec["author"] = author
 
     launch_spec["project"] = project
     if name:
