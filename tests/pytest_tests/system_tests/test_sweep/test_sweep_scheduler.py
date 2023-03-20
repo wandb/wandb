@@ -417,7 +417,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
             ]
         ]
         * 10
-        + [[{"type": "stop"}]]
+        + [[{"type": "stop", "run_cap": 7}]]
     )
 
     def mock_launch_add(*args, **kwargs):
@@ -475,7 +475,6 @@ def test_launch_sweep_scheduler_try_executable_works(user, wandb_init, test_sett
         entity=user,
         project=_project,
         num_workers=4,
-        polling_sleep=0,
         job=job_name,
     )
 
