@@ -166,7 +166,7 @@ class Scheduler(ABC):
         run_cap = self._sweep_config.get("run_cap")
         if not run_cap:
             return False
-        at_runcap = self._num_runs_launched >= run_cap
+        at_runcap: bool = self._num_runs_launched >= run_cap
         return at_runcap
 
     @property
