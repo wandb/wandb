@@ -10,6 +10,8 @@ from shutil import copyfile
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
+from sentry_sdk.integrations.aws_lambda import get_lambda_bootstrap
+
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.filenames import (
@@ -23,6 +25,14 @@ from wandb.sdk.lib.git import GitRepo
 from .assets.interfaces import Interface
 
 logger = logging.getLogger(__name__)
+
+
+def is_aws_lambda() -> bool:
+    """Check if we are running in a lambda environment."""
+    lambda_bootstrap = get_lambda_bootstrap()
+    if not lambda_bootstrap or not hasattr(lambda_bootstrap, "handle_event_request"):
+        return False
+    return True
 
 
 class SystemInfo:
