@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import click
 import requests
 from pkg_resources import parse_version
-from wandb_gql import gql  # type: ignore
+from wandb_gql import gql
 
 import wandb
 from wandb.sdk.lib import runid
