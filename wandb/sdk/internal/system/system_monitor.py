@@ -43,7 +43,6 @@ class SystemMonitor:
         settings: "SettingsStatic",
         interface: "Interface",
     ) -> None:
-        # todo:
         self._shutdown_event: threading.Event = threading.Event()
         self._process: Optional[threading.Thread] = None
 
