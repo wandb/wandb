@@ -290,6 +290,29 @@ def service(
 
 
 @cli.command(
+    context_settings=CONTEXT,
+    help="Run a wandb system monitor",
+    name="observer",
+    hidden=True,
+)
+@display_error
+def observer(
+    grpc_port=None,
+    sock_port=None,
+    port_filename=None,
+    address=None,
+    pid=None,
+    debug=False,
+    serve_sock=False,
+    serve_grpc=False,
+):
+    from wandb.sdk.internal.system.observer import Observer
+
+    observer = Observer()
+    observer.start()
+
+
+@cli.command(
     context_settings=CONTEXT, help="Configure a directory with Weights & Biases"
 )
 @click.option("--project", "-p", help="The project to use.")
