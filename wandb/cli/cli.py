@@ -952,29 +952,30 @@ def sweep(
             scheduler_entrypoint += ["--image_uri", _image_uri]
 
         # Launch job spec for the Scheduler
+        scheduler_launch_spec = construct_launch_spec(
+            uri=SCHEDULER_URI,
+            job=None,
+            api=api,
+            name="Scheduler.WANDB_SWEEP_ID",
+            project=project,
+            entity=entity,
+            docker_image=scheduler_config.get("docker_image"),
+            resource=scheduler_config.get("resource", "local-process"),
+            entry_point=scheduler_entrypoint,
+            version=None,
+            parameters=None,
+            resource_args=scheduler_config.get("resource_args", {}),
+            launch_config=None,
+            run_id=None,
+            repository=launch_config.get("registry", {}).get("url", None),
+        )
+
+        scheduler_launch_spec["author"] = entity
         _launch_scheduler_spec = json.dumps(
             {
                 "queue": queue,
                 "run_queue_project": project_queue,
-                "run_spec": json.dumps(
-                    construct_launch_spec(
-                        uri=SCHEDULER_URI,
-                        job=None,
-                        api=api,
-                        name="Scheduler.WANDB_SWEEP_ID",
-                        project=project,
-                        entity=entity,
-                        docker_image=scheduler_config.get("docker_image"),
-                        resource=scheduler_config.get("resource", "local-process"),
-                        entry_point=scheduler_entrypoint,
-                        version=None,
-                        parameters=None,
-                        resource_args=scheduler_config.get("resource_args", {}),
-                        launch_config=None,
-                        run_id=None,
-                        repository=launch_config.get("registry", {}).get("url", None),
-                    )
-                ),
+                "run_spec": json.dumps(scheduler_launch_spec),
             }
         )
 
