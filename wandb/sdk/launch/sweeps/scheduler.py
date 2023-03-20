@@ -166,7 +166,8 @@ class Scheduler(ABC):
         run_cap = self._sweep_config.get("run_cap")
         if not run_cap:
             return False
-        return self._num_runs_launched >= run_cap
+        at_runcap = self._num_runs_launched >= run_cap
+        return at_runcap
 
     @property
     def num_active_runs(self) -> int:
@@ -339,7 +340,7 @@ class Scheduler(ABC):
             self._stop_run(run_id)
 
     def _stop_run(self, run_id: str) -> bool:
-        """Stops a run and removes it from the scheduler"""
+        """Stops a run and removes it from the scheduler."""
         if run_id not in self._runs:
             return False
 
@@ -361,7 +362,7 @@ class Scheduler(ABC):
             f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
         ).decode("utf-8")
 
-        success = self._api.stop_run(run_id=encoded_run_id)
+        success: bool = self._api.stop_run(run_id=encoded_run_id)
         if success:
             wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
         else:
