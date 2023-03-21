@@ -2,7 +2,6 @@ import contextlib
 import hashlib
 import os
 import secrets
-import tempfile
 from dataclasses import dataclass, field
 from typing import (
     IO,
@@ -1013,20 +1012,3 @@ def get_artifacts_cache() -> ArtifactsCache:
         cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
         _artifacts_cache = ArtifactsCache(cache_dir)
     return _artifacts_cache
-
-
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    try:
-        mkdir_exists_ok(path)
-    except OSError as e:
-        raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
-            f"{env.DATA_DIR} to a directory where you have the necessary write access."
-        ) from e
-
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
-
-
-def get_new_staging_file() -> IO:
-    return tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False)
