@@ -7,11 +7,10 @@ import yaml
 import wandb
 from wandb.apis.internal import Api
 
+from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
-from .builder import loader as builder_loader
 from .builder.build import construct_builder_args
-from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
@@ -26,37 +25,56 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
-def resolve_agent_config(
+def resolve_agent_config(  # noqa: C901
     api: Api,
     entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],
+    config: Optional[str],
 ) -> Tuple[Dict[str, Any], Api]:
+    """Resolve the agent config.
+
+    Arguments:
+        api (Api): The api.
+        entity (str): The entity.
+        project (str): The project.
+        max_jobs (int): The max number of jobs.
+        queues (Tuple[str]): The queues.
+        config (str): The config.
+
+    Returns:
+        Tuple[Dict[str, Any], Api]: The resolved config and api.
+    """
     defaults = {
         "entity": api.default_entity,
         "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
+        "max_schedulers": 1,
         "queues": [],
         "api_key": api.api_key,
         "base_url": api.settings("base_url"),
         "registry": {},
-        "build": {},
+        "builder": {},
         "runner": {},
     }
     user_set_project = False
     resolved_config: Dict[str, Any] = defaults
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
-        config = {}
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+    config_path = config or os.path.expanduser(LAUNCH_CONFIG_FILE)
+    if os.path.isfile(config_path):
+        launch_config = {}
+        with open(config_path) as f:
             try:
-                config = yaml.safe_load(f)
-                print(config)
+                launch_config = yaml.safe_load(f)
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
-        if config.get("project") is not None:
+        if launch_config.get("project") is not None:
             user_set_project = True
-        resolved_config.update(dict(config))
+        resolved_config.update(launch_config.items())
+    elif config is not None:
+        raise LaunchError(
+            f"Could not find use specified launch config file: {config_path}"
+        )
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
         user_set_project = True
@@ -133,7 +151,6 @@ def _run(
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
-    cuda: Optional[bool],
     api: Api,
     run_id: Optional[str],
     repository: Optional[str],
@@ -153,7 +170,6 @@ def _run(
         parameters,
         resource_args,
         launch_config,
-        cuda,
         run_id,
         repository,
     )
@@ -165,20 +181,15 @@ def _run(
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
-    if repository:  # override existing registry with CLI arg
-        launch_config = launch_config or {}
-        registry = launch_config.get("registry", {})
-        registry["url"] = repository
-        launch_config["registry"] = registry
+    config = launch_config or {}
+    build_config, registry_config = construct_builder_args(config)
 
-    build_config, registry_config = construct_builder_args(
-        launch_config,
-    )
-
-    builder = builder_loader.load_builder(build_config)
-    backend = loader.load_backend(resource, api, runner_config)
+    environment = loader.environment_from_config(config.get("environment", {}))
+    registry = loader.registry_from_config(registry_config, environment)
+    builder = loader.builder_from_config(build_config, environment, registry)
+    backend = loader.runner_from_config(resource, api, runner_config, environment)
     if backend:
-        submitted_run = backend.run(launch_project, builder, registry_config)
+        submitted_run = backend.run(launch_project, builder)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config
         assert submitted_run
@@ -204,7 +215,6 @@ def run(
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
-    cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
 ) -> AbstractRun:
@@ -234,7 +244,6 @@ def run(
         asynchronous runs launched via this method will be terminated. If
         ``synchronous`` is True and the run fails, the current process will
         error out as well.
-    cuda: Whether to build a CUDA-enabled docker image or not
     run_id: ID for the run (To ultimately replace the :name: field)
     repository: string name of repository path for remote registry
 
@@ -277,7 +286,6 @@ def run(
         resource_args=resource_args,
         launch_config=config,
         synchronous=synchronous,
-        cuda=cuda,
         api=api,
         run_id=run_id,
         repository=repository,

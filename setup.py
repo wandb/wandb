@@ -31,6 +31,7 @@ media_requirements = [
     "rdkit-pypi",
 ]
 launch_requirements = [
+    "awscli",
     "nbconvert",
     "nbformat",
     "chardet",
@@ -51,11 +52,14 @@ nexus_requirements = [
     "wandb-nexus>=0.0.1.dev1",
     # "wandb-nexus @ git+https://github.com/wandb/nexus-golang.git@initial",
 ]
+async_requirements = [
+    "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
+]
 
 
 setup(
     name="wandb",
-    version="0.13.11.dev1",
+    version="0.14.1.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -107,6 +111,7 @@ setup(
         "launch": launch_requirements,
         "models": models_requirements,
         "nexus": nexus_requirements,
+        "async": async_requirements,
     },
 )
 

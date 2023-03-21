@@ -1,10 +1,8 @@
 import datetime
 import logging
-import multiprocessing as mp
 import sys
 import threading
-from multiprocessing import synchronize
-from typing import TYPE_CHECKING, Any, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, List, Optional, TypeVar
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, runtime_checkable
@@ -110,13 +108,13 @@ class MetricsMonitor:
         metrics: List[Metric],
         interface: Interface,
         settings: "SettingsStatic",
-        shutdown_event: synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.metrics = metrics
         self.asset_name = asset_name
         self._interface = interface
-        self._process: Optional[Union[mp.Process, threading.Thread]] = None
-        self._shutdown_event: synchronize.Event = shutdown_event
+        self._process: Optional[threading.Thread] = None
+        self._shutdown_event: threading.Event = shutdown_event
 
         self.sampling_interval: float = float(
             max(

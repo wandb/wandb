@@ -54,7 +54,7 @@ import yaml
 
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
-from wandb.errors import CommError, UsageError, term
+from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
@@ -239,6 +239,7 @@ def sentry_set_scope(
         "sweep_id",
         "deployment",
         "_disable_service",
+        "launch",
     ]
 
     s = settings_dict
@@ -717,7 +718,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
 
 def json_friendly(  # noqa: C901
     obj: Any,
-) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
+) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:
     """Convert an object into something that's more becoming of JSON."""
     converted = True
     typename = get_full_typename(obj)
@@ -1021,7 +1022,7 @@ def no_retry_auth(e: Any) -> bool:
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError(
+        raise AuthenticationError(
             "The API key is either invalid or missing, or the host is incorrect. "
             "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
             "The host defaults to 'https://api.wandb.ai' if not specified. "
@@ -1261,7 +1262,9 @@ def image_id_from_k8s() -> Optional[str]:
     return None
 
 
-def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
+def async_call(
+    target: Callable, timeout: Optional[Union[int, float]] = None
+) -> Callable:
     """Wrap a method to run in the background with an optional timeout.
 
     Returns a new method that will call the original with any args, waiting for upto
@@ -1602,7 +1605,10 @@ def _has_internet() -> bool:
         return False
 
 
-def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
+def rand_alphanumeric(
+    length: int = 8, rand: Optional[Union[ModuleType, random.Random]] = None
+) -> str:
+    wandb.termerror("rand_alphanumeric is deprecated, use 'secrets.token_hex'")
     rand = rand or random
     return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
@@ -1622,7 +1628,7 @@ def fsync_open(
 def _is_kaggle() -> bool:
     return (
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules  # noqa: W503
+        or "kaggle_environments" in sys.modules
     )
 
 

@@ -40,7 +40,6 @@ from typing import (
 import requests
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
-from wandb_gql.transport.requests import RequestsHTTPTransport
 
 import wandb
 from wandb import __version__, env, util
@@ -58,6 +57,7 @@ from wandb.sdk.launch.utils import (
     apply_patch,
 )
 from wandb.sdk.lib import filesystem, ipython, retry, runid
+from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
 if TYPE_CHECKING:
@@ -424,7 +424,7 @@ class Api:
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         self._base_client = Client(
-            transport=RequestsHTTPTransport(
+            transport=GraphQLSession(
                 headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -492,7 +492,7 @@ class Api:
 
     def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
         """Sync a local directory containing tfevent files to wandb."""
-        from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
+        from wandb.sync import SyncManager  # TODO: circular import madness
 
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
@@ -4139,19 +4139,22 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
 
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
+        dest_path = os.path.join(root, self.name)
+
         self._parent_artifact._add_download_root(root)
         manifest = self._parent_artifact._load_manifest()
-        if self.ref is not None:
-            cache_path = manifest.storage_policy.load_reference(
-                manifest.entries[self.name],
-                local=True,
-            )
-        else:
-            cache_path = manifest.storage_policy.load_file(
-                self._parent_artifact, manifest.entries[self.name]
-            )
 
-        dest_path = os.path.join(root, self.name)
+        # Skip checking the cache (and possibly downloading) if the file already exists
+        # and has the digest we're expecting.
+        entry = manifest.entries[self.name]
+        if os.path.exists(dest_path) and entry.digest == md5_file_b64(dest_path):
+            return dest_path
+
+        if self.ref is not None:
+            cache_path = manifest.storage_policy.load_reference(entry, local=True)
+        else:
+            cache_path = manifest.storage_policy.load_file(self._parent_artifact, entry)
+
         return filesystem.copy_or_overwrite_changed(cache_path, dest_path)
 
     def ref_target(self):
@@ -4334,7 +4337,7 @@ class Artifact(artifacts.Artifact):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    artifact, json.loads(util.ensure_text(req.content))
+                    json.loads(util.ensure_text(req.content))
                 )
 
             artifact._load_dependent_manifests()
@@ -5134,7 +5137,7 @@ class Artifact(artifacts.Artifact):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(util.ensure_text(req.content))
+                    json.loads(util.ensure_text(req.content))
                 )
 
             self._load_dependent_manifests()
@@ -5249,12 +5252,6 @@ class Artifact(artifacts.Artifact):
                 run_obj["project"]["name"],
                 run_obj["name"],
             )
-
-    def __setitem__(self, name, item):
-        return self.add(item, name)
-
-    def __getitem__(self, name):
-        return self.get(name)
 
 
 class ArtifactVersions(Paginator):
@@ -5559,7 +5556,6 @@ class Job:
         queue=None,
         resource="local-container",
         resource_args=None,
-        cuda=False,
         project_queue=None,
     ):
         from wandb.sdk.launch import launch_add
@@ -5586,6 +5582,5 @@ class Job:
             resource=resource,
             project_queue=project_queue,
             resource_args=resource_args,
-            cuda=cuda,
         )
         return queued_run

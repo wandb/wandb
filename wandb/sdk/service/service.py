@@ -101,11 +101,11 @@ class _Service:
             if proc and proc.poll():
                 # process finished
                 # define these variables for sentry context grab:
-                # command = proc.args  # noqa: F841
-                # sys_executable = sys.executable  # noqa: F841
-                # which_python = shutil.which("python3")  # noqa: F841
-                # proc_out = proc.stdout.read()  # noqa: F841
-                # proc_err = proc.stderr.read()  # noqa: F841
+                # command = proc.args
+                # sys_executable = sys.executable
+                # which_python = shutil.which("python3")
+                # proc_out = proc.stdout.read()
+                # proc_err = proc.stderr.read()
                 context = dict(
                     command=proc.args,
                     sys_executable=sys.executable,

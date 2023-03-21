@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -130,7 +130,7 @@ class IPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
