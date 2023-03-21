@@ -20,7 +20,7 @@ def load_model_from_artifact(
     verbose: bool = True,
     custom_objects: OPTIONAL_ARGS_TYPE = None,
     compile: Union[bool, List[bool]] = True,
-    options: OPTIONAL_ARGS_TYPE = None,
+    options: Optional[None, List[None]] = None,
 ) -> MODEL_TYPE:
     """A function that automatically loads Keras Models stored as Weights & Biases artifacts.
 
