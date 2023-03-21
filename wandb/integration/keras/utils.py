@@ -39,18 +39,17 @@ def load_model_from_artifact(
             will display messages related to loading the models. This is useful when loading
             multiple models from an artifact. It is an optional argumet and by default, it is
             set to `True`.
-        custom_objects (Optional[Union[Union[Any, None], List[Union[Any, None]]]]): Optional
-            dictionary mapping names (strings) to custom classes or functions to be considered
-            during deserialization. It should either be a single dictionary of custom objects
-            or a list of dictionary of custom objects corresponding to each model filepath
-            specified by the `model_filepaths` argument. It is an optional argumet and by default,
-            it is set to `None`.
+        custom_objects (Union[Any, List[Any]]): Optional dictionary mapping names (strings) to
+            custom classes or functions to be considered during deserialization. It should either
+            be a single dictionary of custom objects or a list of dictionary of custom objects
+            corresponding to each model filepath specified by the `model_filepaths` argument. It
+            is an optional argumet and by default, it is set to `None`.
         compile (Union[bool, List[bool]]): whether to compile the model after loading. It should
             either be a single boolean value or a list of boolean values corresponding to each
             model filepath specified by the `model_filepaths` argument. It is an optional argumet
             and by default, it is set to `True`.
-        options (Optional[Union[Union[Any, None], List[Union[Any, None]]]]): Optional
-            [`tf.saved_model.LoadOptions`](https://www.tensorflow.org/api_docs/python/tf/saved_model/LoadOptions
+        options (Union[Any, List[Any]]): Optional
+            [`tf.saved_model.LoadOptions`](https://www.tensorflow.org/api_docs/python/tf/saved_model/LoadOptions)
             object that specifies options for loading from SavedModel. It should either be a single
             `tf.saved_model.LoadOptions` object or a list of `tf.saved_model.LoadOptions` objects
             corresponding to each model filepath specified by the `model_filepaths` argument. It is
