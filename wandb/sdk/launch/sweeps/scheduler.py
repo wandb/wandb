@@ -16,6 +16,7 @@ import yaml
 
 import wandb
 import wandb.apis.public as public
+from wandb.apis.public import Run
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
@@ -77,6 +78,7 @@ class Scheduler(ABC):
         **kwargs: Optional[Any],
     ):
         self._api = api
+        self._public_api = public.Api()
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -196,19 +198,27 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> SdkRun:
         """Controls resume or init logic for a scheduler wandb run."""
-        if self._kwargs.get("run_id"):  # resume
-            # TODO(gst): tie to sweep name logic, not run_id
-            resumed_run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
-            return resumed_run
-
-        _type = self._kwargs.get("sweep_type")
-
+        _type = self._kwargs.get("sweep_type", "sweep")
         run: SdkRun = wandb.init(
             name=f"{_type}-scheduler-{self._sweep_id}",
             job_type="sweep-controller",
             resume="allow",
         )
+
+        api_run: Run = self._public_api.run(run.path)
+        num_runs = list(api_run.scan_history(keys=["_wandb_num_runs_launched"]))
+        if len(num_runs) > 0:
+            self._num_runs_launched = int(num_runs[-1]["_wandb_num_runs_launched"])
+
+        wandb.termlog(
+            f"{LOG_PREFIX}Resumed scheduler ({run.name}) with "
+            f"({self._num_runs_launched}) previous runs"
+        )
         return run
+
+    def _save_basic_info(self) -> None:
+        """Save the number of runs launched in the scheduler."""
+        self._wandb_run.log({"_wandb_num_runs_launched": self._num_runs_launched})
 
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
@@ -282,12 +292,15 @@ class Scheduler(ABC):
 
     def exit(self) -> None:
         self._exit()
+        self._save_state()
+        self._save_basic_info()
         if self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.STOPPED,
         ]:
             self.state = SchedulerState.FAILED
         self._stop_runs()
+        self._wandb_run.finish()
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
@@ -442,6 +455,7 @@ class Scheduler(ABC):
         )
         run.queued_run = queued_run
         self._runs[run_id] = run
+
         wandb.termlog(
             f"{LOG_PREFIX}Added run ({run_id}) to queue ({self._kwargs.get('queue')})"
         )
