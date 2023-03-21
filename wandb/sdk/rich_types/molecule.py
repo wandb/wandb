@@ -1,6 +1,7 @@
 import pathlib
+from typing import Optional, TextIO, Union
+
 from .media import Media
-from typing import Union, Optional, TextIO
 
 # import rdkit.Chem
 
@@ -70,4 +71,4 @@ class Molecule(Media):
         if path.suffix[:1] in self.SUPPORTED_TYPES:
             self.from_path(path)
         else:
-
+            pass

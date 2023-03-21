@@ -45,7 +45,6 @@ class Media:
             namespace: A list of path components to prefix to the media path.
             suffix: A suffix to append to the media path.
         """
-
         sep = self.FILE_SEP
         file_name = pathlib.Path(sep.join(namespace)).with_suffix(suffix)
 

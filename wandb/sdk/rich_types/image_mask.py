@@ -1,8 +1,9 @@
 import pathlib
-from typing import Union, Optional, TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence, Union
+
+import PIL.Image
 
 from .media import Media
-import PIL.Image
 
 if TYPE_CHECKING:
     import numpy as np

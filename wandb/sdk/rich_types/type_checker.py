@@ -3,9 +3,9 @@ import typing
 from functools import wraps
 
 try:
-    from typing import get_origin, get_args  # type: ignore
+    from typing import get_args, get_origin  # type: ignore
 except ImportError:
-    from typing_extensions import get_origin, get_args
+    from typing_extensions import get_args, get_origin
 
 
 def _find_type_origin(type_hint):

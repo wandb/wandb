@@ -1,12 +1,13 @@
-from .media import Media
-import pathlib
 import io
+import pathlib
 from typing import Optional, Union
 
-import numpy as np
-import torch
-import tensorflow as tf
 import moviepy.video.io.ImageSequenceClip
+import numpy as np
+import tensorflow as tf
+import torch
+
+from .media import Media
 
 
 class Video(Media):

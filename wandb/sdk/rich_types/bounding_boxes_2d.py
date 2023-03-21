@@ -1,10 +1,10 @@
-import pathlib
 import codecs
 import json
+import pathlib
+from typing import Any, Dict, List, Optional, Sequence, Union
+
 from .media import Media
 from .type_checker import enforce_types
-
-from typing import Optional, Dict, Union, List, Any, Sequence
 
 
 @enforce_types

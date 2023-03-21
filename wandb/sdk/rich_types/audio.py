@@ -1,7 +1,9 @@
-from .media import Media
 import pathlib
 from typing import Optional, Union
+
 import soundfile
+
+from .media import Media
 
 
 class Audio(Media):

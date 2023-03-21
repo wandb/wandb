@@ -1,9 +1,11 @@
-from .media import Media
-import pathlib
-from typing import Union, TextIO, Any, Optional
 import codecs
 import json
+import pathlib
+from typing import Any, Optional, TextIO, Union
+
 import numpy as np
+
+from .media import Media
 
 
 class Object3D(Media):

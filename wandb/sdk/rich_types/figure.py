@@ -1,11 +1,13 @@
-from .media import Media
-import pathlib
-import plotly.tools
 import codecs
 import json
+import pathlib
+from typing import Optional, Union
+
+import plotly.tools
 from matplotlib.figure import Figure as MatplotlibFigure
 from plotly.graph_objs import Figure as PlotlyFigure
-from typing import Optional, Union
+
+from .media import Media
 
 
 class Figure(Media):

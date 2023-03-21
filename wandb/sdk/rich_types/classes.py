@@ -1,5 +1,6 @@
-from .base import BaseObject
 from typing import Sequence
+
+from .base import BaseObject
 
 
 class Classes(BaseObject):

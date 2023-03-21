@@ -1,7 +1,7 @@
-from .media import Media
 import pathlib
+from typing import Optional, TextIO, Union
 
-from typing import Union, TextIO, Optional
+from .media import Media
 
 
 class HTML(Media):
