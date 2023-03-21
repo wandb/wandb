@@ -8,7 +8,7 @@ import wandb
 
 logger = logging.getLogger(__name__)
 
-OPTIONAL_ARGS_TYPE = Optional[Union[None, Union[Any, None], List[Union[Any, None]]]]
+OPTIONAL_ARGS_TYPE = Optional[Union[Union[Any, None], List[Union[Any, None]]]]
 MODEL_TYPE = Union[tf.keras.Model, List[tf.keras.Model]]
 
 
@@ -20,7 +20,7 @@ def load_model_from_artifact(
     verbose: bool = True,
     custom_objects: OPTIONAL_ARGS_TYPE = None,
     compile: Union[bool, List[bool]] = True,
-    options: Optional[None, List[None]] = None,
+    options: Union[Any, List[Any]] = None,
 ) -> MODEL_TYPE:
     """A function that automatically loads Keras Models stored as Weights & Biases artifacts.
 
