@@ -87,6 +87,7 @@ def save_config_file_from_dict(config_filename, config_dict):
             default_flow_style=False,
             allow_unicode=True,
             encoding="utf-8",
+            sort_keys=False,
         )
     data = s.decode("utf-8")
     filesystem.mkdir_exists_ok(os.path.dirname(config_filename))
