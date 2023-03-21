@@ -15,7 +15,7 @@ def load_model_from_artifact(
     artifact_address: str,
     artifact_type: str = "model",
     track_lineage: bool = True,
-    model_filepaths: Optional[List[str, os.PathLike]] = None,
+    model_filepaths: Optional[List[Union[str, os.PathLike]]] = None,
     verbose: bool = True,
     custom_objects: Union[Any, List[Any]] = None,
     compile: Union[bool, List[bool]] = True,
