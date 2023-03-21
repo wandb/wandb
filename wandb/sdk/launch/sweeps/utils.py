@@ -26,25 +26,23 @@ def _load_launch_sweep_cli_params(
 
 
 def construct_scheduler_entrypoint(
-    scheduler_config: Dict[str, Any],
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
-) -> List[str]:
+    num_workers: int,
+) -> Optional[List[str]]:
     """Construct a sweep scheduler run spec.
 
-    raises exception if misconfigured, otherwise returns entrypoint
+    logs error and returns None if misconfigured, otherwise returns entrypoint
     """
     job = sweep_config.get("job")
     image_uri = sweep_config.get("image_uri")
     if not job and not image_uri:  # don't allow empty string
-        raise LaunchError("No 'job' nor 'image_uri' found in sweep config")
+        wandb.termerror("No 'job' nor 'image_uri' found in sweep config")
+        return
     elif job and image_uri:
-        raise LaunchError("Sweep has both 'job' and 'image_uri'")
-
-    num_workers = f'{scheduler_config.get("num_workers")}'
-    if num_workers is None or not str.isdigit(num_workers):
-        num_workers = "8"  # default
+        wandb.termerror("Sweep has both 'job' and 'image_uri'")
+        return
 
     entrypoint = [
         "wandb",
@@ -55,7 +53,7 @@ def construct_scheduler_entrypoint(
         "--project",
         project,
         "--num_workers",
-        num_workers,
+        f"{num_workers}",
     ]
 
     if job:

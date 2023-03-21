@@ -1934,3 +1934,21 @@ def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str
             else:
                 destination[key] = value
     return destination
+
+
+def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
+    """Load a sweep yaml from path."""
+    try:
+        yaml_file = open(sweep_config_path)
+    except OSError:
+        wandb.termerror(f"Couldn't open sweep file: {sweep_config_path}")
+        return None
+    try:
+        config = load_yaml(yaml_file)
+    except yaml.YAMLError as err:
+        wandb.termerror(f"Error in configuration file: {err}")
+        return None
+    if not config:
+        wandb.termerror("Configuration file is empty")
+        return None
+    return config
