@@ -8,7 +8,6 @@ import wandb
 
 logger = logging.getLogger(__name__)
 
-OPTIONAL_ARGS_TYPE = Optional[Union[Union[Any, None], List[Union[Any, None]]]]
 MODEL_TYPE = Union[tf.keras.Model, List[tf.keras.Model]]
 
 
@@ -18,7 +17,7 @@ def load_model_from_artifact(
     track_lineage: bool = True,
     model_filepaths: Optional[List[str, os.PathLike]] = None,
     verbose: bool = True,
-    custom_objects: OPTIONAL_ARGS_TYPE = None,
+    custom_objects: Union[Any, List[Any]] = None,
     compile: Union[bool, List[bool]] = True,
     options: Union[Any, List[Any]] = None,
 ) -> MODEL_TYPE:
