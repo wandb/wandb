@@ -288,6 +288,24 @@ class KubernetesRunner(AbstractRunner):
                 f"{LOG_PREFIX}Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
         _logger.info(f"Running Kubernetes job with resource args: {resource_args}")
+
+        if (
+            "wandbConfigVersion" not in resource_args
+            or resource_args.get("wandbConfigVersion") == "0.0"
+        ):
+            return self.run_legacy(launch_project, builder, kubernetes, resource_args)
+
+        # TODO implement new schema
+        wandb.termerror("wandbConfigVersion set to an invalid version.")
+        return None
+
+    def run_legacy(
+        self,
+        launch_project: LaunchProject,
+        builder: Optional[AbstractBuilder],
+        kubernetes: Any,
+        resource_args: Dict[str, Any],
+    ) -> Optional[AbstractRun]:  # noqa: C901
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
