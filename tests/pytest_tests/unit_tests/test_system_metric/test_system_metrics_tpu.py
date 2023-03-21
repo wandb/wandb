@@ -1,4 +1,4 @@
-# import multiprocessing as mp
+# import threading
 # import time
 # from unittest import mock
 
@@ -89,7 +89,7 @@ def test_tpu_instance():
 #                 )
 #             ).make_static()
 #         )
-#         shutdown_event = mp.Event()
+#         shutdown_event = threading.Event()
 #
 #         tpu = TPU(
 #             interface=interface,
