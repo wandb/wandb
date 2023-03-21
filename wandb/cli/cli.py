@@ -33,7 +33,10 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
-from wandb.sdk.launch.sweeps.utils import construct_scheduler_entrypoint
+from wandb.sdk.launch.sweeps.utils import (
+    _load_launch_sweep_cli_params,
+    construct_scheduler_entrypoint,
+)
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -726,7 +729,7 @@ def sweep(
     program,
     settings,
     update,
-    launch_config,  # TODO(gst): deprecate
+    launch_config,
     stop,
     cancel,
     pause,
@@ -735,6 +738,102 @@ def sweep(
     queue,
     project_queue,
 ):
+    api = _get_cling_api()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+    env = os.environ
+    entity = entity or env.get("WANDB_ENTITY") or api.settings("entity")
+    project = project or env.get("WANDB_PROJECT") or api.settings("project")
+    launch_config, queue = _load_launch_sweep_cli_params(launch_config, queue)
+    sweep_obj_id = None
+    if queue:  # doing launch
+        if resume:
+            sweep_id = config_yaml_or_sweep_id
+            if entity is None:
+                raise LaunchError("Must specify entity when using launch")
+            elif project is None:
+                raise LaunchError("A project must be configured when using launch")
+
+            found = api.sweep(sweep_id, "{}", entity=entity, project=project)
+            if not found:
+                wandb.termerror(f"Could not find sweep {entity}/{project}/{sweep_id}")
+                return
+            sweep_obj_id = found["id"]
+            config = yaml.safe_load(found["config"])
+            wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{sweep_id}")
+        else:
+            try:
+                yaml_file = open(config_yaml_or_sweep_id)
+            except OSError:
+                wandb.termerror(f"Couldn't open sweep file: {config_yaml_or_sweep_id}")
+                return
+            try:
+                config = util.load_yaml(yaml_file)
+            except yaml.YAMLError as err:
+                wandb.termerror(f"Error in configuration file: {err}")
+                return
+            if config is None:
+                wandb.termerror("Configuration file is empty")
+                return
+
+        scheduler_config = launch_config.get("scheduler", {})
+        scheduler_entrypoint = construct_scheduler_entrypoint(
+            scheduler_config=scheduler_config,
+            sweep_config=config,
+            queue=queue,
+            project=project,
+        )
+
+        # Launch job spec for the Scheduler
+        run_spec = construct_launch_spec(
+            uri=SCHEDULER_URI,
+            job=None,
+            api=api,
+            name="Scheduler.WANDB_SWEEP_ID",
+            project=project,
+            entity=entity,
+            docker_image=scheduler_config.get("docker_image"),
+            resource=scheduler_config.get("resource", "local-process"),
+            entry_point=scheduler_entrypoint,
+            version=None,
+            parameters=None,
+            resource_args=scheduler_config.get("resource_args", {}),
+            launch_config=None,
+            run_id=None,
+            repository=launch_config.get("registry", {}).get("url", None),
+        )
+        launch_scheduler_spec = json.dumps(
+            {
+                "queue": queue,
+                "run_queue_project": project_queue,
+                "run_spec": json.dumps(run_spec),
+            }
+        )
+
+        sweep_id, warnings = api.upsert_sweep(
+            config,
+            project=project,
+            entity=entity,
+            obj_id=sweep_obj_id,
+            launch_scheduler=launch_scheduler_spec,
+            state="PENDING",
+        )
+        util.handle_sweep_config_violations(warnings)
+
+        # Log nicely formatted sweep information
+        styled_id = click.style(sweep_id, fg="yellow")
+        wandb.termlog(
+            f"{'Resumed' if resume else 'Created'} sweep with ID: {styled_id}"
+        )
+
+        sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+        if sweep_url:
+            styled_url = click.style(sweep_url, underline=True, fg="blue")
+            wandb.termlog(f"View sweep at: {styled_url}")
+        return
+
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
     is_state_change_command = sum(lcls[k] for k in state_args)
@@ -881,71 +980,11 @@ def sweep(
         or util.auto_project_name(config.get("program"))
     )
 
-    if launch_config:
-        launch_config = util.load_json_yaml_dict(launch_config)
-        if launch_config is None:
-            raise LaunchError(f"Invalid format for launch config at {launch_config}")
-        wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
-    else:
-        launch_config = {}
-
-    queue = queue or launch_config.get("queue")
-    if launch_config and not queue:
-        raise LaunchError(
-            "No queue passed from CLI or in launch config for launch-sweep"
-        )
-
-    launch_scheduler_spec = None
-    if not queue:
-        if not config.get("program"):
-            wandb.termerror("No 'program' found in sweep config")
-            return
-    else:
-        if entity is None:
-            raise LaunchError("Must specify entity when using launch")
-        elif project is None:
-            raise LaunchError("A project must be configured when using launch")
-
-        scheduler_config = launch_config.get("scheduler", {})
-        scheduler_entrypoint = construct_scheduler_entrypoint(
-            scheduler_config=scheduler_config,
-            sweep_config=config,
-            queue=queue,
-            project=project,
-        )
-
-        # Launch job spec for the Scheduler
-        run_spec = construct_launch_spec(
-            uri=SCHEDULER_URI,
-            job=None,
-            api=api,
-            name="Scheduler.WANDB_SWEEP_ID",
-            project=project,
-            entity=entity,
-            docker_image=scheduler_config.get("docker_image"),
-            resource=scheduler_config.get("resource", "local-process"),
-            entry_point=scheduler_entrypoint,
-            version=None,
-            parameters=None,
-            resource_args=scheduler_config.get("resource_args", {}),
-            launch_config=None,
-            run_id=None,
-            repository=launch_config.get("registry", {}).get("url", None),
-        )
-        launch_scheduler_spec = json.dumps(
-            {
-                "queue": queue,
-                "run_queue_project": project_queue,
-                "run_spec": json.dumps(run_spec),
-            }
-        )
-
     sweep_id, warnings = api.upsert_sweep(
         config,
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
-        launch_scheduler=launch_scheduler_spec,
     )
     util.handle_sweep_config_violations(warnings)
 

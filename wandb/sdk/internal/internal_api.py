@@ -2472,6 +2472,7 @@ class Api:
                         "controller": controller,
                         "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
+                        "state": state,
                     },
                     check_retry_fn=util.no_retry_4xx,
                 )
