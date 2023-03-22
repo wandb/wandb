@@ -16,13 +16,11 @@ import yaml
 
 import wandb
 import wandb.apis.public as public
-from wandb.apis.public import Run
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.wandb_run import Run as SdkRun
 from wandb.wandb_agent import Agent, _create_sweep_command_args
 
 _logger = logging.getLogger(__name__)
@@ -121,9 +119,6 @@ class Scheduler(ABC):
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
-        # init a run to control the scheduler
-        self._wandb_run = self._init_wandb_run()
-
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         pass
@@ -195,30 +190,6 @@ class Scheduler(ABC):
         return {
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
-
-    def _init_wandb_run(self) -> SdkRun:
-        """Controls resume or init logic for a scheduler wandb run."""
-        _type = self._kwargs.get("sweep_type", "sweep")
-        run: SdkRun = wandb.init(
-            name=f"{_type}-scheduler-{self._sweep_id}",
-            job_type="sweep-controller",
-            resume="allow",
-        )
-
-        api_run: Run = self._public_api.run(run.path)
-        num_runs = list(api_run.scan_history(keys=["_wandb_num_runs_launched"]))
-        if len(num_runs) > 0:
-            self._num_runs_launched = int(num_runs[-1]["_wandb_num_runs_launched"])
-
-        wandb.termlog(
-            f"{LOG_PREFIX}Resumed scheduler ({run.name}) with "
-            f"({self._num_runs_launched}) previous runs"
-        )
-        return run
-
-    def _save_basic_info(self) -> None:
-        """Save the number of runs launched in the scheduler."""
-        self._wandb_run.log({"_wandb_num_runs_launched": self._num_runs_launched})
 
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
@@ -300,7 +271,6 @@ class Scheduler(ABC):
         ]:
             self.state = SchedulerState.FAILED
         self._stop_runs()
-        self._wandb_run.finish()
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
