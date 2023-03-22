@@ -45,8 +45,8 @@ class Image(Media):
     _sha256: str
     _format: str
 
-    _width: int
-    _height: int
+    _width: Optional[int]
+    _height: Optional[int]
 
     _caption: Optional[str]
     _masks: List[ImageMask]
@@ -90,6 +90,8 @@ class Image(Media):
 
         self._caption = caption
         self._grouping = grouping
+        self._height = None
+        self._width = None
 
         self._bounding_boxes = []
         if boxes is not None:
@@ -117,6 +119,8 @@ class Image(Media):
             serialized["height"] = self._height
         if self._caption is not None:
             serialized["caption"] = self._caption
+        if self._grouping is not None:
+            serialized["grouping"] = self._grouping
         if self._bounding_boxes:
             serialized["boxes"] = {
                 bounding_box._name: bounding_box.to_json()

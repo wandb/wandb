@@ -60,17 +60,23 @@ class BoundingBoxes2D(Media):
     _name: str
     _classes: dict
 
-    def __init__(self, bounding_box: dict, name: str) -> None:
+    def __init__(self, bounding_boxes: dict, name: str) -> None:
         """Initialize a new wandb BoundingBox object."""
-
         self._name = name
 
         self._boxes = []
-        self.add_boxes(bounding_box["box_data"])
+        self.add_boxes(bounding_boxes["box_data"])
 
         self._classes = dict()
-        if "class_labels" in bounding_box:
-            self.add_classes(bounding_box["class_labels"])
+        if "class_labels" in bounding_boxes:
+            self.add_classes(bounding_boxes["class_labels"])
+        else:
+            classes = {
+                box["class_id"]: f"class_{box['class_id']}" for box in self._boxes
+            }
+            self.add_classes(classes)
+
+        self._initialize(bounding_boxes)
 
     def bind_to_run(
         self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
@@ -83,7 +89,6 @@ class BoundingBoxes2D(Media):
             prefix: A list of path components to prefix to the bounding box path.
             name: The name of the bounding box.
         """
-
         super().bind_to_run(
             interface,
             start,
@@ -115,16 +120,13 @@ class BoundingBoxes2D(Media):
         self._sha256 = self._compute_sha256(self._source_path)
         self._size = self._source_path.stat().st_size
 
-    def add_classes(self, classes: Sequence[dict]) -> None:
+    def add_classes(self, classes: dict) -> None:
         """Add classes to this bounding box.
 
         Args:
             classes (list): The classes to add.
         """
-        for class_label in classes:
-            class_id = class_label["id"]
-            class_name = class_label["name"]
-            self._classes[class_id] = class_name
+        self._classes.update(classes)
 
     def add_boxes(self, boxes: list) -> None:
         """Add boxes to this bounding box.

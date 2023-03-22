@@ -1,12 +1,28 @@
 from typing import Sequence
 
-from .base import BaseObject
+from .media import Media
+from dataclasses import dataclass
 
 
-class Classes(BaseObject):
+@dataclass
+class Class:
+    id: int
+    name: str
+
+
+class Classes(Media):
     OBJ_TYPE: str = "classes"
 
-    def __init__(self, class_labels: Sequence[dict]) -> None:
+    def __init__(self, data) -> None:
+        super().__init__()
+        if isinstance(data, Sequence):
+            self.from_sequence(data)
+        elif isinstance(data, dict):
+            self.from_dict(data)
+        else:
+            raise ValueError(
+                "Classes must be initialized with a sequence, dict, or Class"
+            )
 
         self._class_labels = class_labels
 
