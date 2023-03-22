@@ -41,6 +41,61 @@ def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_confi
             )
 
 
+def test_sweep_scheduler_start_failed(user):
+    sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    # Entity, project, and sweep should be everything you need to create a scheduler
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+
+    api.stop_run = lambda _run_id: True
+
+    # Bogus sweep id should result in error
+    scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+
+    # also test stop run
+    assert scheduler._stop_run("nonexistent-run") is False
+    scheduler._runs["existing-run-no-queued"] = SweepRun(
+        id="existing-run-no-queued", state=RunState.ALIVE, worker_id=0
+    )
+    assert scheduler._stop_run("existing-run-no-queued") is False
+    scheduler._runs["existing-run-dead"] = SweepRun(
+        id="existing-run-dead",
+        state=RunState.DEAD,
+        worker_id=1,
+        queued_run=Mock(spec=public.QueuedRun),
+    )
+    assert scheduler._stop_run("existing-run-dead") is False
+    scheduler._runs["existing-run"] = SweepRun(
+        id="existing-run",
+        state=RunState.ALIVE,
+        worker_id=2,
+        queued_run=Mock(spec=public.QueuedRun),
+    )
+    assert scheduler._stop_run("existing-run")
+
+    scheduler.state = SchedulerState.CANCELLED
+    scheduler.start()
+    assert scheduler.state == SchedulerState.FAILED
+
+
+def test_sweep_scheduler_runcap(user):
+    sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
+    sweep_config["run_cap"] = 2
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    # Entity, project, and sweep should be everything you need to create a scheduler
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    # Bogus sweep id should result in error
+    scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+
+    assert scheduler.at_runcap is False
+    scheduler.start()
+    assert scheduler._num_runs_launched == 2
+
+
 def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
 
@@ -302,6 +357,8 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
         job=_job,
     )
     _scheduler2.start()
+    assert len(_scheduler2.busy_workers) == 1
+    assert len(_scheduler2.available_workers) == 7
     assert _scheduler2._runs["foo_run"].queued_run.args()[-2] == _project_queue
 
 
