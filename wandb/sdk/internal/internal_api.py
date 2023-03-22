@@ -194,12 +194,22 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+
+        # FIXME allow the headers to be provided as dicts. For an easier PoC we
+        # put them in a Sequence[str] where header name and value are
+        # concatenated with a ":" as delimiter.
+        extra_http_headers = {}
+        for header in self.settings('extra_http_headers'):
+            name, value = header.split(':')
+            extra_http_headers[name] = value
+
         self.client = Client(
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    **extra_http_headers,
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s

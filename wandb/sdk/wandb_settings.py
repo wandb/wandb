@@ -448,6 +448,7 @@ class Settings:
     docker: str
     email: str
     entity: str
+    extra_http_headers: Sequence[str]
     files_dir: str
     force: bool
     git_commit: str
@@ -632,6 +633,7 @@ class Settings:
             disable_git={"preprocessor": _str_as_bool},
             disable_job_creation={"value": False, "preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
+            extra_http_headers={"value": {}},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
