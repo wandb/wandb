@@ -34,7 +34,7 @@ from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.sweeps.utils import (
-    _load_launch_sweep_cli_params,
+    load_launch_sweep_cli_params,
     construct_scheduler_entrypoint,
 )
 from wandb.sdk.launch.utils import (
@@ -964,7 +964,7 @@ def launch_sweep(
         wandb.termerror("One of 'sweep_config' or 'resume_id' required")
         return
 
-    launch_config, queue = _load_launch_sweep_cli_params(launch_config, queue)
+    launch_config, queue = load_launch_sweep_cli_params(launch_config, queue)
     if not queue:
         wandb.termerror("Launch-sweeps require setting a 'queue'")
         return
@@ -999,6 +999,10 @@ def launch_sweep(
         project=project,
         num_workers=num_workers,
     )
+    if not scheduler_entrypoint:
+        # error already logged
+        return
+
     scheduler_config = launch_config.get("scheduler", {})
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(

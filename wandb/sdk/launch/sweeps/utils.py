@@ -1,12 +1,12 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb import util
 from wandb.sdk.launch.utils import LaunchError
 
 
-def _load_launch_sweep_cli_params(
-    launch_config: Optional[Dict[str, Any]], queue: Optional[str]
+def load_launch_sweep_cli_params(
+    launch_config: Optional[str], queue: Union[str, None]
 ) -> Tuple[Dict[str, Any], str]:
     if launch_config:
         launch_config = util.load_json_yaml_dict(launch_config)
@@ -16,11 +16,7 @@ def _load_launch_sweep_cli_params(
     else:
         launch_config = {}
 
-    queue = queue or launch_config.get("queue")
-    if launch_config and not queue:
-        raise LaunchError(
-            "No queue passed from CLI or in launch config for launch-sweep"
-        )
+    queue: Union[str, None] = queue or launch_config.get("queue")
 
     return launch_config, queue
 
@@ -39,10 +35,10 @@ def construct_scheduler_entrypoint(
     image_uri = sweep_config.get("image_uri")
     if not job and not image_uri:  # don't allow empty string
         wandb.termerror("No 'job' nor 'image_uri' found in sweep config")
-        return
+        return []
     elif job and image_uri:
         wandb.termerror("Sweep has both 'job' and 'image_uri'")
-        return
+        return []
 
     entrypoint = [
         "wandb",

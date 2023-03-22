@@ -1944,7 +1944,7 @@ def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
         wandb.termerror(f"Couldn't open sweep file: {sweep_config_path}")
         return None
     try:
-        config = load_yaml(yaml_file)
+        config: Optional[Dict[str, Any]] = load_yaml(yaml_file)
     except yaml.YAMLError as err:
         wandb.termerror(f"Error in configuration file: {err}")
         return None
