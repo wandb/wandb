@@ -264,7 +264,6 @@ class Scheduler(ABC):
     def exit(self) -> None:
         self._exit()
         self._save_state()
-        self._save_basic_info()
         if self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.STOPPED,
