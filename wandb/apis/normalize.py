@@ -3,16 +3,32 @@
 import ast
 import sys
 from functools import wraps
-from typing import Callable, TypeVar
+from typing import Callable, List, TypeVar
 
 import requests
 from wandb_gql.client import RetryError
 
 from wandb import env
-from wandb.errors import CommError
-from wandb.sdk.lib.mailbox import ContextCancelledError
+from wandb.errors import CommError, Error
 
 _F = TypeVar("_F", bound=Callable)
+
+
+def parse_backend_error_messages(response: requests.Response) -> List[str]:
+    errors = []
+    try:
+        data = response.json()
+    except ValueError:
+        return errors
+
+    if "errors" in data and isinstance(data["errors"], list):
+        for error in data["errors"]:
+            # Our tests and potentially some api endpoints return a string error?
+            if isinstance(error, str):
+                error = {"message": error}
+            if "message" in error:
+                errors.append(error["message"])
+    return errors
 
 
 def normalize_exceptions(func: _F) -> _F:
@@ -23,10 +39,16 @@ def normalize_exceptions(func: _F) -> _F:
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
-        except requests.HTTPError as err:
-            raise CommError(err.response, err)
-        except ContextCancelledError as err:
-            raise err
+        except requests.HTTPError as error:
+            errors = parse_backend_error_messages(error.response)
+            if errors:
+                message = " ".join(errors)
+                message += (
+                    f" (Error {error.response.status_code}: {error.response.reason})"
+                )
+            else:
+                message = error.response
+            raise CommError(message, error)
         except RetryError as err:
             if (
                 "response" in dir(err.last_exception)
@@ -47,7 +69,7 @@ def normalize_exceptions(func: _F) -> _F:
                 raise CommError(message, err.last_exception).with_traceback(
                     sys.exc_info()[2]
                 )
-        except CommError as err:
+        except Error as err:
             raise err
         except Exception as err:
             # gql raises server errors with dict's as strings...

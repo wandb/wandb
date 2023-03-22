@@ -1766,7 +1766,8 @@ class Run:
                 wandb.termwarn(
                     "Saving files without folders. If you want to preserve "
                     "sub directories pass base_path to wandb.save, i.e. "
-                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
+                    repeat=False,
                 )
             else:
                 base_path = "."
@@ -2208,6 +2209,10 @@ class Run:
 
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
+
+        if not self._settings.resume:
+            if os.path.exists(self._settings.resume_fname):
+                os.remove(self._settings.resume_fname)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         import pkg_resources
@@ -3678,6 +3683,10 @@ class InvalidArtifact:
         return False
 
 
+class WaitTimeoutError(errors.Error):
+    """Raised when wait() timeout occurs before process is finished."""
+
+
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
     _instance: Union[ArtifactInterface, InvalidArtifact]
@@ -3695,7 +3704,7 @@ class _LazyArtifact(ArtifactInterface):
         if not self._instance:
             future_get = self._future.get(timeout)
             if not future_get:
-                raise errors.WaitTimeoutError(
+                raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
                 )
             resp = future_get.response.log_artifact_response
