@@ -66,7 +66,6 @@ class Retry(Generic[_R]):
         self._call_fn = call_fn
         self._check_retry_fn = check_retry_fn
         self._error_prefix = error_prefix
-        self._last_print = datetime.datetime.now() - datetime.timedelta(minutes=1)
         self._retry_timedelta = retry_timedelta
         self._retry_cancel_event = retry_cancel_event
         self._num_retries = num_retries
@@ -130,10 +129,7 @@ class Retry(Generic[_R]):
             try:
                 result = self._call_fn(*args, **kwargs)
                 # Only print resolved attempts once every minute
-                if self._num_iter > 2 and now - self._last_print > datetime.timedelta(
-                    minutes=1
-                ):
-                    self._last_print = NOW_FN()
+                if self._num_iter > 2:
                     if self.retry_callback:
                         self.retry_callback(
                             200,
