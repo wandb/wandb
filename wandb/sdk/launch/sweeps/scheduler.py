@@ -196,7 +196,7 @@ class Scheduler(ABC):
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         if not self.is_alive:
             wandb.termerror(
-                f"{LOG_PREFIX}Sweep already in state ({self.state.name.lower()}). Exiting..."
+                f"{LOG_PREFIX}Sweep already in end state ({self.state.name.lower()}). Exiting..."
             )
             self.exit()
             return
