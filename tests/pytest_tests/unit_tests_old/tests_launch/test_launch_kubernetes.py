@@ -215,6 +215,149 @@ def test_launch_kube_works(
     )
     monkeypatch.setattr(wandb.docker, "push", lambda repo, tag: "")
 
+    mountedVolName = "test-volume"
+    vol = {"persistentVolumeClaim": {"claimName": "test-claim"}}
+    mount = {"mountPath": "/test/path"}
+    multi_spec = {
+        "metadata": {"name": "test-job", "labels": {"test-label": "test-val"}},
+        "spec": {
+            "backoffLimit": 3,
+            "completions": 4,
+            "parallelism": 5,
+            "template": {
+                "spec": {
+                    "restartPolicy": "onFailure",
+                    "preemptionPolicy": "Never",
+                    "nodeName": "test-node-name",
+                    "nodeSelector": {"test-selector": "test-value"},
+                    "tolerations": [{"key": "test-key", "value": "test-value"}],
+                    "volumes": [
+                        {
+                            "name": mountedVolName,
+                            "volume": vol,
+                        }
+                    ],
+                    "containers": [
+                        {
+                            "name": "container1",
+                            "volume_mounts": [
+                                {
+                                    "name": mountedVolName,
+                                    "mount": mount,
+                                }
+                            ],
+                            "env": [
+                                {
+                                    "name": "test-env",
+                                    "value": "test-value",
+                                }
+                            ],
+                        },
+                        {
+                            "name": "container2",
+                            "volume_mounts": [
+                                {
+                                    "name": mountedVolName,
+                                    "mount": mount,
+                                }
+                            ],
+                            "env": [
+                                {
+                                    "name": "test-env",
+                                    "value": "test-value",
+                                }
+                            ],
+                        },
+                    ],
+                }
+            },
+        },
+    }
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "kubernetes",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "kubernetes": {
+                "wandbConfigVersion": "1.0",
+                "configFile": "dummy.yaml",
+                **multi_spec,
+            },
+        },
+    }
+
+    mocker.patch(
+        "wandb.sdk.launch.loader.registry_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.loader.builder_from_config", return_value=MagicMock()
+    )
+    mocker.patch(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        return_value=None,
+    )
+
+    with pytest.raises(LaunchError) as e:
+        run = launch.run(**kwargs)
+        assert "Launch only builds one container at a time" in str(e.value)
+    del kwargs["resource_args"]["kubernetes"]["spec"]["template"]["spec"]["containers"][
+        1
+    ]
+
+    run = launch.run(**kwargs)
+    assert run.id == "test-job"
+    assert run.namespace == "active-namespace"
+    assert run.pod_names == ["pod1"]
+    assert run.get_status().state == "finished"
+    assert run.wait()
+    job = run.get_job()
+    args = kwargs["resource_args"]["kubernetes"]
+
+    def assert_keys_present_recursive(d1, d2, exceptions):
+        # Assert all keys in d1 (and any subkeys) are present in d2
+        for key in d1:
+            if key in exceptions:
+                continue
+            assert key in d2
+            if isinstance(d1[key], dict):
+                assert_keys_present_recursive(d1[key], d2[key], exceptions)
+
+    assert_keys_present_recursive(args, job, ["wandbConfigVersion", "configFile"])
+    out, err = capsys.readouterr()
+    assert "Job test-job created on pod(s) pod1" in err
+
+
+@pytest.mark.timeout(320)
+def test_launch_kube_works_old_config(
+    mocker,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
+    capsys,
+):
+    jobs = {}
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
+
+    setup_mock_kubernetes_client(
+        monkeypatch, jobs, pods("test-job", "Succeeded"), status
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    monkeypatch.setattr(wandb.docker, "push", lambda repo, tag: "")
+
     multi_spec = {
         "spec": {
             "template": {
@@ -318,6 +461,10 @@ def test_launch_kube_works(
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 
+def test_launch_kube_invalid_config(
+        mocker
+):
+    
 
 @pytest.mark.timeout(320)
 def test_launch_kube_suspend_cancel(
