@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import wandb
-from wandb.errors import InternalError
+from wandb.errors import Error
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.wandb_init import _WandbInit
 
@@ -15,7 +15,7 @@ def test_init(test_settings):
         with patch("wandb.sdk.wandb_init.logger", autospec=True), patch(
             "wandb.sdk.wandb_init.getcaller", autospec=True
         ), patch("os._exit", side_effect=MyExitError("")), patch(
-            "wandb.sdk.wandb_init.wandb._sentry.exception", autospec=True
+            "wandb.sdk.wandb_init.sentry_exc", autospec=True
         ), patch(
             "wandb._assert_is_user_process", side_effect=lambda: None
         ):
@@ -112,7 +112,7 @@ def test_init_internal_error(test_settings):
         )
 
         with patch("wandb.sdk.wandb_init.wandb.run", return_value=None):
-            with pytest.raises(InternalError):
+            with pytest.raises(Error):
                 wandbinit.init()
 
         assert interface_instance.publish_header.call_count == 1

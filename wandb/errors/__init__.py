@@ -1,19 +1,16 @@
 __all__ = [
     "Error",
     "CommError",
-    "BackendError",
+    "AuthenticationError",
     "UsageError",
     "UnsupportedError",
-    "DependencyError",
-    "InternalError",
-    "WaitTimeoutError",
 ]
 
 from typing import Optional
 
 
 class Error(Exception):
-    """Base W&B Error"""
+    """Base W&B Error."""
 
     def __init__(self, message, context: Optional[dict] = None) -> None:
         super().__init__(message)
@@ -24,7 +21,7 @@ class Error(Exception):
 
 
 class CommError(Error):
-    """Error communicating with W&B (legacy error for backwards compatibility)"""
+    """Error communicating with W&B servers."""
 
     def __init__(self, msg, exc=None) -> None:
         self.exc = exc
@@ -32,25 +29,13 @@ class CommError(Error):
         super().__init__(self.message)
 
 
-class BackendError(CommError):
-    """Error communicating with W&B backend"""
+class AuthenticationError(CommError):
+    """Raised when authentication fails."""
 
 
 class UsageError(Error):
-    """Raised when an invalid usage of the SDK API is detected"""
+    """Raised when an invalid usage of the SDK API is detected."""
 
 
 class UnsupportedError(UsageError):
-    """Raised when trying to use a feature that is not supported"""
-
-
-class DependencyError(UsageError):
-    """Raised when there is a missing or invalid dependency"""
-
-
-class InternalError(Error):
-    """Raised when an SDK internal error occurs"""
-
-
-class WaitTimeoutError(Error):
-    """Raised when wait() timeout occurs before process is finished"""
+    """Raised when trying to use a feature that is not supported."""

@@ -50,8 +50,8 @@ import requests
 import yaml
 
 import wandb
-from wandb.env import get_app_url
-from wandb.errors import BackendError, UsageError, term
+from wandb.env import error_reporting_enabled, get_app_url
+from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
@@ -880,7 +880,7 @@ def no_retry_auth(e: Any) -> bool:
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise UsageError(
+        raise AuthenticationError(
             "The API key is either invalid or missing, or the host is incorrect. "
             "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
             "The host defaults to 'https://api.wandb.ai' if not specified. "
