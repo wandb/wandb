@@ -118,7 +118,7 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
         stderr=subprocess.STDOUT,
     )
 
-    assert "banana" in out.decode("utf-8")
+    assert "Scheduler added to launch queue (test)" in out.decode("utf-8")
 
 
 @pytest.mark.parametrize(
