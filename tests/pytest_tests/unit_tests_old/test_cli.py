@@ -251,8 +251,8 @@ def test_sweep_scheduler(runner, mock_server, test_settings):
         assert sweep_id == "test"
         assert (
             runner.invoke(
-                cli.sweep,
-                ["--launch_config", "mock_launch_config.json", sweep_id],
+                cli.launch_sweep,
+                ["--launch_config", "mock_launch_config.json", "--resume_id", sweep_id],
             ).exit_code
             == 0
         )
