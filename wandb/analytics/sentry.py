@@ -24,16 +24,8 @@ if TYPE_CHECKING:
     import wandb.sdk.internal.settings_static
 
 SENTRY_DEFAULT_DSN = (
-    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+    "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
 )
-# project sdk-new:
-# SENTRY_DEFAULT_DSN = (
-#     "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
-# )
-# project junk:
-# SENTRY_DEFAULT_DSN = (
-#     "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.sentry.io/6438430"
-# )
 
 SessionStatus = Literal["ok", "exited", "crashed", "abnormal"]
 
