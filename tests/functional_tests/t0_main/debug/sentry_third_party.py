@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import shutil
+import time
 from typing import Any, Dict
 
 import sentry_sdk
@@ -17,13 +18,13 @@ def main():
     sentry_sdk.init(transport=capture_event)
 
     import wandb
-    import wandb.util
+    import wandb.env
 
     # assert that importing wandb does not set Sentry's global hub/client
-    assert sentry_sdk.Hub.current.client.dsn != wandb.util.sentry_default_dsn
+    assert sentry_sdk.Hub.current.client.dsn != wandb._sentry.dsn
     # but an internal Sentry client for wandb is created ok if WANDB_ERROR_REPORTING != False
-    if wandb.util.error_reporting_enabled():
-        assert isinstance(wandb.util.sentry_client, sentry_sdk.client.Client)
+    if wandb.env.error_reporting_enabled():
+        assert isinstance(wandb._sentry.client, sentry_sdk.client.Client)
 
     run = wandb.init()
 
@@ -39,6 +40,8 @@ def main():
 
     num_third_party_sentry_events = len(third_party_sentry_events)
     run.log({"num_third_party_sentry_events": num_third_party_sentry_events})
+
+    time.sleep(2)
 
     # Triggers a FileNotFoundError from the internal process
     # because the internal process reads/writes to the current run directory.
