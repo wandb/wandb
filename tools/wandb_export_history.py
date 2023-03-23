@@ -10,6 +10,7 @@ Usage:
 or:
     ```python
     import wandb_export_history
+
     wandb_export_history(run="entity/project/run_id")
     ```
 

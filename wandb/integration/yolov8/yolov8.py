@@ -16,8 +16,11 @@ class WandbCallback:
     Usage:
     ```python
     from wandb.integration.yolov8.yolov8 import WandbCallback
+
     model = YOLO("yolov8n.pt")
-    wandb_logger = WandbCallback(model,)
+    wandb_logger = WandbCallback(
+        model,
+    )
     for event, callback_fn in wandb_logger.callbacks.items():
         model.add_callback(event, callback_fn)
     ```
@@ -222,9 +225,16 @@ def add_callbacks(
     Usage:
     ```python
     from wandb.integration.yolov8 import add_callbacks as add_wandb_callbacks
+
     model = YOLO("yolov8n.pt")
-    add_wandb_callbacks(model,)
-    model.train(data="coco128.yaml", epochs=3, imgsz=640,)
+    add_wandb_callbacks(
+        model,
+    )
+    model.train(
+        data="coco128.yaml",
+        epochs=3,
+        imgsz=640,
+    )
     ```
     """
     wandb.termwarn(

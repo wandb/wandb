@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 def _pbmap_apply_dict(
     m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
 ) -> None:
-
     for k, v in d.items():
         if isinstance(v, enum.Enum):
             continue

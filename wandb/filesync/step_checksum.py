@@ -101,7 +101,6 @@ class StepChecksum:
             elif isinstance(req, RequestStoreManifestFiles):
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
-
                         self._stats.init_file(
                             entry.local_path,
                             cast(int, entry.size),

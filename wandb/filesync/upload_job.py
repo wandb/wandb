@@ -7,7 +7,6 @@ import wandb
 import wandb.util
 
 if TYPE_CHECKING:
-
     from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
 

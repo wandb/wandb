@@ -96,7 +96,6 @@ def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
 def test_sweep_scheduler_base_scheduler_states(
     user, relay_server, sweep_config, monkeypatch
 ):
-
     with relay_server():
         _entity = user
         _project = "test-project"
