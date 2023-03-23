@@ -90,7 +90,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         api_client, yaml_objects, namespace, jobs_dict, mock_status
     ):
         jobd = yaml_objects[0]
-        name = jobd["metadata"]["name"]
+        name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "asdfasdf"
 
@@ -325,146 +325,12 @@ def test_launch_kube_works(
             if isinstance(d1[key], dict):
                 assert_keys_present_recursive(d1[key], d2[key], exceptions)
 
-    assert_keys_present_recursive(args, job, ["wandbConfigVersion", "configFile"])
+    assert_keys_present_recursive(
+        args, job, ["wandbConfigVersion", "configFile", "metadata"]
+    )
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 
-
-@pytest.mark.timeout(320)
-def test_launch_kube_works_old_config(
-    mocker,
-    live_mock_server,
-    test_settings,
-    mocked_fetchable_git_repo,
-    monkeypatch,
-    capsys,
-):
-    jobs = {}
-    status = MockDict(
-        {
-            "succeeded": 1,
-            "failed": 0,
-            "active": 0,
-            "conditions": None,
-        }
-    )
-
-    setup_mock_kubernetes_client(
-        monkeypatch, jobs, pods("test-job", "Succeeded"), status
-    )
-
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    monkeypatch.setattr(wandb.docker, "push", lambda repo, tag: "")
-
-    multi_spec = {
-        "spec": {
-            "template": {
-                "spec": {
-                    "containers": [
-                        {
-                            "name": "container1",
-                        },
-                        {
-                            "name": "container2",
-                        },
-                    ]
-                }
-            }
-        }
-    }
-    mountedVolName = "test-volume"
-    vol = {"persistentVolumeClaim": {"claimName": "test-claim"}}
-    mount = {"mountPath": "/test/path"}
-    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "kubernetes",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "kubernetes": {
-                "job_spec": json.dumps(multi_spec),
-                "config_file": "dummy.yaml",
-                "registry": "test.registry/repo_name",
-                "job_name": "test-job",
-                "job_labels": {"test-label": "test-val"},
-                "backoff_limit": 3,
-                "completions": 4,
-                "parallelism": 5,
-                "restart_policy": "OnFailure",
-                "preemption_policy": "Never",
-                "node_name": "test-node-name",
-                "node_selector": {"test-selector": "test-value"},
-                "tolerations": [{"key": "test-key", "value": "test-value"}],
-                "volumes": [
-                    {
-                        "name": mountedVolName,
-                        "volume": vol,
-                    }
-                ],
-                "volume_mounts": [
-                    {
-                        "name": mountedVolName,
-                        "mount": mount,
-                    }
-                ],
-                "env": [
-                    {
-                        "name": "test-env",
-                        "value": "test-value",
-                    }
-                ],
-            },
-        },
-    }
-
-    mocker.patch(
-        "wandb.sdk.launch.loader.registry_from_config", return_value=MagicMock()
-    )
-    mocker.patch(
-        "wandb.sdk.launch.loader.builder_from_config", return_value=MagicMock()
-    )
-    mocker.patch(
-        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
-        return_value=None,
-    )
-
-    with pytest.raises(LaunchError) as e:
-        run = launch.run(**kwargs)
-        assert "Launch only builds one container at a time" in str(e.value)
-    del kwargs["resource_args"]["kubernetes"]["job_spec"]
-
-    run = launch.run(**kwargs)
-    assert run.id == "test-job"
-    assert run.namespace == "active-namespace"
-    assert run.pod_names == ["pod1"]
-    assert run.get_status().state == "finished"
-    assert run.wait()
-    job = run.get_job()
-    args = kwargs["resource_args"]["kubernetes"]
-    assert job.metadata.labels["test-label"] == args["job_labels"]["test-label"]
-    assert job.spec.backoff_limit == args["backoff_limit"]
-    assert job.spec.completions == args["completions"]
-    assert job.spec.parallelism == args["parallelism"]
-    assert job.spec.template.spec.restart_policy == args["restart_policy"]
-    assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
-    assert job.spec.template.spec.node_name == args["node_name"]
-    assert job.spec.template.spec.tolerations == args["tolerations"]
-    assert job.spec.template.spec.volumes == args["volumes"]
-    assert args["env"][0] in job.spec.template.spec.containers[0].env
-    assert job.spec.template.spec.node_selector == args["node_selector"]
-    container = job.spec.template.spec.containers[0]
-    assert container["volumeMounts"] == args["volume_mounts"]
-    out, err = capsys.readouterr()
-    assert "Job test-job created on pod(s) pod1" in err
-
-def test_launch_kube_invalid_config(
-        mocker
-):
-    
 
 @pytest.mark.timeout(320)
 def test_launch_kube_suspend_cancel(
@@ -634,12 +500,12 @@ def test_kube_user_container(
         "project": project,
         "docker_image": "test:tag",
         "config": {"docker": {"args": {"test-arg": "unused"}}},
-        "resource_args": {"kubernetes": {"job_spec": json.dumps(multi_spec)}},
+        "resource_args": {"kubernetes": multi_spec},
     }
     with pytest.raises(LaunchError) as e:
         run = launch.run(**kwargs)
         assert "Multiple container configurations should be specified" in str(e.value)
-    del kwargs["resource_args"]["kubernetes"]["job_spec"]
+    del kwargs["resource_args"]["kubernetes"]
 
     run = launch.run(**kwargs)
     job = run.get_job()
@@ -677,12 +543,8 @@ def test_kube_multi_container(
             "template": {
                 "spec": {
                     "containers": [
-                        {
-                            "image": "container1:tag",
-                        },
-                        {
-                            "image": "container2:tag",
-                        },
+                        {"image": "container1:tag"},
+                        {"image": "container2:tag"},
                     ]
                 }
             }
@@ -694,12 +556,7 @@ def test_kube_multi_container(
         "resource": "kubernetes",
         "entity": entity,
         "project": project,
-        "resource_args": {
-            "kubernetes": {
-                "job_spec": json.dumps(spec),
-                "container_name": "broken-name",
-            }
-        },
+        "resource_args": {"kubernetes": spec},
     }
     kwargs["docker_image"] = "test:tag"
     with pytest.raises(LaunchError) as e:
@@ -709,28 +566,21 @@ def test_kube_multi_container(
         )
     del kwargs["docker_image"]
 
-    with pytest.raises(LaunchError) as e:
-        run = launch.run(**kwargs)
-        assert "Container name override not supported for multiple containers" in str(
-            e.value
-        )
-
-    del kwargs["resource_args"]["kubernetes"]["container_name"]
-    kwargs["resource_args"]["kubernetes"]["resource_requests"] = {"cpu": 1}
+    kwargs["resource_args"]["kubernetes"]["spec"]["template"]["spec"]["containers"][0][
+        "resources"
+    ] = {"requests": {"cpu": 1}}
+    kwargs["resource_args"]["kubernetes"]["spec"]["template"]["spec"]["containers"][1][
+        "resources"
+    ] = {"requests": {"cpu": 2}}
 
     run = launch.run(**kwargs)
-    out, err = capsys.readouterr()
-    assert (
-        "Container overrides (e.g. resource limits) were provided with multiple containers specified"
-        in err
-    )
     job = run.get_job()
     container1 = job.spec.template.spec.containers[0]
     assert container1.image == "container1:tag"
     assert container1.resources["requests"]["cpu"] == 1
     container2 = job.spec.template.spec.containers[1]
     assert container2.image == "container2:tag"
-    assert container2.resources["requests"]["cpu"] == 1
+    assert container2.resources["requests"]["cpu"] == 2
 
 
 @pytest.mark.timeout(320)
