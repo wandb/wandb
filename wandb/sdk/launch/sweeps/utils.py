@@ -9,16 +9,16 @@ def load_launch_sweep_cli_params(
     launch_config: Optional[str], queue: Union[str, None]
 ) -> Tuple[Dict[str, Any], str]:
     if launch_config:
-        launch_config = util.load_json_yaml_dict(launch_config)
-        if launch_config is None:
+        parsed_config = util.load_json_yaml_dict(launch_config)
+        if parsed_config is None:
             raise LaunchError(f"Invalid format for launch config at {launch_config}")
-        wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
+        wandb.termlog(f"Using launch 🚀 with config: {parsed_config}")
     else:
-        launch_config = {}
+        parsed_config = {}
 
-    queue: Union[str, None] = queue or launch_config.get("queue")
+    queue = queue or parsed_config.get("queue")
 
-    return launch_config, queue
+    return parsed_config, queue
 
 
 def construct_scheduler_entrypoint(

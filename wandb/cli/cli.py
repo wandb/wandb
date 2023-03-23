@@ -34,8 +34,8 @@ from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.launch.sweeps.utils import (
-    load_launch_sweep_cli_params,
     construct_scheduler_entrypoint,
+    load_launch_sweep_cli_params,
 )
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,

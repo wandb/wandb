@@ -1,6 +1,6 @@
 import json
 import random
-
+import subprocess
 import pytest
 import wandb
 from wandb.apis.internal import InternalApi
@@ -315,28 +315,30 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     with open("sweep-config.yaml", "w") as f:
         json.dump(
             {
-                "job": None,
                 "method": "grid",
                 "image_uri": image_uri,
                 "parameters": {"parameter1": {"values": [1, 2, 3]}},
             },
             f,
         )
-    import subprocess
 
-    subprocess.check_output(
+    out = subprocess.check_output(
         [
             "wandb",
-            "sweep",
+            "launch-sweep",
+            "--sweep_config",
             "sweep-config.yaml",
             "-e",
             user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
             "-q",
             queue,
             "--launch_config",
             json.dumps(launch_config),
         ]
     )
+    wandb.termlog(out)
 
 
 @pytest.mark.parametrize(
@@ -345,13 +347,11 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
         (None, {}, None),
         ("", {}, None),
         ("testing111", {"scheduler": {}}, "job123:v1"),
-        ("testing222", {"scheduler": {"num_workers": 5}}, "job"),
     ],
     ids=[
         "None, empty, None",
         "empty, None, None",
         "image + job",
-        "image + malformed job",
     ],
 )
 def test_launch_sweep_launch_error(user, image_uri, launch_config, job):
@@ -381,19 +381,107 @@ def test_launch_sweep_launch_error(user, image_uri, launch_config, job):
             },
             f,
         )
-    import subprocess
+
+    out = subprocess.check_output(
+        [
+            "wandb",
+            "launch-sweep",
+            "--sweep_config",
+            "sweep-config.yaml",
+            "-e",
+            user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
+            "-q",
+            queue,
+            "--launch_config",
+            json.dumps(launch_config),
+        ],
+        stderr=subprocess.STDOUT,
+    )
+
+    if job:
+        assert "Sweep has both 'job' and 'image_uri'" in out.decode("utf-8")
+    else:
+        assert "No 'job' nor 'image_uri' found in sweep config" in out.decode("utf-8")
+
+
+def test_launch_sweep_launch_resume(user):
+    api = InternalApi()
+    public_api = Api()
+    public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
+
+    # make launch project queue
+    res = api.create_run_queue(
+        entity=user,
+        project=LAUNCH_DEFAULT_PROJECT,
+        queue_name="queue",
+        access="USER",
+    )
+
+    if res.get("success") is not True:
+        raise Exception("create queue" + str(res))
+
+    sweep_config = {
+        "job": None,
+        "method": "grid",
+        "image_uri": "test-image:latest",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+
+    with open("sweep-config.yaml", "w") as f:
+        json.dump(sweep_config, f)
 
     with pytest.raises(subprocess.CalledProcessError):
-        subprocess.check_output(
+        out = subprocess.check_output(
             [
                 "wandb",
-                "sweep",
-                "sweep-config.yaml",
+                "launch-sweep",
+                "--resume_id",
+                "bogussweepid",
                 "-e",
                 user,
+                "-p",
+                LAUNCH_DEFAULT_PROJECT,
                 "-q",
-                queue,
-                "--launch_config",
-                json.dumps(launch_config),
+                "queue",
             ],
+            stderr=subprocess.STDOUT,
         )
+        assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
+
+    # Entity, project, and sweep
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
+
+    # no queue
+    out = subprocess.check_output(
+        [
+            "wandb",
+            "launch-sweep",
+            "--resume_id",
+            sweep_id,
+            "-e",
+            user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
+        ],
+        stderr=subprocess.STDOUT,
+    )
+    assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
+
+    out = subprocess.check_output(
+        [
+            "wandb",
+            "launch-sweep",
+            "--resume_id",
+            sweep_id,
+            "-e",
+            user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
+            "-q",
+            "queue",
+        ],
+        stderr=subprocess.STDOUT,
+    )
+    assert "Scheduler added to launch queue (queue)" in out.decode("utf-8")

@@ -280,8 +280,9 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                 f,
             )
         result = runner.invoke(
-            cli.launch_sweep,
+            cli.sweep,
             [
+                "--sweep_config",
                 "sweep-config.yaml",
                 "--launch_config",
                 "launch-config.yaml",
