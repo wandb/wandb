@@ -54,7 +54,7 @@ import yaml
 
 import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
-from wandb.errors import CommError, UsageError, term
+from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
 if TYPE_CHECKING:
@@ -239,6 +239,7 @@ def sentry_set_scope(
         "sweep_id",
         "deployment",
         "_disable_service",
+        "launch",
     ]
 
     s = settings_dict
@@ -1021,7 +1022,7 @@ def no_retry_auth(e: Any) -> bool:
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError(
+        raise AuthenticationError(
             "The API key is either invalid or missing, or the host is incorrect. "
             "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
             "The host defaults to 'https://api.wandb.ai' if not specified. "
@@ -1604,8 +1605,11 @@ def _has_internet() -> bool:
         return False
 
 
-def rand_alphanumeric(length: int = 8, rand: Optional[random.Random] = None) -> str:
-    rand = rand or random.Random()
+def rand_alphanumeric(
+    length: int = 8, rand: Optional[Union[ModuleType, random.Random]] = None
+) -> str:
+    wandb.termerror("rand_alphanumeric is deprecated, use 'secrets.token_hex'")
+    rand = rand or random
     return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 

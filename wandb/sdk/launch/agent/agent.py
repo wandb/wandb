@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 import wandb.util as util
 from wandb.apis.internal import Api
+from wandb.errors import CommError
+from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
 from wandb.sdk.lib import runid
@@ -43,6 +45,9 @@ _logger = logging.getLogger(__name__)
 
 @dataclass
 class JobAndRunStatus:
+    run_queue_item_id: str
+    run_id: Optional[str] = None
+    project: Optional[str] = None
     run: Optional[AbstractRun] = None
     failed_to_start: bool = False
     completed: bool = False
@@ -51,6 +56,10 @@ class JobAndRunStatus:
     @property
     def job_completed(self) -> bool:
         return self.completed or self.failed_to_start
+
+    def update_run_info(self, launch_project: LaunchProject) -> None:
+        self.run_id = launch_project.run_id
+        self.project = launch_project.target_project
 
 
 def _convert_access(access: str) -> str:
@@ -138,7 +147,6 @@ class LaunchAgent:
         self._max_schedulers = _max_from_config(config, "max_schedulers")
         self._pool = ThreadPool(
             processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
-            # initializer=init_pool_processes,
             initargs=(self._jobs, self._jobs_lock),
         )
         self.default_config: Dict[str, Any] = config
@@ -147,6 +155,10 @@ class LaunchAgent:
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
         )
+        self._gorilla_supports_fail_run_queue_items = (
+            self._api.fail_run_queue_item_introspection()
+        )
+
         self._queues = config.get("queues", ["default"])
         create_response = self._api.create_launch_agent(
             self._entity,
@@ -156,6 +168,14 @@ class LaunchAgent:
         )
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
+        if self._api.entity_is_team(self._entity):
+            wandb.termwarn(
+                f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
+            )
+
+    def fail_run_queue_item(self, run_queue_item_id: str) -> None:
+        if self._gorilla_supports_fail_run_queue_items:
+            self._api.fail_run_queue_item(run_queue_item_id)
 
     @property
     def thread_ids(self) -> List[int]:
@@ -233,9 +253,28 @@ class LaunchAgent:
 
     def finish_thread_id(self, thread_id: int) -> None:
         """Removes the job from our list for now."""
+        job_and_run_status = self._jobs[thread_id]
+        if not job_and_run_status.run_id or not job_and_run_status.project:
+            self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+        else:
+            run_info = None
+            # sweep runs exist but have no info before they are started
+            # so run_info returned will be None
+            # normal runs just throw a comm error
+            try:
+                run_info = self._api.get_run_info(
+                    self._entity, job_and_run_status.project, job_and_run_status.run_id
+                )
+
+            except CommError:
+                pass
+            if run_info is None:
+                self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
             del self._jobs[thread_id]
+
         # update status back to polling if no jobs are running
         if len(self.thread_ids) == 0:
             self.update_status(AGENT_POLLING)
@@ -314,16 +353,12 @@ class LaunchAgent:
 
                             try:
                                 self.run_job(job)
-                            except Exception:
+                            except Exception as e:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
-                                try:
-                                    self._api.ack_run_queue_item(job["runQueueItemId"])
-                                except Exception:
-                                    _logger.error(
-                                        f"{LOG_PREFIX}Error acking job when job errored: {traceback.format_exc()}"
-                                    )
+                                util.sentry_exc(e)
+                                self.fail_run_queue_item(job["runQueueItemId"])
 
                 for thread_id in self.thread_ids:
                     self._update_finished(thread_id)
@@ -363,16 +398,16 @@ class LaunchAgent:
         assert thread_id is not None
         try:
             self._thread_run_job(launch_spec, job, default_config, api, thread_id)
-        except LaunchDockerError:
+        except LaunchDockerError as e:
             wandb.termerror(
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
-            api.ack_run_queue_item(job["runQueueItemId"])
             self.finish_thread_id(thread_id)
-        except Exception:
+            util.sentry_exc(e)
+        except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
-            api.ack_run_queue_item(job["runQueueItemId"])
             self.finish_thread_id(thread_id)
+            util.sentry_exc(e)
 
     def _thread_run_job(
         self,
@@ -382,10 +417,11 @@ class LaunchAgent:
         api: Api,
         thread_id: int,
     ) -> None:
-        job_tracker = JobAndRunStatus()
+        job_tracker = JobAndRunStatus(job["runQueueItemId"])
         with self._jobs_lock:
             self._jobs[thread_id] = job_tracker
         project = create_project_from_spec(launch_spec, api)
+        job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, api)
         _logger.info("Fetching resource...")
@@ -393,8 +429,6 @@ class LaunchAgent:
         backend_config: Dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-
-        backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
         override_build_config = launch_spec.get("builder")
 
@@ -409,6 +443,7 @@ class LaunchAgent:
         builder = loader.builder_from_config(build_config, environment, registry)
         backend = loader.runner_from_config(resource, api, backend_config, environment)
         _logger.info("Backend loaded...")
+        api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
         run = backend.run(project, builder)
 
         if _job_is_scheduler(launch_spec):

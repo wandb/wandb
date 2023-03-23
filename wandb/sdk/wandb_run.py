@@ -46,6 +46,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
+from wandb.sdk.lib.filesystem import StrPath
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -233,6 +234,8 @@ class RunStatusChecker:
 
             if result:
                 process(result)
+                # if request finished, clear the handle to send on the next interval
+                local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
             wait_time = max(self._stop_polling_interval - time_elapsed, 0)
@@ -1763,7 +1766,8 @@ class Run:
                 wandb.termwarn(
                     "Saving files without folders. If you want to preserve "
                     "sub directories pass base_path to wandb.save, i.e. "
-                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
+                    repeat=False,
                 )
             else:
                 base_path = "."
@@ -2206,6 +2210,10 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+        if not self._settings.resume:
+            if os.path.exists(self._settings.resume_fname):
+                os.remove(self._settings.resume_fname)
+
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         import pkg_resources
 
@@ -2498,6 +2506,7 @@ class Run:
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
+    # TODO(kdg): remove all artifact swapping logic
     def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
         artifact_key_string = use_as or artifact_name
         replacement_artifact_info = self._launch_artifact_mapping.get(
@@ -2513,10 +2522,6 @@ class Run:
                 )
             return f"{entity}/{project}/{new_name}"
         elif replacement_artifact_info is None and use_as is None:
-            wandb.termwarn(
-                f"Could not find {artifact_name} in launch artifact mapping. "
-                f"Searching for unique artifacts with sequence name: {artifact_name}"
-            )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
             unique_artifact_replacement_info = (
                 self._unique_launch_artifact_sequence_names.get(sequence_name)
@@ -2532,14 +2537,8 @@ class Run:
                 return f"{entity}/{project}/{new_name}"
 
         else:
-            wandb.termwarn(
-                f"Could not find swappable artifact at key: {use_as}. Using {artifact_name}"
-            )
             return artifact_name
 
-        wandb.termwarn(
-            f"Could not find {artifact_key_string} in launch artifact mapping. Using {artifact_name}"
-        )
         return artifact_name
 
     def _detach(self) -> None:
@@ -2698,7 +2697,7 @@ class Run:
     @_run_decorator._attach
     def log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -2839,7 +2838,7 @@ class Run:
 
     def _log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
@@ -2929,20 +2928,19 @@ class Run:
 
     def _prepare_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, StrPath],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
-        if isinstance(artifact_or_path, str):
-            if name is None:
-                name = f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
-            artifact = wandb.Artifact(name, type)
+        if isinstance(artifact_or_path, (str, os.PathLike)):
+            name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
+            artifact = wandb.Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
             elif os.path.isdir(artifact_or_path):
                 artifact.add_dir(artifact_or_path)
-            elif "://" in artifact_or_path:
+            elif "://" in str(artifact_or_path):
                 artifact.add_reference(artifact_or_path)
             else:
                 raise ValueError(
@@ -3685,6 +3683,10 @@ class InvalidArtifact:
         return False
 
 
+class WaitTimeoutError(errors.Error):
+    """Raised when wait() timeout occurs before process is finished."""
+
+
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
     _instance: Union[ArtifactInterface, InvalidArtifact]
@@ -3702,7 +3704,7 @@ class _LazyArtifact(ArtifactInterface):
         if not self._instance:
             future_get = self._future.get(timeout)
             if not future_get:
-                raise errors.WaitTimeoutError(
+                raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
                 )
             resp = future_get.response.log_artifact_response
