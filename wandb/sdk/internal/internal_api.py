@@ -2461,19 +2461,22 @@ class Api:
         err: Optional[Exception] = None
         for mutation in mutations:
             try:
+                variables = {
+                    "id": obj_id,
+                    "config": yaml.dump(config),
+                    "description": config.get("description"),
+                    "entityName": entity or self.settings("entity"),
+                    "projectName": project or self.settings("project"),
+                    "controller": controller,
+                    "launchScheduler": launch_scheduler,
+                    "scheduler": scheduler,
+                }
+                if state:
+                    variables['state'] = state
+                
                 response = self.gql(
                     mutation,
-                    variable_values={
-                        "id": obj_id,
-                        "config": yaml.dump(config),
-                        "description": config.get("description"),
-                        "entityName": entity or self.settings("entity"),
-                        "projectName": project or self.settings("project"),
-                        "controller": controller,
-                        "launchScheduler": launch_scheduler,
-                        "scheduler": scheduler,
-                        "state": state,
-                    },
+                    variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:

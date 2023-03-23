@@ -18,6 +18,8 @@ import wandb
 import wandb.errors as errors
 from wandb import util
 
+from wandb.sdk.launch.sweeps import utils as sweep_utils
+
 try:
     import torch
 except ImportError:
@@ -276,7 +278,7 @@ def test_find_runner():
 
 def test_parse_sweep_id():
     parts = {"name": "test/test/test"}
-    util.parse_sweep_id(parts)
+    sweep_utils.parse_sweep_id(parts)
     assert parts == {"name": "test", "entity": "test", "project": "test"}
 
 

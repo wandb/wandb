@@ -60,8 +60,9 @@ import yaml
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.sdk import wandb_sweep
-from wandb.util import (
-    get_module,
+from wandb.util import get_module
+
+from wandb.sdk.launch.sweeps.utils import (
     handle_sweep_config_violations,
     sweep_config_err_text_from_jsonschema_violations,
 )

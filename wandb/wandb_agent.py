@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 import wandb
+from wandb.sdk.launch.sweeps import utils as sweep_utils
+
 from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
@@ -545,7 +547,7 @@ def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
     parts = dict(entity=entity, project=project, name=sweep_id)
-    err = util.parse_sweep_id(parts)
+    err = sweep_utils.parse_sweep_id(parts)
     if err:
         wandb.termerror(err)
         return

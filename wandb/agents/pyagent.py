@@ -14,7 +14,9 @@ import threading
 import time
 
 import wandb
-from wandb import util, wandb_sdk
+from wandb.sdk.launch.sweeps import utils as sweep_utils
+
+from wandb import wandb_sdk
 from wandb.apis import InternalApi
 
 logger = logging.getLogger(__name__)
@@ -118,7 +120,7 @@ class Agent:
         logger.debug("Agent._setup()")
         self._init()
         parts = dict(entity=self._entity, project=self._project, name=self._sweep_path)
-        err = util.parse_sweep_id(parts)
+        err = sweep_utils.parse_sweep_id(parts)
         if err:
             wandb.termerror(err)
             return

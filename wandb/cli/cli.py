@@ -33,10 +33,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
-from wandb.sdk.launch.sweeps.utils import (
-    construct_scheduler_entrypoint,
-    load_launch_sweep_cli_params,
-)
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -731,7 +728,7 @@ def sweep(
             ctx.invoke(login, no_offline=True)
             api = _get_cling_api(reset=True)
         parts = dict(entity=entity, project=project, name=sweep_id)
-        err = util.parse_sweep_id(parts)
+        err = sweep_utils.parse_sweep_id(parts)
         if err:
             wandb.termerror(err)
             return
@@ -777,7 +774,7 @@ def sweep(
     sweep_obj_id = None
     if update:
         parts = dict(entity=entity, project=project, name=update)
-        err = util.parse_sweep_id(parts)
+        err = sweep_utils.parse_sweep_id(parts)
         if err:
             wandb.termerror(err)
             return
@@ -811,7 +808,7 @@ def sweep(
 
     action = "Updating" if sweep_obj_id else "Creating"
     wandb.termlog(f"{action} sweep from: {config_yaml}")
-    config = util.load_sweep_config(config_yaml)
+    config = sweep_utils.load_sweep_config(config_yaml)
 
     # Set or override parameters
     if name:
@@ -858,7 +855,7 @@ def sweep(
         entity=entity,
         obj_id=sweep_obj_id,
     )
-    util.handle_sweep_config_violations(warnings)
+    sweep_utils.handle_sweep_config_violations(warnings)
 
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
@@ -959,14 +956,14 @@ def launch_sweep(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    # Param validation
-    if not (sweep_config or resume_id) or (sweep_config and resume_id):
+    # if not sweep_config XOR resume_id
+    if not (sweep_config ^ resume_id):
         wandb.termerror("One of 'sweep_config' or 'resume_id' required")
         return
 
-    launch_config, queue = load_launch_sweep_cli_params(launch_config, queue)
+    launch_config, queue = sweep_utils.load_launch_sweep_cli_params(launch_config, queue)
     if not queue:
-        wandb.termerror("Launch-sweeps require setting a 'queue'")
+        wandb.termerror("Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in a passed in --launch_config")
         return
 
     env = os.environ
@@ -991,9 +988,9 @@ def launch_sweep(
         parsed_sweep_config = yaml.safe_load(found["config"])
         wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{resume_id}")
     else:  # loading a sweep from path
-        parsed_sweep_config = util.load_sweep_config(sweep_config)
+        parsed_sweep_config = sweep_utils.load_sweep_config(sweep_config)
 
-    scheduler_entrypoint = construct_scheduler_entrypoint(
+    scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,
@@ -1038,7 +1035,7 @@ def launch_sweep(
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
     )
-    util.handle_sweep_config_violations(warnings)
+    sweep_utils.handle_sweep_config_violations(warnings)
 
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
