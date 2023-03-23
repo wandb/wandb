@@ -401,7 +401,7 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
     assert launch_project.project_dir is not None
     base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
     if os.path.exists(base_requirements):
-        include_only = set()
+        include_only = list()  # maintain order to enable Docker caching
         with open(base_requirements) as f:
             iter = pkg_resources.parse_requirements(f)
             while True:
@@ -411,7 +411,7 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                         name = pkg.name.lower()
                     else:
                         name = str(pkg)
-                    include_only.add(shlex_quote(name))
+                    include_only.append(shlex_quote(name))
                 except StopIteration:
                     break
                 # Different versions of pkg_resources throw different errors
