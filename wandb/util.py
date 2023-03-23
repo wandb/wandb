@@ -50,7 +50,7 @@ import requests
 import yaml
 
 import wandb
-from wandb.env import error_reporting_enabled, get_app_url
+from wandb.env import get_app_url
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
@@ -887,9 +887,9 @@ def no_retry_auth(e: Any) -> bool:
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
     elif wandb.run:
-        raise BackendError(f"Permission denied to access {wandb.run.path}")
+        raise CommError(f"Permission denied to access {wandb.run.path}")
     else:
-        raise BackendError(
+        raise CommError(
             "It appears that you do not have permission to access the requested resource. "
             "Please reach out to the project owner to grant you access. "
             "If you have the correct permissions, verify that there are no issues with your networking setup."
