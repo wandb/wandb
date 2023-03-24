@@ -194,6 +194,12 @@ if wandb_sdk.lib.ipython.in_notebook():
     load_ipython_extension(get_ipython())
 
 
+from .analytics import Sentry as _Sentry
+
+_sentry = _Sentry()
+_sentry.setup()
+
+
 __all__ = (
     "__version__",
     "init",
