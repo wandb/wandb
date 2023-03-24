@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -97,22 +97,14 @@ def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
     return config
 
 
-def load_launch_sweep_cli_params(
-    launch_config: Optional[str], queue: Union[str, None]
-) -> Tuple[Dict[str, Any], str]:
-    if launch_config:
-        parsed_config = util.load_json_yaml_dict(launch_config)
+def load_launch_sweep_config(config: Optional[str]) -> Tuple[Dict[str, Any], str]:
+    parsed_config = {}
+    if config:
+        parsed_config = util.load_json_yaml_dict(config)
         if parsed_config is None:
-            raise LaunchError(
-                f"Could not load config from {launch_config}. Check formatting"
-            )
+            raise LaunchError(f"Could not load config from {config}. Check formatting")
         wandb.termlog(f"Using launch 🚀 with config: {parsed_config}")
-    else:
-        parsed_config = {}
-
-    queue = queue or parsed_config.get("queue")
-
-    return parsed_config, queue
+    return parsed_config
 
 
 def construct_scheduler_entrypoint(

@@ -15,6 +15,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
+from typing import Any, Dict
 
 import click
 import yaml
@@ -891,12 +892,10 @@ def sweep(
 
 
 @cli.command(
-    "on-launch",
     context_settings=CONTEXT,
     no_args_is_help=True,
     help="Run a W&B launch sweep (Experimental).",
 )
-@click.pass_context
 @click.option(
     "--queue",
     "-q",
@@ -917,16 +916,10 @@ def sweep(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
-    "--sweep_config",
-    "-sc",
+    "--config",
+    "-c",
     default=None,
-    help="Path to a sweep configuration yaml",
-)
-@click.option(
-    "--launch_config",
-    "-lc",
-    default=None,
-    help="Path to a launch configuration json/yaml or raw json",
+    help="Path to a configuration yaml",
 )
 @click.option(
     "--resume_id",
@@ -940,14 +933,14 @@ def sweep(
     default=1,
     help="Number of concurrent jobs a scheduler can run",
 )
+@click.pass_context
 @display_error
 def launch_sweep(
     ctx,
     project,
     entity,
     queue,
-    sweep_config,
-    launch_config,
+    config,
     resume_id,
     num_workers,
 ):
@@ -958,16 +951,23 @@ def launch_sweep(
         api = _get_cling_api(reset=True)
 
     # if not sweep_config XOR resume_id
-    if not (sweep_config ^ resume_id):
-        wandb.termerror("One of 'sweep_config' or 'resume_id' required")
+    if not (bool(config) ^ bool(resume_id)):
+        wandb.termerror("One of 'config' or 'resume_id' required")
         return
 
-    launch_config, queue = sweep_utils.load_launch_sweep_cli_params(
-        launch_config, queue
-    )
+    parsed_config = sweep_utils.load_launch_sweep_config(config)
+    # Rip special keys out of config
+    scheduler_args: Dict[str, Any] = parsed_config.get("scheduler", {})
+    launch_args: Dict[str, Any] = parsed_config.get("launch", {})
+    if scheduler_args:
+        del parsed_config["scheduler"]
+    if launch_args:
+        del parsed_config["launch"]
+
+    queue = queue or launch_args.get("queue")
     if not queue:
         wandb.termerror(
-            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in a passed in --launch_config"
+            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in a --config"
         )
         return
 
@@ -993,7 +993,7 @@ def launch_sweep(
         parsed_sweep_config = yaml.safe_load(found["config"])
         wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{resume_id}")
     else:  # loading a sweep from path
-        parsed_sweep_config = sweep_utils.load_sweep_config(sweep_config)
+        parsed_sweep_config = sweep_utils.load_sweep_config(config)
 
     scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
@@ -1005,7 +1005,6 @@ def launch_sweep(
         # error already logged
         return
 
-    scheduler_config = launch_config.get("scheduler", {})
     # Launch job spec for the Scheduler
     launch_scheduler_spec = construct_launch_spec(
         uri=SCHEDULER_URI,
@@ -1013,11 +1012,11 @@ def launch_sweep(
         name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
-        docker_image=scheduler_config.get("docker_image"),
-        resource=scheduler_config.get("resource", "local-process"),
+        docker_image=scheduler_args.get("docker_image"),
+        resource=scheduler_args.get("resource", "local-process"),
         entry_point=scheduler_entrypoint,
-        resource_args=scheduler_config.get("resource_args", {}),
-        repository=launch_config.get("registry", {}).get("url", None),
+        resource_args=scheduler_args.get("resource_args", {}),
+        repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
         parameters=None,
