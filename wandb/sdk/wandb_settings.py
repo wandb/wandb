@@ -395,6 +395,7 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _extra_http_headers: Mapping[str, str]
     _flow_control_custom: bool
     _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
@@ -448,7 +449,6 @@ class Settings:
     docker: str
     email: str
     entity: str
-    extra_http_headers: Sequence[str]
     files_dir: str
     force: bool
     git_commit: str
@@ -541,6 +541,7 @@ class Settings:
             },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _extra_http_headers={"preprocessor": _str_as_dict},
             _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,

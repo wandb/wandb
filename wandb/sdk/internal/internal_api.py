@@ -87,6 +87,7 @@ if TYPE_CHECKING:
         api_key: Optional[str]
         entity: Optional[str]
         project: Optional[str]
+        _extra_http_headers: Optional[Mapping[str, str]]
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
@@ -178,6 +179,7 @@ class Api:
             "api_key": None,
             "entity": None,
             "project": None,
+            "_extra_http_headers": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
@@ -195,13 +197,13 @@ class Api:
             "heartbeat_seconds": 30,
         }
 
-        # FIXME allow the headers to be provided as dicts. For an easier PoC we
-        # put them in a Sequence[str] where header name and value are
-        # concatenated with a ":" as delimiter.
-        extra_http_headers = {}
-        for header in self.settings('extra_http_headers'):
-            name, value = header.split(':')
-            extra_http_headers[name] = value
+        # todo: remove this hacky hack after settings refactor is complete
+        #  keeping this code here to limit scope and so that it is easy to remove later
+        extra_http_headers = self.settings(
+            "_extra_http_headers"
+        ) or wandb.sdk.wandb_settings._str_as_dict(
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        )
 
         self.client = Client(
             transport=GraphQLSession(
