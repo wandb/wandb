@@ -1,10 +1,8 @@
 import datetime
 import logging
-import multiprocessing as mp
 import sys
 import threading
-from multiprocessing import synchronize
-from typing import TYPE_CHECKING, Any, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, List, Optional, TypeVar
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, runtime_checkable
@@ -18,6 +16,7 @@ if TYPE_CHECKING:
     from wandb.sdk.interface.interface import FilesDict
     from wandb.sdk.internal.settings_static import SettingsStatic
 
+import psutil
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 
@@ -110,13 +109,13 @@ class MetricsMonitor:
         metrics: List[Metric],
         interface: Interface,
         settings: "SettingsStatic",
-        shutdown_event: synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.metrics = metrics
         self.asset_name = asset_name
         self._interface = interface
-        self._process: Optional[Union[mp.Process, threading.Thread]] = None
-        self._shutdown_event: synchronize.Event = shutdown_event
+        self._process: Optional[threading.Thread] = None
+        self._shutdown_event: threading.Event = shutdown_event
 
         self.sampling_interval: float = float(
             max(
@@ -137,6 +136,10 @@ class MetricsMonitor:
                 for metric in self.metrics:
                     try:
                         metric.sample()
+                    except psutil.NoSuchProcess:
+                        logger.info(f"Process {metric.name} has exited.")
+                        self._shutdown_event.set()
+                        break
                     except Exception as e:
                         logger.error(f"Failed to sample metric: {e}")
                 self._shutdown_event.wait(self.sampling_interval)

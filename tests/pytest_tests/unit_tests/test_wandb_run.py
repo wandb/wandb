@@ -227,3 +227,27 @@ def test_run_deepcopy():
     run = wandb_sdk.wandb_run.Run(settings=s, config=c)
     run2 = copy.deepcopy(run)
     assert id(run) == id(run2)
+
+
+@pytest.mark.parametrize(
+    "settings, expected",
+    [
+        ({}, False),
+        ({"resume": True}, True),
+        ({"resume": "auto"}, True),
+        ({"resume": "allow"}, True),
+        ({"resume": "never"}, True),
+        ({"resume": "must"}, True),
+        ({"resume": "run_id"}, True),
+    ],
+)
+def test_resumed_run_resume_file_state(mock_run, tmp_path, settings, expected):
+    tmp_file = tmp_path / "test_resume.json"
+    tmp_file.write_text("{'run_id': 'test'}")
+
+    run = mock_run(
+        use_magic_mock=True, settings={"resume_fname": str(tmp_file), **settings}
+    )
+    run._on_ready()
+
+    assert tmp_file.exists() == expected

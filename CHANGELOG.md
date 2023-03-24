@@ -1,3 +1,26 @@
+## 0.14.0 (March 14, 2023)
+
+### :magic_wand: Enhancements
+* feat(launch): support cuda base image for launch runs by @KyleGoyette in https://github.com/wandb/wandb/pull/5044
+* feat(launch): warn users of which packages failed to install during build process by @KyleGoyette in https://github.com/wandb/wandb/pull/5109
+* feat(sdk): add support for importing runs from MLFlow by @andrewtruong in https://github.com/wandb/wandb/pull/4950
+* feat(launch): mark queued runs that fail to launch as `FAILED` by @KyleGoyette in https://github.com/wandb/wandb/pull/5129
+### :hammer: Fixes
+* fix(sdk): temporarily remove local api key validation by @dmitryduev in https://github.com/wandb/wandb/pull/5095
+* fix(launch): launch agent gracefully removes thread when it has an exception by @TimH98 in https://github.com/wandb/wandb/pull/5105
+* fix(launch): give clear error message when cannot connect to Docker daemon by @TimH98 in https://github.com/wandb/wandb/pull/5092
+* fix(launch): launch support for EKS instance roles by @bcsherma in https://github.com/wandb/wandb/pull/5112
+* fix(launch): cleaner error messages when launch encounters docker errors and graceful fail by @TimH98 in https://github.com/wandb/wandb/pull/5124
+* fix(launch): hash docker images based on job version and dockerfile contents by @KyleGoyette in https://github.com/wandb/wandb/pull/4996
+* security(launch): warn when agent is started polling on a team queue by @TimH98 in https://github.com/wandb/wandb/pull/5126
+* fix(sdk): add telemetry when syncing tfevents files by @raubitsj in https://github.com/wandb/wandb/pull/5141
+* fix(sdk): fix regression preventing run stopping from working by @raubitsj in https://github.com/wandb/wandb/pull/5139
+* fix(launch): instruct user how to handle missing kubernetes import when using kubernetes runner or kaniko builder by @TimH98 in https://github.com/wandb/wandb/pull/5138
+* fix(launch): hide unsupported launch CLI options by @KyleGoyette in https://github.com/wandb/wandb/pull/5153
+* fix(launch): make launch image builder install Pytorch properly with dependencies on different hardware by @bcsherma in https://github.com/wandb/wandb/pull/5147
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.11...v0.14.0
+
 ## 0.13.11 (March 7, 2023)
 
 ### :magic_wand: Enhancements
