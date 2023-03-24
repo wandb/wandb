@@ -185,7 +185,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
 
     def mock_create_from_yaml(yaml_objects, jobs_dict, mock_status):
         jobd = yaml_objects[0]
-        name = jobd["metadata"]["name"]
+        name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "testname"
 
