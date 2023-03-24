@@ -141,29 +141,64 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
 class ResumeState:
     resumed: bool
     step: int
-    history: int
-    events: int
-    output: int
+    history_line_count: int
+    events_line_count: int
+    output_line_count: int
     runtime: float
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
+    group: Optional[str]
+    job_type: Optional[str]
 
     def __init__(self) -> None:
         self.resumed = False
         self.step = 0
-        self.history = 0
-        self.events = 0
-        self.output = 0
+        self.history_line_count = 0
+        self.events_line_count = 0
+        self.output_line_count = 0
         self.runtime = 0
         # wandb_runtime is the canonical runtime (stored in summary._wandb.runtime)
         self.wandb_runtime = None
         self.summary = None
         self.config = None
+        self.group = None
+        self.job_type = None
 
     def __str__(self) -> str:
         obj = ",".join(map(lambda it: f"{it[0]}={it[1]}", vars(self).items()))
         return f"ResumeState({obj})"
+
+    def from_resume_status(self, resume_status: dict) -> None:
+        history = json.loads(resume_status["historyTail"]) or {}
+        if history:
+            history = json.loads(history[-1])
+
+        events = json.loads(resume_status["eventsTail"]) or {}
+        if events:
+            events = json.loads(events[-1])
+
+        self.step = history.get("_step", -1) + 1
+
+        history_runtime = history.get("_runtime", 0)
+        events_runtime = events.get("_runtime", 0)
+        self.runtime = max(history_runtime, events_runtime)
+
+        # TODO: Do we need to restore config / summary?
+        # System metrics runtime is usually greater than history
+        self.config = json.loads(resume_status["config"] or "{}")
+        self.summary = json.loads(resume_status["summaryMetrics"] or "{}")
+
+        new_runtime = self.summary.get("_wandb", {}).get("runtime", None)
+        if new_runtime is not None:
+            self.wandb_runtime = new_runtime
+
+        self.group = resume_status.get("group")
+        self.job_type = resume_status.get("jobType")
+        self.history_line_count = resume_status["historyLineCount"]
+        self.events_line_count = resume_status["eventsLineCount"]
+        self.output_line_count = resume_status["logLineCount"]
+        self.resumed = True
 
 
 class _OutputRawStream:
@@ -765,22 +800,20 @@ class SendManager:
             entity=entity, project_name=run.project, name=run.run_id  # type: ignore
         )
 
-        if not resume_status:
-            if self._settings.resume == "must":
-                error = wandb_internal_pb2.ErrorInfo()
-                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = (
-                    "You provided an invalid value for the `resume` argument."
-                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
-                    " Please check your inputs and try again with a valid run ID."
-                    " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
-                )
-                return error
+        if resume_status is None and self._settings.resume == "must":
+            error = wandb_internal_pb2.ErrorInfo()
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "You provided an invalid value for the `resume` argument."
+                f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                " Please check your inputs and try again with a valid run ID."
+                " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
+            )
+            return error
+
+        if resume_status is None:
             return None
 
-        #
-        # handle cases where we have resume_status
-        #
         if self._settings.resume == "never":
             error = wandb_internal_pb2.ErrorInfo()
             error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
@@ -791,45 +824,19 @@ class SendManager:
             )
             return error
 
-        history = {}
-        events = {}
-        config = {}
-        summary = {}
         try:
-            events_rt = 0
-            history_rt = 0
-            history = json.loads(resume_status["historyTail"])
-            if history:
-                history = json.loads(history[-1])
-                history_rt = history.get("_runtime", 0)
-            events = json.loads(resume_status["eventsTail"])
-            if events:
-                events = json.loads(events[-1])
-                events_rt = events.get("_runtime", 0)
-            config = json.loads(resume_status["config"] or "{}")
-            summary = json.loads(resume_status["summaryMetrics"] or "{}")
-            new_runtime = summary.get("_wandb", {}).get("runtime", None)
-            if new_runtime is not None:
-                self._resume_state.wandb_runtime = new_runtime
-
+            self._resume_state.from_resume_status(resume_status)
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume (%s) " % run.run_id
-                return error
+                error.message = (
+                    f"An issue was encountered while attempting to resume the run ({run.run_id}). "
+                    "The resume state of the run could not be retrieved and since the 'resume' is 'must', resuming is required."
+                )
 
-        # TODO: Do we need to restore config / summary?
-        # System metrics runtime is usually greater than history
-        self._resume_state.runtime = max(events_rt, history_rt)
-        self._resume_state.step = history.get("_step", -1) + 1 if history else 0
-        self._resume_state.history = resume_status["historyLineCount"]
-        self._resume_state.events = resume_status["eventsLineCount"]
-        self._resume_state.output = resume_status["logLineCount"]
-        self._resume_state.config = config
-        self._resume_state.summary = summary
-        self._resume_state.resumed = True
+                return error
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
@@ -1066,6 +1073,7 @@ class SendManager:
             self._run.display_name = display_name
         project = server_run.get("project")
         # TODO: remove self._api.set_settings, and make self._project a property?
+        print(server_run)
         if project:
             project_name = project.get("name")
             if project_name:
@@ -1099,15 +1107,21 @@ class SendManager:
         self._fs.set_file_policy("wandb-summary.json", file_stream.SummaryFilePolicy())
         self._fs.set_file_policy(
             "wandb-history.jsonl",
-            file_stream.JsonlFilePolicy(start_chunk_id=self._resume_state.history),
+            file_stream.JsonlFilePolicy(
+                start_chunk_id=self._resume_state.history_line_count
+            ),
         )
         self._fs.set_file_policy(
             "wandb-events.jsonl",
-            file_stream.JsonlFilePolicy(start_chunk_id=self._resume_state.events),
+            file_stream.JsonlFilePolicy(
+                start_chunk_id=self._resume_state.events_line_count
+            ),
         )
         self._fs.set_file_policy(
             "output.log",
-            file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state.output),
+            file_stream.CRDedupeFilePolicy(
+                start_chunk_id=self._resume_state.output_line_count
+            ),
         )
 
         # hack to merge run_settings and self._settings object together

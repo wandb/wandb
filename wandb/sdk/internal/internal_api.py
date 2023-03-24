@@ -954,6 +954,8 @@ class Api:
                     historyTail
                     eventsTail
                     config
+                    group
+                    jobType
                 }
             }
         }
@@ -1600,6 +1602,8 @@ class Api:
                 bucket {
                     id
                     name
+                    group
+                    jobType
                     displayName
                     description
                     config
