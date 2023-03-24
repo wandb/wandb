@@ -95,7 +95,7 @@ class Sentry:
         status: Optional["SessionStatus"] = None,
     ) -> None:
         error = Exception(exc) if isinstance(exc, str) else exc
-        # self.hub.capture_exception(_exc)  # type: ignore
+        # based on self.hub.capture_exception(_exc)
         if error is not None:
             exc_info = sentry_sdk.utils.exc_info_from_error(error)
         else:
@@ -145,7 +145,7 @@ class Sentry:
 
     @_noop_if_disabled
     def end_session(self) -> None:
-        """Track session to get metrics about error-free rate."""
+        """End the current session."""
         assert self.hub is not None
         client, scope = self.hub._stack[-1]
         session = scope._session
@@ -156,7 +156,7 @@ class Sentry:
 
     @_noop_if_disabled
     def mark_session(self, status: Optional["SessionStatus"] = None) -> None:
-        """Mark all sessions as crashed."""
+        """Update the status of the current session."""
         assert self.hub is not None
         _, scope = self.hub._stack[-1]
         session = scope._session
