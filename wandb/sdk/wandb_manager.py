@@ -15,7 +15,6 @@ from wandb.errors import Error
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
-from wandb.util import sentry_reraise
 
 if TYPE_CHECKING:
     from wandb.sdk.service import service
@@ -161,7 +160,7 @@ class _Manager:
         try:
             self._service_connect()
         except ManagerConnectionError as e:
-            sentry_reraise(e, delay=True)
+            wandb._sentry.reraise(e)
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
