@@ -634,7 +634,6 @@ class Settings:
             disable_git={"preprocessor": _str_as_bool},
             disable_job_creation={"value": False, "preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
-            extra_http_headers={"value": {}},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
