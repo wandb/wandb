@@ -702,8 +702,8 @@ class TestAsyncUpload:
         save_fn_async.assert_called_once()
         save_fn_sync.assert_called_once()
 
-    @patch("wandb.util.sentry_exc")
-    def test_reports_err_to_sentry(self, sentry_exc: Mock, tmp_path: Path):
+    @patch("wandb._sentry.exception")
+    def test_reports_err_to_sentry(self, exception: Mock, tmp_path: Path):
         exc = Exception("Async upload failed")
         save_fn_async = Mock(wraps=asyncify(Mock(side_effect=exc)))
 
@@ -718,7 +718,7 @@ class TestAsyncUpload:
             settings=make_async_settings(10),
         )
 
-        sentry_exc.assert_called_once_with(exc)
+        exception.assert_called_once_with(exc)
 
 
 class TestArtifactCommit:
