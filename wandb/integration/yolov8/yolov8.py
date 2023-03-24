@@ -58,7 +58,7 @@ class WandbCallback:
         self.tags = tags
         self.resume = resume
         self.kwargs = kwargs
-        self.og_plot_predictions: Union[None, Callable] = None
+        self.origitnal_plot_predictions_fn: Union[None, Callable] = None
         self.validation_table: Union[None, wandb.Table] = None
 
     def on_pretrain_routine_start(self, trainer: BaseTrainer) -> None:
@@ -208,7 +208,7 @@ class WandbCallback:
             self.validation_table = wandb.Table(
                 columns=["Batch", "Ground Truth", "Prediction", *class_names]
             )
-            self.og_plot_predictions = validator.plot_predictions
+            self.origitnal_plot_predictions_fn = validator.plot_predictions
             validator.plot_predictions = partial(
                 plot_detection_predictions, self, validator
             )
@@ -217,7 +217,7 @@ class WandbCallback:
             self.validation_table = wandb.Table(
                 columns=["Batch", "Ground Truth", "Prediction", *class_names]
             )
-            self.og_plot_predictions = validator.plot_predictions
+            self.origitnal_plot_predictions_fn = validator.plot_predictions
             validator.plot_predictions = partial(
                 plot_segmentation_predictions, self, validator
             )
@@ -226,9 +226,9 @@ class WandbCallback:
         """On validation end we log the validation table and unpatch the validator's `plot_predictions` method."""
         if self.validation_table is not None:
             self.run.log({"sample_predictions": self.validation_table})
-        if self.og_plot_predictions is not None:
-            validator.plot_predictions = self.og_plot_predictions
-            self.og_plot_predictions = None
+        if self.origitnal_plot_predictions_fn is not None:
+            validator.plot_predictions = self.origitnal_plot_predictions_fn
+            self.origitnal_plot_predictions_fn = None
             self.validation_table = None
 
     @property

@@ -26,7 +26,7 @@ def convert_to_wb_images(
     Additionally, returns a list of dictionaries with the average confidences for each class
     """
     images = batch["img"]
-    captions = batch["im_file"]
+    image_paths = batch["im_file"]
     if isinstance(images, torch.Tensor):
         images = images.cpu().float().numpy()
     if isinstance(cls, torch.Tensor):
@@ -46,12 +46,12 @@ def convert_to_wb_images(
 
     bs, _, h, w = images.shape
     scores_data = []
-    for i in range(len(images)):
+    for i, image in enumerate(images):
         if len(cls) > 0:
-            img = images[i].transpose(1, 2, 0)
+            img = image.transpose(1, 2, 0)
             image_kwargs = {
                 "data_or_path": img,
-                "caption": pathlib.Path(captions[i]).name,
+                "caption": pathlib.Path(image_paths[i]).name,
             }
             prediction_boxes_data, prediction_masks_data = load_boxes_data(
                 i, batch_idx, cls, bboxes, masks, names, h, w
@@ -119,7 +119,7 @@ def convert_to_wb_images(
 
 
 def load_boxes_data(
-    i: int,
+    image_index: int,
     batch_idx: np.array,
     cls: np.array,
     bboxes: np.array,
@@ -130,7 +130,7 @@ def load_boxes_data(
 ) -> Tuple[List[Dict[str, Any]], Optional[np.array]]:
     """Utility to parse and convert bounding boxes and masks from YOLO validator wandb.Image format"""
     boxes_data = []
-    idx = batch_idx == i
+    idx = batch_idx == image_index
     boxes = xywh2xyxy(bboxes[idx, :4]).T
     classes = cls[idx].astype("int")
     labels = bboxes.shape[1] == 4
@@ -155,7 +155,7 @@ def load_boxes_data(
         if idx.shape[0] == masks.shape[0]:  # overlap_masks=False
             image_masks = masks[idx]
         else:  # overlap_masks=True
-            image_masks = masks[[i]]  # (1, 640, 640)
+            image_masks = masks[[image_index]]  # (1, 640, 640)
             nl = idx.sum()
             index = np.arange(nl).reshape(nl, 1, 1) + 1
             image_masks = np.repeat(image_masks, nl, axis=0)
