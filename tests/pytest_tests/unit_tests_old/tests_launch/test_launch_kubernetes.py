@@ -365,7 +365,7 @@ def test_launch_kube_suspend_cancel(
         "project": project,
         "resource_args": {
             "kubernetes": {
-                "config_file": "dummy.yaml",
+                "configFile": "dummy.yaml",
                 "suspend": False,
             },
         },
