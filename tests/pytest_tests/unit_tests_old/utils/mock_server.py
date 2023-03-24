@@ -2219,7 +2219,7 @@ index 30d74d2..9a2c773 100644
             }
         )
 
-    @app.route("/api/5288891/store/", methods=["POST"])
+    @app.route("/api/4504800232407040/store/", methods=["POST"])
     def sentry_put():
         ctx = get_ctx()
         data = request.get_data()
@@ -2229,7 +2229,7 @@ index 30d74d2..9a2c773 100644
         ctx["sentry_events"].append(data)
         return ""
 
-    @app.route("/api/5288891/envelope/", methods=["POST"])
+    @app.route("/api/4504800232407040/envelope/", methods=["POST"])
     def sentry_session_put():
         ctx = get_ctx()
         data = request.get_data()
