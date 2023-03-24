@@ -2472,8 +2472,8 @@ class Api:
                     "scheduler": scheduler,
                 }
                 if state:
-                    variables['state'] = state
-                
+                    variables["state"] = state
+
                 response = self.gql(
                     mutation,
                     variable_values=variables,

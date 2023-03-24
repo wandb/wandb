@@ -103,7 +103,9 @@ def load_launch_sweep_cli_params(
     if launch_config:
         parsed_config = util.load_json_yaml_dict(launch_config)
         if parsed_config is None:
-            raise LaunchError(f"Could not load config from {launch_config}. Check formatting")
+            raise LaunchError(
+                f"Could not load config from {launch_config}. Check formatting"
+            )
         wandb.termlog(f"Using launch 🚀 with config: {parsed_config}")
     else:
         parsed_config = {}
@@ -126,10 +128,14 @@ def construct_scheduler_entrypoint(
     job = sweep_config.get("job")
     image_uri = sweep_config.get("image_uri")
     if not job and not image_uri:  # don't allow empty string
-        wandb.termerror("No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep")
+        wandb.termerror(
+            "No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep"
+        )
         return []
     elif job and image_uri:
-        wandb.termerror("Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one")
+        wandb.termerror(
+            "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
+        )
         return []
 
     entrypoint = [

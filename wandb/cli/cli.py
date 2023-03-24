@@ -664,7 +664,6 @@ def sync(
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
-@click.pass_context
 @click.option("--project", "-p", default=None, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
@@ -698,6 +697,7 @@ def sync(
     help="Resume a sweep to continue running new runs.",
 )
 @click.argument("config_yaml_or_sweep_id")
+@click.pass_context
 @display_error
 def sweep(
     ctx,
@@ -891,6 +891,7 @@ def sweep(
 
 
 @cli.command(
+    "on-launch",
     context_settings=CONTEXT,
     no_args_is_help=True,
     help="Run a W&B launch sweep (Experimental).",
@@ -961,9 +962,13 @@ def launch_sweep(
         wandb.termerror("One of 'sweep_config' or 'resume_id' required")
         return
 
-    launch_config, queue = sweep_utils.load_launch_sweep_cli_params(launch_config, queue)
+    launch_config, queue = sweep_utils.load_launch_sweep_cli_params(
+        launch_config, queue
+    )
     if not queue:
-        wandb.termerror("Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in a passed in --launch_config")
+        wandb.termerror(
+            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in a passed in --launch_config"
+        )
         return
 
     env = os.environ
@@ -1213,7 +1218,7 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    wandb._sentry.configure_scope(process_context="launch_cli")
+    util.sentry_set_scope(process_context="launch_cli")
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
@@ -1280,11 +1285,11 @@ def launch(
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
-            wandb._sentry.exception(e)
+            util.sentry_exc(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.error("=== %s ===", e)
-            wandb._sentry.exception(e)
+            util.sentry_exc(e)
             sys.exit(e)
     else:
         try:
@@ -1309,7 +1314,7 @@ def launch(
                 repository=repository,
             )
         except Exception as e:
-            wandb._sentry.exception(e)
+            util.sentry_exc(e)
             raise e
 
 
@@ -1369,7 +1374,7 @@ def launch_agent(
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    wandb._sentry.configure_scope(process_context="launch_agent")
+    util.sentry_set_scope(process_context="launch_agent")
     if url is not None:
         raise LaunchError(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
@@ -1400,7 +1405,7 @@ def launch_agent(
     try:
         wandb_launch.create_and_run_agent(api, agent_config)
     except Exception as e:
-        wandb._sentry.exception(e)
+        util.sentry_exc(e)
         raise e
 
 
@@ -1444,7 +1449,7 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    wandb._sentry.configure_scope(process_context="sweep_scheduler")
+    util.sentry_set_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
@@ -1467,7 +1472,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
-        wandb._sentry.exception(e)
+        util.sentry_exc(e)
         raise e
 
 
