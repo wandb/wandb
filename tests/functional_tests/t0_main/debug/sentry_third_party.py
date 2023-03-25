@@ -24,7 +24,7 @@ def main():
     assert sentry_sdk.Hub.current.client.dsn != wandb._sentry.dsn
     # but an internal Sentry client for wandb is created ok if WANDB_ERROR_REPORTING != False
     if wandb.env.error_reporting_enabled():
-        assert isinstance(wandb._sentry.client, sentry_sdk.client.Client)
+        assert isinstance(wandb._sentry.hub, sentry_sdk.hub.Hub)
 
     run = wandb.init()
 
