@@ -12,6 +12,7 @@ else:
 
 _Setting = Literal[
     "_args",
+    "_async_upload_concurrency_limit",
     "_cli_only_mode",
     "_colab",
     "_config_dict",
@@ -150,17 +151,18 @@ _Setting = Literal[
 ]
 
 SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
+    "_async_upload_concurrency_limit",
     "_service_wait",
     "_stats_sample_rate_seconds",
     "_stats_samples_to_average",
     "anonymous",
-    "base_url",
-    "is_local",
     "api_key",
+    "base_url",
     "console",
     "mode",
     "problem",
     "project",
+    "run_id",
     "start_method",
     "_colab",
     "_console",
@@ -173,7 +175,6 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "_flow_control_disabled",
     "_flow_control_custom",
     "_stats_neuron_monitor_config_path",
-    "run_id",
     "run_mode",
     "_start_datetime",
     "timespec",
@@ -182,6 +183,7 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "tmp_dir",
     "_tmp_code_dir",
     "_windows",
+    "is_local",
     "deployment",
     "files_dir",
     "log_dir",

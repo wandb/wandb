@@ -143,6 +143,8 @@ SYMBOLS_TYPING = {
 
 SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
 
+SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
+
 
 def test_library_root():
     symbol_list = dir(wandb)
@@ -155,6 +157,7 @@ def test_library_root():
         - SYMBOLS_ROOT_OTHER
         - SYMBOLS_TYPING
         - SYMBOLS_SERVICE
+        - SYMBOLS_ANALYTICS
     )
     assert symbol_unknown == set()
 

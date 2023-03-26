@@ -40,7 +40,6 @@ from typing import (
 import requests
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
-from wandb_gql.transport.requests import RequestsHTTPTransport
 
 import wandb
 from wandb import __version__, env, util
@@ -59,6 +58,7 @@ from wandb.sdk.launch.utils import (
     apply_patch,
 )
 from wandb.sdk.lib import filesystem, ipython, retry, runid
+from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
 if TYPE_CHECKING:
@@ -435,7 +435,7 @@ class Api:
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         self._base_client = Client(
-            transport=RequestsHTTPTransport(
+            transport=GraphQLSession(
                 headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -5274,12 +5274,6 @@ class Artifact(artifacts.Artifact):
                 run_obj["name"],
             )
 
-    def __setitem__(self, name, item):
-        return self.add(item, name)
-
-    def __getitem__(self, name):
-        return self.get(name)
-
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
@@ -5583,7 +5577,6 @@ class Job:
         queue=None,
         resource="local-container",
         resource_args=None,
-        cuda=False,
         project_queue=None,
     ):
         from wandb.sdk.launch import launch_add
@@ -5610,6 +5603,5 @@ class Job:
             resource=resource,
             project_queue=project_queue,
             resource_args=resource_args,
-            cuda=cuda,
         )
         return queued_run
