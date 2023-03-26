@@ -154,6 +154,8 @@ class LaunchAgent:
     def job_ids(self) -> List[Union[int, str]]:
         """Returns a list of keys running job ids for the agent."""
         return list(self._jobs.keys())
+
+    @property
     def thread_ids(self) -> List[int]:
         """Returns a list of keys running thread ids for the agent."""
         with self._jobs_lock:
