@@ -564,11 +564,13 @@ class InterfaceBase:
         run: Optional["Run"] = None,
     ) -> None:
         run = run or self._run
+        from wandb.sdk.rich_types.utils import bind_to_run
+        from pathlib import Path
 
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
-        # for key, value in data.items():
-        #     value.publish(self, run.dir, key, str(0))
-        #     data[key] = value._to_json()
+        # data = bind_to_run(data, self, Path(run.dir), str(user_step))
+        # print("publish_partial_history", data)
+        #
         data.pop("_step", None)
 
         # add timestamp to the history request, if not already present

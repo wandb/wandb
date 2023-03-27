@@ -35,7 +35,7 @@ class Media:
         }
 
     def bind_to_run(
-        self, interface, start: pathlib.Path, *namespace, suffix: str = ""
+        self, interface, root_dir: pathlib.Path, *namespace, suffix: str = ""
     ) -> None:
         """Bind this media object to a run.
 
@@ -48,7 +48,7 @@ class Media:
         sep = self.FILE_SEP
         file_name = pathlib.Path(sep.join(namespace)).with_suffix(suffix)
 
-        dest_path = pathlib.Path(start) / self.RELATIVE_PATH / file_name
+        dest_path = pathlib.Path(root_dir) / self.RELATIVE_PATH / file_name
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self._is_temp_path:
@@ -58,7 +58,7 @@ class Media:
 
         self._source_path = dest_path
         self._is_temp_path = False
-        self._bind_path = dest_path.relative_to(start)
+        self._bind_path = dest_path.relative_to(root_dir)
 
         files = {"files": [(glob.escape(str(dest_path)), "now")]}
         interface.publish_files(files)

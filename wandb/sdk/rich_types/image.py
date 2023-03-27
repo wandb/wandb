@@ -68,6 +68,10 @@ class Image(Media):
         pil_image = util.get_module(
             "PIL.Image", required="Logging images requires the pillow package."
         )
+        self._caption = caption
+        self._grouping = grouping
+        self._height = None
+        self._width = None
 
         if isinstance(data_or_path, Image):
             self.from_image(data_or_path)
@@ -76,7 +80,7 @@ class Image(Media):
         elif util.is_matplotlib_typename(util.get_full_typename(data_or_path)):
             self.from_matplotlib(data_or_path)
         elif isinstance(data_or_path, pil_image.Image):
-            self.from_pillow(data_or_path)
+            self.from_pil_image(data_or_path)
         elif util.is_numpy_array(data_or_path):
             self.from_numpy(data_or_path, mode=mode)
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data_or_path)):
@@ -87,11 +91,6 @@ class Image(Media):
             raise ValueError(
                 "Image data must be a PIL.Image, numpy array, torch tensor, tensorflow tensor, matplotlib object, or path to an image file"
             )
-
-        self._caption = caption
-        self._grouping = grouping
-        self._height = None
-        self._width = None
 
         self._bounding_boxes = []
         if boxes is not None:
@@ -227,7 +226,7 @@ class Image(Media):
         self._format = parse.urlparse(path).path.split("/")[-1].split(".")[-1].lower()
         self._sha256 = hashlib.sha256(path.encode("utf-8")).hexdigest()
 
-    def from_pillow(self, image: "PIL.Image.Image") -> None:
+    def from_pil_image(self, image: "PIL.Image.Image") -> None:
         """Create an image from a pillow image.
 
         Args:
@@ -259,7 +258,7 @@ class Image(Media):
         )
 
         image = pil_image.fromarray(array, mode=mode)
-        self.from_pillow(image)
+        self.from_pil_image(image)
 
     def from_numpy(self, array: "np.ndarray", mode: Optional[str] = None) -> None:
         """Create an image from a numpy array.
@@ -337,7 +336,7 @@ class Image(Media):
         )
 
         with pil_image.open(buffer) as image:
-            self.from_pillow(image)
+            self.from_pil_image(image)
 
     def from_image(self, image: "Image") -> None:
         """Create an image from another image.
