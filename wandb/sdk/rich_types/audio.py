@@ -7,7 +7,6 @@ from .media import Media
 
 
 class Audio(Media):
-
     OBJ_TYPE = "audio-file"
     RELATIVE_PATH = pathlib.Path("media") / "audio"
     DEFAULT_FORMAT = "WAV"
@@ -44,7 +43,6 @@ class Audio(Media):
         data,
         sample_rate: Optional[str] = None,
     ) -> None:
-
         assert sample_rate is not None, "sample_rate must be specified"
 
         self._format = self.DEFAULT_FORMAT.lower()
@@ -76,10 +74,7 @@ class Audio(Media):
         )
 
     def to_json(self) -> dict:
-        return {
-            "_type": self.OBJ_TYPE,
-            "sha256": self._sha256,
-            "size": self._size,
-            "caption": self._caption,
-            "path": str(self._bind_path),
-        }
+        serialized = super().to_json()
+        if self._caption:
+            serialized["caption"] = self._caption
+        return serialized
