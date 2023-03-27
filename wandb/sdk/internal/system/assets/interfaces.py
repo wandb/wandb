@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from wandb.sdk.interface.interface import FilesDict
     from wandb.sdk.internal.settings_static import SettingsStatic
 
+import psutil
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 
@@ -135,6 +136,10 @@ class MetricsMonitor:
                 for metric in self.metrics:
                     try:
                         metric.sample()
+                    except psutil.NoSuchProcess:
+                        logger.info(f"Process {metric.name} has exited.")
+                        self._shutdown_event.set()
+                        break
                     except Exception as e:
                         logger.error(f"Failed to sample metric: {e}")
                 self._shutdown_event.wait(self.sampling_interval)
