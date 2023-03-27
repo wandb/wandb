@@ -26,7 +26,7 @@ import urllib
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
-from types import ModuleType, TracebackType
+from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -43,17 +43,14 @@ from typing import (
     Set,
     TextIO,
     Tuple,
-    Type,
     Union,
 )
-from urllib.parse import quote
 
 import requests
-import sentry_sdk  # type: ignore
 import yaml
 
 import wandb
-from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
+from wandb.env import get_app_url
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
@@ -133,24 +130,6 @@ def get_platform_name() -> str:
         return PLATFORM_UNKNOWN
 
 
-# TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
-#  side effect of loading a module.
-sentry_client: Optional["sentry_sdk.client.Client"] = None
-sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
-sentry_default_dsn = (
-    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
-)
-if error_reporting_enabled():
-    sentry_dsn = os.environ.get(SENTRY_DSN, sentry_default_dsn)
-    sentry_client = sentry_sdk.Client(
-        dsn=sentry_dsn,
-        default_integrations=False,
-        environment=SENTRY_ENV,
-        release=wandb.__version__,
-    )
-
-    sentry_hub = sentry_sdk.Hub(sentry_client)
-
 POW_10_BYTES = [
     ("B", 10**0),
     ("KB", 10**3),
@@ -170,127 +149,6 @@ POW_2_BYTES = [
     ("PiB", 2**50),
     ("EiB", 2**60),
 ]
-
-
-def sentry_message(message: str) -> None:
-    if error_reporting_enabled():
-        sentry_hub.capture_message(message)  # type: ignore
-    return None
-
-
-def sentry_exc(
-    exc: Union[
-        str,
-        BaseException,
-        Tuple[
-            Optional[Type[BaseException]],
-            Optional[BaseException],
-            Optional[TracebackType],
-        ],
-        None,
-    ],
-    delay: bool = False,
-) -> None:
-    if error_reporting_enabled():
-        if isinstance(exc, str):
-            sentry_hub.capture_exception(Exception(exc))  # type: ignore
-        else:
-            sentry_hub.capture_exception(exc)  # type: ignore
-    if delay:
-        time.sleep(2)
-    return None
-
-
-def sentry_reraise(exc: Any, delay: bool = False) -> None:
-    """Re-raise an exception after logging it to Sentry.
-
-    Use this for top-level exceptions when you want the user to see the traceback.
-
-    Must be called from within an exception handler.
-    """
-    sentry_exc(exc, delay=delay)
-    # this will messily add this "reraise" function to the stack trace,
-    # but hopefully it's not too bad
-    raise exc.with_traceback(sys.exc_info()[2])
-
-
-def sentry_set_scope(
-    settings_dict: Optional[
-        Union[
-            "wandb.sdk.wandb_settings.Settings",
-            "wandb.sdk.internal.settings_static.SettingsStatic",
-        ]
-    ] = None,
-    process_context: Optional[str] = None,
-) -> None:
-    if not error_reporting_enabled():
-        return None
-
-    # Tags come from two places: settings and args passed into this func.
-    args = dict(locals())
-    del args["settings_dict"]
-
-    settings_tags = [
-        "entity",
-        "project",
-        "run_id",
-        "run_url",
-        "sweep_url",
-        "sweep_id",
-        "deployment",
-        "_disable_service",
-        "launch",
-    ]
-
-    s = settings_dict
-
-    # convenience function for getting attr from settings
-    def get(key: str) -> Any:
-        return getattr(s, key, None)
-
-    with sentry_hub.configure_scope() as scope:  # type: ignore
-        scope.set_tag("platform", get_platform_name())
-
-        # apply settings tags
-        if s is not None:
-            for tag in settings_tags:
-                val = get(tag)
-                if val not in [None, ""]:
-                    scope.set_tag(tag, val)
-
-            python_runtime = (
-                "colab"
-                if get("_colab")
-                else ("jupyter" if get("_jupyter") else "python")
-            )
-            scope.set_tag("python_runtime", python_runtime)
-
-            # Hack for constructing run_url and sweep_url given run_id and sweep_id
-            required = ["entity", "project", "base_url"]
-            params = {key: get(key) for key in required}
-            if all(params.values()):
-                # here we're guaranteed that entity, project, base_url all have valid values
-                app_url = wandb.util.app_url(params["base_url"])
-                e, p = (quote(params[k]) for k in ["entity", "project"])
-
-                # TODO: the settings object will be updated to contain run_url and sweep_url
-                # This is done by passing a settings_map in the run_start protocol buffer message
-                for word in ["run", "sweep"]:
-                    _url, _id = f"{word}_url", f"{word}_id"
-                    if not get(_url) and get(_id):
-                        scope.set_tag(_url, f"{app_url}/{e}/{p}/{word}s/{get(_id)}")
-
-            if hasattr(s, "email"):
-                scope.user = {"email": s.email}
-
-        # apply directly passed-in tags
-        for tag, value in args.items():
-            if value is not None and value != "":
-                scope.set_tag(tag, value)
-
-    # Track session so we can get metrics about error free rate
-    if sentry_hub:
-        sentry_hub.start_session()
 
 
 def vendor_setup() -> Callable:
