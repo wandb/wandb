@@ -1,8 +1,6 @@
 import pathlib
 from typing import Optional, Union
 
-import soundfile
-
 from .media import Media
 
 
@@ -45,6 +43,8 @@ class Audio(Media):
     ) -> None:
         assert sample_rate is not None, "sample_rate must be specified"
 
+        import soundfile
+
         self._format = self.DEFAULT_FORMAT.lower()
         self._source_path = self._generate_temp_path(suffix=f".{self._format}")
         self._is_temp_path = True
@@ -55,8 +55,7 @@ class Audio(Media):
     def bind_to_run(
         self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
     ) -> None:
-        """
-        Bind this audio object to a run.
+        """Bind this audio object to a run.
 
         Args:
             interface: The interface to the run.
@@ -64,7 +63,6 @@ class Audio(Media):
             prefix: A list of path components to prefix to the audio object path.
             name: The name of the audio object.
         """
-
         return super().bind_to_run(
             interface,
             start,
