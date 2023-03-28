@@ -1,7 +1,8 @@
 import pathlib
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 
 from wandb import util
+from wandb.sdk.data_types import _dtypes
 
 from .media import Media
 
@@ -17,9 +18,6 @@ class Table(Media):
     _source_path: pathlib.Path
     _is_temp_path: bool
     _bind_path: Optional[pathlib.Path]
-
-    _num_columns: int
-    _num_rows: int
 
     def __init__(
         self,
@@ -70,8 +68,21 @@ class Table(Media):
 
         self._data.append(data)
 
+    def _save_table_to_file(self) -> None:
+        self._format = self.DEFAULT_FORMAT.lower()
+        self._source_path = self._generate_temp_path(f".{self._format}")
+        self._is_temp_path = True
+        data = {"columns": self._columns, "data": self._data}
+        import json
+
+        with open(self._source_path, "w") as f:
+            json.dump(data, f)
+
+        self._sha256 = self._compute_sha256(self._source_path)
+        self._size = self._source_path.stat().st_size
+
     def bind_to_run(
-        self, interface, root_dir: pathlib.Path, *prefix, name: Optional[str] = None
+        self, interface, root_dir: pathlib.Path, *namespace, name: Optional[str] = None
     ) -> None:
         """Bind this table object to a run.
 
@@ -81,7 +92,20 @@ class Table(Media):
             prefix: A path prefix to prepend to the media path.
             name: The name of the media file.
         """
-        pass
+        self._save_table_to_file()  # TODO: why do we save to temp file and move seems wasteful
+        super().bind_to_run(
+            interface,
+            root_dir,
+            *namespace,
+            name or self._sha256[:20],
+            suffix=f".{self._format}",
+        )
+
+    def to_json(self) -> dict:
+        serialized = super().to_json()
+        serialized["ncols"] = len(self._columns)
+        serialized["nrows"] = len(self._data)
+        return serialized
 
 
 class PartitionedTable(Media):
