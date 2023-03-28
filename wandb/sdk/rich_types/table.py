@@ -82,3 +82,11 @@ class Table(Media):
             name: The name of the media file.
         """
         pass
+
+
+class PartitionedTable(Media):
+    ...
+
+
+class JoinedTable(Media):
+    ...
