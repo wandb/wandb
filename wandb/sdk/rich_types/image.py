@@ -210,6 +210,9 @@ class Image(Media):
         path = pathlib.Path(path).absolute()
         self._source_path = path
         self._is_temp_path = False
+        # TODO: add support for width and height
+        # self._width: Optional[int]
+        # self._height: Optional[int]
         self._format = path.suffix[1:].lower()
         self._size = self._source_path.stat().st_size
         self._sha256 = self._compute_sha256(self._source_path)

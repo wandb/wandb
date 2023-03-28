@@ -1,6 +1,6 @@
 from typing import Any, Sequence
 
-from .batchable_media import BatchableMedia
+# from .media_sequence import BatchableMedia
 from .media import Media
 
 # TODO: move this logic to the log function of the run
