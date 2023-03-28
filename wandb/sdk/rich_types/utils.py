@@ -1,7 +1,6 @@
 from functools import singledispatch
 
-from .media import Media
-from .media_sequence import MediaSequence
+from .media import Media, MediaSequence, MediaSequenceFactory
 
 
 @singledispatch
@@ -20,13 +19,16 @@ def _(obj, interface, root_dir, *namespace):
 @bind_to_run.register(list)
 @bind_to_run.register(tuple)
 def _(obj, interface, root_dir, *namespace):
-    # item_classes = set(type(value) for value in obj)
-    # if len(item_classes) == 1:
-    #     item_class = item_classes.pop()
-    #     if issubclass(item_class, Media):
-    #         return MediaSequence(obj, item_class).bind_to_run(
-    #             interface, root_dir, *namespace
-    #         )
+    obj_types = set(type(value) for value in obj)
+    if len(obj_types) == 1:
+        obj_type = obj_types.pop()
+        if issubclass(obj_type, Media):
+            return bind_to_run(
+                MediaSequenceFactory.create(obj),
+                interface,
+                root_dir,
+                *namespace,
+            )
     return [bind_to_run(value, interface, root_dir, *namespace) for value in obj]
 
 
@@ -38,8 +40,8 @@ def _(obj, *_):
     return obj
 
 
-@bind_to_run.register(Media)
 @bind_to_run.register(MediaSequence)
+@bind_to_run.register(Media)
 def _(obj, interface, root_dir, *namespace):
     obj.bind_to_run(interface, root_dir, *namespace)
     return obj.to_json()

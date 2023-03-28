@@ -1,14 +1,14 @@
 import hashlib
 import io
 import pathlib
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Sequence, Union
 from urllib import parse
 
 import wandb.util as util
 
 from .bounding_boxes_2d import BoundingBoxes2D
 from .image_mask import ImageMask
-from .media import Media
+from .media import Media, MediaSequence, register
 
 # try:
 #     from typing_extensions import Protocol, runtime_checkable
@@ -56,7 +56,7 @@ class Image(Media):
 
     def __init__(
         self,
-        data_or_path,
+        data_or_path: Any,
         mode: Optional[str] = None,
         caption: Optional[str] = None,
         boxes: Optional[dict] = None,
@@ -130,7 +130,11 @@ class Image(Media):
         return serialized
 
     def bind_to_run(
-        self, interface, root_dir: pathlib.Path, *prefix, name: Optional[str] = None
+        self,
+        interface,
+        root_dir: pathlib.Path,
+        *namespace: Iterable[str],
+        name: Optional[str] = None,
     ) -> None:
         """Bind this image to a run.
 
@@ -143,18 +147,18 @@ class Image(Media):
         super().bind_to_run(
             interface,
             root_dir,
-            *prefix,
+            *namespace,
             name or self._sha256[:20],
             suffix=f".{self._format}",
         )
 
         for i, mask in enumerate(self._masks):
             name = f"{name}{i}" if name is not None else None
-            mask.bind_to_run(interface, root_dir, *prefix, name=name)
+            mask.bind_to_run(interface, root_dir, *namespace, name=name)
 
         for i, bounding_box in enumerate(self._bounding_boxes):
             name = f"{name}{i}" if name is not None else None
-            bounding_box.bind_to_run(interface, root_dir, *prefix, name=name)
+            bounding_box.bind_to_run(interface, root_dir, *namespace, name=name)
 
     def add_masks(self, masks: dict) -> None:
         """Add masks to this image.
@@ -354,3 +358,22 @@ class Image(Media):
         for k, v in image.__dict__.items():
             if k not in excluded:
                 setattr(self, k, v)
+
+
+@register(Image)
+class ImageSequence(MediaSequence[Any, Image]):
+    OBJ_TYPE = "images/separated"
+    DEFAULT_FORMAT = "PNG"
+
+    def __init__(self, items: Sequence[Any]):
+        super().__init__(items, Image)
+
+    def to_json(self) -> dict:
+        items = [item.to_json() for item in self._items]
+        return {
+            "_type": self.OBJ_TYPE,
+            "width": max([item.get("width", 0) for item in items]),
+            "height": max([item.get("height", 0) for item in items]),
+            "count": len(items),
+            "filenames": [item["path"] for item in items],
+        }
