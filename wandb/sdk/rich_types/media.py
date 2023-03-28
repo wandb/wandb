@@ -6,10 +6,10 @@ import tempfile
 from typing import (
     Callable,
     Generic,
-    Tuple,
     Iterable,
     Optional,
     Sequence,
+    Tuple,
     Type,
     TypeVar,
     Union,
