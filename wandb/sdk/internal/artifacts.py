@@ -1,6 +1,8 @@
 import concurrent.futures
+import errno
 import json
 import os
+import shutil
 import sys
 import tempfile
 from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
@@ -293,7 +295,7 @@ class ArtifactSaver:
         We need to delete them once we've uploaded the file or confirmed we
         already have a committed copy.
         """
-        staging_dir = get_staging_dir()
+        staging_dir = _get_staging_dir()
         for entry in self._manifest.entries.values():
             if entry.local_path and entry.local_path.startswith(staging_dir):
                 try:
@@ -302,14 +304,32 @@ class ArtifactSaver:
                     pass
 
 
-def get_staging_dir() -> FilePathStr:
+def _get_staging_dir() -> FilePathStr:
     path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    try:
-        mkdir_exists_ok(path)
-    except OSError as e:
-        raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
-            f"{env.DATA_DIR} to a directory where you have the necessary write access."
-        ) from e
+    mkdir_exists_ok(path)
 
     return FilePathStr(os.path.abspath(os.path.expanduser(path)))
+
+
+def stage_for_upload(filepath: FilePathStr) -> FilePathStr:
+    """Copy a file to a staging directory and return the path to the copy."""
+    try:
+        staging_dir = _get_staging_dir()
+        with tempfile.NamedTemporaryFile(dir=staging_dir, delete=False) as f:
+            staging_path = f.name
+            shutil.copy2(filepath, staging_path)
+    except PermissionError:
+        wandb.termerror(
+            f"Unable to write staging files to {staging_dir}. To fix this problem, set "
+            f"{env.DATA_DIR} to a directory where you have the necessary write access."
+        )
+        raise
+    except OSError as e:
+        if e.errno == errno.ENOSPC:
+            wandb.termerror(
+                f"No available disk space for {staging_dir}. To fix this problem, set "
+                f"{env.DATA_DIR} to a directory where you have sufficient free space."
+            )
+        raise
+
+    return FilePathStr(staging_path)

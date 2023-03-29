@@ -7,7 +7,7 @@ from multiprocessing import Pool
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
-from wandb.sdk.internal.artifacts import get_staging_dir
+from wandb.sdk.internal.artifacts import stage_for_upload
 
 
 def test_opener_rejects_append_mode(cache):
@@ -367,4 +367,4 @@ def test_unwritable_staging_dir(monkeypatch):
     monkeypatch.setattr(os, "makedirs", nope)
 
     with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
-        _ = get_staging_dir()
+        stage_for_upload(__file__)
