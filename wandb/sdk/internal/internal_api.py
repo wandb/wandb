@@ -2110,7 +2110,7 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                util.sentry_reraise(e)
+                wandb._sentry.reraise(e)
 
         return response
 
