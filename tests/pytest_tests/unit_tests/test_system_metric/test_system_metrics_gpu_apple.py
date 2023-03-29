@@ -1,5 +1,4 @@
-# import json
-import multiprocessing as mp
+import threading
 import time
 from unittest import mock
 
@@ -23,7 +22,6 @@ def mock_gpu_apple_stats_sample(self) -> None:
 
 
 def test_gpu_apple(test_settings):
-
     with mock.patch.object(
         wandb.sdk.internal.system.assets.gpu_apple.GPUAppleStats,
         "sample",
@@ -42,7 +40,7 @@ def test_gpu_apple(test_settings):
                 )
             ).make_static()
         )
-        shutdown_event = mp.Event()
+        shutdown_event = threading.Event()
 
         gpu = GPUApple(
             interface=interface,
