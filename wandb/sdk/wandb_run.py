@@ -2594,6 +2594,7 @@ class Run:
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         use_as: Optional[str] = None,
+        incremental: bool = False,
     ) -> Union[public.Artifact, Artifact]:
         """Declare an artifact as an input to a run.
 
@@ -2611,6 +2612,9 @@ class Run:
             aliases: (list, optional) Aliases to apply to this artifact
             use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
                                        Will be shown in UI.
+            incremental: (bool, optional) Enable extending the base artifact. The artifact
+                returned will be a mutable copy of the used artifact and will need to be
+                logged as a new version if entries are added or removed.
 
         Returns:
             An `Artifact` object.
@@ -2649,10 +2653,7 @@ class Run:
                         "use_as cannot contain special characters ':' or '/'"
                     )
                 self._used_artifact_slots[use_as] = artifact.id
-            api.use_artifact(
-                artifact.id,
-                use_as=use_as or artifact_or_name,
-            )
+            api.use_artifact(artifact.id, use_as=use_as or artifact_or_name)
         else:
             artifact = artifact_or_name
             if aliases is None:
@@ -2682,9 +2683,7 @@ class Run:
                         f"Using {artifact.name}."
                     )
                 artifact._use_as = use_as or artifact.name
-                api.use_artifact(
-                    artifact.id, use_as=use_as or artifact._use_as or artifact.name
-                )
+                api.use_artifact(artifact.id, use_as=artifact._use_as)
             else:
                 raise ValueError(
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
@@ -2692,6 +2691,17 @@ class Run:
                 )
         if self._backend and self._backend.interface:
             self._backend.interface.publish_use_artifact(artifact)
+
+        if incremental:
+            base_artifact = artifact
+            artifact = wandb.Artifact(
+                name=base_artifact._artifact_collection_name,
+                type=base_artifact.type,
+                description=base_artifact.description,
+                metadata=base_artifact.metadata,
+                use_as=base_artifact._use_as,
+            )
+            artifact._logged_artifact = base_artifact
         return artifact
 
     @_run_decorator._attach
