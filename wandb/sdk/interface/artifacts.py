@@ -1,4 +1,5 @@
 import contextlib
+import errno
 import hashlib
 import os
 import secrets
@@ -976,8 +977,18 @@ class ArtifactsCache:
             tmp_file = os.path.join(
                 dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
             )
-            with util.fsync_open(tmp_file, mode=mode) as f:
-                yield f
+            try:
+                with util.fsync_open(tmp_file, mode=mode) as f:
+                    yield f
+            except OSError as e:
+                if e.errno == errno.ENOSPC:
+                    wandb.termerror(
+                        f"No available disk space in {dirname}. "
+                        "Run `wandb artifact cache cleanup 0` to empty your cache, or set "
+                        "the environment variable WANDB_CACHE_DIR to a location with more "
+                        "available disk space."
+                    )
+                raise
 
             try:
                 # Use replace where we can, as it implements an atomic
