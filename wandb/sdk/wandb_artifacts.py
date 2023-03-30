@@ -72,6 +72,7 @@ if TYPE_CHECKING:
     import boto3.s3  # type: ignore
     import boto3.session  # type: ignore
     import google.cloud.storage as gcs_module  # type: ignore
+    from azure.storage.blob import BlobClient, BlobServiceClient
 
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
@@ -1800,6 +1801,156 @@ class GCSHandler(StorageHandler):
         # TODO: is this the structure we want? not at all human
         # readable, but that's probably OK. don't want people
         # poking around in the bucket
+        return FilePathStr(
+            "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
+        )
+
+
+class AzureBlobHandler(StorageHandler):
+    _blob_service: Optional["BlobServiceClient"]
+    _scheme: str
+
+    def __init__(self, scheme: Optional[str] = None) -> None:
+        self._scheme = scheme or "azblob"
+        self._blob_service = None
+        self._cache = get_artifacts_cache()
+
+    @property
+    def scheme(self) -> str:
+        return self._scheme
+
+    def init_blob_service(self) -> "BlobServiceClient":
+        if self._blob_service is not None:
+            return self._blob_service
+        azure: "azure.storage.blob" = util.get_module(
+            "azure.storage.blob",
+            required="azblob:// references requires the azure-storage-blob library, run pip install wandb[azure]",
+            lazy=False,
+        )
+        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+        if connection_string is None:
+            raise ValueError(
+                "AZURE_STORAGE_CONNECTION_STRING environment variable is required for Azure Blob Storage."
+            )
+        self._blob_service = azure.BlobServiceClient.from_connection_string(
+            connection_string
+        )
+        return self._blob_service
+
+    def _parse_uri(self, uri: str) -> Tuple[str, str]:
+        url = urlparse(uri)
+        container = url.netloc
+        path = url.path[1:]  # strip leading slash
+        return container, path
+
+    def load_path(
+        self,
+        manifest_entry: ArtifactManifestEntry,
+        local: bool = False,
+    ) -> Union[URIStr, FilePathStr]:
+        if not local:
+            assert manifest_entry.ref is not None
+            return manifest_entry.ref
+
+        assert manifest_entry.ref is not None
+
+        path, hit, cache_open = self._cache.check_etag_obj_path(
+            URIStr(manifest_entry.ref),
+            ETag(manifest_entry.digest),
+            manifest_entry.size if manifest_entry.size is not None else 0,
+        )
+        if hit:
+            return path
+
+        self.init_blob_service()
+        assert self._blob_service is not None  # mypy: unwraps optionality
+        container, path = self._parse_uri(manifest_entry.ref)
+
+        blob_client = self._blob_service.get_blob_client(container, path)
+        blob_properties = blob_client.get_blob_properties()
+        if blob_properties.etag != manifest_entry.digest:
+            raise ValueError(
+                "Digest mismatch for object %s: expected %s but found %s"
+                % (manifest_entry.ref, manifest_entry.digest, blob_properties.etag)
+            )
+
+        with cache_open(mode="wb") as f:
+            blob_client.download_blob().readinto(f)
+        return path
+
+    def store_path(
+        self,
+        artifact: ArtifactInterface,
+        path: Union[URIStr, FilePathStr],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ) -> Sequence[ArtifactManifestEntry]:
+        self.init_blob_service()
+        assert self._blob_service is not None  # mypy: unwraps optionality
+
+        container, path = self._parse_uri(path)
+        path = URIStr(f"{self.scheme}://{container}/{path}")
+
+        container_client = self._blob_service.get_container_client(container)
+        if not checksum:
+            return [
+                ArtifactManifestEntry(
+                    path=LogicalFilePathStr(name or path), ref=path, digest=path
+                )
+            ]
+
+        objs = container_client.list_blobs(
+            name_starts_with=path, max_results=max_objects
+        )
+
+        entries = [self._entry_from_obj(obj, path, name) for obj in objs]
+
+        if len(entries) > max_objects:
+            raise ValueError(
+                "Exceeded %i objects tracked, pass max_objects to add_reference"
+                % max_objects
+            )
+        return entries
+
+    def _entry_from_obj(
+        self,
+        obj: BlobClient,
+        path: str,
+        name: Optional[str] = None,
+    ) -> ArtifactManifestEntry:
+        """Create an ArtifactManifestEntry from an Azure Blob Storage object.
+
+        Arguments:
+            obj: The Azure Blob Storage object
+            path: The Azure Blob Storage-style path (e.g.: "azblob://container/file.txt")
+            name: The user assigned name, or None if not specified
+        """
+        container, obj_path = self._parse_uri(path)
+
+        # Always use posix paths, since that's what Azure Blob Storage uses.
+        posix_path = pathlib.PurePosixPath(obj_path)
+        posix_name = pathlib.PurePosixPath(name or "")
+
+        if name is None:
+            posix_name = pathlib.PurePosixPath(posix_path.name)
+        return ArtifactManifestEntry(
+            path=LogicalFilePathStr(str(posix_name)),
+            ref=URIStr(f"{self.scheme}://{container}/{str(posix_path)}"),
+            digest=ETag(obj.get_blob_properties().etag),
+            size=obj.get_blob_properties().size,
+            extra=self._extra_from_obj(obj),
+        )
+
+    @staticmethod
+    def _extra_from_obj(obj: BlobClient) -> Dict[str, str]:
+        extra = {
+            "etag": obj.get_blob_properties().etag,
+        }
+        return extra
+
+    @staticmethod
+    def _content_addressed_path(md5: str) -> FilePathStr:
         return FilePathStr(
             "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
         )
