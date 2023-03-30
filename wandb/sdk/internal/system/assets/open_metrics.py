@@ -1,12 +1,12 @@
 import logging
-import multiprocessing as mp
+import re
 import sys
+import threading
 from collections import defaultdict, deque
+from functools import lru_cache
 from hashlib import md5
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Union
-
-import urllib3
+from typing import TYPE_CHECKING, Dict, List, Mapping, Tuple, Union
 
 if sys.version_info >= (3, 8):
     from typing import Final
@@ -15,6 +15,7 @@ else:
 
 import requests
 import requests.adapters
+import urllib3
 
 import wandb
 from wandb.sdk.lib import telemetry
@@ -64,12 +65,62 @@ def _setup_requests_session() -> requests.Session:
     return session
 
 
+def _nested_dict_to_tuple(
+    nested_dict: Mapping[str, Mapping[str, str]]
+) -> Tuple[Tuple[str, Tuple[str, str]], ...]:
+    return tuple((k, *v.items()) for k, v in nested_dict.items())  # type: ignore
+
+
+def _tuple_to_nested_dict(
+    nested_tuple: Tuple[Tuple[str, Tuple[str, str]], ...]
+) -> Dict[str, Dict[str, str]]:
+    return {k: dict(v) for k, *v in nested_tuple}
+
+
+@lru_cache(maxsize=128)
+def _should_capture_metric(
+    metric_name: str,
+    metric_labels: Tuple[str, ...],
+    filters: Tuple[Tuple[str, Tuple[str, str]], ...],
+) -> bool:
+    # we use tuples to make the function arguments hashable => usable with lru_cache
+    should_capture = False
+
+    if not filters:
+        return should_capture
+
+    # self.filters keys are regexes, check the name against them
+    # and for the first match, check the labels against the label filters.
+    # assume that if at least one label filter doesn't match, the metric
+    # should not be captured.
+    # it's up to the user to make sure that the filters are not conflicting etc.
+    metric_labels_dict = {t[0]: t[1] for t in metric_labels}
+    filters_dict = _tuple_to_nested_dict(filters)
+    for metric_name_regex, label_filters in filters_dict.items():
+        if not re.match(metric_name_regex, metric_name):
+            continue
+
+        should_capture = True
+
+        for label, label_filter in label_filters.items():
+            if not re.match(label_filter, metric_labels_dict.get(label, "")):
+                should_capture = False
+                break
+        break
+
+    return should_capture
+
+
 class OpenMetricsMetric:
     """Container for all the COUNTER and GAUGE metrics extracted from an OpenMetrics endpoint."""
 
-    def __init__(self, name: str, url: str) -> None:
+    def __init__(
+        self, name: str, url: str, filters: Mapping[str, Mapping[str, str]]
+    ) -> None:
         self.name = name
         self.url = url
+        self.filters = filters
+        self.filters_tuple = _nested_dict_to_tuple(filters)
         self._session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
@@ -106,6 +157,14 @@ class OpenMetricsMetric:
                 continue
             for sample in family.samples:
                 name, labels, value = sample.name, sample.labels, sample.value
+
+                if not _should_capture_metric(
+                    name,
+                    tuple(labels.items()),
+                    self.filters_tuple,
+                ):
+                    continue
+
                 # md5 hash of the labels
                 label_hash = md5(str(labels).encode("utf-8")).hexdigest()
                 if label_hash not in self.label_map[name]:
@@ -149,7 +208,7 @@ class OpenMetrics:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
         name: str,
         url: str,
     ) -> None:
@@ -159,7 +218,9 @@ class OpenMetrics:
         self.settings = settings
         self.shutdown_event = shutdown_event
 
-        self.metrics: List[Metric] = [OpenMetricsMetric(name, url)]
+        self.metrics: List[Metric] = [
+            OpenMetricsMetric(name, url, settings._stats_open_metrics_filters)
+        ]
 
         self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
             asset_name=self.name,

@@ -1,16 +1,16 @@
 __all__ = [
     "Error",
-    "UsageError",
     "CommError",
+    "AuthenticationError",
+    "UsageError",
     "UnsupportedError",
-    "WaitTimeoutError",
 ]
 
 from typing import Optional
 
 
 class Error(Exception):
-    """Base W&B Error"""
+    """Base W&B Error."""
 
     def __init__(self, message, context: Optional[dict] = None) -> None:
         super().__init__(message)
@@ -19,31 +19,23 @@ class Error(Exception):
         if context:
             self.context = context
 
-    # For python 2 support
-    def encode(self, encoding):
-        return self.message
-
 
 class CommError(Error):
-    """Error communicating with W&B"""
+    """Error communicating with W&B servers."""
 
     def __init__(self, msg, exc=None) -> None:
-        super().__init__(msg)
-        self.message = msg
         self.exc = exc
+        self.message = msg
+        super().__init__(self.message)
+
+
+class AuthenticationError(CommError):
+    """Raised when authentication fails."""
 
 
 class UsageError(Error):
-    """API Usage Error"""
-
-    pass
+    """Raised when an invalid usage of the SDK API is detected."""
 
 
 class UnsupportedError(UsageError):
-    """Raised when trying to use a feature that is not supported"""
-
-
-class WaitTimeoutError(Error):
-    """Raised when wait() timeout occurs before process is finished"""
-
-    pass
+    """Raised when trying to use a feature that is not supported."""

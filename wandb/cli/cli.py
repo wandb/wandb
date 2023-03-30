@@ -897,8 +897,12 @@ def sweep(
             launch_config = {}
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
 
-        if entity is None or project is None:
-            _msg = "Must specify --entity and --project flags when using launch."
+        if entity is None:
+            _msg = "Must specify --entity flag when using launch."
+            wandb.termerror(_msg)
+            raise LaunchError(_msg)
+        elif project is None:
+            _msg = "A project must be configured when using launch."
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
@@ -936,6 +940,10 @@ def sweep(
         ]
 
         if _job:
+            if ":" not in _job:
+                wandb.termwarn("No alias specified for job, defaulting to 'latest'")
+                _job += ":latest"
+
             scheduler_entrypoint += [
                 "--job",
                 _job,
@@ -950,24 +958,21 @@ def sweep(
                 "run_queue_project": project_queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        SCHEDULER_URI,  # uri
-                        None,  # job
-                        api,
-                        "Scheduler.WANDB_SWEEP_ID",  # name,
-                        project,
-                        entity,
-                        scheduler_config.get("docker_image"),  # docker_image,
-                        scheduler_config.get("resource", "local-process"),  # resource,
-                        scheduler_entrypoint,  # entrypoint
-                        None,  # version,
-                        None,  # parameters,
-                        scheduler_config.get("resource_args"),  # resource_args,
-                        None,  # launch_config,
-                        None,  # cuda,
-                        None,  # run_id,
-                        launch_config.get("registry", {}).get(
-                            "url", None
-                        ),  # repository
+                        uri=SCHEDULER_URI,
+                        job=None,
+                        api=api,
+                        name="Scheduler.WANDB_SWEEP_ID",
+                        project=project,
+                        entity=entity,
+                        docker_image=scheduler_config.get("docker_image"),
+                        resource=scheduler_config.get("resource", "local-process"),
+                        entry_point=scheduler_entrypoint,
+                        version=None,
+                        parameters=None,
+                        resource_args=scheduler_config.get("resource_args", {}),
+                        launch_config=None,
+                        run_id=None,
+                        repository=launch_config.get("registry", {}).get("url", None),
                     )
                 ),
             }
@@ -1031,7 +1036,7 @@ def sweep(
     "uri of the form https://wandb.ai/entity/project/runs/run_id, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
-@click.argument("uri", nargs=1, required=False)
+@click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
     "--job",
     "-j",
@@ -1053,6 +1058,7 @@ def sweep(
     "--git-version",
     "-g",
     metavar="GIT-VERSION",
+    hidden=True,
     help="Version of the project to run, as a Git commit reference for Git projects.",
 )
 @click.option(
@@ -1137,17 +1143,10 @@ def sweep(
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
-    "--cuda",
-    is_flag=False,
-    flag_value=True,
-    default=None,
-    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
-    "built by default and you must set --cuda=False to build a CPU-only image.",
-)
-@click.option(
     "--build",
     "-b",
     is_flag=True,
+    hidden=True,
     help="Flag to build an associated job and push to queue as an image job.",
 )
 @click.option(
@@ -1155,6 +1154,7 @@ def sweep(
     "-rg",
     is_flag=False,
     default=None,
+    hidden=True,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
 # TODO: this is only included for back compat. But we should remove this in the future
@@ -1180,7 +1180,6 @@ def launch(
     queue,
     run_async,
     resource_args,
-    cuda,
     build,
     repository,
     project_queue,
@@ -1198,6 +1197,7 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
+    wandb._sentry.configure_scope(process_context="launch_cli")
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
@@ -1209,18 +1209,6 @@ def launch(
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
-
-    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
-    if cuda is not None:
-        # preserve cuda=None as unspecified, otherwise convert to bool
-        if cuda == "True":
-            cuda = True
-        elif cuda == "False":
-            cuda = False
-        else:
-            raise LaunchError(
-                f"Invalid value for --cuda: {cuda!r} is not a valid boolean."
-            )
 
     args_dict = util._user_args_to_dict(args_list)
 
@@ -1271,38 +1259,42 @@ def launch(
                 resource_args=resource_args,
                 config=config,
                 synchronous=(not run_async),
-                cuda=cuda,
                 run_id=run_id,
                 repository=repository,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
+            wandb._sentry.exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.error("=== %s ===", e)
+            wandb._sentry.exception(e)
             sys.exit(e)
     else:
-        _launch_add(
-            api,
-            uri,
-            job,
-            config,
-            project,
-            entity,
-            queue,
-            resource,
-            entry_point,
-            name,
-            git_version,
-            docker_image,
-            args_dict,
-            project_queue,
-            resource_args,
-            cuda=cuda,
-            build=build,
-            run_id=run_id,
-            repository=repository,
-        )
+        try:
+            _launch_add(
+                api,
+                uri,
+                job,
+                config,
+                project,
+                entity,
+                queue,
+                resource,
+                entry_point,
+                name,
+                git_version,
+                docker_image,
+                args_dict,
+                project_queue,
+                resource_args,
+                build=build,
+                run_id=run_id,
+                repository=repository,
+            )
+        except Exception as e:
+            wandb._sentry.exception(e)
+            raise e
 
 
 @cli.command(
@@ -1341,6 +1333,13 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
+@click.option(
+    "--url",
+    "-u",
+    default=None,
+    hidden=True,
+    help="a wandb client registration URL, this is generated in the UI",
+)
 @display_error
 def launch_agent(
     ctx,
@@ -1349,10 +1348,16 @@ def launch_agent(
     queues=None,
     max_jobs=None,
     config=None,
+    url=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
+    wandb._sentry.configure_scope(process_context="launch_agent")
+    if url is not None:
+        raise LaunchError(
+            "--url is not supported in this version, upgrade with: pip install -u wandb"
+        )
 
     from wandb.sdk.launch import launch as wandb_launch
 
@@ -1376,7 +1381,11 @@ def launch_agent(
     check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
-    wandb_launch.create_and_run_agent(api, agent_config)
+    try:
+        wandb_launch.create_and_run_agent(api, agent_config)
+    except Exception as e:
+        wandb._sentry.exception(e)
+        raise e
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1419,6 +1428,7 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
+    wandb._sentry.configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
@@ -1433,13 +1443,16 @@ def scheduler(
             if str.isdigit(_args):
                 _args = int(_args)
             kwargs[_key] = _args
-
-    _scheduler = load_scheduler("sweep")(
-        api,
-        sweep_id=sweep_id,
-        **kwargs,
-    )
-    _scheduler.start()
+    try:
+        _scheduler = load_scheduler("sweep")(
+            api,
+            sweep_id=sweep_id,
+            **kwargs,
+        )
+        _scheduler.start()
+    except Exception as e:
+        wandb._sentry.exception(e)
+        raise e
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
@@ -2331,3 +2344,30 @@ def verify(host):
         and url_success
     ):
         sys.exit(1)
+
+
+@cli.group("import", help="Commands for importing data from other systems")
+def importer():
+    pass
+
+
+@importer.command("mlflow", help="Import from MLFlow")
+@click.option("--mlflow-tracking-uri", help="MLFlow Tracking URI")
+@click.option(
+    "--target-entity", required=True, help="Override default entity to import data into"
+)
+@click.option(
+    "--target-project",
+    required=True,
+    help="Override default project to import data into",
+)
+def mlflow(mlflow_tracking_uri, target_entity, target_project):
+    from wandb.apis.importers import MlflowImporter
+
+    importer = MlflowImporter(mlflow_tracking_uri=mlflow_tracking_uri)
+    overrides = {
+        "entity": target_entity,
+        "project": target_project,
+    }
+
+    importer.import_all_parallel(overrides=overrides)
