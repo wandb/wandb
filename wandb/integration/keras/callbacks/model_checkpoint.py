@@ -53,7 +53,6 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         save_best_only (bool): if `save_best_only=True`, it only saves when the model
             is considered the "best" and the latest best model according to the
             quantity monitored will not be overwritten.
-        save_weights_only (bool): if True, then only the model's weights will be saved.
         mode (Mode): one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
             for `val_loss` this should be `min`, etc.
         save_weights_only (bool): if True, then only the model's weights will be saved
