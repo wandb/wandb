@@ -73,7 +73,6 @@ class RunStatus:
 
 
 class Agent:
-
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
     MAX_INITIAL_FAILURES = 5

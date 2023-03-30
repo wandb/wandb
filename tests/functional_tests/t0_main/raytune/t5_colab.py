@@ -18,7 +18,6 @@ from ray.tune.integration.wandb import WandbLogger, wandb_mixin
 
 @wandb_mixin
 def train_mnist(config):
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_loader, test_loader = get_data_loaders()
 

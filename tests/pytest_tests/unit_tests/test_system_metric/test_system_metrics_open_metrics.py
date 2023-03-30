@@ -101,7 +101,6 @@ def test_dcgm_not_available(test_settings, mocked_requests_get_method):
         "get",
         mocked_requests_get_method,
     ):
-
         url = "http://localhost:9400/metrics"
 
         assert not OpenMetrics.is_available(url)

@@ -155,9 +155,8 @@ def generate(settings: Settings) -> None:
     )
 
     print(
-        template.replace("$settings_literal_list", settings_literal_list,).replace(
-            "$settings_topologically_sorted",
-            settings_topologically_sorted,
+        template.replace("$settings_literal_list", settings_literal_list).replace(
+            "$settings_topologically_sorted", settings_topologically_sorted
         )
     )
 
