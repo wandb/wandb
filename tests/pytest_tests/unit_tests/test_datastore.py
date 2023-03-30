@@ -13,11 +13,6 @@ datastore = wandb.wandb_sdk.internal.datastore
 
 FNAME = "test.dat"
 
-try:
-    FileNotFoundError
-except NameError:
-    FileNotFoundError = OSError
-
 
 def check(
     ds,

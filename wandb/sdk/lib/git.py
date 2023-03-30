@@ -24,7 +24,7 @@ class GitRepo:
         self._commit = commit
         self._repo = None
         if not lazy:
-            self.repo
+            self._repo = self.repo
 
     @property
     def repo(self):

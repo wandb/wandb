@@ -301,7 +301,7 @@ def test_settings_strict_validation(capsys):
     s = Settings(api_key=271828, lol=True)
     assert s.api_key == 271828
     with pytest.raises(AttributeError):
-        s.lol
+        _ = s.lol
     captured = capsys.readouterr().err
     msgs = (
         "Ignoring unexpected arguments: ['lol']",
@@ -442,7 +442,7 @@ def test_attrib_set_not_allowed():
 def test_attrib_get_bad():
     s = Settings()
     with pytest.raises(AttributeError):
-        s.missing
+        _ = s.missing
 
 
 def test_update_override():
