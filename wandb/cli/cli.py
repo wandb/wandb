@@ -898,7 +898,7 @@ def sweep(
         or util.auto_project_name(config.get("program"))
     )
 
-    _launch_scheduler_spec = None
+    _launch_scheduler_spec, launch_spec = None, None
     if launch_config is not None or queue:
         if launch_config:
             launch_config = util.load_json_yaml_dict(launch_config)
@@ -941,6 +941,15 @@ def sweep(
             num_workers = "8"
 
         _type = "optuna" if config.get("method") == "optuna" else "sweep"
+        optuna_config = None
+        if _type == "optuna":
+            try:
+                import optuna
+
+                # TODO(gst): replace with actual validation step
+                optuna.samplers.BaseSampler()
+            except Exception:
+                wandb.termerror(f"Error running job: {traceback.format_exc()}")
 
         # Do basic validation on optuna config
         # TODO(gst): do we want to load the optuna artifact for validation in the

@@ -127,14 +127,6 @@ class Scheduler(ABC):
     def _exit(self) -> None:
         pass
 
-    @abstractmethod
-    def _load_state(self) -> None:
-        pass
-
-    @abstractmethod
-    def _save_state(self) -> None:
-        pass
-
     @property
     def state(self) -> SchedulerState:
         _logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")

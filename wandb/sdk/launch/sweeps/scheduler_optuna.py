@@ -1,7 +1,6 @@
 import base64
 import logging
 import os
-import queue
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
-LOG_PREFIX = f"{click.style('optuna sched:', fg='bright_blue')} "
+LP = f"{click.style('optuna sched:', fg='bright_blue')} "
 
 
 class OptunaComponents(Enum):
@@ -70,21 +69,26 @@ class OptunaScheduler(Scheduler):
         **kwargs: Optional[Any],
     ):
         super().__init__(*args, **kwargs)
-        self._job_queue: "queue.Queue[SweepRun]" = queue.Queue()
-        self._polling_sleep = 2  # seconds
 
         # Optuna
-        self.study: Optional[optuna.study.Study] = None
+        self._study: Optional[optuna.study.Study] = None
         self._storage_path: Optional[str] = None
         self._trial_func = self._make_trial
         self._optuna_runs: Dict[str, _OptunaRun] = {}
 
     @property
-    def study_name(self):
-        if self.study:
-            return self.study.study_name
+    def study(self) -> optuna.study.Study:
+        if not self._study:
+            raise SchedulerError(
+                "Cannot access optuna study before the scheduler.start"
+            )
+        return self._study
 
-        return f"optuna-study-{self._sweep_id}"
+    @property
+    def study_name(self):
+        if not self.study:
+            return f"optuna-study-{self._sweep_id}"
+        return self.study.study_name
 
     @property
     def trials_pretty(self) -> str:
@@ -94,6 +98,9 @@ class OptunaScheduler(Scheduler):
 
         returns a string with whitespace
         """
+        if not self.study:
+            return ""
+
         trials = {}
         for trial in self.study.trials:
             i = trial.number + 1
@@ -113,17 +120,15 @@ class OptunaScheduler(Scheduler):
         Returns an error string if validation fails
         """
         if study.trials > 0:
-            wandb.termlog(f"{LOG_PREFIX}User provided study has prior trials")
+            wandb.termlog(f"{LP}User provided study has prior trials")
 
         if study.user_attrs:
             wandb.termwarn(
-                f"{LOG_PREFIX}Provided user_attrs are ignored from provided study ({study.user_attrs})"
+                f"{LP}Provided user_attrs are ignored from provided study ({study.user_attrs})"
             )
 
         if study._storage is not None:
-            wandb.termlog(
-                f"{LOG_PREFIX}User provided study has storage:{study._storage}"
-            )
+            wandb.termlog(f"{LP}User provided study has storage:{study._storage}")
 
         # TODO(gst): implement *requirements*
         return None
@@ -144,20 +149,18 @@ class OptunaScheduler(Scheduler):
             pruner: a custom optuna pruner supplied by user
             sampler: a custom optuna sampler supplied by user
         """
-        wandb.termlog(f"{LOG_PREFIX}User set optuna.artifact, attempting download.")
+        wandb.termlog(f"{LP}User set optuna.artifact, attempting download.")
 
         # load user-set optuna class definition file
         artifact = self._wandb_run.use_artifact(artifact_name, type="optuna")
         if not artifact:
-            raise SchedulerError(
-                f"{LOG_PREFIX}Failed to load artifact: {artifact_name}"
-            )
+            raise SchedulerError(f"{LP}Failed to load artifact: {artifact_name}")
 
         path = artifact.download()
         mod, err = _get_module("optuna", f"{path}/{OptunaComponents.main_file.value}")
         if not mod:
             raise SchedulerError(
-                f"{LOG_PREFIX}Failed to load optuna from artifact: "
+                f"{LP}Failed to load optuna from artifact: "
                 f"{artifact_name} with error: {err}"
             )
 
@@ -167,9 +170,7 @@ class OptunaScheduler(Scheduler):
             self._objective_func = mod.objective
 
         if mod.study:
-            wandb.termlog(
-                f"{LOG_PREFIX}User provided study, ignoring pruner and sampler"
-            )
+            wandb.termlog(f"{LP}User provided study, ignoring pruner and sampler")
             val_error: Optional[str] = self._validate_optuna_study(mod.study())
             if val_error:
                 raise SchedulerError(err)
@@ -220,29 +221,28 @@ class OptunaScheduler(Scheduler):
         if study:  # user provided a valid study in downloaded artifact
             if existing_storage:
                 wandb.termwarn("Resuming state w/ user-provided study is unsupported")
-
-            self.study = study
+            self._study = study
             return
 
         # making a new study
         pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
         if pruner_args:
             pruner = load_optuna_pruner(pruner_args["type"], pruner_args.get("args"))
-            wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner})")
+            wandb.termlog(f"{LP}Loaded pruner ({pruner})")
         else:
-            wandb.termlog(f"{LOG_PREFIX}No pruner args, defaulting to MedianPruner")
+            wandb.termlog(f"{LP}No pruner args, defaulting to MedianPruner")
 
         sampler_args = self._sweep_config.get("optuna", {}).get("sampler", {})
         if sampler_args:
             sampler = load_optuna_sampler(
                 sampler_args["type"], sampler_args.get("args")
             )
-            wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler})")
+            wandb.termlog(f"{LP}Loaded sampler ({sampler})")
         else:
-            wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
+            wandb.termlog(f"{LP}No sampler args, defaulting to TPESampler")
 
         direction = self._sweep_config.get("metric", {}).get("goal")
-        _create_msg = f"{LOG_PREFIX} {'Loading' if existing_storage else 'Creating'}"
+        _create_msg = f"{LP} {'Loading' if existing_storage else 'Creating'}"
         self._storage_path = existing_storage or OptunaComponents.storage.value
         _create_msg += (
             f" optuna study: {self.study_name} [storage:'{self._storage_path}'"
@@ -255,7 +255,7 @@ class OptunaScheduler(Scheduler):
             _create_msg += f", sampler:'{sampler.__class__}'"
 
         wandb.termlog(f"{_create_msg}]")
-        self.study = optuna.create_study(
+        self._study = optuna.create_study(
             study_name=self.study_name,
             storage=f"sqlite:///{self._storage_path}",
             pruner=pruner,
@@ -266,9 +266,11 @@ class OptunaScheduler(Scheduler):
 
         if existing_storage:
             wandb.termlog(
-                f"{LOG_PREFIX}Loaded prior runs ({len(self.study.trials)}) from storage "
+                f"{LP}Loaded prior runs ({len(self.study.trials)}) from storage "
                 f"({existing_storage})\n {self.trials_pretty}"
             )
+
+        return
 
     def _load_state(self) -> None:
         """
@@ -287,9 +289,8 @@ class OptunaScheduler(Scheduler):
         artifact.add_file(self._storage_path)
         self._wandb_run.log_artifact(artifact)
 
-        wandb.termlog(f"{LOG_PREFIX}Saved study with trials:\n{self.trials_pretty}")
-
-        return True
+        wandb.termlog(f"{LP}Saved study with trials:\n{self.trials_pretty}")
+        return
 
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         config, trial = self._trial_func()
@@ -311,7 +312,7 @@ class OptunaScheduler(Scheduler):
         )
         return srun
 
-    def _get_run_history(self, run_id: str) -> Tuple[List[int], bool]:
+    def _get_run_history(self, run_id: str) -> List[int]:
         """
         Gets logged metric history for a given run_id
         """
@@ -326,7 +327,7 @@ class OptunaScheduler(Scheduler):
         try:
             api_run: Run = self._public_api.run(self._runs[run_id].full_name)
         except Exception as e:
-            logger.debug(f"Failed to poll run from public api with error: {str(e)}")
+            logger.debug(f"Failed to poll run from public api: {str(e)}")
             return []
 
         metric_name = self._sweep_config["metric"]["name"]
@@ -345,38 +346,33 @@ class OptunaScheduler(Scheduler):
         metrics = self._get_run_history(orun.sweep_run.id)
         for i, metric in enumerate(metrics[orun.num_metrics :]):
             logger.debug(f"{orun.sweep_run.id} (step:{i+orun.num_metrics}) {metrics}")
-            # check if already logged
-            if (
-                orun.num_metrics + i
-                not in orun.trial._cached_frozen_trial.intermediate_values
-            ):
+            prev = orun.trial._cached_frozen_trial.intermediate_values
+            if orun.num_metrics + i not in prev:
                 orun.trial.report(metric, orun.num_metrics + i)
 
             if orun.trial.should_prune():
-                wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {orun.sweep_run.id}")
+                wandb.termlog(f"{LP}Optuna pruning run: {orun.sweep_run.id}")
                 self.study.tell(orun.trial, state=optuna.trial.TrialState.PRUNED)
                 return True
 
-        if len(metrics) != 0:
+        if len(metrics) != 0:  # Run still logging
             orun.num_metrics = len(metrics)
             return False
 
         # run hasn't started or is complete
         if orun.num_metrics == 0:  # hasn't started yet
-            logger.debug(f"Run ({orun.sweep_run.id}) completed but logged no metrics!")
+            logger.debug(f"Run ({orun.sweep_run.id}) has no metrics")
             return False
-        else:  # run is complete
-            last_value = orun.trial._cached_frozen_trial.intermediate_values[
-                orun.num_metrics - 1
-            ]
-            self.study.tell(
-                trial=orun.trial,
-                state=optuna.trial.TrialState.COMPLETE,
-                values=last_value,
-            )
-            wandb.termlog(
-                f"{LOG_PREFIX}Completing trail with {orun.num_metrics} logged metrics"
-            )
+
+        # run is complete
+        prev_metrics = orun.trial._cached_frozen_trial.intermediate_values
+        last_value = prev_metrics[orun.num_metrics - 1]
+        self.study.tell(
+            trial=orun.trial,
+            state=optuna.trial.TrialState.COMPLETE,
+            values=last_value,
+        )
+        wandb.termlog(f"{LP}Completing trial with {orun.num_metrics} metrics")
 
         return True
 
@@ -386,13 +382,12 @@ class OptunaScheduler(Scheduler):
 
         Returns list of runs optuna marked as PRUNED, to be deleted
         """
-        # TODO(gst): make threadsafe?
-        wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
+        wandb.termlog(f"{LP}Polling runs for metrics.")
         to_kill = []
         for run_id, orun in self._optuna_runs.items():
             run_finished = self._poll_run(orun)
             if run_finished:
-                wandb.termlog(f"{LOG_PREFIX}Run: {run_id} finished.")
+                wandb.termlog(f"{LP}Run: {run_id} finished.")
                 logger.debug(f"Finished run, study state: {self.study.trials}")
                 to_kill += [run_id]
 
@@ -406,22 +401,34 @@ class OptunaScheduler(Scheduler):
         trial = self.study.ask()
         config: Dict[str, Dict[str, Any]] = defaultdict(dict)
         for param, extras in self._sweep_config["parameters"].items():
-            if values := extras.get("values"):  # categorical
-                config[param]["value"] = trial.suggest_categorical(param, values)
-            elif value := extras.get("value"):
-                config[param]["value"] = trial.suggest_categorical(param, [value])
+            if extras.get("values"):
+                config[param]["value"] = trial.suggest_categorical(
+                    param, extras["values"]
+                )
+            elif extras.get("value"):
+                config[param]["value"] = trial.suggest_categorical(
+                    param, [extras["value"]]
+                )
             elif type(extras.get("min")) == float:
+                if not extras.get("max"):
+                    raise SchedulerError(
+                        f"{LP}Error converting config. 'min' requires 'max'"
+                    )
                 log = "log" in param
                 config[param]["value"] = trial.suggest_float(
-                    param, extras.get("min"), extras.get("max"), log=log
+                    param, extras["min"], extras["max"], log=log
                 )
             elif type(extras.get("min")) == int:
+                if not extras.get("max"):
+                    raise SchedulerError(
+                        f"{LP}Error converting config. 'min' requires 'max'"
+                    )
                 log = "log" in param
                 config[param]["value"] = trial.suggest_int(
-                    param, extras.get("min"), extras.get("max"), log=log
+                    param, extras["min"], extras["max"], log=log
                 )
             else:
-                logger.debug(f"Unknown parameter type! {param=}, {extras=}")
+                logger.debug(f"Unknown parameter type: {param=}, {extras=}")
         return config, trial
 
     def _make_trial_from_objective(self) -> Tuple[Dict[str, Any], optuna.Trial]:
@@ -442,16 +449,15 @@ class OptunaScheduler(Scheduler):
 
         Returns wandb formatted config and optuna trial from real study
         """
-        wandb.termlog(f"{LOG_PREFIX}Making trial params from objective func")
+        wandb.termlog(f"{LP}Making trial params from objective func")
         study_copy = optuna.create_study()
         study_copy.add_trials(self.study.trials)
         try:
-            # TODO(gst): this the right timeout val?
             study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
         except TimeoutError:
             raise SchedulerError(
-                "Passed optuna objective functions cannot actually train."
-                " Must execute in 2 seconds. See docs."
+                "Passed optuna objective function only creates parameter config."
+                " Do not train; must execute in 2 seconds. See docs."
             )
 
         temp_trial = study_copy.trials[-1]
@@ -470,6 +476,10 @@ class OptunaScheduler(Scheduler):
 
 def validate_optuna_pruner(args: Dict[str, Any]) -> bool:
     _type = args.get("type")
+    if not _type:
+        wandb.termerror("key: 'type' is required")
+        return False
+
     try:
         _ = load_optuna_pruner(_type, args.get("args"))
     except Exception as e:
@@ -480,6 +490,10 @@ def validate_optuna_pruner(args: Dict[str, Any]) -> bool:
 
 def validate_optuna_sampler(args: Dict[str, Any]) -> bool:
     _type = args.get("type")
+    if not _type:
+        wandb.termerror("key: 'type' is required")
+        return False
+
     try:
         _ = load_optuna_sampler(_type, args.get("args"))
     except Exception as e:
