@@ -33,7 +33,7 @@ class OptunaComponents(Enum):
 
 
 @dataclass
-class _OptunaRun:
+class OptunaRun:
     num_metrics: int
     trial: optuna.Trial
     sweep_run: SweepRun
@@ -74,7 +74,7 @@ class OptunaScheduler(Scheduler):
         self._study: Optional[optuna.study.Study] = None
         self._storage_path: Optional[str] = None
         self._trial_func = self._make_trial
-        self._optuna_runs: Dict[str, _OptunaRun] = {}
+        self._optuna_runs: Dict[str, OptunaRun] = {}
 
     @property
     def study(self) -> optuna.study.Study:
@@ -306,7 +306,7 @@ class OptunaScheduler(Scheduler):
             args=config,
             worker_id=worker_id,
         )
-        self._optuna_runs[srun.id] = _OptunaRun(
+        self._optuna_runs[srun.id] = OptunaRun(
             num_metrics=0,
             trial=trial,
             sweep_run=srun,
@@ -340,7 +340,7 @@ class OptunaScheduler(Scheduler):
 
         return metrics
 
-    def _poll_run(self, orun: _OptunaRun) -> bool:
+    def _poll_run(self, orun: OptunaRun) -> bool:
         """
         Polls metrics for a run, returns true if finished
         """
