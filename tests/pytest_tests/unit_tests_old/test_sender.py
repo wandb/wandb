@@ -4,6 +4,7 @@ import threading
 
 import pytest
 import wandb
+import wandb.proto.wandb_internal_pb2 as pb
 from wandb.sdk.lib.printer import INFO
 
 from tests.pytest_tests.unit_tests_old import utils
@@ -72,10 +73,7 @@ def test_resume_error_never(mocked_run, test_settings, mock_server, backend_inte
     with backend_interface(initial_run=False) as interface:
         run_result = interface.communicate_run(mocked_run)
         assert run_result.HasField("error")
-        assert (
-            run_result.error.message
-            == "resume='never' but run (%s) exists" % mocked_run.id
-        )
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
 
 
 def test_resume_error_must(mocked_run, test_settings, mock_server, backend_interface):
@@ -84,10 +82,7 @@ def test_resume_error_must(mocked_run, test_settings, mock_server, backend_inter
     with backend_interface(initial_run=False) as interface:
         run_result = interface.communicate_run(mocked_run)
         assert run_result.HasField("error")
-        assert (
-            run_result.error.message
-            == "resume='must' but run (%s) doesn't exist" % mocked_run.id
-        )
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
 
 
 def test_output(mocked_run, mock_server, backend_interface):
