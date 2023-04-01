@@ -18,6 +18,7 @@ try:
 except NameError:
     FileNotFoundError = OSError
 
+
 def check(
     ds,
     chunk_sizes=tuple(),
