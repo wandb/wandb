@@ -871,12 +871,9 @@ class WandbStoragePolicy(StoragePolicy):
         artifact: ArtifactInterface,
         manifest_entry: ArtifactManifestEntry,
     ) -> str:
-        path, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
-        )
-        if hit:
-            return path
+        cache_path = self._cache.locate(manifest_entry)
+        if cache_path.is_file():
+            return str(cache_path)
 
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
@@ -885,10 +882,10 @@ class WandbStoragePolicy(StoragePolicy):
         )
         response.raise_for_status()
 
-        with cache_open(mode="wb") as file:
+        with filesystem.safe_open(cache_path, mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
-        return path
+        return str(cache_path)
 
     def store_reference(
         self,
@@ -1023,14 +1020,9 @@ class WandbStoragePolicy(StoragePolicy):
         if entry.local_path is None:
             return
 
-        # Cache upon successful upload.
-        _, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(entry.digest),
-            entry.size if entry.size is not None else 0,
-        )
-        if not hit:
-            with cache_open() as f:
-                shutil.copyfile(entry.local_path, f.name)
+        cache_path = self._cache.locate(entry)
+        if not cache_path.is_file():
+            shutil.copy2(entry.local_path, cache_path)
 
 
 # Don't use this yet!
@@ -1229,12 +1221,9 @@ class LocalFileHandler(StorageHandler):
                 "Local file reference: Failed to find file at path %s" % local_path
             )
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
-        )
-        if hit:
-            return path
+        cache_path = self._cache.locate(manifest_entry)
+        if cache_path.is_file():
+            return FilePathStr(str(cache_path))
 
         md5 = md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
@@ -1243,11 +1232,8 @@ class LocalFileHandler(StorageHandler):
                 % (local_path, manifest_entry.digest, md5)
             )
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
-
-        with cache_open() as f:
-            shutil.copy(local_path, f.name)
-        return path
+        shutil.copy2(local_path, cache_path)
+        return FilePathStr(str(cache_path))
 
     def store_path(
         self,
@@ -1643,12 +1629,9 @@ class GCSHandler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
-        )
-        if hit:
-            return path
+        cache_path = self._cache.locate(manifest_entry)
+        if cache_path.is_file():
+            return FilePathStr(str(cache_path))
 
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
@@ -1677,9 +1660,9 @@ class GCSHandler(StorageHandler):
                     % (manifest_entry.ref, manifest_entry.digest, md5)
                 )
 
-        with cache_open(mode="wb") as f:
-            obj.download_to_file(f)
-        return path
+        with filesystem.safe_open(cache_path, mode="wb") as file:
+            obj.download_to_file(file)
+        return FilePathStr(str(cache_path))
 
     def store_path(
         self,
