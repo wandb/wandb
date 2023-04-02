@@ -26,6 +26,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    TypedDict,
     Union,
     no_type_check,
 )
@@ -177,6 +178,14 @@ def _get_program_relpath_from_gitrepo(
     if _logger is not None:
         _logger.warning(f"Could not find program at {program}")
     return None
+
+
+class OpenMetricsConfig(TypedDict):
+    """Configuration for OpenMetrics endpoint consumption."""
+
+    url: str  # open metrics endpoint url
+    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
+    filters: Mapping[str, Mapping[str, str]]
 
 
 @enum.unique
@@ -425,8 +434,10 @@ class Settings:
     _stats_samples_to_average: int
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
+    # _stats_open_metrics: Mapping[str, OpenMetricsConfig]  # open metrics configs
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
+    # open metrics filters
+    # {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     _tmp_code_dir: str
     _tracelog: str
@@ -592,15 +603,23 @@ class Settings:
             _stats_neuron_monitor_config_path={
                 "hook": lambda x: self._path_convert(x),
             },
+            _stats_open_metrics={
+                "value": {
+                    # NVIDIA DCGM Exporter
+                    "DCGM": {
+                        "url": "http://localhost:9400/metrics",
+                        "filters": {
+                            ".*": {},
+                        },
+                    }
+                },
+                "preprocessor": _str_as_dict,
+            },
             _stats_open_metrics_endpoints={
-                # todo: opt-in to this feature
-                # "value": {
-                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
-                # },
                 "preprocessor": _str_as_dict,
             },
             _stats_open_metrics_filters={
-                # capture all metrics by default
+                # capture all metrics on all endpoints by default
                 "value": {
                     ".*": {},
                 },
