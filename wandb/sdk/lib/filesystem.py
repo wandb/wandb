@@ -1,11 +1,14 @@
+import contextlib
 import logging
 import os
 import platform
 import re
 import shutil
 import stat
+import tempfile
 import threading
-from typing import BinaryIO, Union
+from pathlib import Path
+from typing import IO, Any, BinaryIO, Generator, Union
 
 StrPath = Union[str, "os.PathLike[str]"]
 
@@ -124,3 +127,51 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
         os.chmod(target_path, permissions_plus_write)
 
     return return_type(target_path)  # type: ignore  # 'os.PathLike' is abstract.
+
+
+@contextlib.contextmanager
+def safe_open(
+    path: StrPath, mode: str = "r", *args: Any, **kwargs: Any
+) -> Generator[IO, None, None]:
+    """Open a file, ensuring any changes only apply atomically after close.
+
+    This context manager ensures that even unsuccessful writes will not leave a "dirty"
+    file or overwrite good data, and that all temp data is cleaned up. Otherwise, the
+    semantics and behavior should be identical to the built-in open() function.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    if "x" in mode and path.exists():
+        raise FileExistsError(f"{path!s} already exists")
+
+    if "r" in mode:
+        if not path.exists():
+            raise FileNotFoundError(f"{path!s} does not exist")
+        if "+" not in mode:
+            # This is read-only, so we can just open the original file.
+            with path.open(mode, *args, **kwargs) as f:
+                yield f
+            return
+
+    with tempfile.TemporaryDirectory(dir=path.parent) as tmp_dir:
+        tmp_path = Path(tmp_dir) / path.name
+
+        if ("a" in mode or "+" in mode) and "w" not in mode and path.exists():
+            # We need to copy the original file in order to support reads and appends.
+            # TODO (hugh): use reflinks to avoid the copy on platforms that support it.
+            shutil.copy2(path, tmp_path)
+
+        with tmp_path.open(mode, *args, **kwargs) as f:
+            yield f
+            f.flush()
+            os.fsync(f.fileno())
+
+        if "x" in mode:
+            # Ensure that if another process has beaten us to writing the file we raise
+            # FileExistsError instead of overwriting. os.link() atomically creates a
+            # hard link to the target file and will raise instead of overwriting.
+            os.link(tmp_path, path)
+            os.unlink(tmp_path)
+        else:
+            tmp_path.replace(path)
