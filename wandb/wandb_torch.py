@@ -160,9 +160,9 @@ class TorchHistory:
             cls = type(tensor)
             raise TypeError(f"Expected Tensor, not {cls.__module__}.{cls.__name__}")
 
-        # HalfTensors on cpu do not support view(), upconvert to 32bit
-        if isinstance(tensor, torch.HalfTensor):
-            tensor = tensor.clone().type(torch.FloatTensor).detach()
+        # most tensor types do not support many operations, convert to default
+        if tensor.dtype != torch.float32:
+            tensor = tensor.clone().to(torch.float32).detach()
 
         # Sparse tensors have a bunch of implicit zeros. In order to histo them correctly,
         # we have to count them up and add them to the histo ourselves.
@@ -203,13 +203,6 @@ class TorchHistory:
 
             if not self._is_cuda_histc_supported:
                 flat = flat.cpu().clone().detach()
-
-            # As of torch 1.0.1.post2+nightly, float16 cuda summary ops are not supported (convert to float32)
-            if isinstance(flat, torch.cuda.HalfTensor):
-                flat = flat.clone().type(torch.cuda.FloatTensor).detach()
-
-        if isinstance(flat, torch.HalfTensor):
-            flat = flat.clone().type(torch.FloatTensor).detach()
 
         # Skip logging if all values are nan or inf or the tensor is empty.
         if self._no_finite_values(flat):
