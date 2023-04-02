@@ -48,10 +48,14 @@ launch_requirements = [
 
 models_requirements = ["cloudpickle"]
 
+async_requirements = [
+    "httpx>=0.22.0",  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
+]
+
 
 setup(
     name="wandb",
-    version="0.13.12.dev1",
+    version="0.14.1.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -102,6 +106,7 @@ setup(
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
         "models": models_requirements,
+        "async": async_requirements,
     },
 )
 

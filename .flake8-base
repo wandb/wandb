@@ -17,7 +17,6 @@ exclude =
     ./tests/pytest_tests/unit_tests_old/
     ./tests/functional_tests/t0_main/metaflow/
     ./tests/functional_tests/t0_main/fastai/t1_v1.py
-    ./wandb/__init__.py
     ./wandb/wandb_torch.py
     ./wandb/bin
     ./wandb/data/
@@ -39,6 +38,8 @@ exclude =
     */wandb/offline-run-*/files/code/
 
 per-file-ignores =
-   wandb/cli/cli.py:C901,I202
-   wandb/wandb_controller.py:N803,N806
-   wandb/filesync/step_checksum.py:B023
+    **/__init__.py:E402,F401
+    wandb/__init__.py:E402,F401,I001
+    wandb/cli/cli.py:C901,I202
+    wandb/filesync/step_checksum.py:B023
+    wandb/wandb_controller.py:N803,N806
