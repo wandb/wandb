@@ -25,6 +25,9 @@ from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5, b64_to_hex_id
 from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
+FileLocation = Union[FilePathStr, URIStr]
+
+
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     import sys
@@ -99,8 +102,8 @@ class ArtifactManifest:
 @dataclass
 class ArtifactManifestEntry:
     path: LogicalFilePathStr
-    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
-    ref: Optional[Union[FilePathStr, URIStr]] = None
+    digest: Union[B64MD5, FileLocation, ETag]
+    ref: Optional[FileLocation] = None
     birth_artifact_id: Optional[str] = None
     size: Optional[int] = None
     extra: Dict = field(default_factory=dict)
@@ -178,7 +181,7 @@ class ArtifactStatusError(AttributeError):
         super().__init__(msg.format(artifact=artifact, attr=attr, method_id=method_id))
         # Follow the same pattern as AttributeError.
         self.obj = artifact
-        self.name = attr
+        self.name = attr or ""
 
 
 class ArtifactNotLoggedError(ArtifactStatusError):
@@ -817,7 +820,7 @@ class StoragePolicy:
     def store_reference(
         self,
         artifact: Artifact,
-        path: Union[URIStr, FilePathStr],
+        path: FileLocation,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -846,7 +849,7 @@ class StorageHandler:
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> FileLocation:
         """Load a file or directory given the corresponding index entry.
 
         :param manifest_entry: The index entry to load
@@ -859,7 +862,7 @@ class StorageHandler:
     def store_path(
         self,
         artifact: Artifact,
-        path: Union[URIStr, FilePathStr],
+        path: FileLocation,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
