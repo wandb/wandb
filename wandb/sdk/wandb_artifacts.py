@@ -720,7 +720,7 @@ class Artifact(ArtifactInterface):
             path=name,
             digest=digest,
             size=size,
-            local_path=stage_for_upload(path),
+            local_path=stage_for_upload(FilePathStr(path)),
         )
 
         self._manifest.add_entry(entry)
