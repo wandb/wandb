@@ -3,6 +3,7 @@ import hashlib
 import os
 import secrets
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -886,6 +887,16 @@ class ArtifactsCache:
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = {}
         self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
+
+    def locate(self, item: ArtifactManifestEntry) -> Path:
+        """Determine the path in the cache to a given file.
+
+        Because the cache is content-addressed, this path is static and is valid even
+        if the file doesn't exist yet.
+        """
+        digest = B64MD5(item.digest)
+        size = item.size if item.size else 0
+        return Path(self.check_md5_obj_path(digest, size)[0])
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
