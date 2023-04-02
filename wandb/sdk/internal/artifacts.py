@@ -319,17 +319,17 @@ def stage_for_upload(filepath: FilePathStr) -> FilePathStr:
             staging_path = f.name
             shutil.copy2(filepath, staging_path)
     except OSError as e:
-        if e.errno == errno.ENOSPC:
-            wandb.termerror(
-                f"No available disk space for {staging_dir}. To fix this, set "
-                f"{env.DATA_DIR} to a directory with sufficient free space."
-            )
         if isinstance(e, PermissionError) or e.errno == errno.EACCES:
             wandb.termerror(
-                f"Unable to write staging files to {staging_dir}. To fix this, set "
-                f"{env.DATA_DIR} to a directory with the necessary write permissions."
+                "Unable to write staging files due to a permissions error. Set "
+                f" {env.DATA_DIR} to a directory where you have write permissions."
             )
             raise PermissionError from e
+        if e.errno == errno.ENOSPC:
+            wandb.termerror(
+                f"No disk space available. To fix this, set {env.DATA_DIR} "
+                "to a directory with sufficient free space."
+            )
         raise
 
     return FilePathStr(staging_path)
