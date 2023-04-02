@@ -169,8 +169,8 @@ def safe_open(
 
         if "x" in mode:
             # Ensure that if another process has beaten us to writing the file we raise
-            # FileExistsError instead of overwriting. os.link() atomically creates a
-            # hard link to the target file and will raise instead of overwriting.
+            # rather than overwrite. os.link() atomically creates a hard link to the
+            # target file and will raise FileExistsError if the target already exists.
             os.link(tmp_path, path)
             os.unlink(tmp_path)
         else:
