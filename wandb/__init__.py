@@ -194,7 +194,13 @@ if wandb_sdk.lib.ipython.in_jupyter():
     load_ipython_extension(get_ipython())
 
 
-__all__ = [
+from .analytics import Sentry as _Sentry
+
+_sentry = _Sentry()
+_sentry.setup()
+
+
+__all__ = (
     "__version__",
     "init",
     "setup",
@@ -217,4 +223,4 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
-]
+)
