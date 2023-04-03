@@ -1940,8 +1940,15 @@ def _convert_config(config: Dict[str, any]) -> Dict[str, any]:
     out_config = {}
     for key, value in config.items():
         values_dict = {}
-        if type(value) == dict:  # recursive case (nested)
-            values_dict = _convert_config(value)
+        if type(value) == dict:
+            if (
+                "distribution" in value
+                or "probabilities" in value
+                or ("min" in value and "max" in value)
+            ):  # special param
+                values_dict = value
+            else:  # recursive case (nested)
+                values_dict = _convert_config(value)
         else:  # non-recursive case
             values_dict = {}
             if type(value) in [int, float, str, bool]:

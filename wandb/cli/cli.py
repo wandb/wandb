@@ -673,7 +673,7 @@ def sync(
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
-    "--convert-unsafe", is_flag=True, help="Pass in config to convert", hidden=True
+    "--convert-flat", is_flag=True, help="Pass in basic config to convert", hidden=True
 )
 @click.option(
     "--launch_config",
@@ -736,7 +736,7 @@ def sweep(
     config_yaml_or_sweep_id,
     queue,
     project_queue,
-    convert_unsafe,
+    convert_flat,
 ):
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -850,10 +850,10 @@ def sweep(
         wandb.termerror("Configuration file is empty")
         return
 
-    if convert_unsafe:
+    if convert_flat:
         wandb.termwarn(
-            "!! Conversion of sweep config files is unsafe, no guarantee "
-            "of a correct conversion to the supported wandb config format !!"
+            "! Conversion of sweep config files is unsafe, no guarantee "
+            "of a correct conversion to the supported wandb config format !"
         )
         config = util.convert_sweep_config_unsafe(config)
 
