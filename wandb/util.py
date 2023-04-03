@@ -1794,13 +1794,11 @@ def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str
     return destination
 
 
-def _convert_config(config: Dict[str, any]) -> Dict[str, any]:
-    """
-    Recursive helper to handle nested configuration conversion
-    """
-    out_config = {}
+def _convert_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursive helper to handle nested configuration conversion."""
+    out_config: Dict[str, Any] = {}
     for key, value in config.items():
-        values_dict = {}
+        values_dict: Dict[str, Any] = {}
         if type(value) == dict:
             if (
                 "distribution" in value
@@ -1824,9 +1822,8 @@ def _convert_config(config: Dict[str, any]) -> Dict[str, any]:
     return out_config
 
 
-def convert_sweep_config_unsafe(config: Dict[str, any]) -> Dict[str, any]:
-    """
-    Converts a dirty config to wandb-spec
+def convert_sweep_config_unsafe(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Converts a dirty config to wandb-spec.
 
     Pass in special top level params with "wandb_" prepended. Example:
 
@@ -1881,7 +1878,6 @@ def convert_sweep_config_unsafe(config: Dict[str, any]) -> Dict[str, any]:
             }
         }
     }
-
     """
     wandb_config = {
         key.split("wandb_")[1]: val
