@@ -26,7 +26,6 @@ def test_from_default(mocker) -> None:
     credentials.secret_key = "secret_key"
     credentials.token = "token"
     session.get_credentials.return_value = credentials
-    session.get_credentials
     boto3.Session.return_value = session
     mocker.patch("wandb.sdk.launch.environment.aws_environment.boto3", boto3)
     mocker.patch(

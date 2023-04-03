@@ -60,7 +60,6 @@ from wandb.util import (
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
-    sentry_set_scope,
     to_forward_slash_path,
 )
 from wandb.viz import CustomChart, Visualize, custom_chart
@@ -627,10 +626,10 @@ class Run:
         # Pull info from settings
         self._init_from_settings(self._settings)
 
-        # Initial scope setup for sentry. This might get changed when the
-        # actual run comes back.
-        sentry_set_scope(
-            settings_dict=self._settings,
+        # Initial scope setup for sentry.
+        # This might get updated when the actual run comes back.
+        wandb._sentry.configure_scope(
+            settings=self._settings,
             process_context="user",
         )
 
@@ -657,7 +656,7 @@ class Run:
         self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
         self._iface_port = None
         self._attach_id = None
@@ -1480,10 +1479,9 @@ class Run:
         self._settings._apply_run_start(message_to_dict(self._run_obj))
         self._update_settings(self._settings)
 
-        # TODO: It feels weird to call this twice..
-        sentry_set_scope(
+        wandb._sentry.configure_scope(
             process_context="user",
-            settings_dict=self._settings,
+            settings=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1498,9 +1496,9 @@ class Run:
         logged with the same value in each history step, but represented
         as a single item in the config.
 
-        We do this to avoid filling up history with a lot of repeated uneccessary data
+        We do this to avoid filling up history with a lot of repeated unnecessary data
 
-        Add singleton can be called many times in one run and it will only be
+        Add singleton can be called many times in one run, and it will only be
         updated when the value changes. The last value logged will be the one
         persisted to the server.
         """
@@ -1804,7 +1802,8 @@ class Run:
                 wandb.termwarn(
                     "Saving files without folders. If you want to preserve "
                     "sub directories pass base_path to wandb.save, i.e. "
-                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
+                    repeat=False,
                 )
             else:
                 base_path = "."
@@ -1872,7 +1871,7 @@ class Run:
     def finish(
         self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
     ) -> None:
-        """Mark a run as finished, and finishe uploading all data.
+        """Mark a run as finished, and finish uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
         call this method when your script exits or if you use the run context manager.
@@ -1912,6 +1911,8 @@ class Run:
             manager._inform_finish(run_id=self._run_id)
 
         self._is_finished = True
+        # end sentry session
+        wandb._sentry.end_session()
 
     @_run_decorator._noop
     @_run_decorator._attach
@@ -2249,6 +2250,10 @@ class Run:
 
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
+
+        if not self._settings.resume:
+            if os.path.exists(self._settings.resume_fname):
+                os.remove(self._settings.resume_fname)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         import pkg_resources
@@ -3727,6 +3732,10 @@ class InvalidArtifact:
         return False
 
 
+class WaitTimeoutError(errors.Error):
+    """Raised when wait() timeout occurs before process is finished."""
+
+
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
     _instance: Union[ArtifactInterface, InvalidArtifact]
@@ -3744,7 +3753,7 @@ class _LazyArtifact(ArtifactInterface):
         if not self._instance:
             future_get = self._future.get(timeout)
             if not future_get:
-                raise errors.WaitTimeoutError(
+                raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
                 )
             resp = future_get.response.log_artifact_response
