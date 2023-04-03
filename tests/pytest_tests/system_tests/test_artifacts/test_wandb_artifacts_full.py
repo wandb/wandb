@@ -3,12 +3,14 @@ import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import WaitTimeoutError
+from wandb.sdk.wandb_artifacts import Artifact
+from wandb.sdk.wandb_run import Run, WaitTimeoutError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -213,7 +215,7 @@ def test_edit_after_add(wandb_init):
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
-    staging_dir = Path(wandb_sdk.interface.artifacts.get_staging_dir())
+    staging_dir = Path(wandb_sdk.internal.artifacts.get_staging_dir())
 
     def dir_size():
         return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
@@ -274,6 +276,30 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
+
+
+@pytest.mark.skip(
+    reason="often makes tests time out on CI (despite only taking 3x10 seconds locally)"
+)
+@pytest.mark.parametrize("_async_upload_concurrency_limit", [None, 1, 10])
+def test_artifact_upload_succeeds_with_async(
+    wandb_init: Callable[..., Run],
+    _async_upload_concurrency_limit: Optional[int],
+    tmp_path: Path,
+):
+    with wandb_init(
+        settings=dict(_async_upload_concurrency_limit=_async_upload_concurrency_limit)
+    ) as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        (tmp_path / "my-file.txt").write_text("my contents")
+        artifact.add_dir(str(tmp_path))
+        run.log_artifact(artifact).wait(timeout=5)
+
+    # re-download the artifact
+    with wandb.init() as using_run:
+        using_artifact: Artifact = using_run.use_artifact("art:latest")
+        using_artifact.download(root=str(tmp_path / "downloaded"))
+        assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
 
 
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):

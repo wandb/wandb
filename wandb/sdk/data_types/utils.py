@@ -78,7 +78,11 @@ def val_to_json(
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
+    elif (
+        isinstance(val, Sequence)
+        and not isinstance(val, str)
+        and all(isinstance(v, WBValue) for v in val)
+    ):
         assert run
         # This check will break down if Image/Audio/... have child classes.
         if (
