@@ -216,7 +216,6 @@ class _Manager:
         try:
             response = svc_iface._svc_inform_attach(attach_id=attach_id)
         except Exception:
-            # logger.error(f"Failed to attach to run: {e}")
             return None
         return settings_dict_from_pbmap(response._settings_map)
 
