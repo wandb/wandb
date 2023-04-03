@@ -231,6 +231,30 @@ def test_run_deepcopy():
 
 
 @pytest.mark.parametrize(
+    "settings, expected",
+    [
+        ({}, False),
+        ({"resume": True}, True),
+        ({"resume": "auto"}, True),
+        ({"resume": "allow"}, True),
+        ({"resume": "never"}, True),
+        ({"resume": "must"}, True),
+        ({"resume": "run_id"}, True),
+    ],
+)
+def test_resumed_run_resume_file_state(mock_run, tmp_path, settings, expected):
+    tmp_file = tmp_path / "test_resume.json"
+    tmp_file.write_text("{'run_id': 'test'}")
+
+    run = mock_run(
+        use_magic_mock=True, settings={"resume_fname": str(tmp_file), **settings}
+    )
+    run._on_ready()
+
+    assert tmp_file.exists() == expected
+
+
+@pytest.mark.parametrize(
     "method, args",
     [
         ("alert", ["test", "test"]),
