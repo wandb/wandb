@@ -2,7 +2,7 @@ import base64
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
@@ -206,6 +206,101 @@ class KubernetesRunner(AbstractRunner):
             or default_namespace
         )
 
+    def _inject_defaults(
+        self,
+        resource_args: Dict[str, Any],
+        launch_project: LaunchProject,
+        builder: Optional[AbstractBuilder],
+        namespace: str,
+        core_api: "CoreV1Api",
+    ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
+        """Apply our default values, return job dict and secret"""
+        job: Dict[str, Any] = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+        }
+        job.update(resource_args)
+
+        job_metadata: Dict[str, Any] = job.get("metadata", {})
+        job_spec: Dict[str, Any] = {"backoffLimit": 0, "ttlSecondsAfterFinished": 60}
+        job_spec.update(job.get("spec", {}))
+        pod_template: Dict[str, Any] = job_spec.get("template", {})
+        pod_spec: Dict[str, Any] = {"restartPolicy": "Never"}
+        pod_spec.update(pod_template.get("spec", {}))
+        containers: List[Dict[str, Any]] = pod_spec.get("containers", [{}])
+
+        # name precedence: name in spec > generated name
+        if not job_metadata.get("name"):
+            job_metadata["generateName"] = make_name_dns_safe(
+                f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
+            )
+
+        for i, cont in enumerate(containers):
+            cont["name"] = cont.get("name", "launch" + str(i))
+            cont["security_context"] = {
+                "allowPrivilegeEscalation": False,
+                "capabilities": {"drop": ["ALL"]},
+                "seccompProfile": {"type": "RuntimeDefault"},
+            }
+
+        secret = None
+        # only need to do this if user is providing image, on build, our image sets an entrypoint
+        entry_point = launch_project.get_single_entry_point()
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
+        if launch_project.docker_image and entry_cmd:
+            # if user hardcodes cmd into their image, we don't need to run on top of that
+            for cont in containers:
+                cont["command"] = entry_cmd
+
+        if launch_project.docker_image:
+            if len(containers) > 1:
+                raise LaunchError(
+                    "Multiple container configurations should be specified under kubernetes."
+                )
+            # dont specify run id if user provided image, could have multiple runs
+            containers[0]["image"] = launch_project.docker_image
+            # TODO: handle secret pulling image from registry
+        elif not any(["image" in cont for cont in containers]):
+            if len(containers) > 1:
+                raise LaunchError(
+                    "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified under kubernetes."
+                )
+            assert entry_point is not None
+            assert builder is not None
+            image_uri = builder.build_image(launch_project, entry_point)
+            # in the non instance case we need to make an imagePullSecret
+            # so the new job can pull the image
+            if not builder.registry:
+                raise LaunchError(
+                    "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
+                )
+            secret = maybe_create_imagepull_secret(
+                core_api, builder.registry, launch_project.run_id, namespace
+            )
+            if secret is not None:
+                pod_spec["imagePullSecrets"] = [
+                    {"name": f"regcred-{launch_project.run_id}"}
+                ]
+
+            containers[0]["image"] = image_uri
+
+        env_vars = get_env_vars_dict(launch_project, self._api)
+        for cont in containers:
+            # Add our env vars to user supplied env vars
+            env = cont.get("env", [])
+            env.extend(
+                [{"name": key, "value": value} for key, value in env_vars.items()]
+            )
+            cont["env"] = env
+
+        pod_spec["containers"] = containers
+        pod_template["spec"] = pod_spec
+        job_spec["template"] = pod_template
+        job["spec"] = job_spec
+        job["metadata"] = job_metadata
+
+        return job, secret
+
     def run(
         self,
         launch_project: LaunchProject,
@@ -228,85 +323,15 @@ class KubernetesRunner(AbstractRunner):
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
 
-        job: Dict[str, Any] = {"apiVersion": "batch/v1", "kind": "Job"}
-        job.update(resource_args)
+        namespace = self.get_namespace(resource_args, context)
 
-        # extract job spec component parts for convenience
-
-        job_metadata: Dict[str, Any] = job.get("metadata", {})
-        job_spec: Dict[str, Any] = job.get("spec", {})
-        pod_template = job_spec.get("template", {})
-        pod_metadata = pod_template.get("metadata", {})
-        pod_spec = pod_template.get("spec", {})
-        containers = pod_spec.get("containers", [{}])
-
-        namespace = self.get_namespace(job, context)
-
-        # name precedence: name in spec > generated name
-        if not job_metadata.get("name"):
-            job_metadata["generateName"] = make_name_dns_safe(
-                f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
-            )
-
-        # cmd
-        entry_point = launch_project.get_single_entry_point()
-
-        # env vars
-        env_vars = get_env_vars_dict(launch_project, self._api)
-        secret = None
-        # only need to do this if user is providing image, on build, our image sets an entrypoint
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-        if launch_project.docker_image and entry_cmd:
-            # if user hardcodes cmd into their image, we don't need to run on top of that
-            for cont in containers:
-                cont["command"] = entry_cmd
-
-        if launch_project.docker_image:
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Multiple container configurations should be specified in a yaml file supplied via job_spec."
-                )
-            # dont specify run id if user provided image, could have multiple runs
-            containers[0]["image"] = launch_project.docker_image
-            # TODO: handle secret pulling image from registry
-        elif not any(["image" in cont for cont in containers]):
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
-                )
-            assert entry_point is not None
-            assert builder is not None
-            image_uri = builder.build_image(launch_project, entry_point)
-            # in the non instance case we need to make an imagePullSecret
-            # so the new job can pull the image
-            if not builder.registry:
-                raise LaunchError(
-                    "No registry specified. Please specify a registry in your wandb/settings file or pass a registry to the builder."
-                )
-            secret = maybe_create_imagepull_secret(
-                core_api, builder.registry, launch_project.run_id, namespace
-            )
-
-            containers[0]["image"] = image_uri
-
-        for cont in containers:
-            # Add our env vars to user supplied env vars
-            env = cont.get("env", [])
-            env.extend(
-                [{"name": key, "value": value} for key, value in env_vars.items()]
-            )
-            cont["env"] = env
-        pod_spec["containers"] = containers
-
-        pod_template["spec"] = pod_spec
-        pod_template["metadata"] = pod_metadata
-        if secret is not None:
-            pod_spec["imagePullSecrets"] = [
-                {"name": f"regcred-{launch_project.run_id}"}
-            ]
-        job_spec["template"] = pod_template
-        job["spec"] = job_spec
-        job["metadata"] = job_metadata
+        job, secret = self._inject_defaults(
+            resource_args,
+            launch_project,
+            builder,
+            namespace,
+            core_api,
+        )
 
         _logger.info(f"Creating Kubernetes job from: {job}")
         job_response = kubernetes.utils.create_from_yaml(
