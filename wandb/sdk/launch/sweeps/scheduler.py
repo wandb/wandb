@@ -328,7 +328,7 @@ class Scheduler(ABC):
             project_queue=self._project_queue,
             resource=self._kwargs.get("resource", None),
             resource_args=self._kwargs.get("resource_args", None),
-            author=self._entity,  # TODO(gst): does this pick up the wrong author?
+            author=self._kwargs.get("author"),
         )
         self._runs[run_id].queued_run = queued_run
         wandb.termlog(

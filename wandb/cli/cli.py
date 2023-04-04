@@ -937,6 +937,8 @@ def sweep(
             project,
             "--num_workers",
             num_workers,
+            "--author",
+            entity,
         ]
 
         if _job:
