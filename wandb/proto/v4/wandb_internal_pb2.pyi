@@ -443,17 +443,17 @@ class ErrorInfo(google.protobuf.message.Message):
     class _ErrorCodeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ErrorInfo._ErrorCode.ValueType], builtins.type):  # noqa: F821
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         UNKNOWN: ErrorInfo._ErrorCode.ValueType  # 0
-        INVALID: ErrorInfo._ErrorCode.ValueType  # 1
-        PERMISSION: ErrorInfo._ErrorCode.ValueType  # 2
-        NETWORK: ErrorInfo._ErrorCode.ValueType  # 3
-        INTERNAL: ErrorInfo._ErrorCode.ValueType  # 4
+        COMMUNICATION: ErrorInfo._ErrorCode.ValueType  # 1
+        AUTHENTICATION: ErrorInfo._ErrorCode.ValueType  # 2
+        USAGE: ErrorInfo._ErrorCode.ValueType  # 3
+        UNSUPPORTED: ErrorInfo._ErrorCode.ValueType  # 4
 
     class ErrorCode(_ErrorCode, metaclass=_ErrorCodeEnumTypeWrapper): ...
     UNKNOWN: ErrorInfo.ErrorCode.ValueType  # 0
-    INVALID: ErrorInfo.ErrorCode.ValueType  # 1
-    PERMISSION: ErrorInfo.ErrorCode.ValueType  # 2
-    NETWORK: ErrorInfo.ErrorCode.ValueType  # 3
-    INTERNAL: ErrorInfo.ErrorCode.ValueType  # 4
+    COMMUNICATION: ErrorInfo.ErrorCode.ValueType  # 1
+    AUTHENTICATION: ErrorInfo.ErrorCode.ValueType  # 2
+    USAGE: ErrorInfo.ErrorCode.ValueType  # 3
+    UNSUPPORTED: ErrorInfo.ErrorCode.ValueType  # 4
 
     MESSAGE_FIELD_NUMBER: builtins.int
     CODE_FIELD_NUMBER: builtins.int

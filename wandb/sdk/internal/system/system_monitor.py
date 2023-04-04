@@ -1,8 +1,7 @@
 import logging
-import multiprocessing as mp
 import queue
 import threading
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional
 
 from .assets.asset_registry import asset_registry
 from .assets.interfaces import Asset, Interface
@@ -44,9 +43,8 @@ class SystemMonitor:
         settings: "SettingsStatic",
         interface: "Interface",
     ) -> None:
-
-        self._shutdown_event: mp.synchronize.Event = mp.Event()
-        self._process: Optional[Union[mp.Process, threading.Thread]] = None
+        self._shutdown_event: threading.Event = threading.Event()
+        self._process: Optional[threading.Thread] = None
 
         self.settings = settings
 
@@ -181,7 +179,6 @@ class SystemMonitor:
         if self._process is not None:
             return None
         logger.info("Starting system monitor")
-        # self._process = mp.Process(target=self._start, name="SystemMonitor")
         self._process = threading.Thread(
             target=self._start, daemon=True, name="SystemMonitor"
         )

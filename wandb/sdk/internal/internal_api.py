@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import base64
 import datetime
 import json
@@ -29,23 +30,23 @@ from typing import (
 import click
 import requests
 import yaml
-from wandb_gql import Client, gql  # type: ignore
-from wandb_gql.client import RetryError  # type: ignore
-from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
 
 import wandb
 from wandb import __version__, env, util
-from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 from . import context
-from .progress import Progress
+from .progress import AsyncProgress, Progress
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +93,34 @@ if TYPE_CHECKING:
     Number = Union[int, float]
 
 
+# This funny if/else construction is the simplest thing I've found that
+# works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
+if TYPE_CHECKING:
+    import httpx
+else:
+    httpx = util.get_module("httpx")
+
 # class _MappingSupportsCopy(Protocol):
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
 #     def __getitem__(self, name: str) -> Any: ...
+
+
+def check_httpx_exc_retriable(exc: Exception) -> bool:
+    retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
+    return (
+        isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
+        or (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response.status_code in retriable_codes
+        )
+        or (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response.status_code == 400
+            and "x-amz-meta-md5" in exc.request.headers
+            and "RequestTimeout" in str(exc.response.content)
+        )
+    )
 
 
 class _ThreadLocalData(threading.local):
@@ -170,7 +195,7 @@ class Api:
             "heartbeat_seconds": 30,
         }
         self.client = Client(
-            transport=RequestsHTTPTransport(
+            transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
@@ -184,6 +209,11 @@ class Api:
                 url=f"{self.settings('base_url')}/graphql",
             )
         )
+
+        # httpx is an optional dependency, so we lazily instantiate the client
+        # only when we need it
+        self._async_httpx_client: Optional["httpx.AsyncClient"] = None
+
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
             self.execute,
@@ -205,6 +235,7 @@ class Api:
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
         self.query_types: Optional[List[str]] = None
+        self.mutation_types: Optional[List[str]] = None
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
@@ -241,28 +272,12 @@ class Api:
         try:
             return self.client.execute(*args, **kwargs)  # type: ignore
         except requests.exceptions.HTTPError as err:
-            res = err.response
-            logger.error(f"{res.status_code} response executing GraphQL.")
-            logger.error(res.text)
-            self.display_gorilla_error_if_found(res)
+            response = err.response
+            logger.error(f"{response.status_code} response executing GraphQL.")
+            logger.error(response.text)
+            for error in parse_backend_error_messages(response):
+                wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
-
-    def display_gorilla_error_if_found(self, res: requests.Response) -> None:
-        try:
-            data = res.json()
-        except ValueError:
-            return
-
-        if "errors" in data and isinstance(data["errors"], list):
-            for err in data["errors"]:
-                # Our tests and potentially some api endpoints return a string error?
-                if isinstance(err, str):
-                    err = {"message": err}
-                if not err.get("message"):
-                    continue
-                wandb.termerror(
-                    "Error while calling W&B API: {} ({})".format(err["message"], res)
-                )
 
     def disabled(self) -> Union[str, bool]:
         return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)  # type: ignore
@@ -409,10 +424,13 @@ class Api:
         return project, run
 
     @normalize_exceptions
-    def server_info_introspection(self) -> Tuple[List[str], List[str]]:
+    def server_info_introspection(self) -> Tuple[List[str], List[str], List[str]]:
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+                MutationType: __type(name: "Mutation") {
                    ...fieldData
                 }
                ServerInfoType: __type(name: "ServerInfo") {
@@ -426,7 +444,11 @@ class Api:
                 }
             }
         """
-        if self.query_types is None or self.server_info_types is None:
+        if (
+            self.query_types is None
+            or self.mutation_types is None
+            or self.server_info_types is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
 
@@ -434,11 +456,15 @@ class Api:
                 field.get("name", "")
                 for field in res.get("QueryType", {}).get("fields", [{}])
             ]
+            self.mutation_types = [
+                field.get("name", "")
+                for field in res.get("MutationType", {}).get("fields", [{}])
+            ]
             self.server_info_types = [
                 field.get("name", "")
                 for field in res.get("ServerInfoType", {}).get("fields", [{}])
             ]
-        return self.query_types, self.server_info_types
+        return self.query_types, self.server_info_types, self.mutation_types
 
     @normalize_exceptions
     def server_settings_introspection(self) -> None:
@@ -506,6 +532,35 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
+    def fail_run_queue_item_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "failRunQueueItem" in mutations
+
+    @normalize_exceptions
+    def fail_run_queue_item(self, run_queue_item_id: str) -> bool:
+        mutation = gql(
+            """
+        mutation failRunQueueItem($runQueueItemId: ID!) {
+            failRunQueueItem(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                }
+            ) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "runQueueItemId": run_queue_item_id,
+            },
+        )
+        result: bool = response["failRunQueueItem"]["success"]
+        return result
+
+    @normalize_exceptions
     def viewer(self) -> Dict[str, Any]:
         query = gql(
             """
@@ -533,7 +588,7 @@ class Api:
         if self._max_cli_version is not None:
             return self._max_cli_version
 
-        query_types, server_info_types = self.server_info_introspection()
+        query_types, server_info_types, _ = self.server_info_introspection()
         cli_version_exists = (
             "serverInfo" in query_types and "cliVersionInfo" in server_info_types
         )
@@ -579,7 +634,7 @@ class Api:
             _CLI_QUERY_
         }
         """
-        query_types, server_info_types = self.server_info_introspection()
+        query_types, server_info_types, _ = self.server_info_introspection()
 
         cli_version_exists = (
             "serverInfo" in query_types and "cliVersionInfo" in server_info_types
@@ -1006,6 +1061,32 @@ class Api:
         return result
 
     @normalize_exceptions
+    def entity_is_team(self, entity: str) -> bool:
+        query = gql(
+            """
+            query EntityIsTeam($entity: String!) {
+                entity(name: $entity) {
+                    id
+                    isTeam
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+        }
+
+        res = self.gql(query, variable_values)
+        if res.get("entity") is None:
+            raise Exception(
+                f"Error fetching entity {entity} "
+                "check that you have access to this entity"
+            )
+
+        is_team: bool = res["entity"]["isTeam"]
+        return is_team
+
+    @normalize_exceptions
     def get_project_run_queues(self, entity: str, project: str) -> List[Dict[str, str]]:
         query = gql(
             """
@@ -1028,10 +1109,19 @@ class Api:
 
         res = self.gql(query, variable_values)
         if res.get("project") is None:
-            raise Exception(
-                f"Error fetching run queues for {entity}/{project} "
-                "check that you have access to this entity and project"
-            )
+            # circular dependency: (LAUNCH_DEFAULT_PROJECT = model-registry)
+            if project == "model-registry":
+                msg = (
+                    f"Error fetching run queues for {entity} "
+                    "check that you have access to this entity and project"
+                )
+            else:
+                msg = (
+                    f"Error fetching run queues for {entity}/{project} "
+                    "check that you have access to this entity and project"
+                )
+
+            raise Exception(msg)
 
         project_run_queues: List[Dict[str, str]] = res["project"]["runQueues"]
         return project_run_queues
@@ -2020,9 +2110,107 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                util.sentry_reraise(e)
+                wandb._sentry.reraise(e)
 
         return response
+
+    async def upload_file_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """An async not-quite-equivalent version of `upload_file`.
+
+        Differences from `upload_file`:
+            - This method doesn't implement Azure uploads. (The Azure SDK supports
+              async, but it's nontrivial to use it here.) If the upload looks like
+              it's destined for Azure, this method will delegate to the sync impl.
+            - Consequently, this method doesn't return the response object.
+              (Because it might fall back to the sync impl, it would sometimes
+               return a `requests.Response` and sometimes an `httpx.Response`.)
+            - This method doesn't wrap retryable errors in `TransientError`.
+              It leaves that determination to the caller.
+        """
+        must_delegate = False
+
+        if httpx is None:
+            wandb.termwarn(  # type: ignore[unreachable]
+                "async file-uploads require `pip install wandb[async]`; falling back to sync implementation",
+                repeat=False,
+            )
+            must_delegate = True
+
+        if extra_headers is not None and "x-ms-blob-type" in extra_headers:
+            wandb.termwarn(
+                "async file-uploads don't support Azure; falling back to sync implementation",
+                repeat=False,
+            )
+            must_delegate = True
+
+        if must_delegate:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self.upload_file_retry(
+                    url=url,
+                    file=file,
+                    callback=callback,
+                    extra_headers=extra_headers,
+                ),
+            )
+            return
+
+        if self._async_httpx_client is None:
+            self._async_httpx_client = httpx.AsyncClient()
+
+        progress = AsyncProgress(Progress(file, callback=callback))
+
+        try:
+            response = await self._async_httpx_client.put(
+                url=url,
+                content=progress,
+                headers={
+                    "Content-Length": str(len(progress)),
+                    **(extra_headers if extra_headers is not None else {}),
+                },
+            )
+            response.raise_for_status()
+        except Exception as e:
+            progress.rewind()
+            logger.error(f"upload_file_async exception {url}: {e}")
+            if isinstance(e, httpx.RequestError):
+                logger.error(f"upload_file_async request headers: {e.request.headers}")
+            if isinstance(e, httpx.HTTPStatusError):
+                logger.error(f"upload_file_async response body: {e.response.content!r}")
+            raise
+
+    async def upload_file_retry_async(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        num_retries: int = 100,
+    ) -> None:
+        backoff = retry.FilteredBackoff(
+            filter=check_httpx_exc_retriable,
+            wrapped=retry.ExponentialBackoff(
+                initial_sleep=datetime.timedelta(seconds=1),
+                max_sleep=datetime.timedelta(seconds=60),
+                max_retries=num_retries,
+                timeout_at=datetime.datetime.now() + datetime.timedelta(days=7),
+            ),
+        )
+
+        await retry.retry_async(
+            backoff=backoff,
+            fn=self.upload_file_async,
+            url=url,
+            file=file,
+            callback=callback,
+            extra_headers=extra_headers,
+        )
 
     @normalize_exceptions
     def register_agent(

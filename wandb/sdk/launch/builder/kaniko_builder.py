@@ -6,9 +6,6 @@ import tempfile
 import time
 from typing import Optional
 
-import kubernetes  # type: ignore
-from kubernetes import client
-
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -17,6 +14,7 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
+from wandb.util import get_module
 
 from .._project_spec import (
     EntryPoint,
@@ -29,12 +27,21 @@ from ..utils import (
     LaunchError,
     get_kube_context_and_api_client,
     sanitize_wandb_api_key,
+    warn_failed_packages_from_build_logs,
 )
 from .build import (
     _create_docker_build_ctx,
     generate_dockerfile,
     image_tag_from_dockerfile_and_source,
 )
+
+get_module(
+    "kubernetes",
+    required="Kaniko builder requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+)
+
+import kubernetes  # type: ignore # noqa: E402
+from kubernetes import client  # noqa: E402
 
 _logger = logging.getLogger(__name__)
 
@@ -271,6 +278,13 @@ class KanikoBuilder(AbstractBuilder):
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
+            try:
+                logs = batch_v1.read_namespaced_job_log(build_job_name, "wandb")
+                warn_failed_packages_from_build_logs(logs, image_uri)
+            except Exception as e:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Failed to get logs for kaniko job {build_job_name}: {e}"
+                )
         except Exception as e:
             wandb.termerror(
                 f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
