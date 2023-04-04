@@ -5,18 +5,14 @@ import typing
 
 if typing.TYPE_CHECKING:
     from langchain.agents import Agent
-    from langchain.chat_models.base import BaseChatModel
+    from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun
     from langchain.chains.base import Chain
+    from langchain.chat_models.base import BaseChatModel
     from langchain.llms import BaseLLM
-    from langchain.callbacks.tracers.schemas import (
-        ChainRun,
-        LLMRun,
-        ToolRun,
-    )
 
-from wandb.sdk.data_types.base_types.media import Media
-from wandb.data_types import _json_helper, MEDIA_TMP
+from wandb.data_types import MEDIA_TMP, _json_helper
 from wandb.sdk.data_types import _dtypes
+from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.lib.runid import generate_id
 
 # # Generate a deterministic 16 character string from a dictionary

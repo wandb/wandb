@@ -1,15 +1,15 @@
 """Table matching wandb.Table API with streaming/append support."""
 
-from wandb import data_types
-import threading
-import queue
-import wandb
-import random
-import string
-import time
 import atexit
 import os
+import queue
+import random
+import string
+import threading
+import time
 
+import wandb
+from wandb import data_types
 
 MAX_PARTITION_SIZE = 100
 
