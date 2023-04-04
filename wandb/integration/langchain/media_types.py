@@ -4,10 +4,10 @@ import os
 import typing
 
 if typing.TYPE_CHECKING:
-    from langchain.llms import BaseLLM
+    from langchain.agents import Agent
     from langchain.chat_models.base import BaseChatModel
     from langchain.chains.base import Chain
-    from langchain.agents import Agent
+    from langchain.llms import BaseLLM
     from langchain.callbacks.tracers.schemas import (
         ChainRun,
         LLMRun,
@@ -54,6 +54,7 @@ class LangChainModel(Media):
             f.write(safe_serialize(self.model_data))
         self._set_file(tmp_path, is_tmp=True)
 
+    @classmethod
     def get_media_subdir(cls) -> str:
         return "media/langchain_model-file"
 
@@ -107,6 +108,7 @@ class LangChainTrace(Media):
         super().__init__()
         self._run = run
 
+    @classmethod
     def get_media_subdir(cls) -> str:
         return "media/langchain_trace"
 

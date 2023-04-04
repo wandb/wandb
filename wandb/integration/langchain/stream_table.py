@@ -1,5 +1,6 @@
-"""Table matching wandb.Table API with streaming/append support"""
+"""Table matching wandb.Table API with streaming/append support."""
 
+from wandb import data_types
 import threading
 import queue
 import wandb
@@ -8,7 +9,6 @@ import string
 import time
 import atexit
 import os
-from wandb import data_types
 
 
 MAX_PARTITION_SIZE = 100
@@ -58,7 +58,7 @@ def save_partition(run, name, art_name, columns, partition_name, partition_rows)
 
 def stream_table_thread(name, columns, row_queue):
     run = wandb.run or wandb.init()
-    art_name = "run-st-%s-%s" % (run.id, name)
+    art_name = f"run-st-{run.id}-{name}"
 
     os.makedirs("/tmp/wandb/stream_table/" + art_name + "/partitions", exist_ok=True)
     get_cur_files(run, art_name)
@@ -90,7 +90,7 @@ def stream_table_thread(name, columns, row_queue):
 
 
 class StreamTable:
-    """Table matching wandb.Table API with streaming/append support"""
+    """Table matching wandb.Table API with streaming/append support."""
 
     def __init__(self, name, columns):
         self.columns = columns

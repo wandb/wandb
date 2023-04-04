@@ -63,15 +63,15 @@ from wandb.sdk.lib.hashutil import (
 from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 
-def silent_aware_termlog(*args, **kwargs) -> None:
+def silent_aware_termlog(*args: Any, **kwargs: Any) -> None:
     if wandb.run is None or not wandb.run._settings.silent:
         termlog(*args, **kwargs)
     return
 
 
-def silent_aware_termwarn(*args, **kwargs) -> None:
+def silent_aware_termwarn(*args: Any, **kwargs: Any) -> None:
     if wandb.run is None or not wandb.run._settings.silent:
-        termlog(*args, **kwargs)
+        termwarn(*args, **kwargs)
     return
 
 
@@ -215,7 +215,7 @@ class Artifact(ArtifactInterface):
 
         if incremental:
             self._incremental = incremental
-            wandb.silent_aware_termwarn("Using experimental arg `incremental`")
+            silent_aware_termwarn("Using experimental arg `incremental`")
 
     @property
     def id(self) -> Optional[str]:
