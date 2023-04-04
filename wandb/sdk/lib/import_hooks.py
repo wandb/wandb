@@ -170,12 +170,22 @@ class _ImportHookChainedLoader:
         # Set module's loader to self.loader unless it's already set to
         # something else. Import machinery will set it to spec.loader if it is
         # None, so handle None as well. The module may not support attribute
-        # assignment, in which case we simply skip it.
-        if getattr(module, "__loader__", None) in (None, self):
+        # assignment, in which case we simply skip it. Note that we also deal
+        # with __loader__ not existing at all. This is to future proof things
+        # due to proposal to remove the attribue as described in the GitHub
+        # issue at https://github.com/python/cpython/issues/77458. Also prior
+        # to Python 3.3, the __loader__ attribute was only set if a custom
+        # module loader was used. It isn't clear whether the attribute still
+        # existed in that case or was set to None.
+
+        class UNDEFINED: pass
+
+        if getattr(module, "__loader__", UNDEFINED) in (None, self):
             try:
                 module.__loader__ = self.loader
             except AttributeError:
                 pass
+
         if (getattr(module, "__spec__", None) is not None
                 and getattr(module.__spec__, "loader", None) is self):
             module.__spec__.loader = self.loader
