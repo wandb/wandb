@@ -4,13 +4,14 @@ Styled as per PEP-369. Note that it doesn't cope with modules being reloaded.
 
 Note: This file is based on
 https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
+and manual backports of later patches up to 1.14.0 in the wrapt repository
 (with slight modifications).
 """
 
 import functools
-import importlib  # noqa: F401
 import sys
 import threading
+from importlib.util import find_spec
 from typing import Any, Callable, Dict, Optional
 
 
@@ -196,6 +197,17 @@ class _ImportHookChainedLoader:
         return module
 
 
+    # Python 3.4 introduced create_module() and exec_module() instead of
+    # load_module() alone. Splitting the two steps.
+
+    def create_module(self, spec):
+        return self.loader.create_module(spec)
+
+    def exec_module(self, module):
+        self.loader.exec_module(module)
+        notify_module_loaded(module)
+
+
 class ImportHookFinder:
     def __init__(self) -> None:
         self.in_progress: Dict = {}
@@ -235,14 +247,50 @@ class ImportHookFinder:
             # our own loader which will then in turn call the
             # real loader to import the module and invoke the
             # post import hooks.
-            try:
-                import importlib.util
-
-                loader = importlib.util.find_spec(fullname).loader  # type: ignore
-            except (ImportError, AttributeError):
-                loader = importlib.find_loader(fullname, path)
-            if loader:
+            loader = getattr(find_spec(fullname), "loader", None)
+            if loader and not isinstance(loader, _ImportHookChainedLoader):
                 return _ImportHookChainedLoader(loader)
+
+        finally:
+            del self.in_progress[fullname]
+
+    def find_spec(self, fullname, path=None, target=None):
+        # Since Python 3.4, you are meant to implement find_spec() method
+        # instead of find_module() and since Python 3.10 you get deprecation
+        # warnings if you don't define find_spec().
+
+        # If the module being imported is not one we have registered
+        # post import hooks for, we can return immediately. We will
+        # take no further part in the importing of this module.
+
+        if not fullname in _post_import_hooks:
+            return None
+
+        # When we are interested in a specific module, we will call back
+        # into the import system a second time to defer to the import
+        # finder that is supposed to handle the importing of the module.
+        # We set an in progress flag for the target module so that on
+        # the second time through we don't trigger another call back
+        # into the import system and cause a infinite loop.
+
+        if fullname in self.in_progress:
+            return None
+
+        self.in_progress[fullname] = True
+
+        # Now call back into the import system again.
+
+        try:
+            # This should only be Python 3 so find_spec() should always
+            # exist so don't need to check.
+
+            spec = find_spec(fullname)
+            loader = getattr(spec, "loader", None)
+
+            if loader and not isinstance(loader, _ImportHookChainedLoader):
+                spec.loader = _ImportHookChainedLoader(loader)
+
+            return spec
 
         finally:
             del self.in_progress[fullname]
