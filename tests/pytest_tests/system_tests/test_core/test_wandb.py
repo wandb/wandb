@@ -429,6 +429,15 @@ def test_log_step_committed_same_dropped(relay_server, wandb_init):
     assert len(history.columns) == 1
 
 
+def test_log_empty_string(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.log(dict(cool=""))
+        run.finish()
+
+    assert relay.context.history["cool"][0] == ""
+
+
 # ----------------------------------
 # wandb.save
 # ----------------------------------
