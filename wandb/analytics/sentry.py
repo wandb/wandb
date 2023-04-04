@@ -1,8 +1,10 @@
 __all__ = ("Sentry",)
 
 
+import atexit
 import functools
 import os
+import pathlib
 import sys
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Type, Union
@@ -49,30 +51,39 @@ class Sentry:
 
         self.dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
-        self.client: Optional["sentry_sdk.client.Client"] = None
         self.hub: Optional["sentry_sdk.hub.Hub"] = None
+
+        # ensure we always end the Sentry session
+        atexit.register(self.end_session)
 
     @property
     def environment(self) -> str:
+        """Return the environment we're running in."""
         # check if we're in a git repo
-        is_git = os.path.exists(
-            os.path.join(os.path.dirname(__file__), "../../", ".git")
-        )
+        is_git = pathlib.Path(__file__).parent.parent.parent.joinpath(".git").exists()
+
         # these match the environments for gorilla
         return "development" if is_git else "production"
 
     @_noop_if_disabled
     def setup(self) -> None:
-        self.client = sentry_sdk.Client(
+        """Setup Sentry SDK.
+
+        We use lower-level APIs (i.e., not sentry_sdk.init) here
+        to avoid the possibility of interfering with the user's
+        own Sentry SDK setup.
+        """
+        client = sentry_sdk.Client(
             dsn=self.dsn,
             default_integrations=False,
             environment=self.environment,
             release=wandb.__version__,
         )
-        self.hub = sentry_sdk.Hub(self.client)
+        self.hub = sentry_sdk.Hub(client)
 
     @_noop_if_disabled
     def message(self, message: str, repeat: bool = True) -> None:
+        """Send a message to Sentry."""
         if not repeat and message in self._sent_messages:
             return
         self._sent_messages.add(message)
@@ -94,8 +105,9 @@ class Sentry:
         handled: bool = False,
         status: Optional["SessionStatus"] = None,
     ) -> None:
+        """Log an exception to Sentry."""
         error = Exception(exc) if isinstance(exc, str) else exc
-        # self.hub.capture_exception(_exc)  # type: ignore
+        # based on self.hub.capture_exception(_exc)
         if error is not None:
             exc_info = sentry_sdk.utils.exc_info_from_error(error)
         else:
@@ -109,7 +121,7 @@ class Sentry:
         try:
             self.hub.capture_event(event, hint=hint)  # type: ignore
         except Exception:
-            self.hub._capture_internal_exception(sys.exc_info())  # type: ignore
+            pass
 
         # if the status is not explicitly set, we'll set it to "crashed" if the exception
         # was unhandled, or "errored" if it was handled
@@ -135,18 +147,21 @@ class Sentry:
 
     @_noop_if_disabled
     def start_session(self) -> None:
-        """Track session to get metrics about error-free rate."""
+        """Start a new session."""
         assert self.hub is not None
+        # get the current client and scope
         _, scope = self.hub._stack[-1]
         session = scope._session
 
+        # if there's no session, start one
         if session is None:
             self.hub.start_session()
 
     @_noop_if_disabled
     def end_session(self) -> None:
-        """Track session to get metrics about error-free rate."""
+        """End the current session."""
         assert self.hub is not None
+        # get the current client and scope
         client, scope = self.hub._stack[-1]
         session = scope._session
 
@@ -156,7 +171,7 @@ class Sentry:
 
     @_noop_if_disabled
     def mark_session(self, status: Optional["SessionStatus"] = None) -> None:
-        """Mark all sessions as crashed."""
+        """Mark the current session with a status."""
         assert self.hub is not None
         _, scope = self.hub._stack[-1]
         session = scope._session
@@ -175,11 +190,12 @@ class Sentry:
         ] = None,
         process_context: Optional[str] = None,
     ) -> None:
-        """Set the Sentry scope for the current thread.
+        """Configure the Sentry scope for the current thread.
 
         This function should be called at the beginning of every thread that
         will send events to Sentry. It sets the tags that will be applied to
-        all events sent from this thread.
+        all events sent from this thread. It also tries to start a session
+        if one doesn't already exist for this thread.
         """
         assert self.hub is not None
         settings_tags = (
