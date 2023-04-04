@@ -4,7 +4,7 @@ Styled as per PEP-369. Note that it doesn't cope with modules being reloaded.
 
 Note: This file is based on
 https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
-and manual backports of later patches up to 1.14.0 in the wrapt repository
+and manual backports of later patches up to 1.14.1 in the wrapt repository
 (with slight modifications).
 """
 
@@ -191,6 +191,14 @@ class _ImportHookChainedLoader:
         self.loader = loader
 
     def load_module(self, fullname: str) -> Any:
+        if hasattr(loader, "load_module"):
+          self.load_module = self._load_module
+        if hasattr(loader, "create_module"):
+          self.create_module = self._create_module
+        if hasattr(loader, "exec_module"):
+          self.exec_module = self._exec_module
+
+    def _load_module(self, fullname):
         module = self.loader.load_module(fullname)
         notify_module_loaded(module)
 
@@ -200,10 +208,10 @@ class _ImportHookChainedLoader:
     # Python 3.4 introduced create_module() and exec_module() instead of
     # load_module() alone. Splitting the two steps.
 
-    def create_module(self, spec):
+    def _create_module(self, spec):
         return self.loader.create_module(spec)
 
-    def exec_module(self, module):
+    def _exec_module(self, module):
         self.loader.exec_module(module)
         notify_module_loaded(module)
 
