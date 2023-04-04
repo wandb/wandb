@@ -4,7 +4,7 @@ Styled as per PEP-369. Note that it doesn't cope with modules being reloaded.
 
 Note: This file is based on
 https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
-and manual backports of later patches up to 1.14.1 in the wrapt repository
+and manual backports of later patches up to 1.15.0 in the wrapt repository
 (with slight modifications).
 """
 
@@ -59,7 +59,6 @@ def _create_import_hook_from_string(name: str) -> Any:
     return import_hook
 
 
-@synchronized(_post_import_hooks_lock)
 def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
     # Create a deferred import hook if hook is a string name rather than
     # a callable function.
@@ -67,54 +66,25 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
     if isinstance(hook, (str,)):
         hook = _create_import_hook_from_string(hook)  # type: ignore
 
-    # Automatically install the import hook finder if it has not already
-    # been installed.
+    with _post_import_hooks_lock:
+        # Automatically install the import hook finder if it has not already
+        # been installed.
 
-    global _post_import_hooks_init
+        global _post_import_hooks_init
 
-    if not _post_import_hooks_init:
-        _post_import_hooks_init = True
-        sys.meta_path.insert(0, ImportHookFinder())  # type: ignore
+        if not _post_import_hooks_init:
+            _post_import_hooks_init = True
+            sys.meta_path.insert(0, ImportHookFinder())
 
-    # Determine if any prior registration of a post import hook for
-    # the target modules has occurred and act appropriately.
-
-    hooks = _post_import_hooks.get(name)
-
-    if hooks is None:
-        # No prior registration of post import hooks for the target
-        # module. We need to check whether the module has already been
-        # imported. If it has we fire the hook immediately and add an
-        # empty list to the registry to indicate that the module has
-        # already been imported and hooks have fired. Otherwise add
-        # the post import hook to the registry.
+        # Check if the module is already imported. If not, register the hook
+        # to be called after import.
 
         module = sys.modules.get(name)
 
-        if module is not None:
-            _post_import_hooks[name] = {}
-            if hook:  # type: ignore
-                hook(module)
-
-        else:
-            _post_import_hooks[name] = {hook_id: hook}
-
-    elif hooks == {}:
-        # A prior registration of post import hooks for the target
-        # module was done and the hooks already fired. Fire the hook
-        # immediately.
-
-        module = sys.modules.get(name)
-
-        if module is not None:
-            if hook:  # type: ignore
-                hook(module)
-
-    else:
-        # A prior registration of port post hooks for the target
-        # module was done but the module has not yet been imported.
-
-        _post_import_hooks[name].update({hook_id: hook})
+    # If the module is already imported, fire the hook right away.
+    # NOTE: Call the hook outside of the lock to avoid deadlocks.
+    if module is not None:
+        hook(module)
 
 
 @synchronized(_post_import_hooks_lock)
@@ -168,16 +138,14 @@ def discover_post_import_hooks(group: Any) -> None:
 # the import of the target module to fail.
 
 
-@synchronized(_post_import_hooks_lock)
 def notify_module_loaded(module: Any) -> None:
     name = getattr(module, "__name__", None)
-    hooks = _post_import_hooks.get(name)
+    with _post_import_hooks_lock:
+        hooks = _post_import_hooks.pop(name, ())
 
-    if hooks:
-        _post_import_hooks[name] = {}
-        for hook in hooks.values():
-            if hook:
-                hook(module)
+    # NOTE: Call hooks outside of the lock to avoid deadlocks.
+    for hook in hooks:
+        hook(module)
 
 
 # A custom module import finder. This intercepts attempts to import
@@ -220,7 +188,6 @@ class ImportHookFinder:
     def __init__(self) -> None:
         self.in_progress: Dict = {}
 
-    @synchronized(_post_import_hooks_lock)
     def find_module(  # type: ignore
         self,
         fullname: str,
@@ -230,8 +197,9 @@ class ImportHookFinder:
         # post import hooks for, we can return immediately. We will
         # take no further part in the importing of this module.
 
-        if fullname not in _post_import_hooks:
-            return None
+        with _post_import_hooks_lock:
+            if fullname not in _post_import_hooks:
+                return None
 
         # When we are interested in a specific module, we will call back
         # into the import system a second time to defer to the import
@@ -271,8 +239,9 @@ class ImportHookFinder:
         # post import hooks for, we can return immediately. We will
         # take no further part in the importing of this module.
 
-        if not fullname in _post_import_hooks:
-            return None
+        with _post_import_hooks_lock:
+            if fullname not in _post_import_hooks:
+                return None
 
         # When we are interested in a specific module, we will call back
         # into the import system a second time to defer to the import
