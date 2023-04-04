@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     import tensorflow as tf
     import torch  # type: ignore
 
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
+
 
 def path_is_reference(path: str) -> bool:
     import re
@@ -36,14 +39,7 @@ class Image(Media):
     RELATIVE_PATH = pathlib.Path("media") / "images"
     DEFAULT_FORMAT = "PNG"
     OBJ_TYPE = "image-file"
-
-    _source_path: pathlib.Path
-    _is_temp_path: bool
-    _bind_path: Optional[pathlib.Path]
-
-    _size: int
-    _sha256: str
-    _format: str
+    OBJ_ARTIFACT_TYPE = "image-file"
 
     _width: Optional[int]
     _height: Optional[int]
@@ -65,6 +61,8 @@ class Image(Media):
         grouping: Optional[int] = None,
     ) -> None:
         """Initialize a new wandb Image object."""
+        super().__init__()
+
         pil_image = util.get_module(
             "PIL.Image", required="Logging images requires the pillow package."
         )
@@ -131,8 +129,7 @@ class Image(Media):
 
     def bind_to_run(
         self,
-        interface,
-        root_dir: pathlib.Path,
+        run: "Run",
         *namespace: Iterable[str],
         name: Optional[str] = None,
     ) -> None:
@@ -144,9 +141,9 @@ class Image(Media):
             prefix: A list of path components to prefix to the image path.
             name: The name of the image.
         """
+        assert self._sha256
         super().bind_to_run(
-            interface,
-            root_dir,
+            run,
             *namespace,
             name or self._sha256[:20],
             suffix=f".{self._format}",
@@ -154,11 +151,11 @@ class Image(Media):
 
         for i, mask in enumerate(self._masks):
             name = f"{name}{i}" if name is not None else None
-            mask.bind_to_run(interface, root_dir, *namespace, name=name)
+            mask.bind_to_run(run, *namespace, name=name)
 
         for i, bounding_box in enumerate(self._bounding_boxes):
             name = f"{name}{i}" if name is not None else None
-            bounding_box.bind_to_run(interface, root_dir, *namespace, name=name)
+            bounding_box.bind_to_run(run, *namespace, name=name)
 
     def add_masks(self, masks: dict) -> None:
         """Add masks to this image.
@@ -210,14 +207,13 @@ class Image(Media):
         """
         if path_is_reference(str(path)):
             self.from_path_reference(str(path))
-        # TODO: add support for reference paths
+        # TODO: add support for width and height
+        # self._width = 256
+        # self._height = 256
         path = pathlib.Path(path).absolute()
+        self._format = path.suffix[1:].lower()
         self._source_path = path
         self._is_temp_path = False
-        # TODO: add support for width and height
-        # self._width: Optional[int]
-        # self._height: Optional[int]
-        self._format = path.suffix[1:].lower()
         self._size = self._source_path.stat().st_size
         self._sha256 = self._compute_sha256(self._source_path)
 
@@ -239,9 +235,9 @@ class Image(Media):
         Args:
             image (PIL.Image.Image): The pillow image to create this image from.
         """
-        self._format = (image.format or self.DEFAULT_FORMAT).lower()
         self._width = image.width
         self._height = image.height
+        self._format = (image.format or self.DEFAULT_FORMAT).lower()
         self._source_path = self._generate_temp_path(f".{self._format}")
         self._is_temp_path = True
         image.save(
@@ -358,6 +354,19 @@ class Image(Media):
         for k, v in image.__dict__.items():
             if k not in excluded:
                 setattr(self, k, v)
+
+    def bind_to_artifact(
+        self,
+        artifact: "Artifact",
+    ) -> dict:
+        serialized = super().bind_to_artifact(artifact)
+        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
+        serialized["format"] = self._format
+        if self._width is not None:
+            serialized["width"] = self._width
+        if self._height is not None:
+            serialized["height"] = self._height
+        return serialized
 
 
 @register(Image)

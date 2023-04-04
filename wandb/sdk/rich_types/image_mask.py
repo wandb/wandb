@@ -52,9 +52,7 @@ class ImageMask(Media):
             "path": str(self._bind_path),
         }
 
-    def bind_to_run(
-        self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
-    ) -> None:
+    def bind_to_run(self, run, *prefix, name: Optional[str] = None) -> None:
         """Bind this mask to a run.
 
         Args:
@@ -63,10 +61,8 @@ class ImageMask(Media):
             prefix: A list of path components to prefix to the mask path.
             name: The name of the mask object.
         """
-
         super().bind_to_run(
-            interface,
-            start,
+            run,
             *prefix,
             name or self._sha256[:20],
             suffix=f".{self._format}",

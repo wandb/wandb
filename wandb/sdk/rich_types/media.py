@@ -4,18 +4,24 @@ import pathlib
 import shutil
 import tempfile
 from typing import (
+    TYPE_CHECKING,
+    Any,
     Callable,
+    Dict,
     Generic,
     Iterable,
     Optional,
     Sequence,
-    Tuple,
     Type,
     TypeVar,
     Union,
 )
 
 from wandb import util
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
@@ -24,16 +30,33 @@ T = TypeVar("T")
 U = TypeVar("U")
 
 
+class ArtifactReference:
+    def __init__(self, artifact: "Artifact", path: str) -> None:
+        self._artifact = artifact
+        self._path = path
+
+    @property
+    def artifact_path(self) -> str:
+        return f"wandb-client-artifact://{self._artifact._client_id}/{str(self._path)}"
+
+    @property
+    def artifact_path_latest(self) -> str:
+        return f"wandb-client-artifact://{self._artifact._client_id}:latest/{str(self._path)}"
+
+
 class Media:
     RELATIVE_PATH = pathlib.Path("media")
     FILE_SEP = "_"
     OBJ_TYPE = "file"
+    OBJ_ARTIFACT_TYPE = "file"
 
-    _source_path: pathlib.Path
-    _is_temp_path: bool
-    _bind_path: Optional[pathlib.Path]
-    _size: int
-    _sha256: str
+    def __init__(self) -> None:
+        self._source_path: Optional[pathlib.Path] = None
+        self._is_temp_path: bool = False
+        self._bind_path: Optional[pathlib.Path] = None
+        self._artifact: Optional[ArtifactReference] = None
+        self._size: Optional[int] = None
+        self._sha256: Optional[str] = None
 
     def to_json(self) -> dict:
         """Serialize this media object to JSON.
@@ -41,17 +64,53 @@ class Media:
         Returns:
             dict: A JSON representation of this media object.
         """
-        return {
+        serialized = {
             "_type": self.OBJ_TYPE,
-            "size": self._size,
+        }
+        if self._size:
+            serialized.update({"size": self._size})
+        if self._sha256:
+            serialized["sha256"] = self._sha256
+        if self._bind_path:
+            serialized["path"] = str(self._bind_path)
+
+        if self._artifact:
+            serialized["artifact_path"] = self._artifact.artifact_path
+            serialized["_latest_artifact_path"] = self._artifact.artifact_path_latest
+
+        return serialized
+
+    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
+        """Bind this media object to an artifact.
+
+        Args:
+            artifact (Artifact): The artifact to bind to.
+        """
+        if self._source_path is None:
+            return {"_type": self.OBJ_ARTIFACT_TYPE}
+
+        path = artifact.get_added_local_path_name(str(self._source_path))
+        if path is None:
+            if self._is_temp_path:
+                path = self.RELATIVE_PATH / self._source_path.name
+            else:
+                assert self._sha256 is not None
+                path = self.RELATIVE_PATH / self._sha256[:20] / self._source_path.name
+            entry = artifact.add_file(
+                str(self._source_path), str(path), is_tmp=self._is_temp_path
+            )
+            path = entry.path
+
+        # self._bind_path = pathlib.Path(path)
+        return {
+            "path": path,
             "sha256": self._sha256,
-            "path": str(self._bind_path),
+            "_type": self.OBJ_ARTIFACT_TYPE,
         }
 
     def bind_to_run(
         self,
-        interface,
-        root_dir: pathlib.Path,
+        run: "Run",
         *namespace: Iterable[str],
         suffix: str = "",
     ) -> None:
@@ -66,7 +125,9 @@ class Media:
         sep = self.FILE_SEP
         file_name = pathlib.Path(sep.join(namespace)).with_suffix(suffix)  # type: ignore
 
-        dest_path = pathlib.Path(root_dir) / self.RELATIVE_PATH / file_name
+        root_dir = pathlib.Path(run.dir)
+
+        dest_path = root_dir / self.RELATIVE_PATH / file_name
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self._is_temp_path:
@@ -79,7 +140,8 @@ class Media:
         self._bind_path = dest_path.relative_to(root_dir)
 
         files = {"files": [(glob.escape(str(dest_path)), "now")]}
-        interface.publish_files(files)
+        assert run._backend and run._backend.interface
+        run._backend.interface.publish_files(files)  # type: ignore
 
     @staticmethod
     def _generate_temp_path(suffix: str = "") -> pathlib.Path:

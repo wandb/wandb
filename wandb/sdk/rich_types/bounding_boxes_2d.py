@@ -78,9 +78,7 @@ class BoundingBoxes2D(Media):
 
         self._initialize(bounding_boxes)
 
-    def bind_to_run(
-        self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
-    ) -> None:
+    def bind_to_run(self, run, *prefix, name: Optional[str] = None) -> None:
         """Bind this bounding box to a run.
 
         Args:
@@ -90,8 +88,7 @@ class BoundingBoxes2D(Media):
             name: The name of the bounding box.
         """
         super().bind_to_run(
-            interface,
-            start,
+            run,
             *prefix,
             name or self._sha256[:20],
             suffix=f".{self._format}",
