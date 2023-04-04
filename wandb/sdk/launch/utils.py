@@ -182,7 +182,8 @@ def construct_launch_spec(
         launch_config,
     )
     launch_spec["entity"] = entity
-    launch_spec["author"] = author
+    if author:
+        launch_spec["author"] = author
 
     launch_spec["project"] = project
     if name:
