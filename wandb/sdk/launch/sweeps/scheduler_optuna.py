@@ -458,7 +458,7 @@ class OptunaScheduler(Scheduler):
         except TimeoutError:
             raise SchedulerError(
                 "Passed optuna objective function only creates parameter config."
-                " Do not train; must execute in 2 seconds. See docs."
+                f" Do not train; must execute in {2} seconds. See docs."
             )
 
         temp_trial = study_copy.trials[-1]
@@ -538,7 +538,7 @@ def load_optuna_sampler(
     elif type_ == "CmaEsSampler":
         return optuna.samplers.CmaEsSampler(**args)
     elif type_ == "GridSampler":
-        # TODO(gst): pretty sure this doens't work
+        # TODO(gst): pretty sure this doesn't work
         return optuna.samplers.GridSampler(**args)
     elif type_ == "IntersectionSearchSpace":
         return optuna.samplers.IntersectionSearchSpace(**args)
