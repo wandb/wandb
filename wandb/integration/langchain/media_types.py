@@ -30,6 +30,14 @@ from wandb.sdk.lib.runid import generate_id
 #     ]
 
 
+def safe_serialize(obj):
+    return json.dumps(
+        _json_helper(obj, None),
+        skipkeys=True,
+        default=lambda o: f"<<non-serializable: {type(o).__qualname__}>>",
+    )
+
+
 class LangChainModel(Media):
     _log_type = "langchain_model-file"
 
@@ -43,7 +51,7 @@ class LangChainModel(Media):
         tmp_path = os.path.join(MEDIA_TMP.name, generate_id() + ".json")
         self.format = "json"
         with open(tmp_path, "w") as f:
-            f.write(json.dumps(_json_helper(self.model_data, None)))
+            f.write(safe_serialize(self.model_data))
         self._set_file(tmp_path, is_tmp=True)
 
     def get_media_subdir(cls) -> str:
@@ -52,19 +60,28 @@ class LangChainModel(Media):
     def to_json(self, run) -> dict:
         res = super().to_json(run)
         res["_type"] = self._log_type
-        res["_type_version"] = 1
         return res
 
     @property
     def model_data(self):
         if self._model_data is None:
+            data = None
+
             try:
                 data = self._model.dict()
             except NotImplementedError:
-                data = self._model.agent.dict()
-            except:
+                pass
+
+            if data is None and hasattr(self._model, "agent"):
+                try:
+                    data = self._model.agent.dict()
+                except NotImplementedError:
+                    pass
+
+            if data is None:
                 logging.warning("Could not get model data.")
                 data = {}
+
             self._model_data = data
         return self._model_data
 
@@ -96,8 +113,8 @@ class LangChainTrace(Media):
     def to_json(self, run) -> dict:
         res = super().to_json(run)
         res["_type"] = self._log_type
-        res["_type_version"] = 1
-        res["data"] = _json_helper(self._run.dict(), None)
+        # Ugg... this is so nasty
+        res["data"] = json.loads(safe_serialize(self._run.dict()))
         return res
 
 
