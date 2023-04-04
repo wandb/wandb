@@ -872,11 +872,7 @@ def _attach(
 
     settings: Settings = copy.copy(_wl._settings)
     settings.update(
-        {
-            "run_id": attach_id,
-            "_start_time": response["_start_time"],
-            "_start_datetime": response["_start_datetime"],
-        },
+        {"run_id": attach_id, **response},
         source=Source.INIT,
     )
 
@@ -896,6 +892,10 @@ def _attach(
     assert backend.interface
 
     mailbox.enable_keepalive()
+
+    if run.settings._offline:
+        return run
+
     attach_handle = backend.interface.deliver_attach(attach_id)
     # TODO: add progress to let user know we are doing something
     attach_result = attach_handle.wait(timeout=30)
