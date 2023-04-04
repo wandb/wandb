@@ -36,8 +36,6 @@ class ArtifactsCache:
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = {}
-        self._random = random.Random()
-        self._random.seed()
         self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
 
     def check_md5_obj_path(
