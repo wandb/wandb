@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 import time
 from typing import Tuple
 from unittest import mock
@@ -73,7 +73,7 @@ def test_gpu(test_settings):
             )
         ).make_static()
     )
-    shutdown_event = mp.Event()
+    shutdown_event = threading.Event()
 
     gpu = GPU(
         interface=interface,
@@ -90,7 +90,6 @@ def test_gpu(test_settings):
         "gpu_in_use_by_this_process",
         lambda *_: True,
     ):
-
         assert gpu.is_available()
         gpu.start()
         assert gpu.probe() == {

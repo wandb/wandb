@@ -1,7 +1,7 @@
 import logging
-import multiprocessing as mp
 import re
 import sys
+import threading
 from collections import defaultdict, deque
 from functools import lru_cache
 from hashlib import md5
@@ -208,7 +208,7 @@ class OpenMetrics:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
         name: str,
         url: str,
     ) -> None:

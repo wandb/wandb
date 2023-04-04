@@ -357,7 +357,7 @@ class LaunchAgent:
                                 wandb.termerror(
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
-                                util.sentry_exc(e)
+                                wandb._sentry.exception(e)
                                 self.fail_run_queue_item(job["runQueueItemId"])
 
                 for thread_id in self.thread_ids:
@@ -403,11 +403,11 @@ class LaunchAgent:
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
             self.finish_thread_id(thread_id)
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             self.finish_thread_id(thread_id)
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
 
     def _thread_run_job(
         self,
@@ -503,8 +503,7 @@ class LaunchAgent:
             with self._jobs_lock:
                 job_tracker.failed_to_start = True
         # TODO: make get_status robust to errors for each runner, and handle them
-        # TODO: add sentry to track this case and solve issues
-        except Exception:
+        except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error getting status for job {run.id}")
             wandb.termerror(traceback.format_exc())
             _logger.info("---")
@@ -512,4 +511,5 @@ class LaunchAgent:
             _logger.info(f"Job ID: {run.id}")
             _logger.info(traceback.format_exc())
             _logger.info("---")
+            wandb._sentry.exception(e)
         return known_error

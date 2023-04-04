@@ -1197,7 +1197,7 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    util.sentry_set_scope(process_context="launch_cli")
+    wandb._sentry.configure_scope(process_context="launch_cli")
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
@@ -1264,11 +1264,11 @@ def launch(
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.error("=== %s ===", e)
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
             sys.exit(e)
     else:
         try:
@@ -1293,7 +1293,7 @@ def launch(
                 repository=repository,
             )
         except Exception as e:
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
             raise e
 
 
@@ -1353,7 +1353,7 @@ def launch_agent(
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    util.sentry_set_scope(process_context="launch_agent")
+    wandb._sentry.configure_scope(process_context="launch_agent")
     if url is not None:
         raise LaunchError(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
@@ -1384,7 +1384,7 @@ def launch_agent(
     try:
         wandb_launch.create_and_run_agent(api, agent_config)
     except Exception as e:
-        util.sentry_exc(e)
+        wandb._sentry.exception(e)
         raise e
 
 
@@ -1428,7 +1428,7 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    util.sentry_set_scope(process_context="sweep_scheduler")
+    wandb._sentry.configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
@@ -1451,7 +1451,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
-        util.sentry_exc(e)
+        wandb._sentry.exception(e)
         raise e
 
 

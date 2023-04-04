@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 
 import wandb
+import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.mailbox import (
