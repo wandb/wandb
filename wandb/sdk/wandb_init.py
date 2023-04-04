@@ -866,8 +866,9 @@ def _attach(
         raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
-    if manager:
-        response = manager._inform_attach(attach_id=attach_id)
+    response = manager._inform_attach(attach_id=attach_id) if manager else None
+    if response is None:
+        raise UsageError(f"Unable to attach to run {attach_id}")
 
     settings: Settings = copy.copy(_wl._settings)
     settings.update(
