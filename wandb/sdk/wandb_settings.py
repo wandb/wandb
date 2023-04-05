@@ -395,6 +395,7 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _extra_http_headers: Mapping[str, str]
     _flow_control_custom: bool
     _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
@@ -426,7 +427,8 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
+    # open metrics filters
+    # {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     _tmp_code_dir: str
     _tracelog: str
@@ -540,6 +542,7 @@ class Settings:
             },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _extra_http_headers={"preprocessor": _str_as_dict},
             _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
@@ -593,14 +596,10 @@ class Settings:
                 "hook": lambda x: self._path_convert(x),
             },
             _stats_open_metrics_endpoints={
-                # todo: opt-in to this feature
-                # "value": {
-                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
-                # },
                 "preprocessor": _str_as_dict,
             },
             _stats_open_metrics_filters={
-                # capture all metrics by default
+                # capture all metrics on all endpoints by default
                 "value": {
                     ".*": {},
                 },
