@@ -903,9 +903,7 @@ def sweep(
         if launch_config:
             launch_config = util.load_json_yaml_dict(launch_config)
             if launch_config is None:
-                raise LaunchError(
-                    f"Invalid format for launch config at {launch_config}"
-                )
+                raise LaunchError("Invalid format for launch config")
         else:
             launch_config = {}
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
@@ -935,19 +933,15 @@ def sweep(
                     "No queue passed from CLI or in launch config for launch-sweep."
                 )
 
-        scheduler_config = launch_config.get("scheduler", {})
+        scheduler_config = config.get("scheduler", {})
         num_workers = f'{scheduler_config.get("num_workers")}'
         if num_workers is None or not str.isdigit(num_workers):
             num_workers = "8"
 
         _type = "optuna" if config.get("method") == "optuna" else "sweep"
-        optuna_config = None
         if _type == "optuna":
             try:
                 import optuna
-
-                # TODO(gst): replace with actual validation step
-                optuna.samplers.BaseSampler()
             except Exception:
                 wandb.termerror(f"Error running job: {traceback.format_exc()}")
 

@@ -84,7 +84,7 @@ class OptunaScheduler(Scheduler):
 
     @property
     def study_name(self):
-        if not self.study:
+        if not self._study:
             return f"optuna-study-{self._sweep_id}"
         return self.study.study_name
 
@@ -326,7 +326,7 @@ class OptunaScheduler(Scheduler):
             queued_run.wait_until_running()
 
         try:
-            api_run: Run = self._public_api.run(self._runs[run_id].full_name)
+            api_run: Run = self._public_api.run(f"{queued_run.entity}/{queued_run.project}/{run_id}")
         except Exception as e:
             logger.debug(f"Failed to poll run from public api: {str(e)}")
             return []
@@ -383,7 +383,8 @@ class OptunaScheduler(Scheduler):
 
         Returns list of runs optuna marked as PRUNED, to be deleted
         """
-        wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
+        wandb.termlog(f"{LOG_PREFIX}Polling. Current state: {self.formatted_trials}")
+        # wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
         to_kill = []
         for run_id, orun in self._optuna_runs.items():
             run_finished = self._poll_run(orun)

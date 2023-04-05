@@ -17,6 +17,7 @@ import yaml
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
+from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
@@ -77,6 +78,7 @@ class Scheduler(ABC):
         **kwargs: Optional[Any],
     ):
         self._api = api
+        self._public_api = PublicApi()
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -118,6 +120,8 @@ class Scheduler(ABC):
 
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
+
+        self._wandb_run = self._init_wandb_run()
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
@@ -276,6 +280,7 @@ class Scheduler(ABC):
         ]:
             self.state = SchedulerState.FAILED
         self._stop_runs()
+        self._wandb_run.finish()
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
@@ -363,6 +368,7 @@ class Scheduler(ABC):
 
         Get state from backend and deletes runs if not in running state. Threadsafe.
         """
+        self._poll_running_runs()
         # TODO(gst): move to better constants place
         end_states = ["crashed", "failed", "killed", "finished"]
         run_states = ["running", "pending", "preempted", "preempting"]
