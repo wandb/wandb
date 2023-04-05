@@ -5,7 +5,7 @@
 id: 0.offline.02-multiprocess
 env:
   - WANDB_BASE_URL: https://does.not-resolve/
- tag:
+tag:
     skip: true
 command:
   timeout: 20
