@@ -1931,3 +1931,98 @@ def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str
             else:
                 destination[key] = value
     return destination
+
+
+def _convert_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursive helper to handle nested configuration conversion."""
+    out_config: Dict[str, Any] = {}
+    for key, value in config.items():
+        values_dict: Dict[str, Any] = {}
+        if type(value) == dict:
+            if (
+                "distribution" in value
+                or "probabilities" in value
+                or ("min" in value and "max" in value)
+            ):  # special param
+                values_dict = value
+            else:  # recursive case (nested)
+                values_dict = _convert_config(value)
+        else:  # non-recursive case
+            values_dict = {}
+            if type(value) in [int, float, str, bool]:
+                values_dict = {"value": value}
+            else:
+                values_dict = {"values": value}
+
+        if "parameters" not in out_config:
+            out_config["parameters"] = {}
+        out_config["parameters"][key] = values_dict
+
+    return out_config
+
+
+def convert_sweep_config_unsafe(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Converts a dirty config to wandb-spec.
+    Pass in special top level params with "wandb_" prepended. Example:
+    IN:
+    config = {
+        "wandb_method": "bayes",
+        "wandb_early_terminate": {
+            "type": "hyperband",
+            "min_iter": 2,
+        },
+        "learning_rate": [0.001, 0.01, 0.1, 1],
+        "db_params": {
+            "random": True,
+            "k_fold": [1, 2, 3, 4, 5],
+            "cols": {
+                "a": 1,
+                "b": [2, 3, 4, 5, 6, 7]
+            }
+        }
+    }
+    OUT:
+    wandb_config = {
+        method": "bayes",
+        early_terminate": {
+            "type": "hyperband",
+            "min_iter": 2,
+        },
+        "parameters": {
+            "learning_rate": {
+                "values": [0.001, 0.01, 0.1, 1]
+            },
+            "db_params": {
+                "parameters": {
+                    "random": {
+                        "value": True,
+                    },
+                    "k_fold": {
+                        "values": [1, 2, 3, 4, 5]
+                    },
+                    "cols": {
+                        "parameters": {
+                            "a": {
+                                "value": 1
+                            },
+                            "b": {
+                                "values": [2, 3, 4, 5, 6, 7]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+    wandb_config = {
+        key.split("wandb_")[1]: val
+        for key, val in config.items()
+        if key.startswith("wandb_")
+    }
+    non_wandb = {
+        key: val for key, val in config.items() if not key.startswith("wandb_")
+    }
+
+    wandb_config.update(_convert_config(non_wandb))
+    return wandb_config
