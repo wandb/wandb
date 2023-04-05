@@ -415,10 +415,10 @@ def test_log_reference_directly(example_files, wandb_init):
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
-def test_log_incremental_add_file(wandb_init, example_file, logged_artifact):
+def test_log_patch_add_file(wandb_init, example_file, logged_artifact):
     assert logged_artifact.name == "test-artifact:v0"
     with wandb_init() as run:
-        artifact = run.use_artifact(logged_artifact.name, incremental=True)
+        artifact = run.use_artifact(logged_artifact.name, patch=True)
 
         assert artifact.name == "test-artifact"
         assert artifact.state == "PENDING"
