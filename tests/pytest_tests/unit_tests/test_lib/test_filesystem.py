@@ -348,7 +348,7 @@ def test_safe_copy_different_file_systems(fs, fs_type: OSType):
     fs.add_real_directory(real_temp_dir.name)
 
     source_path = Path(real_temp_dir.name) / "source.txt"
-    target_path = Path("target.txt")
+    target_path = Path("/target.txt")
     source_content = "Source content 📝"
 
     source_path.write_text(source_content, encoding="utf-8")
@@ -372,9 +372,11 @@ def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
             target_path.write_text(changed_target_content, encoding="utf-8")
 
     def delayed_copy_with_pause(src, dst, *args, **kwargs):
-        time.sleep(0.5)
-        shutil.copy2(src, dst, *args, **kwargs)
-        time.sleep(0.5)
+        time.sleep(0.1)
+        with open(src, "rb") as infile, open(dst, "wb") as outfile:
+            for block in iter(lambda: infile.read(4096), b""):
+                outfile.write(block)
+                time.sleep(0.1)
 
     monkeypatch.setattr(shutil, "copy2", delayed_copy_with_pause)
 
@@ -402,7 +404,7 @@ def test_safe_copy_with_links(tmp_path: Path, src_link, dest_link):
         use_src_path.symlink_to(source_path)
     elif src_link == "hard":
         use_src_path = source_path.with_suffix(".hardlink")
-        os.link(use_src_path, source_path)
+        os.link(source_path, use_src_path)
     else:
         use_src_path = source_path
     source_path = use_src_path
@@ -412,7 +414,7 @@ def test_safe_copy_with_links(tmp_path: Path, src_link, dest_link):
         use_dst_path.symlink_to(target_path)
     elif dest_link == "hard":
         use_dst_path = target_path.with_suffix(".hardlink")
-        os.link(use_dst_path, target_path)
+        os.link(target_path, use_dst_path)
     else:
         use_dst_path = target_path
     target_path = use_dst_path
