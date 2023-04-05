@@ -2736,17 +2736,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_use_artifact(artifact)
 
-        if incremental:
-            base_artifact = artifact
-            artifact = wandb.Artifact(
-                name=base_artifact._artifact_collection_name,
-                type=base_artifact.type,
-                description=base_artifact.description,
-                metadata=base_artifact.metadata,
-                use_as=base_artifact._use_as,
-            )
-            artifact._logged_artifact = base_artifact
-        return artifact
+        return artifact.create_patch() if incremental else artifact
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach

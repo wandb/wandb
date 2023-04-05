@@ -5253,6 +5253,20 @@ class Artifact(artifacts.Artifact):
                 run_obj["name"],
             )
 
+    def create_patch(self) -> "wandb.Artifact":
+        """Create a mutable copy of this artifact to use for incremental changes."""
+        from wandb.sdk.wandb_artifacts import Artifact as WandbArtifact
+
+        artifact = WandbArtifact(
+            name=self._artifact_collection_name,
+            type=self.type,
+            description=self.description,
+            metadata=self.metadata,
+            use_as=self._use_as,
+        )
+        artifact._manifest = self._load_manifest()
+        return artifact
+
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.

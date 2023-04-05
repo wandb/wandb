@@ -31,6 +31,16 @@ def example_files(tmp_path: Path) -> Path:
     return artifact_dir
 
 
+@pytest.fixture
+def logged_artifact(wandb_init: Callable, example_files: Path) -> Artifact:
+    with wandb.init() as run:
+        artifact = wandb.Artifact("test-artifact", "dataset")
+        artifact.add_dir(example_files)
+        run.log_artifact(artifact)
+    artifact.wait()
+    return artifact
+
+
 def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
@@ -403,3 +413,26 @@ def test_log_reference_directly(example_files, wandb_init):
     assert artifact is not None
     assert artifact.id is not None
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
+
+
+def test_log_incremental_add_file(wandb_init, example_file, logged_artifact):
+    assert logged_artifact.name == "test-artifact:v0"
+    with wandb_init() as run:
+        artifact = run.use_artifact(logged_artifact.name, incremental=True)
+
+        assert artifact.name == "test-artifact"
+        assert artifact.state == "PENDING"
+        manifest = artifact._manifest
+        assert len(manifest.entries) == 3
+
+        artifact.add_file(example_file)
+        assert len(manifest.entries) == 4
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    assert artifact.name == "test-artifact:v1"
+    assert len(artifact.manifest.entries) == 4
+    downloaded_path = Path(artifact.download())
+    files = list(downloaded_path.rglob("*"))
+    assert len(files) == 4
+    assert example_file.name in [f.name for f in files]
