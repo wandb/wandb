@@ -242,10 +242,6 @@ class Backend:
             mailbox=self._mailbox,
         )
 
-    def server_connect(self) -> None:
-        """Connect to server."""
-        pass
-
     def server_status(self) -> None:
         """Report server status."""
         pass

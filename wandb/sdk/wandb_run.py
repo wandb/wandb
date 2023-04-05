@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import traceback
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -59,7 +60,6 @@ from wandb.util import (
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
-    sentry_set_scope,
     to_forward_slash_path,
 )
 from wandb.viz import CustomChart, Visualize, custom_chart
@@ -336,6 +336,28 @@ class _run_decorator:  # noqa: N801
         return wrapper
 
     @classmethod
+    def _noop_on_finish(cls, message: str = "", only_warn: bool = False) -> Callable:
+        def decorator_fn(func: Callable) -> Callable:
+            @functools.wraps(func)
+            def wrapper_fn(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+                if not getattr(self, "_is_finished", False):
+                    return func(self, *args, **kwargs)
+
+                default_message = (
+                    f"Run ({self.id}) is finished. The call to `{func.__name__}` will be ignored. "
+                    f"Please make sure that you are using an active run."
+                )
+                resolved_message = message or default_message
+                if only_warn:
+                    warnings.warn(resolved_message, UserWarning, stacklevel=2)
+                else:
+                    raise errors.UsageError(resolved_message)
+
+            return wrapper_fn
+
+        return decorator_fn
+
+    @classmethod
     def _noop(cls, func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
@@ -500,6 +522,7 @@ class Run:
 
     _attach_id: Optional[str]
     _is_attached: bool
+    _is_finished: bool
     _settings: Settings
 
     _launch_artifacts: Optional[Dict[str, Any]]
@@ -603,10 +626,10 @@ class Run:
         # Pull info from settings
         self._init_from_settings(self._settings)
 
-        # Initial scope setup for sentry. This might get changed when the
-        # actual run comes back.
-        sentry_set_scope(
-            settings_dict=self._settings,
+        # Initial scope setup for sentry.
+        # This might get updated when the actual run comes back.
+        wandb._sentry.configure_scope(
+            settings=self._settings,
             process_context="user",
         )
 
@@ -633,11 +656,12 @@ class Run:
         self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
         self._iface_port = None
         self._attach_id = None
         self._is_attached = False
+        self._is_finished = False
 
         self._attach_pid = os.getpid()
 
@@ -786,7 +810,11 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=self._attach_id, _init_pid=self._init_pid)
+        return dict(
+            _attach_id=_attach_id,
+            _init_pid=self._init_pid,
+            _is_finished=self._is_finished,
+        )
 
     def __setstate__(self, state: Any) -> None:
         """Set run state from a custom pickle."""
@@ -848,6 +876,7 @@ class Run:
         return self._run_obj.display_name
 
     @name.setter
+    @_run_decorator._noop_on_finish()
     def name(self, name: str) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
@@ -871,6 +900,7 @@ class Run:
         return self._run_obj.notes
 
     @notes.setter
+    @_run_decorator._noop_on_finish()
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
@@ -889,6 +919,7 @@ class Run:
         return None
 
     @tags.setter
+    @_run_decorator._noop_on_finish()
     def tags(self, tags: Sequence) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
@@ -1023,6 +1054,7 @@ class Run:
         """Name of the W&B project associated with the run."""
         return self.project_name()
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log_code(
         self,
@@ -1243,6 +1275,7 @@ class Run:
     ) -> Dict[str, str]:
         return {"text/html": self.to_html(hidden=True)}
 
+    @_run_decorator._noop_on_finish()
     def _config_callback(
         self,
         key: Optional[Union[Tuple[str, ...], str]] = None,
@@ -1293,6 +1326,7 @@ class Run:
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
 
+    @_run_decorator._noop_on_finish()
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
@@ -1377,6 +1411,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
+    @_run_decorator._noop_on_finish(only_warn=True)
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
 
@@ -1444,10 +1479,9 @@ class Run:
         self._settings._apply_run_start(message_to_dict(self._run_obj))
         self._update_settings(self._settings)
 
-        # TODO: It feels weird to call this twice..
-        sentry_set_scope(
+        wandb._sentry.configure_scope(
             process_context="user",
-            settings_dict=self._settings,
+            settings=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1462,9 +1496,9 @@ class Run:
         logged with the same value in each history step, but represented
         as a single item in the config.
 
-        We do this to avoid filling up history with a lot of repeated uneccessary data
+        We do this to avoid filling up history with a lot of repeated unnecessary data
 
-        Add singleton can be called many times in one run and it will only be
+        Add singleton can be called many times in one run, and it will only be
         updated when the value changes. The last value logged will be the one
         persisted to the server.
         """
@@ -1519,6 +1553,7 @@ class Run:
             self._step += 1
 
     @_run_decorator._noop
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log(
         self,
@@ -1714,6 +1749,7 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def save(
         self,
@@ -1766,7 +1802,8 @@ class Run:
                 wandb.termwarn(
                     "Saving files without folders. If you want to preserve "
                     "sub directories pass base_path to wandb.save, i.e. "
-                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
+                    repeat=False,
                 )
             else:
                 base_path = "."
@@ -1834,7 +1871,7 @@ class Run:
     def finish(
         self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
     ) -> None:
-        """Mark a run as finished, and finishe uploading all data.
+        """Mark a run as finished, and finish uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
         call this method when your script exits or if you use the run context manager.
@@ -1873,6 +1910,10 @@ class Run:
         if manager:
             manager._inform_finish(run_id=self._run_id)
 
+        self._is_finished = True
+        # end sentry session
+        wandb._sentry.end_session()
+
     @_run_decorator._noop
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
@@ -1885,6 +1926,7 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def status(
         self,
@@ -2209,6 +2251,10 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+        if not self._settings.resume:
+            if os.path.exists(self._settings.resume_fname):
+                os.remove(self._settings.resume_fname)
+
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         import pkg_resources
 
@@ -2377,6 +2423,7 @@ class Run:
             printer=self._printer,
         )
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def define_metric(
         self,
@@ -2539,6 +2586,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def link_artifact(
         self,
@@ -2582,6 +2630,7 @@ class Run:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def use_artifact(
         self,
@@ -2689,6 +2738,7 @@ class Run:
             self._backend.interface.publish_use_artifact(artifact)
         return artifact
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def log_artifact(
         self,
@@ -2725,6 +2775,7 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def upsert_artifact(
         self,
@@ -2778,6 +2829,7 @@ class Run:
             finalize=False,
         )
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def finish_artifact(
         self,
@@ -2952,6 +3004,7 @@ class Run:
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def alert(
         self,
@@ -2999,6 +3052,7 @@ class Run:
         self._finish(exit_code)
         return exc_type is None
 
+    @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def mark_preempting(self) -> None:
         """Mark this run as preempting.
@@ -3678,6 +3732,10 @@ class InvalidArtifact:
         return False
 
 
+class WaitTimeoutError(errors.Error):
+    """Raised when wait() timeout occurs before process is finished."""
+
+
 class _LazyArtifact(ArtifactInterface):
     _api: PublicApi
     _instance: Union[ArtifactInterface, InvalidArtifact]
@@ -3695,7 +3753,7 @@ class _LazyArtifact(ArtifactInterface):
         if not self._instance:
             future_get = self._future.get(timeout)
             if not future_get:
-                raise errors.WaitTimeoutError(
+                raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
                 )
             resp = future_get.response.log_artifact_response

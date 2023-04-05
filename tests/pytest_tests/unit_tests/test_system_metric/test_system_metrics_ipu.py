@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 import time
 from unittest import mock
 
@@ -90,7 +90,6 @@ def test_profiler():
 
 
 def test_ipu(test_settings):
-
     with mock.patch.object(
         wandb.sdk.internal.system.assets.ipu, "gcipuinfo", MockGcIpuInfo()
     ):
@@ -103,7 +102,7 @@ def test_ipu(test_settings):
                 )
             ).make_static()
         )
-        shutdown_event = mp.Event()
+        shutdown_event = threading.Event()
 
         ipu = IPU(
             interface=interface,
