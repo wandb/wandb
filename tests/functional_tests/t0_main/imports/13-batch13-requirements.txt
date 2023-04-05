@@ -1,3 +1,0 @@
-langchain
-llama-index
-stability-sdk
