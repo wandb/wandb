@@ -159,8 +159,10 @@ def wandb_internal(
                 logger.error("Internal process interrupted.")
                 stopped.set()
 
+    print("JOIN THREADS")
     for thread in threads:
         thread.join()
+    print("JOIN THREADS, JOINED")
 
     def close_internal_log() -> None:
         root = logging.getLogger("wandb")

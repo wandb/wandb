@@ -634,7 +634,7 @@ class Settings:
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
-                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}-{os.getpid()}", x
                 ),
             },
             force={"preprocessor": _str_as_bool},
@@ -658,7 +658,7 @@ class Settings:
             log_dir={
                 "value": "logs",
                 "hook": lambda x: self._path_convert(
-                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}-{os.getpid()}", x
                 ),
             },
             log_internal={
@@ -734,7 +734,7 @@ class Settings:
             sync_dir={
                 "hook": [
                     lambda _: self._path_convert(
-                        self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
+                        self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}-{os.getpid()}"
                     )
                 ],
                 "auto_hook": True,
@@ -770,7 +770,7 @@ class Settings:
                 "hook": lambda x: (
                     self._path_convert(
                         self.wandb_dir,
-                        f"{self.run_mode}-{self.timespec}-{self.run_id}",
+                        f"{self.run_mode}-{self.timespec}-{self.run_id}-{os.getpid()}",
                         x,
                     )
                     or tempfile.gettempdir()
