@@ -214,7 +214,7 @@ class KubernetesRunner(AbstractRunner):
         namespace: str,
         core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
-        """Apply our default values, return job dict and secret"""
+        """Apply our default values, return job dict and secret."""
         job: Dict[str, Any] = {
             "apiVersion": "batch/v1",
             "kind": "Job",
