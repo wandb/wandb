@@ -893,9 +893,6 @@ def _attach(
 
     mailbox.enable_keepalive()
 
-    if run.settings._offline:
-        return run
-
     attach_handle = backend.interface.deliver_attach(attach_id)
     # TODO: add progress to let user know we are doing something
     attach_result = attach_handle.wait(timeout=30)
@@ -905,7 +902,10 @@ def _attach(
     attach_response = attach_result.response.attach_response
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
-    run._set_run_obj(attach_response.run)
+    if run.settings._offline:
+        run._set_run_obj_offline(attach_response.run)
+    else:
+        run._set_run_obj(attach_response.run)
     run._on_attach()
     return run
 
