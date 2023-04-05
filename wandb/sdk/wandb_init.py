@@ -776,24 +776,20 @@ class _WandbInit:
             with telemetry.context(run=run) as tel:
                 tel.feature.resumed = run_result.run.resumed
 
-        if self.settings._offline:
-            run._set_run_obj_offline(run_result.run)
-        else:
-            run._set_run_obj(run_result.run)
+        run._set_run_obj(run_result.run)
 
         run._on_init()
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
-        run_obj = run._run_obj or run._run_obj_offline
 
         if manager:
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         assert backend.interface
-        assert run_obj
+        assert run._run_obj
 
-        run_start_handle = backend.interface.deliver_run_start(run_obj)
+        run_start_handle = backend.interface.deliver_run_start(run._run_obj)
         # TODO: add progress to let user know we are doing something
         run_start_result = run_start_handle.wait(timeout=30)
         if run_start_result is None:
@@ -906,10 +902,8 @@ def _attach(
     attach_response = attach_result.response.attach_response
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
-    if run.settings._offline:
-        run._set_run_obj_offline(attach_response.run)
-    else:
-        run._set_run_obj(attach_response.run)
+
+    run._set_run_obj(attach_response.run)
     run._on_attach()
     return run
 
