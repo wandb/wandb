@@ -43,7 +43,6 @@ from wandb.sdk.interface.artifacts import (
     ArtifactManifestEntry,
     ArtifactNotLoggedError,
     ArtifactsCache,
-    FileLocation,
     StorageHandler,
     StorageLayout,
     StoragePolicy,
@@ -61,7 +60,7 @@ from wandb.sdk.lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.util import FilePathStr, LocationStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
@@ -894,7 +893,7 @@ class WandbStoragePolicy(StoragePolicy):
     def store_reference(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1066,13 +1065,13 @@ class __S3BucketPolicy(StoragePolicy):  # noqa: N801
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> FileLocation:
+    ) -> LocationStr:
         return self._handler.load_path(manifest_entry, local=local)
 
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1105,7 +1104,7 @@ class MultiHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> FileLocation:
+    ) -> LocationStr:
         url = urlparse(manifest_entry.ref)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
@@ -1118,7 +1117,7 @@ class MultiHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1180,7 +1179,7 @@ class TrackingHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1244,13 +1243,16 @@ class LocalFileHandler(StorageHandler):
                 % (local_path, manifest_entry.digest, md5)
             )
 
-        shutil.copy2(local_path, path)
+        filesystem.mkdir_exists_ok(os.path.dirname(path))
+
+        with cache_open() as f:
+            shutil.copy(local_path, f.name)
         return FilePathStr(path)
 
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1371,7 +1373,7 @@ class S3Handler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> FileLocation:
+    ) -> LocationStr:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -1433,7 +1435,7 @@ class S3Handler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1636,7 +1638,7 @@ class GCSHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> FileLocation:
+    ) -> LocationStr:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -1682,7 +1684,7 @@ class GCSHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1817,7 +1819,7 @@ class HTTPHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> FileLocation:
+    ) -> LocationStr:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -1835,7 +1837,7 @@ class HTTPHandler(StorageHandler):
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
-        digest: Optional[Union[ETag, FileLocation]]
+        digest: Optional[Union[ETag, LocationStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
@@ -1852,7 +1854,7 @@ class HTTPHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1863,7 +1865,7 @@ class HTTPHandler(StorageHandler):
 
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
-            digest: Optional[Union[ETag, FileLocation]]
+            digest: Optional[Union[ETag, LocationStr]]
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
         return [
@@ -1947,7 +1949,7 @@ class WBArtifactHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -2026,7 +2028,7 @@ class WBLocalArtifactHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: FileLocation,
+        path: LocationStr,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,

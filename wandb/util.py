@@ -70,12 +70,14 @@ CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 LogicalFilePathStr = NewType("LogicalFilePathStr", str)
 
 # `FilePathStr` represents a path to a file on the local filesystem.
-#
 # TODO(spencerpearson): this should probably be replaced with pathlib.Path
 FilePathStr = NewType("FilePathStr", str)
 
 # TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
 URIStr = NewType("URIStr", str)
+
+LocationStr = Union[FilePathStr, URIStr]
+
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
