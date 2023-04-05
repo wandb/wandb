@@ -901,6 +901,10 @@ class Table(Media):
             ndxs.append(index)
         return ndxs
 
+    def get_df(self):
+        """Returns a pandas.DataFrame of the table."""
+        return pd.DataFrame.from_records(self.data, columns = self.columns)
+
     def index_ref(self, index):
         """Get a reference to a particular row index in the table."""
         assert index < len(self.data)
