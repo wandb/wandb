@@ -191,6 +191,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_run(self, record: Record) -> None:
+        if self._settings._offline:
+            self._run_proto = record.run
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(record.run)
+            self._respond_result(result)
         self._dispatch_record(record)
 
     def handle_stats(self, record: Record) -> None:

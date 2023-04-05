@@ -2172,6 +2172,8 @@ class Run:
             self._output_writer = None
 
     def _on_init(self) -> None:
+        if self._settings._offline:
+            return
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
             version_handle = self._backend.interface.deliver_check_version(

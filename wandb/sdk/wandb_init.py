@@ -717,67 +717,71 @@ class _WandbInit:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
 
-            backend.interface.publish_run(run_proto)
-            run._set_run_obj_offline(run_proto)
+            # backend.interface.publish_run(run_proto)
+            # run._set_run_obj_offline(run_proto)
             if self.settings.resume:
                 wandb.termwarn(
                     "`resume` will be ignored since W&B syncing is set to `offline`. "
                     f"Starting a new run with run id {run.id}."
                 )
-        else:
-            error: Optional["wandb.errors.Error"] = None
+        # else:
+        error: Optional["wandb.errors.Error"] = None
 
-            timeout = self.settings.init_timeout
+        timeout = self.settings.init_timeout
 
-            logger.info(f"communicating run to backend with {timeout} second timeout")
+        logger.info(f"communicating run to backend with {timeout} second timeout")
 
-            run_init_handle = backend.interface.deliver_run(run_proto)
-            result = run_init_handle.wait(
-                timeout=timeout,
-                on_progress=self._on_progress_init,
-                cancel=True,
+        run_init_handle = backend.interface.deliver_run(run_proto)
+        result = run_init_handle.wait(
+            timeout=timeout,
+            on_progress=self._on_progress_init,
+            cancel=True,
+        )
+        if result:
+            run_result = result.run_result
+
+        if run_result is None:
+            error_message = (
+                f"Run initialization has timed out after {timeout} sec. "
+                f"\nPlease refer to the documentation for additional information: {wburls.get('doc_start_err')}"
             )
-            if result:
-                run_result = result.run_result
+            # We're not certain whether the error we encountered is due to an issue
+            # with the server (a "CommError") or if it's a problem within the SDK (an "Error").
+            # This means that the error could be a result of the server being unresponsive,
+            # or it could be because we were unable to communicate with the wandb service.
+            error = CommError(error_message)
+            run_init_handle._cancel()
+        elif run_result.HasField("error"):
+            error = ProtobufErrorHandler.to_exception(run_result.error)
 
-            if run_result is None:
-                error_message = (
-                    f"Run initialization has timed out after {timeout} sec. "
-                    f"\nPlease refer to the documentation for additional information: {wburls.get('doc_start_err')}"
-                )
-                # We're not certain whether the error we encountered is due to an issue
-                # with the server (a "CommError") or if it's a problem within the SDK (an "Error").
-                # This means that the error could be a result of the server being unresponsive,
-                # or it could be because we were unable to communicate with the wandb service.
-                error = CommError(error_message)
-                run_init_handle._cancel()
-            elif run_result.HasField("error"):
-                error = ProtobufErrorHandler.to_exception(run_result.error)
+        if error is not None:
+            logger.error(f"encountered error: {error}")
+            if not manager:
+                # Shutdown the backend and get rid of the logger
+                # we don't need to do console cleanup at this point
+                backend.cleanup()
+                self.teardown()
+            raise error
 
-            if error is not None:
-                logger.error(f"encountered error: {error}")
-                if not manager:
-                    # Shutdown the backend and get rid of the logger
-                    # we don't need to do console cleanup at this point
-                    backend.cleanup()
-                    self.teardown()
-                raise error
+        assert run_result is not None  # for mypy
 
-            assert run_result is not None  # for mypy
+        if not run_result.HasField("run"):
+            raise Error(
+                "It appears that something have gone wrong during the program execution as an unexpected missing field was encountered. "
+                "(run_result is missing the 'run' field)"
+            )
 
-            if not run_result.HasField("run"):
-                raise Error(
-                    "It appears that something have gone wrong during the program execution as an unexpected missing field was encountered. "
-                    "(run_result is missing the 'run' field)"
-                )
+        if run_result.run.resumed:
+            logger.info("run resumed")
+            with telemetry.context(run=run) as tel:
+                tel.feature.resumed = run_result.run.resumed
 
-            if run_result.run.resumed:
-                logger.info("run resumed")
-                with telemetry.context(run=run) as tel:
-                    tel.feature.resumed = run_result.run.resumed
-
+        if self.settings._offline:
+            run._set_run_obj_offline(run_result.run)
+        else:
             run._set_run_obj(run_result.run)
-            run._on_init()
+
+        run._on_init()
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
