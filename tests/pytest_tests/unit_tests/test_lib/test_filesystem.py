@@ -319,9 +319,23 @@ def test_safe_copy_existing_source_and_missing_target(tmp_path: Path):
 
     source_path.write_text(source_content, encoding="utf-8")
 
-    safe_copy(source_path, target_path)
+    returned = safe_copy(source_path, target_path)
 
+    assert returned == target_path
     assert target_path.read_text("utf-8") == source_content
+
+
+def test_safe_copy_str_path(tmp_path: Path):
+    source_path = tmp_path / "source.txt"
+    target_path = str(tmp_path / "target.txt")
+    source_content = "Source content 📝"
+
+    source_path.write_text(source_content, encoding="utf-8")
+
+    returned = safe_copy(source_path, target_path)
+
+    assert returned == target_path  # Should return str, not pathlib.Path.
+    assert Path(target_path).read_text("utf-8") == source_content
 
 
 real_temp_dir = tempfile.TemporaryDirectory()
