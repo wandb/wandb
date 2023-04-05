@@ -222,21 +222,21 @@ class Sentry:
                 return None
 
             for tag in settings_tags:
-                val = settings[tag]
+                val = settings.get(tag)
                 if val not in (None, ""):
                     scope.set_tag(tag, val)
 
             # todo: update once #4982 is merged
             python_runtime = (
                 "colab"
-                if settings["_colab"]
-                else ("jupyter" if settings["_jupyter"] else "python")
+                if settings.get("_colab")
+                else ("jupyter" if settings.get("_jupyter") else "python")
             )
             scope.set_tag("python_runtime", python_runtime)
 
             # Hack for constructing run_url and sweep_url given run_id and sweep_id
             required = ("entity", "project", "base_url")
-            params = {key: settings[key] for key in required}
+            params = {key: settings.get(key) for key in required}
             if all(params.values()):
                 # here we're guaranteed that entity, project, base_url all have valid values
                 app_url = wandb.util.app_url(params["base_url"])
