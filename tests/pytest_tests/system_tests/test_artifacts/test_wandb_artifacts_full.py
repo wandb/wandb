@@ -436,3 +436,25 @@ def test_log_incremental_add_file(wandb_init, example_file, logged_artifact):
     files = list(downloaded_path.rglob("*"))
     assert len(files) == 4
     assert example_file.name in [f.name for f in files]
+
+
+def test_log_incremental_modify_file(wandb_init, logged_artifact):
+    assert logged_artifact.name == "test-artifact:v0"
+    art_path = Path(logged_artifact.download())
+    one_file = list(art_path.rglob("*"))[0]
+
+    with wandb_init() as run:
+        artifact = run.use_artifact(logged_artifact.name, incremental=True)
+
+        one_file.write_text("all new content!")
+
+        artifact.add_file(one_file)
+        assert len(artifact._manifest.entries) == 3
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    assert artifact.name == "test-artifact:v1"
+    assert len(artifact.manifest.entries) == 3
+    downloaded_path = Path(artifact.download())
+    that_file = list(downloaded_path.glob(one_file.name))[0]
+    assert that_file.read_text() == "all new content!"

@@ -110,11 +110,11 @@ class ArtifactManifest:
         raise NotImplementedError
 
     def add_entry(self, entry: ArtifactManifestEntry) -> None:
-        if (
-            entry.path in self.entries
-            and entry.digest != self.entries[entry.path].digest
-        ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
+        # if (
+        #     entry.path in self.entries
+        #     and entry.digest != self.entries[entry.path].digest
+        # ):
+        #     raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
     def get_entry_by_path(self, path: str) -> Optional[ArtifactManifestEntry]:
