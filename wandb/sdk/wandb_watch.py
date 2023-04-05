@@ -61,26 +61,26 @@ def watch(
     log_parameters = log in {"parameters", "all"}
     log_gradients = log in {"gradients", "all"}
 
-    if isinstance(models, dict):
-        model_names = list(models.keys())
-        models = list(models.values())
-    elif not isinstance(models, (tuple, list)):
+    # Ensure models are list or tuple if not dict
+    if not isinstance(models, (tuple, list, dict)):
         models = (models,)
 
+    # Set default model_names if not provided (only used if models are not a dict)
     if model_names is None:
-        model_names = [None] * len(models)
-    if not isinstance(model_names, (tuple, list)):
-        model_names = (model_names,)
+        model_names = ["graph_{idx}"] * len(models)
 
     assert len(models) == len(
         model_names
     ), "The number of models must match the number of model names"
 
+    if not isinstance(models, dict):
+        models = {model_name: model for (model_name, model) in zip(model_names, models)}
+
     torch = wandb.util.get_module(
         "torch", required="wandb.watch only works with pytorch, couldn't import torch."
     )
 
-    for model in models:
+    for model in models.values():
         if not isinstance(model, torch.nn.Module):
             raise ValueError(
                 "Expected a pytorch model (torch.nn.Module). Received "
@@ -92,15 +92,12 @@ def watch(
 
     if idx is None:
         idx = _global_watch_idx
-    for local_idx, (model_name, model) in enumerate(zip(model_names, models)):
+
+    for local_idx, (model_name, model) in enumerate(models.items()):
         global_idx = idx + local_idx
         _global_watch_idx += 1
 
-        if model_name is not None:
-            prefix = f"{model_name}/"
-        elif global_idx > 0:
-            # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
-            prefix = "graph_%i" % global_idx
+        prefix = model_name.format(idx=global_idx) + "/"
 
         if log_parameters:
             wandb.run._torch.add_log_parameters_hook(
