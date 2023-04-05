@@ -100,6 +100,7 @@ class OptunaScheduler(Scheduler):
         for trial in self.study.trials:
             i = trial.number + 1
             vals = list(trial.intermediate_values.values())
+            print(f">>> {self.study.direction=}")
             if len(vals) > 0:
                 best = max(vals) if self.study.direction == "maximize" else min(vals)
                 trials[
@@ -242,6 +243,7 @@ class OptunaScheduler(Scheduler):
         else:
             wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
 
+        print(f'{self._sweep_config.get("metric", {}).get("goal")=}')
         direction = self._sweep_config.get("metric", {}).get("goal")
         create_msg = f"{LOG_PREFIX} {'Loading' if existing_storage else 'Creating'}"
         self._storage_path = existing_storage or OptunaComponents.storage.value
