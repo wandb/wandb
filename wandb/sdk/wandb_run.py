@@ -2638,7 +2638,7 @@ class Run:
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
         use_as: Optional[str] = None,
-        incremental: bool = False,
+        patch: bool = False,
     ) -> Union[public.Artifact, Artifact]:
         """Declare an artifact as an input to a run.
 
@@ -2656,9 +2656,9 @@ class Run:
             aliases: (list, optional) Aliases to apply to this artifact
             use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
                                        Will be shown in UI.
-            incremental: (bool, optional) Enable extending the base artifact. The artifact
+            Patch: (bool, optional) Enable extending the base artifact. The artifact
                 returned will be a mutable copy of the used artifact and will need to be
-                logged as a new version if entries are added or removed.
+                logged as a new version if entries are added, changed, or removed.
 
         Returns:
             An `Artifact` object.
@@ -2736,7 +2736,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_use_artifact(artifact)
 
-        return artifact.create_patch() if incremental else artifact
+        return artifact.create_patch() if patch else artifact
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
