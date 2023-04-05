@@ -2,6 +2,7 @@ import os
 import platform
 import shutil
 import stat
+import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -341,6 +342,7 @@ def test_safe_copy_str_path(tmp_path: Path):
 real_temp_dir = tempfile.TemporaryDirectory()
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="pyfakefs limitations")
 @pytest.mark.parametrize("fs_type", [OSType.LINUX, OSType.MACOS, OSType.WINDOWS])
 def test_safe_copy_different_file_systems(fs, fs_type: OSType):
     fs.os = fs_type
