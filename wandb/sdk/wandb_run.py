@@ -869,7 +869,8 @@ class Run:
         """
         if self._name:
             return self._name
-        return self._run_obj.display_name or None
+        if self._run_obj:
+            return self._run_obj.display_name or None
 
     @name.setter
     @_run_decorator._noop_on_finish()
@@ -889,7 +890,10 @@ class Run:
         Notes can be a multiline string and can also use markdown and latex equations
         inside `$$`, like `$x + 3$`.
         """
-        return self._notes or self._run_obj.notes or None
+        if self._notes:
+            return self._notes
+        if self._run_obj:
+            return self._run_obj.notes or None
 
     @notes.setter
     @_run_decorator._noop_on_finish()
@@ -903,7 +907,10 @@ class Run:
     @_run_decorator._attach
     def tags(self) -> Optional[Tuple]:
         """Tags associated with the run, if there are any."""
-        return self._tags or tuple(self._run_obj.tags) or None
+        if self._tags:
+            return self._tags
+        if self._run_obj:
+            return tuple(self._run_obj.tags) or None
 
     @tags.setter
     @_run_decorator._noop_on_finish()
@@ -927,7 +934,8 @@ class Run:
     @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
         """ID of the sweep associated with the run, if there is one."""
-        return self._run_obj.sweep_id or None
+        if self._run_obj:
+            return self._run_obj.sweep_id or None
 
     def _get_path(self) -> str:
         parts = [
@@ -971,7 +979,7 @@ class Run:
     @_run_decorator._attach
     def resumed(self) -> bool:
         """True if the run was resumed, False otherwise."""
-        return self._run_obj.resumed
+        return self._run_obj.resumed if self._run_obj else False
 
     @property
     @_run_decorator._attach
@@ -983,7 +991,8 @@ class Run:
         return self._step
 
     def project_name(self) -> str:
-        return self._run_obj.project
+        """The name of the project associated with the run."""
+        return self._run_obj.project if self._run_obj else ""
 
     @property
     @_run_decorator._attach
@@ -1009,7 +1018,7 @@ class Run:
         return self._settings._noop
 
     def _get_group(self) -> str:
-        return self._run_obj.run_group
+        return self._run_obj.group if self._run_obj else ""
 
     @property
     @_run_decorator._attach
@@ -1028,7 +1037,7 @@ class Run:
     @property
     @_run_decorator._attach
     def job_type(self) -> str:
-        return self._run_obj.job_type
+        return self._run_obj.job_type if self._run_obj else ""
 
     @property
     @_run_decorator._attach
@@ -2929,7 +2938,7 @@ class Run:
 
     def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
         overrides = {"run": self._run_id}
-        if not self._settings._offline:
+        if not (self._settings._offline or self._run_obj is None):
             overrides["entity"] = self._run_obj.entity
             overrides["project"] = self._run_obj.project
         return public.Api(overrides)
