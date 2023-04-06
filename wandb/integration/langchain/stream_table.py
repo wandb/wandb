@@ -11,13 +11,15 @@ import time
 import wandb
 from wandb import data_types
 
-MAX_PARTITION_SIZE = 100
+# This controls the maximum (expected) number of rows per partition. There is a tradeoff:
+# - If this number is too small, we will have too many partitions, which can slow down read time and impact performance.
+# - If this number is too large, we will end up duplicating data on upload, which can impact performance of the writing client,
+MAX_PARTITION_SIZE = 10
 
 
-def random_string(n):
-    return "".join(random.choices(string.ascii_lowercase, k=n))
-
-
+# This timeout schedule controls how often we flush data to the server. For the most realtime experience, we want to flush
+# as often as possible. However, this is costly on the client & wastes many cycles uploading duplicate data. From a data
+# reading perspective, we want to minimize the number of partitions, so we want to flush as infrequently as possible.
 def next_flush_timeout(cur_time, start_time, cur_flush_timeout):
     if cur_time - start_time < 5 * 60:
         # First 5 minutes, flush every second
@@ -29,6 +31,10 @@ def next_flush_timeout(cur_time, start_time, cur_flush_timeout):
         # Flush every 10 minutes
         max_flush_timeout = 600
     return min(cur_flush_timeout * 2, max_flush_timeout)
+
+
+def random_string(n):
+    return "".join(random.choices(string.ascii_lowercase, k=n))
 
 
 def get_cur_files(run, name):
@@ -71,13 +77,14 @@ def stream_table_thread(name, columns, row_queue):
     while True:
         try:
             row = row_queue.get(timeout=1)
+            if row is None:
+                break
+            partition_rows.append(row)
         except queue.Empty:
-            continue
-        if row is None:
-            break
-        partition_rows.append(row)
+            pass
         timestamp = time.time()
-        if timestamp - last_flush_time > flush_timeout:
+        if partition_rows and timestamp - last_flush_time > flush_timeout:
+            # This is waits for the artifact to be saved, which can take a while
             save_partition(run, name, art_name, columns, partition_name, partition_rows)
             last_flush_time = time.time()
             flush_timeout = next_flush_timeout(timestamp, start_time, flush_timeout)
