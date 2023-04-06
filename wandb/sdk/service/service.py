@@ -177,6 +177,8 @@ class _Service:
                     required="""Please install wandb nexus package using: 'pip install "wandb[nexus]"'""",
                 )
                 nexus_path = wandb_nexus.get_nexus_path()
+                print("VARTASK", os.listdir("/var/task"))
+                print("VARTASKWN", os.listdir("/var/task/wandb_nexus/"))
                 assert nexus_path.exists(), f"Not found {nexus_path}"
                 service_args += [nexus_path]
                 exec_cmd_list = []
