@@ -158,7 +158,7 @@ def safe_open(
     with tempfile.TemporaryDirectory(dir=path.parent) as tmp_dir:
         tmp_path = Path(tmp_dir) / path.name
 
-        if ("a" in mode or "+" in mode) and "w" not in mode and path.exists():
+        if ("r" in mode or "a" in mode) and path.exists():
             # We need to copy the original file in order to support reads and appends.
             # TODO (hugh): use reflinks to avoid the copy on platforms that support it.
             shutil.copy2(path, tmp_path)
