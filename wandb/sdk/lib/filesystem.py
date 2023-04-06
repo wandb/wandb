@@ -139,7 +139,7 @@ def safe_open(
     file or overwrite good data, and that all temp data is cleaned up. Otherwise, the
     semantics and behavior should be identical to the built-in open() function.
     """
-    path = Path(path)
+    path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if "x" in mode and path.exists():
