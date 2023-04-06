@@ -333,7 +333,10 @@ class KubernetesRunner(AbstractRunner):
             core_api,
         )
 
-        _logger.info(f"Creating Kubernetes job from: {job}")
+        msg = "Creating Kubernetes job"
+        if "name" in resource_args:
+            msg += f": {resource_args['name']}"
+        _logger.info(msg)
         job_response = kubernetes.utils.create_from_yaml(
             api_client, yaml_objects=[job], namespace=namespace
         )[0][
