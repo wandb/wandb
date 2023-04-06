@@ -78,7 +78,11 @@ def val_to_json(
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
+    elif (
+        isinstance(val, Sequence)
+        and not isinstance(val, str)
+        and all(isinstance(v, WBValue) for v in val)
+    ):
         assert run
         # This check will break down if Image/Audio/... have child classes.
         if (
@@ -86,6 +90,7 @@ def val_to_json(
             and isinstance(val[0], BatchableMedia)
             and all(isinstance(v, type(val[0])) for v in val)
         ):
+
             if TYPE_CHECKING:
                 val = cast(Sequence["BatchableMedia"], val)
 
@@ -138,6 +143,7 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
+
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact

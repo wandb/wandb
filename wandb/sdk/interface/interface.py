@@ -358,7 +358,6 @@ class InterfaceBase:
 
     def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
         files = pb.FilesRecord()
-        print("files_dict", files_dict)
         for path, policy in files_dict["files"]:
             f = files.files.add()
             f.path = path
@@ -564,13 +563,8 @@ class InterfaceBase:
         run: Optional["Run"] = None,
     ) -> None:
         run = run or self._run
-        if os.environ.get("OLD_HISTORY"):
-            data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
-        else:
-            from wandb.sdk.rich_types.utils import bind
 
-            data = bind(data, run, str(user_step))
-
+        data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
         # add timestamp to the history request, if not already present

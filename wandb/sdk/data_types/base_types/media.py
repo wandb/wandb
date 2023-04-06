@@ -133,7 +133,6 @@ class Media(WBValue):
             shutil.move(self._path, new_path)
             self._path = new_path
             self._is_tmp = False
-            breakpoint()
             _datatypes_callback(media_path)
         else:
             try:
