@@ -1,7 +1,8 @@
 import hashlib
 import io
+import os
 import pathlib
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 from urllib import parse
 
 import wandb.util as util
@@ -9,12 +10,6 @@ import wandb.util as util
 from .bounding_boxes_2d import BoundingBoxes2D
 from .image_mask import ImageMask
 from .media import Media, MediaSequence, register
-
-# try:
-#     from typing_extensions import Protocol, runtime_checkable
-# except ImportError:
-#     from typing import Protocol, runtime_checkable
-
 
 if TYPE_CHECKING:
     import matplotlib.artist.Artist  # type: ignore
@@ -36,10 +31,10 @@ def path_is_reference(path: str) -> bool:
 class Image(Media):
     """A wandb Image object."""
 
-    RELATIVE_PATH = pathlib.Path("media") / "images"
-    DEFAULT_FORMAT = "PNG"
     OBJ_TYPE = "image-file"
     OBJ_ARTIFACT_TYPE = "image-file"
+    RELATIVE_PATH = pathlib.Path("media") / "images"
+    DEFAULT_FORMAT = "PNG"
 
     _width: Optional[int]
     _height: Optional[int]
@@ -73,8 +68,8 @@ class Image(Media):
 
         if isinstance(data_or_path, Image):
             self.from_image(data_or_path)
-        elif isinstance(data_or_path, (str, pathlib.Path)):
-            self.from_path(data_or_path)
+        elif isinstance(data_or_path, (str, os.PathLike)):
+            self.from_path(data_or_path)  # type: ignore
         elif util.is_matplotlib_typename(util.get_full_typename(data_or_path)):
             self.from_matplotlib(data_or_path)
         elif isinstance(data_or_path, pil_image.Image):
@@ -130,7 +125,7 @@ class Image(Media):
     def bind_to_run(
         self,
         run: "Run",
-        *namespace: Iterable[str],
+        *namespace: str,
         name: Optional[str] = None,
     ) -> None:
         """Bind this image to a run.
@@ -156,6 +151,19 @@ class Image(Media):
         for i, bounding_box in enumerate(self._bounding_boxes):
             name = f"{name}{i}" if name is not None else None
             bounding_box.bind_to_run(run, *namespace, name=name)
+
+    def bind_to_artifact(
+        self,
+        artifact: "Artifact",
+    ) -> dict:
+        serialized = super().bind_to_artifact(artifact)
+        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
+        serialized["format"] = self._format
+        if self._width is not None:
+            serialized["width"] = self._width
+        if self._height is not None:
+            serialized["height"] = self._height
+        return serialized
 
     def add_masks(self, masks: dict) -> None:
         """Add masks to this image.
@@ -199,7 +207,7 @@ class Image(Media):
         """
         self._classes = classes
 
-    def from_path(self, path: Union[str, pathlib.Path]) -> None:
+    def from_path(self, path: os.PathLike) -> None:
         """Create an image from a path.
 
         Args:
@@ -207,15 +215,17 @@ class Image(Media):
         """
         if path_is_reference(str(path)):
             self.from_path_reference(str(path))
-        # TODO: add support for width and height
-        # self._width = 256
-        # self._height = 256
-        path = pathlib.Path(path).absolute()
-        self._format = path.suffix[1:].lower()
-        self._source_path = path
-        self._is_temp_path = False
-        self._size = self._source_path.stat().st_size
-        self._sha256 = self._compute_sha256(self._source_path)
+            return
+
+        from PIL import Image
+
+        path = pathlib.Path(path)
+        with Image.open(path) as image:
+            self._width = image.width
+            self._height = image.height
+
+        self._format = (path.suffix[1:] or self.DEFAULT_FORMAT).lower()
+        self._save_file_metadata(path)
 
     def from_path_reference(self, path: str) -> None:
         """Create an image from a path reference.
@@ -238,15 +248,9 @@ class Image(Media):
         self._width = image.width
         self._height = image.height
         self._format = (image.format or self.DEFAULT_FORMAT).lower()
-        self._source_path = self._generate_temp_path(f".{self._format}")
-        self._is_temp_path = True
-        image.save(
-            self._source_path,
-            format=self._format,
-            transparency=None,
-        )
-        self._size = self._source_path.stat().st_size
-        self._sha256 = self._compute_sha256(self._source_path)
+        path = self._generate_temp_path(f".{self._format}")
+        image.save(path, format=self._format, transparency=None)
+        self._save_file_metadata(path, is_temp=True)
 
     def from_array(self, array: "np.ndarray", mode: Optional[str] = None) -> None:
         """Create an image from a numpy array.
@@ -354,19 +358,6 @@ class Image(Media):
         for k, v in image.__dict__.items():
             if k not in excluded:
                 setattr(self, k, v)
-
-    def bind_to_artifact(
-        self,
-        artifact: "Artifact",
-    ) -> dict:
-        serialized = super().bind_to_artifact(artifact)
-        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
-        serialized["format"] = self._format
-        if self._width is not None:
-            serialized["width"] = self._width
-        if self._height is not None:
-            serialized["height"] = self._height
-        return serialized
 
 
 @register(Image)

@@ -1,7 +1,11 @@
 import pathlib
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
-from .media import Media
+from .media import Media, MediaSequence, register
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 
 class Audio(Media):
@@ -21,43 +25,48 @@ class Audio(Media):
         super().__init__()
         if isinstance(data_or_path, (str, pathlib.Path)):
             self.from_path(data_or_path)
+        elif isinstance(data_or_path, Audio):
+            self.from_audio(data_or_path)
         else:
             self.from_array(data_or_path, sample_rate=sample_rate)
 
         self._caption = caption
 
+    def from_audio(self, audio: "Audio") -> None:
+        excluded = set()
+        for k, v in audio.__dict__.items():
+            if k not in excluded:
+                setattr(self, k, v)
+
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        self._source_path = pathlib.Path(path)
-        self._is_temp_path = False
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
-        self._format = self._source_path.suffix[1:].upper()
+        path = pathlib.Path(path)
+        self._format = (path.suffix[1:] or self.DEFAULT_FORMAT).upper()
+        self._save_file_metadata(path)
 
     def from_array(
         self,
         data,
         sample_rate: Optional[int] = None,
     ) -> None:
+        breakpoint()
         assert sample_rate is not None, "sample_rate must be specified"
 
         import soundfile as sf
 
         self._format = self.DEFAULT_FORMAT.lower()
-        self._source_path = self._generate_temp_path(suffix=f".{self._format}")
-        self._is_temp_path = True
-        sf.write(self._source_path, data, sample_rate)
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        path = self._generate_temp_path(suffix=f".{self._format}")
+        sf.write(path, data, sample_rate)
+        self._save_file_metadata(path, is_temp=True)
 
-    def bind_to_run(self, run, *namespace, name: Optional[str] = None) -> None:
+    def bind_to_run(self, run: "Run", *namespace, name: Optional[str] = None) -> None:
         """Bind this audio object to a run.
 
         Args:
-            interface: The interface to the run.
-            start: The path to the run directory.
-            prefix: A list of path components to prefix to the audio object path.
-            name: The name of the audio object.
+            run: The run to bind to.
+            namespace: The namespace to use.
+            name: The name of the audio file.
         """
+        assert self._sha256
         return super().bind_to_run(
             run,
             *namespace,
@@ -79,3 +88,26 @@ class Audio(Media):
         if self._caption:
             serialized["caption"] = self._caption
         return serialized
+
+
+@register(Audio)
+class AudioSequence(MediaSequence[Any, Audio]):
+    OBJ_TYPE = "audio"
+    OBJ_ARTIFACT_TYPE = "audio"
+
+    def __init__(self, items: Sequence[Any]):
+        super().__init__(items, Audio)
+
+    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
+        super().bind_to_artifact(artifact)
+        return {
+            "_type": self.OBJ_ARTIFACT_TYPE,
+        }
+
+    def to_json(self) -> dict:
+        items = [item.to_json() for item in self._items]
+        return {
+            "_type": self.OBJ_TYPE,
+            "count": len(items),
+            "audio": items,
+        }

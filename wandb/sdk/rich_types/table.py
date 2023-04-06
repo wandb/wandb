@@ -1,6 +1,6 @@
 import json
 import pathlib
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 from wandb import util
 
@@ -176,9 +176,38 @@ class Table(Media):
         return serialized
 
 
-class PartitionedTable(Media):
-    ...
-
-
 class JoinedTable(Media):
+    OBJ_TYPE = "joined-table"
+    OBJ_ARTIFACT_TYPE = "joined-table"
+
+    def __init__(self, *tables: Table, join_keys: Union[str, List[str]]) -> None:
+        super().__init__()
+        self._tables = tables
+        self._join_keys = join_keys
+
+    def bind_to_run(self, *_) -> None:
+        pass
+
+    def to_json(self) -> Dict[str, Any]:
+        if self._artifact is None:
+            raise ValueError("Cannot serialize unbound media object.")
+        return {
+            "_type": self.OBJ_TYPE,
+            "artifact_path": self._artifact.artifact_path,
+        }
+
+    def bind_to_artifact(self, artifact: "Artifact") -> dict:
+        serialized = {"_type": self.OBJ_ARTIFACT_TYPE, "join_keys": self._join_keys}
+        tables = [
+            self._extract_table(t, artifact, i) for i, t in enumerate(self._tables)
+        ]
+        serialized["table1"] = tables[0]
+        serialized["table2"] = tables[1]
+        return serialized
+
+    def _extract_table(self, table: Table, artifact: "Artifact", index: int) -> str:
+        return ""
+
+
+class PartitionedTable(Media):
     ...

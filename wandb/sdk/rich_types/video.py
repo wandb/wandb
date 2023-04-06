@@ -1,29 +1,34 @@
 import io
+import os
 import pathlib
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
-import moviepy.video.io.ImageSequenceClip
 import numpy as np
 import tensorflow as tf
 import torch
 
-from .media import Media
+from .media import Media, MediaSequence, register
+
+if TYPE_CHECKING:
+    import moviepy.video.io.ImageSequenceClip
+
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 
 class Video(Media):
+    """A video object. This object can be used to log videos to W&B."""
 
     OBJ_TYPE = "video-file"
+    OBJ_ARTIFACT_TYPE = "video-file"
     RELATIVE_PATH = pathlib.Path("media") / "videos"
     DEFAULT_FORMAT = "GIF"
+
     SUPPORTED_FORMATS = ["mp4", "webm", "gif", "ogg"]
 
-    _format: str
-    _source_path: pathlib.Path
-    _is_temp_path: bool
-    _bind_path: Optional[pathlib.Path]
     _caption: Optional[str]
-    _sha256: str
-    _size: int
+    _width: Optional[int]
+    _height: Optional[int]
 
     def __init__(
         self,
@@ -32,7 +37,6 @@ class Video(Media):
         fps: int = 4,
         format: Optional[str] = None,
     ) -> None:
-
         if isinstance(data_or_path, (str, pathlib.Path)):
             self.from_path(data_or_path)
         elif isinstance(data_or_path, io.BytesIO):
@@ -44,76 +48,75 @@ class Video(Media):
         elif isinstance(data_or_path, tf.Tensor):
             self.from_tensorflow(data_or_path, fps=fps, format=format)
         else:
-            raise ValueError("Unsupported type: {}".format(type(data_or_path)))
+            raise ValueError(f"Unsupported type: {type(data_or_path)}")
 
         self._caption = caption
+        # todo: add width height when available
+        self._width = None
+        self._height = None
 
     def to_json(self) -> dict:
+        serialized = super().to_json()
+        # todo: add width height when available
 
         return {
-            "_type": self.OBJ_TYPE,
-            "sha256": self._sha256,
-            "size": self._size,
+            **serialized,
             "caption": self._caption,
-            "path": str(self._bind_path),
-        }  # todo: add width height when available
+        }
 
-    def bind_to_run(
-        self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
-    ) -> None:
+    def bind_to_run(self, run: "Run", *prefix: str, name: Optional[str] = None) -> None:
         """Bind this video object to a run.
 
         Args:
-            interface: The interface to the run.
-            start: The path to the run directory.
+            run: The run to bind to.
             prefix: A list of path components to prefix to the video object path.
             name: The name of the video object.
         """
-
+        assert self._sha256
         super().bind_to_run(
-            interface,
-            start,
+            run,
             *prefix,
             name or self._sha256[:20],
             suffix=f".{self._format}",
         )
 
+    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
+        serialized = super().bind_to_artifact(artifact)
+        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
+        if self._width is not None:
+            serialized["width"] = self._width
+        if self._height is not None:
+            serialized["height"] = self._height
+        if self._caption:
+            serialized["caption"] = self._caption
+        return serialized
+
     def from_buffer(self, buffer: io.BytesIO, format: Optional[str] = None) -> None:
-
         self._format = (format or self.DEFAULT_FORMAT).lower()
-        self._source_path = self._generate_temp_path(suffix=f".{self._format}")
-        self._is_temp_path = True
+        path = self._generate_temp_path(suffix=f".{self._format}")
 
-        with open(self._source_path, "wb") as f:
+        with open(path, "wb") as f:
             f.write(buffer.read())
 
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        self._save_file_metadata(path, is_temp=True)
 
-    def from_path(self, path: Union[str, pathlib.Path]) -> None:
-
+    def from_path(self, path: Union[str, os.PathLike]) -> None:
         path = pathlib.Path(path)
         self._format = path.suffix[1:]
         assert (
             self._format in self.SUPPORTED_FORMATS
         ), f"Unsupported format: {self._format}"
-        self._is_temp_path = False
-        self._source_path = path
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        self._save_file_metadata(path)
 
     def from_numpy(self, array: "np.ndarray", fps: int, format: Optional[str]) -> None:
-
         array = prepare_data(array)
 
         from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
         self._format = (format or self.DEFAULT_FORMAT).lower()
-        self._source_path = self._generate_temp_path(suffix=f".{self._format}")
-        self._is_temp_path = True
 
         clip = ImageSequenceClip(list(array), fps=fps)
-        path = str(self._source_path)
+        path = str(self._generate_temp_path(suffix=f".{self._format}"))
         try:
             if self._format == "gif":
                 write_gif(clip, path)
@@ -130,26 +133,23 @@ class Video(Media):
                     clip.write_gif(path, verbose=False)
                 else:
                     clip.write_videofile(path, verbose=False)
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+
+        self._save_file_metadata(path, is_temp=True)
 
     def from_tensorflow(
         self, tensor: "tf.Tensor", fps: int, format: Optional[str]
     ) -> None:
-
         array = tensor.numpy()  # type: ignore
         self.from_numpy(array, fps=fps, format=format)
 
     def from_torch(
         self, tensor: "torch.Tensor", fps: int, format: Optional[str]
     ) -> None:
-
         array = tensor.numpy()
         self.from_numpy(array, fps=fps, format=format)
 
 
 def prepare_data(data: "np.ndarray") -> "np.ndarray":
-
     if data.ndim < 4:
         raise ValueError(
             "Video must be atleast 4 dimensions: time, channels, height, width"
@@ -197,3 +197,26 @@ def write_gif(
         writer.append_data(frame)
 
     writer.close()
+
+
+@register(Video)
+class VideoSequence(MediaSequence[Any, Video]):
+    OBJ_TYPE = "videos"
+    OBJ_ARTIFACT_TYPE = "videos"
+
+    def __init__(self, items: Sequence[Any]):
+        super().__init__(items, Video)
+
+    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
+        super().bind_to_artifact(artifact)
+        return {
+            "_type": self.OBJ_ARTIFACT_TYPE,
+        }
+
+    def to_json(self) -> dict:
+        items = [item.to_json() for item in self._items]
+        return {
+            "_type": self.OBJ_TYPE,
+            "count": len(items),
+            "videos": items,
+        }
