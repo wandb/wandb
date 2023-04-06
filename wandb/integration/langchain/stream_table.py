@@ -14,7 +14,7 @@ from wandb import data_types
 # This controls the maximum (expected) number of rows per partition. There is a tradeoff:
 # - If this number is too small, we will have too many partitions, which can slow down read time and impact performance.
 # - If this number is too large, we will end up duplicating data on upload, which can impact performance of the writing client,
-MAX_PARTITION_SIZE = 10
+MAX_PARTITION_SIZE = 100
 
 
 # This timeout schedule controls how often we flush data to the server. For the most realtime experience, we want to flush
