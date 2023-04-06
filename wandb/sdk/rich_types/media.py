@@ -200,12 +200,16 @@ class MediaSequence(Generic[T, U]):
 
     def bind_to_run(
         self,
-        interface,
+        run,
         root_dir: pathlib.Path,
         *namespace: Sequence[str],
     ) -> None:
         for i, item in enumerate(self._items):
-            item.bind_to_run(interface, root_dir, *namespace, str(i))  # type: ignore
+            item.bind_to_run(run, root_dir, *namespace, str(i))  # type: ignore
+
+    def bind_to_artifact(self, artifact: "Artifact") -> Any:
+        for item in self._items:
+            item.bind_to_artifact(artifact)  # type: ignore
 
     def to_json(self) -> dict:
         ...

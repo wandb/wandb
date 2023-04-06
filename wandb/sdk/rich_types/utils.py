@@ -65,7 +65,7 @@ def bind_to_artifact(obj, *namespace):
     # if obj_id in artifact._added_objs:
     #     return
 
-    name = ".".join([namespace[1], obj.DEFAULT_FORMAT.lower()])
+    name = ".".join([*namespace, obj.DEFAULT_FORMAT.lower()])
     # entry = artifact._manifest.get_entry_by_path(name)
     # if entry is not None:
     #     return

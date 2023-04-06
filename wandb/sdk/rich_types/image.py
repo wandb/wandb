@@ -1,7 +1,7 @@
 import hashlib
 import io
 import pathlib
-from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Union
 from urllib import parse
 
 import wandb.util as util
@@ -372,10 +372,17 @@ class Image(Media):
 @register(Image)
 class ImageSequence(MediaSequence[Any, Image]):
     OBJ_TYPE = "images/separated"
+    OBJ_ARTIFACT_TYPE = "images/separated"
     DEFAULT_FORMAT = "PNG"
 
     def __init__(self, items: Sequence[Any]):
         super().__init__(items, Image)
+
+    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
+        super().bind_to_artifact(artifact)
+        return {
+            "_type": self.OBJ_ARTIFACT_TYPE,
+        }
 
     def to_json(self) -> dict:
         items = [item.to_json() for item in self._items]

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from wandb import util
 
-from .media import Media
+from .media import Media, MediaSequence
 
 if TYPE_CHECKING:
     import pandas as pd  # type: ignore
@@ -113,7 +113,7 @@ class Table(Media):
                 return [serialize(item) for item in obj]
             if isinstance(obj, dict):
                 return {key: serialize(value) for key, value in obj.items()}
-            if isinstance(obj, Media):
+            if isinstance(obj, (Media, MediaSequence)):
                 return obj.__class__.__name__
             return obj
 
@@ -134,7 +134,7 @@ class Table(Media):
                 return [serialize(item) for item in obj]
             if isinstance(obj, dict):
                 return {key: serialize(value) for key, value in obj.items()}
-            if isinstance(obj, Media):
+            if isinstance(obj, (Media, MediaSequence)):
                 return obj.bind_to_artifact(artifact)
             return obj
 

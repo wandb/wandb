@@ -6,22 +6,19 @@ from .media import Media
 
 class Audio(Media):
     OBJ_TYPE = "audio-file"
+    OBJ_ARTIFACT_TYPE = "audio-file"
     RELATIVE_PATH = pathlib.Path("media") / "audio"
     DEFAULT_FORMAT = "WAV"
 
-    _source_path: pathlib.Path
-    _is_temp_path: bool
-    _bind_path: Optional[pathlib.Path]
-    _size: int
-    _sha256: str
     _format: str
 
     def __init__(
         self,
         data_or_path,
+        sample_rate: Optional[int] = None,
         caption: Optional[str] = None,
-        sample_rate: Optional[str] = None,
     ) -> None:
+        super().__init__()
         if isinstance(data_or_path, (str, pathlib.Path)):
             self.from_path(data_or_path)
         else:
@@ -39,22 +36,20 @@ class Audio(Media):
     def from_array(
         self,
         data,
-        sample_rate: Optional[str] = None,
+        sample_rate: Optional[int] = None,
     ) -> None:
         assert sample_rate is not None, "sample_rate must be specified"
 
-        import soundfile
+        import soundfile as sf
 
         self._format = self.DEFAULT_FORMAT.lower()
         self._source_path = self._generate_temp_path(suffix=f".{self._format}")
         self._is_temp_path = True
-        soundfile.write(self._source_path, data, sample_rate)
+        sf.write(self._source_path, data, sample_rate)
         self._sha256 = self._compute_sha256(self._source_path)
         self._size = self._source_path.stat().st_size
 
-    def bind_to_run(
-        self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
-    ) -> None:
+    def bind_to_run(self, run, *namespace, name: Optional[str] = None) -> None:
         """Bind this audio object to a run.
 
         Args:
@@ -64,12 +59,20 @@ class Audio(Media):
             name: The name of the audio object.
         """
         return super().bind_to_run(
-            interface,
-            start,
-            *prefix,
+            run,
+            *namespace,
             name or self._sha256[:20],
             suffix=f".{self._format}",
         )
+
+    def bind_to_artifact(
+        self,
+        artifact: "Artifact",
+    ) -> dict:
+        serialized = super().bind_to_artifact(artifact)
+        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
+        serialized["format"] = self._format
+        return serialized
 
     def to_json(self) -> dict:
         serialized = super().to_json()
