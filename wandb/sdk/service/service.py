@@ -5,6 +5,7 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 
 import os
 import platform
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -177,7 +178,7 @@ class _Service:
                     required="""Please install wandb nexus package using: 'pip install "wandb[nexus]"'""",
                 )
                 nexus_path = wandb_nexus.get_nexus_path()
-                nexus_path = "/var/task/wandb_nexus/bin-linux-amd64/wandb-nexus"
+                nexus_path = pathlib.Path("/var/task/wandb_nexus/bin-linux-amd64/wandb-nexus")
                 print("VARTASK", os.listdir("/var/task"))
                 print("VARTASKWN", os.listdir("/var/task/wandb_nexus/"))
                 assert nexus_path.exists(), f"Not found {nexus_path}"
