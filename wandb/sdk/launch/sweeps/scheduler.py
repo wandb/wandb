@@ -128,6 +128,10 @@ class Scheduler(ABC):
         pass
 
     @abstractmethod
+    def _poll(self) -> None:
+        pass
+
+    @abstractmethod
     def _exit(self) -> None:
         pass
 
@@ -174,6 +178,7 @@ class Scheduler(ABC):
         """
         busy_workers = {}
         for _, r in self._yield_runs():
+            # if r.state == RunState.ALIVE:
             busy_workers[r.worker_id] = self._workers[r.worker_id]
         return busy_workers
 
@@ -235,6 +240,7 @@ class Scheduler(ABC):
                     break
 
                 self._update_run_states()
+                self._poll()
                 if self.state == SchedulerState.FLUSH_RUNS:
                     if self.num_active_runs == 0:
                         wandb.termlog(f"{LOG_PREFIX}Done polling on runs, exiting")
@@ -368,7 +374,6 @@ class Scheduler(ABC):
 
         Get state from backend and deletes runs if not in running state. Threadsafe.
         """
-        self._poll_running_runs()
         # TODO(gst): move to better constants place
         end_states = ["crashed", "failed", "killed", "finished"]
         run_states = ["running", "pending", "preempted", "preempting"]
@@ -396,7 +401,8 @@ class Scheduler(ABC):
         with self._threading_lock:
             for run_id in _runs_to_remove:
                 wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
-                del self._runs[run_id]
+                # del self._runs[run_id]
+                # self._runs[run_id].state = RunState.DEAD
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""

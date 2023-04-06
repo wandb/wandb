@@ -32,7 +32,7 @@ from ..utils import (
 )
 
 AGENT_POLLING_INTERVAL = 10
-ACTIVE_SWEEP_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
+ACTIVE_SWEEP_POLLING_INTERVAL = 5  # more frequent when we know we have jobs
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
@@ -335,7 +335,7 @@ class LaunchAgent:
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
-                if self.num_running_jobs < self._max_jobs or self.num_running_schedulers < self._max_schedulers:
+                if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
@@ -350,9 +350,6 @@ class LaunchAgent:
                                         "this value use `max_schedulers` key in the agent config"
                                     )
                                     continue
-                            elif self.num_running_jobs >= self._max_jobs:
-                                # don't run, no room in job cap
-                                continue
 
                             try:
                                 self.run_job(job)

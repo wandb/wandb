@@ -15,7 +15,7 @@ import optuna
 import wandb
 from wandb.apis.public import Artifact, QueuedRun, Run
 from wandb.sdk.launch.sweeps import SchedulerError
-from wandb.sdk.launch.sweeps.scheduler import Scheduler, SweepRun
+from wandb.sdk.launch.sweeps.scheduler import RunState, Scheduler, SweepRun
 
 logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -100,9 +100,8 @@ class OptunaScheduler(Scheduler):
         for trial in self.study.trials:
             i = trial.number + 1
             vals = list(trial.intermediate_values.values())
-            print(f">>> {self.study.direction=}")
             if len(vals) > 0:
-                best = max(vals) if self.study.direction == "maximize" else min(vals)
+                best = max(vals) if self.study.direction == optuna.study.StudyDirection.MAXIMIZE else min(vals)
                 trials[
                     f"trial-{i}"
                 ] = f"total: {len(vals)}, best: {round(best, 5)}, last: {round(vals[-1], 5)}"
@@ -115,12 +114,12 @@ class OptunaScheduler(Scheduler):
         Accepts an optuna study, runs validation
         Returns an error string if validation fails
         """
-        if study.trials > 0:
+        if len(study.trials) > 0:
             wandb.termlog(f"{LOG_PREFIX}User provided study has prior trials")
 
         if study.user_attrs:
             wandb.termwarn(
-                f"{LOG_PREFIX}Provided user_attrs are ignored from provided study ({study.user_attrs})"
+                f"{LOG_PREFIX}user_attrs are ignored from provided study ({study.user_attrs})"
             )
 
         if study._storage is not None:
@@ -160,8 +159,8 @@ class OptunaScheduler(Scheduler):
         mod, err = _get_module("optuna", f"{path}/{OptunaComponents.main_file.value}")
         if not mod:
             raise SchedulerError(
-                f"{LOG_PREFIX}Failed to load optuna from artifact: "
-                f"{artifact_name} with error: {err}"
+                f"{LOG_PREFIX}Failed to load optuna from path {path}/{OptunaComponents.main_file.value} "
+                f" in artifact: {artifact_name} with error: {err}"
             )
 
         # Set custom optuna trial creation method
@@ -224,6 +223,7 @@ class OptunaScheduler(Scheduler):
             if existing_storage:
                 wandb.termwarn("Resuming state w/ user-provided study is unsupported")
             self._study = study
+            # TODO(gst): Printing same as below for user loaded study
             return
 
         # making a new study
@@ -243,7 +243,6 @@ class OptunaScheduler(Scheduler):
         else:
             wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
 
-        print(f'{self._sweep_config.get("metric", {}).get("goal")=}')
         direction = self._sweep_config.get("metric", {}).get("goal")
         create_msg = f"{LOG_PREFIX} {'Loading' if existing_storage else 'Creating'}"
         self._storage_path = existing_storage or OptunaComponents.storage.value
@@ -296,6 +295,7 @@ class OptunaScheduler(Scheduler):
         return
 
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
+        
         config, trial = self._trial_func()
         run: dict = self._api.upsert_run(
             project=self._project,
@@ -323,9 +323,6 @@ class OptunaScheduler(Scheduler):
             queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
             if not queued_run or queued_run.state == "pending":
                 return []
-
-            # TODO(gst): just noop here?
-            queued_run.wait_until_running()
 
         try:
             api_run: Run = self._public_api.run(f"{queued_run.entity}/{queued_run.project}/{run_id}")
@@ -356,17 +353,16 @@ class OptunaScheduler(Scheduler):
             if orun.trial.should_prune():
                 wandb.termlog(f"{LOG_PREFIX}Optuna pruning run: {orun.sweep_run.id}")
                 self.study.tell(orun.trial, state=optuna.trial.TrialState.PRUNED)
+                self._stop_run(orun.sweep_run.id)
                 return True
 
-        if len(metrics) != 0:  # Run still logging
-            orun.num_metrics = len(metrics)
-            return False
+        orun.num_metrics = len(metrics)
 
-        # run hasn't started or is complete
-        if orun.num_metrics == 0:  # hasn't started yet
+        # run hasn't started
+        if self._runs[orun.sweep_run.id].state == RunState.ALIVE or len(metrics) == 0:
             logger.debug(f"Run ({orun.sweep_run.id}) has no metrics")
             return False
-
+        
         # run is complete
         prev_metrics = orun.trial._cached_frozen_trial.intermediate_values
         last_value = prev_metrics[orun.num_metrics - 1]
@@ -375,7 +371,13 @@ class OptunaScheduler(Scheduler):
             state=optuna.trial.TrialState.COMPLETE,
             values=last_value,
         )
-        wandb.termlog(f"{LOG_PREFIX}Completing trial with {orun.num_metrics} metrics")
+        wandb.termlog(
+            f"{LOG_PREFIX}Completing trial for run ({orun.sweep_run.id}) "
+            f"[last metric: {last_value}, total: {orun.num_metrics}]"
+        )
+
+        # TODO(gst): do this in scheduler process
+        del self._runs[orun.sweep_run.id]
 
         return True
 
@@ -385,7 +387,7 @@ class OptunaScheduler(Scheduler):
 
         Returns list of runs optuna marked as PRUNED, to be deleted
         """
-        wandb.termlog(f"{LOG_PREFIX}Polling. Current state: {self.formatted_trials}")
+        wandb.termlog(f"{LOG_PREFIX}Polling. Current state:\n{self.formatted_trials}")
         # wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
         to_kill = []
         for run_id, orun in self._optuna_runs.items():
@@ -394,6 +396,9 @@ class OptunaScheduler(Scheduler):
                 wandb.termlog(f"{LOG_PREFIX}Run: {run_id} finished.")
                 logger.debug(f"Finished run, study state: {self.study.trials}")
                 to_kill += [run_id]
+
+        for r in to_kill:
+            del self._optuna_runs[r]
 
         return to_kill
 
@@ -473,6 +478,9 @@ class OptunaScheduler(Scheduler):
         new_trial = self.study.ask(fixed_distributions=temp_trial.distributions)
 
         return config, new_trial
+    
+    def _poll(self) -> None:
+        self._poll_running_runs()
 
     def _exit(self) -> None:
         pass
