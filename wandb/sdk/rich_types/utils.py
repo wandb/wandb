@@ -61,22 +61,24 @@ def bind_to_artifact(obj, *namespace):
     artifact = Artifact(artifact_name, type="run_table")
     artifact._ensure_can_add()
 
-    obj_id = id(obj)
-    if obj_id in artifact._added_objs:
-        return
+    # obj_id = id(obj)
+    # if obj_id in artifact._added_objs:
+    #     return
 
     name = ".".join([namespace[1], obj.DEFAULT_FORMAT.lower()])
-    entry = artifact._manifest.get_entry_by_path(name)
-    if entry is not None:
-        return
+    # entry = artifact._manifest.get_entry_by_path(name)
+    # if entry is not None:
+    #     return
 
     serialized = obj.bind_to_artifact(artifact)
     with artifact.new_file(name) as f:
         file_path = f.name
         json.dump(serialized, f, sort_keys=True)
     entry = artifact.add_file(str(file_path), name, is_tmp=False)
-    from .media import ArtifactReference
 
-    obj._artifact = ArtifactReference(artifact, entry.path)  # type: ignore
+    if obj._artifact is None:
+        from .media import ArtifactReference
+
+        obj._artifact = ArtifactReference(artifact, entry.path)  # type: ignore
 
     return artifact

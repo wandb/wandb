@@ -41,7 +41,7 @@ class ArtifactReference:
 
     @property
     def artifact_path_latest(self) -> str:
-        return f"wandb-client-artifact://{self._artifact._client_id}:latest/{str(self._path)}"
+        return f"wandb-client-artifact://{self._artifact._sequence_client_id}:latest/{str(self._path)}"
 
 
 class Media:
@@ -100,7 +100,6 @@ class Media:
                 str(self._source_path), str(path), is_tmp=self._is_temp_path
             )
             path = entry.path
-
         # self._bind_path = pathlib.Path(path)
         return {
             "path": path,
@@ -138,8 +137,7 @@ class Media:
         self._source_path = dest_path
         self._is_temp_path = False
         self._bind_path = dest_path.relative_to(root_dir)
-
-        files = {"files": [(glob.escape(str(dest_path)), "now")]}
+        files = {"files": [(glob.escape(str(self._bind_path)), "now")]}
         assert run._backend and run._backend.interface
         run._backend.interface.publish_files(files)  # type: ignore
 
