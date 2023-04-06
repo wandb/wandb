@@ -262,35 +262,35 @@ class Table(Media):
         Rows is kept for legacy reasons, we use data to mimic the Pandas api.
         """
         super().__init__()
-        self._pk_col = None
-        self._fk_cols = set()
-        if allow_mixed_types:
-            dtype = _dtypes.AnyType
+        # self._pk_col = None
+        # self._fk_cols = set()
+        # if allow_mixed_types:
+        #     dtype = _dtypes.AnyType
 
         # This is kept for legacy reasons (tss: personally, I think we should remove this)
         if columns is None:
             columns = ["Input", "Output", "Expected"]
 
         # Explicit dataframe option
-        if dataframe is not None:
-            self._init_from_dataframe(dataframe, columns, optional, dtype)
-        else:
-            # Expected pattern
-            if data is not None:
-                if util.is_numpy_array(data):
-                    self._init_from_ndarray(data, columns, optional, dtype)
-                elif util.is_pandas_data_frame(data):
-                    self._init_from_dataframe(data, columns, optional, dtype)
-                else:
-                    self._init_from_list(data, columns, optional, dtype)
+        # if dataframe is not None:
+        #     self._init_from_dataframe(dataframe, columns, optional, dtype)
+        # else:
+        # Expected pattern
+        # if data is not None:
+        #     if util.is_numpy_array(data):
+        #         self._init_from_ndarray(data, columns, optional, dtype)
+        #     elif util.is_pandas_data_frame(data):
+        #         self._init_from_dataframe(data, columns, optional, dtype)
+        #     else:
+        #         self._init_from_list(data, columns, optional, dtype)
 
-            # legacy
-            elif rows is not None:
-                self._init_from_list(rows, columns, optional, dtype)
+        # # legacy
+        # elif rows is not None:
+        self._init_from_list(data, columns, optional, dtype)
 
-            # Default empty case
-            else:
-                self._init_from_list([], columns, optional, dtype)
+        # Default empty case
+        # else:
+        #     self._init_from_list([], columns, optional, dtype)
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -301,106 +301,107 @@ class Table(Media):
         ), "columns argument expects list of strings or ints"
 
     def _init_from_list(self, data, columns, optional=True, dtype=None):
+        breakpoint()
         assert type(data) is list, "data argument expects a `list` object"
         self.data = []
-        self._assert_valid_columns(columns)
+        # self._assert_valid_columns(columns)
         self.columns = columns
-        self._make_column_types(dtype, optional)
+        # self._make_column_types(dtype, optional)
         for row in data:
             self.add_data(*row)
 
-    def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
-        assert util.is_numpy_array(
-            ndarray
-        ), "ndarray argument expects a `numpy.ndarray` object"
-        self.data = []
-        self._assert_valid_columns(columns)
-        self.columns = columns
-        self._make_column_types(dtype, optional)
-        for row in ndarray:
-            self.add_data(*row)
+    # def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
+    #     assert util.is_numpy_array(
+    #         ndarray
+    #     ), "ndarray argument expects a `numpy.ndarray` object"
+    #     self.data = []
+    #     self._assert_valid_columns(columns)
+    #     self.columns = columns
+    #     self._make_column_types(dtype, optional)
+    #     for row in ndarray:
+    #         self.add_data(*row)
 
-    def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
-        assert util.is_pandas_data_frame(
-            dataframe
-        ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
-        self.data = []
-        columns = list(dataframe.columns)
-        self._assert_valid_columns(columns)
-        self.columns = columns
-        self._make_column_types(dtype, optional)
-        for row in range(len(dataframe)):
-            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
+    # def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
+    #     assert util.is_pandas_data_frame(
+    #         dataframe
+    #     ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+    #     self.data = []
+    #     columns = list(dataframe.columns)
+    #     self._assert_valid_columns(columns)
+    #     self.columns = columns
+    #     self._make_column_types(dtype, optional)
+    #     for row in range(len(dataframe)):
+    #         self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
-    def _make_column_types(self, dtype=None, optional=True):
-        if dtype is None:
-            dtype = _dtypes.UnknownType()
+    # def _make_column_types(self, dtype=None, optional=True):
+    #     if dtype is None:
+    #         dtype = _dtypes.UnknownType()
 
-        if optional.__class__ != list:
-            optional = [optional for _ in range(len(self.columns))]
+    #     if optional.__class__ != list:
+    #         optional = [optional for _ in range(len(self.columns))]
 
-        if dtype.__class__ != list:
-            dtype = [dtype for _ in range(len(self.columns))]
+    #     if dtype.__class__ != list:
+    #         dtype = [dtype for _ in range(len(self.columns))]
 
-        self._column_types = _dtypes.TypedDictType({})
-        for col_name, opt, dt in zip(self.columns, optional, dtype):
-            self.cast(col_name, dt, opt)
+    #     self._column_types = _dtypes.TypedDictType({})
+    #     for col_name, opt, dt in zip(self.columns, optional, dtype):
+    #         self.cast(col_name, dt, opt)
 
-    def cast(self, col_name, dtype, optional=False):
-        """Cast a column to a specific type.
+    # def cast(self, col_name, dtype, optional=False):
+    #     """Cast a column to a specific type.
 
-        Arguments:
-            col_name: (str) - name of the column to cast
-            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - the target dtype. Can be one of
-                normal python class, internal WB type, or an example object (e.g. an instance of wandb.Image or wandb.Classes)
-            optional: (bool) - if the column should allow Nones
-        """
-        assert col_name in self.columns
+    #     Arguments:
+    #         col_name: (str) - name of the column to cast
+    #         dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - the target dtype. Can be one of
+    #             normal python class, internal WB type, or an example object (e.g. an instance of wandb.Image or wandb.Classes)
+    #         optional: (bool) - if the column should allow Nones
+    #     """
+    #     assert col_name in self.columns
 
-        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+    #     wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
 
-        if optional:
-            wbtype = _dtypes.OptionalType(wbtype)
+    #     if optional:
+    #         wbtype = _dtypes.OptionalType(wbtype)
 
-        # Cast each value in the row, raising an error if there are invalid entries.
-        col_ndx = self.columns.index(col_name)
-        for row in self.data:
-            result_type = wbtype.assign(row[col_ndx])
-            if isinstance(result_type, _dtypes.InvalidType):
-                raise TypeError(
-                    "Existing data {}, of type {} cannot be cast to {}".format(
-                        row[col_ndx],
-                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
-                        wbtype,
-                    )
-                )
-            wbtype = result_type
+    #     # Cast each value in the row, raising an error if there are invalid entries.
+    #     col_ndx = self.columns.index(col_name)
+    #     for row in self.data:
+    #         result_type = wbtype.assign(row[col_ndx])
+    #         if isinstance(result_type, _dtypes.InvalidType):
+    #             raise TypeError(
+    #                 "Existing data {}, of type {} cannot be cast to {}".format(
+    #                     row[col_ndx],
+    #                     _dtypes.TypeRegistry.type_of(row[col_ndx]),
+    #                     wbtype,
+    #                 )
+    #             )
+    #         wbtype = result_type
 
-        # Assert valid options
-        is_pk = isinstance(wbtype, _PrimaryKeyType)
-        is_fk = isinstance(wbtype, _ForeignKeyType)
-        is_fi = isinstance(wbtype, _ForeignIndexType)
-        if is_pk or is_fk or is_fi:
-            assert (
-                not optional
-            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
+    #     # Assert valid options
+    #     is_pk = isinstance(wbtype, _PrimaryKeyType)
+    #     is_fk = isinstance(wbtype, _ForeignKeyType)
+    #     is_fi = isinstance(wbtype, _ForeignIndexType)
+    #     if is_pk or is_fk or is_fi:
+    #         assert (
+    #             not optional
+    #         ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
 
-        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
-            raise AssertionError("Cannot set a foreign table reference to same table")
+    #     if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
+    #         raise AssertionError("Cannot set a foreign table reference to same table")
 
-        if is_pk:
-            assert (
-                self._pk_col is None
-            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
-                self._pk_col
-            )
+    #     if is_pk:
+    #         assert (
+    #             self._pk_col is None
+    #         ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
+    #             self._pk_col
+    #         )
 
-        # Update the column type
-        self._column_types.params["type_map"][col_name] = wbtype
+    #     # Update the column type
+    #     self._column_types.params["type_map"][col_name] = wbtype
 
-        # Wrap the data if needed
-        self._update_keys()
-        return wbtype
+    #     # Wrap the data if needed
+    #     self._update_keys()
+    #     return wbtype
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -447,10 +448,10 @@ class Table(Media):
     def __eq__(self, other):
         return self._eq_debug(other)
 
-    def add_row(self, *row):
-        """Deprecated: use add_data instead."""
-        logging.warning("add_row is deprecated, use add_data")
-        self.add_data(*row)
+    # def add_row(self, *row):
+    #     """Deprecated: use add_data instead."""
+    #     logging.warning("add_row is deprecated, use add_data")
+    #     self.add_data(*row)
 
     def add_data(self, *data):
         """Add a row of data to the table.
@@ -466,17 +467,17 @@ class Table(Media):
 
         # Special case to pre-emptively cast a column as a key.
         # Needed as String.assign(Key) is invalid
-        for ndx, item in enumerate(data):
-            if isinstance(item, _TableLinkMixin):
-                self.cast(
-                    self.columns[ndx],
-                    _dtypes.TypeRegistry.type_of(item),
-                    optional=False,
-                )
+        # for ndx, item in enumerate(data):
+        #     if isinstance(item, _TableLinkMixin):
+        #         self.cast(
+        #             self.columns[ndx],
+        #             _dtypes.TypeRegistry.type_of(item),
+        #             optional=False,
+        #         )
 
         # Update the table's column types
-        result_type = self._get_updated_result_type(data)
-        self._column_types = result_type
+        # result_type = self._get_updated_result_type(data)
+        # self._column_types = result_type
 
         # rows need to be mutable
         if isinstance(data, tuple):
@@ -485,26 +486,26 @@ class Table(Media):
         self.data.append(data)
 
         # Update the wrapper values if needed
-        self._update_keys(force_last=True)
+        # self._update_keys(force_last=True)
 
-    def _get_updated_result_type(self, row):
-        """Return an updated result type based on incoming row.
+    # def _get_updated_result_type(self, row):
+    #     """Return an updated result type based on incoming row.
 
-        Raises:
-            TypeError: if the assignment is invalid.
-        """
-        incoming_row_dict = {
-            col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
-        }
-        current_type = self._column_types
-        result_type = current_type.assign(incoming_row_dict)
-        if isinstance(result_type, _dtypes.InvalidType):
-            raise TypeError(
-                "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_row_dict)
-                )
-            )
-        return result_type
+    #     Raises:
+    #         TypeError: if the assignment is invalid.
+    #     """
+    #     incoming_row_dict = {
+    #         col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
+    #     }
+    #     current_type = self._column_types
+    #     result_type = current_type.assign(incoming_row_dict)
+    #     if isinstance(result_type, _dtypes.InvalidType):
+    #         raise TypeError(
+    #             "Data row contained incompatible types:\n{}".format(
+    #                 current_type.explain(incoming_row_dict)
+    #             )
+    #         )
+    #     return result_type
 
     def _to_table_json(self, max_rows=None, warn=True):
         # separate this method for easier testing
@@ -636,56 +637,56 @@ class Table(Media):
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
 
             ndarray_col_ndxs = set()
-            for col_ndx, col_name in enumerate(self.columns):
-                col_type = self._column_types.params["type_map"][col_name]
-                ndarray_type = None
-                if isinstance(col_type, _dtypes.NDArrayType):
-                    ndarray_type = col_type
-                elif isinstance(col_type, _dtypes.UnionType):
-                    for t in col_type.params["allowed_types"]:
-                        if isinstance(t, _dtypes.NDArrayType):
-                            ndarray_type = t
+            # for col_ndx, col_name in enumerate(self.columns):
+            #     col_type = self._column_types.params["type_map"][col_name]
+            #     ndarray_type = None
+            #     if isinstance(col_type, _dtypes.NDArrayType):
+            #         ndarray_type = col_type
+            #     elif isinstance(col_type, _dtypes.UnionType):
+            #         for t in col_type.params["allowed_types"]:
+            #             if isinstance(t, _dtypes.NDArrayType):
+            #                 ndarray_type = t
 
-                # Do not serialize 1d arrays - these are likely embeddings and
-                # will not have the same cost as higher dimensional arrays
-                is_1d_array = (
-                    ndarray_type is not None
-                    and "shape" in ndarray_type._params
-                    and type(ndarray_type._params["shape"]) == list
-                    and len(ndarray_type._params["shape"]) == 1
-                    and ndarray_type._params["shape"][0]
-                    <= self._MAX_EMBEDDING_DIMENSIONS
-                )
-                if is_1d_array:
-                    self._column_types.params["type_map"][col_name] = _dtypes.ListType(
-                        _dtypes.NumberType, ndarray_type._params["shape"][0]
-                    )
-                elif ndarray_type is not None:
-                    np = util.get_module(
-                        "numpy",
-                        required="Serializing numpy requires numpy to be installed",
-                    )
-                    file_name = f"{str(col_name)}_{runid.generate_id()}.npz"
-                    npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
-                    np.savez_compressed(
-                        npz_file_name,
-                        **{
-                            str(col_name): self.get_column(col_name, convert_to="numpy")
-                        },
-                    )
-                    entry = artifact.add_file(
-                        npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
-                    )
-                    ndarray_type._set_serialization_path(entry.path, str(col_name))
-                    ndarray_col_ndxs.add(col_ndx)
+            #     # Do not serialize 1d arrays - these are likely embeddings and
+            #     # will not have the same cost as higher dimensional arrays
+            #     is_1d_array = (
+            #         ndarray_type is not None
+            #         and "shape" in ndarray_type._params
+            #         and type(ndarray_type._params["shape"]) == list
+            #         and len(ndarray_type._params["shape"]) == 1
+            #         and ndarray_type._params["shape"][0]
+            #         <= self._MAX_EMBEDDING_DIMENSIONS
+            #     )
+            #     if is_1d_array:
+            #         self._column_types.params["type_map"][col_name] = _dtypes.ListType(
+            #             _dtypes.NumberType, ndarray_type._params["shape"][0]
+            #         )
+            #     elif ndarray_type is not None:
+            #         np = util.get_module(
+            #             "numpy",
+            #             required="Serializing numpy requires numpy to be installed",
+            #         )
+            #         file_name = f"{str(col_name)}_{runid.generate_id()}.npz"
+            #         npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
+            #         np.savez_compressed(
+            #             npz_file_name,
+            #             **{
+            #                 str(col_name): self.get_column(col_name, convert_to="numpy")
+            #             },
+            #         )
+            #         entry = artifact.add_file(
+            #             npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
+            #         )
+            #         ndarray_type._set_serialization_path(entry.path, str(col_name))
+            #         ndarray_col_ndxs.add(col_ndx)
 
             for row in data:
                 mapped_row = []
                 for ndx, v in enumerate(row):
-                    if ndx in ndarray_col_ndxs:
-                        mapped_row.append(None)
-                    else:
-                        mapped_row.append(_json_helper(v, artifact))
+                    # if ndx in ndarray_col_ndxs:
+                    #     mapped_row.append(None)
+                    # else:
+                    mapped_row.append(_json_helper(v, artifact))
                 mapped_data.append(mapped_row)
 
             json_dict.update(
@@ -695,7 +696,7 @@ class Table(Media):
                     "data": mapped_data,
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
-                    "column_types": self._column_types.to_json(artifact),
+                    # "column_types": self._column_types.to_json(artifact),
                 }
             )
         else:
