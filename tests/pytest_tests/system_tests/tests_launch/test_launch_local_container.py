@@ -60,8 +60,10 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
             environment,
         )
         command = runner.run(launch_project=project, builder=builder)
-        assert f"--entrypoint {' '.join(entry_command)}" in command
-        assert f"{project.docker_image} {string_args}" in command
+        assert (
+            f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
+            in command
+        )
 
         # test with no user provided image
         project.docker_image = None

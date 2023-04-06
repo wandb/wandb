@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.13.11.dev1"
+__version__ = "0.14.2.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -194,7 +194,13 @@ if wandb_sdk.lib.ipython.in_jupyter():
     load_ipython_extension(get_ipython())
 
 
-__all__ = [
+from .analytics import Sentry as _Sentry
+
+_sentry = _Sentry()
+_sentry.setup()
+
+
+__all__ = (
     "__version__",
     "init",
     "setup",
@@ -217,4 +223,4 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
-]
+)

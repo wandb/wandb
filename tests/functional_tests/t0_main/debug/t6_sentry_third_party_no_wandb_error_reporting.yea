@@ -18,5 +18,4 @@ var:
 assert:
   - :wandb:runs_len: 1
   - :num_sentry_events: 0
-  - :wandb:runs[0][summary][num_third_party_sentry_events]: 2
   - :yea:exit: 255

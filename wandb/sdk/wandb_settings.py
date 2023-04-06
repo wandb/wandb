@@ -235,6 +235,7 @@ class Property:
         "show_errors",
         "base_url",
         "login_timeout",
+        "_async_upload_concurrency_limit",
     }
 
     def __init__(  # pylint: disable=unused-argument
@@ -382,6 +383,7 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
     _config_dict: Config
@@ -393,6 +395,7 @@ class Settings:
     _disable_viewer: bool  # Prevent early viewer query
     _except_exit: bool
     _executable: str
+    _extra_http_headers: Mapping[str, str]
     _flow_control_custom: bool
     _flow_control_disabled: bool
     _internal_check_process: Union[int, float]
@@ -424,7 +427,8 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters {"metric regex pattern": {"label": "label value regex pattern"}}
+    # open metrics filters
+    # {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
     _tmp_code_dir: str
     _tracelog: str
@@ -526,6 +530,10 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _async_upload_concurrency_limit={
+                "preprocessor": int,
+                "validator": self._validate__async_upload_concurrency_limit,
+            },
             _disable_meta={"preprocessor": _str_as_bool},
             _disable_service={
                 "value": False,
@@ -534,6 +542,7 @@ class Settings:
             },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
+            _extra_http_headers={"preprocessor": _str_as_dict},
             _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
@@ -587,14 +596,10 @@ class Settings:
                 "hook": lambda x: self._path_convert(x),
             },
             _stats_open_metrics_endpoints={
-                # todo: opt-in to this feature
-                # "value": {
-                #     "DCGM": "http://localhost:9400/metrics",  # NVIDIA DCGM Exporter
-                # },
                 "preprocessor": _str_as_dict,
             },
             _stats_open_metrics_filters={
-                # capture all metrics by default
+                # capture all metrics on all endpoints by default
                 "value": {
                     ".*": {},
                 },
@@ -688,6 +693,9 @@ class Settings:
             root_dir={
                 "preprocessor": lambda x: str(x),
                 "value": os.path.abspath(os.getcwd()),
+            },
+            run_id={
+                "validator": self._validate_run_id,
             },
             run_mode={
                 "hook": lambda _: "offline-run" if self._offline else "run",
@@ -865,14 +873,22 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: {value!r} not in {choices}")
         return True
 
-    def _validate_api_key(self, value: str) -> bool:
+    @staticmethod
+    def _validate_run_id(value: str) -> bool:
+        # if len(value) > len(value.strip()):
+        #     raise UsageError("Run ID cannot start or end with whitespace")
+        return bool(value.strip())
+
+    @staticmethod
+    def _validate_api_key(value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
-        if value.startswith("local") and not self.is_local:
-            raise UsageError(
-                "Attempting to use a local API key to connect to https://api.wandb.ai"
-            )
+        # todo: move this check to the post-init validation step
+        # if value.startswith("local") and not self.is_local:
+        #     raise UsageError(
+        #         "Attempting to use a local API key to connect to https://api.wandb.ai"
+        #     )
         # todo: move here the logic from sdk/lib/apikey.py
 
         return True
@@ -995,6 +1011,35 @@ class Settings:
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
+        return True
+
+    @staticmethod
+    def _validate__async_upload_concurrency_limit(value: int) -> bool:
+        if value <= 0:
+            raise UsageError("_async_upload_concurrency_limit must be positive")
+
+        try:
+            import resource  # not always available on Windows
+
+            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+        except Exception:
+            # Couldn't get the open-file-limit for some reason,
+            # probably very platform-specific. Not a problem,
+            # we just won't use it to cap the concurrency.
+            pass
+        else:
+            if value > file_limit:
+                wandb.termwarn(
+                    (
+                        "_async_upload_concurrency_limit setting of"
+                        f" {value} exceeds this process's limit"
+                        f" on open files ({file_limit}); may cause file-upload failures."
+                        " Try decreasing _async_upload_concurrency_limit,"
+                        " or increasing your file limit with `ulimit -n`."
+                    ),
+                    repeat=False,
+                )
+
         return True
 
     # other helper methods

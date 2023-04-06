@@ -1,7 +1,7 @@
 import logging
-import multiprocessing as mp
 import re
 import sys
+import threading
 from collections import defaultdict, deque
 from functools import lru_cache
 from hashlib import md5
@@ -79,6 +79,7 @@ def _tuple_to_nested_dict(
 
 @lru_cache(maxsize=128)
 def _should_capture_metric(
+    endpoint_name: str,
     metric_name: str,
     metric_labels: Tuple[str, ...],
     filters: Tuple[Tuple[str, Tuple[str, str]], ...],
@@ -97,7 +98,7 @@ def _should_capture_metric(
     metric_labels_dict = {t[0]: t[1] for t in metric_labels}
     filters_dict = _tuple_to_nested_dict(filters)
     for metric_name_regex, label_filters in filters_dict.items():
-        if not re.match(metric_name_regex, metric_name):
+        if not re.match(metric_name_regex, f"{endpoint_name}.{metric_name}"):
             continue
 
         should_capture = True
@@ -159,6 +160,7 @@ class OpenMetricsMetric:
                 name, labels, value = sample.name, sample.labels, sample.value
 
                 if not _should_capture_metric(
+                    self.name,
                     name,
                     tuple(labels.items()),
                     self.filters_tuple,
@@ -208,7 +210,7 @@ class OpenMetrics:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
         name: str,
         url: str,
     ) -> None:
