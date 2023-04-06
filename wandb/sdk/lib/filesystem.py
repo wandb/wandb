@@ -146,8 +146,6 @@ def safe_open(
         raise FileExistsError(f"{path!s} already exists")
 
     if "r" in mode:
-        if not path.exists():
-            raise FileNotFoundError(f"{path!s} does not exist")
         if "+" not in mode:
             # This is read-only, so we can just open the original file.
             # TODO (hugh): create a reflink and read from that.
