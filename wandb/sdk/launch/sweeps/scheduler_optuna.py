@@ -204,7 +204,7 @@ class OptunaScheduler(Scheduler):
 
     def _load_optuna(self) -> None:
         """
-        If our run was resumed, attempt to resture optuna artifacts from run state
+        If our run was resumed, attempt to restore optuna artifacts from run state
 
         Create an optuna study with a sqlite backened for loose state management
         """
