@@ -339,9 +339,6 @@ class KubernetesRunner(AbstractRunner):
         )[0][
             0
         ]  # create_from_yaml returns a nested list of k8s objects
-        wandb.termlog(f"{LOG_PREFIX}Job response:")
-        wandb.termlog(f"{job_response}")
-        wandb.termlog("DEBUG 0")
         job_name = job_response.metadata.name
 
         pod_names = self.wait_job_launch(job_name, namespace, core_api)
