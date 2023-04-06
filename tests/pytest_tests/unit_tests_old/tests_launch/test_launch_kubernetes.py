@@ -93,6 +93,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "asdfasdf"
+            jobd["metadata"]["name"] = name
 
         metadata = MockDict(jobd["metadata"])
         metadata.labels = metadata.get("labels", {})
