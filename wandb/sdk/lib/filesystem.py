@@ -145,13 +145,12 @@ def safe_open(
     if "x" in mode and path.exists():
         raise FileExistsError(f"{path!s} already exists")
 
-    if "r" in mode:
-        if "+" not in mode:
-            # This is read-only, so we can just open the original file.
-            # TODO (hugh): create a reflink and read from that.
-            with path.open(mode, *args, **kwargs) as f:
-                yield f
-            return
+    if "r" in mode and "+" not in mode:
+        # This is read-only, so we can just open the original file.
+        # TODO (hugh): create a reflink and read from that.
+        with path.open(mode, *args, **kwargs) as f:
+            yield f
+        return
 
     with tempfile.TemporaryDirectory(dir=path.parent) as tmp_dir:
         tmp_path = Path(tmp_dir) / path.name
