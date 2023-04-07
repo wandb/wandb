@@ -214,20 +214,20 @@ def test_launch_repository_arg(
             assert result.exit_code == 0
 
 
-# def test_launch_bad_api_key(runner, monkeypatch, user):
-#     args = [
-#         "-u",
-#         "https://wandb.ai/mock_server_entity/test_project/runs/run",
-#         "--entity",
-#         user,
-#         "--queue=default",
-#     ]
-#     monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
-#     monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
-#     with runner.isolated_filesystem():
-#         result = runner.invoke(cli.launch, args)
+def test_launch_bad_api_key(runner, monkeypatch, user):
+    args = [
+        "-u",
+        "https://wandb.ai/mock_server_entity/test_project/runs/run",
+        "--entity",
+        user,
+        "--queue=default",
+    ]
+    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
+    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args)
 
-#         assert "Could not connect with current API-key." in result.output
+        assert "Could not connect with current API-key." in result.output
 
 
 def test_launch_build_with_local(

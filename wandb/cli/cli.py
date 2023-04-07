@@ -962,7 +962,7 @@ def launch_sweep(
     queue = queue or launch_args.get("queue")
     if not queue:
         wandb.termerror(
-            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in a --config"
+            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in the config"
         )
         return
 
