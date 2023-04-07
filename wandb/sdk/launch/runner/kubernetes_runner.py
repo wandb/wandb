@@ -236,12 +236,14 @@ class KubernetesRunner(AbstractRunner):
             )
 
         for i, cont in enumerate(containers):
-            cont["name"] = cont.get("name", "launch" + str(i))
-            cont["security_context"] = {
-                "allowPrivilegeEscalation": False,
-                "capabilities": {"drop": ["ALL"]},
-                "seccompProfile": {"type": "RuntimeDefault"},
-            }
+            if "name" not in cont:
+                cont["name"] = cont.get("name", "launch" + str(i))
+            if "securityContext" not in cont:
+                cont["securityContext"] = {
+                    "allowPrivilegeEscalation": False,
+                    "capabilities": {"drop": ["ALL"]},
+                    "seccompProfile": {"type": "RuntimeDefault"},
+                }
 
         secret = None
         # only need to do this if user is providing image, on build, our image sets an entrypoint
@@ -255,7 +257,7 @@ class KubernetesRunner(AbstractRunner):
         if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
-                    "Multiple container configurations should be specified under kubernetes."
+                    "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = launch_project.docker_image
@@ -263,7 +265,7 @@ class KubernetesRunner(AbstractRunner):
         elif not any(["image" in cont for cont in containers]):
             if len(containers) > 1:
                 raise LaunchError(
-                    "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified under kubernetes."
+                    "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
                 )
             assert entry_point is not None
             assert builder is not None
