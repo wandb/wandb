@@ -230,7 +230,7 @@ def test_sweep_pause(runner, mock_server, test_settings, stop_method):
 
 def test_sweep_scheduler(runner, mock_server, test_settings):
     with runner.isolated_filesystem():
-        with open("mock_launch_config.json", "w") as f:
+        with open("config.json", "w") as f:
             json.dump(
                 {
                     "queue": "default",
@@ -252,7 +252,7 @@ def test_sweep_scheduler(runner, mock_server, test_settings):
         assert (
             runner.invoke(
                 cli.launch_sweep,
-                ["--launch_config", "mock_launch_config.json", "--resume_id", sweep_id],
+                ["config.json", "--resume_id", sweep_id],
             ).exit_code
             == 0
         )

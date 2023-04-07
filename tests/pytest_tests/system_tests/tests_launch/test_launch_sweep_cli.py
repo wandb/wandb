@@ -111,7 +111,6 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
         [
             "wandb",
             "launch-sweep",
-            "--config",
             "sweep-config.yaml",
             "-e",
             user,
@@ -173,7 +172,6 @@ def test_launch_sweep_launch_error(user, image_uri, launch_config, job):
         [
             "wandb",
             "launch-sweep",
-            "-c",
             "sweep-config.yaml",
             "-e",
             user,

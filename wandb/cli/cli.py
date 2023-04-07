@@ -946,8 +946,8 @@ def launch_sweep(
         api = _get_cling_api(reset=True)
 
     # if not sweep_config XOR resume_id
-    if not (bool(config) ^ bool(resume_id)):
-        wandb.termerror("One of 'config' or 'resume_id' required")
+    if not (config or resume_id):
+        wandb.termerror("'config' and/or 'resume_id' required")
         return
 
     parsed_config = sweep_utils.load_launch_sweep_config(config)
@@ -977,9 +977,8 @@ def launch_sweep(
         wandb.termerror("A project must be configured when using launch")
         return
 
-    # Resuming an existing sweep
     parsed_sweep_config, sweep_obj_id = None, None
-    if resume_id:
+    if resume_id:  # Resuming an existing sweep
         found = api.sweep(resume_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{resume_id}")
@@ -987,8 +986,12 @@ def launch_sweep(
         sweep_obj_id = found["id"]
         parsed_sweep_config = yaml.safe_load(found["config"])
         wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{resume_id}")
-    else:  # loading a sweep from path
-        parsed_sweep_config = sweep_utils.load_sweep_config(config)
+        if len(parsed_config.keys()) > 0:
+            wandb.termwarn(
+                "Sweep params loaded from resumed sweep, ignoring provided keys"
+            )
+    else:
+        parsed_sweep_config = parsed_config
 
     scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
