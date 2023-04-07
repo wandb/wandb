@@ -1,3 +1,7 @@
+## 0.14.2 (April 7, 2023)
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.1...v0.14.2
+
 ## 0.14.1 (April 5, 2023)
 
 ### :magic_wand: Enhancements
