@@ -174,7 +174,6 @@ def test_launch_repository_arg(
         resource,
         entry_point,
         version,
-        parameters,
         resource_args,
         launch_config,
         synchronous,
