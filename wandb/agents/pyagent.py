@@ -14,10 +14,9 @@ import threading
 import time
 
 import wandb
-from wandb.sdk.launch.sweeps import utils as sweep_utils
-
 from wandb import wandb_sdk
 from wandb.apis import InternalApi
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 logger = logging.getLogger(__name__)
 

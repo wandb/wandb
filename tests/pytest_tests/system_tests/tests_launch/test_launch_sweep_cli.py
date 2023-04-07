@@ -32,16 +32,14 @@ def test_launch_sweep_param_validation(user):
         "parameters": {"parameter1": {"values": [1, 2, 3]}},
         "launch": {"queue": "q"},
     }
-    with open("s.yaml", "w") as f:
-        json.dump(config, f)
+    json.dump(config, open("s.yaml", "w"))
 
     err_msg = "No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep"
     _run_cmd_check_msg(base + ["s.yaml"], err_msg)
 
     del config["launch"]["queue"]
     config["job"] = "job123"
-    with open("s.yaml", "w") as f:
-        json.dump(config, f)
+    json.dump(config, open("s.yaml", "w"))
 
     err_msg = "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in a --config"
     _run_cmd_check_msg(base + ["s.yaml", "-e", "e"], err_msg)
@@ -49,15 +47,13 @@ def test_launch_sweep_param_validation(user):
     base += ["-q", "q"]
 
     config["image_uri"] = "fake-image:latest"
-    with open("s.yaml", "w") as f:
-        json.dump(config, f)
+    json.dump(config, open("s.yaml", "w"))
 
     err_msg = "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
     _run_cmd_check_msg(base + ["s.yaml"], err_msg)
 
     del config["job"]
-    with open("s.yaml", "w") as f:
-        json.dump(config, f)
+    json.dump(config, open("s.yaml", "w"))
 
     # this tries to upsert into a non-existent project, because no error
     with pytest.raises(subprocess.CalledProcessError):
@@ -257,18 +253,20 @@ def test_launch_sweep_launch_resume(user):
     )
     assert "Launch-sweeps require setting a 'queue'" in out.decode("utf-8")
 
+    config = {"launch": {"queue": "queue"}}
+    json.dump(config, open("s.yaml", "w"))
+
     out = subprocess.check_output(
         [
             "wandb",
             "launch-sweep",
+
             "--resume_id",
             sweep_id,
             "-e",
             user,
             "-p",
             LAUNCH_DEFAULT_PROJECT,
-            "-q",
-            "queue",
         ],
         stderr=subprocess.STDOUT,
     )

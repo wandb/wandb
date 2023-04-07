@@ -16,11 +16,10 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 import wandb
-from wandb.sdk.launch.sweeps import utils as sweep_utils
-
 from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 logger = logging.getLogger(__name__)
 

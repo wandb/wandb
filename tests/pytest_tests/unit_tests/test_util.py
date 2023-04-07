@@ -17,7 +17,6 @@ import tensorflow as tf
 import wandb
 import wandb.errors as errors
 from wandb import util
-
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 try:
