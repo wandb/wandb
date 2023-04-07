@@ -86,6 +86,40 @@ class SweepScheduler(Scheduler):
 
         return commands
 
+    def _poll(self) -> None:
+        """Iterate through runs.
+
+        Get state from backend and deletes runs if not in running state. Threadsafe.
+        """
+        # TODO(gst): move to better constants place
+        end_states = ["crashed", "failed", "killed", "finished"]
+        run_states = ["running", "pending", "preempted", "preempting"]
+
+        _runs_to_remove: List[str] = []
+        for run_id, run in self._yield_runs():
+            try:
+                _state = self._api.get_run_state(self._entity, self._project, run_id)
+                _rqi_state = run.queued_run.state if run.queued_run else None
+                if not _state or _state in end_states or _rqi_state == "failed":
+                    _logger.debug(
+                        f"({run_id}) run-state:{_state}, rqi-state:{_rqi_state}"
+                    )
+                    run.state = RunState.DEAD
+                    _runs_to_remove.append(run_id)
+                elif _state in run_states:
+                    run.state = RunState.ALIVE
+            except CommError as e:
+                _logger.debug(
+                    f"Issue when getting state for run ({run_id}) with error: {e}"
+                )
+                run.state = RunState.UNKNOWN
+                continue
+        # Remove any runs that are dead
+        with self._threading_lock:
+            for run_id in _runs_to_remove:
+                wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
+                del self._runs[run_id]
+
     def _exit(self) -> None:
         pass
 

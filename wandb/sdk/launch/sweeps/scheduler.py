@@ -174,7 +174,7 @@ class Scheduler(ABC):
 
     @property
     def num_active_runs(self) -> int:
-        return len([1 for x in self._runs.values() if x.state == RunState.ALIVE])
+        return len(self._runs)
 
     @property
     def busy_workers(self) -> Dict[int, _Worker]:
@@ -368,6 +368,7 @@ class Scheduler(ABC):
         end_states = ["crashed", "failed", "killed", "finished"]
         run_states = ["running", "pending", "preempted", "preempting"]
 
+        _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
@@ -377,7 +378,7 @@ class Scheduler(ABC):
                         f"({run_id}) run-state:{_state}, rqi-state:{_rqi_state}"
                     )
                     run.state = RunState.DEAD
-                    wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
+                    _runs_to_remove.append(run_id)
                 elif _state in run_states:
                     run.state = RunState.ALIVE
             except CommError as e:
@@ -386,6 +387,11 @@ class Scheduler(ABC):
                 )
                 run.state = RunState.UNKNOWN
                 continue
+        # Remove any runs that are dead
+        with self._threading_lock:
+            for run_id in _runs_to_remove:
+                wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
+                del self._runs[run_id]
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
