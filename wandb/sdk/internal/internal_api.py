@@ -2281,7 +2281,7 @@ class Api:
 
     def agent_heartbeat(
         self, agent_id: str, metrics: dict, run_states: dict
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
         Arguments:

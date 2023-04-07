@@ -30,21 +30,17 @@ class SweepScheduler(Scheduler):
         """Called by the main scheduler execution loop.
 
         Expected to return a properly formatted SweepRun if the scheduler
-        is alive, or None and set the appropriate scheduler state
+        is alive, or None and set the appropriate scheduler state:
+
+        FAILED: self.state = SchedulerState.FAILED
+        STOPPED: self.state = SchedulerState.STOPPED
         """
         commands: List[Dict[str, Any]] = self._get_sweep_commands(worker_id)
         for command in commands:
             # The command "type" can be one of "run", "resume", "stop", "exit"
             _type = command.get("type")
             if _type in ["exit", "stop"]:
-                run_cap = command.get("run_cap")
-                if run_cap is not None:
-                    # If Sweep hit run_cap, go into flushing state
-                    wandb.termlog(f"{LOG_PREFIX}Sweep hit run_cap: {run_cap}")
-                    self.state = SchedulerState.FLUSH_RUNS
-                else:
-                    # Tell (virtual) agent to stop running
-                    self.state = SchedulerState.STOPPED
+                self.state = SchedulerState.STOPPED
                 return None
 
             if _type not in ["run", "resume"]:
@@ -76,13 +72,13 @@ class SweepScheduler(Scheduler):
             if run.worker_id == worker_id and run.state == RunState.ALIVE:
                 _run_states[run_id] = True
 
-        _logger.debug(f"{LOG_PREFIX}Sending states: \n{pf(_run_states)}\n")
+        _logger.debug(f"Sending states: \n{pf(_run_states)}\n")
         commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
-            self._workers[worker_id].agent_id,  # agent_id: str
-            {},  # metrics: dict
-            _run_states,  # run_states: dict
+            agent_id=self._workers[worker_id].agent_id,
+            metrics={},
+            run_states=_run_states,
         )
-        _logger.debug(f"{LOG_PREFIX}AgentHeartbeat commands: \n{pf(commands)}\n")
+        _logger.debug(f"AgentHeartbeat commands: \n{pf(commands)}\n")
 
         return commands
 
@@ -90,6 +86,7 @@ class SweepScheduler(Scheduler):
         pass
 
     def _poll(self) -> None:
+        _logger.debug(f"_poll. _runs: {self._runs}")
         pass
 
     def _load_state(self) -> None:

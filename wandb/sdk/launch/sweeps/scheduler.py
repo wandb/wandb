@@ -326,11 +326,13 @@ class Scheduler(ABC):
 
         for run_id in to_delete:
             wandb.termlog(f"{LOG_PREFIX}Stopping run ({run_id})")
-            self._stop_run(run_id)
+            if not self._stop_run(run_id):
+                wandb.termwarn(f"{LOG_PREFIX}Failed to stop run ({run_id})")
 
     def _stop_run(self, run_id: str) -> bool:
         """Stops a run and removes it from the scheduler."""
         if run_id not in self._runs:
+            _logger.debug(f"run: {run_id} not in _runs: {self._runs}")
             return False
 
         run = self._runs[run_id]
@@ -354,8 +356,6 @@ class Scheduler(ABC):
         success: bool = self._api.stop_run(run_id=encoded_run_id)
         if success:
             wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
-        else:
-            wandb.termlog(f"{LOG_PREFIX}Failed while stopping run {run_id}.")
 
         return success
 
@@ -365,8 +365,15 @@ class Scheduler(ABC):
         Get state from backend and deletes runs if not in running state. Threadsafe.
         """
         # TODO(gst): move to better constants place
-        end_states = ["crashed", "failed", "killed", "finished"]
-        run_states = ["running", "pending", "preempted", "preempting"]
+        end_states = [
+            "crashed",
+            "failed",
+            "killed",
+            "finished",
+            "preempted",
+            "preempting",
+        ]
+        run_states = ["running", "pending"]
 
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
