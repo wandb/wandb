@@ -11,7 +11,6 @@ from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
-import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject

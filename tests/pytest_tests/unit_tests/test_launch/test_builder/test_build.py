@@ -11,7 +11,6 @@ def test_get_env_vars_dict(mocker):
 
     assert resp == {
         "WANDB_API_KEY": "test-api-key",
-        "WANDB_ARGS": "",
         "WANDB_ARTIFACTS": "test-wandb-artifacts",
         "WANDB_BASE_URL": "base_url",
         "WANDB_CONFIG": "test-wandb-artifacts",
