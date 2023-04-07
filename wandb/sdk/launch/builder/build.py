@@ -263,7 +263,7 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
             launch_project.override_entrypoint.command
         )
     if launch_project.override_args:
-        env_vars["WANDB_ARGS"] = " ".join(launch_project.override_args)
+        env_vars["WANDB_ARGS"] = " ".join([str(a) for a in launch_project.override_args])
     return env_vars
 
 
