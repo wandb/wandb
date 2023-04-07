@@ -1,7 +1,7 @@
 import pathlib
-from typing import Optional, TextIO, Union
+from typing import Any, Dict, Optional, Sequence, TextIO, Union
 
-from .media import Media
+from .media import Media, MediaSequence, register
 
 # import rdkit.Chem
 
@@ -23,7 +23,7 @@ class Molecule(Media):
         "mmtf",
     }
 
-    # SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
+    SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
 
     _caption: Optional[str]
 
@@ -34,6 +34,7 @@ class Molecule(Media):
         file_type: Optional[str] = None,
         **kwargs,
     ) -> None:
+        super().__init__()
         self._caption = caption
         if isinstance(data_or_path, pathlib.Path):
             self.from_path(data_or_path)
@@ -68,3 +69,27 @@ class Molecule(Media):
             self.from_path(path)
         else:
             pass
+
+
+@register(Molecule)
+class MoleculeSequence(MediaSequence[Any, Molecule]):
+    OBJ_TYPE = "molecule"
+    OBJ_ARTIFACT_TYPE = "molecule"
+
+    def __init__(self, items: Sequence[Any]):
+        super().__init__(items, Molecule)
+
+    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
+        super().bind_to_artifact(artifact)
+        return {
+            "_type": self.OBJ_ARTIFACT_TYPE,
+        }
+
+    def to_json(self) -> dict:
+        items = [item.to_json() for item in self._items]
+        return {
+            "_type": self.OBJ_TYPE,
+            "count": len(items),
+            "filenames": [item["path"] for item in items],
+            "captions": [item.caption for item in self._items],
+        }
