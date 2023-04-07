@@ -274,7 +274,7 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             "run4": ("finished", RunState.DEAD),
             "run5": ("running", RunState.ALIVE),
             "run6": ("pending", RunState.ALIVE),
-            "run7": ("preempted", RunState.ALIVE),
+            "run7": ("preempted", RunState.DEAD),
             "run8": ("preempting", RunState.ALIVE),
         }
 

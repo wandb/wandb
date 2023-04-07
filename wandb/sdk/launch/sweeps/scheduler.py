@@ -370,10 +370,9 @@ class Scheduler(ABC):
             "failed",
             "killed",
             "finished",
-            "preempted",
             "preempting",
         ]
-        run_states = ["running", "pending"]
+        run_states = ["running", "pending", "preempted"]
 
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
