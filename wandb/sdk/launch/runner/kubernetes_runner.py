@@ -419,7 +419,7 @@ class KubernetesRunner(AbstractRunner):
 
 
 def inject_entrypoint_and_args(
-    containers: list[dict],
+    containers: List[dict],
     entry_point: Optional[EntryPoint],
     override_args: Dict[str, Any],
     should_override_entrypoint: bool,
