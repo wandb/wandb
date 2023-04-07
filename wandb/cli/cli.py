@@ -916,12 +916,6 @@ def sweep(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
-    "--config",
-    "-c",
-    default=None,
-    help="Path to a configuration yaml",
-)
-@click.option(
     "--resume_id",
     "-r",
     default=None,
@@ -933,6 +927,7 @@ def sweep(
     default=1,
     help="Number of concurrent jobs a scheduler can run",
 )
+@click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
 def launch_sweep(

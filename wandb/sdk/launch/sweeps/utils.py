@@ -103,7 +103,6 @@ def load_launch_sweep_config(config: Optional[str]) -> Tuple[Dict[str, Any], str
         parsed_config = util.load_json_yaml_dict(config)
         if parsed_config is None:
             raise LaunchError(f"Could not load config from {config}. Check formatting")
-        wandb.termlog(f"Using launch 🚀 with config: {parsed_config}")
     return parsed_config
 
 

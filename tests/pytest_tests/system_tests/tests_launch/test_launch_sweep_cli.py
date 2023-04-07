@@ -9,7 +9,7 @@ from wandb.apis.public import Api
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
-def _run_cmd(cmd: List[str], assert_str: str) -> None:
+def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
     """Helper for asserting a statement is in logs."""
     out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     assert assert_str in out.decode("utf-8")
@@ -17,15 +17,15 @@ def _run_cmd(cmd: List[str], assert_str: str) -> None:
 
 def test_launch_sweep_param_validation(user):
     base = ["wandb", "launch-sweep"]
-    _run_cmd(base, "Usage: wandb launch-sweep [OPTIONS]")
+    _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
     err_msg = "One of 'config' or 'resume_id' required"
-    _run_cmd(base + ["-q", "q"], err_msg)
+    _run_cmd_check_msg(base + ["-q", "q"], err_msg)
 
     base += ["-e", user, "-p", "p"]
     err_msg = "Could not find sweep"
     with pytest.raises(subprocess.CalledProcessError):
-        _run_cmd(base + ["-r", "id", "-q", "q"], err_msg)
+        _run_cmd_check_msg(base + ["-r", "id", "-q", "q"], err_msg)
 
     config = {
         "method": "grid",
@@ -36,7 +36,7 @@ def test_launch_sweep_param_validation(user):
         json.dump(config, f)
 
     err_msg = "No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep"
-    _run_cmd(base + ["-c", "s.yaml"], err_msg)
+    _run_cmd_check_msg(base + ["s.yaml"], err_msg)
 
     del config["launch"]["queue"]
     config["job"] = "job123"
@@ -44,7 +44,7 @@ def test_launch_sweep_param_validation(user):
         json.dump(config, f)
 
     err_msg = "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in a --config"
-    _run_cmd(base + ["-c", "s.yaml", "-e", "e"], err_msg)
+    _run_cmd_check_msg(base + ["s.yaml", "-e", "e"], err_msg)
 
     base += ["-q", "q"]
 
@@ -53,7 +53,7 @@ def test_launch_sweep_param_validation(user):
         json.dump(config, f)
 
     err_msg = "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
-    _run_cmd(base + ["-c", "s.yaml"], err_msg)
+    _run_cmd_check_msg(base + ["s.yaml"], err_msg)
 
     del config["job"]
     with open("s.yaml", "w") as f:
@@ -61,7 +61,10 @@ def test_launch_sweep_param_validation(user):
 
     # this tries to upsert into a non-existent project, because no error
     with pytest.raises(subprocess.CalledProcessError):
-        _run_cmd(base + ["-c", "s.yaml"], "")
+        _run_cmd_check_msg(base + ["s.yaml"], "")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        _run_cmd_check_msg(base + ["s123.yaml"], "Invalid value for '[CONFIG]'")
 
 
 @pytest.mark.parametrize(
