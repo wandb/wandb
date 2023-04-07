@@ -1,5 +1,8 @@
 ## 0.14.2 (April 7, 2023)
 
+### :hammer: Fixes
+* fix(sdk): fix `wandb sync` regression by @kptkin in https://github.com/wandb/wandb/pull/5306
+
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.1...v0.14.2
 
 ## 0.14.1 (April 5, 2023)
