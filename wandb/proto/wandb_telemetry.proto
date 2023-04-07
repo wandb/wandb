@@ -108,6 +108,12 @@ message Imports {
   bool albumentations = 80;
   bool keras_cv = 81;
   bool mmengine = 82;
+  bool diffusers = 83;
+  bool trl = 84;
+  bool trlx = 85;
+  bool langchain = 86;
+  bool llama_index = 87;
+  bool stability_sdk = 88;
 }
 
 message Feature {
@@ -160,6 +166,7 @@ message Feature {
   bool ultralytics_yolov8 = 47; // Ultralytics YOLOv8 integration callbacks used
   bool importer_mlflow = 48; // Using Import API for MLFlow
   bool sync_tfevents = 49; // Using wandb sync for tfevent files
+  bool async_uploads = 50; // Async file uploads enabled by user
 }
 
 message Env {
