@@ -39,24 +39,21 @@ class Audio(Media):
                 setattr(self, k, v)
 
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        path = pathlib.Path(path)
-        self._format = (path.suffix[1:] or self.DEFAULT_FORMAT).upper()
-        self._save_file_metadata(path)
+        with self.path.save(path) as path:
+            self._format = (path.suffix[1:] or self.DEFAULT_FORMAT).lower()
 
     def from_array(
         self,
         data,
         sample_rate: Optional[int] = None,
     ) -> None:
-        breakpoint()
         assert sample_rate is not None, "sample_rate must be specified"
 
         import soundfile as sf
 
         self._format = self.DEFAULT_FORMAT.lower()
-        path = self._generate_temp_path(suffix=f".{self._format}")
-        sf.write(path, data, sample_rate)
-        self._save_file_metadata(path, is_temp=True)
+        with self.path.save(suffix=f".{self._format}") as path:
+            sf.write(path, data, sample_rate)
 
     def bind_to_run(self, run: "Run", *namespace, name: Optional[str] = None) -> None:
         """Bind this audio object to a run.
@@ -64,13 +61,12 @@ class Audio(Media):
         Args:
             run: The run to bind to.
             namespace: The namespace to use.
-            name: The name of the audio file.
+            name: The name of the audio object.
         """
-        assert self._sha256
         return super().bind_to_run(
             run,
             *namespace,
-            name or self._sha256[:20],
+            name=name,
             suffix=f".{self._format}",
         )
 
@@ -79,8 +75,7 @@ class Audio(Media):
         artifact: "Artifact",
     ) -> dict:
         serialized = super().bind_to_artifact(artifact)
-        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
-        serialized["format"] = self._format
+        serialized.update({"format": self._format})
         return serialized
 
     def to_json(self) -> dict:

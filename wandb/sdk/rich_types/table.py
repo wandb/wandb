@@ -1,4 +1,5 @@
 import json
+import os
 import pathlib
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
@@ -10,42 +11,6 @@ if TYPE_CHECKING:
     import pandas as pd  # type: ignore
 
     from wandb.sdk.wandb_artifacts import Artifact
-
-
-# class TableData:
-#     def __init__(
-#         self,
-#     ) -> None:
-#         self._data = []
-#         self._columns = []
-
-#     def add_data(self, data: Sequence) -> None:
-#         for row in data:
-#             self._data.append(row)
-
-#     def add_columns(self, columns: Sequence) -> None:
-#         self._columns = columns
-
-#     def to_json(self) -> dict:
-#         def serialize(obj):
-#             if isinstance(obj, (list, tuple)):
-#                 return [serialize(item) for item in obj]
-#             if isinstance(obj, dict):
-#                 return {key: serialize(value) for key, value in obj.items()}
-#             if isinstance(obj, Media):
-#                 return obj.to_json()
-#             return obj
-
-#         return {
-#             "data": serialize(self._data),
-#             "columns": self._columns,
-#         }
-
-#     def serialize(self) -> dict:
-#         return {
-#             "data": helper(self._data),
-#             "columns": self._columns,
-#         }
 
 
 class Table(Media):
@@ -103,11 +68,7 @@ class Table(Media):
 
         self._data.append(data)
 
-    def _save(self) -> None:
-        self._format = self.DEFAULT_FORMAT.lower()
-        self._source_path = self._generate_temp_path(f".{self._format}")
-        self._is_temp_path = True
-
+    def save(self, path: Union[str, os.PathLike]) -> None:
         def serialize(obj):
             if isinstance(obj, (list, tuple)):
                 return [serialize(item) for item in obj]
@@ -117,11 +78,8 @@ class Table(Media):
                 return obj.__class__.__name__
             return obj
 
-        with open(self._source_path, "w") as f:
+        with open(path, "w") as f:
             json.dump({"columns": self._columns, "data": serialize(self._data)}, f)
-
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
 
     def bind_to_artifact(
         self,
@@ -160,12 +118,14 @@ class Table(Media):
             name: The name of the media file.
         """
         # TODO: why do we save to temp file and move seems wasteful
-        self._save()
-        assert self._sha256
+        self._format = self.DEFAULT_FORMAT.lower()
+        with self.path.save(suffix=f".{self._format}") as p:
+            self.save(p)
+
         super().bind_to_run(
             run,
             *namespace,
-            name or self._sha256[:20],
+            name=name,
             suffix=f".{self._format}",
         )
 

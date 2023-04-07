@@ -76,9 +76,5 @@ def bind_to_artifact(obj, *namespace):
         json.dump(serialized, f, sort_keys=True)
     entry = artifact.add_file(str(file_path), name, is_tmp=False)
 
-    if obj._artifact is None:
-        from .media import ArtifactReference
-
-        obj._artifact = ArtifactReference(artifact, entry.path)  # type: ignore
-
+    obj.artifact.assign(artifact, entry.path)
     return artifact

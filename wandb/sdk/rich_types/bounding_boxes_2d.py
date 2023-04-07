@@ -78,28 +78,25 @@ class BoundingBoxes2D(Media):
 
         self._initialize(bounding_boxes)
 
-    def bind_to_run(self, run, *prefix, name: Optional[str] = None) -> None:
+    def bind_to_run(self, run, *namespace, name: Optional[str] = None) -> None:
         """Bind this bounding box to a run.
 
         Args:
-            interface: The interface to the run.
-            start: The path to the run directory.
-            prefix: A list of path components to prefix to the bounding box path.
+            run: The run to bind to.
+            namespace: The namespace to bind to.
             name: The name of the bounding box.
         """
         super().bind_to_run(
             run,
-            *prefix,
-            name or self._sha256[:20],
+            *namespace,
+            name=name,
             suffix=f".{self._format}",
         )
 
     def to_json(self) -> dict:
         return {
             "_type": self.OBJ_TYPE,
-            "sha256": self._sha256,
-            "size": self._size,
-            "path": str(self._bind_path),
+            **super().to_json(),
         }
 
     def _initialize(self, data: dict) -> None:
@@ -109,13 +106,9 @@ class BoundingBoxes2D(Media):
             data (dict): The data to initialize this bounding box with.
         """
         self._format = f".{self.OBJ_TYPE}.{self.DEFAULT_FORMAT}"
-        self._source_path = self._generate_temp_path(suffix=self._format)
-        self._is_temp_path = True
-        with codecs.open(str(self._source_path), "w", encoding="utf-8") as f:
-            json.dump(data, f)
-
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        with self.path.save(suffix=f".{self._format}") as path:
+            with codecs.open(str(path), "w", encoding="utf-8") as f:
+                json.dump(data, f)
 
     def add_classes(self, classes: dict) -> None:
         """Add classes to this bounding box.

@@ -72,17 +72,15 @@ class Video(Media):
             prefix: A list of path components to prefix to the video object path.
             name: The name of the video object.
         """
-        assert self._sha256
         super().bind_to_run(
             run,
             *prefix,
-            name or self._sha256[:20],
+            name=name,
             suffix=f".{self._format}",
         )
 
     def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
         serialized = super().bind_to_artifact(artifact)
-        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
         if self._width is not None:
             serialized["width"] = self._width
         if self._height is not None:
@@ -93,48 +91,40 @@ class Video(Media):
 
     def from_buffer(self, buffer: io.BytesIO, format: Optional[str] = None) -> None:
         self._format = (format or self.DEFAULT_FORMAT).lower()
-        path = self._generate_temp_path(suffix=f".{self._format}")
-
-        with open(path, "wb") as f:
-            f.write(buffer.read())
-
-        self._save_file_metadata(path, is_temp=True)
+        with self.path.save(suffix=f".{self._format}") as path:
+            with open(path, "wb") as f:
+                f.write(buffer.read())
 
     def from_path(self, path: Union[str, os.PathLike]) -> None:
-        path = pathlib.Path(path)
-        self._format = path.suffix[1:]
-        assert (
-            self._format in self.SUPPORTED_FORMATS
-        ), f"Unsupported format: {self._format}"
-        self._save_file_metadata(path)
+        with self.path.save(path) as path:
+            self._format = path.suffix[1:]
+            assert (
+                self._format in self.SUPPORTED_FORMATS
+            ), f"Unsupported format: {self._format}"
 
     def from_numpy(self, array: "np.ndarray", fps: int, format: Optional[str]) -> None:
-        array = prepare_data(array)
-
         from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
         self._format = (format or self.DEFAULT_FORMAT).lower()
-
-        clip = ImageSequenceClip(list(array), fps=fps)
-        path = str(self._generate_temp_path(suffix=f".{self._format}"))
-        try:
-            if self._format == "gif":
-                write_gif(clip, path)
-            else:
-                clip.write_videofile(path, logger=None)
-        except TypeError:
+        with self.path.save(suffix=f".{self._format}") as path:
+            array = prepare_data(array)
+            clip = ImageSequenceClip(list(array), fps=fps)
             try:
                 if self._format == "gif":
-                    clip.write_gif(path, verbose=False, proggres_bar=False)
+                    write_gif(clip, str(path))
                 else:
-                    clip.write_videofile(path, verbose=False, proggres_bar=False)
+                    clip.write_videofile(path, logger=None)
             except TypeError:
-                if self._format == "gif":
-                    clip.write_gif(path, verbose=False)
-                else:
-                    clip.write_videofile(path, verbose=False)
-
-        self._save_file_metadata(path, is_temp=True)
+                try:
+                    if self._format == "gif":
+                        clip.write_gif(path, verbose=False, proggres_bar=False)
+                    else:
+                        clip.write_videofile(path, verbose=False, proggres_bar=False)
+                except TypeError:
+                    if self._format == "gif":
+                        clip.write_gif(path, verbose=False)
+                    else:
+                        clip.write_videofile(path, verbose=False)
 
     def from_tensorflow(
         self, tensor: "tf.Tensor", fps: int, format: Optional[str]

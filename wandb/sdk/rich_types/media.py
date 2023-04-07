@@ -4,12 +4,14 @@ import os
 import pathlib
 import shutil
 import tempfile
+from contextlib import contextmanager
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     Generic,
+    Generator,
     Optional,
     Sequence,
     Type,
@@ -23,105 +25,112 @@ if TYPE_CHECKING:
     from wandb.sdk.wandb_artifacts import Artifact
     from wandb.sdk.wandb_run import Run
 
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
-
 
 T = TypeVar("T")
 U = TypeVar("U")
 
 
-class ArtifactReference:
-    def __init__(self, artifact: "Artifact", path: str) -> None:
+class MediaArtifactManager:
+    def __init__(self) -> None:
+        self._artifact: Optional["Artifact"] = None
+        self._path: Optional[str] = None
+
+    def assign(self, artifact: "Artifact", path: str) -> Any:
+        if self._artifact is not None or self._path is not None:
+            raise ValueError(
+                f"Media object already has an artifact ({self.pprint()}) set."
+            )
         self._artifact = artifact
         self._path = path
 
     @property
-    def artifact_path(self) -> str:
+    def artifact_path(self) -> Optional[str]:
+        if self._artifact is None or self._path is None:
+            return None
+        if self._artifact._client_id is None or not self._artifact._final:
+            return None
         return f"wandb-client-artifact://{self._artifact._client_id}/{str(self._path)}"
 
     @property
-    def artifact_path_latest(self) -> str:
+    def artifact_path_latest(self) -> Optional[str]:
+        if self._artifact is None or self._path is None:
+            return None
+        if self._artifact._client_id is None or not self._artifact._final:
+            return None
         return f"wandb-client-artifact://{self._artifact._sequence_client_id}:latest/{str(self._path)}"
 
+    def pprint(self) -> str:
+        return f"{self._artifact}/{self._path}"
 
-class Media:
-    RELATIVE_PATH = pathlib.Path("media")
+    def to_json(self) -> Dict[str, Any]:
+        if self.artifact_path is None or self.artifact_path_latest is None:
+            return {}
+        return {
+            "artifact_path": self.artifact_path,
+            "_latest_artifact_path": self.artifact_path_latest,
+        }
+
+
+class MediaPathManager:
     FILE_SEP = "_"
-    OBJ_TYPE = "file"
-    OBJ_ARTIFACT_TYPE = "file"
+    MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
-    def __init__(self) -> None:
+    def __init__(self, relative_path: Union[str, os.PathLike]) -> None:
+        self._relative_path: pathlib.Path = pathlib.Path(relative_path)
+
         self._source_path: Optional[Union[str, os.PathLike]] = None
         self._is_temp_path: bool = False
         self._size: Optional[int] = None
         self._sha256: Optional[str] = None
 
-        self._bind_path: Optional[pathlib.Path] = None
-        self._artifact: Optional[ArtifactReference] = None
+        self._bind_path: Optional[Union[str, os.PathLike]] = None
 
-    def to_json(self) -> Dict[str, Any]:
-        """Serialize this media object to JSON.
-
-        Returns:
-            A JSON-serializable dictionary.
-        """
-        serialized = {
-            "_type": self.OBJ_TYPE,
+    def run_to_json(self) -> Dict[str, Any]:
+        return {
             "path": str(self._bind_path),
             "size": self._size,
             "sha256": self._sha256,
         }
 
-        if self._artifact:
-            serialized["artifact_path"] = self._artifact.artifact_path
-            serialized["_latest_artifact_path"] = self._artifact.artifact_path_latest
+    def artifact_to_json(self) -> Dict[str, Any]:
+        if self._source_path:
+            return {
+                "path": str(self._bind_path),
+                "sha256": self._sha256,
+            }
+        return {}
 
-        return serialized
-
-    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
-        """Bind this media object to an artifact.
-
-        Args:
-            artifact (Artifact): The artifact to bind to.
-        """
-        if self._source_path is None:
-            return {"_type": self.OBJ_ARTIFACT_TYPE}
-
-        path = artifact.get_added_local_path_name(str(self._source_path))
-        if path is None:
-            file_name = pathlib.Path(self._source_path).name
-            if self._is_temp_path:
-                path = self.RELATIVE_PATH / file_name
-            else:
-                assert self._sha256 is not None
-                path = self.RELATIVE_PATH / self._sha256[:20] / file_name
-            entry = artifact.add_file(
-                str(self._source_path), str(path), is_tmp=self._is_temp_path
-            )
-            path = entry.path
-        self._bind_path = pathlib.Path(path)
-
-        return {
-            "_type": self.OBJ_ARTIFACT_TYPE,
-            "path": str(self._bind_path),
-            "sha256": self._sha256,
-        }
-
-    def bind_to_run(
-        self,
-        run: "Run",
-        *namespace: str,
-        suffix: str = "",
-    ) -> None:
-        """Bind this media object to a run.
+    @contextmanager
+    def save(
+        self, path: Optional[Union[str, os.PathLike]] = None, suffix: str = ""
+    ) -> Generator[pathlib.Path, None, None]:
+        """Save the metadata for this media object.
 
         Args:
-            run (Run): The run to bind to.
-            namespace (Iterable[str]): The namespace to bind to.
-            suffix: A suffix to append to the media path.
+            path (os.PathLike): The path to the media.
+            suffix (str): The suffix to append to the media path.
+
+        Returns:
+            pathlib.Path: The path to the media.
         """
-        root_dir = pathlib.Path(run.dir)
-        dest_path = self._generate_media_path(root_dir, *namespace, suffix=suffix)
+        try:
+            if path is None:
+                self._is_temp_path = True
+                path = self.get_temp_path(suffix=suffix)
+            self._source_path = pathlib.Path(path).absolute()
+            yield self._source_path
+        finally:
+            assert isinstance(self._source_path, pathlib.Path)
+            self._size = self._source_path.stat().st_size
+            self._sha256 = self._compute_sha256(self._source_path)
+
+    def bind_to_run(self, root_dir, *namespace, suffix) -> None:
+        # construct destination path in the root_dir
+        sep = self.FILE_SEP
+        file_name = pathlib.Path(sep.join(namespace)).with_suffix(suffix)
+
+        dest_path = pathlib.Path(root_dir) / self._relative_path / file_name
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self._is_temp_path:
             shutil.move(str(self._source_path), dest_path)
@@ -132,60 +141,30 @@ class Media:
         self._is_temp_path = False
         self._bind_path = pathlib.Path(dest_path).relative_to(root_dir)
 
-        self._publish(run, self._bind_path)
-
-    def _save_file_metadata(
-        self, path: Union[str, os.PathLike], is_temp: bool = False
-    ) -> None:
-        """Save the metadata for this media object.
+    def bind_to_artifact(self, artifact: "Artifact") -> None:
+        """Bind this media object to an artifact.
 
         Args:
-            path (os.PathLike): The path to the media.
+            artifact: The artifact to bind to.
         """
-        self._source_path = pathlib.Path(path).absolute()
-        self._is_temp_path = is_temp
-        self._size = self._source_path.stat().st_size
-        self._sha256 = self._compute_sha256(self._source_path)
+        if self._source_path is None:
+            return
 
-    @staticmethod
-    def _publish(run: "Run", path: os.PathLike) -> None:
-        """Publish this media object to the run.
+        path = artifact.get_added_local_path_name(str(self._source_path))
+        if path is None:
+            file_name = pathlib.Path(self._source_path).name
+            if self._is_temp_path:
+                path = self._relative_path / file_name
+            else:
+                assert self._sha256 is not None
+                path = self._relative_path / self._sha256[:20] / file_name
+            entry = artifact.add_file(
+                str(self._source_path), str(path), is_tmp=self._is_temp_path
+            )
+            path = entry.path
+        self._bind_path = pathlib.Path(path)
 
-        Args:
-            run (Run): The run to publish to.
-            path (os.PathLike): The path to the media.
-        """
-        assert run._backend and run._backend.interface
-        assert path is not None
-
-        interface = run._backend.interface
-
-        files = {"files": [(glob.escape(str(path)), "now")]}
-        interface.publish_files(files)  # type: ignore
-
-    def _generate_media_path(
-        self, root_dir: os.PathLike, *namespace: str, suffix: str = ""
-    ) -> os.PathLike:
-        """Generate a media path for this media object.
-
-        Args:
-            root_dir (os.PathLike): The root directory to generate the path in.
-            namespace (Iterable[str]): The namespace to generate the path in.
-            suffix (str, optional): The suffix for this media object's path. Defaults to "".
-
-        Returns:
-            pathlib.Path: The media path for this media object.
-        """
-        sep = self.FILE_SEP
-        file_name = pathlib.Path(sep.join(namespace)).with_suffix(suffix)
-
-        path = pathlib.Path(root_dir) / self.RELATIVE_PATH / file_name
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        return path
-
-    @staticmethod
-    def _generate_temp_path(suffix: str = "") -> pathlib.Path:
+    def get_temp_path(self, suffix: str = "") -> pathlib.Path:
         """Get a temporary path for a media object.
 
         Args:
@@ -194,11 +173,12 @@ class Media:
         Returns:
             pathlib.Path: The temporary path for this media.
         """
-        path = MEDIA_TMP.name / pathlib.Path(util.generate_id()).with_suffix(suffix)
-        return path
+        return self.MEDIA_TMP.name / pathlib.Path(util.generate_id()).with_suffix(
+            suffix
+        )
 
     @staticmethod
-    def _compute_sha256(file: pathlib.Path) -> str:
+    def _compute_sha256(file: Union[str, os.PathLike]) -> str:
         """Get the sha256 hash for this media.
 
         Args:
@@ -210,6 +190,71 @@ class Media:
         with open(file, "rb") as f:
             file_hash = hashlib.sha256(f.read()).hexdigest()
         return file_hash
+
+
+class Media:
+    RELATIVE_PATH = pathlib.Path("media")
+    OBJ_TYPE = "file"
+    OBJ_ARTIFACT_TYPE = "file"
+
+    def __init__(self) -> None:
+        self._path = MediaPathManager(self.RELATIVE_PATH)
+        self._artifact = MediaArtifactManager()
+
+    @property
+    def path(self) -> MediaPathManager:
+        return self._path
+
+    @property
+    def artifact(self) -> MediaArtifactManager:
+        return self._artifact
+
+    def to_json(self) -> Dict[str, Any]:
+        """Serialize this media object to JSON.
+
+        Returns:
+            A JSON-serializable dictionary.
+        """
+        return {
+            "_type": self.OBJ_TYPE,
+            **self._path.run_to_json(),
+            **self._artifact.to_json(),
+        }
+
+    def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:
+        """Bind this media object to an artifact.
+
+        Args:
+            artifact (Artifact): The artifact to bind to.
+        """
+        self._path.bind_to_artifact(artifact)
+        return {
+            "_type": self.OBJ_ARTIFACT_TYPE,
+            **self._path.artifact_to_json(),
+        }
+
+    def bind_to_run(
+        self, run: "Run", *namespace: str, name: Optional[str] = None, suffix: str = ""
+    ) -> None:
+        """Bind this media object to a run.
+
+        Args:
+            run (Run): The run to bind to.
+            namespace (Iterable[str]): The namespace to bind to.
+            suffix (str): The suffix to use.
+        """
+        assert self._path._sha256 is not None
+        name = name or self._path._sha256[:20]
+        self._path.bind_to_run(run.dir, *namespace, name, suffix=suffix)
+
+        path = self._path._bind_path
+        assert path is not None
+
+        assert run._backend and run._backend.interface
+        interface = run._backend.interface
+
+        files = {"files": [(glob.escape(str(path)), "now")]}
+        interface.publish_files(files)  # type: ignore
 
 
 class MediaSequenceFactory(Generic[T, U]):

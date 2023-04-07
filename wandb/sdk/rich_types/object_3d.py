@@ -9,7 +9,6 @@ from .media import Media
 
 
 class Object3D(Media):
-
     OBJ_TYPE = "object3D-file"
     RELATIVE_PATH = pathlib.Path("media") / "object3D"
     SUPPORTED_FORMATS = ["obj", "babylon", "stl", "glb", "gltf", "stl", "pts.json"]
@@ -18,11 +17,6 @@ class Object3D(Media):
     SUPPORTED_POINT_CLOUD_TYPES = ["lidar/beta"]
 
     _format: str
-    _source_path: pathlib.Path
-    _is_temp_path: bool
-    _bind_path: Optional[pathlib.Path]
-    _sha256: str
-    _size: int
 
     def __init__(self, data_or_path, **kwargs: Any) -> None:
         if isinstance(data_or_path, (str, pathlib.Path)):
@@ -42,45 +36,34 @@ class Object3D(Media):
         self._format = format.lower()
         assert self._format in self.SUPPORTED_FORMATS
 
-        self._source_path = self._generate_temp_path(suffix=f".{self._format}")
-        self._is_temp_path = True
-        with open(self._source_path, "w") as f:
-            if hasattr(buffer, "seek"):
-                buffer.seek(0)
-            f.write(buffer.read())
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        with self.path.save(suffix=f".{self._format}") as path:
+            with open(path, "w") as f:
+                if hasattr(buffer, "seek"):
+                    buffer.seek(0)
+                f.write(buffer.read())
 
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        path = pathlib.Path(path)
-        self._format = path.suffix[1:].lower()
-        assert self._format in self.SUPPORTED_FORMATS
-        self._source_path = path
-        self._is_temp_path = False
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        with self.path.save(path) as path:
+            self._format = path.suffix[1:].lower()
+            assert self._format in self.SUPPORTED_FORMATS
 
     def from_numpy(self, array: np.ndarray) -> None:
         assert array.ndim == 2 and array.shape[1] in {3, 4, 6}
         data = array.tolist()
         self._format = self.DEFAULT_FORMAT.lower()
-        self._source_path = self._generate_temp_path(suffix=f".{self._format}")
-        self._is_temp_path = True
-        with codecs.open(str(self._source_path), "w", encoding="utf-8") as f:
-            json.dump(
-                data,
-                f,
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        with self.path.save(suffix=f".{self._format}") as path:
+            with codecs.open(str(path), "w", encoding="utf-8") as f:
+                json.dump(
+                    data,
+                    f,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                    indent=4,
+                )
 
     def from_point_cloud(
         self, points, boxes, vectors=None, point_cloud_type="lidar/beta"
     ) -> None:
-
         assert point_cloud_type in self.SUPPORTED_POINT_CLOUD_TYPES
 
         points = np.array(points).tolist() if points is not None else []
@@ -95,30 +78,26 @@ class Object3D(Media):
         }
 
         self._format = self.DEFAULT_FORMAT.lower()
-        self._source_path = self._generate_temp_path(suffix=f".{self._format}")
-        self._is_temp_path = True
-        with codecs.open(str(self._source_path), "w", encoding="utf-8") as f:
-            json.dump(
-                data,
-                f,
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
+        with self.path.save(suffix=f".{self._format}") as path:
+            with codecs.open(str(path), "w", encoding="utf-8") as f:
+                json.dump(
+                    data,
+                    f,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                    indent=4,
+                )
 
     def to_json(self) -> dict:
-        return {
-            "_type": self.OBJ_TYPE,
-            "sha256": self._sha256,
-            "size": self._size,
-            "path": str(self._bind_path),
-        }
+        serialized = super().to_json()
+        serialized.update(
+            {
+                "_type": self.OBJ_TYPE,
+            }
+        )
+        return serialized
 
-    def bind_to_run(
-        self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
-    ) -> None:
+    def bind_to_run(self, run, *namespace, name: Optional[str] = None) -> None:
         """Bind this 3d object to a run.
 
         Args:
@@ -127,11 +106,9 @@ class Object3D(Media):
             prefix: A list of path components to prefix to the 3d object path.
             name: The name of the 3d object.
         """
-
         super().bind_to_run(
-            interface,
-            start,
-            *prefix,
-            name or self._sha256[:20],
+            run,
+            *namespace,
+            name=name,
             suffix=f".{self._format}",
         )

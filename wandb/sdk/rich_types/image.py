@@ -2,7 +2,7 @@ import hashlib
 import io
 import os
 import pathlib
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 from urllib import parse
 
 import wandb.util as util
@@ -136,11 +136,10 @@ class Image(Media):
             prefix: A list of path components to prefix to the image path.
             name: The name of the image.
         """
-        assert self._sha256
         super().bind_to_run(
             run,
             *namespace,
-            name or self._sha256[:20],
+            name=name,
             suffix=f".{self._format}",
         )
 
@@ -155,14 +154,15 @@ class Image(Media):
     def bind_to_artifact(
         self,
         artifact: "Artifact",
-    ) -> dict:
+    ) -> Dict[str, Any]:
         serialized = super().bind_to_artifact(artifact)
-        serialized["_type"] = self.OBJ_ARTIFACT_TYPE
-        serialized["format"] = self._format
-        if self._width is not None:
-            serialized["width"] = self._width
-        if self._height is not None:
-            serialized["height"] = self._height
+        serialized.update(
+            {
+                "format": self._format,
+                "width": self._width,
+                "height": self._height,
+            }
+        )
         return serialized
 
     def add_masks(self, masks: dict) -> None:
@@ -207,7 +207,7 @@ class Image(Media):
         """
         self._classes = classes
 
-    def from_path(self, path: os.PathLike) -> None:
+    def from_path(self, path: Union[str, os.PathLike]) -> None:
         """Create an image from a path.
 
         Args:
@@ -219,13 +219,12 @@ class Image(Media):
 
         from PIL import Image
 
-        path = pathlib.Path(path)
-        with Image.open(path) as image:
+        with Image.open(str(path)) as image:
             self._width = image.width
             self._height = image.height
 
-        self._format = (path.suffix[1:] or self.DEFAULT_FORMAT).lower()
-        self._save_file_metadata(path)
+        with self.path.save(path) as path:
+            self._format = (path.suffix[1:] or self.DEFAULT_FORMAT).lower()
 
     def from_path_reference(self, path: str) -> None:
         """Create an image from a path reference.
@@ -248,9 +247,9 @@ class Image(Media):
         self._width = image.width
         self._height = image.height
         self._format = (image.format or self.DEFAULT_FORMAT).lower()
-        path = self._generate_temp_path(f".{self._format}")
-        image.save(path, format=self._format, transparency=None)
-        self._save_file_metadata(path, is_temp=True)
+
+        with self.path.save(suffix=f".{self._format}") as path:
+            image.save(path, format=self._format, transparency=None)
 
     def from_array(self, array: "np.ndarray", mode: Optional[str] = None) -> None:
         """Create an image from a numpy array.

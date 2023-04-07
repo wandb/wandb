@@ -5,7 +5,6 @@ from .media import Media
 
 
 class HTML(Media):
-
     OBJ_TYPE = "html-file"
     RELATIVE_PATH = pathlib.Path("media") / "html"
     DEFAULT_FORMAT = "HTML"
@@ -26,24 +25,20 @@ class HTML(Media):
         else:
             raise ValueError("data must be a string or an io object")
 
-        self._sha256 = self._compute_sha256(self._source_path)
-        self._size = self._source_path.stat().st_size
-
     def from_path(self, path: Union[str, pathlib.Path], inject: bool) -> None:
-        self._source_path = pathlib.Path(path).resolve()
-        self._format = self._source_path.suffix[1:].lower()
-        self._is_temp_path = False
-        if inject:
-            with open(self._source_path, "r") as f:
-                html = f.read()
-            self.from_string(html, inject=inject)
+        with self.path.save(path) as path:
+            if inject:
+                with open(path) as f:
+                    html = f.read()
+                self.from_string(html, inject=inject)
 
     def from_string(self, html: str, inject: bool) -> None:
-        if inject:
-            html = self._inject_stylesheet(html)
         self._format = self.DEFAULT_FORMAT.lower()
-        self._source_path = self._generate_temp_path(suffix=f".{self._format}")
-        self._is_temp_path = True
+        with self.path.save(suffix=f".{self._format}") as path:
+            if inject:
+                html = self._inject_stylesheet(html)
+            with open(path, "w") as f:
+                f.write(html)
 
     def from_buffer(self, buffer: "TextIO", inject: bool) -> None:
         if hasattr(buffer, "seek"):
@@ -66,18 +61,13 @@ class HTML(Media):
     def to_json(self) -> dict:
         return {
             "_type": self.OBJ_TYPE,
-            "sha256": self._sha256,
-            "size": self._size,
-            "path": str(self._bind_path),
+            **super().to_json(),
         }
 
-    def bind_to_run(
-        self, interface, start: pathlib.Path, *prefix, name: Optional[str] = None
-    ) -> None:
+    def bind_to_run(self, run, *namespace, name: Optional[str] = None) -> None:
         super().bind_to_run(
-            interface,
-            start,
-            *prefix,
-            name or self._sha256[:20],
+            run,
+            *namespace,
+            name=name,
             suffix=f".{self._format}",
         )

@@ -16,12 +16,6 @@ class ImageMask(Media):
     RELATIVE_PATH = pathlib.Path("media") / "images" / OBJ_TYPE
     DEFAULT_FORMAT = "PNG"
 
-    _source_path: pathlib.Path
-    _is_temp_path: bool
-    _bind_path: Optional[pathlib.Path]
-
-    _size: int
-    _sha256: str
     _format: str
 
     _name: str
@@ -47,24 +41,21 @@ class ImageMask(Media):
     def to_json(self) -> dict:
         return {
             "_type": self.OBJ_TYPE,
-            "size": self._size,
-            "sha256": self._sha256,
-            "path": str(self._bind_path),
+            **super().to_json(),
         }
 
-    def bind_to_run(self, run, *prefix, name: Optional[str] = None) -> None:
+    def bind_to_run(self, run, *namespace, name: Optional[str] = None) -> None:
         """Bind this mask to a run.
 
         Args:
-            interface: The interface to the run.
-            start: The path to the run directory.
-            prefix: A list of path components to prefix to the mask path.
-            name: The name of the mask object.
+            run (wandb.sdk.wandb_run.Run): The run to bind to.
+            *namespace: The namespace to bind to.
+            name (str, optional): The name to bind to.
         """
         super().bind_to_run(
             run,
-            *prefix,
-            name or self._sha256[:20],
+            *namespace,
+            name=name,
             suffix=f".{self._format}",
         )
 
@@ -85,15 +76,10 @@ class ImageMask(Media):
         Args:
             path (pathlib.Path): The path to the mask.
         """
-
-        path = pathlib.Path(path).absolute()
-        if not path.exists():
-            raise ValueError(f"ImageMask path {path} does not exist")
-        self._source_path = path
-        self._format = self._source_path.suffix[1:]
-        self._is_temp_path = False
-        self._size = self._source_path.stat().st_size
-        self._sha256 = self._compute_sha256(self._source_path)
+        with self.path.save(path) as path:
+            if not path.exists():
+                raise ValueError(f"ImageMask path {path} does not exist")
+            self._format = path.suffix[1:]
 
     def from_numpy(self, array: "np.ndarray", mode: str = "L") -> None:
         """Create an ImageMask from an array.
@@ -101,16 +87,8 @@ class ImageMask(Media):
         Args:
             array (np.ndarray): The array to use as the mask.
         """
-
-        array = array.astype(np.int8)
-        image = PIL.Image.fromarray(array, mode=mode)
         self._format = f"{self.OBJ_TYPE}.{self.DEFAULT_FORMAT}".lower()
-        self._source_path = self._generate_temp_path(f".{self._format}")
-        self._is_temp_path = True
-        image.save(
-            self._source_path,
-            format=self.DEFAULT_FORMAT,
-            transparency=None,
-        )
-        self._size = self._source_path.stat().st_size
-        self._sha256 = self._compute_sha256(self._source_path)
+        with self.path.save(suffix=f".{self._format}") as path:
+            array = array.astype(np.int8)
+            image = PIL.Image.fromarray(array, mode=mode)
+            image.save(path, format=self.DEFAULT_FORMAT, transparency=None)
