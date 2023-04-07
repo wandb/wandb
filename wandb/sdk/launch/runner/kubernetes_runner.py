@@ -12,7 +12,7 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module, load_json_yaml_dict
 
-from .._project_spec import EntryPoint, LaunchProject, compute_command_args
+from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
@@ -421,13 +421,12 @@ class KubernetesRunner(AbstractRunner):
 def inject_entrypoint_and_args(
     containers: List[dict],
     entry_point: Optional[EntryPoint],
-    override_args: Dict[str, Any],
+    override_args: List[str],
     should_override_entrypoint: bool,
 ) -> None:
-    args_array = compute_command_args(override_args)
     for i in range(len(containers)):
         if override_args:
-            containers[i]["args"] = args_array
+            containers[i]["args"] = override_args
         if entry_point and (
             not containers[i].get("command") or should_override_entrypoint
         ):
