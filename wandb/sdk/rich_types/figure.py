@@ -1,7 +1,7 @@
 import codecs
 import json
 import pathlib
-from typing import Optional, Union
+from typing import Union
 
 import plotly.tools
 from matplotlib.figure import Figure as MatplotlibFigure

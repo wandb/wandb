@@ -26,7 +26,7 @@ class Video(Media):
     RELATIVE_PATH = pathlib.Path("media") / "videos"
     DEFAULT_FORMAT = "GIF"
 
-    SUPPORTED_FORMATS = ["mp4", "webm", "gif", "ogg"]
+    SUPPORTED_FORMATS = {"mp4", "webm", "gif", "ogg"}
 
     _caption: Optional[str]
     _width: Optional[int]

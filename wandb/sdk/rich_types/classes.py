@@ -1,7 +1,7 @@
+from dataclasses import dataclass
 from typing import Sequence
 
 from .media import Media
-from dataclasses import dataclass
 
 
 @dataclass
