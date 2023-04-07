@@ -89,6 +89,9 @@ class SweepScheduler(Scheduler):
     def _exit(self) -> None:
         pass
 
+    def _poll(self) -> None:
+        pass
+
     def _load_state(self) -> None:
         pass
 
