@@ -169,7 +169,9 @@ def _launch_add(
             job_type="launch_job",
         )
 
-        job_artifact = run._log_job_artifact_with_image(docker_image_uri, launch_project.override_args)
+        job_artifact = run._log_job_artifact_with_image(
+            docker_image_uri, launch_project.override_args
+        )
         job_name = job_artifact.wait().name
 
         job = f"{launch_spec['entity']}/{launch_spec['project']}/{job_name}"

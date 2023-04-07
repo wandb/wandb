@@ -46,6 +46,7 @@ def _setup(mocker):
     launch_project.name = "test-name"
     launch_project.launch_spec = {"author": "test-author"}
     launch_project.override_config = {}
+    launch_project.override_args = []
     launch_project.override_artifacts = {}
 
     mocker.launch_project = launch_project
