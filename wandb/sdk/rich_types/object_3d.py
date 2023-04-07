@@ -1,24 +1,27 @@
-import codecs
 import json
 import pathlib
-from typing import Any, Optional, TextIO, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, TextIO, Union
 
 import numpy as np
 
-from .media import Media
+from .media import Media, MediaSequence, register
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_run import Run
 
 
 class Object3D(Media):
-    OBJ_TYPE = "object3D-file"
     RELATIVE_PATH = pathlib.Path("media") / "object3D"
-    SUPPORTED_FORMATS = ["obj", "babylon", "stl", "glb", "gltf", "stl", "pts.json"]
+    OBJ_TYPE = "object3D-file"
+    OBJ_ARTIFACT_TYPE = "object3D-file"
+
     DEFAULT_FORMAT = "PTS.JSON"
 
-    SUPPORTED_POINT_CLOUD_TYPES = ["lidar/beta"]
-
-    _format: str
+    SUPPORTED_TYPES = {"obj", "babylon", "stl", "glb", "gltf", "stl", "pts.json"}
+    SUPPORTED_POINT_CLOUD_TYPES = {"lidar/beta"}
 
     def __init__(self, data_or_path, **kwargs: Any) -> None:
+        super().__init__()
         if isinstance(data_or_path, (str, pathlib.Path)):
             self.from_path(data_or_path)
         elif isinstance(data_or_path, np.ndarray):
@@ -34,37 +37,32 @@ class Object3D(Media):
 
     def from_buffer(self, buffer: "TextIO", format: str) -> None:
         self._format = format.lower()
-        assert self._format in self.SUPPORTED_FORMATS
+        assert self._format in self.SUPPORTED_TYPES, f"Unsupported format: {format}"
 
-        with self.path.save(suffix=f".{self._format}") as path:
-            with open(path, "w") as f:
+        with self.path.save(suffix=f".{self._format}") as source_path:
+            with open(source_path, "w") as f:
                 if hasattr(buffer, "seek"):
                     buffer.seek(0)
                 f.write(buffer.read())
 
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        with self.path.save(path) as path:
-            self._format = path.suffix[1:].lower()
-            assert self._format in self.SUPPORTED_FORMATS
+        with self.path.save(path) as source_path:
+            self._format = (source_path.suffix[1:] or self.DEFAULT_FORMAT).lower()
+            assert (
+                self._format in self.SUPPORTED_TYPES
+            ), f"Unsupported format: {self._format}"
 
     def from_numpy(self, array: np.ndarray) -> None:
         assert array.ndim == 2 and array.shape[1] in {3, 4, 6}
         data = array.tolist()
-        self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as path:
-            with codecs.open(str(path), "w", encoding="utf-8") as f:
-                json.dump(
-                    data,
-                    f,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                    indent=4,
-                )
+        self._from_data(data)
 
     def from_point_cloud(
         self, points, boxes, vectors=None, point_cloud_type="lidar/beta"
     ) -> None:
-        assert point_cloud_type in self.SUPPORTED_POINT_CLOUD_TYPES
+        assert (
+            point_cloud_type in self.SUPPORTED_POINT_CLOUD_TYPES
+        ), f"Unsupported point cloud type: {point_cloud_type}"
 
         points = np.array(points).tolist() if points is not None else []
         boxes = np.array(boxes).tolist() if boxes is not None else []
@@ -76,10 +74,12 @@ class Object3D(Media):
             "vectors": vectors,
             "type": point_cloud_type,
         }
+        self._from_data(data)
 
+    def _from_data(self, data: Union[Dict[str, List], List]) -> None:
         self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as path:
-            with codecs.open(str(path), "w", encoding="utf-8") as f:
+        with self.path.save(suffix=f".{self._format}") as source_path:
+            with open(source_path, "w", encoding="utf-8") as f:
                 json.dump(
                     data,
                     f,
@@ -88,23 +88,15 @@ class Object3D(Media):
                     indent=4,
                 )
 
-    def to_json(self) -> dict:
-        serialized = super().to_json()
-        serialized.update(
-            {
-                "_type": self.OBJ_TYPE,
-            }
-        )
-        return serialized
-
-    def bind_to_run(self, run, *namespace, name: Optional[str] = None) -> None:
-        """Bind this 3d object to a run.
+    def bind_to_run(
+        self, run: "Run", *namespace: str, name: Optional[str] = None
+    ) -> None:
+        """Binds the object to a run.
 
         Args:
-            interface: The interface to the run.
-            start: The path to the run directory.
-            prefix: A list of path components to prefix to the 3d object path.
-            name: The name of the 3d object.
+            run (Run): The run to bind to.
+            namespace (str): The namespace to bind to.
+            name (str): The name to bind to.
         """
         super().bind_to_run(
             run,
@@ -112,3 +104,24 @@ class Object3D(Media):
             name=name,
             suffix=f".{self._format}",
         )
+
+
+@register(Object3D)
+class Object3DSequence(MediaSequence[Any, Object3D]):
+    OBJ_TYPE = "object3D"
+    OBJ_ARTIFACT_TYPE = "object3D"
+
+    def __init__(
+        self,
+        data: Sequence[Object3D],
+    ) -> None:
+        super().__init__(data, Object3D)
+
+    def to_json(self) -> dict:
+        items = [item.to_json() for item in self._items]
+        return {
+            "_type": self.OBJ_TYPE,
+            "count": len(items),
+            "objects": items,
+            "filenames": [pathlib.Path(item["path"]).name for item in items],
+        }
