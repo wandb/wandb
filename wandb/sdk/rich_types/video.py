@@ -7,6 +7,8 @@ import numpy as np
 import tensorflow as tf
 import torch
 
+from wandb import util
+
 from .media import Media, MediaSequence, register
 
 if TYPE_CHECKING:
@@ -37,6 +39,7 @@ class Video(Media):
         fps: int = 4,
         format: Optional[str] = None,
     ) -> None:
+        super().__init__()
         if isinstance(data_or_path, (str, pathlib.Path)):
             self.from_path(data_or_path)
         elif isinstance(data_or_path, io.BytesIO):
@@ -55,26 +58,18 @@ class Video(Media):
         self._width = None
         self._height = None
 
-    def to_json(self) -> dict:
+    def to_json(self) -> Dict[str, Any]:
         serialized = super().to_json()
         # todo: add width height when available
+        serialized.update({"caption": self._caption})
+        return serialized
 
-        return {
-            **serialized,
-            "caption": self._caption,
-        }
-
-    def bind_to_run(self, run: "Run", *prefix: str, name: Optional[str] = None) -> None:
-        """Bind this video object to a run.
-
-        Args:
-            run: The run to bind to.
-            prefix: A list of path components to prefix to the video object path.
-            name: The name of the video object.
-        """
-        super().bind_to_run(
+    def bind_to_run(
+        self, run: "Run", *namespace: str, name: Optional[str] = None
+    ) -> None:
+        return super().bind_to_run(
             run,
-            *prefix,
+            *namespace,
             name=name,
             suffix=f".{self._format}",
         )
@@ -103,28 +98,10 @@ class Video(Media):
             ), f"Unsupported format: {self._format}"
 
     def from_numpy(self, array: "np.ndarray", fps: int, format: Optional[str]) -> None:
-        from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
-
         self._format = (format or self.DEFAULT_FORMAT).lower()
         with self.path.save(suffix=f".{self._format}") as path:
             array = prepare_data(array)
-            clip = ImageSequenceClip(list(array), fps=fps)
-            try:
-                if self._format == "gif":
-                    write_gif(clip, str(path))
-                else:
-                    clip.write_videofile(path, logger=None)
-            except TypeError:
-                try:
-                    if self._format == "gif":
-                        clip.write_gif(path, verbose=False, proggres_bar=False)
-                    else:
-                        clip.write_videofile(path, verbose=False, proggres_bar=False)
-                except TypeError:
-                    if self._format == "gif":
-                        clip.write_gif(path, verbose=False)
-                    else:
-                        clip.write_videofile(path, verbose=False)
+            write_file(array, path, fps=fps, format=self._format)
 
     def from_tensorflow(
         self, tensor: "tf.Tensor", fps: int, format: Optional[str]
@@ -175,7 +152,10 @@ def write_gif(
     path: str,
     fps: Optional[int] = None,
 ) -> None:
-    import imageio
+    imageio = util.get_module(
+        "imageio",
+        required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
+    )
 
     fps = clip.fps or fps
     assert fps is not None, "FPS must be specified"
@@ -187,6 +167,28 @@ def write_gif(
         writer.append_data(frame)
 
     writer.close()
+
+
+def write_file(array, path, fps, format) -> None:
+    from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
+
+    clip = ImageSequenceClip(list(array), fps=fps)
+    try:
+        if format == "gif":
+            write_gif(clip, str(path))
+        else:
+            clip.write_videofile(path, logger=None)
+    except TypeError:
+        try:
+            if format == "gif":
+                clip.write_gif(path, verbose=False, proggres_bar=False)
+            else:
+                clip.write_videofile(path, verbose=False, proggres_bar=False)
+        except TypeError:
+            if format == "gif":
+                clip.write_gif(path, verbose=False)
+            else:
+                clip.write_videofile(path, verbose=False)
 
 
 @register(Video)
@@ -209,4 +211,5 @@ class VideoSequence(MediaSequence[Any, Video]):
             "_type": self.OBJ_TYPE,
             "count": len(items),
             "videos": items,
+            # "captions": [item._caption for item in self._items],
         }
