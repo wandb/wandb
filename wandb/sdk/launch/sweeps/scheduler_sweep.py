@@ -9,7 +9,6 @@ from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
     RunState,
     Scheduler,
-    SchedulerState,
     SweepRun,
 )
 
