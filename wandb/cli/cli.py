@@ -1282,11 +1282,11 @@ def launch(
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.error("=== %s ===", e)
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
             sys.exit(e)
     else:
         try:
@@ -1311,7 +1311,7 @@ def launch(
                 repository=repository,
             )
         except Exception as e:
-            util.sentry_exc(e)
+            wandb._sentry.exception(e)
             raise e
 
 
@@ -1402,7 +1402,7 @@ def launch_agent(
     try:
         wandb_launch.create_and_run_agent(api, agent_config)
     except Exception as e:
-        util.sentry_exc(e)
+        wandb._sentry.exception(e)
         raise e
 
 
@@ -1469,7 +1469,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
-        util.sentry_exc(e)
+        wandb._sentry.exception(e)
         raise e
 
 
