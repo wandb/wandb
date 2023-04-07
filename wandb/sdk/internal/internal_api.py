@@ -87,6 +87,7 @@ if TYPE_CHECKING:
         api_key: Optional[str]
         entity: Optional[str]
         project: Optional[str]
+        _extra_http_headers: Optional[Mapping[str, str]]
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
@@ -178,6 +179,7 @@ class Api:
             "api_key": None,
             "entity": None,
             "project": None,
+            "_extra_http_headers": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
@@ -194,12 +196,22 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+
+        # todo: remove this hacky hack after settings refactor is complete
+        #  keeping this code here to limit scope and so that it is easy to remove later
+        extra_http_headers = self.settings(
+            "_extra_http_headers"
+        ) or wandb.sdk.wandb_settings._str_as_dict(
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        )
+
         self.client = Client(
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    **extra_http_headers,
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s

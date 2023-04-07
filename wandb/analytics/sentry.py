@@ -60,7 +60,7 @@ class Sentry:
     def environment(self) -> str:
         """Return the environment we're running in."""
         # check if we're in a git repo
-        is_git = pathlib.Path(__file__).parent.parent.joinpath(".git").exists()
+        is_git = pathlib.Path(__file__).parent.parent.parent.joinpath(".git").exists()
 
         # these match the environments for gorilla
         return "development" if is_git else "production"
