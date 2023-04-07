@@ -200,7 +200,7 @@ def construct_launch_spec(
     if "overrides" not in launch_spec:
         launch_spec["overrides"] = {}
 
-    if not isinstance(launch_spec["overrides"].get("args"), list):
+    if not isinstance(launch_spec["overrides"].get("args", []), list):
         raise LaunchError("override args must be a list of strings")
 
     if resource_args:
