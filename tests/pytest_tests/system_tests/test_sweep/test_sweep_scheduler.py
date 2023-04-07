@@ -619,11 +619,7 @@ def test_launch_sweep_scheduler_try_executable_image(user):
 
 @pytest.mark.parametrize(
     "sweep_config",
-    [
-        {"job": "job"},
-        {"job": "job:latest"},
-        {"image_uri": "image:latest"}
-    ]
+    [{"job": "job"}, {"job": "job:latest"}, {"image_uri": "image:latest"}],
 )
 def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     scheduler_config = {}
@@ -648,9 +644,9 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         "--num_workers",
         "8",
     ]
-    if sweep_config.get('job'):
+    if sweep_config.get("job"):
         gold += ["--job", "job:latest"]
     else:
-        gold += ['--image_uri', "image:latest"]
+        gold += ["--image_uri", "image:latest"]
 
     assert entrypoint == gold
