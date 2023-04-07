@@ -13,6 +13,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SweepRun,
 )
 from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
+from wandb.sdk.launch.sweeps.utils import construct_scheduler_entrypoint
 
 from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
 
@@ -614,3 +615,42 @@ def test_launch_sweep_scheduler_try_executable_image(user):
     )
 
     assert _scheduler._try_load_executable()
+
+
+@pytest.mark.parametrize(
+    "sweep_config",
+    [
+        {"job": "job"},
+        {"job": "job:latest"},
+        {"image_uri": "image:latest"}
+    ]
+)
+def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
+    scheduler_config = {}
+    queue = "queue"
+    project = "test"
+
+    entrypoint = construct_scheduler_entrypoint(
+        scheduler_config=scheduler_config,
+        sweep_config=sweep_config,
+        queue=queue,
+        project=project,
+    )
+
+    gold = [
+        "wandb",
+        "scheduler",
+        "WANDB_SWEEP_ID",
+        "--queue",
+        f"{queue!r}",
+        "--project",
+        project,
+        "--num_workers",
+        "8",
+    ]
+    if sweep_config.get('job'):
+        gold += ["--job", "job:latest"]
+    else:
+        gold += ['--image_uri', "image:latest"]
+
+    assert entrypoint == gold
