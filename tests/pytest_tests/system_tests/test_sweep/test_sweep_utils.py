@@ -11,12 +11,12 @@ def test_parse_sweep_id():
     assert utils.parse_sweep_id(parts) == "Expected string sweep_id"
 
     parts = {"name": "test/test"}
-    out = utils.parse_sweep_id(parts)
-    assert out == {"name": "test", "entity": None, "project": "test"}
+    utils.parse_sweep_id(parts)
+    assert parts == {"name": "test", "entity": None, "project": "test"}
 
     parts = {"name": "test/test/test/test"}
     out = utils.parse_sweep_id(parts)
-    assert "Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep"
+    assert out == "Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep"
 
 
 def test_load_sweep_config():
@@ -32,5 +32,6 @@ def test_load_sweep_config():
 def test_load_launch_sweep_config():
     assert utils.load_launch_sweep_config(None) == {}
 
-    out = json.dump({"metric": "banana"}, open("s.yaml", "w"))
+    json.dump({"metric": "banana"}, open("s.yaml", "w"))
+    out = utils.load_launch_sweep_config("s.yaml")
     assert out == {"metric": "banana"}
