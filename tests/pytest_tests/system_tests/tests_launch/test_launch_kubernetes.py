@@ -100,7 +100,7 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
         project.target_entity = entity_name
         project.target_project = project_name
         project.override_config = {}
-        project.override_args = {"a": 2}
+        project.override_args = ["-a", "2"]
         project.job = "testjob"
         run = runner.run(launch_project=project, builder=builder)
     assert run.name == expected_run_name
