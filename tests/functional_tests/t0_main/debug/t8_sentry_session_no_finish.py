@@ -29,4 +29,3 @@ import wandb
 run = wandb.init()
 run.log(dict(m1=1))
 run.log(dict(m2=2))
-run.finish()
