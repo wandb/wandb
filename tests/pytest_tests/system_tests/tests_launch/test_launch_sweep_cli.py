@@ -19,7 +19,7 @@ def test_launch_sweep_param_validation(user):
     base = ["wandb", "launch-sweep"]
     _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
-    err_msg = "One of 'config' or 'resume_id' required"
+    err_msg = "'config' and/or 'resume_id' required"
     _run_cmd_check_msg(base + ["-q", "q"], err_msg)
 
     base += ["-e", user, "-p", "p"]
