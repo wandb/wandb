@@ -260,7 +260,6 @@ def test_launch_sweep_launch_resume(user):
         [
             "wandb",
             "launch-sweep",
-
             "--resume_id",
             sweep_id,
             "-e",
