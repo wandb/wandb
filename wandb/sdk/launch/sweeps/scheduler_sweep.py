@@ -32,25 +32,23 @@ class SweepScheduler(Scheduler):
         Expected to return a properly formatted SweepRun if the scheduler
         is alive, or None and set the appropriate scheduler state:
 
-        FAILED: self.state = SchedulerState.FAILED
-        STOPPED: self.state = SchedulerState.STOPPED
+        FAILED: self.fail_sweep()
+        STOPPED: self.stop_sweep()
         """
         commands: List[Dict[str, Any]] = self._get_sweep_commands(worker_id)
         for command in commands:
             # The command "type" can be one of "run", "resume", "stop", "exit"
             _type = command.get("type")
             if _type in ["exit", "stop"]:
-                self.state = SchedulerState.STOPPED
+                self.stop_sweep()
                 return None
 
             if _type not in ["run", "resume"]:
-                self.state = SchedulerState.FAILED
-                raise SchedulerError(f"AgentHeartbeat unknown command: {_type}")
+                self.fail_sweep(f"AgentHeartbeat unknown command: {_type}")
 
             _run_id = command.get("run_id")
             if not _run_id:
-                self.state = SchedulerState.FAILED
-                raise SchedulerError(f"No runId in agent heartbeat: {command}")
+                self.fail_sweep(f"No runId in agent heartbeat: {command}")
             if _run_id in self._runs:
                 wandb.termlog(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
                 continue

@@ -197,6 +197,16 @@ class Scheduler(ABC):
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
 
+    def stop_sweep(self) -> None:
+        """Stop the sweep."""
+        self._state = SchedulerState.STOPPED
+
+    def fail_sweep(self, err: Optional[str]) -> None:
+        """Fail the sweep w/ optional exception."""
+        self._state = SchedulerState.FAILED
+        if err:
+            raise SchedulerError(err)
+
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
