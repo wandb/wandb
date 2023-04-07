@@ -12,7 +12,7 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module, load_json_yaml_dict
 
-from .._project_spec import LaunchProject, get_entry_point_command
+from .._project_spec import EntryPoint, LaunchProject, compute_command_args
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
@@ -338,20 +338,14 @@ class KubernetesRunner(AbstractRunner):
         # env vars
         env_vars = get_env_vars_dict(launch_project, self._api)
         secret = None
-        # only need to do this if user is providing image, on build, our image sets an entrypoint
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-        if launch_project.docker_image and entry_cmd:
-            # if user hardcodes cmd into their image, we don't need to run on top of that
-            for cont in containers:
-                cont["command"] = entry_cmd
 
         if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
                     "Multiple container configurations should be specified in a yaml file supplied via job_spec."
                 )
-            # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = launch_project.docker_image
+
             image_uri = launch_project.docker_image
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
@@ -373,6 +367,13 @@ class KubernetesRunner(AbstractRunner):
             )
 
             containers[0]["image"] = image_uri
+
+        inject_entrypoint_and_args(
+            containers,
+            entry_point,
+            launch_project.override_args,
+            launch_project.override_entrypoint is not None,
+        )
 
         # reassemble spec
         given_env_vars = resource_args.get("env", [])
@@ -415,6 +416,22 @@ class KubernetesRunner(AbstractRunner):
             submitted_job.wait()
 
         return submitted_job
+
+
+def inject_entrypoint_and_args(
+    containers: list[dict],
+    entry_point: Optional[EntryPoint],
+    override_args: Dict[str, Any],
+    should_override_entrypoint: bool,
+) -> None:
+    args_array = compute_command_args(override_args)
+    for i in range(len(containers)):
+        if override_args:
+            containers[i]["args"] = args_array
+        if entry_point and (
+            not containers[i].get("command") or should_override_entrypoint
+        ):
+            containers[i]["command"] = entry_point.command
 
 
 def maybe_create_imagepull_secret(
