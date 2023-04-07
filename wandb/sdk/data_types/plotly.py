@@ -12,7 +12,7 @@ from .image import Image
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd
+    import pandas as pd  # type: ignore
     import plotly  # type: ignore
 
     from ..wandb_artifacts import Artifact as LocalArtifact
