@@ -17,7 +17,6 @@ import tensorflow as tf
 import wandb
 import wandb.errors as errors
 from wandb import util
-from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 try:
     import torch
@@ -268,17 +267,6 @@ def test_safe_for_json():
 def test_find_runner():
     res = util.find_runner(__file__)
     assert "python" in res[0]
-
-
-###############################################################################
-# Test util.parse_sweep_id
-###############################################################################
-
-
-def test_parse_sweep_id():
-    parts = {"name": "test/test/test"}
-    sweep_utils.parse_sweep_id(parts)
-    assert parts == {"name": "test", "entity": "test", "project": "test"}
 
 
 ###############################################################################
