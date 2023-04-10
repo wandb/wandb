@@ -997,35 +997,30 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
-    _type = "optuna" if config.get("method") == "optuna" else "sweep"
+    _type = "optuna" if parsed_sweep_config.get("method") == "optuna" else "sweep"
     # Validate optuna sweep config
     if _type == "optuna":
         try:
-            # type: ignore # noqa: F401
-            import optuna
+            import optuna  # noqa: F401
         except ImportError:
             wandb.termerror(f"Error importing optuna: {traceback.format_exc()}")
-        else:
-            wandb.termerror(f"{traceback.format_exc()}")
 
-        # Do basic validation on optuna config
-        # TODO(gst): do we want to load the optuna artifact for validation in the
-        #            artifact case too?
-        optuna_artifact = config.get("optuna", {}).get("artifact")
-        if config.get("optuna", {}).get("pruner"):
+        opt_config = parsed_sweep_config.get("optuna", {})
+        optuna_artifact = opt_config.get("artifact")
+        if opt_config.get("pruner"):
             if optuna_artifact:
                 wandb.termwarn(
                     "User provided optuna artifact will override `pruner.args` if a pruner is provided"
                 )
-            if not validate_optuna_pruner(config["optuna"]["pruner"]):
+            if not validate_optuna_pruner(opt_config["pruner"]):
                 return
 
-        if config.get("optuna", {}).get("sampler"):
+        if opt_config.get("sampler"):
             if optuna_artifact:
                 wandb.termwarn(
                     "User provided optuna artifact will override `sampler.args` if a sampler is provided"
                 )
-            if not validate_optuna_sampler(config["optuna"]["sampler"]):
+            if not validate_optuna_sampler(opt_config["sampler"]):
                 return
 
     num_workers = num_workers or scheduler_args.get("num_workers", 8)
@@ -1074,7 +1069,6 @@ def launch_sweep(
         state="PENDING",
     )
     sweep_utils.handle_sweep_config_violations(warnings)
-
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")

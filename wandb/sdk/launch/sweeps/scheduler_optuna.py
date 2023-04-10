@@ -500,7 +500,7 @@ def validate_optuna_pruner(args: Dict[str, Any]) -> bool:
     try:
         _ = load_optuna_pruner(args["type"], args.get("args"))
     except Exception as e:
-        wandb.termerror(str(e))
+        wandb.termerror(f"Error loading optuna pruner: {e}")
         return False
     return True
 
@@ -513,7 +513,7 @@ def validate_optuna_sampler(args: Dict[str, Any]) -> bool:
     try:
         _ = load_optuna_sampler(args["type"], args.get("args"))
     except Exception as e:
-        wandb.termerror(str(e))
+        wandb.termerror(f"Error loading optuna sampler: {e}")
         return False
     return True
 
