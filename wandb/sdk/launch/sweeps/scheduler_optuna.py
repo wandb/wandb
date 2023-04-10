@@ -101,7 +101,11 @@ class OptunaScheduler(Scheduler):
             i = trial.number + 1
             vals = list(trial.intermediate_values.values())
             if len(vals) > 0:
-                best = max(vals) if self.study.direction == optuna.study.StudyDirection.MAXIMIZE else min(vals)
+                best = (
+                    max(vals)
+                    if self.study.direction == optuna.study.StudyDirection.MAXIMIZE
+                    else min(vals)
+                )
                 trials[
                     f"trial-{i}"
                 ] = f"total: {len(vals)}, best: {round(best, 5)}, last: {round(vals[-1], 5)}"
@@ -295,7 +299,7 @@ class OptunaScheduler(Scheduler):
         return
 
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
-        
+
         config, trial = self._trial_func()
         run: dict = self._api.upsert_run(
             project=self._project,
@@ -325,7 +329,9 @@ class OptunaScheduler(Scheduler):
                 return []
 
         try:
-            api_run: Run = self._public_api.run(f"{queued_run.entity}/{queued_run.project}/{run_id}")
+            api_run: Run = self._public_api.run(
+                f"{queued_run.entity}/{queued_run.project}/{run_id}"
+            )
         except Exception as e:
             logger.debug(f"Failed to poll run from public api: {str(e)}")
             return []
@@ -362,7 +368,7 @@ class OptunaScheduler(Scheduler):
         if self._runs[orun.sweep_run.id].state == RunState.ALIVE or len(metrics) == 0:
             logger.debug(f"Run ({orun.sweep_run.id}) has no metrics")
             return False
-        
+
         # run is complete
         prev_metrics = orun.trial._cached_frozen_trial.intermediate_values
         last_value = prev_metrics[orun.num_metrics - 1]
@@ -478,7 +484,7 @@ class OptunaScheduler(Scheduler):
         new_trial = self.study.ask(fixed_distributions=temp_trial.distributions)
 
         return config, new_trial
-    
+
     def _poll(self) -> None:
         self._poll_running_runs()
 

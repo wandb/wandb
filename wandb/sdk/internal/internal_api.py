@@ -2285,7 +2285,7 @@ class Api:
 
     def agent_heartbeat(
         self, agent_id: str, metrics: dict, run_states: dict
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
         Arguments:
@@ -2335,7 +2335,9 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            result: List[str] = json.loads(response["agentHeartbeat"]["commands"])
+            result: List[Dict[str, Any]] = json.loads(
+                response["agentHeartbeat"]["commands"]
+            )
             return result
 
     @staticmethod
@@ -2477,18 +2479,22 @@ class Api:
         err: Optional[Exception] = None
         for mutation in mutations:
             try:
+                variables = {
+                    "id": obj_id,
+                    "config": yaml.dump(config),
+                    "description": config.get("description"),
+                    "entityName": entity or self.settings("entity"),
+                    "projectName": project or self.settings("project"),
+                    "controller": controller,
+                    "launchScheduler": launch_scheduler,
+                    "scheduler": scheduler,
+                }
+                if state:
+                    variables["state"] = state
+
                 response = self.gql(
                     mutation,
-                    variable_values={
-                        "id": obj_id,
-                        "config": yaml.dump(config),
-                        "description": config.get("description"),
-                        "entityName": entity or self.settings("entity"),
-                        "projectName": project or self.settings("project"),
-                        "controller": controller,
-                        "launchScheduler": launch_scheduler,
-                        "scheduler": scheduler,
-                    },
+                    variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
@@ -3387,14 +3393,11 @@ class Api:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
 
-    def update_run_state(self, run_id, state) -> None:
-        # TODO(gst): this is probbaly the most extendible way of managing run state
-        return False
-
+    @normalize_exceptions
     def stop_run(
         self,
-        run_id,
-    ) -> None:
+        run_id: str,
+    ) -> bool:
         mutation = gql(
             """
             mutation stopRun($id: ID!) {
@@ -3415,4 +3418,6 @@ class Api:
             },
         )
 
-        return response["stopRun"].get("success")
+        success: bool = response["stopRun"].get("success")
+
+        return success

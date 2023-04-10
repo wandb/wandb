@@ -125,14 +125,24 @@ class Scheduler(ABC):
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
+        """Called when worker available."""
         pass
 
     @abstractmethod
     def _poll(self) -> None:
+        """Called every polling loop."""
         pass
 
     @abstractmethod
     def _exit(self) -> None:
+        pass
+
+    @abstractmethod
+    def _load_state(self) -> None:
+        pass
+
+    @abstractmethod
+    def _save_state(self) -> None:
         pass
 
     @property
@@ -163,7 +173,8 @@ class Scheduler(ABC):
         run_cap = self._sweep_config.get("run_cap")
         if not run_cap:
             return False
-        return self._num_runs_launched >= run_cap
+        at_runcap: bool = self._num_runs_launched >= run_cap
+        return at_runcap
 
     @property
     def num_active_runs(self) -> int:
@@ -178,7 +189,6 @@ class Scheduler(ABC):
         """
         busy_workers = {}
         for _, r in self._yield_runs():
-            # if r.state == RunState.ALIVE:
             busy_workers[r.worker_id] = self._workers[r.worker_id]
         return busy_workers
 
@@ -207,12 +217,22 @@ class Scheduler(ABC):
         )
         return run
 
+    def stop_sweep(self) -> None:
+        """Stop the sweep."""
+        self._state = SchedulerState.STOPPED
+
+    def fail_sweep(self, err: Optional[str]) -> None:
+        """Fail the sweep w/ optional exception."""
+        self._state = SchedulerState.FAILED
+        if err:
+            raise SchedulerError(err)
+
     def start(self) -> None:
         """Start a scheduler, confirms prerequisites, begins execution loop."""
         wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         if not self.is_alive:
             wandb.termerror(
-                f"{LOG_PREFIX}Sweep already in state ({self.state.name.lower()}). Exiting..."
+                f"{LOG_PREFIX}Sweep already in end state ({self.state.name.lower()}). Exiting..."
             )
             self.exit()
             return
@@ -280,6 +300,7 @@ class Scheduler(ABC):
 
     def exit(self) -> None:
         self._exit()
+        self._save_state()
         if self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.STOPPED,
@@ -294,9 +315,10 @@ class Scheduler(ABC):
         logs and returns False when job is unreachable
         """
         if self._kwargs.get("job"):
-            _public_api = public.Api()
             try:
-                _job_artifact = _public_api.artifact(self._kwargs["job"], type="job")
+                _job_artifact = self._public_api.artifact(
+                    self._kwargs["job"], type="job"
+                )
                 wandb.termlog(
                     f"{LOG_PREFIX}Successfully loaded job ({_job_artifact.name}) in scheduler"
                 )
@@ -336,11 +358,13 @@ class Scheduler(ABC):
 
         for run_id in to_delete:
             wandb.termlog(f"{LOG_PREFIX}Stopping run ({run_id})")
-            self._stop_run(run_id)
+            if not self._stop_run(run_id):
+                wandb.termwarn(f"{LOG_PREFIX}Failed to stop run ({run_id})")
 
     def _stop_run(self, run_id: str) -> bool:
-        """Stops a run and removes it from the scheduler"""
+        """Stops a run and removes it from the scheduler."""
         if run_id not in self._runs:
+            _logger.debug(f"run: {run_id} not in _runs: {self._runs}")
             return False
 
         run = self._runs[run_id]
@@ -361,11 +385,9 @@ class Scheduler(ABC):
             f"Run:v1:{run_id}:{self._project}:{self._entity}".encode()
         ).decode("utf-8")
 
-        success = self._api.stop_run(run_id=encoded_run_id)
+        success: bool = self._api.stop_run(run_id=encoded_run_id)
         if success:
             wandb.termlog(f"{LOG_PREFIX}Stopped run {run_id}.")
-        else:
-            wandb.termlog(f"{LOG_PREFIX}Failed while stopping run {run_id}.")
 
         return success
 
@@ -375,8 +397,14 @@ class Scheduler(ABC):
         Get state from backend and deletes runs if not in running state. Threadsafe.
         """
         # TODO(gst): move to better constants place
-        end_states = ["crashed", "failed", "killed", "finished"]
-        run_states = ["running", "pending", "preempted", "preempting"]
+        end_states = [
+            "crashed",
+            "failed",
+            "killed",
+            "finished",
+            "preempted",
+        ]
+        run_states = ["running", "pending", "preempting"]
 
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
@@ -402,7 +430,6 @@ class Scheduler(ABC):
             for run_id in _runs_to_remove:
                 wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
                 # del self._runs[run_id]
-                # self._runs[run_id].state = RunState.DEAD
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
