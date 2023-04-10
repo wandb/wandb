@@ -3782,7 +3782,7 @@ class _LazyArtifact(ArtifactInterface):
     @property
     def name(self) -> str:
         return self._instance.name
-    
+
     @property
     def full_name(self) -> str:
         return self._instance.full_name
