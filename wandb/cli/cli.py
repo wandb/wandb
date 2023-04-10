@@ -993,6 +993,7 @@ def launch_sweep(
     else:
         parsed_sweep_config = parsed_config
 
+    num_workers = num_workers or scheduler_args.get("num_workers", 8)
     scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
         sweep_config=parsed_sweep_config,
         queue=queue,

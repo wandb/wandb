@@ -75,7 +75,7 @@ def test_sweep_construct_scheduler_entrypoint():
     ]
 
     assert utils.construct_scheduler_entrypoint(
-        {"job": "job"}, "queue", "project", 1
+        {"job": "job"}, "queue", "project", "1"
     ) == [
         "wandb",
         "scheduler",
@@ -109,6 +109,20 @@ def test_sweep_construct_scheduler_entrypoint():
     assert (
         utils.construct_scheduler_entrypoint(
             {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
+        )
+        == []
+    )
+
+    assert (
+        utils.construct_scheduler_entrypoint(
+            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1cpu"
+        )
+        == []
+    )
+
+    assert (
+        utils.construct_scheduler_entrypoint(
+            {"job": "job", "image_uri": "image_uri"}, "queue", "project", "1.5"
         )
         == []
     )

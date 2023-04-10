@@ -2281,7 +2281,7 @@ class Api:
 
     def agent_heartbeat(
         self, agent_id: str, metrics: dict, run_states: dict
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
         Arguments:
@@ -2331,7 +2331,9 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            result: List[str] = json.loads(response["agentHeartbeat"]["commands"])
+            result: List[Dict[str, Any]] = json.loads(
+                response["agentHeartbeat"]["commands"]
+            )
             return result
 
     @staticmethod
@@ -3386,3 +3388,32 @@ class Api:
     def _flatten_edges(self, response: "_Response") -> List[Dict]:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
+
+    @normalize_exceptions
+    def stop_run(
+        self,
+        run_id: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation stopRun($id: ID!) {
+                stopRun(input: {
+                    id: $id
+                }) {
+                    clientMutationId
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "id": run_id,
+            },
+        )
+
+        success: bool = response["stopRun"].get("success")
+
+        return success

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
@@ -111,7 +111,7 @@ def construct_scheduler_entrypoint(
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
-    num_workers: int,
+    num_workers: Union[str, int],
 ) -> Optional[List[str]]:
     """Construct a sweep scheduler run spec.
 
@@ -129,6 +129,15 @@ def construct_scheduler_entrypoint(
             "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
         )
         return []
+
+    if type(num_workers) is str:
+        if num_workers.isdigit():
+            num_workers = int(num_workers)
+        else:
+            wandb.termerror(
+                "'num_workers' must be an integer or a string that can be parsed as an integer"
+            )
+            return []
 
     entrypoint = [
         "wandb",
