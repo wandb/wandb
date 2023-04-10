@@ -275,7 +275,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.full_name
 
-        return f"{self.entity}/{self.project}/{self.name}"
+        return super().full_name
 
     @property
     def state(self) -> str:
