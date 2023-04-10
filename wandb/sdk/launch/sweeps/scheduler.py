@@ -431,7 +431,11 @@ class Scheduler(ABC):
             if "${args}" in self._sweep_config["command"]:
                 # Special handling, replace in ${args} macro w/ params
                 idx = entry_point.index("${args}")
-                entry_point = entry_point[:idx] + compute_command_args(_args) + entry_point[idx + 1:]
+                entry_point = (
+                    entry_point[:idx]
+                    + compute_command_args(_args)
+                    + entry_point[idx + 1 :]
+                )
                 launch_config = None
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
