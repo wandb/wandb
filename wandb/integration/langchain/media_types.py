@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import typing
 
 if typing.TYPE_CHECKING:
@@ -10,20 +9,47 @@ if typing.TYPE_CHECKING:
     from langchain.chat_models.base import BaseChatModel
     from langchain.llms import BaseLLM
 
-from wandb.data_types import MEDIA_TMP, _json_helper
+import wandb
+from wandb.data_types import _json_helper
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
-from wandb.sdk.lib.runid import generate_id
 
-# # Generate a deterministic 16 character string from a dictionary
-# def _generate_id_from_dict(d: dict) -> str:
-#     import hashlib
-#     import json
-#     import base64
+# generate a deterministic 16 character id based on input string
+def _hash_id(s: str) -> str:
+    import hashlib
 
-#     return base64.b16encode(hashlib.sha256(json.dumps(d).encode()).digest()).decode()[
-#         :16
-#     ]
+    return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
+
+
+def rewrite_url(run_url: str) -> str:
+    old_prefix = "https://wandb.ai/"
+    new_prefix = "https://beta.wandb.ai/"
+    new_suffix = "betaVersion=711cc17ffb2b90cd733d4a87905fcf21f984acfe"
+    if run_url.startswith(old_prefix):
+        run_url = run_url.replace(old_prefix, new_prefix, 1)
+        if "?" in run_url:
+            run_url = run_url.replace("?", f"?{new_suffix}&", 1)
+        else:
+            run_url = f"{run_url}?{new_suffix}"
+    return run_url
+
+
+def print_wandb_init_message(run_url: str) -> None:
+    run_url = rewrite_url(run_url)
+    wandb.termlog(
+        (
+            f"W&B Run initialized. View LangChain logs in W&B at {run_url}. "
+            "\n\nNote that the "
+            "WandbTracer is currently in beta and is subject to change "
+            "based on updates to `langchain`. Please report any issues to "
+            "https://github.com/wandb/wandb/issues with the tag `langchain`."
+        )
+    )
+
+
+def print_wandb_finish_message(run_url: str) -> None:
+    run_url = rewrite_url(run_url)
+    wandb.termlog(f"All files uploaded. View LangChain logs in W&B at {run_url}.")
 
 
 def safe_serialize(obj):
@@ -34,34 +60,29 @@ def safe_serialize(obj):
     )
 
 
-class LangChainModel(Media):
-    _log_type = "langchain_model-file"
+class LangChainModelTrace(Media):
+    _log_type = "langchain_model_trace"
 
     def __init__(
-        self, model: typing.Union["BaseLLM", "BaseChatModel", "Chain", "Agent"]
+        self,
+        trace: typing.Union["LLMRun", "ChainRun", "ToolRun"],
+        model: typing.Union["BaseLLM", "BaseChatModel", "Chain", "Agent", None] = None,
     ):
         super().__init__()
-        self._model_data = None
-        self._model_id = None
+        self._trace = trace
         self._model = model
-        tmp_path = os.path.join(MEDIA_TMP.name, generate_id() + ".json")
-        self.format = "json"
-        with open(tmp_path, "w") as f:
-            f.write(safe_serialize(self.model_data))
-        self._set_file(tmp_path, is_tmp=True)
+        self._model_dict = None
+        self._trace_dict = None
 
     @classmethod
     def get_media_subdir(cls) -> str:
-        return "media/langchain_model-file"
-
-    def to_json(self, run) -> dict:
-        res = super().to_json(run)
-        res["_type"] = self._log_type
-        return res
+        return "media/langchain_model_trace"
 
     @property
-    def model_data(self):
-        if self._model_data is None:
+    def model_dict(self):
+        if self._model is None:
+            return {}
+        if self._model_dict is None:
             data = None
 
             try:
@@ -79,46 +100,31 @@ class LangChainModel(Media):
                 logging.warning("Could not get model data.")
                 data = {}
 
-            self._model_data = data
-        return self._model_data
+            self._model_dict = data
+        return self._model_dict
 
-    # @property
-    # def model_id(self) -> str:
-    #     if self._model_id is None:
-    #         self._model_id = _generate_id_from_dict(_json_helper(self.model_data, None))
-    #     return self._model_id
-
-
-class _LangChainModelFileType(_dtypes.Type):
-    name = "langchain_model-file"
-    types = [LangChainModel]
-
-
-_dtypes.TypeRegistry.add(_LangChainModelFileType)
-
-
-class LangChainTrace(Media):
-    _log_type = "langchain_trace"
-
-    def __init__(self, run: typing.Union["LLMRun", "ChainRun", "ToolRun"]):
-        super().__init__()
-        self._run = run
-
-    @classmethod
-    def get_media_subdir(cls) -> str:
-        return "media/langchain_trace"
+    @property
+    def trace_dict(self):
+        if self._trace_dict is None:
+            self._trace_dict = self._trace.dict()
+        return self._trace_dict
 
     def to_json(self, run) -> dict:
-        res = super().to_json(run)
+        res = {}
         res["_type"] = self._log_type
-        # Ugg... this is so nasty
-        res["data"] = json.loads(safe_serialize(self._run.dict()))
+        model_dict_str = safe_serialize(self.model_dict)
+        res["model_id"] = _hash_id(model_dict_str)
+        res["model_dict"] = json.loads(model_dict_str)
+        res["trace_dict"] = json.loads(safe_serialize(self.trace_dict))
         return res
 
-
-class _LangChainTraceFileType(_dtypes.Type):
-    name = "langchain_trace"
-    types = [LangChainTrace]
+    def is_bound(self) -> bool:
+        return True
 
 
-_dtypes.TypeRegistry.add(_LangChainTraceFileType)
+class _LangChainModelTraceFileType(_dtypes.Type):
+    name = "langchain_model_trace"
+    types = [LangChainModelTrace]
+
+
+_dtypes.TypeRegistry.add(_LangChainModelTraceFileType)
