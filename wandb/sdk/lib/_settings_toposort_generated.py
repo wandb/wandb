@@ -24,6 +24,7 @@ _Setting = Literal[
     "_disable_viewer",
     "_except_exit",
     "_executable",
+    "_extra_http_headers",
     "_flow_control_custom",
     "_flow_control_disabled",
     "_internal_check_process",

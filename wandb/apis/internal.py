@@ -197,5 +197,8 @@ class Api:
     def get_launch_agent(self, *args, **kwargs):
         return self.api.get_launch_agent(*args, **kwargs)
 
+    def stop_run(self, *args, **kwargs):
+        return self.api.stop_run(*args, **kwargs)
+
 
 __all__ = ["Api"]
