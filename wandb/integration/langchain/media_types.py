@@ -13,11 +13,11 @@ import wandb
 from wandb.data_types import _json_helper
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
+    import hashlib
+
 
 # generate a deterministic 16 character id based on input string
 def _hash_id(s: str) -> str:
-    import hashlib
-
     return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
 
 
@@ -37,13 +37,13 @@ def rewrite_url(run_url: str) -> str:
 def print_wandb_init_message(run_url: str) -> None:
     run_url = rewrite_url(run_url)
     wandb.termlog(
-        (
+
             f"W&B Run initialized. View LangChain logs in W&B at {run_url}. "
             "\n\nNote that the "
             "WandbTracer is currently in beta and is subject to change "
             "based on updates to `langchain`. Please report any issues to "
             "https://github.com/wandb/wandb/issues with the tag `langchain`."
-        )
+
     )
 
 
@@ -106,7 +106,11 @@ class LangChainModelTrace(Media):
     @property
     def trace_dict(self):
         if self._trace_dict is None:
-            self._trace_dict = self._trace.dict()
+            try:
+                self._trace_dict = self._trace.dict()
+            except Exception as e:
+                logging.warning(f"Could not get trace data: {e}")
+                self._trace_dict = {}
         return self._trace_dict
 
     def to_json(self, run) -> dict:
