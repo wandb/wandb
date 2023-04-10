@@ -4,12 +4,7 @@ from pprint import pformat as pf
 from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.sdk.launch.sweeps.scheduler import (
-    LOG_PREFIX,
-    RunState,
-    Scheduler,
-    SweepRun,
-)
+from wandb.sdk.launch.sweeps.scheduler import LOG_PREFIX, RunState, Scheduler, SweepRun
 
 _logger = logging.getLogger(__name__)
 
@@ -44,9 +39,11 @@ class SweepScheduler(Scheduler):
             if _type not in ["run", "resume"]:
                 self.fail_sweep(f"AgentHeartbeat unknown command: {_type}")
 
-            _run_id = command.get("run_id")
+            _run_id: Optional[str] = command.get("run_id")
             if not _run_id:
-                self.fail_sweep(f"No runId in agent heartbeat: {command}")
+                self.fail_sweep(f"No run id in agent heartbeat: {command}")
+                return None
+
             if _run_id in self._runs:
                 wandb.termlog(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
                 continue
