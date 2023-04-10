@@ -62,19 +62,6 @@ from wandb.sdk.lib.hashutil import (
 )
 from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
-
-def silent_aware_termlog(*args: Any, **kwargs: Any) -> None:
-    if wandb.run is None or not wandb.run._settings.silent:
-        termlog(*args, **kwargs)
-    return
-
-
-def silent_aware_termwarn(*args: Any, **kwargs: Any) -> None:
-    if wandb.run is None or not wandb.run._settings.silent:
-        termwarn(*args, **kwargs)
-    return
-
-
 if TYPE_CHECKING:
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
     # instead of `type:ignore`ing these boto imports, but it's nontrivial:
@@ -215,7 +202,7 @@ class Artifact(ArtifactInterface):
 
         if incremental:
             self._incremental = incremental
-            silent_aware_termwarn("Using experimental arg `incremental`")
+            wandb.termwarn("Using experimental arg `incremental`")
 
     @property
     def id(self) -> Optional[str]:
@@ -434,7 +421,7 @@ class Artifact(ArtifactInterface):
         if not os.path.isdir(local_path):
             raise ValueError("Path is not a directory: %s" % local_path)
 
-        silent_aware_termlog(
+        termlog(
             "Adding directory to artifact (%s)... "
             % os.path.join(".", os.path.normpath(local_path)),
             newline=False,
@@ -462,7 +449,7 @@ class Artifact(ArtifactInterface):
         pool.close()
         pool.join()
 
-        silent_aware_termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+        termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
     def add_reference(
         self,
@@ -1203,7 +1190,7 @@ class TrackingHandler(StorageHandler):
                 'You must pass name="<entry_name>" when tracking references with unknown schemes. ref: %s'
                 % path
             )
-        silent_aware_termwarn(
+        termwarn(
             "Artifact references with unsupported schemes cannot be checksummed: %s"
             % path
         )
@@ -1287,7 +1274,7 @@ class LocalFileHandler(StorageHandler):
             i = 0
             start_time = time.time()
             if checksum:
-                silent_aware_termlog(
+                termlog(
                     'Generating checksum for up to %i files in "%s"...\n'
                     % (max_objects, local_path),
                     newline=False,
@@ -1316,9 +1303,7 @@ class LocalFileHandler(StorageHandler):
                     )
                     entries.append(entry)
             if checksum:
-                silent_aware_termlog(
-                    "Done. %.1fs" % (time.time() - start_time), prefix=False
-                )
+                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
@@ -1502,7 +1487,7 @@ class S3Handler(StorageHandler):
                 )
         if multi:
             start_time = time.time()
-            silent_aware_termlog(
+            termlog(
                 'Generating checksum for up to %i objects with prefix "%s"... '
                 % (max_objects, key),
                 newline=False,
@@ -1516,9 +1501,7 @@ class S3Handler(StorageHandler):
             if size(obj) > 0
         ]
         if start_time is not None:
-            silent_aware_termlog(
-                "Done. %.1fs" % (time.time() - start_time), prefix=False
-            )
+            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         if len(entries) > max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
@@ -1732,7 +1715,7 @@ class GCSHandler(StorageHandler):
         multi = obj is None
         if multi:
             start_time = time.time()
-            silent_aware_termlog(
+            termlog(
                 'Generating checksum for up to %i objects with prefix "%s"... '
                 % (max_objects, key),
                 newline=False,
@@ -1748,9 +1731,7 @@ class GCSHandler(StorageHandler):
             for obj in objects
         ]
         if start_time is not None:
-            silent_aware_termlog(
-                "Done. %.1fs" % (time.time() - start_time), prefix=False
-            )
+            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         if len(entries) > max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
