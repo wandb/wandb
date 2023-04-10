@@ -622,15 +622,14 @@ def test_launch_sweep_scheduler_try_executable_image(user):
     [{"job": "job"}, {"job": "job:latest"}, {"image_uri": "image:latest"}],
 )
 def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
-    scheduler_config = {}
     queue = "queue"
     project = "test"
 
     entrypoint = construct_scheduler_entrypoint(
-        scheduler_config=scheduler_config,
         sweep_config=sweep_config,
         queue=queue,
         project=project,
+        num_workers=1,
     )
 
     gold = [
@@ -642,7 +641,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         "--project",
         project,
         "--num_workers",
-        "8",
+        "1",
     ]
     if sweep_config.get("job"):
         gold += ["--job", "job:latest"]
