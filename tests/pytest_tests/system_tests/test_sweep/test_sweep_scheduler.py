@@ -674,21 +674,13 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch):
 
     sweep_config = {
         "job": "job",
-        "args": {"foo": {"value": 1}},
+        "parameters": {"foo": {"value": 1}},
         "command": ["${env}", "python", "train.py", "${args}"],
     }
     # Entity, project, and sweep should be everything you need to create a scheduler
     api = internal.Api()
-    sweep_id = wandb.sweep(sweep_config, entity=user, project="test")
-    scheduler = SweepScheduler(
-        api,
-        sweep_id=sweep_id,
-        entity=user,
-        project="test",
-        image_uri="fake-image:latest",
-        queue="queue",
-    )
+    s = wandb.sweep(sweep_config, entity=user, project="test")
+    scheduler = SweepScheduler(api, sweep_id=s, entity=user, project="t", queue="q")
 
     srun = SweepRun(id=1, state=RunState.ALIVE, worker_id=1, args={"foo": 1})
-
     scheduler._add_to_launch_queue(srun)
