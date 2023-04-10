@@ -442,6 +442,12 @@ class Scheduler(ABC):
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
 
+            if entry_point[0].startswith("${"):
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Sweep command begins with unresolved macro: "
+                    f"'{entry_point[0]}', and may fail in certain environments"
+                )
+
         run_id = run.id or generate_id()
         queued_run = launch_add(
             run_id=run_id,

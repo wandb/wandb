@@ -649,3 +649,46 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         gold += ["--image_uri", "image:latest"]
 
     assert entrypoint == gold
+
+
+def test_launch_sweep_scheduler_macro_args(user, monkeypatch):
+    def mock_launch_add(*args, **kwargs):
+        mock = Mock(spec=public.QueuedRun)
+        mock.args = Mock(return_value=args)
+
+        # Check that the entrypoint is properly constructed
+        assert kwargs["entry_point"] == [
+            "${env}",
+            "python",
+            "train.py",
+            "--foo",
+            "1",
+        ]
+
+        return mock
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch_add._launch_add",
+        mock_launch_add,
+    )
+
+    sweep_config = {
+        "job": "job",
+        "args": {"foo": {"value": 1}},
+        "command": ["${env}", "python", "train.py", "${args}"],
+    }
+    # Entity, project, and sweep should be everything you need to create a scheduler
+    api = internal.Api()
+    sweep_id = wandb.sweep(sweep_config, entity=user, project="test")
+    scheduler = SweepScheduler(
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project="test",
+        image_uri="fake-image:latest",
+        queue="queue",
+    )
+
+    srun = SweepRun(id=1, state=RunState.ALIVE, worker_id=1, args={"foo": 1})
+
+    scheduler._add_to_launch_queue(srun)
