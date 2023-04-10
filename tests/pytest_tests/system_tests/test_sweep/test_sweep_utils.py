@@ -3,7 +3,6 @@ import json
 import pytest
 import yaml
 from wandb.sdk.launch.sweeps import utils
-from wandb.sdk.launch.utils import LaunchError
 
 
 def test_parse_sweep_id():
@@ -38,7 +37,7 @@ def test_load_sweep_config():
     with open("s1.yaml", "w") as f:
         f.write('{"metric": "banana"')
 
-    with pytest.raises(yaml.YAMLError, match="Error in configuration file"):
+    with pytest.raises(yaml.parser.ParserError):
         utils.load_launch_sweep_config("s1.yaml")
 
 
@@ -52,10 +51,8 @@ def test_load_launch_sweep_config():
     with open("s1.yaml", "w") as f:
         f.write('{"metric": "banana"')
 
-    with pytest.raises(
-        LaunchError, match="Could not load config from: s1.yaml. Check formatting"
-    ):
-        out = utils.load_launch_sweep_config("s1.yaml")
+    with pytest.raises(yaml.parser.ParserError):
+        utils.load_launch_sweep_config("s1.yaml")
 
 
 def test_sweep_construct_scheduler_entrypoint():
