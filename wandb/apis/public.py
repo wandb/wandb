@@ -4481,6 +4481,10 @@ class Artifact(artifacts.Artifact):
         return f"{self._sequence_name}:v{self._sequence_version_index}"
 
     @property
+    def full_name(self):
+        return f"{self.entity}/{self.project}/{self.name}"
+
+    @property
     def aliases(self):
         """The aliases associated with this artifact.
 
