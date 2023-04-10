@@ -97,7 +97,7 @@ def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
     return config
 
 
-def load_launch_sweep_config(config: Optional[str]) -> Dict[Any, Any]:
+def load_launch_sweep_config(config: Optional[str]) -> Any:
     if not config:
         return {}
 
