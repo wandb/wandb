@@ -18,9 +18,9 @@ import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.launch._project_spec import compute_command_args
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
-from wandb.sdk.launch._project_spec import compute_command_args
 from wandb.sdk.lib.runid import generate_id
 from wandb.wandb_agent import Agent, _create_sweep_command_args
 
@@ -436,7 +436,7 @@ class Scheduler(ABC):
                     + compute_command_args(_args)
                     + entry_point[idx + 1 :]
                 )
-                launch_config = None
+                launch_config = {}
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
                 f' {"job" if _job else "image_uri"} entrypoint'

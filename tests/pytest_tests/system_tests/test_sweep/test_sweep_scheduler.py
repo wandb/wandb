@@ -674,7 +674,8 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch):
 
     sweep_config = {
         "job": "job",
-        "parameters": {"foo": {"value": 1}},
+        "method": "grid",
+        "parameters": {"foo": {"values": [1, 2]}},
         "command": ["${env}", "python", "train.py", "${args}"],
     }
     # Entity, project, and sweep should be everything you need to create a scheduler
