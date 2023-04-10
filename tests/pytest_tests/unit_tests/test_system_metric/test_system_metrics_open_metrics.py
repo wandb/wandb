@@ -101,7 +101,6 @@ def test_dcgm_not_available(test_settings, mocked_requests_get_method):
         "get",
         mocked_requests_get_method,
     ):
-
         url = "http://localhost:9400/metrics"
 
         assert not OpenMetrics.is_available(url)
@@ -165,56 +164,82 @@ def test_dcgm(test_settings):
 
 
 @pytest.mark.parametrize(
-    "filters,metric_name,metric_labels,should_capture",
+    "filters,endpoint_name,metric_name,metric_labels,should_capture",
     [
         (
-            {"DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            {".*DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            "node1",
             "DCGM_FI_DEV_POWER_USAGE",
             {"pod": "wandb-1337"},
             True,
         ),
         (
-            {"DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            {".*DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            "node2",
             "DCGM_FI_DEV_POWER_USAGE",
             {"pod": "not-wandb-1337"},
             False,
         ),
         (
-            {"DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            {".*DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            "node3",
             "DCGM_FI_DEV_POWER_USAGE",
             {"pod": "wandb-1337", "container": "wandb"},
             True,
         ),
         (
-            {"DCGM_.*": {}},
+            {".*DCGM_.*": {}},
+            "node4",
             "DCGM_FI_DEV_POWER_USAGE",
             {"pod": "wandb-1337", "container": "not-wandb"},
             True,
         ),
         (
             {".*": {}},
+            "node5",
             "DCGM_FI_DEV_POWER_USAGE",
             {"pod": "wandb-1337", "container": "not-wandb"},
             True,
         ),
         (
-            {"DCGM_.*": {"pod": "wandb-.*"}},
+            {".*DCGM_.*": {"pod": "wandb-.*"}},
+            "node6",
             "DCGM_FI_DEV_POWER_USAGE",
             {"pod": "wandb-1337"},
             True,
         ),
         (
-            {"DCGM_.*": {"pod": "wandb-.*"}},
+            {".*DCGM_.*": {"pod": "wandb-.*"}},
+            "node7",
             "DCGM_FI_DEV_POWER_USAGE",
             {"pod": "not-wandb-1337"},
             False,
         ),
+        (
+            {"node[0-9].DCGM_.*": {"pod": "wandb-.*"}},
+            "node8",
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "wandb-1337"},
+            True,
+        ),
+        (
+            {"node[0-7].DCGM_.*": {"pod": "wandb-.*"}},
+            "node8",
+            "DCGM_FI_DEV_POWER_USAGE",
+            {"pod": "wandb-1337"},
+            False,
+        ),
     ],
 )
-def test_metric_filters(filters, metric_name, metric_labels, should_capture):
+def test_metric_filters(
+    filters, endpoint_name, metric_name, metric_labels, should_capture
+):
     assert (
         _should_capture_metric(
-            metric_name, tuple(metric_labels.items()), _nested_dict_to_tuple(filters)
+            endpoint_name,
+            metric_name,
+            tuple(metric_labels.items()),
+            _nested_dict_to_tuple(filters),
         )
         is should_capture
     )
