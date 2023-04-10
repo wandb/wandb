@@ -1,6 +1,7 @@
 import json
-import yaml
+
 import pytest
+import yaml
 from wandb.sdk.launch.sweeps import utils
 from wandb.sdk.launch.utils import LaunchError
 
@@ -34,10 +35,10 @@ def test_load_sweep_config():
     json.dump({"metric": "banana"}, open("s.yaml", "w"))
     assert utils.load_sweep_config("s.yaml")
 
-    with open('s1.yaml', 'w') as f:
+    with open("s1.yaml", "w") as f:
         f.write('{"metric": "banana"')
-    
-    with pytest.raises(yaml.YAMLError, match='Error in configuration file'):
+
+    with pytest.raises(yaml.YAMLError, match="Error in configuration file"):
         utils.load_launch_sweep_config("s1.yaml")
 
 
@@ -48,10 +49,12 @@ def test_load_launch_sweep_config():
     out = utils.load_launch_sweep_config("s.yaml")
     assert out == {"metric": "banana"}
 
-    with open('s1.yaml', 'w') as f:
+    with open("s1.yaml", "w") as f:
         f.write('{"metric": "banana"')
 
-    with pytest.raises(LaunchError, match='Could not load config from: s1.yaml. Check formatting'):
+    with pytest.raises(
+        LaunchError, match="Could not load config from: s1.yaml. Check formatting"
+    ):
         out = utils.load_launch_sweep_config("s1.yaml")
 
 
@@ -106,6 +109,9 @@ def test_sweep_construct_scheduler_entrypoint():
         "image_uri",
     ]
 
-    assert utils.construct_scheduler_entrypoint(
-        {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
-    ) == []
+    assert (
+        utils.construct_scheduler_entrypoint(
+            {"job": "job", "image_uri": "image_uri"}, "queue", "project", 1
+        )
+        == []
+    )
