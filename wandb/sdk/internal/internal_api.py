@@ -1032,6 +1032,18 @@ class Api:
         return re.sub(r"\W+", "-", project.lower()).strip("-_")
 
     @normalize_exceptions
+    def delete_project(self, project: str, entity: Optional[str] = None) -> bool:
+        mutation = gql(
+            """
+            mutation deleteModel($id: String!) {
+                deleteModel(input: {id: $id}) {
+                    success
+                }
+            }
+        """
+        )
+
+    @normalize_exceptions
     def upsert_project(
         self,
         project: str,
