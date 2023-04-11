@@ -1,17 +1,10 @@
 # TODO:
 # - Figure out how to deduplicate model data
-# - Figure out how to protect against invalid trace data
 
 import json
-import logging
 import typing
 
-if typing.TYPE_CHECKING:
-    from langchain.agents import Agent
-    from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun
-    from langchain.chains.base import Chain
-    from langchain.chat_models.base import BaseChatModel
-    from langchain.llms import BaseLLM
+from .schema import WBLCBaseRun
 
 import wandb
 from wandb.data_types import _json_helper
@@ -41,53 +34,23 @@ class LangChainModelTrace(Media):
 
     def __init__(
         self,
-        trace: typing.Union["LLMRun", "ChainRun", "ToolRun"],
-        model: typing.Union["BaseLLM", "BaseChatModel", "Chain", "Agent", None] = None,
+        trace_dict: WBLCBaseRun,
+        model_dict: typing.Optional[typing.Dict[str, typing.Any]] = None,
     ):
         super().__init__()
-        self._trace = trace
-        self._model = model
-        self._model_dict = None
-        self._trace_dict = None
+        self._trace_dict = trace_dict
+        # NOTE: model_dict is a completely-user-defined dict. In the UI
+        # we simply render a JSON tree view and give special UI treatment to
+        # dictionaries with a _type key. If that _type key has "prompt", "chain"
+        # or "agent", then we render a special UI for that model. Unfortunately,
+        # this is because Models are completely user-defined classes and we cannot
+        # control or validate any specific schema.
+
+        self._model_dict = model_dict
 
     @classmethod
     def get_media_subdir(cls) -> str:
         return "media/langchain_model_trace"
-
-    @property
-    def model_dict(self):
-        if self._model is None:
-            return {}
-        if self._model_dict is None:
-            data = None
-
-            try:
-                data = self._model.dict()
-            except NotImplementedError:
-                pass
-
-            if data is None and hasattr(self._model, "agent"):
-                try:
-                    data = self._model.agent.dict()
-                except NotImplementedError:
-                    pass
-
-            if data is None:
-                logging.warning("Could not get model data.")
-                data = {}
-
-            self._model_dict = data
-        return self._model_dict
-
-    @property
-    def trace_dict(self):
-        if self._trace_dict is None:
-            try:
-                self._trace_dict = self._trace.dict()
-            except Exception as e:
-                logging.warning(f"Could not get trace data: {e}")
-                self._trace_dict = {}
-        return self._trace_dict
 
     def to_json(self, run) -> dict:
         res = {}
@@ -95,7 +58,7 @@ class LangChainModelTrace(Media):
         model_dict_str = _safe_serialize(self.model_dict)
         res["model_id"] = _hash_id(model_dict_str)
         res["model_dict"] = json.loads(model_dict_str)
-        res["trace_dict"] = json.loads(_safe_serialize(self.trace_dict))
+        res["trace_dict"] = _json_helper(self.trace_dict, None)
         return res
 
     def is_bound(self) -> bool:

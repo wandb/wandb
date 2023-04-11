@@ -75,4 +75,3 @@ responses
 kfp
 
 mlflow
-langchain
