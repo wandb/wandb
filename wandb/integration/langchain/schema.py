@@ -49,7 +49,7 @@ class ToolRun(BaseRun):
 import typing
 
 
-class WBLCBaseRun(typing.TypedDict):
+class BaseRunSpan(typing.TypedDict):
     id: typing.Optional[typing.Union[int, str]]
     start_time: int
     end_time: int
@@ -63,25 +63,27 @@ class WBLCBaseRun(typing.TypedDict):
     # This is an additional field that is used for the human-readable name of the run type
     # In most cases this should be the name of the class (eg. OpenAi). It will be extracted
     # from the serialized field from the integration.
-    run_type_name: str
+    run_type_name: typing.Optional[str]
+    # THis is not used yet, but will allow us to map Spans back to the original component
+    component_id: typing.Optional[str]
 
 
-class WBLCLLMResponse(typing.TypedDict):
+class LLMResponse(typing.TypedDict):
     prompt: str
     generation: typing.Optional[str]
 
 
-class WBLCLLMRun(WBLCBaseRun):
+class LLMRunSpan(BaseRunSpan):
     # Here, we deviate from LangChain's schema. LangChain uses a schema where there prompts
     # are their own field, then they have a list of generations, which is a doubly-nested
     # list. In practice, this can be simplified to N list of generations, where each generation
     # is a single prompt and generation.
-    prompt_responses: typing.List[WBLCLLMResponse]
+    prompt_responses: typing.List[LLMResponse]
     # prompts: List[str]
     # response: Optional[LLMResult] = None
 
 
-class WBLCChainRun(WBLCBaseRun):
+class ChainRunSpan(BaseRunSpan):
     inputs: typing.Dict[str, typing.Any]
     outputs: typing.Optional[typing.Dict[str, typing.Any]]
     # Again, we deviate from LangChain's schema. LangChain uses a schema where they have
@@ -90,10 +92,10 @@ class WBLCChainRun(WBLCBaseRun):
     # child_llm_runs: typing.List[LLMRunTrace]
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
-    child_runs: typing.List[typing.Union["WBLCLLMRun", "WBLCChainRun", "WBLCToolRun"]]
+    child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]
 
 
-class WBLCToolRun(WBLCBaseRun):
+class ToolRunSpan(BaseRunSpan):
     tool_input: str
     output: typing.Optional[str]
     action: str
@@ -103,4 +105,4 @@ class WBLCToolRun(WBLCBaseRun):
     # child_llm_runs: typing.List[LLMRunTrace]
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
-    child_runs: typing.List[typing.Union["WBLCLLMRun", "WBLCChainRun", "WBLCToolRun"]]
+    child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]

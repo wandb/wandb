@@ -4,7 +4,7 @@
 import json
 import typing
 
-from .schema import WBLCBaseRun
+from .schema import BaseRunSpan
 
 import wandb
 from wandb.data_types import _json_helper
@@ -34,7 +34,7 @@ class LangChainModelTrace(Media):
 
     def __init__(
         self,
-        trace_dict: WBLCBaseRun,
+        trace_dict: BaseRunSpan,
         model_dict: typing.Optional[typing.Dict[str, typing.Any]] = None,
     ):
         super().__init__()
@@ -44,7 +44,8 @@ class LangChainModelTrace(Media):
         # dictionaries with a _type key. If that _type key has "prompt", "chain"
         # or "agent", then we render a special UI for that model. Unfortunately,
         # this is because Models are completely user-defined classes and we cannot
-        # control or validate any specific schema.
+        # control or validate any specific schema. In the future, we can work
+        # with the LangChain team to define a schema for these models.
 
         self._model_dict = model_dict
 
@@ -56,7 +57,7 @@ class LangChainModelTrace(Media):
         res = {}
         res["_type"] = self._log_type
         model_dict_str = _safe_serialize(self.model_dict)
-        res["model_id"] = _hash_id(model_dict_str)
+        res["model_hash"] = _hash_id(model_dict_str)
         res["model_dict"] = json.loads(model_dict_str)
         res["trace_dict"] = _json_helper(self.trace_dict, None)
         return res
