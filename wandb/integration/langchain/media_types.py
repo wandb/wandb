@@ -1,3 +1,7 @@
+# TODO:
+# - Figure out how to deduplicate model data
+# - Figure out how to protect against invalid trace data
+
 import json
 import logging
 import typing
@@ -13,51 +17,23 @@ import wandb
 from wandb.data_types import _json_helper
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
-    import hashlib
-
-
-# generate a deterministic 16 character id based on input string
-def _hash_id(s: str) -> str:
-    return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
-
-
-def rewrite_url(run_url: str) -> str:
-    old_prefix = "https://wandb.ai/"
-    new_prefix = "https://beta.wandb.ai/"
-    new_suffix = "betaVersion=711cc17ffb2b90cd733d4a87905fcf21f984acfe"
-    if run_url.startswith(old_prefix):
-        run_url = run_url.replace(old_prefix, new_prefix, 1)
-        if "?" in run_url:
-            run_url = run_url.replace("?", f"?{new_suffix}&", 1)
-        else:
-            run_url = f"{run_url}?{new_suffix}"
-    return run_url
+import hashlib
 
 
 def print_wandb_init_message(run_url: str) -> None:
-    run_url = rewrite_url(run_url)
+    run_url = _rewrite_url(run_url)
     wandb.termlog(
-
-            f"W&B Run initialized. View LangChain logs in W&B at {run_url}. "
-            "\n\nNote that the "
-            "WandbTracer is currently in beta and is subject to change "
-            "based on updates to `langchain`. Please report any issues to "
-            "https://github.com/wandb/wandb/issues with the tag `langchain`."
-
+        f"W&B Run initialized. View LangChain logs in W&B at {run_url}. "
+        "\n\nNote that the "
+        "WandbTracer is currently in beta and is subject to change "
+        "based on updates to `langchain`. Please report any issues to "
+        "https://github.com/wandb/wandb/issues with the tag `langchain`."
     )
 
 
 def print_wandb_finish_message(run_url: str) -> None:
-    run_url = rewrite_url(run_url)
+    run_url = _rewrite_url(run_url)
     wandb.termlog(f"All files uploaded. View LangChain logs in W&B at {run_url}.")
-
-
-def safe_serialize(obj):
-    return json.dumps(
-        _json_helper(obj, None),
-        skipkeys=True,
-        default=lambda o: f"<<non-serializable: {type(o).__qualname__}>>",
-    )
 
 
 class LangChainModelTrace(Media):
@@ -116,10 +92,10 @@ class LangChainModelTrace(Media):
     def to_json(self, run) -> dict:
         res = {}
         res["_type"] = self._log_type
-        model_dict_str = safe_serialize(self.model_dict)
+        model_dict_str = _safe_serialize(self.model_dict)
         res["model_id"] = _hash_id(model_dict_str)
         res["model_dict"] = json.loads(model_dict_str)
-        res["trace_dict"] = json.loads(safe_serialize(self.trace_dict))
+        res["trace_dict"] = json.loads(_safe_serialize(self.trace_dict))
         return res
 
     def is_bound(self) -> bool:
@@ -132,3 +108,29 @@ class _LangChainModelTraceFileType(_dtypes.Type):
 
 
 _dtypes.TypeRegistry.add(_LangChainModelTraceFileType)
+
+
+# generate a deterministic 16 character id based on input string
+def _hash_id(s: str) -> str:
+    return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
+
+
+def _rewrite_url(run_url: str) -> str:
+    old_prefix = "https://wandb.ai/"
+    new_prefix = "https://beta.wandb.ai/"
+    new_suffix = "betaVersion=711cc17ffb2b90cd733d4a87905fcf21f984acfe"
+    if run_url.startswith(old_prefix):
+        run_url = run_url.replace(old_prefix, new_prefix, 1)
+        if "?" in run_url:
+            run_url = run_url.replace("?", f"?{new_suffix}&", 1)
+        else:
+            run_url = f"{run_url}?{new_suffix}"
+    return run_url
+
+
+def _safe_serialize(obj):
+    return json.dumps(
+        _json_helper(obj, None),
+        skipkeys=True,
+        default=lambda o: f"<<non-serializable: {type(o).__qualname__}>>",
+    )
