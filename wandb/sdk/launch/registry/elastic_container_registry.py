@@ -154,9 +154,7 @@ class ElasticContainerRegistry(AbstractRegistry):
                 repositoryName=self.repo_name, imageIds=[{"imageTag": tag}]
             )
             return len(response["imageDetails"]) > 0
-        except botocore.errorfactory.ImageNotFoundException:
-            return False
-        except botocore.exceptions.ClientError as e:
+        except client.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
             if code == "ImageNotFoundException":
                 return False
