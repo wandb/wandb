@@ -657,7 +657,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch):
         mock.args = Mock(return_value=args)
 
         # Check that the entrypoint is properly constructed
-        assert kwargs["entry_point"] == [
+        assert args[8] == [
             "${env}",
             "python",
             "train.py",
