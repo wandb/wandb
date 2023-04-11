@@ -1301,39 +1301,6 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def parse_sweep_id(parts_dict: dict) -> Optional[str]:
-    """In place parse sweep path from parts dict.
-
-    Arguments:
-        parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-
-    Returns:
-        None or str if there is an error
-    """
-    entity = None
-    project = None
-    sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, str):
-        return "Expected string sweep_id"
-
-    sweep_split = sweep_id.split("/")
-    if len(sweep_split) == 1:
-        pass
-    elif len(sweep_split) == 2:
-        split_project, sweep_id = sweep_split
-        project = split_project or project
-    elif len(sweep_split) == 3:
-        split_entity, split_project, sweep_id = sweep_split
-        project = split_project or project
-        entity = split_entity or entity
-    else:
-        return (
-            "Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep"
-        )
-    parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
-    return None
-
-
 def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
@@ -1489,45 +1456,6 @@ def _is_databricks() -> bool:
 
 def _is_py_path(path: str) -> bool:
     return path.endswith(".py")
-
-
-def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
-    """Consolidate schema violation strings from wandb/sweeps into a single string.
-
-    Parameters
-    ----------
-    violations: list of str
-        The warnings to render.
-
-    Returns:
-    -------
-    violation: str
-        The consolidated violation text.
-
-    """
-    violation_base = (
-        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
-        "To avoid this, please fix the sweep config schema violations below:"
-    )
-
-    for i, warning in enumerate(violations):
-        violations[i] = f"  Violation {i + 1}. {warning}"
-    violation = "\n".join([violation_base] + violations)
-
-    return violation
-
-
-def handle_sweep_config_violations(warnings: List[str]) -> None:
-    """Echo sweep config schema violation warnings from Gorilla to the terminal.
-
-    Parameters
-    ----------
-    warnings: list of str
-        The warnings to render.
-    """
-    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
-    if len(warnings) > 0:
-        term.termwarn(warning)
 
 
 def _log_thread_stacks() -> None:
