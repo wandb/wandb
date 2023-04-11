@@ -49,21 +49,22 @@ class ToolRun(BaseRun):
 """
 
 
+import dataclasses
 import typing
 
 
-class BaseSpan("typing.TypedDict"):
+@dataclasses.dataclass()
+class BaseSpan:
     id: typing.Optional[typing.Union[int, str]]
     start_time: int
     end_time: int
     error: typing.Optional[str]
-    # component_id is not used yet, but will allow us to map Spans back to the original component
-    component_id: typing.Optional[str]
 
 
+@dataclasses.dataclass()
 class BaseRunSpan(BaseSpan):
     # We are not including an extra field here because it is unbounded.
-    # extra: typing.Any
+    extra: typing.Optional[typing.Dict[str, typing.Any]]
     execution_order: int
     # We are not including a serialized field here because it is unbounded.
     # serialized: typing.Dict[str, str]
@@ -71,17 +72,19 @@ class BaseRunSpan(BaseSpan):
     # This is an additional field that is used for the human-readable name of the run type
     # In most cases this should be the name of the class (eg. OpenAi). It will be extracted
     # from the serialized field from the integration.
-    span_component_name: typing.Optional[str]
+    span_component_name: str
     # New field to differentiate span type
     span_type: typing.Optional[str]
 
 
-class LLMResponse("typing.TypedDict"):
+@dataclasses.dataclass()
+class LLMResponse:
     prompt: str
     generation: typing.Optional[str]
 
 
-class _LLMRunSpan(BaseRunSpan):
+@dataclasses.dataclass()
+class LLMRunSpan(BaseRunSpan):
     # Here, we deviate from LangChain's schema. LangChain uses a schema where there prompts
     # are their own field, then they have a list of generations, which is a doubly-nested
     # list. In practice, this can be simplified to N list of generations, where each generation
@@ -89,69 +92,30 @@ class _LLMRunSpan(BaseRunSpan):
     prompt_responses: typing.List[LLMResponse]
     # prompts: List[str]
     # response: Optional[LLMResult] = None
+    llm_output: typing.Optional[typing.Dict[str, typing.Any]] = None
+    span_type: typing.Optional[str] = dataclasses.field(default="llm", init=False)
 
 
-def llm_run_span(
-    *,
-    execution_order: int,
-    session_id: int,
-    prompt_responses: typing.List[LLMResponse],
-    span_component_name: typing.Optional[str] = None,
-) -> _LLMRunSpan:
-    return _LLMRunSpan(
-        execution_order=execution_order,
-        session_id=session_id,
-        prompt_responses=prompt_responses,
-        span_component_name=span_component_name,
-        span_type="llm",
-    )
-
-
-class _ChainRunSpan(BaseRunSpan):
+@dataclasses.dataclass()
+class ChainRunSpan(BaseRunSpan):
     inputs: typing.Dict[str, typing.Any]
-    outputs: typing.Optional[typing.Dict[str, typing.Any]]
+
     # Again, we deviate from LangChain's schema. LangChain uses a schema where they have
     # each child run type in its own field AND a list of all child runs. In practice, this
     # is not as efficient as just having a list of all child runs.
     # child_llm_runs: typing.List[LLMRunTrace]
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
-    child_runs: typing.List[
-        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
-    ]
+    child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]
     # New field to specify if a chain is an agent
-    is_agent: typing.Optional[bool]
+    outputs: typing.Optional[typing.Dict[str, typing.Any]] = None
+    is_agent: typing.Optional[bool] = None
+    span_type: typing.Optional[str] = dataclasses.field(default="chain", init=False)
 
 
-def chain_run_span(
-    *,
-    execution_order: int,
-    session_id: int,
-    prompt_responses: typing.List[LLMResponse],
-    inputs: typing.Dict[str, typing.Any],
-    child_runs: typing.List[
-        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
-    ],
-    span_component_name: typing.Optional[str] = None,
-    outputs: typing.Optional[typing.Dict[str, typing.Any]] = None,
-    is_agent: typing.Optional[bool] = None,
-) -> _ChainRunSpan:
-    return _ChainRunSpan(
-        execution_order=execution_order,
-        session_id=session_id,
-        prompt_responses=prompt_responses,
-        span_component_name=span_component_name,
-        inputs=inputs,
-        outputs=outputs,
-        child_runs=child_runs,
-        is_agent=is_agent,
-        span_type="chain",
-    )
-
-
-class _ToolRunSpan(BaseRunSpan):
+@dataclasses.dataclass()
+class ToolRunSpan(BaseRunSpan):
     tool_input: str
-    output: typing.Optional[str]
     action: str
     # Again, we deviate from LangChain's schema. LangChain uses a schema where they have
     # each child run type in its own field AND a list of all child runs. In practice, this
@@ -159,32 +123,6 @@ class _ToolRunSpan(BaseRunSpan):
     # child_llm_runs: typing.List[LLMRunTrace]
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
-    child_runs: typing.List[
-        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
-    ]
-
-
-def tool_run_span(
-    *,
-    execution_order: int,
-    session_id: int,
-    prompt_responses: typing.List[LLMResponse],
-    tool_input: str,
-    action: str,
-    child_runs: typing.List[
-        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
-    ],
-    span_component_name: typing.Optional[str] = None,
-    output: typing.Optional[str] = None,
-) -> _ToolRunSpan:
-    return _ToolRunSpan(
-        execution_order=execution_order,
-        session_id=session_id,
-        prompt_responses=prompt_responses,
-        span_component_name=span_component_name,
-        tool_input=tool_input,
-        output=output,
-        action=action,
-        child_runs=child_runs,
-        span_type="tool",
-    )
+    child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]
+    output: typing.Optional[str] = None
+    span_type: typing.Optional[str] = dataclasses.field(default="tool", init=False)

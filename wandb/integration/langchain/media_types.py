@@ -1,6 +1,7 @@
 # TODO:
 # - Figure out how to deduplicate model data
 
+import dataclasses
 import hashlib
 import json
 import typing
@@ -34,11 +35,11 @@ class LangChainModelTrace(Media):
 
     def __init__(
         self,
-        trace_dict: BaseRunSpan,
+        trace_span: BaseRunSpan,
         model_dict: typing.Optional[dict] = None,
     ):
         super().__init__()
-        self._trace_dict = trace_dict
+        self._trace_span = trace_span
         # NOTE: model_dict is a completely-user-defined dict. In the UI
         # we simply render a JSON tree view and give special UI treatment to
         # dictionaries with a _type key. If that _type key has "prompt", "chain"
@@ -59,7 +60,7 @@ class LangChainModelTrace(Media):
         model_dict_str = _safe_serialize(self._model_dict)
         res["model_hash"] = _hash_id(model_dict_str)
         res["model_dict"] = json.loads(model_dict_str)
-        res["trace_dict"] = _json_helper(self._trace_dict, None)
+        res["trace_dict"] = _json_helper(dataclasses.asdict(self._trace_span), None)
         return res
 
     def is_bound(self) -> bool:
