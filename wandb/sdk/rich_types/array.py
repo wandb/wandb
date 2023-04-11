@@ -25,11 +25,11 @@ class Array(Media):
 
     def from_array(self, data) -> None:
         self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as source_path:
+        with self.manager.save(suffix=f".{self._format}") as source_path:
             np.save(source_path, data)
 
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        with self.path.save(path) as source_path:
+        with self.manager.save(path) as source_path:
             self._format = (source_path.suffix[1:] or self.DEFAULT_FORMAT).lower()
 
     def bind_to_artifact(self, artifact: "Artifact") -> Dict[str, Any]:

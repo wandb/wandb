@@ -39,7 +39,7 @@ class Audio(Media):
                 setattr(self, k, v)
 
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        with self.path.save(path) as source_path:
+        with self.manager.save(path) as source_path:
             self._format = (source_path.suffix[1:] or self.DEFAULT_FORMAT).lower()
 
     def from_array(
@@ -52,7 +52,7 @@ class Audio(Media):
         import soundfile as sf
 
         self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as source_path:
+        with self.manager.save(suffix=f".{self._format}") as source_path:
             sf.write(source_path, data, sample_rate)
 
     def bind_to_run(self, run: "Run", *namespace, name: Optional[str] = None) -> None:

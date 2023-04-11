@@ -223,7 +223,7 @@ class Image(Media):
             self._width = image.width
             self._height = image.height
 
-        with self.path.save(path) as path:
+        with self.manager.save(path) as path:
             self._format = (path.suffix[1:] or self.DEFAULT_FORMAT).lower()
 
     def from_path_reference(self, path: str) -> None:
@@ -248,7 +248,7 @@ class Image(Media):
         self._height = image.height
         self._format = (image.format or self.DEFAULT_FORMAT).lower()
 
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             image.save(path, format=self._format, transparency=None)
 
     def from_array(self, array: "np.ndarray", mode: Optional[str] = None) -> None:

@@ -106,7 +106,7 @@ class BoundingBoxes2D(Media):
             data (dict): The data to initialize this bounding box with.
         """
         self._format = f".{self.OBJ_TYPE}.{self.DEFAULT_FORMAT}"
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             with codecs.open(str(path), "w", encoding="utf-8") as f:
                 json.dump(data, f)
 

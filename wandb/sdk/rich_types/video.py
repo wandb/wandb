@@ -86,12 +86,12 @@ class Video(Media):
 
     def from_buffer(self, buffer: io.BytesIO, format: Optional[str] = None) -> None:
         self._format = (format or self.DEFAULT_FORMAT).lower()
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             with open(path, "wb") as f:
                 f.write(buffer.read())
 
     def from_path(self, path: Union[str, os.PathLike]) -> None:
-        with self.path.save(path) as path:
+        with self.manager.save(path) as path:
             self._format = path.suffix[1:]
             assert (
                 self._format in self.SUPPORTED_FORMATS
@@ -99,7 +99,7 @@ class Video(Media):
 
     def from_numpy(self, array: "np.ndarray", fps: int, format: Optional[str]) -> None:
         self._format = (format or self.DEFAULT_FORMAT).lower()
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             array = prepare_data(array)
             write_file(array, path, fps=fps, format=self._format)
 

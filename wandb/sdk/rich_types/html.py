@@ -26,7 +26,7 @@ class HTML(Media):
             raise ValueError("data must be a string or an io object")
 
     def from_path(self, path: Union[str, pathlib.Path], inject: bool) -> None:
-        with self.path.save(path) as path:
+        with self.manager.save(path) as path:
             if inject:
                 with open(path) as f:
                     html = f.read()
@@ -34,7 +34,7 @@ class HTML(Media):
 
     def from_string(self, html: str, inject: bool) -> None:
         self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             if inject:
                 html = self._inject_stylesheet(html)
             with open(path, "w") as f:

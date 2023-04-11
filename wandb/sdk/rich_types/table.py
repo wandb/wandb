@@ -119,7 +119,7 @@ class Table(Media):
         """
         # TODO: why do we save to temp file and move seems wasteful
         self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as p:
+        with self.manager.save(suffix=f".{self._format}") as p:
             self.save(p)
 
         super().bind_to_run(

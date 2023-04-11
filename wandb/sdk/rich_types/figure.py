@@ -34,7 +34,7 @@ class Figure(Media):
 
     def from_plotly(self, figure: "PlotlyFigure") -> None:
         self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             with codecs.open(str(path), "w", encoding="utf-8") as f:
                 json.dump(figure.to_json(), f)
 

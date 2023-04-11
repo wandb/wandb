@@ -76,7 +76,7 @@ class ImageMask(Media):
         Args:
             path (pathlib.Path): The path to the mask.
         """
-        with self.path.save(path) as path:
+        with self.manager.save(path) as path:
             if not path.exists():
                 raise ValueError(f"ImageMask path {path} does not exist")
             self._format = path.suffix[1:]
@@ -88,7 +88,7 @@ class ImageMask(Media):
             array (np.ndarray): The array to use as the mask.
         """
         self._format = f"{self.OBJ_TYPE}.{self.DEFAULT_FORMAT}".lower()
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             array = array.astype(np.int8)
             image = PIL.Image.fromarray(array, mode=mode)
             image.save(path, format=self.DEFAULT_FORMAT, transparency=None)

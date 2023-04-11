@@ -49,8 +49,9 @@ def _(obj, run, *namespace):
 
 @bind.register(Table)
 def _(obj, run, *namespace):
-    artifact = bind_to_artifact(obj, str(run.id), *namespace)
-    run.log_artifact(artifact)
+    if obj.manager._bind_path is None:
+        artifact = bind_to_artifact(obj, str(run.id), *namespace)
+        run.log_artifact(artifact)
 
     obj.bind_to_run(run, *namespace)
     return obj.to_json()
@@ -59,22 +60,45 @@ def _(obj, run, *namespace):
 def bind_to_artifact(obj, *namespace):
     artifact_name = "-".join(("run", *namespace))
     artifact = Artifact(artifact_name, type="run_table")
-    artifact._ensure_can_add()
-
-    # obj_id = id(obj)
-    # if obj_id in artifact._added_objs:
-    #     return
 
     name = ".".join([*namespace, obj.DEFAULT_FORMAT.lower()])
-    # entry = artifact._manifest.get_entry_by_path(name)
-    # if entry is not None:
-    #     return
+    add(artifact, obj, name)
+
+    return artifact
+
+
+# TODO: This is a temporary code will use `artifact.add` when all methods are implemented.
+def add(artifact, obj, name):
+    artifact._ensure_can_add()
+
+    is_temp_name = name.startswith("media/tables")
+
+    obj_id = id(obj)
+    if obj_id in artifact._added_objs:
+        return artifact._added_objs[obj_id].entry
+
+    reference_path = obj.manager.artifact_path
+    if reference_path is not None:
+        return artifact.add_reference(reference_path, name)[0]
+
+    entry = artifact._manifest.get_entry_by_path(name)
+    if entry is not None:
+        return entry
 
     serialized = obj.bind_to_artifact(artifact)
-    with artifact.new_file(name) as f:
-        file_path = f.name
-        json.dump(serialized, f, sort_keys=True)
-    entry = artifact.add_file(str(file_path), name, is_tmp=False)
+    if is_temp_name:
+        file_path = "some/path"
+        with open(file_path, "w") as f:
+            json.dump(serialized, f, sort_keys=True)
+    else:
+        with artifact.new_file(name) as f:
+            file_path = f.name
+            json.dump(serialized, f, sort_keys=True)
+    entry = artifact.add_file(str(file_path), name, is_tmp=is_temp_name)
 
-    obj.artifact.assign(artifact, entry.path)
-    return artifact
+    obj.manager.assign_artifact(artifact, entry.path)
+
+    from wandb.sdk.wandb_artifacts import _AddedObj
+    artifact._added_objs[obj_id] = _AddedObj(entry, obj)
+
+    return entry

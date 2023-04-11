@@ -49,7 +49,7 @@ class Molecule(Media):
         if file_type not in self.SUPPORTED_TYPES:
             raise ValueError(f"Unsupported file type: {file_type}")
         self._format = file_type
-        with self.path.save(suffix=f".{self._format}") as path:
+        with self.manager.save(suffix=f".{self._format}") as path:
             if hasattr(buffer, "seek"):
                 buffer.seek(0)
             mol = buffer.read()
@@ -57,7 +57,7 @@ class Molecule(Media):
                 f.write(mol)
 
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        with self.path.save(path) as path:
+        with self.manager.save(path) as path:
             self._format = path.suffix[1:].lower()
             assert (
                 self._format in self.SUPPORTED_TYPES

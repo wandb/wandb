@@ -39,14 +39,14 @@ class Object3D(Media):
         self._format = format.lower()
         assert self._format in self.SUPPORTED_TYPES, f"Unsupported format: {format}"
 
-        with self.path.save(suffix=f".{self._format}") as source_path:
+        with self.manager.save(suffix=f".{self._format}") as source_path:
             with open(source_path, "w") as f:
                 if hasattr(buffer, "seek"):
                     buffer.seek(0)
                 f.write(buffer.read())
 
     def from_path(self, path: Union[str, pathlib.Path]) -> None:
-        with self.path.save(path) as source_path:
+        with self.manager.save(path) as source_path:
             self._format = (source_path.suffix[1:] or self.DEFAULT_FORMAT).lower()
             assert (
                 self._format in self.SUPPORTED_TYPES
@@ -78,7 +78,7 @@ class Object3D(Media):
 
     def _from_data(self, data: Union[Dict[str, List], List]) -> None:
         self._format = self.DEFAULT_FORMAT.lower()
-        with self.path.save(suffix=f".{self._format}") as source_path:
+        with self.manager.save(suffix=f".{self._format}") as source_path:
             with open(source_path, "w", encoding="utf-8") as f:
                 json.dump(
                     data,
