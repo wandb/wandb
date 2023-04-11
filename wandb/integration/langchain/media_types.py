@@ -35,7 +35,7 @@ class LangChainModelTrace(Media):
     def __init__(
         self,
         trace_dict: BaseRunSpan,
-        model_dict: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        model_dict: typing.Optional[dict] = None,
     ):
         super().__init__()
         self._trace_dict = trace_dict

@@ -93,6 +93,8 @@ class ChainRunSpan(BaseRunSpan):
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
     child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]
+    # New field to specify if a chain is an agent
+    is_agent: typing.Optional[bool]
 
 
 class ToolRunSpan(BaseRunSpan):
