@@ -56,10 +56,10 @@ class LangChainModelTrace(Media):
     def to_json(self, run) -> dict:
         res = {}
         res["_type"] = self._log_type
-        model_dict_str = _safe_serialize(self.model_dict)
+        model_dict_str = _safe_serialize(self._model_dict)
         res["model_hash"] = _hash_id(model_dict_str)
         res["model_dict"] = json.loads(model_dict_str)
-        res["trace_dict"] = _json_helper(self.trace_dict, None)
+        res["trace_dict"] = _json_helper(self._trace_dict, None)
         return res
 
     def is_bound(self) -> bool:
