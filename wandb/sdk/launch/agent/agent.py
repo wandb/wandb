@@ -175,6 +175,7 @@ class LaunchAgent:
 
     def fail_run_queue_item(self, run_queue_item_id: str) -> None:
         if self._gorilla_supports_fail_run_queue_items:
+            wandb.termlog(f"Run queue item: {run_queue_item_id} failed")
             self._api.fail_run_queue_item(run_queue_item_id)
 
     @property
