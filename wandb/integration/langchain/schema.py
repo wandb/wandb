@@ -49,23 +49,28 @@ class ToolRun(BaseRun):
 import typing
 
 
-class BaseRunSpan(typing.TypedDict):
+class BaseSpan(typing.TypedDict):
     id: typing.Optional[typing.Union[int, str]]
     start_time: int
     end_time: int
+    error: typing.Optional[str]
+    # component_id is not used yet, but will allow us to map Spans back to the original component
+    component_id: typing.Optional[str]
+
+
+class BaseRunSpan(BaseSpan):
     # We are not including an extra field here because it is unbounded.
     # extra: typing.Any
     execution_order: int
     # We are not including a serialized field here because it is unbounded.
     # serialized: typing.Dict[str, str]
     session_id: int
-    error: typing.Optional[str]
     # This is an additional field that is used for the human-readable name of the run type
     # In most cases this should be the name of the class (eg. OpenAi). It will be extracted
     # from the serialized field from the integration.
-    run_type_name: typing.Optional[str]
-    # THis is not used yet, but will allow us to map Spans back to the original component
-    component_id: typing.Optional[str]
+    span_component_name: typing.Optional[str]
+    # New field to differentiate span type
+    span_type: typing.Optional[str]
 
 
 class LLMResponse(typing.TypedDict):
@@ -73,7 +78,7 @@ class LLMResponse(typing.TypedDict):
     generation: typing.Optional[str]
 
 
-class LLMRunSpan(BaseRunSpan):
+class _LLMRunSpan(BaseRunSpan):
     # Here, we deviate from LangChain's schema. LangChain uses a schema where there prompts
     # are their own field, then they have a list of generations, which is a doubly-nested
     # list. In practice, this can be simplified to N list of generations, where each generation
@@ -83,7 +88,11 @@ class LLMRunSpan(BaseRunSpan):
     # response: Optional[LLMResult] = None
 
 
-class ChainRunSpan(BaseRunSpan):
+def LLMRunSpan(**kwargs) -> _LLMRunSpan:
+    return _LLMRunSpan(**kwargs, span_type="llm")
+
+
+class _ChainRunSpan(BaseRunSpan):
     inputs: typing.Dict[str, typing.Any]
     outputs: typing.Optional[typing.Dict[str, typing.Any]]
     # Again, we deviate from LangChain's schema. LangChain uses a schema where they have
@@ -97,7 +106,11 @@ class ChainRunSpan(BaseRunSpan):
     is_agent: typing.Optional[bool]
 
 
-class ToolRunSpan(BaseRunSpan):
+def ChainRunSpan(**kwargs) -> _LLMRunSpan:
+    return _ChainRunSpan(**kwargs, span_type="chain")
+
+
+class _ToolRunSpan(BaseRunSpan):
     tool_input: str
     output: typing.Optional[str]
     action: str
@@ -108,3 +121,7 @@ class ToolRunSpan(BaseRunSpan):
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
     child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]
+
+
+def ToolRunSpan(**kwargs) -> _LLMRunSpan:
+    return _ToolRunSpan(**kwargs, span_type="tool")
