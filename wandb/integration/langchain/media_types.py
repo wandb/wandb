@@ -87,7 +87,7 @@ def _hash_id(s: str) -> str:
 def _rewrite_url(run_url: str) -> str:
     old_prefix = "https://wandb.ai/"
     new_prefix = "https://beta.wandb.ai/"
-    new_suffix = "betaVersion=3a1b682590754d39d4189616ecaf701d44586cbb"
+    new_suffix = "betaVersion=4c60e3e297f10f06b85d1c859c40770505db48ea"
     if run_url.startswith(old_prefix):
         run_url = run_url.replace(old_prefix, new_prefix, 1)
         if "?" in run_url:
