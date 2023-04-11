@@ -1,16 +1,16 @@
 # TODO:
 # - Figure out how to deduplicate model data
 
+import hashlib
 import json
 import typing
-
-from .schema import BaseRunSpan
 
 import wandb
 from wandb.data_types import _json_helper
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
-import hashlib
+
+from .schema import BaseRunSpan
 
 
 def print_wandb_init_message(run_url: str) -> None:

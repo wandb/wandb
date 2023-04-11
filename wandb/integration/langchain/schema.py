@@ -1,7 +1,14 @@
+# In this file, we define parallel schema so that we can rely on a constant
+# schema in the UI. If LangChain changes their schema, then the integration
+# layer (inside LangChain) can be trivially updated to convert the new schema to
+# the old schema. Here, we are going to define a subset which is used in the UI.
+
 # Langchain defines tracer schema in `langchain/callbacks/tracers/schemas.py`
-# As of this writing, we are on commit `https://github.com/hwchase17/langchain/commit/90d5328eda2bf5203a6311c1c15426b66039e5bc`.
-# The schema used by LangChain is:
-"""
+# As of this writing, we are on commit
+# `https://github.com/hwchase17/langchain/commit/90d5328eda2bf5203a6311c1c15426b66039e5bc`.
+
+"""Here is the current schema.
+
 class BaseRun(BaseModel):
     id: Optional[Union[int, str]] = None
     start_time: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
@@ -10,7 +17,7 @@ class BaseRun(BaseModel):
     execution_order: int
     serialized: Dict[str, Any]
     session_id: int
-    error: Optional[str] = None
+    error: Optional[str] = None.
 
 class LLMResult(BaseModel):
     generations: List[List[Generation]]
@@ -41,15 +48,11 @@ class ToolRun(BaseRun):
     child_runs: List[Union[LLMRun, ChainRun, ToolRun]] = Field(default_factory=list)
 """
 
-# In this file, we define parallel schema so that we can rely on a constant
-# schema in the UI. If LangChain changes their schema, then the integration
-# layer (inside LangChain) can be trivially updated to convert the new schema to
-# the old schema. Here, we are going to define a subset which is used in the UI.
 
 import typing
 
 
-class BaseSpan(typing.TypedDict):
+class BaseSpan("typing.TypedDict"):
     id: typing.Optional[typing.Union[int, str]]
     start_time: int
     end_time: int
@@ -73,7 +76,7 @@ class BaseRunSpan(BaseSpan):
     span_type: typing.Optional[str]
 
 
-class LLMResponse(typing.TypedDict):
+class LLMResponse("typing.TypedDict"):
     prompt: str
     generation: typing.Optional[str]
 
@@ -88,8 +91,20 @@ class _LLMRunSpan(BaseRunSpan):
     # response: Optional[LLMResult] = None
 
 
-def LLMRunSpan(**kwargs) -> _LLMRunSpan:
-    return _LLMRunSpan(**kwargs, span_type="llm")
+def llm_run_span(
+    *,
+    execution_order: int,
+    session_id: int,
+    prompt_responses: typing.List[LLMResponse],
+    span_component_name: typing.Optional[str] = None,
+) -> _LLMRunSpan:
+    return _LLMRunSpan(
+        execution_order=execution_order,
+        session_id=session_id,
+        prompt_responses=prompt_responses,
+        span_component_name=span_component_name,
+        span_type="llm",
+    )
 
 
 class _ChainRunSpan(BaseRunSpan):
@@ -101,13 +116,37 @@ class _ChainRunSpan(BaseRunSpan):
     # child_llm_runs: typing.List[LLMRunTrace]
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
-    child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]
+    child_runs: typing.List[
+        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
+    ]
     # New field to specify if a chain is an agent
     is_agent: typing.Optional[bool]
 
 
-def ChainRunSpan(**kwargs) -> _LLMRunSpan:
-    return _ChainRunSpan(**kwargs, span_type="chain")
+def chain_run_span(
+    *,
+    execution_order: int,
+    session_id: int,
+    prompt_responses: typing.List[LLMResponse],
+    inputs: typing.Dict[str, typing.Any],
+    child_runs: typing.List[
+        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
+    ],
+    span_component_name: typing.Optional[str] = None,
+    outputs: typing.Optional[typing.Dict[str, typing.Any]] = None,
+    is_agent: typing.Optional[bool] = None,
+) -> _ChainRunSpan:
+    return _ChainRunSpan(
+        execution_order=execution_order,
+        session_id=session_id,
+        prompt_responses=prompt_responses,
+        span_component_name=span_component_name,
+        inputs=inputs,
+        outputs=outputs,
+        child_runs=child_runs,
+        is_agent=is_agent,
+        span_type="chain",
+    )
 
 
 class _ToolRunSpan(BaseRunSpan):
@@ -120,8 +159,32 @@ class _ToolRunSpan(BaseRunSpan):
     # child_llm_runs: typing.List[LLMRunTrace]
     # child_chain_runs: typing.List[ChainRunTrace]
     # child_tool_runs: typing.List[ToolRunTrace]
-    child_runs: typing.List[typing.Union["LLMRunSpan", "ChainRunSpan", "ToolRunSpan"]]
+    child_runs: typing.List[
+        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
+    ]
 
 
-def ToolRunSpan(**kwargs) -> _LLMRunSpan:
-    return _ToolRunSpan(**kwargs, span_type="tool")
+def tool_run_span(
+    *,
+    execution_order: int,
+    session_id: int,
+    prompt_responses: typing.List[LLMResponse],
+    tool_input: str,
+    action: str,
+    child_runs: typing.List[
+        typing.Union["_LLMRunSpan", "_ChainRunSpan", "_ToolRunSpan"]
+    ],
+    span_component_name: typing.Optional[str] = None,
+    output: typing.Optional[str] = None,
+) -> _ToolRunSpan:
+    return _ToolRunSpan(
+        execution_order=execution_order,
+        session_id=session_id,
+        prompt_responses=prompt_responses,
+        span_component_name=span_component_name,
+        tool_input=tool_input,
+        output=output,
+        action=action,
+        child_runs=child_runs,
+        span_type="tool",
+    )
