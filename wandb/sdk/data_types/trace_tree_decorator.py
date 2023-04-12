@@ -27,7 +27,9 @@ class _LiveSpan(Span):
         self.start_time_ms = _current_time_ms()
 
     def end(
-        self, status_code: StatusCode = StatusCode.SUCCESS, status_message: str = ""
+        self,
+        status_code: StatusCode = StatusCode.SUCCESS,
+        status_message: Optional[str] = None,
     ):
         if self._live_state != "STARTED":
             raise ValueError("Span must be started before ending.")

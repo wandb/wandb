@@ -19,12 +19,18 @@ class StatusCode(str, Enum):
     SUCCESS = "SUCCESS"
     ERROR = "ERROR"
 
+    def __str__(self):
+        return str(self.value)
+
 
 class SpanKind(str, Enum):
     LLM = "LLM"
     CHAIN = "CHAIN"
     AGENT = "AGENT"
     TOOL = "TOOL"
+
+    def __str__(self):
+        return str(self.value)
 
 
 @dataclass()
