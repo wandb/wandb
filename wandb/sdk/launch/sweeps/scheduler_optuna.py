@@ -299,7 +299,6 @@ class OptunaScheduler(Scheduler):
         return
 
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
-
         config, trial = self._trial_func()
         run: dict = self._api.upsert_run(
             project=self._project,
