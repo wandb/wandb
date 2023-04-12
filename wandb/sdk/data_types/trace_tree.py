@@ -87,7 +87,7 @@ class WBTraceTree(Media):
             model_dump_str = _safe_serialize(self._model_dump)
             res["model_hash"] = _hash_id(model_dump_str)
             res["model_dump"] = json.loads(model_dump_str)
-        res["root_span"] = _json_helper(dataclasses.asdict(self._root_span), None)
+        res["root_span"] = _safe_serialize(dataclasses.asdict(self._root_span))
         return res
 
     def is_bound(self) -> bool:
@@ -107,9 +107,16 @@ def _hash_id(s: str) -> str:
     return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
 
 
+def _fallback_serialize(obj: Any) -> str:
+    try:
+        return str(obj)
+    except Exception:
+        return f"<<non-serializable: {type(obj).__qualname__}>>"
+
+
 def _safe_serialize(obj: dict) -> str:
     return json.dumps(
         _json_helper(obj, None),
         skipkeys=True,
-        default=lambda o: f"<<non-serializable: {type(o).__qualname__}>>",
+        default=_fallback_serialize,
     )
