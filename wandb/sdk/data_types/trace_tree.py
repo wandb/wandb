@@ -2,14 +2,17 @@ import dataclasses
 import hashlib
 import json
 import typing
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from wandb.data_types import _json_helper
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from enum import Enum
+if TYPE_CHECKING:  # pragma: no cover
+    from ..wandb_artifacts import Artifact as LocalArtifact
+    from ..wandb_run import Run as LocalRun
 
 
 class StatusCode(str, Enum):
@@ -46,6 +49,7 @@ class Span:
 
 class WBTraceTree(Media):
     """Media object for trace tree data.
+
     Arguments:
         root_span (Span): The root span of the trace tree.
         model_dump (dict, optional): A dictionary containing the model dump.
@@ -70,13 +74,10 @@ class WBTraceTree(Media):
     def get_media_subdir(cls) -> str:
         return "media/wb_trace_tree"
 
-    def to_json(self, run) -> dict:
+    def to_json(self, run: Optional[Union["LocalRun", "LocalArtifact"]]) -> dict:
         res = {}
         res["_type"] = self._log_type
-        if self._model_dump is None:
-            res["model_hash"] = None
-            res["model_dump"] = None
-        else:
+        if self._model_dump is not None:
             model_dump_str = _safe_serialize(self._model_dump)
             res["model_hash"] = _hash_id(model_dump_str)
             res["model_dump"] = json.loads(model_dump_str)
@@ -100,7 +101,7 @@ def _hash_id(s: str) -> str:
     return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
 
 
-def _safe_serialize(obj):
+def _safe_serialize(obj: dict) -> str:
     return json.dumps(
         _json_helper(obj, None),
         skipkeys=True,
