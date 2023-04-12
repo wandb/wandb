@@ -5,9 +5,15 @@ Description
 -----------
 What does the PR do?
 
+
+copilot:summary
+
 Testing
 -------
 How was this PR tested?
+
+
+copilot:poem
 
 Checklist
 -------
