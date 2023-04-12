@@ -869,8 +869,9 @@ class Run:
         """
         if self._name:
             return self._name
-        if self._run_obj:
-            return self._run_obj.display_name or None
+        if not self._run_obj:
+            return None
+        return self._run_obj.display_name
 
     @name.setter
     @_run_decorator._noop_on_finish()
@@ -892,8 +893,9 @@ class Run:
         """
         if self._notes:
             return self._notes
-        if self._run_obj:
-            return self._run_obj.notes or None
+        if not self._run_obj:
+            return None
+        return self._run_obj.notes
 
     @notes.setter
     @_run_decorator._noop_on_finish()
@@ -910,7 +912,8 @@ class Run:
         if self._tags:
             return self._tags
         if self._run_obj:
-            return tuple(self._run_obj.tags) or None
+            return tuple(self._run_obj.tags)
+        return None
 
     @tags.setter
     @_run_decorator._noop_on_finish()
@@ -934,8 +937,9 @@ class Run:
     @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
         """ID of the sweep associated with the run, if there is one."""
-        if self._run_obj:
-            return self._run_obj.sweep_id or None
+        if not self._run_obj:
+            return None
+        return self._run_obj.sweep_id or None
 
     def _get_path(self) -> str:
         parts = [
@@ -991,7 +995,6 @@ class Run:
         return self._step
 
     def project_name(self) -> str:
-        """The name of the project associated with the run."""
         return self._run_obj.project if self._run_obj else ""
 
     @property
@@ -1029,7 +1032,7 @@ class Run:
 
         If you are doing a distributed training you should give all of the
             runs in the training the same group.
-        If you are doing crossvalidation you should give all the crossvalidation
+        If you are doing cross-validation you should give all the cross-validation
             folds the same group.
         """
         return self._get_group()
