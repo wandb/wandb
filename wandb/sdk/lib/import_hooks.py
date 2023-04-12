@@ -8,25 +8,10 @@ and manual backports of later patches up to 1.15.0 in the wrapt repository
 (with slight modifications).
 """
 
-import functools
 import sys
 import threading
 from importlib.util import find_spec
 from typing import Any, Callable, Dict, Optional
-
-
-# modified the following import: from .decorators import synchronized
-def synchronized(lock: "threading.RLock") -> Callable:
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def new_func(*args: Any, **kwargs: Any) -> Any:
-            with lock:
-                return func(*args, **kwargs)
-
-        return new_func
-
-    return decorator
-
 
 # The dictionary registering any post import hooks to be triggered once
 # the target module has been imported. Once a module has been imported
@@ -66,70 +51,51 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
     if isinstance(hook, (str,)):
         hook = _create_import_hook_from_string(hook)  # type: ignore
 
-    with _post_import_hooks_lock:
-        # Automatically install the import hook finder if it has not already
-        # been installed.
+    # Automatically install the import hook finder if it has not already
+    # been installed.
 
+    with _post_import_hooks_lock:
         global _post_import_hooks_init
 
         if not _post_import_hooks_init:
             _post_import_hooks_init = True
-            sys.meta_path.insert(0, ImportHookFinder())
+            sys.meta_path.insert(0, ImportHookFinder())  # type: ignore
 
         # Check if the module is already imported. If not, register the hook
         # to be called after import.
 
-        module = sys.modules.get(name)
+        module = sys.modules.get(name, None)
 
-    # If the module is already imported, fire the hook right away.
-    # NOTE: Call the hook outside of the lock to avoid deadlocks.
+        if module is None:
+            _post_import_hooks.setdefault(name, {}).update({hook_id: hook})
+
+    # If the module is already imported, we fire the hook right away. Note that
+    # the hook is called outside of the lock to avoid deadlocks if code run as a
+    # consequence of calling the module import hook in turn triggers a separate
+    # thread which tries to register an import hook.
+
     if module is not None:
         hook(module)
 
 
-@synchronized(_post_import_hooks_lock)
 def unregister_post_import_hook(name: str, hook_id: Optional[str]) -> None:
     # Remove the import hook if it has been registered.
-    hooks = _post_import_hooks.get(name)
+    with _post_import_hooks_lock:
+        hooks = _post_import_hooks.get(name)
 
-    if hooks is not None:
-        if hook_id is not None:
-            hooks.pop(hook_id, None)
+        if hooks is not None:
+            if hook_id is not None:
+                hooks.pop(hook_id, None)
 
-            if not hooks:
+                if not hooks:
+                    del _post_import_hooks[name]
+            else:
                 del _post_import_hooks[name]
-        else:
-            del _post_import_hooks[name]
 
 
-@synchronized(_post_import_hooks_lock)
 def unregister_all_post_import_hooks() -> None:
-    _post_import_hooks.clear()
-
-
-# Register post import hooks defined as package entry points.
-
-
-def _create_import_hook_from_entrypoint(entrypoint: Any) -> Callable:
-    def import_hook(module: Any) -> Any:
-        __import__(entrypoint.module_name)
-        callback = sys.modules[entrypoint.module_name]
-        for attr in entrypoint.attrs:
-            callback = getattr(callback, attr)
-        return callback(module)  # type: ignore
-
-    return import_hook
-
-
-def discover_post_import_hooks(group: Any) -> None:
-    try:
-        import pkg_resources
-    except ImportError:
-        return
-
-    for entrypoint in pkg_resources.iter_entry_points(group=group):
-        callback = _create_import_hook_from_entrypoint(entrypoint)
-        register_post_import_hook(callback, entrypoint.name)
+    with _post_import_hooks_lock:
+        _post_import_hooks.clear()
 
 
 # Indicate that a module has been loaded. Any post import hooks which
@@ -140,12 +106,16 @@ def discover_post_import_hooks(group: Any) -> None:
 
 def notify_module_loaded(module: Any) -> None:
     name = getattr(module, "__name__", None)
-    with _post_import_hooks_lock:
-        hooks = _post_import_hooks.pop(name, ())
 
-    # NOTE: Call hooks outside of the lock to avoid deadlocks.
-    for hook in hooks:
-        hook(module)
+    with _post_import_hooks_lock:
+        hooks = _post_import_hooks.pop(name, {})
+
+    # Note that the hook is called outside of the lock to avoid deadlocks if
+    # code run as a consequence of calling the module import hook in turn
+    # triggers a separate thread which tries to register an import hook.
+    for hook in hooks.values():
+        if hook:
+            hook(module)
 
 
 # A custom module import finder. This intercepts attempts to import
@@ -157,14 +127,6 @@ def notify_module_loaded(module: Any) -> None:
 class _ImportHookChainedLoader:
     def __init__(self, loader: Any) -> None:
         self.loader = loader
-
-    def load_module(self, fullname: str) -> Any:
-        if hasattr(loader, "load_module"):
-          self.load_module = self._load_module
-        if hasattr(loader, "create_module"):
-          self.create_module = self._create_module
-        if hasattr(loader, "exec_module"):
-          self.exec_module = self._exec_module
 
     def _set_loader(self, module):
         # Set module's loader to self.loader unless it's already set to
@@ -178,7 +140,8 @@ class _ImportHookChainedLoader:
         # module loader was used. It isn't clear whether the attribute still
         # existed in that case or was set to None.
 
-        class UNDEFINED: pass
+        class UNDEFINED:
+            pass
 
         if getattr(module, "__loader__", UNDEFINED) in (None, self):
             try:
@@ -186,25 +149,26 @@ class _ImportHookChainedLoader:
             except AttributeError:
                 pass
 
-        if (getattr(module, "__spec__", None) is not None
-                and getattr(module.__spec__, "loader", None) is self):
+        if (
+            getattr(module, "__spec__", None) is not None
+            and getattr(module.__spec__, "loader", None) is self
+        ):
             module.__spec__.loader = self.loader
 
-    def _load_module(self, fullname):
+    def load_module(self, fullname: str) -> Any:
         module = self.loader.load_module(fullname)
         self._set_loader(module)
         notify_module_loaded(module)
 
         return module
 
-
     # Python 3.4 introduced create_module() and exec_module() instead of
     # load_module() alone. Splitting the two steps.
 
-    def _create_module(self, spec):
+    def create_module(self, spec):
         return self.loader.create_module(spec)
 
-    def _exec_module(self, module):
+    def exec_module(self, module):
         self._set_loader(module)
         self.loader.exec_module(module)
         notify_module_loaded(module)
@@ -256,7 +220,7 @@ class ImportHookFinder:
         finally:
             del self.in_progress[fullname]
 
-    def find_spec(self, fullname, path=None, target=None):
+    def find_spec(self, fullname: str, path: Optional[str] = None, target=None):
         # Since Python 3.4, you are meant to implement find_spec() method
         # instead of find_module() and since Python 3.10 you get deprecation
         # warnings if you don't define find_spec().
@@ -286,7 +250,6 @@ class ImportHookFinder:
         try:
             # This should only be Python 3 so find_spec() should always
             # exist so don't need to check.
-
             spec = find_spec(fullname)
             loader = getattr(spec, "loader", None)
 
