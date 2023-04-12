@@ -24,6 +24,7 @@ import os
 import pprint
 import tempfile
 from typing import Optional
+from decimal import Decimal
 
 import wandb
 from wandb import util
@@ -143,6 +144,8 @@ def _json_helper(val, artifact):
         )
     elif isinstance(val, (list, tuple)):
         return [_json_helper(i, artifact) for i in val]
+    elif isinstance(val, Decimal):
+        return float(val)
     else:
         return util.json_friendly(val)[0]
 
