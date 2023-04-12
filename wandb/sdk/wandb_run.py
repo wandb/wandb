@@ -1018,7 +1018,7 @@ class Run:
         return self._settings._noop
 
     def _get_group(self) -> str:
-        return self._run_obj.group if self._run_obj else ""
+        return self._run_obj.run_group if self._run_obj else ""
 
     @property
     @_run_decorator._attach
