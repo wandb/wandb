@@ -100,14 +100,14 @@ class LocalContainerRunner(AbstractRunner):
         env_vars = get_env_vars_dict(launch_project, self._api)
 
         # When running against local port, need to swap to local docker host
-        # if (
-        #     _is_wandb_local_uri(self._api.settings("base_url"))
-        #     and sys.platform == "darwin"
-        # ):
-        #     _, _, port = self._api.settings("base_url").split(":")
-        #     env_vars["WANDB_BASE_URL"] = f"http://localhost:{port}"
-        # elif _is_wandb_dev_uri(self._api.settings("base_url")):
-        #     env_vars["WANDB_BASE_URL"] = "http://localhost:9002"
+        if (
+            _is_wandb_local_uri(self._api.settings("base_url"))
+            and sys.platform == "darwin"
+        ):
+            _, _, port = self._api.settings("base_url").split(":")
+            env_vars["WANDB_BASE_URL"] = f"http://localhost:{port}"
+        elif _is_wandb_dev_uri(self._api.settings("base_url")):
+            env_vars["WANDB_BASE_URL"] = "http://localhost:9002"
         env_vars["WANDB_BASE_URL"] = "https://api.wandb.test"
 
         if launch_project.docker_image:

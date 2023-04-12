@@ -393,7 +393,6 @@ class OptunaScheduler(Scheduler):
         Returns list of runs optuna marked as PRUNED, to be deleted
         """
         wandb.termlog(f"{LOG_PREFIX}Polling. Current state:\n{self.formatted_trials}")
-        # wandb.termlog(f"{LOG_PREFIX}Polling runs for metrics.")
         to_kill = []
         for run_id, orun in self._optuna_runs.items():
             run_finished = self._poll_run(orun)
