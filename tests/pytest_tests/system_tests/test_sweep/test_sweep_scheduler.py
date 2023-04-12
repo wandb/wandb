@@ -666,8 +666,11 @@ def _make_gold_command(command):
     [
         ["${env}", "python", "train.py", "${args}"],
         ["python", "train.py", "${args}"],
+        ["python", "train.py"],
         ["python", "train.py", "${args}", "${args}"],
         ["python", "train.py", "${args}", "--another", "param"],
+        [],
+        ["python", "train.py", "--float", 1.99999],
     ],
 )
 def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
