@@ -121,7 +121,7 @@ class OpenMetricsMetric:
         self.name = name
         self.url = url
         self.filters = filters
-        self.filters_tuple = _nested_dict_to_tuple(filters)
+        self.filters_tuple = _nested_dict_to_tuple(filters) if filters else ()
         self._session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}
