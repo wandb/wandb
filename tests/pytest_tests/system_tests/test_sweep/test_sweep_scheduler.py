@@ -652,6 +652,8 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
 
 
 def _make_gold_command(command):
+    if not command:
+        return None
     gold_command = []
     for arg in command:
         if arg == "${args}":
