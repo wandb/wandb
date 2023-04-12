@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import tempfile
-from shlex import quote
 from typing import Any, Dict, List, Optional
 
 import wandb

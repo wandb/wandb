@@ -1,6 +1,5 @@
 import json
 import os
-import traceback
 import pytest
 import wandb
 from wandb.cli import cli
@@ -206,8 +205,6 @@ def test_launch_cli_with_config_file_and_params(
                 "-u" "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
-        print(result.output)
-        print(''.join(traceback.format_tb(result.exc_info[2])))
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
 

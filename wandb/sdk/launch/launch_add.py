@@ -4,9 +4,7 @@ from typing import Any, Dict, List, Optional
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
-from wandb.sdk.launch._project_spec import (
-    create_project_from_spec,
-)
+from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
