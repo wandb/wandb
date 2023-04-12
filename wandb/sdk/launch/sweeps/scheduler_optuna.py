@@ -9,6 +9,8 @@ from pprint import pformat
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple
 
+from wandb.errors import CommError
+
 import click
 import optuna
 
@@ -489,6 +491,41 @@ class OptunaScheduler(Scheduler):
     def _exit(self) -> None:
         pass
 
+    def _update_run_states(self) -> None:
+        """Iterate through runs.
+
+        Get state from backend and deletes runs if not in running state. Threadsafe.
+        """
+        # TODO(gst): move to better constants place
+        end_states = [
+            "crashed",
+            "failed",
+            "killed",
+            "finished",
+            "preempted",
+        ]
+        run_states = ["running", "pending", "preempting"]
+
+        _runs_to_remove: List[str] = []
+        for run_id, run in self._yield_runs():
+            try:
+                _state = self._api.get_run_state(self._entity, self._project, run_id)
+                _rqi_state = run.queued_run.state if run.queued_run else None
+                if not _state or _state in end_states or _rqi_state == "failed":
+                    logger.debug(
+                        f"({run_id}) run-state:{_state}, rqi-state:{_rqi_state}"
+                    )
+                    run.state = RunState.DEAD
+                    _runs_to_remove.append(run_id)
+                elif _state in run_states:
+                    run.state = RunState.ALIVE
+            except CommError as e:
+                logger.debug(
+                    f"Issue when getting state for run ({run_id}) with error: {e}"
+                )
+                run.state = RunState.UNKNOWN
+                continue
+
 
 def validate_optuna_pruner(args: Dict[str, Any]) -> bool:
     if not args.get("type"):
@@ -521,9 +558,7 @@ def load_optuna_pruner(
     args: Optional[Dict[str, Any]],
 ) -> optuna.pruners.BasePruner:
     args = args or {}
-    if type_ == "BasePruner":
-        return optuna.pruners.BasePruner(**args)
-    elif type_ == "NopPruner":
+    if type_ == "NopPruner":
         return optuna.pruners.NopPruner(**args)
     elif type_ == "MedianPruner":
         return optuna.pruners.MedianPruner(**args)
@@ -546,9 +581,7 @@ def load_optuna_sampler(
     args: Optional[Dict[str, Any]],
 ) -> optuna.samplers.BaseSampler:
     args = args or {}
-    if type_ == "BaseSampler":
-        return optuna.samplers.BaseSampler(**args)
-    elif type_ == "BruteForceSampler":
+    if type_ == "BruteForceSampler":
         return optuna.samplers.BruteForceSampler(**args)
     elif type_ == "CmaEsSampler":
         return optuna.samplers.CmaEsSampler(**args)

@@ -34,12 +34,14 @@ def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_confi
         api = internal.Api()
         # Entity, project, and sweep should be everything you need to create a scheduler
         sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        _ = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+        s = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+        s._wandb_run.finish()
         # Bogus sweep id should result in error
         with pytest.raises(SchedulerError):
-            _ = Scheduler(
+            s2 = Scheduler(
                 api, sweep_id="foo-sweep-id", entity=_entity, project=_project
             )
+            s2._wandb_run.finish()
 
 
 def test_sweep_scheduler_start_failed(user):
@@ -132,6 +134,8 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
     assert scheduler.at_runcap
     assert scheduler._num_runs_launched == 2
 
+    scheduler.exit()
+
 
 def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
@@ -152,6 +156,7 @@ def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
     scheduler.start()  # should raise no job found
     assert scheduler.state == SchedulerState.FAILED
+    assert scheduler._wandb_run._is_finished
 
 
 def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
@@ -181,6 +186,7 @@ def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
     scheduler = SweepScheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
     scheduler.start()  # should raise no job found
     assert scheduler.state == SchedulerState.FAILED
+    assert scheduler._wandb_run._is_finished
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
@@ -214,6 +220,7 @@ def test_sweep_scheduler_base_scheduler_states(
         _scheduler.start()
         assert _scheduler.state == SchedulerState.COMPLETED
         assert _scheduler.is_alive is False
+        assert _scheduler._wandb_run._is_finished
 
         def mock_run_raise_keyboard_interupt(*args, **kwargs):
             raise KeyboardInterrupt
@@ -255,6 +262,7 @@ def test_sweep_scheduler_base_scheduler_states(
         _scheduler.start()
         assert _scheduler.state == SchedulerState.FAILED
         assert _scheduler.is_alive is False
+        assert _scheduler._wandb_run._is_finished
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
@@ -296,6 +304,9 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             else:
                 assert _scheduler._runs[run_id].state == _state[1]
 
+        _scheduler._wandb_run.finish()
+        assert _scheduler._wandb_run._is_finished
+
         # ---- If get_run_state errors out, runs should have the state UNKNOWN
         def mock_get_run_state_raise_exception(*args, **kwargs):
             raise CommError("Generic Exception")
@@ -309,6 +320,7 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             id="foo_run_2", state=RunState.ALIVE, worker_id=2
         )
         _scheduler._update_run_states()
+        _scheduler._wandb_run.finish()
         assert _scheduler._runs["foo_run_1"].state == RunState.UNKNOWN
         assert _scheduler._runs["foo_run_2"].state == RunState.UNKNOWN
 
@@ -378,6 +390,8 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     _scheduler.start()
     assert _scheduler.state == SchedulerState.COMPLETED
     assert _scheduler.is_alive is False
+    assert _scheduler._wandb_run._is_finished
+
     assert len(_scheduler._runs) == 1
     assert isinstance(_scheduler._runs["foo_run"].queued_run, public.QueuedRun)
     assert _scheduler._runs["foo_run"].state == RunState.DEAD
@@ -397,6 +411,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     assert len(_scheduler2.busy_workers) == 1
     assert len(_scheduler2.available_workers) == 7
     assert _scheduler2._runs["foo_run"].queued_run.args()[-2] == _project_queue
+    _scheduler2._wandb_run.finish()
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)

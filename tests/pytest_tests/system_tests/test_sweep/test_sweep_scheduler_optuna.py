@@ -14,23 +14,47 @@ from wandb.sdk.launch.sweeps.scheduler_optuna import (
 
 from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
 
+OPTUNA_PRUNER_ARGS = {
+    "PatientPruner": {
+        "wrapped_pruner": Mock(),
+        "patience": 1,
+    },
+    "PercentilePruner": {
+        "percentile": 0.5,
+    },
+    "ThresholdPruner": {
+        "lower": 0.5,
+    },
+}
+OPTUNA_SAMPLER_ARGS = {
+    "PartialFixedSampler": {
+        "fixed_params": Mock(),
+        "base_sampler": Mock(),
+    },
+    "GridSampler": {
+        "search_space": {"x": [Mock()]},
+    },
+}
 
-@pytest.mark.parametrize("pruner", optuna.pruners.__all__)
+
+@pytest.mark.parametrize("pruner", optuna.pruners.__all__[1:])
 def test_optuna_pruner_validation(pruner):
     config = {"type": pruner}
+    if pruner in OPTUNA_PRUNER_ARGS:
+        config["args"] = OPTUNA_PRUNER_ARGS[pruner]
     assert validate_optuna_pruner(config)
 
 
-@pytest.mark.parametrize("sampler", optuna.samplers.__all__)
+@pytest.mark.parametrize("sampler", optuna.samplers.__all__[1:-2])
 def test_optuna_sampler_validation(sampler):
     config = {"type": sampler}
+    if sampler in OPTUNA_SAMPLER_ARGS:
+        config["args"] = OPTUNA_SAMPLER_ARGS[sampler]
     assert validate_optuna_sampler(config)
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
-    user, sweep_config, num_workers, monkeypatch
-):
+def test_optuna_scheduler_attrs(user, sweep_config, monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
@@ -38,21 +62,22 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
 
     api = internal.Api()
 
-    def mock_upsert_run(self, **kwargs):
-        return [Mock(spec=public.Run)]
+    # def mock_upsert_run(self, **kwargs):
+    #     return [Mock(spec=public.Run)]
 
-    api.upsert_run = mock_upsert_run
+    # api.upsert_run = mock_upsert_run
 
     project = "test-project"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
 
     scheduler = OptunaScheduler(
         api,
+        sweep_type="optuna",
         sweep_id=sweep_id,
         entity=user,
         project=project,
         polling_sleep=0,
-        num_workers=num_workers,
+        num_workers=1,
     )
 
     assert scheduler.study_name == f"optuna-study-{sweep_id}"
@@ -76,7 +101,10 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
 def test_pythonic_search_space(user, monkeypatch):
     project = "test-project"
     api = internal.Api()
-    api.sweep = Mock(spec=public.Sweep)
+    api.sweep = Mock(
+        spec=public.Sweep,
+        side_effect=[{"config": {"parameters": {"x": {"value": 1}}}} * 2],
+    )
     scheduler = OptunaScheduler(
         api,
         sweep_id="xxxxxxxx",

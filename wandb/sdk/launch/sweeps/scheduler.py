@@ -429,7 +429,7 @@ class Scheduler(ABC):
         with self._threading_lock:
             for run_id in _runs_to_remove:
                 wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
-                # del self._runs[run_id]
+                del self._runs[run_id]
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
