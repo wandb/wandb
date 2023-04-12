@@ -651,19 +651,32 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     assert entrypoint == gold
 
 
-def test_launch_sweep_scheduler_macro_args(user, monkeypatch):
+def _make_gold_command(command):
+    gold_command = []
+    for arg in command:
+        if arg == "${args}":
+            gold_command += ["--foo", "1"]
+        else:
+            gold_command.append(arg)
+    return gold_command
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["${env}", "python", "train.py", "${args}"],
+        ["python", "train.py", "${args}"],
+        ["python", "train.py", "${args}", "${args}"],
+        ["python", "train.py", "${args}", "--another", "param"],
+    ],
+)
+def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     def mock_launch_add(*args, **kwargs):
         mock = Mock(spec=public.QueuedRun)
         mock.args = Mock(return_value=args)
 
         # Check that the entrypoint is properly constructed
-        assert args[8] == [
-            "${env}",
-            "python",
-            "train.py",
-            "--foo",
-            "1",
-        ]
+        assert args[8] == _make_gold_command(command)
 
         return mock
 
@@ -676,7 +689,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch):
         "job": "job",
         "method": "grid",
         "parameters": {"foo": {"values": [1, 2]}},
-        "command": ["${env}", "python", "train.py", "${args}"],
+        "command": command,
     }
     # Entity, project, and sweep should be everything you need to create a scheduler
     api = internal.Api()

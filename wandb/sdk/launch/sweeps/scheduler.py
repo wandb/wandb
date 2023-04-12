@@ -427,8 +427,7 @@ class Scheduler(ABC):
         entry_point = None
         if self._sweep_config.get("command"):
             entry_point = Agent._create_sweep_command(self._sweep_config["command"])
-
-            if "${args}" in self._sweep_config["command"]:
+            while "${args}" in entry_point:  # could be multiple?
                 # Special handling, replace in ${args} macro w/ params
                 idx = entry_point.index("${args}")
                 entry_point = (
