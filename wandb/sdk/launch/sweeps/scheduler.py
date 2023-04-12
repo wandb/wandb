@@ -436,16 +436,19 @@ class Scheduler(ABC):
                     + entry_point[idx + 1 :]
                 )
                 launch_config = {}
-            wandb.termwarn(
-                f"{LOG_PREFIX}Sweep command {entry_point} will override"
-                f' {"job" if _job else "image_uri"} entrypoint'
-            )
 
-            if entry_point[0].startswith("${"):
+            if len(entry_point) == 0:
+                entry_point = None  # ignore empty entrypoint
+            else:
                 wandb.termwarn(
-                    f"{LOG_PREFIX}Sweep command begins with unresolved macro: "
-                    f"'{entry_point[0]}', and may fail in certain environments"
+                    f"{LOG_PREFIX}Sweep command {entry_point} will override"
+                    f' {"job" if _job else "image_uri"} entrypoint'
                 )
+                if entry_point[0].startswith("${"):
+                    wandb.termwarn(
+                        f"{LOG_PREFIX}Sweep command begins with unresolved macro: "
+                        f"'{entry_point[0]}', and may fail in certain environments"
+                    )
 
         run_id = run.id or generate_id()
         queued_run = launch_add(
