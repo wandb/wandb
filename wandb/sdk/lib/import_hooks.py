@@ -11,7 +11,7 @@ and manual backports of later patches up to 1.15.0 in the wrapt repository
 import sys
 import threading
 from importlib.util import find_spec
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 # The dictionary registering any post import hooks to be triggered once
 # the target module has been imported. Once a module has been imported
@@ -31,8 +31,8 @@ _post_import_hooks_lock = threading.RLock()
 # specified module containing the callback function until required.
 
 
-def _create_import_hook_from_string(name: str) -> Any:
-    def import_hook(module: Any) -> Any:
+def _create_import_hook_from_string(name: str) -> Callable:
+    def import_hook(module: Any) -> Callable:
         module_name, function = name.split(":")
         attrs = function.split(".")
         __import__(module_name)
@@ -44,12 +44,14 @@ def _create_import_hook_from_string(name: str) -> Any:
     return import_hook
 
 
-def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
+def register_post_import_hook(
+    hook: Union[str, Callable], hook_id: str, name: str
+) -> None:
     # Create a deferred import hook if hook is a string name rather than
     # a callable function.
 
     if isinstance(hook, (str,)):
-        hook = _create_import_hook_from_string(hook)  # type: ignore
+        hook = _create_import_hook_from_string(hook)
 
     # Automatically install the import hook finder if it has not already
     # been installed.
@@ -128,7 +130,14 @@ class _ImportHookChainedLoader:
     def __init__(self, loader: Any) -> None:
         self.loader = loader
 
-    def _set_loader(self, module):
+        if hasattr(loader, "load_module"):
+            self.load_module = self._load_module
+        if hasattr(loader, "create_module"):
+            self.create_module = self._create_module
+        if hasattr(loader, "exec_module"):
+            self.exec_module = self._exec_module
+
+    def _set_loader(self, module: Any) -> None:
         # Set module's loader to self.loader unless it's already set to
         # something else. Import machinery will set it to spec.loader if it is
         # None, so handle None as well. The module may not support attribute
@@ -155,7 +164,7 @@ class _ImportHookChainedLoader:
         ):
             module.__spec__.loader = self.loader
 
-    def load_module(self, fullname: str) -> Any:
+    def _load_module(self, fullname: str) -> Any:
         module = self.loader.load_module(fullname)
         self._set_loader(module)
         notify_module_loaded(module)
@@ -165,10 +174,10 @@ class _ImportHookChainedLoader:
     # Python 3.4 introduced create_module() and exec_module() instead of
     # load_module() alone. Splitting the two steps.
 
-    def create_module(self, spec):
+    def _create_module(self, spec: Any) -> Any:
         return self.loader.create_module(spec)
 
-    def exec_module(self, module):
+    def _exec_module(self, module: Any) -> None:
         self._set_loader(module)
         self.loader.exec_module(module)
         notify_module_loaded(module)
@@ -214,13 +223,16 @@ class ImportHookFinder:
             # real loader to import the module and invoke the
             # post import hooks.
             loader = getattr(find_spec(fullname), "loader", None)
+
             if loader and not isinstance(loader, _ImportHookChainedLoader):
                 return _ImportHookChainedLoader(loader)
 
         finally:
             del self.in_progress[fullname]
 
-    def find_spec(self, fullname: str, path: Optional[str] = None, target=None):
+    def find_spec(
+        self, fullname: str, path: Optional[str] = None, target: Any = None
+    ) -> Any:
         # Since Python 3.4, you are meant to implement find_spec() method
         # instead of find_module() and since Python 3.10 you get deprecation
         # warnings if you don't define find_spec().
@@ -254,7 +266,8 @@ class ImportHookFinder:
             loader = getattr(spec, "loader", None)
 
             if loader and not isinstance(loader, _ImportHookChainedLoader):
-                spec.loader = _ImportHookChainedLoader(loader)
+                assert spec is not None
+                spec.loader = _ImportHookChainedLoader(loader)  # type: ignore
 
             return spec
 
