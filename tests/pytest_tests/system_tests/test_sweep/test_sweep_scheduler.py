@@ -655,9 +655,11 @@ def _make_gold_command(command):
     if not command:
         return None
     gold_command = []
+    arg1 = False
     for arg in command:
-        if arg == "${args}":
+        if arg == "${args}" and not arg1:
             gold_command += ["--foo", "1"]
+            arg1 = True
         else:
             gold_command.append(arg)
     return gold_command
