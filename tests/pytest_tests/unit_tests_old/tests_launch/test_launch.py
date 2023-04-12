@@ -384,36 +384,6 @@ def test_launch_run_config_in_spec(
     check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
 
 
-def test_launch_args_supersede_config_vals(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "project": "new_test_project",
-        "entity": "mock_server_entity",
-        "config": {
-            "project": "not-this-project",
-            "overrides": {
-                "run_config": {"epochs": 3},
-                "args": ["--epochs=2", "--heavy"],
-            },
-        },
-        "parameters": {"epochs": 5},
-    }
-    input_kwargs = kwargs.copy()
-    input_kwargs["parameters"] = ["epochs", 5]
-    mock_with_run_info = launch.run(**kwargs)
-    for arg in mock_with_run_info.args:
-        if isinstance(arg, _project_spec.LaunchProject):
-            assert arg.override_args["epochs"] == 5
-            assert arg.override_config.get("epochs") is None
-            assert arg.target_project == "new_test_project"
-
-
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH

@@ -590,7 +590,7 @@ def get_kube_context_and_api_client(
     kubernetes: Any,
     resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
-    config_file = resource_args.get("config_file", None)
+    config_file = resource_args.get("configFile", None)
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case

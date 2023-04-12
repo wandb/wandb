@@ -28,7 +28,7 @@ skip_gitignore = "True"
 [tool.commitizen]
 name = "cz_conventional_commits"
 major_version_zero = true
-version = "0.14.1.dev1"
+version = "0.14.3.dev1"
 version_files = ["setup.py", "setup.cfg", "wandb/__init__.py"]
 tag_format = "v$major.$minor.$patch$prerelease"
 changelog_incremental = true

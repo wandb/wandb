@@ -264,27 +264,21 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                     "name": "My Sweep",
                     "method": "grid",
                     "job": "test-job:v9",
+                    "launch": {
+                        "queue": "default",
+                        "resource": "local-process",
+                    },
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
                     "parameters": {"parameter1": {"values": [1, 2, 3]}},
                 },
                 f,
             )
-        with open("launch-config.yaml", "w") as f:
-            json.dump(
-                {
-                    "queue": "default",
-                    "resource": "local-process",
-                    "scheduler": {
-                        "resource": "local-process",
-                    },
-                },
-                f,
-            )
         result = runner.invoke(
-            cli.sweep,
+            cli.launch_sweep,
             [
                 "sweep-config.yaml",
-                "--launch_config",
-                "launch-config.yaml",
                 "--entity",
                 "mock_server_entity",
             ],

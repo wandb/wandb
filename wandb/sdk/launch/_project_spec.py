@@ -143,7 +143,6 @@ class LaunchProject:
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
-        self.clear_parameter_run_config_collisions()
 
     @property
     def base_image(self) -> str:
@@ -192,15 +191,6 @@ class LaunchProject:
     def docker_image(self, value: str) -> None:
         self._docker_image = value
         self._ensure_not_docker_image_and_local_process()
-
-    def clear_parameter_run_config_collisions(self) -> None:
-        """Clear values from the override run config values if a matching key exists in the override arguments."""
-        if not self.override_config:
-            return
-        keys = [key for key in self.override_config.keys()]
-        for key in keys:
-            if self.override_args.get(key):
-                del self.override_config[key]
 
     def get_single_entry_point(self) -> Optional["EntryPoint"]:
         """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
