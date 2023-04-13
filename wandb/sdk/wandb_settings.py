@@ -854,7 +854,13 @@ class Settings:
         """Return a factory for setting type validators."""
 
         def helper(value: Any) -> bool:
-            return is_instance_recursive(value, hint)
+            try:
+                is_valid = is_instance_recursive(value, hint)
+            except Exception:
+                # instance check failed, but let's not crash and only print a warning
+                is_valid = False
+
+            return is_valid
 
         return helper
 
