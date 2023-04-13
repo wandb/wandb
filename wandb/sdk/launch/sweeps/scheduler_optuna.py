@@ -527,6 +527,11 @@ def load_optuna_pruner(
     elif type_ == "HyperbandPruner":
         return optuna.pruners.HyperbandPruner(**args)
     elif type_ == "PatientPruner":
+        wandb.termerror(
+            "PatientPruner requires passing in a wrapped_pruner, which is not "
+            "supported through this simple config path. Please use the adv. "
+            "artifact upload path for this pruner, specified in the docs."
+        )
         return optuna.pruners.PatientPruner(**args)
     elif type_ == "PercentilePruner":
         return optuna.pruners.PercentilePruner(**args)
@@ -548,7 +553,6 @@ def load_optuna_sampler(
     elif type_ == "CmaEsSampler":
         return optuna.samplers.CmaEsSampler(**args)
     elif type_ == "GridSampler":
-        # TODO(gst): pretty sure this doesn't work
         return optuna.samplers.GridSampler(**args)
     elif type_ == "IntersectionSearchSpace":
         return optuna.samplers.IntersectionSearchSpace(**args)
@@ -557,6 +561,11 @@ def load_optuna_sampler(
     elif type_ == "NSGAIISampler":
         return optuna.samplers.NSGAIISampler(**args)
     elif type_ == "PartialFixedSampler":
+        wandb.termerror(
+            "PartialFixedSampler requires passing in a base_sampler, which is not "
+            "supported through this simple config path. Please use the adv. "
+            "artifact upload path for this sampler, specified in the docs."
+        )
         return optuna.samplers.PartialFixedSampler(**args)
     elif type_ == "RandomSampler":
         return optuna.samplers.RandomSampler(**args)
