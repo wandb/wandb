@@ -73,8 +73,8 @@ class WBTraceTree(Media):
 
     Arguments:
         root_span (Span): The root span of the trace tree.
-        model_dump (dict, optional): A dictionary containing the model dump.
-        NOTE: model_dump is a completely-user-defined dict. The UI will render
+        model_dict (dict, optional): A dictionary containing the model dump.
+        NOTE: model_dict is a completely-user-defined dict. The UI will render
         a JSON viewer for this dict, giving special treatment to dictionaries
         with a _kind key. This is because model vendors have such different
         serialization formats that we need to be flexible here.
@@ -85,11 +85,11 @@ class WBTraceTree(Media):
     def __init__(
         self,
         root_span: Span,
-        model_dump: typing.Optional[dict] = None,
+        model_dict: typing.Optional[dict] = None,
     ):
         super().__init__()
         self._root_span = root_span
-        self._model_dump = model_dump
+        self._model_dict = model_dict
 
     @classmethod
     def get_media_subdir(cls) -> str:
@@ -98,11 +98,13 @@ class WBTraceTree(Media):
     def to_json(self, run: Optional[Union["LocalRun", "LocalArtifact"]]) -> dict:
         res = {}
         res["_type"] = self._log_type
-        if self._model_dump is not None:
-            model_dump_str = _safe_serialize(self._model_dump)
+        # Here we use `dumps` to put things into string format. This is because
+        # the complex data structures create problems for gorilla history to parquet.
+        if self._model_dict is not None:
+            model_dump_str = _safe_serialize(self.model_dict)
             res["model_hash"] = _hash_id(model_dump_str)
-            res["model_dump"] = json.loads(model_dump_str)
-        res["root_span"] = _json_helper(dataclasses.asdict(self._root_span), None)
+            res["model_dict_dumps"] = model_dump_str
+        res["root_span_dumps"] = _safe_serialize(dataclasses.asdict(self._root_span))
         return res
 
     def is_bound(self) -> bool:
@@ -123,16 +125,18 @@ def _hash_id(s: str) -> str:
 
 
 def _fallback_serialize(obj: Any) -> str:
-    return f"<<non-serializable: {type(obj).__qualname__}>>"
-    # try:
-    #     return str(obj)
-    # except Exception:
-    #     return f"<<non-serializable: {type(obj).__qualname__}>>"
+    try:
+        return f"<<non-serializable: {type(obj).__qualname__}>>"
+    except Exception:
+        return "<<non-serializable>>"
 
 
 def _safe_serialize(obj: dict) -> str:
-    return json.dumps(
-        _json_helper(obj, None),
-        skipkeys=True,
-        default=_fallback_serialize,
-    )
+    try:
+        return json.dumps(
+            _json_helper(obj, None),
+            skipkeys=True,
+            default=_fallback_serialize,
+        )
+    except Exception:
+        return "{}"
