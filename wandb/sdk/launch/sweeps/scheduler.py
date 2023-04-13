@@ -21,11 +21,10 @@ from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.utils import (
-    make_launch_sweep_entrypoint,
     create_sweep_command_args,
+    make_launch_sweep_entrypoint,
 )
 from wandb.sdk.lib.runid import generate_id
-
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "

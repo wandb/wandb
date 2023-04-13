@@ -1,14 +1,13 @@
+import json
+import os
+import re
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
-import os
-import json
-import re
 
 import wandb
 from wandb import util
 from wandb.sdk.launch.utils import LaunchError
-
 
 DEFAULT_SWEEP_COMMAND: List[str] = [
     "${env}",
