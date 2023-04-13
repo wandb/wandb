@@ -1112,7 +1112,9 @@ def test_is_instance_recursive():
     assert not is_instance_recursive([1, "a"], Tuple[int, str, float])
 
     # Test with Tuple of variable length
-    # assert is_instance_recursive((1, 2, 3), Tuple[int, ...])
+    assert is_instance_recursive((1, 2, 3), Tuple[int, ...])
+    assert not is_instance_recursive((1, 2, "a"), Tuple[int, ...])
+    assert is_instance_recursive((1, 2, "a"), Tuple[Union[int, str], ...])
 
     # Test with Set
     assert is_instance_recursive({1, 2, 3}, Set[int])

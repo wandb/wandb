@@ -212,8 +212,13 @@ def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
         ):
             return False
 
-        if len(args) == 1:
+        if len(args) == 1 and args[0] != ...:
             (item_type,) = args
+            for item in obj:
+                if not is_instance_recursive(item, item_type):
+                    return False
+        elif len(args) == 2 and args[-1] == ...:
+            item_type = args[0]
             for item in obj:
                 if not is_instance_recursive(item, item_type):
                     return False
