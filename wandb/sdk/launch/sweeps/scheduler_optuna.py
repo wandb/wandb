@@ -90,8 +90,8 @@ class OptunaScheduler(Scheduler):
 
     @property
     def study_string(self) -> str:
-        msg = f"{LOG_PREFIX} {'Loading' if self._wandb_run.resumed else 'Creating'}"
-        msg += f" optuna study: {self.study_name} [storage:'{self._storage_path}'"
+        msg = f"{LOG_PREFIX}{'Loading' if self._wandb_run.resumed else 'Creating'}"
+        msg += f" optuna study: {self.study_name} [storage:'{self.study._storage}'"
         msg += f", direction:'{self.study.direction.name}'"
         msg += f", pruner:'{self.study.pruner.__class__.__name__}'"
         msg += f", sampler:'{self.study.sampler.__class__.__name__}'"
@@ -291,6 +291,12 @@ class OptunaScheduler(Scheduler):
         Save optuna study sqlite data to an artifact in the controller run
         """
         artifact = wandb.Artifact(OptunaComponents.storage.name, type="optuna")
+        if not self._storage_path:
+            wandb.termwarn(
+                f"{LOG_PREFIX}No db storage path found, saving to default path"
+            )
+            self._storage_path = OptunaComponents.storage.value
+
         artifact.add_file(self._storage_path)
         self._wandb_run.log_artifact(artifact)
 
@@ -377,12 +383,12 @@ class OptunaScheduler(Scheduler):
             f"[last metric: {last_value}, total: {orun.num_metrics}]"
         )
 
-        # Delete run in memory, freeing up worker
+        # Delete run in Scheduler memory, freeing up worker
         del self._runs[orun.sweep_run.id]
 
         return True
 
-    def _poll_running_runs(self) -> List[str]:
+    def _poll_running_runs(self) -> None:
         """
         Iterates through runs, getting metrics, reporting to optuna
 
@@ -399,8 +405,6 @@ class OptunaScheduler(Scheduler):
 
         for r in to_kill:
             del self._optuna_runs[r]
-
-        return to_kill
 
     def _make_trial(self) -> Tuple[Dict[str, Any], optuna.Trial]:
         """
