@@ -78,6 +78,34 @@ def mocked_requests_get(*args, **kwargs):
             (),
         ),
         (
+            None,
+            (
+                "system.openmetrics.node1.DCGM_FI_DEV_GPU_TEMP.0",
+                "system.openmetrics.node1.DCGM_FI_DEV_GPU_TEMP.1",
+                "system.openmetrics.node1.DCGM_FI_DEV_MEM_COPY_UTIL.0",
+                "system.openmetrics.node1.DCGM_FI_DEV_MEM_COPY_UTIL.1",
+                "system.openmetrics.node2.DCGM_FI_DEV_GPU_TEMP.0",
+                "system.openmetrics.node2.DCGM_FI_DEV_GPU_TEMP.1",
+                "system.openmetrics.node2.DCGM_FI_DEV_MEM_COPY_UTIL.0",
+                "system.openmetrics.node2.DCGM_FI_DEV_MEM_COPY_UTIL.1",
+            ),
+            (),
+        ),
+        (
+            ".*",
+            (
+                "system.openmetrics.node1.DCGM_FI_DEV_GPU_TEMP.0",
+                "system.openmetrics.node1.DCGM_FI_DEV_GPU_TEMP.1",
+                "system.openmetrics.node1.DCGM_FI_DEV_MEM_COPY_UTIL.0",
+                "system.openmetrics.node1.DCGM_FI_DEV_MEM_COPY_UTIL.1",
+                "system.openmetrics.node2.DCGM_FI_DEV_GPU_TEMP.0",
+                "system.openmetrics.node2.DCGM_FI_DEV_GPU_TEMP.1",
+                "system.openmetrics.node2.DCGM_FI_DEV_MEM_COPY_UTIL.0",
+                "system.openmetrics.node2.DCGM_FI_DEV_MEM_COPY_UTIL.1",
+            ),
+            (),
+        ),
+        (
             {
                 ".*DCGM_FI_DEV_(GPU_TEMP|MEM_COPY_UTIL)": {"gpu": "0"},
             },

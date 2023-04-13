@@ -495,7 +495,7 @@ class Settings:
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    # - {"metric regex pattern 1", "metric regex pattern 2", ...}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str

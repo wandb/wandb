@@ -5,7 +5,7 @@ import threading
 from collections import defaultdict, deque
 from functools import lru_cache
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Mapping, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Mapping, Sequence, Tuple, Union
 
 if sys.version_info >= (3, 8):
     from typing import Final
@@ -115,13 +115,24 @@ class OpenMetricsMetric:
     """Container for all the COUNTER and GAUGE metrics extracted from an OpenMetrics endpoint."""
 
     def __init__(
-        self, name: str, url: str, filters: Mapping[str, Mapping[str, str]]
+        self,
+        name: str,
+        url: str,
+        filters: Union[Mapping[str, Mapping[str, str]], Sequence[str], None],
     ) -> None:
-        self.name = name
-        self.url = url
+        self.name = name  # user-defined name for the endpoint
+        self.url = url  # full URL
 
+        # - filters can be a dict {"<metric regex>": {"<label>": "<filter regex>"}}
+        #   or a sequence of metric regexes. we convert the latter to a dict
+        #   to make it easier to work with.
+        # - the metric regexes are matched against the full metric name,
+        #   i.e. "<endpoint name>.<metric name>".
+        # - by default, all metrics are captured.
         self.filters = (
-            filters if isinstance(filters, Mapping) else {k: {} for k in filters}
+            filters
+            if isinstance(filters, Mapping)
+            else {k: {} for k in filters or [".*"]}
         )
         self.filters_tuple = _nested_dict_to_tuple(self.filters) if self.filters else ()
 
