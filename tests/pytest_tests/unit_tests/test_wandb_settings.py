@@ -1154,3 +1154,23 @@ def test_is_instance_recursive_mapping_and_sequence():
     assert not is_instance_recursive(
         [{"a": 1, "b": 2}, {"c": 3, "d": "4"}], Sequence[Mapping[str, int]]
     )
+
+
+def test_is_instance_recursive_custom_types():
+    class Custom:
+        pass
+
+    class CustomSubclass(Custom):
+        pass
+
+    assert is_instance_recursive(Custom(), Custom)
+    assert is_instance_recursive(CustomSubclass(), Custom)
+    assert not is_instance_recursive(Custom(), CustomSubclass)
+    assert is_instance_recursive(CustomSubclass(), CustomSubclass)
+
+    # container types
+    assert is_instance_recursive([Custom()], List[Custom])
+    assert is_instance_recursive([CustomSubclass()], List[Custom])
+    assert is_instance_recursive(
+        {"a": Custom(), "b": CustomSubclass()}, Mapping[str, Custom]
+    )
