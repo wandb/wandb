@@ -52,6 +52,21 @@ class Span:
     child_spans: Optional[List["Span"]] = field(default=None)
     span_kind: Optional[SpanKind] = field(default=None)
 
+    def add_attribute(self, key: str, value: Any):
+        if self.attributes is None:
+            self.attributes = {}
+        self.attributes[key] = value
+
+    def add_named_result(self, inputs: Dict[str, Any], outputs: Dict[str, Any]):
+        if self.results is None:
+            self.results = []
+        self.results.append(Result(inputs, outputs))
+
+    def add_child_span(self, span: "Span"):
+        if self.child_spans is None:
+            self.child_spans = []
+        self.child_spans.append(span)
+
 
 class WBTraceTree(Media):
     """Media object for trace tree data.

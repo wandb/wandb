@@ -38,16 +38,6 @@ class _LiveSpan(Span):
         self.status_code = status_code
         self.status_message = status_message
 
-    def add_attribute(self, key: str, value: Any):
-        if self.attributes is None:
-            self.attributes = {}
-        self.attributes[key] = value
-
-    def add_named_result(self, inputs: Dict[str, Any], outputs: Dict[str, Any]):
-        if self.results is None:
-            self.results = []
-        self.results.append(Result(inputs, outputs))
-
     def add_result(
         self,
         input_args: List[Any] = [],
@@ -58,11 +48,6 @@ class _LiveSpan(Span):
             output = {"output": output}
         inputs = {**{f"{i}": v for i, v in enumerate(input_args)}, **input_kwargs}
         self.add_named_result(inputs, output)
-
-    def add_child_span(self, span: "Span"):
-        if self.child_spans is None:
-            self.child_spans = []
-        self.child_spans.append(span)
 
     def make_child_span(self, name: str) -> "_LiveSpan":
         child_span = _LiveSpan(
