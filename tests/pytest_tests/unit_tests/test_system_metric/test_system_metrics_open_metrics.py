@@ -13,6 +13,7 @@ from wandb.sdk.internal.system.assets.interfaces import Asset
 from wandb.sdk.internal.system.assets.open_metrics import (
     _nested_dict_to_tuple,
     _should_capture_metric,
+    _tuple_to_nested_dict,
 )
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
@@ -243,3 +244,26 @@ def test_metric_filters(
         )
         is should_capture
     )
+
+
+@pytest.mark.parametrize(
+    "filters,result",
+    [
+        (
+            {".*DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*"}},
+            ((".*DCGM_FI_DEV_POWER_USAGE", ("pod", "wandb-.*")),),
+        ),
+        (
+            {".*DCGM_FI_DEV_POWER_USAGE": {"pod": "wandb-.*", "gpu": ".*"}},
+            ((".*DCGM_FI_DEV_POWER_USAGE", ("pod", "wandb-.*"), ("gpu", ".*")),),
+        ),
+        (
+            {".*DCGM_FI_DEV_POWER_USAGE": {}},
+            ((".*DCGM_FI_DEV_POWER_USAGE",),),
+        ),
+    ],
+)
+def test_metric_filters_nested_dict_to_tuple(filters, result):
+    assert _nested_dict_to_tuple(filters) == result
+    assert filters == _tuple_to_nested_dict(result)
+    # print(_nested_dict_to_tuple(filters))

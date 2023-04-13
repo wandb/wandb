@@ -180,6 +180,66 @@ def _get_program_relpath_from_gitrepo(
     return None
 
 
+def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
+    if type_hint is Any:
+        return True
+
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
+
+    if origin is None:
+        return isinstance(obj, type_hint)
+
+    if origin is Union:
+        return any(is_instance_recursive(obj, arg) for arg in args)
+
+    if issubclass(origin, collections.abc.Mapping):
+        if not isinstance(obj, collections.abc.Mapping):
+            return False
+        key_type, value_type = args
+
+        for key, value in obj.items():
+            if not is_instance_recursive(key, key_type) or not is_instance_recursive(
+                value, value_type
+            ):
+                return False
+
+        return True
+
+    if issubclass(origin, collections.abc.Sequence):
+        if not isinstance(obj, collections.abc.Sequence) or isinstance(
+            obj, (str, bytes, bytearray)
+        ):
+            return False
+
+        if len(args) == 1:
+            (item_type,) = args
+            for item in obj:
+                if not is_instance_recursive(item, item_type):
+                    return False
+        elif len(args) == len(obj):
+            for item, item_type in zip(obj, args):
+                if not is_instance_recursive(item, item_type):
+                    return False
+        else:
+            return False
+
+        return True
+
+    if issubclass(origin, collections.abc.Set):
+        if not isinstance(obj, collections.abc.Set):
+            return False
+
+        (item_type,) = args
+        for item in obj:
+            if not is_instance_recursive(item, item_type):
+                return False
+
+        return True
+
+    return False
+
+
 @enum.unique
 class Source(enum.IntEnum):
     OVERRIDE: int = 0
@@ -788,65 +848,6 @@ class Settings:
     @staticmethod
     def _validator_factory(hint: Any) -> Callable[[Any], bool]:  # noqa: C901
         """Return a factory for setting type validators."""
-
-        def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
-            if type_hint is Any:
-                return True
-
-            origin = get_origin(type_hint)
-            args = get_args(type_hint)
-
-            if origin is None:
-                return isinstance(obj, type_hint)
-
-            if origin is Union:
-                return any(is_instance_recursive(obj, arg) for arg in args)
-
-            if issubclass(origin, collections.abc.Mapping):
-                if not isinstance(obj, collections.abc.Mapping):
-                    return False
-                key_type, value_type = args
-
-                for key, value in obj.items():
-                    if not is_instance_recursive(
-                        key, key_type
-                    ) or not is_instance_recursive(value, value_type):
-                        return False
-
-                return True
-
-            if issubclass(origin, collections.abc.Sequence):
-                if not isinstance(obj, collections.abc.Sequence) or isinstance(
-                    obj, (str, bytes, bytearray)
-                ):
-                    return False
-
-                if len(args) == 1:
-                    (item_type,) = args
-                    for item in obj:
-                        if not is_instance_recursive(item, item_type):
-                            return False
-                elif len(args) == len(obj):
-                    for item, item_type in zip(obj, args):
-                        if not is_instance_recursive(item, item_type):
-                            return False
-                else:
-                    return False
-
-                return True
-
-            if issubclass(origin, collections.abc.Set):
-                if not isinstance(obj, collections.abc.Set):
-                    return False
-
-                (item_type,) = args
-                for item in obj:
-                    if not is_instance_recursive(item, item_type):
-                        return False
-
-                return True
-
-            return False
 
         def helper(value: Any) -> bool:
             return is_instance_recursive(value, hint)
