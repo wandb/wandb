@@ -7,7 +7,7 @@ from urllib import parse
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
+from wandb.sdk.lib import hashutil, runid
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -409,7 +409,7 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                class_id = hashlib.md5(
+                class_id = hashutil._md5(
                     str(self._classes._class_set).encode("utf-8")
                 ).hexdigest()
                 class_name = os.path.join(
