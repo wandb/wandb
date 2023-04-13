@@ -9,8 +9,6 @@ from pprint import pformat
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple
 
-from wandb.errors import CommError
-
 import click
 import optuna
 
@@ -91,6 +89,15 @@ class OptunaScheduler(Scheduler):
         return self.study.study_name
 
     @property
+    def study_string(self) -> str:
+        msg = f"{LOG_PREFIX} {'Loading' if self._wandb_run.resumed else 'Creating'}"
+        msg += f" optuna study: {self.study_name} [storage:'{self._storage_path}'"
+        msg += f", direction:'{self.study.direction.name}'"
+        msg += f", pruner:'{self.study.pruner.__class__.__name__}'"
+        msg += f", sampler:'{self.study.sampler.__class__.__name__}'"
+        return msg
+
+    @property
     def formatted_trials(self) -> str:
         """
         Prints out trials from the current optuna study in a pleasing
@@ -101,6 +108,7 @@ class OptunaScheduler(Scheduler):
         trials = {}
         for trial in self.study.trials:
             i = trial.number + 1
+            i_str = f"trial-{'0' * max(0, 2 - int(i / 10))}{i}"
             vals = list(trial.intermediate_values.values())
             if len(vals) > 0:
                 best = (
@@ -109,10 +117,10 @@ class OptunaScheduler(Scheduler):
                     else min(vals)
                 )
                 trials[
-                    f"trial-{i}"
-                ] = f"total: {len(vals)}, best: {round(best, 5)}, last: {round(vals[-1], 5)}"
+                    f"trial-{i_str}"
+                ] = f"state: {trial.state.name}, metrics: {len(vals)}, best: {round(best, 5)}, last: {round(vals[-1], 5)}"
             else:
-                trials[f"trial-{i}"] = "total: 0, best: None, last: None"
+                trials[f"trial-{i_str}"] = "total: 0, best: None, last: None"
         return pformat(trials)
 
     def _validate_optuna_study(self, study: optuna.Study) -> Optional[str]:
@@ -229,7 +237,7 @@ class OptunaScheduler(Scheduler):
             if existing_storage:
                 wandb.termwarn("Resuming state w/ user-provided study is unsupported")
             self._study = study
-            # TODO(gst): Printing same as below for user loaded study
+            wandb.termlog(self.study_string)
             return
 
         # making a new study
@@ -250,19 +258,7 @@ class OptunaScheduler(Scheduler):
             wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
 
         direction = self._sweep_config.get("metric", {}).get("goal")
-        create_msg = f"{LOG_PREFIX} {'Loading' if existing_storage else 'Creating'}"
         self._storage_path = existing_storage or OptunaComponents.storage.value
-        create_msg += (
-            f" optuna study: {self.study_name} [storage:'{self._storage_path}'"
-        )
-        if direction:
-            create_msg += f", direction:'{direction}'"
-        if pruner:
-            create_msg += f", pruner:'{pruner.__class__}'"
-        if sampler:
-            create_msg += f", sampler:'{sampler.__class__}'"
-
-        wandb.termlog(f"{create_msg}]")
         self._study = optuna.create_study(
             study_name=self.study_name,
             storage=f"sqlite:///{self._storage_path}",
@@ -271,6 +267,7 @@ class OptunaScheduler(Scheduler):
             load_if_exists=True,
             direction=direction,
         )
+        wandb.termlog(self.study_string)
 
         if existing_storage:
             wandb.termlog(
@@ -380,7 +377,7 @@ class OptunaScheduler(Scheduler):
             f"[last metric: {last_value}, total: {orun.num_metrics}]"
         )
 
-        # Delete run in mem, freeing up worker
+        # Delete run in memory, freeing up worker
         del self._runs[orun.sweep_run.id]
 
         return True
@@ -488,40 +485,8 @@ class OptunaScheduler(Scheduler):
     def _exit(self) -> None:
         pass
 
-    def _update_run_states(self) -> None:
-        """Iterate through runs.
-
-        Get state from backend and deletes runs if not in running state. Threadsafe.
-        """
-        # TODO(gst): move to better constants place
-        end_states = [
-            "crashed",
-            "failed",
-            "killed",
-            "finished",
-            "preempted",
-        ]
-        run_states = ["running", "pending", "preempting"]
-
-        _runs_to_remove: List[str] = []
-        for run_id, run in self._yield_runs():
-            try:
-                _state = self._api.get_run_state(self._entity, self._project, run_id)
-                _rqi_state = run.queued_run.state if run.queued_run else None
-                if not _state or _state in end_states or _rqi_state == "failed":
-                    logger.debug(
-                        f"({run_id}) run-state:{_state}, rqi-state:{_rqi_state}"
-                    )
-                    run.state = RunState.DEAD
-                    _runs_to_remove.append(run_id)
-                elif _state in run_states:
-                    run.state = RunState.ALIVE
-            except CommError as e:
-                logger.debug(
-                    f"Issue when getting state for run ({run_id}) with error: {e}"
-                )
-                run.state = RunState.UNKNOWN
-                continue
+    def _cleanup_runs(self, runs_to_remove) -> None:
+        logger.debug(f"[_cleanup_runs] not removing: {runs_to_remove}")
 
 
 def validate_optuna_pruner(args: Dict[str, Any]) -> bool:

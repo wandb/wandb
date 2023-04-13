@@ -928,7 +928,6 @@ def sweep(
 @click.option(
     "--num_workers",
     "-n",
-    default=1,
     help="Number of concurrent jobs a scheduler can run",
 )
 @click.argument("config", required=False, type=click.Path(exists=True))
@@ -1025,6 +1024,7 @@ def launch_sweep(
 
     num_workers = num_workers or scheduler_args.get("num_workers", 8)
     scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
+        sweep_type=_type,
         sweep_config=parsed_sweep_config,
         queue=queue,
         project=project,

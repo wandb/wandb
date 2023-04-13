@@ -108,6 +108,7 @@ def load_launch_sweep_config(config: Optional[str]) -> Any:
 
 
 def construct_scheduler_entrypoint(
+    sweep_type: str,
     sweep_config: Dict[str, Any],
     queue: str,
     project: str,
@@ -143,6 +144,8 @@ def construct_scheduler_entrypoint(
         "wandb",
         "scheduler",
         "WANDB_SWEEP_ID",
+        "--sweep_type",
+        sweep_type,
         "--queue",
         f"{queue!r}",
         "--project",
