@@ -210,6 +210,8 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
     flags_no_booleans: List[str] = []
     # (4) flags as a dictionary (used for constructing a json)
     flags_dict: Dict[str, Any] = {}
+    # (5) flags without equals (e.g. --foo bar)
+    args_no_equals: List[str] = []
     for param, config in command["args"].items():
         _value: Any = config.get("value", None)
         if _value is None:
@@ -217,6 +219,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)
         flags_no_hyphens.append(_flag)
+        args_no_equals += [f"--{param}", str(_value)]
         if isinstance(_value, bool):
             # omit flags if they are boolean and false
             if _value:
@@ -226,6 +229,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         flags_dict[param] = _value
     return {
         "args": flags,
+        "args_no_equals": args_no_equals,
         "args_no_hyphens": flags_no_hyphens,
         "args_no_boolean_flags": flags_no_booleans,
         "args_json": [json.dumps(flags_dict)],
