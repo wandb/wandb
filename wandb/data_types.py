@@ -23,8 +23,8 @@ import logging
 import os
 import pprint
 import tempfile
-from typing import Optional
 from decimal import Decimal
+from typing import Optional
 
 import wandb
 from wandb import util

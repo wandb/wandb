@@ -19,7 +19,7 @@ class StatusCode(str, Enum):
     SUCCESS = "SUCCESS"
     ERROR = "ERROR"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.value)
 
 
@@ -29,7 +29,7 @@ class SpanKind(str, Enum):
     AGENT = "AGENT"
     TOOL = "TOOL"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.value)
 
 
@@ -52,17 +52,17 @@ class Span:
     child_spans: Optional[List["Span"]] = field(default=None)
     span_kind: Optional[SpanKind] = field(default=None)
 
-    def add_attribute(self, key: str, value: Any):
+    def add_attribute(self, key: str, value: Any) -> None:
         if self.attributes is None:
             self.attributes = {}
         self.attributes[key] = value
 
-    def add_named_result(self, inputs: Dict[str, Any], outputs: Dict[str, Any]):
+    def add_named_result(self, inputs: Dict[str, Any], outputs: Dict[str, Any]) -> None:
         if self.results is None:
             self.results = []
         self.results.append(Result(inputs, outputs))
 
-    def add_child_span(self, span: "Span"):
+    def add_child_span(self, span: "Span") -> None:
         if self.child_spans is None:
             self.child_spans = []
         self.child_spans.append(span)
