@@ -1,4 +1,3 @@
-import json
 from unittest.mock import MagicMock
 
 import kubernetes
@@ -31,7 +30,7 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         project = MagicMock()
         project.resource_args = {
             "kubernetes": {
-                "config_file": str(assets_path("launch_k8s_config.yaml")),
+                "configFile": str(assets_path("launch_k8s_config.yaml")),
             }
         }
         project.target_entity = entity_name
@@ -88,13 +87,11 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
 
         setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
 
-        job_spec = json.dumps({"metadata": {"annotations": {"x": "y"}}})
-
         project = MagicMock()
         project.resource_args = {
             "kubernetes": {
-                "config_file": str(assets_path("launch_k8s_config.yaml")),
-                "job_spec": job_spec,
+                "configFile": str(assets_path("launch_k8s_config.yaml")),
+                "metadata": {"annotations": {"x": "y"}},
             }
         }
         project.target_entity = entity_name
@@ -185,9 +182,10 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
 
     def mock_create_from_yaml(yaml_objects, jobs_dict, mock_status):
         jobd = yaml_objects[0]
-        name = jobd["metadata"]["name"]
+        name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "testname"
+            jobd["metadata"]["name"] = name
 
         metadata = MockDict(jobd["metadata"])
         metadata.labels = metadata.get("labels", {})
