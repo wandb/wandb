@@ -338,9 +338,6 @@ class OptunaScheduler(Scheduler):
             return []
 
         metric_name = self._sweep_config["metric"]["name"]
-
-        # TODO(gst): make this more robust to typos --> warn if None? Scan for likely other metrics?
-        # TODO(gst): how do we get metrics for already finished runs?
         history = api_run.scan_history(keys=["_step", metric_name])
         metrics = [x[metric_name] for x in history]
 
@@ -383,7 +380,7 @@ class OptunaScheduler(Scheduler):
             f"[last metric: {last_value}, total: {orun.num_metrics}]"
         )
 
-        # TODO(gst): do this in scheduler process
+        # Delete run in mem, freeing up worker
         del self._runs[orun.sweep_run.id]
 
         return True
