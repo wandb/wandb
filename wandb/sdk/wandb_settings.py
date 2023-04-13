@@ -105,21 +105,21 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool.")
 
 
-def _str_as_dict(val: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Parse a string as a dict."""
-    if isinstance(val, dict):
+def _str_as_json(val: Union[str, Dict[str, Any]]) -> Any:
+    """Parse a string as a json object."""
+    if not isinstance(val, str):
         return val
     try:
-        return dict(json.loads(val))
+        return json.loads(val)
     except (AttributeError, ValueError):
         pass
 
     # todo: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a dict. ",
+        f"Could not parse value {val} as JSON. ",
         repeat=False,
     )
-    raise UsageError(f"Could not parse value {val} as a dict.")
+    raise UsageError(f"Could not parse value {val} as JSON.")
 
 
 def _str_as_tuple(val: Union[str, Sequence[str]]) -> Tuple[str, ...]:
@@ -493,9 +493,10 @@ class Settings:
     _stats_join_assets: bool  # join metrics from different assets before sending to backend
     _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
-    # open metrics filters
-    # {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    _stats_open_metrics_filters: Union[Set[str], Mapping[str, Mapping[str, str]]]
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - {"metric regex pattern 1", "metric regex pattern 2", ...}
+    _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -608,7 +609,7 @@ class Settings:
             },
             _disable_stats={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
-            _extra_http_headers={"preprocessor": _str_as_dict},
+            _extra_http_headers={"preprocessor": _str_as_json},
             _network_buffer={"preprocessor": int},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
@@ -662,14 +663,12 @@ class Settings:
                 "hook": lambda x: self._path_convert(x),
             },
             _stats_open_metrics_endpoints={
-                "preprocessor": _str_as_dict,
+                "preprocessor": _str_as_json,
             },
             _stats_open_metrics_filters={
                 # capture all metrics on all endpoints by default
-                "value": {
-                    ".*": {},
-                },
-                "preprocessor": _str_as_dict,
+                "value": {".*"},
+                "preprocessor": _str_as_json,
             },
             _tmp_code_dir={
                 "value": "code",

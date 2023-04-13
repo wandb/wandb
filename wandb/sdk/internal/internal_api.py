@@ -201,7 +201,7 @@ class Api:
         #  keeping this code here to limit scope and so that it is easy to remove later
         extra_http_headers = self.settings(
             "_extra_http_headers"
-        ) or wandb.sdk.wandb_settings._str_as_dict(
+        ) or wandb.sdk.wandb_settings._str_as_json(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
         )
 

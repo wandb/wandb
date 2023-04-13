@@ -120,8 +120,12 @@ class OpenMetricsMetric:
     ) -> None:
         self.name = name
         self.url = url
-        self.filters = filters
-        self.filters_tuple = _nested_dict_to_tuple(filters) if filters else ()
+
+        self.filters = (
+            filters if isinstance(filters, Mapping) else {k: {} for k in filters}
+        )
+        self.filters_tuple = _nested_dict_to_tuple(self.filters) if self.filters else ()
+
         self._session: Optional["requests.Session"] = None
         self.samples: "Deque[dict]" = deque([])
         # {"<metric name>": {"<labels hash>": <index>}}

@@ -19,7 +19,9 @@ class SettingsStatic:
     _stats_join_assets: bool
     _stats_neuron_monitor_config_path: Optional[str]
     _stats_open_metrics_endpoints: Mapping[str, str]
-    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
+    _stats_open_metrics_filters: Union[
+        Sequence[str], Mapping[str, Mapping[str, str]], None
+    ]
     files_dir: str
     program_relpath: Optional[str]
     log_internal: str
