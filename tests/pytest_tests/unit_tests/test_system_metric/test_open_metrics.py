@@ -266,4 +266,3 @@ def test_metric_filters(
 def test_metric_filters_nested_dict_to_tuple(filters, result):
     assert _nested_dict_to_tuple(filters) == result
     assert filters == _tuple_to_nested_dict(result)
-    # print(_nested_dict_to_tuple(filters))
