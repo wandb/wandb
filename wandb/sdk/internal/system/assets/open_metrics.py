@@ -4,7 +4,6 @@ import sys
 import threading
 from collections import defaultdict, deque
 from functools import lru_cache
-from hashlib import md5
 from types import ModuleType
 from typing import TYPE_CHECKING, Dict, List, Mapping, Tuple, Union
 
@@ -18,7 +17,7 @@ import requests.adapters
 import urllib3
 
 import wandb
-from wandb.sdk.lib import telemetry
+from wandb.sdk.lib import hashutil, telemetry
 
 from .aggregators import aggregate_last, aggregate_mean
 from .interfaces import Interface, Metric, MetricsMonitor
@@ -172,7 +171,7 @@ class OpenMetricsMetric:
                     continue
 
                 # md5 hash of the labels
-                label_hash = md5(str(labels).encode("utf-8")).hexdigest()
+                label_hash = hashutil._md5(str(labels).encode("utf-8")).hexdigest()
                 if label_hash not in self.label_map[name]:
                     # store the index of the label hash in the label map
                     self.label_map[name][label_hash] = len(self.label_map[name])
