@@ -338,7 +338,7 @@ class Scheduler(ABC):
         with self._threading_lock:
             yield from self._runs.items()
 
-    def _cleanup_runs(self, runs_to_remove) -> None:
+    def _cleanup_runs(self, runs_to_remove: List[str]) -> None:
         """Helper for removing runs from memory.
 
         Can be overloaded to prevent deletion of runs, which is useful
