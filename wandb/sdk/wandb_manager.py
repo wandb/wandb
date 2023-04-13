@@ -211,9 +211,12 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 
-    def _inform_attach(self, attach_id: str) -> Dict[str, Any]:
+    def _inform_attach(self, attach_id: str) -> Optional[Dict[str, Any]]:
         svc_iface = self._get_service_interface()
-        response = svc_iface._svc_inform_attach(attach_id=attach_id)
+        try:
+            response = svc_iface._svc_inform_attach(attach_id=attach_id)
+        except Exception:
+            return None
         return settings_dict_from_pbmap(response._settings_map)
 
     def _inform_finish(self, run_id: Optional[str] = None) -> None:
