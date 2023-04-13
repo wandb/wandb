@@ -1,3 +1,4 @@
+import collections.abc
 import configparser
 import enum
 import getpass
@@ -429,7 +430,7 @@ class Settings:
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     # open metrics filters
     # {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    _stats_open_metrics_filters: Mapping[str, Mapping[str, str]]
+    _stats_open_metrics_filters: Union[Set[str], Mapping[str, Mapping[str, str]]]
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -785,24 +786,70 @@ class Settings:
 
     # helper methods for validating values
     @staticmethod
-    def _validator_factory(hint: Any) -> Callable[[Any], bool]:
-        """Return a factory for type validators.
+    def _validator_factory(hint: Any) -> Callable[[Any], bool]:  # noqa: C901
+        """Return a factory for setting type validators."""
 
-        Given a type hint for a setting into a function that type checks the argument.
-        """
-        origin, args = get_origin(hint), get_args(hint)
+        def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
+            if type_hint is Any:
+                return True
 
-        def helper(x: Any) -> bool:
+            origin = get_origin(type_hint)
+            args = get_args(type_hint)
+
             if origin is None:
-                return isinstance(x, hint)
-            elif origin is Union:
-                return isinstance(x, args) if args is not None else True
-            else:
-                return (
-                    isinstance(x, origin) and all(isinstance(y, args) for y in x)
-                    if args is not None
-                    else isinstance(x, origin)
-                )
+                return isinstance(obj, type_hint)
+
+            if origin is Union:
+                return any(is_instance_recursive(obj, arg) for arg in args)
+
+            if issubclass(origin, collections.abc.Mapping):
+                if not isinstance(obj, collections.abc.Mapping):
+                    return False
+                key_type, value_type = args
+
+                for key, value in obj.items():
+                    if not is_instance_recursive(
+                        key, key_type
+                    ) or not is_instance_recursive(value, value_type):
+                        return False
+
+                return True
+
+            if issubclass(origin, collections.abc.Sequence):
+                if not isinstance(obj, collections.abc.Sequence) or isinstance(
+                    obj, (str, bytes, bytearray)
+                ):
+                    return False
+
+                if len(args) == 1:
+                    (item_type,) = args
+                    for item in obj:
+                        if not is_instance_recursive(item, item_type):
+                            return False
+                elif len(args) == len(obj):
+                    for item, item_type in zip(obj, args):
+                        if not is_instance_recursive(item, item_type):
+                            return False
+                else:
+                    return False
+
+                return True
+
+            if issubclass(origin, collections.abc.Set):
+                if not isinstance(obj, collections.abc.Set):
+                    return False
+
+                (item_type,) = args
+                for item in obj:
+                    if not is_instance_recursive(item, item_type):
+                        return False
+
+                return True
+
+            return False
+
+        def helper(value: Any) -> bool:
+            return is_instance_recursive(value, hint)
 
         return helper
 
