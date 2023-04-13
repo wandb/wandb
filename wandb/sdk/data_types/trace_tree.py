@@ -101,7 +101,7 @@ class WBTraceTree(Media):
         # Here we use `dumps` to put things into string format. This is because
         # the complex data structures create problems for gorilla history to parquet.
         if self._model_dict is not None:
-            model_dump_str = _safe_serialize(self.model_dict)
+            model_dump_str = _safe_serialize(self._model_dict)
             res["model_hash"] = _hash_id(model_dump_str)
             res["model_dict_dumps"] = model_dump_str
         res["root_span_dumps"] = _safe_serialize(dataclasses.asdict(self._root_span))
