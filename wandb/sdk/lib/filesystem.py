@@ -144,7 +144,7 @@ def safe_open(
         - In 'x' mode, it checks at the beginning AND end of the write and fails if the
             file exists either time.
     """
-    path = Path(path)
+    path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if "x" in mode and path.exists():
@@ -160,7 +160,7 @@ def safe_open(
     with tempfile.TemporaryDirectory(dir=path.parent) as tmp_dir:
         tmp_path = Path(tmp_dir) / path.name
 
-        if ("a" in mode or "+" in mode) and "w" not in mode and path.exists():
+        if ("r" in mode or "a" in mode) and path.exists():
             # We need to copy the original file in order to support reads and appends.
             # TODO (hugh): use reflinks to avoid the copy on platforms that support it.
             shutil.copy2(path, tmp_path)
