@@ -63,6 +63,15 @@ class SweepRun:
 class Scheduler(ABC):
     """A controller/agent that populates a Launch RunQueue from a hyperparameter sweep."""
 
+    END_STATES = [
+        "crashed",
+        "failed",
+        "killed",
+        "finished",
+        "preempted",
+    ]
+    RUN_STATES = ["running", "pending", "preempting"]
+
     def __init__(
         self,
         api: Api,
@@ -119,6 +128,12 @@ class Scheduler(ABC):
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
+<<<<<<< Updated upstream
+=======
+        # Scheduler wandb run
+        self._wandb_run = self._init_wandb_run()
+
+>>>>>>> Stashed changes
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         """Called when worker available."""
@@ -329,6 +344,17 @@ class Scheduler(ABC):
         with self._threading_lock:
             yield from self._runs.items()
 
+    def _cleanup_runs(self, runs_to_remove) -> None:
+        """Helper for removing runs from memory.
+
+        Can be overloaded to prevent deletion of runs, which is useful
+        for debugging or when polling on completed runs.
+        """
+        with self._threading_lock:
+            for run_id in runs_to_remove:
+                wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
+                del self._runs[run_id]
+
     def _stop_runs(self) -> None:
         to_delete = []
         for run_id, _ in self._yield_runs():
@@ -374,40 +400,27 @@ class Scheduler(ABC):
 
         Get state from backend and deletes runs if not in running state. Threadsafe.
         """
-        # TODO(gst): move to better constants place
-        end_states = [
-            "crashed",
-            "failed",
-            "killed",
-            "finished",
-            "preempted",
-        ]
-        run_states = ["running", "pending", "preempting"]
-
-        _runs_to_remove: List[str] = []
+        runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
             try:
-                _state = self._api.get_run_state(self._entity, self._project, run_id)
-                _rqi_state = run.queued_run.state if run.queued_run else None
-                if not _state or _state in end_states or _rqi_state == "failed":
-                    _logger.debug(
-                        f"({run_id}) run-state:{_state}, rqi-state:{_rqi_state}"
-                    )
-                    run.state = RunState.DEAD
-                    _runs_to_remove.append(run_id)
-                elif _state in run_states:
-                    run.state = RunState.ALIVE
+                state = self._api.get_run_state(self._entity, self._project, run_id)
             except CommError as e:
-                _logger.debug(
-                    f"Issue when getting state for run ({run_id}) with error: {e}"
-                )
+                _logger.debug(f"error getting state for run ({run_id}): {e}")
                 run.state = RunState.UNKNOWN
                 continue
-        # Remove any runs that are dead
-        with self._threading_lock:
-            for run_id in _runs_to_remove:
-                wandb.termlog(f"{LOG_PREFIX}Cleaning up finished run ({run_id})")
-                del self._runs[run_id]
+
+            rqi_state = run.queued_run.state if run.queued_run else None
+            if not state or state in self.END_STATES or rqi_state == "failed":
+                _logger.debug(f"({run_id}) states: ({state}, {rqi_state})")
+                run.state = RunState.DEAD
+                runs_to_remove.append(run_id)
+            elif state in self.RUN_STATES:
+                run.state = RunState.ALIVE
+            else:
+                _logger.debug(f"({run_id}) unknown state: {state}")
+                run.state = RunState.UNKNOWN
+
+        self._cleanup_runs(runs_to_remove)
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
         """Convert a sweeprun into a launch job then push to runqueue."""
