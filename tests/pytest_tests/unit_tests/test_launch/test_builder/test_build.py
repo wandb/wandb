@@ -11,7 +11,6 @@ def test_get_env_vars_dict(mocker):
 
     assert resp == {
         "WANDB_API_KEY": "test-api-key",
-        "WANDB_ARGS": "",
         "WANDB_ARTIFACTS": "test-wandb-artifacts",
         "WANDB_BASE_URL": "base_url",
         "WANDB_CONFIG": "test-wandb-artifacts",
@@ -46,6 +45,7 @@ def _setup(mocker):
     launch_project.name = "test-name"
     launch_project.launch_spec = {"author": "test-author"}
     launch_project.override_config = {}
+    launch_project.override_args = []
     launch_project.override_artifacts = {}
 
     mocker.launch_project = launch_project
