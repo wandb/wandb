@@ -37,6 +37,7 @@ SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
 }
 SWEEP_CONFIG_BAYES: Dict[str, Any] = {
     "name": "mock-sweep-bayes",
+    "command": ["echo", "hello world"],
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
