@@ -50,7 +50,7 @@ import requests
 import yaml
 
 import wandb
-from wandb.env import get_app_url
+import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
@@ -256,7 +256,7 @@ VALUE_BYTES_LIMIT = 100000
 def app_url(api_url: str) -> str:
     """Return the frontend app url without a trailing slash."""
     # TODO: move me to settings
-    app_url = get_app_url()
+    app_url = wandb.env.get_app_url()
     if app_url is not None:
         return str(app_url.strip("/"))
     if "://api.wandb.test" in api_url:
@@ -881,9 +881,11 @@ def no_retry_auth(e: Any) -> bool:
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise AuthenticationError(
-            "The API key is either invalid or missing, or the host is incorrect. "
-            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
-            "The host defaults to 'https://api.wandb.ai' if not specified. "
+            "The API key you provided is either invalid or missing.  "
+            f"If the `{wandb.env.API_KEY}` environment variable is set, make sure it is correct. "
+            "Otherwise, to resolve this issue, you may try running the 'wandb login --relogin' command. "
+            "If you are using a local server, make sure that you're using the correct hostname. "
+            "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
     elif wandb.run:
