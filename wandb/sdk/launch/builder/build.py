@@ -26,7 +26,6 @@ from .._project_spec import (
     EntryPoint,
     EntrypointDefaults,
     LaunchProject,
-    compute_command_args,
     fetch_and_validate_project,
 )
 from ..utils import (
@@ -265,7 +264,7 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         )
     if launch_project.override_args:
         env_vars["WANDB_ARGS"] = " ".join(
-            compute_command_args(launch_project.override_args)
+            [str(a) for a in launch_project.override_args]
         )
     return env_vars
 

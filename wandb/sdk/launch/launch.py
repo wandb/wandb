@@ -146,7 +146,6 @@ def _run(
     docker_image: Optional[str],
     entry_point: Optional[List[str]],
     version: Optional[str],
-    parameters: Optional[Dict[str, Any]],
     resource: str,
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
@@ -167,7 +166,6 @@ def _run(
         resource,
         entry_point,
         version,
-        parameters,
         resource_args,
         launch_config,
         run_id,
@@ -206,7 +204,6 @@ def run(
     job: Optional[str] = None,
     entry_point: Optional[List[str]] = None,
     version: Optional[str] = None,
-    parameters: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
     resource: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
@@ -227,8 +224,6 @@ def run(
     entry_point: Entry point to run within the project. Defaults to using the entry point used
         in the original run for wandb URIs, or main.py for git repository URIs.
     version: For Git-based projects, either a commit hash or a branch name.
-    parameters: Parameters (dictionary) for the entry point command. Defaults to using the
-        the parameters used to run the original run.
     name: Name run under which to launch the run.
     resource: Execution backend for the run.
     resource_args: Resource related arguments for launching runs onto a remote backend.
@@ -281,7 +276,6 @@ def run(
         docker_image=docker_image,
         entry_point=entry_point,
         version=version,
-        parameters=parameters,
         resource=resource,
         resource_args=resource_args,
         launch_config=config,
