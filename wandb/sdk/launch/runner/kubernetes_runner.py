@@ -12,7 +12,7 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module
 
-from .._project_spec import LaunchProject, get_entry_point_command
+from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
@@ -246,14 +246,7 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         secret = None
-        # only need to do this if user is providing image, on build, our image sets an entrypoint
         entry_point = launch_project.get_single_entry_point()
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-        if launch_project.docker_image and entry_cmd:
-            # if user hardcodes cmd into their image, we don't need to run on top of that
-            for cont in containers:
-                cont["command"] = entry_cmd
-
         if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
@@ -285,6 +278,13 @@ class KubernetesRunner(AbstractRunner):
                 ]
 
             containers[0]["image"] = image_uri
+
+        inject_entrypoint_and_args(
+            containers,
+            entry_point,
+            launch_project.override_args,
+            launch_project.override_entrypoint is not None,
+        )
 
         env_vars = get_env_vars_dict(launch_project, self._api)
         for cont in containers:
@@ -356,6 +356,21 @@ class KubernetesRunner(AbstractRunner):
             submitted_job.wait()
 
         return submitted_job
+
+
+def inject_entrypoint_and_args(
+    containers: List[dict],
+    entry_point: Optional[EntryPoint],
+    override_args: List[str],
+    should_override_entrypoint: bool,
+) -> None:
+    for i in range(len(containers)):
+        if override_args:
+            containers[i]["args"] = override_args
+        if entry_point and (
+            not containers[i].get("command") or should_override_entrypoint
+        ):
+            containers[i]["command"] = entry_point.command
 
 
 def maybe_create_imagepull_secret(
