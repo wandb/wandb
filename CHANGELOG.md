@@ -1,3 +1,45 @@
+## 0.14.2 (April 7, 2023)
+
+### :hammer: Fixes
+* fix(sdk): fix `wandb sync` regression by @kptkin in https://github.com/wandb/wandb/pull/5306
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.1...v0.14.2
+
+## 0.14.1 (April 5, 2023)
+
+### :magic_wand: Enhancements
+* feat(artifacts): improve run.log_artifact() with default type and path references by @moredatarequired in https://github.com/wandb/wandb/pull/5131
+* feat(artifacts): add opt-in support for async artifact upload by @speezepearson in https://github.com/wandb/wandb/pull/4864
+* perf(sdk): update summary for changed keys only by @dmitryduev in https://github.com/wandb/wandb/pull/5150
+* feat(sdk): use a persistent session object for GraphQL requests by @moredatarequired in https://github.com/wandb/wandb/pull/5075
+* feat(sdk): allow setting of extra headers for the gql client by @dmitryduev in https://github.com/wandb/wandb/pull/5237
+* feat(sdk): allow filtering metrics based on OpenMetrics endpoints by @dmitryduev in https://github.com/wandb/wandb/pull/5282
+### :hammer: Fixes
+* fix(artifacts): more informative message when failing to create staging artifact directory  by @moredatarequired in https://github.com/wandb/wandb/pull/5067
+* fix(launch): set default value for Kubernetes backoffLimit to 0 by @KyleGoyette in https://github.com/wandb/wandb/pull/5072
+* fix(sdk): remove default sorting when dumping config into a yaml file by @kptkin in https://github.com/wandb/wandb/pull/5127
+* fix(media): fix encoding for html types on windows by @kptkin in https://github.com/wandb/wandb/pull/5180
+* fix(sdk): clean up auto resume state when initializing a new run by @kptkin in https://github.com/wandb/wandb/pull/5184
+* fix(sdk): harden `wandb.init()` error handling for backend errors by @kptkin in https://github.com/wandb/wandb/pull/5023
+* fix(sdk): fix system monitor shutdown logic by @dmitryduev in https://github.com/wandb/wandb/pull/5227
+* fix(launch): allow users to specify pinned versions in requirements.txt by @KyleGoyette in https://github.com/wandb/wandb/pull/5226
+* fix(sdk): make `wandb.log()` handle empty string values properly by @dannygoldstein in https://github.com/wandb/wandb/pull/5275
+* fix(sdk): raise exception when accessing methods and attributes of a finished run by @kptkin in https://github.com/wandb/wandb/pull/5013
+### :books: Docs
+* docs(launch):  add documentation for launch by @iveksl2 in https://github.com/wandb/wandb/pull/4596
+* docs(sdk): add documentation for Object3D media type by @ssisk in https://github.com/wandb/wandb/pull/4810
+* docs(sdk): remove duplicate docstring in keras integration by @Gladiator07 in https://github.com/wandb/wandb/pull/5289
+* docs(artifacts): convert docstrings to Google convention by @moredatarequired in https://github.com/wandb/wandb/pull/5276
+### :nail_care: Cleanup
+* refactor(artifacts): use 'secrets' module instead of custom random token generator by @moredatarequired in https://github.com/wandb/wandb/pull/5050
+* refactor(artifacts): move _manifest_json_from_proto to sender.py by @moredatarequired in https://github.com/wandb/wandb/pull/5178
+
+## New Contributors
+* @iveksl2 made their first contribution in https://github.com/wandb/wandb/pull/4596
+* @Gladiator07 made their first contribution in https://github.com/wandb/wandb/pull/5289
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.0...v0.14.1
+
 ## 0.14.0 (March 14, 2023)
 
 ### :magic_wand: Enhancements
