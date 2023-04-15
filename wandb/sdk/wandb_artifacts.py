@@ -271,6 +271,13 @@ class Artifact(ArtifactInterface):
         return self._name
 
     @property
+    def full_name(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.full_name
+
+        return super().full_name
+
+    @property
     def state(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.state
