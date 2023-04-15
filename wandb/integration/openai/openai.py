@@ -3,9 +3,11 @@ import datetime
 
 import wandb
 from wandb.integration.openai import gorilla
+from wandb.integration.openai.autologging_utils import disable_autologging
 from wandb.integration.openai.utils import (
     _gen_classes_to_patch,
     _patch_method_if_available,
+    safe_patch,
 )
 from wandb.sdk.data_types import trace_tree
 
@@ -95,13 +97,21 @@ def parse_request_and_response_by_object(request, response):
         return None
 
 
+def initialize_run(**run_args):
+    """Initializes a Weights & Biases run."""
+    if wandb.run is None:
+        run = wandb.init(**run_args)
+    else:
+        run = wandb.run
+
+
 def log_api_request_and_response(request, response):
     """Logs the API request and response to Weights & Biases."""
-    _run = wandb.run if wandb.run is not None else wandb.init(project="openai_logging")
+
     # Log the API request and response to Weights & Biases
     trace = parse_request_and_response_by_object(request, response)
     if trace is not None:
-        _run.log({"trace": trace})
+        wandb.log({"trace": trace})
 
 
 def create_impl_wandb(original, *args, **kwargs):
@@ -113,8 +123,9 @@ def create_impl_wandb(original, *args, **kwargs):
     return response
 
 
-def autolog():
+def autolog(**run_args):
     """Enables (or disables) and configures autologging for the OpenAI API."""
+    initialize_run(**run_args)
     classes_to_patch = _gen_classes_to_patch()
 
     for class_def in classes_to_patch:
@@ -127,3 +138,23 @@ def autolog():
                 method_name,
                 create_impl_wandb,
             )
+
+
+def disable_autolog():
+    def patched_fn_with_autolog_disabled(original, *args, **kwargs):
+        with disable_autologging():
+            return original(*args, **kwargs)
+
+    classes_to_patch = _gen_classes_to_patch()
+    for class_def in classes_to_patch:
+        for method_name in [
+            "create",
+        ]:
+            safe_patch(
+                "openai",
+                class_def,
+                method_name,
+                patched_fn_with_autolog_disabled,
+            )
+    if wandb.run is not None:
+        wandb.run.finish()
