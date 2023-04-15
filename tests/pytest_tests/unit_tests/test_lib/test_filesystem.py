@@ -240,7 +240,7 @@ def test_safe_read_write_existing_file(binary):
             if binary == "b":
                 content = content.decode("utf-8")
             assert content == original_content
-            f.seek(len("🔜O".encode("utf-8")))
+            f.seek(len("🔜O".encode()))
             f.write(new_content.encode("utf-8") if binary == "b" else new_content)
 
         assert original_file.read_text("utf-8") == "🔜OMore❗ content"
