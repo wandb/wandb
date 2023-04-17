@@ -18,17 +18,14 @@ will be raised when importing this module.
 
 import json
 import pathlib
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    TypedDict,
-    Union,
-    cast,
-)
+import sys
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
 
 import wandb
 from wandb.sdk.data_types import trace_tree
