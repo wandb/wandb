@@ -1,3 +1,10 @@
+"""
+This module contains the `WBTraceTree` media type, and the supporting
+dataclasses. A `WBTraceTree` is a media object containing a root span and an
+arbitrary model dump as a serializable dictionary. Logging such media type will
+result in a W&B Trace Debugger panel being created in the workspace UI.
+"""
+
 import dataclasses
 import hashlib
 import json
