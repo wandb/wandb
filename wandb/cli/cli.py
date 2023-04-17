@@ -1197,13 +1197,13 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    wandb._sentry.configure_scope(process_context="launch_cli")
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
+    wandb._sentry.configure_scope(process_context="launch_cli")
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1244,6 +1244,7 @@ def launch(
     if queue is None:
         # direct launch
         try:
+
             wandb_launch.run(
                 api,
                 uri,
@@ -1353,7 +1354,6 @@ def launch_agent(
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    wandb._sentry.configure_scope(process_context="launch_agent")
     if url is not None:
         raise LaunchError(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
@@ -1365,6 +1365,7 @@ def launch_agent(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
+    wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues, config
     )
