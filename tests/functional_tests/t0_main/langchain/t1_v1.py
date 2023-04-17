@@ -30,7 +30,7 @@ def main():
         run = wandb.init()
         run.log(
             {
-                "langchain_traces": trace_tree.WBTraceTree(
+                "langchain_trace": trace_tree.WBTraceTree(
                     root_span=trace_tree.Span(),
                     model_dict='{"model_name": "text-ada-001", "temperature": 0.7, "max_tokens": 256, "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 2, "best_of": 2, "request_timeout": null, "logit_bias": {}, "_kind": "openai"}',
                 )
