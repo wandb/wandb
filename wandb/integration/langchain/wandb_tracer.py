@@ -28,9 +28,10 @@ else:
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
 
 import wandb
+import wandb.util
 from wandb.sdk.data_types import trace_tree
 
-from . import import_check, monkeypatch
+from . import monkeypatch
 from .util import (
     print_wandb_init_message,
     safely_convert_lc_run_to_wb_span,
@@ -39,20 +40,31 @@ from .util import (
 )
 
 if TYPE_CHECKING:
-
     from langchain.callbacks.base import BaseCallbackHandler
     from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
 
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
 
-import_check.import_langchain()
+_ = wandb.util.get_module(
+    name="langchain",
+    required="To use the LangChain WandbTracer you need to have the `langchain` python "
+    "package installed. Please install it with `pip install langchain`.",
+)
 
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
-from langchain.callbacks import StdOutCallbackHandler, get_callback_manager
-from langchain.callbacks.tracers.base import SharedTracer
-from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun, TracerSession
+from langchain.callbacks import (  # noqa: E402
+    StdOutCallbackHandler,
+    get_callback_manager,
+)
+from langchain.callbacks.tracers.base import SharedTracer  # noqa: E402
+from langchain.callbacks.tracers.schemas import (  # noqa: E402
+    ChainRun,
+    LLMRun,
+    ToolRun,
+    TracerSession,
+)
 
 
 class WandbRunArgs(TypedDict):

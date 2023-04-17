@@ -2,8 +2,7 @@ id: 0.langhchain.01-v1
 plugin:
   - wandb
 tag:
-  shards:
-    - langchain
+  shard: langchain
   skips:
     - platform: win
 depend:
