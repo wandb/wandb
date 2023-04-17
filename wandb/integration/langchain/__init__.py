@@ -18,7 +18,17 @@ will be raised when importing this module.
 
 import json
 import pathlib
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast  # type: ignore
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    TypedDict,
+    Union,
+    cast,
+)
 
 import wandb
 from wandb.sdk.data_types import trace_tree

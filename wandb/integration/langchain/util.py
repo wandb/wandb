@@ -114,7 +114,10 @@ def _convert_llm_run_to_wb_span(run: "LLMRun") -> "trace_tree.Span":
     base_span.results = [
         trace_tree.Result(
             inputs={"prompt": prompt},
-            outputs={"generation": run.response.generations[ndx][0].text}
+            outputs={
+                f"gen_{g_i}": gen.text
+                for g_i, gen in enumerate(run.response.generations[ndx])
+            }
             if (
                 run.response is not None
                 and len(run.response.generations) > ndx
@@ -122,7 +125,7 @@ def _convert_llm_run_to_wb_span(run: "LLMRun") -> "trace_tree.Span":
             )
             else None,
         )
-        for ndx, prompt in enumerate(run.serialized.get("prompts", []))
+        for ndx, prompt in enumerate(run.prompts or [])
     ]
     base_span.span_kind = trace_tree.SpanKind.LLM
 
