@@ -71,12 +71,15 @@ def safely_convert_model_to_dict(
     """
     data = None
     message = None
-    if hasattr(model, "agent"):
-        model = model.agent
     try:
         data = model.dict()
     except Exception as e:
         message = str(e)
+        if hasattr(model, "agent"):
+            try:
+                data = model.agent.dict()
+            except Exception as e:
+                message = str(e)
 
     if data is not None and not isinstance(data, dict):
         message = (

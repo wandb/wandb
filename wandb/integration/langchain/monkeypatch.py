@@ -12,62 +12,280 @@ goes away entirely.
 """
 
 import inspect
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
-from langchain.callbacks.base import BaseCallbackManager
-from langchain.chains.base import Chain
-from langchain.chat_models.base import BaseChatModel
-from langchain.llms.base import BaseLLM
-from langchain.tools.base import BaseTool
+if TYPE_CHECKING:
+    from langchain.callbacks.base import BaseCallbackManager
+    from langchain.chains.base import Chain
+    from langchain.llms.base import BaseLLM
+    from langchain.tools.base import BaseTool
 
-_IS_PATCHED = False
-original_symbols = {}
+patched_symbols = {}
 
 
 def ensure_patched():
-    global _IS_PATCHED
-    if _IS_PATCHED:
-        return
-    _IS_PATCHED = True
-    try:
-        original_symbols["_chain_chain_type"] = Chain._chain_type
-        original_symbols["chain_init"] = Chain.__init__
-        original_symbols["llm_init"] = BaseLLM.__init__
-        original_symbols["tool_init"] = BaseTool.__init__
-        original_symbols["chat_model_init"] = BaseChatModel.__init__
-        Chain._chain_type = property(_chain_type)
-        _wrap_init(Chain)
-        _wrap_init(BaseLLM)
-        _wrap_init(BaseTool)
-        _wrap_init(BaseChatModel)
-    except Exception:
-        # This monkey patch failure will result in models not saving,
-        # but it's not a fatal error.
-        pass
+    for patch_method in [
+        _patch_chain_type,
+        _patch_single_agent_type,
+        _patch_multi_agent_type,
+        _patch_llm_type,
+        _patch_prompt_type,
+        _patch_output_parser_type,
+        _patch_chain_init,
+        _patch_llm_init,
+        _patch_tool_init,
+    ]:
+        try:
+            patch_method()
+        except Exception:
+            pass
 
 
 def clear_patches():
-    global _IS_PATCHED
-    if not _IS_PATCHED:
+    for clear_method in [
+        _clear_chain_type,
+        _clear_single_agent_type,
+        _clear_multi_agent_type,
+        _clear_llm_type,
+        _clear_prompt_type,
+        _clear_output_parser_type,
+        _clear_chain_init,
+        _clear_llm_init,
+        _clear_tool_init,
+    ]:
+        try:
+            clear_method()
+        except Exception:
+            pass
+
+
+def _patch_chain_type():
+    from langchain.chains.base import Chain
+
+    if "Chain._chain_type" in patched_symbols:
         return
-    _IS_PATCHED = False
-    try:
-        Chain._chain_type = original_symbols["_chain_chain_type"]
-        Chain.__init__ = original_symbols["chain_init"]
-        BaseLLM.__init__ = original_symbols["llm_init"]
-        BaseTool.__init__ = original_symbols["tool_init"]
-        BaseChatModel.__init__ = original_symbols["chat_model_init"]
-    except Exception:
-        # This monkey patch failure will result in models not saving,
-        # but it's not a fatal error.
-        pass
+    patched_symbols["Chain._chain_type"] = Chain._chain_type
+
+    def _chain_type(self) -> str:
+        return self.__class__.__name__
+
+    Chain._chain_type = property(_chain_type)
+
+
+def _clear_chain_type():
+    from langchain.chains.base import Chain
+
+    if "Chain._chain_type" not in patched_symbols:
+        return
+    Chain._chain_type = patched_symbols["Chain._chain_type"]
+
+
+def _patch_single_agent_type():
+    from langchain.agents.agent import BaseSingleActionAgent
+
+    if "BaseSingleActionAgent._agent_type" in patched_symbols:
+        return
+
+    patched_symbols[
+        "BaseSingleActionAgent._agent_type"
+    ] = BaseSingleActionAgent._agent_type
+
+    def _agent_type(self) -> str:
+        return self.__class__.__name__
+
+    BaseSingleActionAgent._agent_type = property(_agent_type)
+
+
+def _clear_single_agent_type():
+    from langchain.agents.agent import BaseSingleActionAgent
+
+    if "BaseSingleActionAgent._agent_type" not in patched_symbols:
+        return
+    BaseSingleActionAgent._agent_type = patched_symbols[
+        "BaseSingleActionAgent._agent_type"
+    ]
+
+
+def _patch_multi_agent_type():
+    from langchain.agents.agent import BaseMultiActionAgent
+
+    if "BaseMultiActionAgent._agent_type" in patched_symbols:
+        return
+
+    patched_symbols[
+        "BaseMultiActionAgent._agent_type"
+    ] = BaseMultiActionAgent._agent_type
+
+    def _agent_type(self) -> str:
+        return self.__class__.__name__
+
+    BaseMultiActionAgent._agent_type = property(_agent_type)
+
+
+def _clear_multi_agent_type():
+    from langchain.agents.agent import BaseMultiActionAgent
+
+    if "BaseMultiActionAgent._agent_type" not in patched_symbols:
+        return
+    BaseMultiActionAgent._agent_type = patched_symbols[
+        "BaseMultiActionAgent._agent_type"
+    ]
+
+
+def _patch_llm_type():
+    from langchain.llms.base import BaseLLM
+
+    if "BaseLLM._llm_type" in patched_symbols:
+        return
+
+    patched_symbols["BaseLLM._llm_type"] = BaseLLM._llm_type
+
+    def _llm_type(self) -> str:
+        return self.__class__.__name__
+
+    BaseLLM._llm_type = property(_llm_type)
+
+
+def _clear_llm_type():
+    from langchain.llms.base import BaseLLM
+
+    if "BaseLLM._llm_type" not in patched_symbols:
+        return
+    BaseLLM._llm_type = patched_symbols["BaseLLM._llm_type"]
+
+
+def _patch_output_parser_type():
+    from langchain.schema import BaseOutputParser
+
+    if "BaseOutputParser._type" in patched_symbols:
+        return
+
+    patched_symbols["BaseOutputParser._type"] = BaseOutputParser._type
+
+    def _type(self) -> str:
+        return self.__class__.__name__
+
+    BaseOutputParser._type = property(_type)
+
+
+def _clear_output_parser_type():
+    from langchain.schema import BaseOutputParser
+
+    if "BaseOutputParser._type" not in patched_symbols:
+        return
+    BaseOutputParser._type = patched_symbols["BaseOutputParser._type"]
+
+
+def _patch_prompt_type():
+    from langchain.prompts.base import BasePromptTemplate
+
+    if "BasePromptTemplate._prompt_type" in patched_symbols:
+        return
+
+    patched_symbols["BasePromptTemplate._prompt_type"] = BasePromptTemplate._prompt_type
+
+    def _prompt_type(self) -> str:
+        return self.__class__.__name__
+
+    BasePromptTemplate._prompt_type = property(_prompt_type)
+
+
+def _clear_prompt_type():
+    from langchain.prompts.base import BasePromptTemplate
+
+    if "BasePromptTemplate._prompt_type" not in patched_symbols:
+        return
+    BasePromptTemplate._prompt_type = patched_symbols["BasePromptTemplate._prompt_type"]
+
+
+def _patch_chain_init():
+    from langchain.chains.base import Chain
+
+    if "Chain._init__" in patched_symbols:
+        return
+
+    patched_symbols["Chain._init__"] = Chain.__init__
+
+    _wrap_init(Chain)
+
+
+def _clear_chain_init():
+    from langchain.chains.base import Chain
+
+    if "Chain._init__" not in patched_symbols:
+        return
+    Chain.__init__ = patched_symbols["Chain._init__"]
+
+
+def _patch_llm_init():
+    from langchain.llms.base import BaseLLM
+
+    if "BaseLLM._init__" in patched_symbols:
+        return
+
+    patched_symbols["BaseLLM._init__"] = BaseLLM.__init__
+
+    _wrap_init(BaseLLM)
+
+
+def _clear_llm_init():
+    from langchain.llms.base import BaseLLM
+
+    if "BaseLLM._init__" not in patched_symbols:
+        return
+    BaseLLM.__init__ = patched_symbols["BaseLLM._init__"]
+
+
+def _patch_tool_init():
+    from langchain.tools.base import BaseTool
+
+    if "BaseTool._init__" in patched_symbols:
+        return
+
+    patched_symbols["BaseTool._init__"] = BaseTool.__init__
+
+    _wrap_init(BaseTool)
+
+
+def _clear_tool_init():
+    from langchain.tools.base import BaseTool
+
+    if "BaseTool._init__" not in patched_symbols:
+        return
+    BaseTool.__init__ = patched_symbols["BaseTool._init__"]
+
+
+def _wrap_init(cls):
+    current_init = None
+    if hasattr(cls, "__init__"):
+        current_init = cls.__init__
+
+    def init(self, *args, **kwargs):
+        if current_init:
+            try:
+                if "callback_manager" in kwargs and isinstance(
+                    kwargs["callback_manager"], _CallbackManagerOnStartProxy
+                ):
+                    kwargs["callback_manager"] = kwargs[
+                        "callback_manager"
+                    ]._internal_callback_manager
+            except Exception:
+                pass
+            current_init(self, *args, **kwargs)
+        self.callback_manager = _CallbackManagerOnStartProxy(
+            self.callback_manager, self
+        )
+
+    cls.__init__ = init
 
 
 class _CallbackManagerOnStartProxy:
-    _internal_callback_manager: BaseCallbackManager
-    _bound_model: Union[BaseLLM, BaseTool, Chain]
+    _internal_callback_manager: "BaseCallbackManager"
+    _bound_model: Union["BaseLLM", "BaseTool", "Chain"]
 
-    def __init__(self, callback_manager: BaseCallbackManager, bound_model=None) -> None:
+    def __init__(
+        self, callback_manager: "BaseCallbackManager", bound_model=None
+    ) -> None:
         self._internal_callback_manager = callback_manager
         self._bound_model = bound_model
 
@@ -108,31 +326,3 @@ class _CallbackManagerOnStartProxy:
 
     def on_tool_start(self, *args, **kwargs) -> None:
         self._handle_proxied_call("on_tool_start", *args, **kwargs)
-
-
-def _chain_type(self) -> str:
-    return self.__class__.__name__
-
-
-def _wrap_init(cls):
-    current_init = None
-    if hasattr(cls, "__init__"):
-        current_init = cls.__init__
-
-    def init(self, *args, **kwargs):
-        if current_init:
-            try:
-                if "callback_manager" in kwargs and isinstance(
-                    kwargs["callback_manager"], _CallbackManagerOnStartProxy
-                ):
-                    kwargs["callback_manager"] = kwargs[
-                        "callback_manager"
-                    ]._internal_callback_manager
-            except Exception:
-                pass
-            current_init(self, *args, **kwargs)
-        self.callback_manager = _CallbackManagerOnStartProxy(
-            self.callback_manager, self
-        )
-
-    cls.__init__ = init
