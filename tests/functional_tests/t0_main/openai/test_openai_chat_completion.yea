@@ -1,11 +1,11 @@
-id: 0.openai.completion
+id: 0.openai.chat.completion
 plugin:
     - wandb
 tag:
   skips:
     - platform: win
 command:
-    program: test_openai_completion.py
+    program: test_openai_chat_completion.py
 depend:
     requirements:
         - "openai>=0.27.4"

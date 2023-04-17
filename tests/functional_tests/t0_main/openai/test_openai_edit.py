@@ -9,16 +9,12 @@ autolog(project="openai_logging")
 
 def main():
     request_kwargs = dict(
-        engine="ada",
-        prompt="This is a test prompt",
-        max_tokens=5,
-        temperature=0.9,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
+        model="text-davinci-edit-001",
+        input="What day of the wek is it?",
+        instruction="Fix the spelling mistakes.",
     )
 
-    response = openai.Completion.create(**request_kwargs)
+    response = openai.Edit.create(**request_kwargs)
 
 
 if __name__ == "__main__":
