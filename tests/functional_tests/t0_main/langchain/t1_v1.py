@@ -1,7 +1,4 @@
 import datetime
-import sys
-
-import wandb
 
 
 def simple_fake_test():
@@ -23,22 +20,6 @@ def simple_fake_test():
 
 
 def main():
-    if sys.version_info < (3, 8):
-        from wandb.sdk.data_types import trace_tree
-
-        # Special case to avoid langchain not supporting python 3.7
-        run = wandb.init()
-        run.log(
-            {
-                "langchain_trace": trace_tree.WBTraceTree(
-                    root_span=trace_tree.Span(),
-                    model_dict='{"model_name": "text-ada-001", "temperature": 0.7, "max_tokens": 256, "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 2, "best_of": 2, "request_timeout": null, "logit_bias": {}, "_kind": "openai"}',
-                )
-            }
-        )
-        run.finish()
-        return
-
     from wandb.integration.langchain import WandbTracer
 
     WandbTracer.init()

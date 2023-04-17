@@ -73,7 +73,6 @@ class _CallbackManagerOnStartProxy:
 
     def __getattr__(self, name: str) -> Any:
         if name == "_internal_callback_manager":
-            breakpoint()
             return self.__dict__["_internal_callback_manager"]
         elif name == "_bound_model":
             return self.__dict__["_bound_model"]

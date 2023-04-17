@@ -1399,6 +1399,20 @@ workflows:
           tox_args: "tests/functional_tests"
 
           parallelism: 4
+
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+              shard:
+                - "langchain"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          tox_args: "tests/functional_tests"
+
+          parallelism: 4
+
       #
       # Functional tests with yea on Linux
       #

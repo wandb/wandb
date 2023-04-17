@@ -2,11 +2,13 @@ id: 0.langhchain.01-v1
 plugin:
   - wandb
 tag:
+  shards:
+    - langchain
   skips:
     - platform: win
 depend:
     requirements:
-        - langchain
+        - langchain==0.0.141
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 1
