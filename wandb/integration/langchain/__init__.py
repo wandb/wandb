@@ -18,7 +18,7 @@ will be raised when importing this module.
 
 import json
 import pathlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict  # type: ignore
 
 import wandb
 from wandb.sdk.data_types import trace_tree
@@ -32,7 +32,7 @@ from .util import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional, Sequence, TypedDict, Union, cast
+    from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
     from langchain.callbacks.base import BaseCallbackHandler
     from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate

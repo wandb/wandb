@@ -1,8 +1,9 @@
 import datetime
-from wandb.integration.langchain import WandbTracer
+
 from langchain.chains import LLMChain
 from langchain.llms.fake import FakeListLLM
 from langchain.prompts import PromptTemplate
+from wandb.integration.langchain import WandbTracer
 
 
 def simple_fake_test():
