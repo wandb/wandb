@@ -44,3 +44,6 @@ def main():
     WandbTracer.init()
     simple_fake_test()
     WandbTracer.finish()
+
+
+main()
