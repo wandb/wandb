@@ -1199,9 +1199,6 @@ def launch(
     )
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
 
@@ -1300,7 +1297,7 @@ def launch(
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Run a W&B launch agent (Experimental).",
+    help="Run a W&B launch agent.",
 )
 @click.pass_context
 @click.option(
@@ -1361,9 +1358,6 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
