@@ -1,4 +1,5 @@
-"""
+"""Common utilities for the LangChain integration.
+
 This file exposes 4 primary functions:
 - `print_wandb_init_message`: Prints a message to the user when the `WandbTracer` is initialized.
 - `safely_convert_lc_run_to_wb_span`: Converts a LangChain Run into a W&B Trace Span.
@@ -12,31 +13,20 @@ a try/except block. This is to ensure that if a breaking change is introduced, t
 integration will not break user code.
 """
 
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Optional,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Optional, Union
+
+from langchain.agents import BaseSingleActionAgent
+from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun
 
 import wandb
 from wandb.sdk.data_types import trace_tree
 
-from langchain.callbacks.tracers.schemas import (
-    ChainRun,
-    LLMRun,
-    ToolRun,
-)
-from langchain.agents import BaseSingleActionAgent
-
 if TYPE_CHECKING:
-    from langchain.callbacks.tracers.schemas import (
-        BaseRun,
-    )
-    from langchain.schema import BaseLanguageModel
-    from langchain.llms.base import BaseLLM
-    from langchain.tools.base import BaseTool
+    from langchain.callbacks.tracers.schemas import BaseRun
     from langchain.chains.base import Chain
+    from langchain.llms.base import BaseLLM
+    from langchain.schema import BaseLanguageModel
+    from langchain.tools.base import BaseTool
 
 
 PRINT_WARNINGS = True
@@ -76,6 +66,7 @@ def safely_convert_model_to_dict(
     model: Union["BaseLanguageModel", "BaseLLM", "BaseTool", "Chain"]
 ) -> Optional[dict]:
     """Returns the model dict if possible, otherwise returns None.
+
     Given that Models are all user defined, this operation is not always possible.
     """
     data = None

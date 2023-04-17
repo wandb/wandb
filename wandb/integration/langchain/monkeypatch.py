@@ -1,27 +1,24 @@
-"""
-This file is responsible for monkeypatching langchain in whatever way is necessary to
-get data out for W&B logging. Currently it's main responsibility is to ensure that
-the `on_[model]_start` callbacks include the model that is being started. This is done
-by making a general callback proxy and overriding the init method of the models to
-wrap the callback manager with the proxy. Also, we ensure that all chains are serializable
-by overriding the `Chain._chain_type` property to return the class name of the chain.
+"""This file is responsible for monkeypatching langchain to get data out for W&B logging.
 
-The more we work with langChain, the smaller this file should get. Ideally this goes
-away entirely.
+Currently it's main responsibility is to ensure that the `on_[model]_start`
+callbacks include the model that is being started. This is done by making a
+general callback proxy and overriding the init method of the models to wrap the
+callback manager with the proxy. Also, we ensure that all chains are
+serializable by overriding the `Chain._chain_type` property to return the class
+name of the chain.
+
+The more we work with langChain, the smaller this file should get. Ideally this
+goes away entirely.
 """
 
 import inspect
-from typing import (
-    Any,
-    Union,
-)
+from typing import Any, Union
 
 from langchain.callbacks.base import BaseCallbackManager
 from langchain.chains.base import Chain
+from langchain.chat_models.base import BaseChatModel
 from langchain.llms.base import BaseLLM
 from langchain.tools.base import BaseTool
-from langchain.chat_models.base import BaseChatModel
-
 
 _IS_PATCHED = False
 original_symbols = {}

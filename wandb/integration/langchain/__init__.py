@@ -1,5 +1,6 @@
-"""
-This module contains an integration with the LangChain library. Specifically, it exposes
+"""This module contains an integration with the LangChain library.
+
+Specifically, it exposes
 a `WandbTracer` class that can be used to stream LangChain activity to W&B. The intended
 usage pattern is to call `WandbTracer.init()` at the top of the script/notebook, and call
 `WandbTracer.finish()` at the end of the script/notebook. This will automatically stream
@@ -9,7 +10,7 @@ Technical Note:
 LangChain is in very rapid development - meaning their APIs and schemas are actively changing.
 As a matter of precaution, any call to langchain apis, or use of their returned data is wrapped
 in a try/except block. This is to ensure that if a breaking change is introduced, the wandb
-integration will not break user code. The one exception to the rule is at import time. If 
+integration will not break user code. The one exception to the rule is at import time. If
 langchain is not installed, or the symbols are not in the same place, the appropriate error
 will be raised when importing this module.
 """
@@ -17,50 +18,33 @@ will be raised when importing this module.
 
 import json
 import pathlib
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    TypedDict,
-    Union,
-    cast,
-)
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb.sdk.data_types import trace_tree
 
+from . import import_check, monkeypatch
 from .util import (
     print_wandb_init_message,
     safely_convert_lc_run_to_wb_span,
     safely_convert_model_to_dict,
     safely_get_span_producing_model,
 )
-from . import import_check
-from . import monkeypatch
 
 if TYPE_CHECKING:
+    from typing import Any, Dict, List, Optional, Sequence, TypedDict, Union, cast
+
+    from langchain.callbacks.base import BaseCallbackHandler
+    from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
+
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
-
-    from langchain.callbacks.tracers.schemas import (
-        BaseRun,
-        TracerSessionCreate,
-    )
-    from langchain.callbacks.base import BaseCallbackHandler
 
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
 from langchain.callbacks import StdOutCallbackHandler, get_callback_manager
 from langchain.callbacks.tracers.base import SharedTracer
-from langchain.callbacks.tracers.schemas import (
-    ChainRun,
-    LLMRun,
-    ToolRun,
-    TracerSession,
-)
+from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun, TracerSession
 
 
 class WandbRunArgs(TypedDict):
@@ -107,9 +91,11 @@ class WandbTracer(SharedTracer):
         cls,
         run_args: Optional[WandbRunArgs] = None,
         include_stdout: bool = True,
-        additional_handlers: list["BaseCallbackHandler"] = [],
+        additional_handlers: Optional[list["BaseCallbackHandler"]] = None,
     ) -> None:
-        """Sets up a WandbTracer and makes it the default handler. To use W&B to
+        """Sets up a WandbTracer and makes it the default handler.
+
+        To use W&B to
         monitor all LangChain activity, simply call this function at the top of
         the notebook or script:
         ```
@@ -118,7 +104,7 @@ class WandbTracer(SharedTracer):
         # ...
         # end of notebook / script:
         WandbTracer.stop_watch()
-        ```
+        ```.
 
         It is safe to call this repeatedly with the same arguments (such as in a
         notebook), as it will only create a new run if the run_args differ.
@@ -130,6 +116,7 @@ class WandbTracer(SharedTracer):
         handlers: list["BaseCallbackHandler"] = [tracer]
         if include_stdout:
             handlers.append(StdOutCallbackHandler())
+        additional_handlers = additional_handlers or []
         manager.set_handlers(handlers + additional_handlers)
 
     @staticmethod
@@ -142,9 +129,10 @@ class WandbTracer(SharedTracer):
 
     def init_run(self, run_args: Optional[WandbRunArgs] = None) -> None:
         """Initialize wandb if it has not been initialized.
+
         We only want to start a new run if the run args differ. This will reduce
         the number of W&B runs created, which is more ideal in a notebook
-        setting
+        setting.
         """
         monkeypatch.ensure_patched()
         if (
@@ -172,8 +160,11 @@ class WandbTracer(SharedTracer):
         print_wandb_init_message(self._run.settings.run_url)
 
     def finish_run(self) -> None:
-        """Waits for W&B data to upload. It is recommended to call this function
-        before terminating the kernel or python script."""
+        """Waits for W&B data to upload.
+
+        It is recommended to call this function before terminating the kernel or
+        python script.
+        """
         if self._run is not None:
             url = self._run.settings.run_url
             self._run.finish()

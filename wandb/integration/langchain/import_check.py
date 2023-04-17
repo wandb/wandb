@@ -1,5 +1,5 @@
-"""
-This file performs a runtime check to see if the langchain package is installed.
+"""This file performs a runtime check to see if the langchain package is installed.
+
 This way it can be imported before any langchain imports in order to give a
 more helpful error message if langchain is not installed.
 """
