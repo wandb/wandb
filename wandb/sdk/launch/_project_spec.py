@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import tempfile
-from shlex import quote
 from typing import Any, Dict, List, Optional
 
 import wandb
@@ -95,7 +94,7 @@ class LaunchProject:
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
-        self.override_args: Dict[str, Any] = overrides.get("args", {})
+        self.override_args: List[str] = overrides.get("args", [])
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
@@ -340,9 +339,8 @@ class LaunchProject:
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 self.add_entry_point(entry_point)
-            self.override_args = utils.merge_parameters(
-                self.override_args, run_info["args"]
-            )
+            if not self.override_args:
+                self.override_args = run_info["args"]
         else:
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
@@ -366,30 +364,16 @@ class EntryPoint:
         self.name = name
         self.command = command
 
-    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
+    def compute_command(self, user_parameters: Optional[List[str]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        command_arr = []
-        command_arr += self.command
-        extras = compute_command_args(user_parameters)
-        command_arr += extras
-        return command_arr
-
-
-def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
-    arr: List[str] = []
-    if parameters is None:
-        return arr
-    for key, value in parameters.items():
-        if value is not None:
-            arr.append(f"--{key}")
-            arr.append(quote(str(value)))
-        else:
-            arr.append(f"--{key}")
-    return arr
+        ret = self.command
+        if user_parameters:
+            ret += user_parameters
+        return ret
 
 
 def get_entry_point_command(
-    entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
+    entry_point: Optional["EntryPoint"], parameters: List[str]
 ) -> List[str]:
     """Returns the shell command to execute in order to run the specified entry point.
 
