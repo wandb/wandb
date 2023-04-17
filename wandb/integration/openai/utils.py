@@ -1,24 +1,23 @@
 import functools
 import inspect
 import logging
-import os
-import uuid
-from contextlib import contextmanager
-from typing import Callable
+from typing import Callable, Optional, Any, TypeVar
 
 import openai
 
 import wandb
 from wandb.integration.openai import gorilla
 from wandb.integration.openai.autologging_utils import (
-    get_autologging_config,
-    _AutologgingSessionManager,
-    autologging_is_disabled,
     _AUTOLOGGING_GLOBALLY_DISABLED,
     AutologgingEventLogger,
+    _AutologgingSessionManager,
+    autologging_is_disabled,
+    get_autologging_config,
 )
 
 _logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 _AUTOLOGGING_PATCHES = {}
 
@@ -49,14 +48,15 @@ def _gen_classes_to_patch():
     return [openai.Completion, openai.ChatCompletion, openai.Edit]
 
 
-def _store_patch(autologging_integration, patch):
+def _store_patch(autologging_integration: str, patch: Callable) -> None:
     """
     Stores a patch for a specified autologging_integration class. Later to be used for being able
     to revert the patch when disabling autologging.
 
-    param autologging_integration: The name of the autologging wandb_sklearn_integration associated with the
+    params
+        autologging_integration: The name of the autologging integration associated with the
                                     patch.
-    param patch: The patch to be stored.
+        patch: The patch to be stored.
     """
     if autologging_integration in _AUTOLOGGING_PATCHES:
         _AUTOLOGGING_PATCHES[autologging_integration].add(patch)
@@ -64,15 +64,21 @@ def _store_patch(autologging_integration, patch):
         _AUTOLOGGING_PATCHES[autologging_integration] = {patch}
 
 
-def _wrap_patch(destination, name, patch_obj, settings=None):
-    """
-    Apply a patch.
+def _wrap_patch(
+    destination: Callable,
+    name: str,
+    patch_obj: Callable,
+    settings: Optional[gorilla.Settings] = None,
+) -> Any:
+    """Apply a patch to the specified destination class and method.
 
-    param destination: Patch destination
-    :param name: Name of the attribute at the destination
-    :param patch_obj: Patch object, it should be a function or a property decorated function
-                      to be assigned to the patch point {destination}.{name}
-    :param settings: Settings for gorilla.Patch
+    params
+        destination: Patch destination
+        name: Name of the attribute at the destination
+        patch_obj: Patch object, it should be a function or a property decorated function to be assigned to the patch point {destination}.{name}
+        settings: Settings for gorilla.Patch
+    return
+        patch: The patched object
     """
     if settings is None:
         settings = gorilla.Settings(allow_hit=True, store_hit=True)
@@ -83,10 +89,10 @@ def _wrap_patch(destination, name, patch_obj, settings=None):
 
 
 def safe_patch(
-    autologging_integration,
-    destination,
-    function_name,
-    patch_function,
+    autologging_integration: str,
+    destination: T,
+    function_name: str,
+    patch_function: Callable,
 ):
     """
     Patches the specified `function_name` on the specified `destination` class for autologging
@@ -96,7 +102,7 @@ def safe_patch(
           (`<destination>.<function_name>`) are propagated to the caller.
         - Exceptions thrown from other parts of the patched implementation (`patch_function`)
           are caught and logged as warnings.
-    param autologging_integration: The name of the autologging wandb_sklearn_integration associated with the
+    param autologging_integration: The name of the autologging integration associated with the
                                     patch.
     param destination: The Python class on which the patch is being defined.
     param function_name: The name of the function to patch on the specified `destination` class.
@@ -132,7 +138,7 @@ def safe_patch(
         # and `A.f1.fget(a1)` will be equivalent to `a1.f1()` and
         # its return value will be the `delegated_f1` function.
         # So using the `property.fget` we can construct the (delegated) "original_fn"
-        def original(self, *args, **kwargs):
+        def original(self, *args, **kwargs) -> Any:
             # the `original_fn.fget` will get the original method decorated by `property`
             # the `original_fn.fget(self)` will get the delegated function returned by the
             # property decorated method.
@@ -140,10 +146,10 @@ def safe_patch(
             return bound_delegate_method(*args, **kwargs)
 
     else:
-        original: Callable = original_fn
+        original: T = original_fn
         is_property_method = False
 
-    def safe_patch_function(*args, **kwargs):
+    def safe_patch_function(*args, **kwargs) -> Any:
         """
         A safe wrapper around the specified `patch_function` implementation designed to
         handle exceptions thrown during the execution of `patch_function`. This wrapper
@@ -193,7 +199,7 @@ def safe_patch(
         # The exception raised during executing patching function
         patch_function_exception = None
 
-        def try_log_autologging_event(log_fn, *args):
+        def try_log_autologging_event(log_fn: Callable, *args) -> None:
             try:
                 log_fn(*args)
             except Exception as e:
@@ -203,7 +209,9 @@ def safe_patch(
                     e,
                 )
 
-        def call_original_fn_with_event_logging(original_fn, og_args, og_kwargs):
+        def call_original_fn_with_event_logging(
+            original_fn: Callable, og_args, og_kwargs
+        ) -> Any:
             try:
                 try_log_autologging_event(
                     AutologgingEventLogger.get_logger().log_original_function_start,
@@ -244,8 +252,8 @@ def safe_patch(
         ) as session:
             try:
 
-                def call_original(*og_args, **og_kwargs):
-                    def _original_fn(*_og_args, **_og_kwargs):
+                def call_original(*og_args, **og_kwargs) -> Any:
+                    def _original_fn(*_og_args, **_og_kwargs) -> Any:
                         nonlocal original_has_been_called
                         original_has_been_called = True
 
@@ -335,13 +343,13 @@ def safe_patch(
         # Suppose `a1` is instance of class A,
         # then `a1.get_bound_safe_patch_fn(*args, **kwargs)` will be equivalent to
         # `bound_safe_patch_fn(*args, **kwargs)`
-        def get_bound_safe_patch_fn(self):
+        def get_bound_safe_patch_fn(self: Any) -> Any:
             # This `original_fn.fget` call is for availability check, if it raises error
             # then `hasattr(obj, {func_name})` will return False,
             # so it mimic the original property behavior.
             original_fn.fget(self)
 
-            def bound_safe_patch_fn(*args, **kwargs):
+            def bound_safe_patch_fn(*args, **kwargs) -> Any:
                 return safe_patch_function(self, *args, **kwargs)
 
             # Make bound method `instance.target_method` keep the same doc and signature
@@ -366,7 +374,9 @@ def safe_patch(
     _store_patch(autologging_integration, new_patch)
 
 
-def _patch_method_if_available(flavour_name, class_def, func_name, patched_fn):
+def _patch_method_if_available(
+    flavour_name: str, class_def: T, func_name: str, patched_fn: Callable
+):
     if not hasattr(class_def, func_name):
         # method not available. skip patching
         return
