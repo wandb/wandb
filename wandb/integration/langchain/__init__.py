@@ -46,6 +46,8 @@ if TYPE_CHECKING:
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
 
+import_check.import_langchain()
+
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
 from langchain.callbacks import StdOutCallbackHandler, get_callback_manager
@@ -97,7 +99,7 @@ class WandbTracer(SharedTracer):
         cls,
         run_args: Optional[WandbRunArgs] = None,
         include_stdout: bool = True,
-        additional_handlers: Optional[list["BaseCallbackHandler"]] = None,
+        additional_handlers: Optional[List["BaseCallbackHandler"]] = None,
     ) -> None:
         """Sets up a WandbTracer and makes it the default handler.
 
@@ -119,7 +121,7 @@ class WandbTracer(SharedTracer):
         tracer.init_run(run_args)
         tracer.load_session("")
         manager = get_callback_manager()
-        handlers: list["BaseCallbackHandler"] = [tracer]
+        handlers: List["BaseCallbackHandler"] = [tracer]
         if include_stdout:
             handlers.append(StdOutCallbackHandler())
         additional_handlers = additional_handlers or []
@@ -141,6 +143,7 @@ class WandbTracer(SharedTracer):
         setting.
         """
         monkeypatch.ensure_patched()
+        # Add a check for differences between wandb.run and self._run
         if (
             wandb.run is not None
             and self._run is not None
@@ -174,9 +177,11 @@ class WandbTracer(SharedTracer):
         if self._run is not None:
             url = self._run.settings.run_url
             self._run.finish()
+            self._run = None
+            self._run_args = None
             wandb.termlog(f"Finished uploading data to W&B at {url}")
         else:
-            print("W&B run not started. Skipping.")
+            wandb.termlog("W&B run not started. Skipping.")
         monkeypatch.clear_patches()
 
     def _log_trace_from_run(self, run: "BaseRun") -> None:

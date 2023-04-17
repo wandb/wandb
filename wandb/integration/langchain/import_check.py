@@ -16,6 +16,3 @@ def import_langchain() -> Any:
             "package installed. Please install it with `pip install langchain`"
         )
     return langchain
-
-
-langchain = import_langchain()
