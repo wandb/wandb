@@ -11,7 +11,6 @@ from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
-import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject
@@ -301,12 +300,6 @@ class LaunchAgent:
         # parse job
         _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
-        if launch_spec.get("overrides") and isinstance(
-            launch_spec["overrides"].get("args"), list
-        ):
-            launch_spec["overrides"]["args"] = util._user_args_to_dict(
-                launch_spec["overrides"].get("args", [])
-            )
 
         self._pool.apply_async(
             self.thread_run_job,

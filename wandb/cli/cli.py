@@ -1018,7 +1018,6 @@ def launch_sweep(
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        parameters=None,
         launch_config=None,
         run_id=None,
     )
@@ -1075,15 +1074,6 @@ def launch_sweep(
     metavar="GIT-VERSION",
     hidden=True,
     help="Version of the project to run, as a Git commit reference for Git projects.",
-)
-@click.option(
-    "--args-list",
-    "-a",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="An argument for the run, of the form -a name=value. Provided arguments that "
-    "are not in the list of arguments for an entry point will be passed to the "
-    "corresponding entry point as command-line arguments in the form `--name value`",
 )
 @click.option(
     "--name",
@@ -1185,7 +1175,6 @@ def launch(
     job,
     entry_point,
     git_version,
-    args_list,
     name,
     resource,
     entity,
@@ -1221,8 +1210,6 @@ def launch(
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
-
-    args_dict = util._user_args_to_dict(args_list)
 
     if resource_args is not None:
         resource_args = util.load_json_yaml_dict(resource_args)
@@ -1266,7 +1253,6 @@ def launch(
                 entity=entity,
                 docker_image=docker_image,
                 name=name,
-                parameters=args_dict,
                 resource=resource,
                 resource_args=resource_args,
                 config=config,
@@ -1297,7 +1283,6 @@ def launch(
                 name,
                 git_version,
                 docker_image,
-                args_dict,
                 project_queue,
                 resource_args,
                 build=build,

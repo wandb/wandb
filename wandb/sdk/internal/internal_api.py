@@ -2472,12 +2472,16 @@ class Api:
 
         config = self._validate_config_and_fill_distribution(config)
 
+        # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
+        # This sanitizes them with a round trip pass through json to get a regular dict.
+        config_str = yaml.dump(json.loads(json.dumps(config)))
+
         err: Optional[Exception] = None
         for mutation in mutations:
             try:
                 variables = {
                     "id": obj_id,
-                    "config": yaml.dump(config),
+                    "config": config_str,
                     "description": config.get("description"),
                     "entityName": entity or self.settings("entity"),
                     "projectName": project or self.settings("project"),

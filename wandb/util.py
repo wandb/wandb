@@ -351,36 +351,6 @@ def make_tarfile(
         os.remove(unzipped_filename)
 
 
-def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
-    user_dict = dict()
-    value: Union[str, bool]
-    name: str
-    i = 0
-    while i < len(arguments):
-        arg = arguments[i]
-        split = arg.split("=", maxsplit=1)
-        # flag arguments don't require a value -> set to True if specified
-        if len(split) == 1 and (
-            i + 1 >= len(arguments) or arguments[i + 1].startswith("-")
-        ):
-            name = split[0].lstrip("-")
-            value = True
-            i += 1
-        elif len(split) == 1 and not arguments[i + 1].startswith("-"):
-            name = split[0].lstrip("-")
-            value = arguments[i + 1]
-            i += 2
-        elif len(split) == 2:
-            name = split[0].lstrip("-")
-            value = split[1]
-            i += 1
-        if name in user_dict:
-            wandb.termerror(f"Repeated parameter: {name!r}")
-            sys.exit(1)
-        user_dict[name] = value
-    return user_dict
-
-
 def is_tf_tensor(obj: Any) -> bool:
     import tensorflow  # type: ignore
 
