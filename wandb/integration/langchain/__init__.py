@@ -1,3 +1,3 @@
-from .wandb_tracer import WandbTracer
+__all__ = ("WandbTracer",)
 
-__all__ = ["WandbTracer"]
+from .wandb_tracer import WandbTracer

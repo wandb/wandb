@@ -31,21 +31,6 @@ import wandb
 import wandb.util
 from wandb.sdk.data_types import trace_tree
 
-from . import monkeypatch
-from .util import (
-    print_wandb_init_message,
-    safely_convert_lc_run_to_wb_span,
-    safely_convert_model_to_dict,
-    safely_get_span_producing_model,
-)
-
-if TYPE_CHECKING:
-    from langchain.callbacks.base import BaseCallbackHandler
-    from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
-
-    from wandb import Settings as WBSettings
-    from wandb.wandb_run import Run as WBRun
-
 _ = wandb.util.get_module(
     name="langchain",
     required="To use the LangChain WandbTracer you need to have the `langchain` python "
@@ -65,6 +50,21 @@ from langchain.callbacks.tracers.schemas import (  # noqa: E402
     ToolRun,
     TracerSession,
 )
+
+from . import monkeypatch  # noqa: E402
+from .util import (  # noqa: E402
+    print_wandb_init_message,
+    safely_convert_lc_run_to_wb_span,
+    safely_convert_model_to_dict,
+    safely_get_span_producing_model,
+)
+
+if TYPE_CHECKING:
+    from langchain.callbacks.base import BaseCallbackHandler
+    from langchain.callbacks.tracers.schemas import BaseRun, TracerSessionCreate
+
+    from wandb import Settings as WBSettings
+    from wandb.wandb_run import Run as WBRun
 
 
 class WandbRunArgs(TypedDict):
