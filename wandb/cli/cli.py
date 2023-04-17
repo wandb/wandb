@@ -1031,11 +1031,7 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
-@cli.command(
-    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
-    "or a git uri pointing to a remote repository, or path to a local directory.",
-)
+@cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
 @click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
     "--job",
