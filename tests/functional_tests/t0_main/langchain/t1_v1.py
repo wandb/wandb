@@ -2,8 +2,6 @@ import datetime
 import sys
 
 import wandb
-from wandb.integration.langchain import WandbTracer
-from wandb.sdk.data_types import trace_tree
 
 
 def simple_fake_test():
@@ -25,7 +23,9 @@ def simple_fake_test():
 
 
 def main():
-    if sys.version_info <= (3, 8):
+    if sys.version_info < (3, 8):
+        from wandb.sdk.data_types import trace_tree
+
         # Special case to avoid langchain not supporting python 3.7
         run = wandb.init()
         run.log(
@@ -38,6 +38,8 @@ def main():
         )
         run.finish()
         return
+
+    from wandb.integration.langchain import WandbTracer
 
     WandbTracer.init()
     simple_fake_test()
