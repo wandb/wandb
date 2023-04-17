@@ -50,9 +50,17 @@ import_check.import_langchain()
 
 # We want these imports after the import_langchain() call, so that we can
 # catch the ImportError if langchain is not installed.
-from langchain.callbacks import StdOutCallbackHandler, get_callback_manager
-from langchain.callbacks.tracers.base import SharedTracer
-from langchain.callbacks.tracers.schemas import ChainRun, LLMRun, ToolRun, TracerSession
+from langchain.callbacks import (  # noqa: E402
+    StdOutCallbackHandler,
+    get_callback_manager,
+)
+from langchain.callbacks.tracers.base import SharedTracer  # noqa: E402
+from langchain.callbacks.tracers.schemas import (  # noqa: E402
+    ChainRun,
+    LLMRun,
+    ToolRun,
+    TracerSession,
+)
 
 
 class WandbRunArgs(TypedDict):
