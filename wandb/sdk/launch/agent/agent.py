@@ -148,6 +148,7 @@ class LaunchAgent:
             processes=int(min(MAX_THREADS, self._max_jobs + self._max_schedulers)),
             initargs=(self._jobs, self._jobs_lock),
         )
+        self._lock_entrypoint = config.get("lock_entrypoint", False)
         self.default_config: Dict[str, Any] = config
 
         # serverside creation
@@ -300,6 +301,16 @@ class LaunchAgent:
         # parse job
         _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
+
+        # Abort if this job attempts to override the entrypoint and we're not
+        # configured to allow that.
+        if self._lock_entrypoint:
+            overrides = launch_spec.get("overrides", {})
+            if overrides.get("entry_point"):
+                raise ValueError(
+                    "This agent is configured to lock the entrypoint but the job "
+                    "specification attempts to override it."
+                )
 
         self._pool.apply_async(
             self.thread_run_job,
