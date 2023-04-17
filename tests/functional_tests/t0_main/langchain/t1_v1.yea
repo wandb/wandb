@@ -1,6 +1,9 @@
 id: 0.langhchain.01-v1
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 depend:
     requirements:
         - langchain==0.0.141
