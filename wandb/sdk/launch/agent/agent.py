@@ -303,31 +303,7 @@ class LaunchAgent:
         launch_spec = job["runSpec"]
 
         # Abort if this job attempts to override secure mode
-        if self._secure_mode:
-            k8s_config = launch_spec.get("resource_args", {}).get("kubernetes", {})
-
-            pod_secure_keys = ["hostPID", "hostIPC", "hostNetwork", "initContainers"]
-            pod_spec = k8s_config.get("spec", {}).get("template", {}).get("spec", {})
-            for key in pod_secure_keys:
-                if key in pod_spec:
-                    raise ValueError(
-                        f'This agent is configured to lock "{key}" in pod spec '
-                        "but the job specification attempts to override it."
-                    )
-
-            container_specs = pod_spec.get("containers", [])
-            for container_spec in container_specs:
-                if "command" in container_spec:
-                    raise ValueError(
-                        'This agent is configured to lock "command" in container spec '
-                        "but the job specification attempts to override it."
-                    )
-
-            if launch_spec.get("overrides", {}).get("entry_point"):
-                raise ValueError(
-                    'This agent is configured to lock the "entrypoint" override '
-                    "but the job specification attempts to override it."
-                )
+        self._assert_secure(launch_spec)
 
         self._pool.apply_async(
             self.thread_run_job,
@@ -338,6 +314,35 @@ class LaunchAgent:
                 self._api,
             ),
         )
+
+    def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
+        """If secure mode is set, make sure no vulnerable keys are overridden."""
+        if not self._secure_mode:
+            return
+        k8s_config = launch_spec.get("resource_args", {}).get("kubernetes", {})
+
+        pod_secure_keys = ["hostPID", "hostIPC", "hostNetwork", "initContainers"]
+        pod_spec = k8s_config.get("spec", {}).get("template", {}).get("spec", {})
+        for key in pod_secure_keys:
+            if key in pod_spec:
+                raise ValueError(
+                    f'This agent is configured to lock "{key}" in pod spec '
+                    "but the job specification attempts to override it."
+                )
+
+        container_specs = pod_spec.get("containers", [])
+        for container_spec in container_specs:
+            if "command" in container_spec:
+                raise ValueError(
+                    'This agent is configured to lock "command" in container spec '
+                    "but the job specification attempts to override it."
+                )
+
+        if launch_spec.get("overrides", {}).get("entry_point"):
+            raise ValueError(
+                'This agent is configured to lock the "entrypoint" override '
+                "but the job specification attempts to override it."
+            )
 
     def loop(self) -> None:
         """Loop infinitely to poll for jobs and run them.
