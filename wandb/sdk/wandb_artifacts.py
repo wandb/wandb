@@ -1304,7 +1304,7 @@ class LocalFileHandler(StorageHandler):
 
                     entry = ArtifactManifestEntry(
                         path=LogicalFilePathStr(str(logical_path)),
-                        ref=FilePathStr(str(Path(path) / logical_path)),
+                        ref=FilePathStr(os.path.join(path, logical_path)),
                         size=physical_path.stat().st_size,
                         digest=md5(physical_path),
                     )
