@@ -1,3 +1,10 @@
+## 0.15.0 (April 18, 2023)
+
+### :magic_wand: Enhancements
+* feat(media): add support for LangChain media type by @tssweeney in https://github.com/wandb/wandb/pull/5288
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.2...v0.15.0
+
 ## 0.14.2 (April 7, 2023)
 
 ### :hammer: Fixes
