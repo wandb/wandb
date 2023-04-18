@@ -1,28 +1,17 @@
 import logging
-import socket
 import sys
-import threading
-import urllib.parse
-from typing import Any, Dict, List, Mapping, Optional, TypeVar
-
-import requests
+import time
+from typing import Any, Dict, List, Optional, TypeVar
 
 import wandb.sdk
 import wandb.util
 from wandb.sdk.data_types import trace_tree
-from wandb.testing.relay import RawRequestResponse, Timer
 
 if sys.version_info >= (3, 8):
     from typing import Literal, Protocol
 else:
     from typing_extensions import Literal, Protocol
 
-flask = wandb.util.get_module(
-    name="flask",
-    required="To use the W&B OpenAI Autolog, you need to have the `flask` python "
-    "package installed. Please install it with `pip install flask`.",
-    lazy=False,
-)
 
 openai = wandb.util.get_module(
     name="openai",
@@ -50,6 +39,22 @@ class OpenAIResponse(Protocol[K, V]):
         ...  # pragma: no cover
 
 
+class Timer:
+    def __init__(self) -> None:
+        self.start: float = time.perf_counter()
+        self.stop: float = self.start
+
+    def __enter__(self) -> "Timer":
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.stop = time.perf_counter()
+
+    @property
+    def elapsed(self) -> float:
+        return self.stop - self.start
+
+
 class OpenAIRequestResponseResolver:
     def __call__(
         self,
@@ -60,6 +65,7 @@ class OpenAIRequestResponseResolver:
         try:
             if response["object"] == "edit":
                 return self._resolve_edit(request, response, time_elapsed)
+            # todo: the other dudes
         except Exception as e:
             logger.warning(f"Failed to resolve request/response: {e}")
         return None
@@ -114,7 +120,7 @@ class OpenAIRequestResponseResolver:
             )
             return prompt
 
-        def format_response_choice(choice: Dict[str, Any]) -> str:
+        def format_response_choice(_choice: Dict[str, Any]) -> str:
             """Formats the choice in a response object to a string.
 
             params:
@@ -123,7 +129,7 @@ class OpenAIRequestResponseResolver:
                 A string representation of the choice object to be logged
                 in a trace tree Result object.
             """
-            choice = f"\n\n**Edited**: {choice['text']}\n"
+            choice = f"\n\n**Edited**: {_choice['text']}\n"
             return choice
 
         results = [
@@ -137,180 +143,51 @@ class OpenAIRequestResponseResolver:
         return trace
 
 
-class Relay:
-    def __init__(self) -> None:
-        """Starts a local server that relays requests to the OpenAI API."""
-        self.app = flask.Flask(__name__)
-        self.app.logger.setLevel(logging.INFO)
-        # disable flask's default message:
-        flask.cli.show_server_banner = lambda *args: None
+class PatchOpenAIAPI:
+    symbols: List[Literal["Edit", "Completion", "ChatCompletion"]] = [
+        "Edit",
+        "Completion",
+        "ChatCompletion",
+    ]
 
-        self.app.add_url_rule(
-            rule="/<path:subpath>",
-            endpoint="snoopy",
-            view_func=self.snoopy,
-            methods=["GET", "POST"],
-        )
-
-        self.port = self._get_free_port()
-        # self.base_url = openai.api_base
-        self.base_url = urllib.parse.urlparse(openai.api_base)
-        print(self.base_url)
-        self.session = requests.Session()
-        self.relay_url = f"http://127.0.0.1:{self.port}/{self.base_url.path}"
-
-        self._relay_server_thread: Optional[threading.Thread] = None
-
-        self.context: List[Dict[str, str]] = []
+    def __init__(self):
+        self.original_methods: Dict[str, Any] = {}
         self.resolver = OpenAIRequestResponseResolver()
 
+    def patch(self, run: "wandb.sdk.wandb_run.Run"):
+        for symbol in self.symbols:
+            original = getattr(openai, symbol).create
+
+            def method_factory(original_method: Any):
+                def create(*args, **kwargs):
+                    with Timer() as timer:
+                        result = original_method(*args, **kwargs)
+                    trace = self.resolver(kwargs, result, timer.elapsed)
+                    if trace is not None:
+                        run.log({"trace": trace})
+                    return result
+
+                return create
+
+            # save original method
+            self.original_methods[symbol] = original
+            # monkeypatch
+            getattr(openai, symbol).create = method_factory(original)
+
+    def unpatch(self):
+        for symbol, original in self.original_methods.items():
+            getattr(openai, symbol).create = original
+
+
+class AutologOpenAI:
+    def __init__(self):
+        self.patch_openai_api = PatchOpenAIAPI()
         self.run: Optional["wandb.sdk.wandb_run.Run"] = None
 
-        # useful for debugging:
-        # self.after_request_fn = self.app.after_request(self.after_request_fn)
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.stop()
-
-    @staticmethod
-    def _get_free_port() -> int:
-        """Returns a free port on the local machine."""
-        sock = socket.socket()
-        sock.bind(("", 0))
-
-        _, port = sock.getsockname()
-        return port
-
-    def start(self) -> None:
-        """Starts the local server in a separate thread."""
-        if self._relay_server_thread is not None:
-            return
-        # run server in a separate thread
-        self._relay_server_thread = threading.Thread(
-            target=self.app.run,
-            kwargs={"port": self.port},
-            daemon=True,
-        )
-        self._relay_server_thread.start()
-        openai.api_base = self.relay_url
-
-        # init wandb run
-        self.run = wandb.init(
-            project="snoopy"
-        )  # todo: add project name + entity as init parameters
-
-    def stop(self) -> None:
-        """Stops the local server and restores the original OpenAI API URL."""
-        if self._relay_server_thread is None:
-            return
-        # self._relay_server_thread.join()
-        self._relay_server_thread = None
-        openai.api_base = self.base_url.geturl()
-
-        self.run.finish()
-        self.run = None
-
-    def after_request_fn(self, response: "requests.Response") -> "requests.Response":
-        # todo: this is useful for debugging, but should be removed in the future
-        # flask.request.url = self.relay_url + flask.request.url
-        print(flask.request)
-        print(flask.request.get_json())
-        print(response)
-        print(response.json())
-        return response
-
-    def relay(
-        self,
-        request: "flask.Request",
-    ) -> "requests.Response":
-        """Relays a request to the OpenAI API and returns the response."""
-        # replace the relay url with the real backend url (self.base_url)
-        url = (
-            urllib.parse.urlparse(request.url)
-            ._replace(netloc=self.base_url.netloc, scheme=self.base_url.scheme)
-            .geturl()
-        )
-        headers = {key: value for (key, value) in request.headers if key != "Host"}
-        prepared_relayed_request = requests.Request(
-            method=request.method,
-            url=url,
-            headers=headers,
-            data=request.get_data(),
-            json=request.get_json(),
-        ).prepare()
-
-        relayed_response = self.session.send(prepared_relayed_request)
-        return relayed_response
-
-    def save(
-        self,
-        request: "flask.Request",
-        response: "requests.Response",
-        time_elapsed: float,
-    ) -> None:
-        """Saves the request and response to the context."""
-        request_data = request.get_json()
-        response_data = response.json() or {}
-
-        # store raw data
-        raw_data: "RawRequestResponse" = {
-            "url": request.url,
-            "request": request_data,
-            "response": response_data,
-            "time_elapsed": time_elapsed,
-        }
-        self.context.append(raw_data)
-
-        # todo: add context resolvers
-        # todo: save parsed context to wandb
-        #  if parsing fails, just save the raw data !!
-        trace = self.resolver(request_data, response_data, time_elapsed)
-        if trace is not None:
-            self.run.log({"trace": trace})
-
-    def snoopy(self, subpath) -> Mapping[str, str]:
-        """Relays a request to the OpenAI API, saves the context and returns the response."""
-        # OpenAI API key must be set, otherwise we can't relay requests
-        # We postpone this check for as long as possible
-        if openai.api_key is None:
-            raise wandb.errors.AuthenticationError("OpenAI API key must be set")
-
-        request = flask.request
-        with Timer() as timer:
-            relayed_response = self.relay(request)
-
-        # print("*****************")
-        # print("REQUEST:")
-        # print(request.get_json())
-        # print("RESPONSE:")
-        # print(relayed_response.status_code, relayed_response.json())
-        # print("*****************")
-        # snoop work to extract the context
-
-        self.save(request, relayed_response, timer.elapsed)
-
-        return relayed_response.json()
-
-
-class Autolog:
-    def __init__(
-        self,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-    ):
-        # autolog = Autolog()
-        # autolog.enable()
-        # # doo da ding...he don't miss!!!
-        # autolog.disable()
-        pass
-
-    # do the same thing as the context manager
-    def enable(self):
-        pass
+    def enable(self, project: str):
+        self.run = wandb.init(project=project)
+        self.patch_openai_api.patch(self.run)
 
     def disable(self):
-        pass
+        self.run.finish()
+        self.patch_openai_api.unpatch()

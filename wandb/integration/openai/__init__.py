@@ -1,3 +1,3 @@
-__all__ = ("Autolog", "Relay")
+__all__ = ("AutologOpenAI",)
 
-from .openai import Autolog, Relay
+from .openai import AutologOpenAI
