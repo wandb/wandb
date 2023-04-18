@@ -88,6 +88,17 @@ def _wrap_patch(
     return patch
 
 
+def try_log_autologging_event(log_fn: Callable, *args) -> None:
+    try:
+        log_fn(*args)
+    except Exception as e:
+        _logger.debug(
+            "Failed to log autologging event via '%s'. Exception: %s",
+            log_fn,
+            e,
+        )
+
+
 def safe_patch(
     autologging_integration: str,
     destination: T,
@@ -123,31 +134,7 @@ def safe_patch(
     if original_fn.__func__ != raw_original_obj.__func__:
         raise RuntimeError(f"Unsupported patch on {str(destination)}.{function_name}")
 
-    elif isinstance(original_fn, (property, classmethod)):
-        is_property_method = True
-
-        # For property decorated methods (a kind of method delegation), e.g.
-        # class A:
-        #   @property
-        #   def f1(self):
-        #     ...
-        #     return delegated_f1
-        #
-        # suppose `a1` is an instance of class `A`,
-        # `A.f1.fget` will get the original `def f1(self)` method,
-        # and `A.f1.fget(a1)` will be equivalent to `a1.f1()` and
-        # its return value will be the `delegated_f1` function.
-        # So using the `property.fget` we can construct the (delegated) "original_fn"
-        def original(self, *args, **kwargs) -> Any:
-            # the `original_fn.fget` will get the original method decorated by `property`
-            # the `original_fn.fget(self)` will get the delegated function returned by the
-            # property decorated method.
-            bound_delegate_method = original_fn.fget(self)
-            return bound_delegate_method(*args, **kwargs)
-
-    else:
-        original: T = original_fn
-        is_property_method = False
+    original: T = original_fn
 
     def safe_patch_function(*args, **kwargs) -> Any:
         """
@@ -193,16 +180,6 @@ def safe_patch(
         failed_during_original = False
         # The exception raised during executing patching function
         patch_function_exception = None
-
-        def try_log_autologging_event(log_fn: Callable, *args) -> None:
-            try:
-                log_fn(*args)
-            except Exception as e:
-                _logger.debug(
-                    "Failed to log autologging event via '%s'. Exception: %s",
-                    log_fn,
-                    e,
-                )
 
         def call_original_fn_with_event_logging(
             original_fn: Callable, og_args, og_kwargs
@@ -325,45 +302,7 @@ def safe_patch(
                         patch_function_exception,
                     )
 
-    if is_property_method:
-        # Create a patched function (also property decorated)
-        # like:
-        #
-        # class A:
-        # @property
-        # def get_bound_safe_patch_fn(self):
-        #   original_fn.fget(self) # do availability check
-        #   return bound_safe_patch_fn
-        #
-        # Suppose `a1` is instance of class A,
-        # then `a1.get_bound_safe_patch_fn(*args, **kwargs)` will be equivalent to
-        # `bound_safe_patch_fn(*args, **kwargs)`
-        def get_bound_safe_patch_fn(self: Any) -> Any:
-            # This `original_fn.fget` call is for availability check, if it raises error
-            # then `hasattr(obj, {func_name})` will return False,
-            # so it mimic the original property behavior.
-            original_fn.fget(self)
-
-            def bound_safe_patch_fn(*args, **kwargs) -> Any:
-                return safe_patch_function(self, *args, **kwargs)
-
-            # Make bound method `instance.target_method` keep the same doc and signature
-            bound_safe_patch_fn = update_wrapper_extended(
-                bound_safe_patch_fn, original_fn.fget
-            )
-            # Here return the bound safe patch function because user call property decorated
-            # method will like `instance.property_decorated_method(...)`, and internally it will
-            # call the `bound_safe_patch_fn`, the argument list don't include the `self` argument,
-            # so return bound function here.
-            return bound_safe_patch_fn
-
-        # Make unbound method `class.target_method` keep the same doc and signature
-        get_bound_safe_patch_fn = update_wrapper_extended(
-            get_bound_safe_patch_fn, original_fn.fget
-        )
-        safe_patch_obj = property(get_bound_safe_patch_fn)
-    else:
-        safe_patch_obj = update_wrapper_extended(safe_patch_function, original)
+    safe_patch_obj = update_wrapper_extended(safe_patch_function, original)
 
     new_patch = _wrap_patch(destination, function_name, safe_patch_obj)
     _store_patch(autologging_integration, new_patch)

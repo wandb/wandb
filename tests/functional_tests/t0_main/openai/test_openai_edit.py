@@ -1,7 +1,6 @@
 import os
 
 import openai
-
 from wandb.integration.openai import autolog
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
