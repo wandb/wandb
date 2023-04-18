@@ -1372,7 +1372,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,maccovercircle"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
 
       - mac:
@@ -1381,7 +1381,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,maccovercircle"
           tox_args: "tests/pytest_tests/unit_tests"
 
       #
@@ -1399,6 +1399,19 @@ workflows:
           tox_args: "tests/functional_tests"
 
           parallelism: 4
+
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+              shard:
+                - "langchain"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          # todo: func-covercircle doesn't work with python 3.8+, should be fixed
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
+
       #
       # Functional tests with yea on Linux
       #
