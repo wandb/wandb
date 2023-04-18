@@ -440,7 +440,6 @@ class Artifact(ArtifactInterface):
 
         paths = []
         for path in Path(local_path).rglob("*"):
-            path = path.resolve()
             if path.is_file():
                 logical_path = FilePathStr(str(path.relative_to(local_path)))
                 if name is not None:
