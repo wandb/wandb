@@ -9,6 +9,7 @@ import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 from wandb.sdk.lib import filesystem
+from wandb.util import FilePathStr
 
 from .wb_value import WBValue
 
@@ -205,7 +206,7 @@ class Media(WBValue):
                 assert isinstance(self._path, str)
                 assert isinstance(self._sha256, str)
                 artifact = run  # Checks if the concrete image has already been added to this artifact
-                name = artifact.get_added_local_path_name(self._path)
+                name = artifact.get_added_local_path_name(FilePathStr(self._path))
                 if name is None:
                     if self._is_tmp:
                         name = os.path.join(
@@ -242,7 +243,7 @@ class Media(WBValue):
                         artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
-                            self._path, name=name, is_tmp=self._is_tmp
+                            util.FilePathStr(self._path), name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
 

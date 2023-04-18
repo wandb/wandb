@@ -9,6 +9,7 @@ from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
 from wandb.sdk.lib import telemetry
+from wandb.util import PathOrStr
 
 from ..keras import patch_tf_keras
 
@@ -46,7 +47,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         - Save the model either in SavedModel format or in `.h5` format.
 
     Arguments:
-        filepath (Union[str, os.PathLike]): path to save the model file.
+        filepath (PathOrStr): path to save the model file.
         monitor (str): The metric name to monitor.
         verbose (int): Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
             displays messages when the callback takes an action.
@@ -72,7 +73,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
 
     def __init__(
         self,
-        filepath: Union[str, os.PathLike],
+        filepath: PathOrStr,
         monitor: str = "val_loss",
         verbose: int = 0,
         save_best_only: bool = False,

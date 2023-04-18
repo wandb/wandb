@@ -26,7 +26,7 @@ from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
-from wandb.util import _is_artifact_representation
+from wandb.util import FilePathStr, _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -805,7 +805,7 @@ class _WandbInit:
             and self.settings.launch_config_path
             and os.path.exists(self.settings.launch_config_path)
         ):
-            run._save(self.settings.launch_config_path)
+            run._save(FilePathStr(self.settings.launch_config_path))
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted

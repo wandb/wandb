@@ -5,7 +5,8 @@ import platform
 import re
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import click
 
@@ -15,6 +16,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
+from wandb.util import FilePathStr, PathOrStr
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -283,14 +285,14 @@ def fetch_wandb_project_run_info(
 
 
 def download_entry_point(
-    entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: str
+    entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: PathOrStr
 ) -> bool:
     metadata = api.download_url(
         project, f"code/{entry_point}", run=run_name, entity=entity
     )
     if metadata is not None:
         _, response = api.download_file(metadata["url"])
-        with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
+        with util.fsync_open(Path(dir) / entry_point, "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)
         return True
@@ -298,16 +300,14 @@ def download_entry_point(
 
 
 def download_wandb_python_deps(
-    entity: str, project: str, run_name: str, api: Api, dir: str
+    entity: str, project: str, run_name: str, api: Api, dir: PathOrStr
 ) -> Optional[str]:
     reqs = api.download_url(project, "requirements.txt", run=run_name, entity=entity)
     if reqs is not None:
         _logger.info("Downloading python dependencies")
         _, response = api.download_file(reqs["url"])
 
-        with util.fsync_open(
-            os.path.join(dir, "requirements.frozen.txt"), "wb"
-        ) as file:
+        with util.fsync_open(Path(dir) / "requirements.frozen.txt", "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)
         return "requirements.frozen.txt"
@@ -315,12 +315,14 @@ def download_wandb_python_deps(
 
 
 def get_local_python_deps(
-    dir: str, filename: str = "requirements.local.txt"
-) -> Optional[str]:
+    dir: PathOrStr, filename: Union[os.PathLike, str] = "requirements.local.txt"
+) -> Optional[PathOrStr]:
     try:
         env = os.environ
-        with open(os.path.join(dir, filename), "w") as f:
+        with open(Path(dir) / filename, "w") as f:
             subprocess.call(["pip", "freeze"], env=env, stdout=f)
+        if isinstance(filename, str):
+            filename = FilePathStr(filename)
         return filename
     except subprocess.CalledProcessError as e:
         wandb.termerror(f"Command failed: {e}")
@@ -386,18 +388,19 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
 
 def validate_wandb_python_deps(
     requirements_file: Optional[str],
-    dir: str,
+    dir: PathOrStr,
 ) -> None:
     """Warn if local python dependencies differ from wandb requirements.txt."""
+    dir_path = Path(dir)
     if requirements_file is not None:
-        requirements_path = os.path.join(dir, requirements_file)
-        with open(requirements_path) as f:
+        requirements_path = dir_path / requirements_file
+        with requirements_path.open() as f:
             wandb_python_deps: List[str] = f.read().splitlines()
 
-        local_python_file = get_local_python_deps(dir)
+        local_python_file = get_local_python_deps(dir_path)
         if local_python_file is not None:
-            local_python_deps_path = os.path.join(dir, local_python_file)
-            with open(local_python_deps_path) as f:
+            local_python_deps_path = dir_path / local_python_file
+            with local_python_deps_path.open() as f:
                 local_python_deps: List[str] = f.read().splitlines()
 
             diff_pip_requirements(wandb_python_deps, local_python_deps)

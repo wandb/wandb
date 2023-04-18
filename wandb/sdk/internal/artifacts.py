@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
@@ -211,7 +212,7 @@ class ArtifactSaver:
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
-                path = os.path.abspath(fp.name)
+                path = Path(fp.name).resolve()
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = md5_file_b64(path)
             if distributed_id or incremental:

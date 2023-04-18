@@ -36,7 +36,7 @@ from typing import (
 import requests
 
 import wandb
-from wandb import errors, trigger, util
+from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
@@ -54,6 +54,8 @@ from wandb.sdk.lib.import_hooks import (
     unregister_post_import_hook,
 )
 from wandb.util import (
+    FilePathStr,
+    PathOrStr,
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
@@ -692,7 +694,7 @@ class Run:
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self._save(self._settings.launch_config_path)
+            self._save(FilePathStr(self._settings.launch_config_path))
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -1754,8 +1756,8 @@ class Run:
     @_run_decorator._attach
     def save(
         self,
-        glob_str: Optional[Union[str, pathlib.Path]] = None,
-        base_path: Optional[Union[str, pathlib.Path]] = None,
+        glob_str: Optional[PathOrStr] = None,
+        base_path: Optional[PathOrStr] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
@@ -1784,8 +1786,8 @@ class Run:
 
     def _save(
         self,
-        glob_str: Optional[Union[str, pathlib.Path]] = None,
-        base_path: Optional[Union[str, pathlib.Path]] = None,
+        glob_str: Optional[PathOrStr] = None,
+        base_path: Optional[PathOrStr] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         if policy not in ("live", "end", "now"):
@@ -1795,7 +1797,7 @@ class Run:
         if isinstance(glob_str, bytes):
             glob_str = glob_str.decode("utf-8")
         elif isinstance(glob_str, pathlib.Path):
-            glob_str = str(glob_str)
+            glob_str = FilePathStr(str(glob_str))
         if not isinstance(glob_str, str):
             raise ValueError(
                 "Must call wandb.save(glob_str) with glob_str as str or pathlib.Path object"
@@ -1803,7 +1805,7 @@ class Run:
 
         if base_path is None:
             if os.path.isabs(glob_str):
-                base_path = os.path.dirname(glob_str)
+                base_path = FilePathStr(os.path.dirname(glob_str))
                 wandb.termwarn(
                     "Saving files without folders. If you want to preserve "
                     "sub directories pass base_path to wandb.save, i.e. "
@@ -1811,7 +1813,7 @@ class Run:
                     repeat=False,
                 )
             else:
-                base_path = "."
+                base_path = FilePathStr(".")
         wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
@@ -3861,14 +3863,14 @@ class _LazyArtifact(ArtifactInterface):
         return self._instance.get(name)
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
-    ) -> util.FilePathStr:
+        self, root: Optional[PathOrStr] = None, recursive: bool = False
+    ) -> PathOrStr:
         return self._instance.download(root, recursive)
 
-    def checkout(self, root: Optional[str] = None) -> str:
+    def checkout(self, root: Optional[PathOrStr] = None) -> PathOrStr:
         return self._instance.checkout(root)
 
-    def verify(self, root: Optional[str] = None) -> Any:
+    def verify(self, root: Optional[PathOrStr] = None) -> Any:
         return self._instance.verify(root)
 
     def save(self) -> None:

@@ -2,9 +2,9 @@ import hashlib
 import logging
 import os
 from io import BytesIO
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
-from pathlib import Path
 
 import wandb
 from wandb import util
@@ -30,7 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
-    ImageDataOrPathType = Union[str, Path, "Image", ImageDataType]
+    ImageDataOrPathType = Union[util.PathOrStr, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 

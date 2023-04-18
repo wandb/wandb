@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from wandb.sdk.data_types._dtypes import TypeRegistry
@@ -123,9 +124,10 @@ class JobBuilder:
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
         artifact = Artifact(name, JOB_ARTIFACT_TYPE)
-        if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
+        diff_path = Path(self._settings.files_dir, DIFF_FNAME)
+        if diff_path.is_file():
             artifact.add_file(
-                os.path.join(self._settings.files_dir, DIFF_FNAME),
+                diff_path,
                 name="diff.patch",
             )
         return artifact, source
@@ -212,7 +214,7 @@ class JobBuilder:
             f.write(json.dumps(source_info, indent=4))
 
         artifact.add_file(
-            os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME),
+            Path(self._settings.files_dir) / REQUIREMENTS_FNAME,
             name=FROZEN_REQUIREMENTS_FNAME,
         )
 
@@ -221,8 +223,9 @@ class JobBuilder:
     def _handle_metadata_file(
         self,
     ) -> Optional[Dict]:
-        if os.path.exists(os.path.join(self._settings.files_dir, METADATA_FNAME)):
-            with open(os.path.join(self._settings.files_dir, METADATA_FNAME)) as f:
+        metadata_file = Path(self._settings.files_dir) / METADATA_FNAME
+        if metadata_file.is_file():
+            with metadata_file.open() as f:
                 metadata: Dict = json.load(f)
             return metadata
 

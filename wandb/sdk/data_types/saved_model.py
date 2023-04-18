@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -18,6 +19,7 @@ import wandb
 from wandb import util
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.hashutil import md5_file_hex
+from wandb.util import FilePathStr, PathOrStr
 
 from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
@@ -38,16 +40,19 @@ DEBUG_MODE = False
 
 
 def _add_deterministic_dir_to_artifact(
-    artifact: "LocalArtifact", dir_name: str, target_dir_root: str
-) -> str:
+    artifact: "LocalArtifact", dir_name: PathOrStr, target_dir_root: PathOrStr
+) -> PathOrStr:
     file_paths = []
-    for dirpath, _, filenames in os.walk(dir_name, topdown=True):
-        for fn in filenames:
-            file_paths.append(os.path.join(dirpath, fn))
+    dir_path = Path(dir_name).resolve()
+    for path in dir_path.rglob("*"):
+        if path.is_file():
+            file_paths.append(path)
     dirname = md5_file_hex(*file_paths)[:20]
     target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
-    artifact.add_dir(dir_name, target_path)
-    return target_path
+    artifact.add_dir(dir_path, target_path)
+    if isinstance(target_dir_root, str):
+        return FilePathStr(str(target_path))
+    return Path(target_path)
 
 
 def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
@@ -80,12 +85,12 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     _path_extension: ClassVar[str]
 
     _model_obj: Optional["SavedModelObjType"]
-    _path: Optional[str]
-    _input_obj_or_path: Union[SavedModelObjType, str]
+    _path: Optional[Path]
+    _input_obj_or_path: Union[SavedModelObjType, PathOrStr]
 
     # Public Methods
     def __init__(
-        self, obj_or_path: Union[SavedModelObjType, str], **kwargs: Any
+        self, obj_or_path: Union[SavedModelObjType, PathOrStr], **kwargs: Any
     ) -> None:
         super().__init__()
         if self.__class__ == _SavedModel:
@@ -95,10 +100,11 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._model_obj = None
         self._path = None
         self._input_obj_or_path = obj_or_path
-        input_is_path = isinstance(obj_or_path, str) and os.path.exists(obj_or_path)
+        input_is_path = (
+            isinstance(obj_or_path, (str, os.PathLike)) and Path(obj_or_path).exists()
+        )
         if input_is_path:
-            assert isinstance(obj_or_path, str)  # mypy
-            self._set_obj(self._deserialize(obj_or_path))
+            self._set_obj(self._deserialize(FilePathStr(str(obj_or_path))))
         else:
             self._set_obj(obj_or_path)
 
@@ -155,7 +161,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             "type": self._log_type,
         }
         assert self._path is not None, "Cannot add SavedModel to Artifact without path"
-        if os.path.isfile(self._path):
+        if self._path.is_file():
             # If the path is a file, then we can just add it to the artifact,
             # First checking to see if the artifact already has the file (use the cache)
             # Else, add it directly, allowing the artifact adder to rename the file deterministically.
@@ -164,16 +170,18 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
                 json_obj["path"] = already_added_path
             else:
                 target_path = os.path.join(
-                    ".wb_data", "saved_models", os.path.basename(self._path)
+                    ".wb_data", "saved_models", self._path.parent
                 )
                 json_obj["path"] = artifact.add_file(self._path, target_path, True).path
-        elif os.path.isdir(self._path):
+        elif self._path.is_dir():
             # If the path is a directory, then we need to add all of the files
             # The directory must be named deterministically based on the contents of the directory,
             # but the files themselves need to have their name preserved.
             # FUTURE: Add this functionality to the artifact adder itself
-            json_obj["path"] = _add_deterministic_dir_to_artifact(
-                artifact, self._path, os.path.join(".wb_data", "saved_models")
+            json_obj["path"] = str(
+                _add_deterministic_dir_to_artifact(
+                    artifact, self._path, Path(".wb_data") / "saved_models"
+                )
             )
         else:
             raise ValueError(
@@ -193,7 +201,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     # Methods to be implemented by subclasses
     @staticmethod
-    def _deserialize(path: str) -> SavedModelObjType:
+    def _deserialize(path: PathOrStr) -> SavedModelObjType:
         """Return the model object from a path. Allowed to throw errors."""
         raise NotImplementedError
 
@@ -203,7 +211,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         raise NotImplementedError
 
     @staticmethod
-    def _serialize(obj: SavedModelObjType, dir_or_file_path: str) -> None:
+    def _serialize(obj: SavedModelObjType, dir_or_file_path: PathOrStr) -> None:
         """Save the model to disk.
 
         The method will receive a directory path which all files needed for
@@ -240,13 +248,13 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return None
 
     @classmethod
-    def _tmp_path(cls: Type["_SavedModel"]) -> str:
+    def _tmp_path(cls: Type["_SavedModel"]) -> Path:
         # Generates a tmp path under our MEDIA_TMP directory which confirms to the file
         # or folder preferences of the class.
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
-        tmp_path = os.path.abspath(os.path.join(MEDIA_TMP.name, runid.generate_id()))
+        tmp_path = (Path(MEDIA_TMP.name) / runid.generate_id()).resolve()
         if cls._path_extension != "":
-            tmp_path += "." + cls._path_extension
+            tmp_path = tmp_path.with_suffix(cls._path_extension)
         return tmp_path
 
     # Private Instance Methods
@@ -267,7 +275,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         ), f"Invalid model object {model_obj}"
         self._model_obj = model_obj
 
-    def _dump(self, target_path: str) -> None:
+    def _dump(self, target_path: PathOrStr) -> None:
         assert self._model_obj is not None, "Cannot dump if model object is None"
         self._serialize(self._model_obj, target_path)
 
@@ -290,7 +298,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     def __init__(
         self,
-        obj_or_path: Union[SavedModelObjType, str],
+        obj_or_path: Union[SavedModelObjType, PathOrStr],
         dep_py_files: Optional[List[str]] = None,
     ):
         super().__init__(obj_or_path)
@@ -340,10 +348,12 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
         json_obj = super().to_json(run_or_artifact)
         assert isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact)
         if self._dep_py_files_path is not None:
-            json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
-                run_or_artifact,
-                self._dep_py_files_path,
-                os.path.join(".wb_data", "extra_files"),
+            json_obj["dep_py_files_path"] = str(
+                _add_deterministic_dir_to_artifact(
+                    run_or_artifact,
+                    Path(self._dep_py_files_path),
+                    Path(".wb_data") / "extra_files",
+                )
             )
         return json_obj
 
@@ -360,7 +370,7 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     _path_extension = "pt"
 
     @staticmethod
-    def _deserialize(dir_or_file_path: str) -> "torch.nn.Module":
+    def _deserialize(dir_or_file_path: PathOrStr) -> "torch.nn.Module":
         return _get_torch().load(dir_or_file_path)
 
     @staticmethod
@@ -368,7 +378,7 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
         return isinstance(obj, _get_torch().nn.Module)
 
     @staticmethod
-    def _serialize(model_obj: "torch.nn.Module", dir_or_file_path: str) -> None:
+    def _serialize(model_obj: "torch.nn.Module", dir_or_file_path: PathOrStr) -> None:
         _get_torch().save(
             model_obj,
             dir_or_file_path,
@@ -389,7 +399,7 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: str,
+        dir_or_file_path: PathOrStr,
     ) -> "sklearn.base.BaseEstimator":
         with open(dir_or_file_path, "rb") as file:
             model = _get_cloudpickle().load(file)
@@ -409,7 +419,7 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
 
     @staticmethod
     def _serialize(
-        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: str
+        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: PathOrStr
     ) -> None:
         dynamic_cloudpickle = _get_cloudpickle()
         with open(dir_or_file_path, "wb") as file:
@@ -429,7 +439,7 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: str,
+        dir_or_file_path: PathOrStr,
     ) -> "tensorflow.keras.Model":
         return _get_tf_keras().models.load_model(dir_or_file_path)
 
@@ -438,7 +448,9 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
         return isinstance(obj, _get_tf_keras().models.Model)
 
     @staticmethod
-    def _serialize(model_obj: "tensorflow.keras.Model", dir_or_file_path: str) -> None:
+    def _serialize(
+        model_obj: "tensorflow.keras.Model", dir_or_file_path: PathOrStr
+    ) -> None:
         _get_tf_keras().models.save_model(
             model_obj, dir_or_file_path, include_optimizer=True
         )

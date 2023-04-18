@@ -9,7 +9,6 @@ import logging
 import math
 import numbers
 import os
-import pathlib
 import platform
 import queue
 import random
@@ -73,6 +72,7 @@ LogicalFilePathStr = NewType("LogicalFilePathStr", str)
 #
 # TODO(spencerpearson): this should probably be replaced with pathlib.Path
 FilePathStr = NewType("FilePathStr", str)
+PathOrStr = Union[os.PathLike, FilePathStr]
 
 # TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
 URIStr = NewType("URIStr", str)
@@ -1237,12 +1237,12 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 
 
 def download_file_from_url(
-    dest_path: str, source_url: str, api_key: Optional[str] = None
+    dest_path: PathOrStr, source_url: str, api_key: Optional[str] = None
 ) -> None:
     response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
     response.raise_for_status()
 
-    if os.sep in dest_path:
+    if os.sep in str(dest_path):
         filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
     with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
@@ -1412,7 +1412,7 @@ def rand_alphanumeric(
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
+    path: PathOrStr, mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
     """Open a path for I/O and guarante that the file is flushed and synced."""
     with open(path, mode, encoding=encoding) as f:

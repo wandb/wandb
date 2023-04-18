@@ -1,5 +1,6 @@
 import logging
 import shlex
+from pathlib import Path
 from typing import Any, List, Optional
 
 import wandb
@@ -62,18 +63,18 @@ class LocalProcessRunner(AbstractRunner):
                 source_project,
                 run_name,
                 self._api,
-                launch_project.project_dir,
+                Path(launch_project.project_dir),
             )
             validate_wandb_python_deps(
                 run_requirements_file,
-                launch_project.project_dir,
+                Path(launch_project.project_dir),
             )
         elif launch_project.job:
             assert launch_project._job_artifact is not None
             try:
                 validate_wandb_python_deps(
                     "requirements.frozen.txt",
-                    launch_project.project_dir,
+                    Path(launch_project.project_dir),
                 )
             except Exception:
                 wandb.termwarn("Unable to validate python dependencies")

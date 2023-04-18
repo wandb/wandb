@@ -10,6 +10,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from pathlib import Path
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -41,6 +42,7 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.util import FilePathStr, PathOrStr
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -2000,22 +2002,22 @@ class Api:
     def download_write_file(
         self,
         metadata: Dict[str, str],
-        out_dir: Optional[str] = None,
-    ) -> Tuple[str, Optional[requests.Response]]:
+        out_dir: Optional[PathOrStr] = None,
+    ) -> Tuple[PathOrStr, Optional[requests.Response]]:
         """Download a file from a run and write it to wandb/.
 
         Arguments:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
-            out_dir (str, optional): The directory to write the file to. Defaults to wandb/
+            out_dir (Union[str, os.PathLike], optional): The directory to write the file to. Defaults to wandb/
 
         Returns:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file
             already existed and was up-to-date.
         """
-        filename = metadata["name"]
-        path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
+        filename = Path(metadata["name"])
+        path: PathOrStr = Path(out_dir or self.settings("wandb_dir")) / filename
         if self.file_current(filename, B64MD5(metadata["md5"])):
-            return path, None
+            return FilePathStr(str(path)) if isinstance(out_dir, str) else path, None
 
         size, response = self.download_file(metadata["url"])
 
@@ -2023,6 +2025,8 @@ class Api:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)
 
+        if isinstance(out_dir, str):
+            path = FilePathStr(str(path))
         return path, response
 
     def upload_file_azure(
@@ -2539,7 +2543,7 @@ class Api:
         return key
 
     @staticmethod
-    def file_current(fname: str, md5: B64MD5) -> bool:
+    def file_current(fname: PathOrStr, md5: B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
