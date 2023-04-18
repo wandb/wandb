@@ -54,6 +54,7 @@ from wandb.sdk.lib.import_hooks import (
     unregister_post_import_hook,
 )
 from wandb.util import (
+    FilePathStr,
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
@@ -2276,7 +2277,7 @@ class Run:
     ) -> "Artifact":
         job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
-            job_artifact.add_file(patch_path, "diff.patch")
+            job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         with job_artifact.new_file("wandb-job.json") as f:
