@@ -78,6 +78,7 @@ class AutologOpenAI:
         """Autolog OpenAI API calls to W&B."""
         self.patch_openai_api = PatchOpenAIAPI()
         self.run: Optional["wandb.sdk.wandb_run.Run"] = None
+        self.__user_provided_run: bool = False
 
     def __call__(self, run: Optional["wandb.sdk.wandb_run.Run"] = None) -> None:
         """Enable OpenAI autologging."""
@@ -100,17 +101,17 @@ class AutologOpenAI:
             self.run = wandb.init()
         else:
             logger.info("Enabling OpenAI autologging.")
+            self.__user_provided_run = True
             self.run = run
 
         self.patch()
 
     def disable(self) -> None:
         """Disable OpenAI autologging."""
-        if self.run is not None:
+        if self.run is not None and not self.__user_provided_run:
             self.run.finish()
-            self.run = None
-        self.patch_openai_api.unpatch()
-
+        self.run = None
+        self.__user_provided_run = False
         self.unpatch()
 
     def patch(self) -> None:
