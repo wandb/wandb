@@ -47,6 +47,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
+from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.filesystem import StrPath
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -2273,7 +2274,7 @@ class Run:
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
     ) -> "Artifact":
-        job_artifact = wandb.Artifact(name, type="job")
+        job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(patch_path, "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:

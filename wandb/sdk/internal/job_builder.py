@@ -57,6 +57,12 @@ class ArtifactInfoForJob(TypedDict):
     name: str
 
 
+class JobArtifact(Artifact):
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(name, *args, **kwargs, type="placeholder")
+        self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
+
+
 class JobBuilder:
     _settings: SettingsStatic
     _metadatafile_path: Optional[str]
@@ -122,8 +128,7 @@ class JobBuilder:
 
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
-        artifact = Artifact(name, "")
-        artifact._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
+        artifact = JobArtifact(name)
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
             artifact.add_file(
                 os.path.join(self._settings.files_dir, DIFF_FNAME),
@@ -145,7 +150,7 @@ class JobBuilder:
         }
         name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
 
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         return artifact, source
 
     def _build_image_job(
@@ -154,7 +159,7 @@ class JobBuilder:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
         name = make_artifact_name_safe(f"job-{image_name}")
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = JobArtifact(name)
         source: ImageSourceDict = {
             "image": image_name,
         }
