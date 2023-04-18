@@ -165,6 +165,12 @@ class Artifact(ArtifactInterface):
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
                 'Invalid name: "%s"' % name
             )
+        if type in ("job", "wandb-history") or type.startswith("wandb:"):
+            raise ValueError(
+                f"Artifact type '{type}' is reserved for internal use. "
+                "Please use a different type."
+            )
+
         metadata = _normalize_metadata(metadata)
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
