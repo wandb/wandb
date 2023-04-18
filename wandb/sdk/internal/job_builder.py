@@ -122,7 +122,8 @@ class JobBuilder:
 
         name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
 
-        artifact = Artifact(name, JOB_ARTIFACT_TYPE)
+        artifact = Artifact(name, "")
+        artifact._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
         if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
             artifact.add_file(
                 os.path.join(self._settings.files_dir, DIFF_FNAME),
