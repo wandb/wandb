@@ -1,3 +1,4 @@
+import io
 import logging
 import sys
 from typing import Any, Dict, List, Optional, TypeVar
@@ -38,10 +39,10 @@ class OpenAIRequestResponseResolver:
         try:
             if response["object"] == "edit":
                 return self._resolve_edit(request, response, time_elapsed)
-            # elif response["object"] == "text_completion":
-            #     return self._resolve_completion(request, response, time_elapsed)
-            # elif response["object"] == "chat.completion":
-            #     return self._resolve_chat_completion(request, response, time_elapsed)
+            elif response["object"] == "text_completion":
+                return self._resolve_completion(request, response, time_elapsed)
+            elif response["object"] == "chat.completion":
+                return self._resolve_chat_completion(request, response, time_elapsed)
             else:
                 logger.info(f"Unknown OpenAI response object: {response['object']}")
         except Exception as e:
@@ -85,17 +86,82 @@ class OpenAIRequestResponseResolver:
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         """Resolves the request and response objects for `openai.Edit`."""
+        request_str = (
+            f"\n\n**Instruction**: {request['instruction']}\n\n"
+            f"**Input**: {request['input']}\n"
+        )
+        choices = [
+            f"\n\n**Edited**: {choice['text']}\n" for choice in response["choices"]
+        ]
+
+        return self._request_response_result_to_trace(
+            request=request,
+            response=response,
+            request_str=request_str,
+            choices=choices,
+            time_elapsed=time_elapsed,
+        )
+
+    def _resolve_completion(
+        self,
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+        time_elapsed: float,
+    ) -> trace_tree.WBTraceTree:
+        """Resolves the request and response objects for `openai.Completion`."""
+        request_str = f"\n\n**Prompt**: {request['prompt']}\n"
+        choices = [
+            f"\n\n**Completion**: {choice['text']}\n" for choice in response["choices"]
+        ]
+
+        return self._request_response_result_to_trace(
+            request=request,
+            response=response,
+            request_str=request_str,
+            choices=choices,
+            time_elapsed=time_elapsed,
+        )
+
+    def _resolve_chat_completion(
+        self,
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+        time_elapsed: float,
+    ) -> trace_tree.WBTraceTree:
+        """Resolves the request and response objects for `openai.Completion`."""
+        prompt = io.StringIO()
+        for message in request["messages"]:
+            prompt.write(f"\n\n**{message['role']}**: {message['content']}\n")
+        request_str = prompt.getvalue()
+
+        choices = [
+            f"\n\n**{choice['message']['role']}**: {choice['message']['content']}\n"
+            for choice in response["choices"]
+        ]
+
+        return self._request_response_result_to_trace(
+            request=request,
+            response=response,
+            request_str=request_str,
+            choices=choices,
+            time_elapsed=time_elapsed,
+        )
+
+    def _request_response_result_to_trace(
+        self,
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+        request_str: str,
+        choices: List[str],
+        time_elapsed: float,
+    ) -> trace_tree.WBTraceTree:
+        """Resolves the request and response objects for `openai.Completion`."""
         results = [
             trace_tree.Result(
-                inputs={
-                    "request": (
-                        f"\n\n**Instruction**: {request['instruction']}\n\n"
-                        f"**Input**: {request['input']}\n"
-                    )
-                },
-                outputs={"response": f"\n\n**Edited**: {choice['text']}\n"},
+                inputs={"request": request_str},
+                outputs={"response": choice},
             )
-            for choice in response["choices"]
+            for choice in choices
         ]
         trace = self.results_to_trace_tree(request, response, results, time_elapsed)
         return trace
