@@ -67,7 +67,7 @@ def test_run_job_secure_mode(mocker):
                 }
             }
         },
-        {"overrides": {"entry_point": ["some", "code"]}},
+        {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
     ]
     errors = [
         'This agent is configured to lock "hostPID" in pod spec but the job specification attempts to override it.',
