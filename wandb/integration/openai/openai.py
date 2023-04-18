@@ -88,7 +88,7 @@ class AutologOpenAI:
         """Enable OpenAI autologging.
 
         Args:
-            run: Optional wandb run object. If not specified, wandb.init() will be called.
+            run: Optional wandb run object. If not specified, `wandb.init()` will be called.
 
         """
         if self.run is not None:
