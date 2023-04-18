@@ -297,6 +297,7 @@ class ArtifactSaver:
         for entry in self._manifest.entries.values():
             if entry.local_path and entry.local_path.startswith(staging_dir):
                 try:
+                    os.chmod(entry.local_path, 0o600)
                     os.remove(entry.local_path)
                 except OSError:
                     pass
