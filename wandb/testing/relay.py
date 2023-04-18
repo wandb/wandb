@@ -4,7 +4,6 @@ import logging
 import socket
 import sys
 import threading
-import time
 import urllib.parse
 from collections import defaultdict, deque
 from copy import deepcopy
@@ -27,6 +26,7 @@ import responses
 
 import wandb
 import wandb.util
+from wandb.sdk.lib.timer import Timer
 
 try:
     from typing import Literal, TypedDict
@@ -72,22 +72,6 @@ class DeliberateHTTPError(Exception):
 
     def __repr__(self):
         return f"DeliberateHTTPError({self.message!r}, {self.status_code!r})"
-
-
-class Timer:
-    def __init__(self) -> None:
-        self.start: float = time.perf_counter()
-        self.stop: float = self.start
-
-    def __enter__(self) -> "Timer":
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        self.stop = time.perf_counter()
-
-    @property
-    def elapsed(self) -> float:
-        return self.stop - self.start
 
 
 class Context:
