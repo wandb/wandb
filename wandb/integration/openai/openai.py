@@ -2,11 +2,11 @@ import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 import wandb
-from wandb.integration.openai.autologging_utils import disable_autologging
 from wandb.integration.openai.utils import (
     _gen_classes_to_patch,
     _patch_method_if_available,
     safe_patch,
+    disable_autologging,
 )
 from wandb.sdk.data_types import trace_tree
 

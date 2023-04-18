@@ -9,7 +9,7 @@
 NOTE: The contents of this file have been inlined from the gorilla package's source code
 https://github.com/christophercrouzet/gorilla/blob/v0.3.0/gorilla.py
 
-This module has fixes / adaptations for wandb use cases that make it different from the original
+This module has fixes / adaptations for use cases that make it different from the original
 gorilla library
 
 The following modifications have been made:
