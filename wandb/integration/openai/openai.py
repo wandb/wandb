@@ -104,7 +104,7 @@ class AutologOpenAI:
             self.__user_provided_run = True
             self.run = run
 
-        self.patch()
+        self.patch_openai_api.patch(self.run)
 
     def disable(self) -> None:
         """Disable OpenAI autologging."""
@@ -112,12 +112,5 @@ class AutologOpenAI:
             self.run.finish()
         self.run = None
         self.__user_provided_run = False
-        self.unpatch()
 
-    def patch(self) -> None:
-        """Patch OpenAI API for autologging."""
-        self.patch_openai_api.patch(self.run)
-
-    def unpatch(self) -> None:
-        """Unpatch OpenAI API."""
         self.patch_openai_api.unpatch()
