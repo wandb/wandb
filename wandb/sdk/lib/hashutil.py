@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import sys
 from os import PathLike
 from typing import NewType, Union
 
@@ -8,8 +9,16 @@ HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
 
 
+def _md5(data: bytes = b"") -> "hashlib._Hash":
+    """Allow FIPS-compliant md5 hash when supported."""
+    if sys.version_info >= (3, 9):
+        return hashlib.md5(data, usedforsecurity=False)
+    else:
+        return hashlib.md5(data)
+
+
 def md5_string(string: str) -> B64MD5:
-    return _b64_from_hasher(hashlib.md5(string.encode()))
+    return _b64_from_hasher(_md5(string.encode("utf-8")))
 
 
 def _b64_from_hasher(hasher: "hashlib._Hash") -> B64MD5:
@@ -36,7 +45,7 @@ def md5_file_hex(*paths: Union[str, PathLike]) -> HexMD5:
 
 
 def _md5_file_hasher(*paths: Union[str, PathLike]) -> "hashlib._Hash":
-    md5_hash = hashlib.md5()
+    md5_hash = _md5()
     for path in sorted(str(p) for p in paths):
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(64 * 1024), b""):
