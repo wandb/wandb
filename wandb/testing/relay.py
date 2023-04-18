@@ -41,12 +41,6 @@ else:
 if TYPE_CHECKING:
     from typing import Deque
 
-    class RawRequestResponse(TypedDict):
-        url: str
-        request: Optional[Any]
-        response: Dict[str, Any]
-        time_elapsed: float  # seconds
-
     ResolverName = Literal[
         "upsert_bucket",
         "upload_files",
@@ -58,6 +52,13 @@ if TYPE_CHECKING:
     class Resolver(TypedDict):
         name: ResolverName
         resolver: Callable[[Any], Optional[Dict[str, Any]]]
+
+
+class RawRequestResponse(TypedDict):
+    url: str
+    request: Optional[Any]
+    response: Dict[str, Any]
+    time_elapsed: float  # seconds
 
 
 class DeliberateHTTPError(Exception):
