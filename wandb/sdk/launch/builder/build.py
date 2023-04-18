@@ -26,7 +26,6 @@ from .._project_spec import (
     EntryPoint,
     EntrypointDefaults,
     LaunchProject,
-    compute_command_args,
     fetch_and_validate_project,
 )
 from ..utils import (
@@ -235,7 +234,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     """
     env_vars = {}
     env_vars["WANDB_BASE_URL"] = api.settings("base_url")
-    env_vars["WANDB_API_KEY"] = api.api_key
+    override_api_key = launch_project.launch_spec.get("_wandb_api_key")
+    env_vars["WANDB_API_KEY"] = override_api_key or api.api_key
     env_vars["WANDB_PROJECT"] = launch_project.target_project
     env_vars["WANDB_ENTITY"] = launch_project.target_entity
     env_vars["WANDB_LAUNCH"] = "True"
@@ -244,7 +244,7 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         env_vars["WANDB_DOCKER"] = launch_project.docker_image
     if launch_project.name is not None:
         env_vars["WANDB_NAME"] = launch_project.name
-    if "author" in launch_project.launch_spec:
+    if "author" in launch_project.launch_spec and not override_api_key:
         env_vars["WANDB_USERNAME"] = launch_project.launch_spec["author"]
 
     # TODO: handle env vars > 32760 characters
@@ -265,7 +265,7 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         )
     if launch_project.override_args:
         env_vars["WANDB_ARGS"] = " ".join(
-            compute_command_args(launch_project.override_args)
+            [str(a) for a in launch_project.override_args]
         )
     return env_vars
 

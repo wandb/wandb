@@ -87,6 +87,7 @@ if TYPE_CHECKING:
         api_key: Optional[str]
         entity: Optional[str]
         project: Optional[str]
+        _extra_http_headers: Optional[Mapping[str, str]]
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
@@ -178,6 +179,7 @@ class Api:
             "api_key": None,
             "entity": None,
             "project": None,
+            "_extra_http_headers": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
@@ -194,12 +196,22 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+
+        # todo: remove this hacky hack after settings refactor is complete
+        #  keeping this code here to limit scope and so that it is easy to remove later
+        extra_http_headers = self.settings(
+            "_extra_http_headers"
+        ) or wandb.sdk.wandb_settings._str_as_dict(
+            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", {})
+        )
+
         self.client = Client(
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    **extra_http_headers,
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -2269,7 +2281,7 @@ class Api:
 
     def agent_heartbeat(
         self, agent_id: str, metrics: dict, run_states: dict
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
         Arguments:
@@ -2319,7 +2331,9 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            result: List[str] = json.loads(response["agentHeartbeat"]["commands"])
+            result: List[Dict[str, Any]] = json.loads(
+                response["agentHeartbeat"]["commands"]
+            )
             return result
 
     @staticmethod
@@ -2458,21 +2472,29 @@ class Api:
 
         config = self._validate_config_and_fill_distribution(config)
 
+        # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
+        # This sanitizes them with a round trip pass through json to get a regular dict.
+        config_str = yaml.dump(json.loads(json.dumps(config)))
+
         err: Optional[Exception] = None
         for mutation in mutations:
             try:
+                variables = {
+                    "id": obj_id,
+                    "config": config_str,
+                    "description": config.get("description"),
+                    "entityName": entity or self.settings("entity"),
+                    "projectName": project or self.settings("project"),
+                    "controller": controller,
+                    "launchScheduler": launch_scheduler,
+                    "scheduler": scheduler,
+                }
+                if state:
+                    variables["state"] = state
+
                 response = self.gql(
                     mutation,
-                    variable_values={
-                        "id": obj_id,
-                        "config": yaml.dump(config),
-                        "description": config.get("description"),
-                        "entityName": entity or self.settings("entity"),
-                        "projectName": project or self.settings("project"),
-                        "controller": controller,
-                        "launchScheduler": launch_scheduler,
-                        "scheduler": scheduler,
-                    },
+                    variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
             except UsageError as e:
@@ -3370,3 +3392,32 @@ class Api:
     def _flatten_edges(self, response: "_Response") -> List[Dict]:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
+
+    @normalize_exceptions
+    def stop_run(
+        self,
+        run_id: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation stopRun($id: ID!) {
+                stopRun(input: {
+                    id: $id
+                }) {
+                    clientMutationId
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "id": run_id,
+            },
+        )
+
+        success: bool = response["stopRun"].get("success")
+
+        return success

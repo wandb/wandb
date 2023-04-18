@@ -42,6 +42,9 @@ def parse_args():
         help="Push image after creation. This requires that you enter a tag that includes a registry via --tag",
     )
     parser.add_argument("--tag", default="wandb-launch-agent", help="Tag for the image")
+    parser.add_argument(
+        "--platform", default="linux/amd64", help="Platform to use, e.g. 'linux/amd64'"
+    )
     return parser.parse_args()
 
 
@@ -59,6 +62,7 @@ def main():
         tags=[args.tag],
         file=dockerfile_path,
         context_path=build_context,
+        platform=args.platform,
     )
     if args.push:
         image, tag = args.tag.split(":")

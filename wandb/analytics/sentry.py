@@ -222,36 +222,41 @@ class Sentry:
                 return None
 
             for tag in settings_tags:
-                val = settings[tag]
+                val = getattr(settings, tag, None)
                 if val not in (None, ""):
                     scope.set_tag(tag, val)
 
             # todo: update once #4982 is merged
             python_runtime = (
                 "colab"
-                if settings["_colab"]
-                else ("jupyter" if settings["_jupyter"] else "python")
+                if getattr(settings, "_colab", None)
+                else ("jupyter" if getattr(settings, "_jupyter", None) else "python")
             )
             scope.set_tag("python_runtime", python_runtime)
 
             # Hack for constructing run_url and sweep_url given run_id and sweep_id
             required = ("entity", "project", "base_url")
-            params = {key: settings[key] for key in required}
+            params = {key: getattr(settings, key, None) for key in required}
             if all(params.values()):
                 # here we're guaranteed that entity, project, base_url all have valid values
-                app_url = wandb.util.app_url(params["base_url"])
-                ent, proj = (quote(params[k]) for k in ("entity", "project"))
+                app_url = wandb.util.app_url(params["base_url"])  # type: ignore
+                ent, proj = (quote(params[k]) for k in ("entity", "project"))  # type: ignore
 
                 # TODO: the settings object will be updated to contain run_url and sweep_url
                 # This is done by passing a settings_map in the run_start protocol buffer message
                 for word in ("run", "sweep"):
                     _url, _id = f"{word}_url", f"{word}_id"
-                    if not settings[_url] and settings[_id]:
+                    if not getattr(settings, _url, None) and getattr(
+                        settings, _id, None
+                    ):
                         scope.set_tag(
-                            _url, f"{app_url}/{ent}/{proj}/{word}s/{settings[_id]}"
+                            _url,
+                            f"{app_url}/{ent}/{proj}/{word}s/{getattr(settings, _id, None)}",
                         )
 
             if hasattr(settings, "email"):
                 scope.user = {"email": settings.email}  # noqa
+
+        # todo: add back the option to pass general tags see: c645f625d1c1a3db4a6b0e2aa8e924fee101904c (wandb/util.py)
 
         self.start_session()
