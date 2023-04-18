@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import wandb.sdk
 import wandb.util
+from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.timer import Timer
 
 from .resolver import OpenAIRequestResponseResolver
@@ -105,6 +106,9 @@ class AutologOpenAI:
             self.run = run
 
         self.patch_openai_api.patch(self.run)
+
+        with wb_telemetry.context(self.run) as tel:
+            tel.feature.openai_autolog = True
 
     def disable(self) -> None:
         """Disable OpenAI autologging."""

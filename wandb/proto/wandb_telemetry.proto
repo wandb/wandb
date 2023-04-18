@@ -167,6 +167,7 @@ message Feature {
   bool importer_mlflow = 48; // Using Import API for MLFlow
   bool sync_tfevents = 49; // Using wandb sync for tfevent files
   bool async_uploads = 50; // Async file uploads enabled by user
+  bool openai_autolog = 51; // OpenAI autolog used
 }
 
 message Env {
