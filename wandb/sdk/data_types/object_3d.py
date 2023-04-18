@@ -198,10 +198,12 @@ class Object3D(BatchableMedia):
 
             if len(np_data.shape) != 2 or np_data.shape[1] not in {3, 4, 6}:
                 raise ValueError(
-                    """The shape of the numpy array must be one of either
+                    """
+                    The shape of the numpy array must be one of either
                                     [[x y z],       ...] nx3
                                      [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                                     [x y z r g b], ...] nx4 where is rgb is color"""
+                                     [x y z r g b], ...] nx6 where rgb is color
+                    """
                 )
 
             list_data = np_data.tolist()
@@ -224,6 +226,13 @@ class Object3D(BatchableMedia):
         data_or_path: Union["TextIO", str],
         file_type: Optional["FileFormat3D"] = None,
     ) -> "Object3D":
+        """Initializes Object3D from a file or stream.
+
+        Arguments:
+            data_or_path (Union["TextIO", str]): A path to a file or a `TextIO` stream.
+            file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
+                `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
+        """
         # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
         #     raise ValueError(
         #         f"Unsupported file type: {file_type}. Supported types are: {cls.SUPPORTED_TYPES}"
@@ -232,15 +241,31 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":
+        """Initializes Object3D from a numpy array.
+
+        Arguments:
+            data (numpy array): Each entry in the array will
+                represent one point in the point cloud.
+
+
+        The shape of the numpy array must be one of either:
+        ```
+        [[x y z],       ...]  # nx3.
+        [[x y z c],     ...]  # nx4 where c is a category with supported range [1, 14].
+        [[x y z r g b], ...]  # nx6 where is rgb is color.
+        ```
+        """
         if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
 
         if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
             raise ValueError(
-                """The shape of the numpy array must be one of either
+                """
+                The shape of the numpy array must be one of either:
                                 [[x y z],       ...] nx3
                                  [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                                 [x y z r g b], ...] nx4 where is rgb is color"""
+                                 [x y z r g b], ...] nx6 where rgb is color
+                """
             )
 
         return cls(data)
@@ -254,6 +279,16 @@ class Object3D(BatchableMedia):
         point_cloud_type: "PointCloudType" = "lidar/beta",
         # camera: Optional[Camera] = None,
     ) -> "Object3D":
+        """Initializes Object3D from a python object.
+
+        Arguments:
+            points (Sequence["Point"]): The points in the point cloud.
+            boxes (Sequence["Box3D"]): 3D bounding boxes for labeling the point cloud. Boxes
+            are displayed in point cloud visualizations.
+            vectors (Optional[Sequence["Vector3D"]]): Each vector is displayed in the point cloud
+                visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
+            point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
+        """
         if point_cloud_type not in cls.SUPPORTED_POINT_CLOUD_TYPES:
             raise ValueError("Point cloud type not supported")
 

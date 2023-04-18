@@ -56,7 +56,6 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         save_weights_only (bool): if True, then only the model's weights will be saved.
         mode (Mode): one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
             for `val_loss` this should be `min`, etc.
-        save_weights_only (bool): if True, then only the model's weights will be saved
         save_freq (Union[SaveStrategy, int]): `epoch` or integer. When using `'epoch'`,
             the callback saves the model after each epoch. When using an integer, the
             callback saves the model at end of this many batches.

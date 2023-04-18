@@ -1,0 +1,23 @@
+id: 0.langhchain.01-v1
+plugin:
+  - wandb
+tag:
+  shard: langchain
+  skips:
+    - platform: win
+depend:
+  requirements:
+    - langchain
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][summary][langchain_trace][_type]: wb_trace_tree
+  - :op:contains:
+    - :wandb:runs[0][summary][langchain_trace]
+    - model_hash
+  - :op:contains:
+    - :wandb:runs[0][summary][langchain_trace]
+    - root_span_dumps
+  - :op:contains:
+    - :wandb:runs[0][summary][langchain_trace]
+    - model_dict_dumps
