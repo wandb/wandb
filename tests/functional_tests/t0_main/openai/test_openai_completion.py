@@ -1,6 +1,7 @@
 import os
 
 import openai
+
 from wandb.integration.openai import autolog
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -18,7 +19,7 @@ def main():
         presence_penalty=0,
     )
 
-    response = openai.Completion.create(**request_kwargs)
+    _ = openai.Completion.create(**request_kwargs)
 
 
 if __name__ == "__main__":

@@ -144,10 +144,7 @@ class Settings:
 
     def __repr__(self):
         values = ", ".join(
-            [
-                f"{key}={value!r}"
-                for key, value in sorted(_iteritems(self.__dict__))
-            ]
+            [f"{key}={value!r}" for key, value in sorted(_iteritems(self.__dict__))]
         )
         return f"{type(self).__name__}({values})"
 
@@ -637,9 +634,7 @@ def get_original_attribute(obj, name, bypass_descriptor_protocol=False):
             else:
                 # go on checking parent classes
                 continue
-        raise AttributeError(
-            f"'{type(obj)}' object has no attribute '{name}'"
-        )
+        raise AttributeError(f"'{type(obj)}' object has no attribute '{name}'")
     else:
         try:
             return _get_attr(obj, original_name)

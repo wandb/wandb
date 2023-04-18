@@ -162,9 +162,6 @@ def safe_patch(
         while exceptions thrown from other parts of `patch_function` are caught and logged as
         warnings.
         """
-        is_silent_mode = get_autologging_config(
-            autologging_integration, "silent", False
-        )
 
         # Whether to exclude auto-logged content from user-created wandb runs
         # (i.e. runs created manually via `wandb.init`)
@@ -194,8 +191,6 @@ def safe_patch(
         # Whether an exception was raised from within the original / underlying function
         # during the execution of patched code
         failed_during_original = False
-        # The active wandb run (if any) associated with patch code execution
-        patch_function_run_for_testing = None
         # The exception raised during executing patching function
         patch_function_exception = None
 

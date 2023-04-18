@@ -1,6 +1,7 @@
 import os
 
 import openai
+
 from wandb.integration.openai import autolog
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -14,7 +15,7 @@ def main():
         instruction="Fix the spelling mistakes.",
     )
 
-    response = openai.Edit.create(**request_kwargs)
+    _ = openai.Edit.create(**request_kwargs)
 
 
 if __name__ == "__main__":
