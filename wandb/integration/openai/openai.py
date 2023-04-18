@@ -1,3 +1,4 @@
+import logging
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,9 @@ if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
+
+
+logger = logging.getLogger(__name__)
 
 
 class PatchOpenAIAPI:
@@ -44,9 +48,12 @@ class PatchOpenAIAPI:
                 def create(*args, **kwargs):
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
-                    trace = self.resolver(kwargs, result, timer.elapsed)
-                    if trace is not None:
-                        run.log({"trace": trace})
+                    try:
+                        trace = self.resolver(kwargs, result, timer.elapsed)
+                        if trace is not None:
+                            run.log({"trace": trace})
+                    except Exception as e:
+                        logger.warning(f"Failed to resolve request/response: {e}")
                     return result
 
                 return create
