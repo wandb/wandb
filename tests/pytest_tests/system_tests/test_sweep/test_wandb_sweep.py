@@ -128,6 +128,17 @@ def test_sweep_entity_project_callable(user, relay_server, sweep_config):
     assert sweep_response["name"] == sweep_id
 
 
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_ALL)
+def test_object_dict_config(user, relay_server, sweep_config):
+    class DictLikeObject(dict):
+        def __init__(self, d: dict):
+            super().__init__(d)
+
+    with relay_server() as relay:
+        sweep_id = wandb.sweep(DictLikeObject(sweep_config), entity=user)
+    assert sweep_id in relay.context.entries
+
+
 def test_minmax_validation():
     api = wandb.apis.InternalApi()
     sweep_config = {
