@@ -120,7 +120,6 @@ class WandbTracer(SharedTracer):
         Parameters:
             run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
                 called with no arguments. Please refer to the `wandb.init` for more details.
-                https://github.com/wandb/wandb/blob/9967dde4313aa8faeac4ca50891dde6db7be6342/wandb/sdk/wandb_init.py#L913
             include_stdout: (bool, optional) If True, the `StdOutCallbackHandler` will be added to the list of
                 handlers. This is common practice when using LangChain as it prints useful information to stdout.
             additional_handlers: (list, optional) A list of additional handlers to add to the list of LangChain handlers.
@@ -168,7 +167,6 @@ class WandbTracer(SharedTracer):
         Parameters:
             run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
                 called with no arguments. Please refer to the `wandb.init` for more details.
-                https://github.com/wandb/wandb/blob/9967dde4313aa8faeac4ca50891dde6db7be6342/wandb/sdk/wandb_init.py#L913
 
         We only want to start a new run if the run args differ. This will reduce
         the number of W&B runs created, which is more ideal in a notebook
