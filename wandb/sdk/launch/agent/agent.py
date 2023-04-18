@@ -46,6 +46,7 @@ _logger = logging.getLogger(__name__)
 class JobAndRunStatus:
     run_queue_item_id: str
     run_id: Optional[str] = None
+    entity: Optional[str] = None
     project: Optional[str] = None
     run: Optional[AbstractRun] = None
     failed_to_start: bool = False
@@ -59,6 +60,7 @@ class JobAndRunStatus:
     def update_run_info(self, launch_project: LaunchProject) -> None:
         self.run_id = launch_project.run_id
         self.project = launch_project.target_project
+        self.entity = launch_project.target_entity
 
 
 def _convert_access(access: str) -> str:
@@ -253,7 +255,14 @@ class LaunchAgent:
     def finish_thread_id(self, thread_id: int) -> None:
         """Removes the job from our list for now."""
         job_and_run_status = self._jobs[thread_id]
-        if not job_and_run_status.run_id or not job_and_run_status.project:
+        if (
+            not job_and_run_status.run_id
+            or not job_and_run_status.project
+            or not job_and_run_status.entity
+        ):
+            wandb.termlog(
+                f"Marking run queue item {job_and_run_status.run_queue_item_id} as failed because it has no run_id, project, or entity."
+            )
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
         else:
             run_info = None
@@ -262,7 +271,9 @@ class LaunchAgent:
             # normal runs just throw a comm error
             try:
                 run_info = self._api.get_run_info(
-                    self._entity, job_and_run_status.project, job_and_run_status.run_id
+                    job_and_run_status.entity,
+                    job_and_run_status.project,
+                    job_and_run_status.run_id,
                 )
 
             except CommError:
@@ -351,6 +362,9 @@ class LaunchAgent:
                                     f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                                 )
                                 wandb._sentry.exception(e)
+                                _logger.info(
+                                    "failing run queue item, main loop exception %s", e
+                                )
                                 self.fail_run_queue_item(job["runQueueItemId"])
 
                 for thread_id in self.thread_ids:
