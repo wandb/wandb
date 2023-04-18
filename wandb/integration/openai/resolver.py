@@ -38,7 +38,12 @@ class OpenAIRequestResponseResolver:
         try:
             if response["object"] == "edit":
                 return self._resolve_edit(request, response, time_elapsed)
-            # todo: the other dudes
+            # elif response["object"] == "text_completion":
+            #     return self._resolve_completion(request, response, time_elapsed)
+            # elif response["object"] == "chat.completion":
+            #     return self._resolve_chat_completion(request, response, time_elapsed)
+            else:
+                logger.info(f"Unknown OpenAI response object: {response['object']}")
         except Exception as e:
             logger.warning(f"Failed to resolve request/response: {e}")
         return None
@@ -80,38 +85,15 @@ class OpenAIRequestResponseResolver:
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         """Resolves the request and response objects for `openai.Edit`."""
-
-        def format_request(_request: Dict[str, Any]) -> str:
-            """Formats the request object to a string.
-
-            params:
-                request: The request dictionary
-                response: The response object
-            returns:
-                A string representation of the request object to be logged
-            """
-            prompt = (
-                f"\n\n**Instruction**: {_request['instruction']}\n\n"
-                f"**Input**: {_request['input']}\n"
-            )
-            return prompt
-
-        def format_response_choice(_choice: Dict[str, Any]) -> str:
-            """Formats the choice in a response object to a string.
-
-            params:
-                choice: The choice dictionary
-            returns:
-                A string representation of the choice object to be logged
-                in a trace tree Result object.
-            """
-            choice = f"\n\n**Edited**: {_choice['text']}\n"
-            return choice
-
         results = [
             trace_tree.Result(
-                inputs={"request": format_request(request)},
-                outputs={"response": format_response_choice(choice)},
+                inputs={
+                    "request": (
+                        f"\n\n**Instruction**: {request['instruction']}\n\n"
+                        f"**Input**: {request['input']}\n"
+                    )
+                },
+                outputs={"response": f"\n\n**Edited**: {choice['text']}\n"},
             )
             for choice in response["choices"]
         ]
