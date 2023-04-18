@@ -66,6 +66,8 @@ if TYPE_CHECKING:
     from wandb import Settings as WBSettings
     from wandb.wandb_run import Run as WBRun
 
+monkeypatch.ensure_patched()
+
 
 class WandbRunArgs(TypedDict):
     job_type: Optional[str]
@@ -154,7 +156,6 @@ class WandbTracer(SharedTracer):
         the number of W&B runs created, which is more ideal in a notebook
         setting.
         """
-        monkeypatch.ensure_patched()
         # Add a check for differences between wandb.run and self._run
         if (
             wandb.run is not None
@@ -194,7 +195,6 @@ class WandbTracer(SharedTracer):
             wandb.termlog(f"Finished uploading data to W&B at {url}")
         else:
             wandb.termlog("W&B run not started. Skipping.")
-        monkeypatch.clear_patches()
 
     def _log_trace_from_run(self, run: "BaseRun") -> None:
         if self._run is None:
