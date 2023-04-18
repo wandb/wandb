@@ -557,9 +557,9 @@ class RelayServer:
         self.session = requests.Session()
         self.relay_url = f"http://127.0.0.1:{self.port}"
 
-        # recursively merge-able object to store state
-        self.resolver = QueryResolver()
         # todo: add an option to add custom resolvers
+        self.resolver = QueryResolver()
+        # recursively merge-able object to store state
         self.context = Context()
 
         # injected responses

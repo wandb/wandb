@@ -1,13 +1,20 @@
 import logging
 import socket
+import sys
 import threading
 import urllib.parse
-from typing import Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, TypeVar
 
 import requests
 
 import wandb.util
+from wandb.sdk.data_types import trace_tree
 from wandb.testing.relay import RawRequestResponse, Timer
+
+if sys.version_info >= (3, 8):
+    from typing import Literal, Protocol
+else:
+    from typing_extensions import Literal, Protocol
 
 flask = wandb.util.get_module(
     name="flask",
@@ -22,6 +29,109 @@ openai = wandb.util.get_module(
     "package installed. Please install it with `pip install openai`.",
     lazy=False,
 )
+
+
+K = TypeVar("K", bound=str)
+V = TypeVar("V")
+
+
+class OpenAIResponse(Protocol[K, V]):
+    # contains a (known) object attribute
+    object: Literal["chat.completion", "edit", "text_completion"]
+
+    def __getitem__(self, key: K) -> V:
+        ...  # pragma: no cover
+
+    def __setitem__(self, key: K, value: V) -> None:
+        ...  # pragma: no cover
+
+    def __delitem__(self, key: K) -> None:
+        ...  # pragma: no cover
+
+    def __iter__(self) -> Any:
+        ...  # pragma: no cover
+
+    def __len__(self) -> int:
+        ...  # pragma: no cover
+
+    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
+        ...  # pragma: no cover
+
+
+class OpenAIRequestResponseResolver:
+    def __call__(
+        self,
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+    ):
+        if response["object"] == "edit":
+            return self._resolve_edit(request, response)
+
+    @staticmethod
+    def results_to_trace_tree(
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+        results: List[trace_tree.Result],
+    ) -> trace_tree.WBTraceTree:
+        """Converts the request, response, and results into a trace tree.
+
+        params:
+            request: The request object
+            response: The response object
+            results: A list of results object
+        returns:
+            A trace tree object.
+        """
+        span = trace_tree.Span(
+            name=f"{response.get('model', 'openai')}_{response['object']}_{response.get('created')}",
+            attributes=dict(response),  # type: ignore
+            start_time_ms=int(round(response["created"] * 1000)),
+            end_time_ms=int(round(response["created"] * 1000)) + 10,
+            span_kind=trace_tree.SpanKind.LLM,
+            results=results,
+        )
+        model_obj = {"request": request, "response": response, "_kind": "openai"}
+        return trace_tree.WBTraceTree(root_span=span, model_dict=model_obj)
+
+    def _resolve_edit(
+        self,
+        request: Dict[str, Any],
+        response: OpenAIResponse,
+    ) -> trace_tree.WBTraceTree:
+        def format_request(_request: Dict[str, Any]) -> str:
+            """Formats the request object to a string.
+
+            params:
+                _request: The request object
+            returns:
+                A string representation of the request object to be logged in a trace tree Result object.
+            """
+            prompt = (
+                f"\n\n**Instruction**: {_request['instruction']}\n\n"
+                f"**Input**: {_request['input']}\n"
+            )
+            return prompt
+
+        def format_response_choice(choice: Dict[str, Any]) -> str:
+            """Formats the choice in a response object to a string.
+
+            params:
+                choice: The choice object
+            returns:
+                A string representation of the choice object to be logged in a trace tree Result object.
+            """
+            choice = f"\n\n**Edited**: {choice['text']}\n"
+            return choice
+
+        results = [
+            trace_tree.Result(
+                inputs={"request": format_request(request)},
+                outputs={"response": format_response_choice(choice)},
+            )
+            for choice in response["choices"]
+        ]
+        trace = self.results_to_trace_tree(request, response, results)
+        return trace
 
 
 class Relay:
@@ -49,6 +159,7 @@ class Relay:
         self._relay_server_thread: Optional[threading.Thread] = None
 
         self.context: List[Dict[str, str]] = []
+        self.resolver = OpenAIRequestResponseResolver()
 
         # useful for debugging:
         # self.after_request_fn = self.app.after_request(self.after_request_fn)
@@ -145,6 +256,8 @@ class Relay:
         # todo: add context resolvers
         # todo: save parsed context to wandb
         #  if parsing fails, just save the raw data !!
+        trace = self.resolver(request_data, response_data)
+        print(trace)
 
     def snoopy(self, subpath) -> Mapping[str, str]:
         """Relays a request to the OpenAI API, saves the context and returns the response."""
