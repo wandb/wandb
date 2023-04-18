@@ -145,11 +145,11 @@ class Settings:
     def __repr__(self):
         values = ", ".join(
             [
-                "{}={!r}".format(key, value)
+                f"{key}={value!r}"
                 for key, value in sorted(_iteritems(self.__dict__))
             ]
         )
-        return "{}({})".format(type(self).__name__, values)
+        return f"{type(self).__name__}({values})"
 
     def __eq__(self, other):
         if isinstance(other, type(self)):
@@ -638,7 +638,7 @@ def get_original_attribute(obj, name, bypass_descriptor_protocol=False):
                 # go on checking parent classes
                 continue
         raise AttributeError(
-            "'{}' object has no attribute '{}'".format(type(obj), name)
+            f"'{type(obj)}' object has no attribute '{name}'"
         )
     else:
         try:
@@ -791,7 +791,7 @@ def _module_iterator(root, recursive=True):
         for path in paths:
             modules = pkgutil.iter_modules([path])
             for finder, name, is_package in modules:
-                module_name = "{}.{}".format(package.__name__, name)
+                module_name = f"{package.__name__}.{name}"
                 module = sys.modules.get(module_name, None)
                 if module is None:
                     # Import the module through the finder to support package

@@ -1,5 +1,5 @@
 import datetime
-from typing import Dict, Any, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 import wandb
 from wandb.integration.openai.autologging_utils import disable_autologging

@@ -1,7 +1,7 @@
 import functools
 import inspect
 import logging
-from typing import Callable, Optional, Any, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 
 import openai
 
