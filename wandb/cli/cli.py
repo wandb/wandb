@@ -1049,11 +1049,7 @@ def launch_sweep(
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
 
 
-@cli.command(
-    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
-    "or a git uri pointing to a remote repository, or path to a local directory.",
-)
+@cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
 @click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
     "--job",
@@ -1207,9 +1203,6 @@ def launch(
     )
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
 
@@ -1304,7 +1297,7 @@ def launch(
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Run a W&B launch agent (Experimental).",
+    help="Run a W&B launch agent.",
 )
 @click.pass_context
 @click.option(
@@ -1365,9 +1358,6 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(

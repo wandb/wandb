@@ -1,12 +1,11 @@
 import datetime
 
-from langchain.chains import LLMChain
-from langchain.llms.fake import FakeListLLM
-from langchain.prompts import PromptTemplate
-from wandb.integration.langchain import WandbTracer
-
 
 def simple_fake_test():
+    from langchain.chains import LLMChain
+    from langchain.llms.fake import FakeListLLM
+    from langchain.prompts import PromptTemplate
+
     llm = FakeListLLM(responses=[f"Fake response: {i}" for i in range(100)])
 
     prompt = PromptTemplate(
@@ -20,6 +19,12 @@ def simple_fake_test():
         chain(f"q: {i} - {datetime.datetime.now().timestamp()}")
 
 
-WandbTracer.init()
-simple_fake_test()
-WandbTracer.finish()
+def main():
+    from wandb.integration.langchain import WandbTracer
+
+    WandbTracer.init()
+    simple_fake_test()
+    WandbTracer.finish()
+
+
+main()
