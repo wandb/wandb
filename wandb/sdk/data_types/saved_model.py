@@ -253,7 +253,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # or folder preferences of the class.
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
         tmp_path = (Path(MEDIA_TMP.name) / runid.generate_id()).resolve()
-        if cls._path_extension != "":
+        if cls._path_extension:
             tmp_path = tmp_path.with_suffix(cls._path_extension)
         return tmp_path
 
@@ -367,7 +367,7 @@ def _get_torch() -> "torch":
 
 class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     _log_type = "pytorch-model-file"
-    _path_extension = "pt"
+    _path_extension = ".pt"
 
     @staticmethod
     def _deserialize(dir_or_file_path: PathOrStr) -> "torch.nn.Module":
@@ -395,7 +395,7 @@ def _get_sklearn() -> "sklearn":
 
 class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
     _log_type = "sklearn-model-file"
-    _path_extension = "pkl"
+    _path_extension = ".pkl"
 
     @staticmethod
     def _deserialize(
