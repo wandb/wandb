@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Mapping, Optional, TypeVar
 
 import requests
 
+import wandb.sdk
 import wandb.util
 from wandb.sdk.data_types import trace_tree
 from wandb.testing.relay import RawRequestResponse, Timer
@@ -163,6 +164,8 @@ class Relay:
         self.context: List[Dict[str, str]] = []
         self.resolver = OpenAIRequestResponseResolver()
 
+        self.run: Optional["wandb.sdk.wandb_run.Run"] = None
+
         # useful for debugging:
         # self.after_request_fn = self.app.after_request(self.after_request_fn)
 
@@ -195,6 +198,11 @@ class Relay:
         self._relay_server_thread.start()
         openai.api_base = self.relay_url
 
+        # init wandb run
+        self.run = wandb.init(
+            project="snoopy"
+        )  # todo: add project name + entity as init parameters
+
     def stop(self) -> None:
         """Stops the local server and restores the original OpenAI API URL."""
         if self._relay_server_thread is None:
@@ -202,7 +210,9 @@ class Relay:
         # self._relay_server_thread.join()
         self._relay_server_thread = None
         openai.api_base = self.base_url.geturl()
-        # openai.api_base = str(self.base_url)
+
+        self.run.finish()
+        self.run = None
 
     def after_request_fn(self, response: "requests.Response") -> "requests.Response":
         # todo: this is useful for debugging, but should be removed in the future
@@ -259,7 +269,8 @@ class Relay:
         # todo: save parsed context to wandb
         #  if parsing fails, just save the raw data !!
         trace = self.resolver(request_data, response_data, time_elapsed)
-        print(trace)
+        if trace is not None:
+            self.run.log({"trace": trace})
 
     def snoopy(self, subpath) -> Mapping[str, str]:
         """Relays a request to the OpenAI API, saves the context and returns the response."""
