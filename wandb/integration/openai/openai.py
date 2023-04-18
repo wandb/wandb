@@ -31,6 +31,9 @@ openai = wandb.util.get_module(
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 K = TypeVar("K", bound=str)
 V = TypeVar("V")
 
@@ -42,18 +45,6 @@ class OpenAIResponse(Protocol[K, V]):
     def __getitem__(self, key: K) -> V:
         ...  # pragma: no cover
 
-    def __setitem__(self, key: K, value: V) -> None:
-        ...  # pragma: no cover
-
-    def __delitem__(self, key: K) -> None:
-        ...  # pragma: no cover
-
-    def __iter__(self) -> Any:
-        ...  # pragma: no cover
-
-    def __len__(self) -> int:
-        ...  # pragma: no cover
-
     def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
         ...  # pragma: no cover
 
@@ -63,15 +54,21 @@ class OpenAIRequestResponseResolver:
         self,
         request: Dict[str, Any],
         response: OpenAIResponse,
-    ):
-        if response["object"] == "edit":
-            return self._resolve_edit(request, response)
+        time_elapsed: float,
+    ) -> Optional[trace_tree.WBTraceTree]:
+        try:
+            if response["object"] == "edit":
+                return self._resolve_edit(request, response, time_elapsed)
+        except Exception as e:
+            logger.warning(f"Failed to resolve request/response: {e}")
+        return None
 
     @staticmethod
     def results_to_trace_tree(
         request: Dict[str, Any],
         response: OpenAIResponse,
         results: List[trace_tree.Result],
+        time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         """Converts the request, response, and results into a trace tree.
 
@@ -82,11 +79,13 @@ class OpenAIRequestResponseResolver:
         returns:
             A trace tree object.
         """
+        start_time_ms = int(round(response["created"] * 1000))
+        end_time_ms = start_time_ms + int(round(time_elapsed * 1000))
         span = trace_tree.Span(
             name=f"{response.get('model', 'openai')}_{response['object']}_{response.get('created')}",
             attributes=dict(response),  # type: ignore
-            start_time_ms=int(round(response["created"] * 1000)),
-            end_time_ms=int(round(response["created"] * 1000)) + 10,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
             span_kind=trace_tree.SpanKind.LLM,
             results=results,
         )
@@ -97,6 +96,7 @@ class OpenAIRequestResponseResolver:
         self,
         request: Dict[str, Any],
         response: OpenAIResponse,
+        time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         def format_request(_request: Dict[str, Any]) -> str:
             """Formats the request object to a string.
@@ -104,7 +104,8 @@ class OpenAIRequestResponseResolver:
             params:
                 _request: The request object
             returns:
-                A string representation of the request object to be logged in a trace tree Result object.
+                A string representation of the request object to be logged
+                in a trace tree Result object.
             """
             prompt = (
                 f"\n\n**Instruction**: {_request['instruction']}\n\n"
@@ -118,7 +119,8 @@ class OpenAIRequestResponseResolver:
             params:
                 choice: The choice object
             returns:
-                A string representation of the choice object to be logged in a trace tree Result object.
+                A string representation of the choice object to be logged
+                in a trace tree Result object.
             """
             choice = f"\n\n**Edited**: {choice['text']}\n"
             return choice
@@ -130,7 +132,7 @@ class OpenAIRequestResponseResolver:
             )
             for choice in response["choices"]
         ]
-        trace = self.results_to_trace_tree(request, response, results)
+        trace = self.results_to_trace_tree(request, response, results, time_elapsed)
         return trace
 
 
@@ -256,7 +258,7 @@ class Relay:
         # todo: add context resolvers
         # todo: save parsed context to wandb
         #  if parsing fails, just save the raw data !!
-        trace = self.resolver(request_data, response_data)
+        trace = self.resolver(request_data, response_data, time_elapsed)
         print(trace)
 
     def snoopy(self, subpath) -> Mapping[str, str]:
