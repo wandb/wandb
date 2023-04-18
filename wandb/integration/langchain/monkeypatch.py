@@ -78,6 +78,7 @@ def _clear_chain_type():
     if "Chain._chain_type" not in patched_symbols:
         return
     Chain._chain_type = patched_symbols["Chain._chain_type"]
+    del patched_symbols["Chain._chain_type"]
 
 
 def _patch_single_agent_type():
@@ -104,6 +105,7 @@ def _clear_single_agent_type():
     BaseSingleActionAgent._agent_type = patched_symbols[
         "BaseSingleActionAgent._agent_type"
     ]
+    del patched_symbols["BaseSingleActionAgent._agent_type"]
 
 
 def _patch_multi_agent_type():
@@ -130,6 +132,7 @@ def _clear_multi_agent_type():
     BaseMultiActionAgent._agent_type = patched_symbols[
         "BaseMultiActionAgent._agent_type"
     ]
+    del patched_symbols["BaseMultiActionAgent._agent_type"]
 
 
 def _patch_llm_type():
@@ -152,6 +155,7 @@ def _clear_llm_type():
     if "BaseLLM._llm_type" not in patched_symbols:
         return
     BaseLLM._llm_type = patched_symbols["BaseLLM._llm_type"]
+    del patched_symbols["BaseLLM._llm_type"]
 
 
 def _patch_output_parser_type():
@@ -174,6 +178,7 @@ def _clear_output_parser_type():
     if "BaseOutputParser._type" not in patched_symbols:
         return
     BaseOutputParser._type = patched_symbols["BaseOutputParser._type"]
+    del patched_symbols["BaseOutputParser._type"]
 
 
 def _patch_prompt_type():
@@ -196,6 +201,7 @@ def _clear_prompt_type():
     if "BasePromptTemplate._prompt_type" not in patched_symbols:
         return
     BasePromptTemplate._prompt_type = patched_symbols["BasePromptTemplate._prompt_type"]
+    del patched_symbols["BasePromptTemplate._prompt_type"]
 
 
 def _patch_chain_init():
@@ -215,6 +221,7 @@ def _clear_chain_init():
     if "Chain._init__" not in patched_symbols:
         return
     Chain.__init__ = patched_symbols["Chain._init__"]
+    del patched_symbols["Chain._init__"]
 
 
 def _patch_llm_init():
@@ -234,6 +241,7 @@ def _clear_llm_init():
     if "BaseLLM._init__" not in patched_symbols:
         return
     BaseLLM.__init__ = patched_symbols["BaseLLM._init__"]
+    del patched_symbols["BaseLLM._init__"]
 
 
 def _patch_tool_init():
@@ -253,6 +261,7 @@ def _clear_tool_init():
     if "BaseTool._init__" not in patched_symbols:
         return
     BaseTool.__init__ = patched_symbols["BaseTool._init__"]
+    del patched_symbols["BaseTool._init__"]
 
 
 def _wrap_init(cls):
