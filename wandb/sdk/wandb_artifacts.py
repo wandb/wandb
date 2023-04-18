@@ -719,18 +719,15 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: str, path: str, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
-        digest = digest or md5_file_b64(path)
-        size = os.path.getsize(path)
-        name = util.to_forward_slash_path(name)
-
         with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
+            os.chmod(staging_path, 0o400)
 
         entry = ArtifactManifestEntry(
-            path=name,
-            digest=digest,
-            size=size,
+            path=util.to_forward_slash_path(name),
+            digest=digest or md5_file_b64(staging_path),
+            size=os.path.getsize(staging_path),
             local_path=staging_path,
         )
 
