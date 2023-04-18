@@ -58,8 +58,8 @@ class ArtifactInfoForJob(TypedDict):
 
 
 class JobArtifact(Artifact):
-    def __init__(self, name, *args, **kwargs):
-        super().__init__(name, *args, **kwargs, type="placeholder")
+    def __init__(self, name: str, *args: Any, **kwargs: Any):
+        super().__init__(name, "placeholder", *args, **kwargs)
         self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
 
 
