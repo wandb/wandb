@@ -1401,6 +1401,7 @@ workflows:
           parallelism: 4
 
       - tox-base:
+          context: sdk-third-party-api
           matrix:
             parameters:
               python_version_major: [3]
