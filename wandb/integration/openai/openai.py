@@ -26,6 +26,7 @@ openai = wandb.util.get_module(
 
 class Relay:
     def __init__(self) -> None:
+        """Starts a local server that relays requests to the OpenAI API."""
         self.app = flask.Flask(__name__)
         self.app.logger.setLevel(logging.INFO)
         # disable flask's default message:
@@ -61,6 +62,7 @@ class Relay:
 
     @staticmethod
     def _get_free_port() -> int:
+        """Returns a free port on the local machine."""
         sock = socket.socket()
         sock.bind(("", 0))
 
@@ -68,6 +70,7 @@ class Relay:
         return port
 
     def start(self) -> None:
+        """Starts the local server in a separate thread."""
         if self._relay_server_thread is not None:
             return
         # run server in a separate thread
@@ -80,6 +83,7 @@ class Relay:
         openai.api_base = self.relay_url
 
     def stop(self) -> None:
+        """Stops the local server and restores the original OpenAI API URL."""
         if self._relay_server_thread is None:
             return
         # self._relay_server_thread.join()
@@ -100,6 +104,7 @@ class Relay:
         self,
         request: "flask.Request",
     ) -> "requests.Response":
+        """Relays a request to the OpenAI API and returns the response."""
         # replace the relay url with the real backend url (self.base_url)
         url = (
             urllib.parse.urlparse(request.url)
@@ -124,6 +129,7 @@ class Relay:
         response: "requests.Response",
         time_elapsed: float,
     ) -> None:
+        """Saves the request and response to the context."""
         request_data = request.get_json()
         response_data = response.json() or {}
 
@@ -141,16 +147,24 @@ class Relay:
         #  if parsing fails, just save the raw data !!
 
     def snoopy(self, subpath) -> Mapping[str, str]:
+        """Relays a request to the OpenAI API, saves the context and returns the response."""
+        # OpenAI API key must be set, otherwise we can't relay requests
+        # We postpone this check for as long as possible
+        if openai.api_key is None:
+            raise wandb.errors.AuthenticationError("OpenAI API key must be set")
+
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        print("*****************")
-        print("REQUEST:")
-        print(request.get_json())
-        print("RESPONSE:")
-        print(relayed_response.status_code, relayed_response.json())
-        print("*****************")
+
+        # print("*****************")
+        # print("REQUEST:")
+        # print(request.get_json())
+        # print("RESPONSE:")
+        # print(relayed_response.status_code, relayed_response.json())
+        # print("*****************")
         # snoop work to extract the context
+
         self.save(request, relayed_response, timer.elapsed)
 
         return relayed_response.json()
