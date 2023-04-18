@@ -48,6 +48,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
+        project.launch_spec = {}
         string_args = " ".join(project.override_args)
         environment = loader.environment_from_config({})
         registry = loader.registry_from_config({}, environment)
