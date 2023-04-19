@@ -710,17 +710,17 @@ class Artifact(ArtifactInterface):
             raise ArtifactFinalizedError(artifact=self)
 
     def _add_local_file(
-        self, name: str, path: str, digest: Optional[B64MD5] = None
+        self,
+        name: str,
+        path: Union[FilePathStr, os.PathLike],
+        digest: Optional[B64MD5] = None,
     ) -> ArtifactManifestEntry:
-        digest = digest or md5_file_b64(path)
-        size = os.path.getsize(path)
-        name = util.to_forward_slash_path(name)
-
+        local_path = stage_for_upload(path)
         entry = ArtifactManifestEntry(
-            path=name,
-            digest=digest,
-            size=size,
-            local_path=stage_for_upload(FilePathStr(path)),
+            path=util.to_forward_slash_path(name),
+            digest=digest or md5_file_b64(path),
+            size=os.path.getsize(path),
+            local_path=FilePathStr(str(local_path)),
         )
 
         self._manifest.add_entry(entry)

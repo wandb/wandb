@@ -5,7 +5,8 @@ import os
 import shutil
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence, Union
 
 import wandb
 import wandb.filesync.step_prepare
@@ -297,27 +298,36 @@ class ArtifactSaver:
         """
         staging_dir = _get_staging_dir()
         for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
-                try:
-                    os.remove(entry.local_path)
-                except OSError:
-                    pass
+            if not entry.local_path:
+                continue
+            try:
+                local_path = Path(entry.local_path)
+                local_path.relative_to(staging_dir)
+                local_path.chmod(0o600)
+                local_path.unlink()
+            except ValueError:
+                wandb.termerror(f"Staging file {local_path} is not in staging dir")
+            except PermissionError:
+                wandb.termerror(f"Unable to remove staging file {local_path}")
+            except FileNotFoundError:
+                pass
 
 
-def _get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+def _get_staging_dir() -> Path:
+    path = Path(env.get_data_dir()) / "artifacts" / "staging"
     mkdir_exists_ok(path)
 
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
+    return path.expanduser().resolve()
 
 
-def stage_for_upload(filepath: FilePathStr) -> FilePathStr:
+def stage_for_upload(filepath: Union[FilePathStr, os.PathLike]) -> Path:
     """Copy a file to a staging directory and return the path to the copy."""
     try:
         staging_dir = _get_staging_dir()
         with tempfile.NamedTemporaryFile(dir=staging_dir, delete=False) as f:
-            staging_path = f.name
+            staging_path = Path(f.name)
             shutil.copy2(filepath, staging_path)
+            staging_path.chmod(0o400)
     except OSError as e:
         if isinstance(e, PermissionError) or e.errno == errno.EACCES:
             msg = (
@@ -333,4 +343,4 @@ def stage_for_upload(filepath: FilePathStr) -> FilePathStr:
             )
         raise
 
-    return FilePathStr(staging_path)
+    return staging_path
