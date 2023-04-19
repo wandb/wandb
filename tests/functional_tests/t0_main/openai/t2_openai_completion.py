@@ -1,11 +1,9 @@
 import openai
-import wandb
 from wandb.integration.openai import autolog as openai_autolog
 
 
 def main():
-    run = wandb.init(project="openai_logging")
-    openai_autolog(run)
+    openai_autolog(init=dict(project="openai_logging"))
     request_kwargs = dict(
         engine="ada",
         prompt="This is a test prompt",

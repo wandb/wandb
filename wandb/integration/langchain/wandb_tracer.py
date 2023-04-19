@@ -186,7 +186,7 @@ class WandbTracer(SharedTracer):
         self._run_args = run_args
         self._run = None
 
-        # Make a shallow copy of the run args so we don't modify the original
+        # Make a shallow copy of the run args, so we don't modify the original
         run_args = run_args or {}  # type: ignore
         run_args: dict = {**run_args}  # type: ignore
 
@@ -229,7 +229,7 @@ class WandbTracer(SharedTracer):
         )
         self._run.log({"langchain_trace": model_trace})
 
-    # Start of required methods (this methods are required by the BaseCallbackHandler interface)
+    # Start of required methods (these methods are required by the BaseCallbackHandler interface)
     @property
     def always_verbose(self) -> bool:
         """Whether to call verbose callbacks even if verbose is False."""
