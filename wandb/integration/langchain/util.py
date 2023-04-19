@@ -7,10 +7,6 @@ This file exposes 4 primary functions:
 - `safely_convert_model_to_dict`: Converts a LangChain model into a dictionary.
 
 These functions are used by the `WandbTracer` to extract and save the relevant information.
-
-Due to the fact that LangChain is constantly evolving it's API, these functions are wrapped in
-a try/except block. This is to ensure that if a breaking change is introduced, the wandb
-integration will not break user code.
 """
 
 from typing import TYPE_CHECKING, Any, Optional, Union
