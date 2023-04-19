@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
+from wandb.sdk.interface import ArtifactFinalizedError
 from wandb.sdk.wandb_artifacts import Artifact
 from wandb.sdk.wandb_run import Run, WaitTimeoutError
 
@@ -210,6 +211,20 @@ def test_edit_after_add(wandb_init):
     assert open(os.path.join(art_path, filename)).read() == "hello!"
     # While the local file should have the edit applied.
     assert open(filename).read() == "goodbye."
+
+
+def test_remove_after_log(wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact(name="hi-art", type="dataset")
+        artifact.add_reference("http://example.com/file1.txt")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    with wandb_init() as run:
+        retrieved = run.use_artifact("hi-art:latest")
+
+        with pytest.raises(ArtifactFinalizedError):
+            retrieved.remove("file1.txt")
 
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):

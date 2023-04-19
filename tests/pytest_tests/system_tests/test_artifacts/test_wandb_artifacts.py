@@ -2,6 +2,7 @@ import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
 
 import numpy as np
@@ -633,6 +634,62 @@ def test_add_reference_unknown_handler():
         "digest": "ref://example.com/somefile.txt",
         "ref": "ref://example.com/somefile.txt",
     }
+
+
+@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+def test_remove_file(name_type):
+    file1 = Path("foo/file1.txt")
+    file1.write_text("hello")
+    file2 = Path("foo/file2.txt")
+    file2.write_text("hello")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_file(file1)
+    artifact.add_file(file2, name="renamed.txt")
+
+    artifact.remove(name_type(file1))
+    artifact.remove(name_type("renamed.txt"))
+
+    assert artifact.manifest.entries == {}
+
+
+@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+def test_remove_directory(name_type):
+    file1 = Path("foo/file1.txt")
+    file1.write_text("hello")
+    file2 = Path("foo/file2.txt")
+    file2.write_text("hello2")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_dir("foo")
+
+    artifact.remove(name_type("foo"))
+
+    assert artifact.manifest.entries == {}
+
+
+def test_remove_non_existent():
+    file1 = Path("foo/file1.txt")
+    file1.write_text("hello")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_dir("foo")
+
+    with pytest.raises(FileNotFoundError):
+        artifact.remove("file1.txt")
+    with pytest.raises(FileNotFoundError):
+        artifact.remove("bar/")
+
+    assert len(artifact.manifest.entries) == 1
+
+
+def test_remove_manifest_entry():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    entry = artifact.add_reference("http://example.com/file1.txt")
+
+    artifact.remove(entry)
+
+    assert artifact.manifest.entries == {}
 
 
 def test_artifact_table_deserialize_timestamp_column():
