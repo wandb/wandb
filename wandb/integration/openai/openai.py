@@ -80,8 +80,6 @@ class PatchOpenAIAPI:
 
 
 class AutologOpenAI:
-    # autolog(init={"id": "lol1"})
-    # autolog(init={"id": "lol2"})
     def __init__(self) -> None:
         """Autolog OpenAI API calls to W&B."""
         self._patch_openai_api = PatchOpenAIAPI()
