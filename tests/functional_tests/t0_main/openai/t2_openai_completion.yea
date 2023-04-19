@@ -1,15 +1,13 @@
-id: 0.openai.01-edit
+id: 0.openai.02-completion
 plugin:
   - wandb
 tag:
   shard: llm
   skips:
     - platform: win
-command:
-    program: test_openai_edit.py
 depend:
-  requirements:
-    - "openai>=0.27.4"
+    requirements:
+        - "openai>=0.27.4"
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
