@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 @dataclass
 class ArtifactManifestEntry:
+    """A single entry in an artifact manifest."""
+
     path: LogicalFilePathStr
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
     ref: Optional[Union[FilePathStr, URIStr]] = None
@@ -43,7 +45,6 @@ class ArtifactManifestEntry:
 
         Returns:
             (str): The path of the downloaded artifact entry.
-
         """
         raise NotImplementedError
 

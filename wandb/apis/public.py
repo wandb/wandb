@@ -4115,12 +4115,9 @@ class ArtifactCollection:
 class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
     def __init__(
         self,
-        name: str,
         entry: "artifacts.ArtifactManifestEntry",
         parent_artifact: "Artifact",
     ):
-        assert name == entry.path
-
         super().__init__(
             path=entry.path,
             digest=entry.digest,
@@ -4130,7 +4127,6 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
             extra=entry.extra,
             local_path=entry.local_path,
         )
-        self.name = name
         self._parent_artifact = parent_artifact
 
     def parent_artifact(self):
@@ -4141,14 +4137,14 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
 
     def download(self, root=None):
         root = root or self._parent_artifact._default_root()
-        dest_path = os.path.join(root, self.name)
+        dest_path = os.path.join(root, self.path)
 
         self._parent_artifact._add_download_root(root)
         manifest = self._parent_artifact._load_manifest()
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
-        entry = manifest.entries[self.name]
+        entry = manifest.entries[self.path]
         if os.path.exists(dest_path) and entry.digest == md5_file_b64(dest_path):
             return dest_path
 
@@ -4163,7 +4159,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         manifest = self._parent_artifact._load_manifest()
         if self.ref is not None:
             return manifest.storage_policy.load_reference(
-                manifest.entries[self.name],
+                manifest.entries[self.path],
                 local=False,
             )
         raise ValueError("Only reference entries support ref_target().")
@@ -4173,7 +4169,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
             "wandb-artifact://"
             + b64_to_hex_id(self._parent_artifact.id)
             + "/"
-            + self.name
+            + self.path
         )
 
 
@@ -4692,17 +4688,11 @@ class Artifact(artifacts.Artifact):
 
     def get_path(self, name):
         manifest = self._load_manifest()
-        entry = manifest.entries.get(name)
+        entry = manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            entry = self._get_obj_entry(name)[0]
-            if entry is None:
-                raise KeyError("Path not contained in artifact: %s" % name)
-            else:
-                name = entry.path
+            raise KeyError("Path not contained in artifact: %s" % name)
 
-        assert name == entry.path
-
-        return _DownloadedArtifactEntry(name, entry, self)
+        return _DownloadedArtifactEntry(entry, self)
 
     def get(self, name):
         entry, wb_class = self._get_obj_entry(name)
