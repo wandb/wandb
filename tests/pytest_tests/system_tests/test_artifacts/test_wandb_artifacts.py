@@ -1129,9 +1129,9 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
         artifact.wait()
 
     manifest_entry = artifact.manifest.entries["test-file"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
+    cache_path = cache.locate(manifest_entry)
 
     # Now the file should be in the cache.
     # Even though this works in production, the test often fails. I don't know why :(.
-    assert found
+    assert cache_path.is_file()
     assert cache.cleanup(0) == 2**20

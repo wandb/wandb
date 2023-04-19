@@ -59,8 +59,8 @@ def some_file(tmp_path: Path) -> Path:
 
 
 def is_cache_hit(cache: ArtifactsCache, digest: str, size: int) -> bool:
-    _, hit, _ = cache.check_md5_obj_path(digest, size)
-    return hit
+    manifest_entry = ArtifactManifestEntry(path="irrelevant", digest=digest, size=size)
+    return cache.locate(manifest_entry).is_file()
 
 
 def singleton_queue(x):

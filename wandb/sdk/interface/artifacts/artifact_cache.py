@@ -47,9 +47,9 @@ class ArtifactsCache:
         """
         digest = B64MD5(item.digest)
         size = item.size if item.size else 0
-        return Path(self.check_md5_obj_path(digest, size)[0])
+        return Path(self._check_md5_obj_path(digest, size)[0])
 
-    def check_md5_obj_path(
+    def _check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
