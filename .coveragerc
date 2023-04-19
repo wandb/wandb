@@ -2,9 +2,9 @@
 canonicalsrc =
     wandb/
     .tox/func-s_base-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_llm-py37/lib/python3.8/site-packages/wandb/
     .tox/func-s_docs-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_langchain-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_noml-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_ray112-py37/lib/python3.7/site-packages/wandb/
