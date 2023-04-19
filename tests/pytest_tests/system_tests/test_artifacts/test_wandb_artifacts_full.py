@@ -420,7 +420,7 @@ def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
     art_dir = tmp_path / "an-unusual-path"
     monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
     name_path = logged_artifact.name
-    if platform.system == "Windows":
+    if platform.system() == "Windows":
         name_path = name_path.replace(":", "-")
 
     downloaded = Path(logged_artifact.download())
