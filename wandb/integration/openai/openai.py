@@ -1,3 +1,4 @@
+import functools
 import logging
 import sys
 from typing import Any, Dict, List, Optional
@@ -49,6 +50,7 @@ class PatchOpenAIAPI:
             original = getattr(self.openai, symbol).create
 
             def method_factory(original_method: Any):
+                @functools.wraps(original_method)
                 def create(*args, **kwargs):
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
