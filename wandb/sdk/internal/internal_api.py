@@ -66,6 +66,7 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]  # noqa: N815
+        uploadPartsInput: Optional["UploadPartsInput"]
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
@@ -73,10 +74,28 @@ if TYPE_CHECKING:
         displayName: str  # noqa: N815
         uploadUrl: Optional[str]  # noqa: N815
         uploadHeaders: Sequence[str]  # noqa: N815
+        multipartUploadUrls: Optional[dict[str, any]]
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
+
+    class UploadPartsInput(TypedDict):
+        partNumber: int
+        hexMD5: str
+
+    class CompleteMultipartUploadArtifactInput(TypedDict):
+        """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
+
+        completeMultipartAction: str
+        completedParts: List["UploadPartsInput"]
+        artifactID: str
+        storagePath: str
+        uploadID: str
+        md5: str
+
+    class CompleteMultipartUploadArtifactResponse(TypedDict):
+        digest: str
 
     class DefaultSettings(TypedDict):
         section: str
@@ -241,6 +260,11 @@ class Api:
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
+        )
+        self.upload_multipart_file_chunk_retry = normalize_exceptions(
+            retry.retriable(retry_timedelta=retry_timedelta)(
+                self.upload_multipart_file_chunk
+            )
         )
         self._client_id_mapping: Dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
@@ -2060,6 +2084,54 @@ class Api:
             else:
                 raise requests.exceptions.ConnectionError(e.message)
 
+    def upload_multipart_file_chunk(
+        self,
+        url: str,
+        upload_chunk: bytes,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> Optional[requests.Response]:
+        """Upload a file chunk to S3 with failure resumption.
+
+        Arguments:
+            url: The url to download
+            upload_chunk: The path to the file you want to upload
+            extra_headers: A dictionary of extra headers to send with the request
+
+        Returns:
+            The `requests` library response object
+        """
+        response: Optional[requests.Response] = None
+        try:
+            response = self._upload_file_session.put(
+                url, data=upload_chunk, headers=extra_headers
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"upload_file exception {url}: {e}")
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error(f"upload_file request headers: {request_headers}")
+            response_content = e.response.content if e.response is not None else ""
+            logger.error(f"upload_file response body: {response_content}")
+            status_code = e.response.status_code if e.response is not None else 0
+            # S3 reports retryable request timeouts out-of-band
+            is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
+                response_content
+            )
+            # Retry errors from cloud storage or local network issues
+            if (
+                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
+                or isinstance(
+                    e,
+                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                )
+                or is_aws_retryable
+            ):
+                _e = retry.TransientError(exc=e)
+                raise _e.with_traceback(sys.exc_info()[2])
+            else:
+                wandb._sentry.reraise(e)
+        return response
+
     def upload_file(
         self,
         url: str,
@@ -3014,6 +3086,50 @@ class Api:
         )
         return response
 
+    def complete_multipart_upload_artifact(
+        self,
+        artifact_id: str,
+        storage_path: str,
+        completed_parts: List[Dict[str, any]],
+        upload_id: str,
+        complete_multipart_action: str = "Complete",
+    ) -> Optional[str]:
+        mutation = gql(
+            """
+        mutation CompleteMultipartUploadArtifact(
+            $completeMultipartAction: CompleteMultipartAction!,
+            $completedParts: [UploadPartsInput!]!,
+            $artifactID: ID!
+            $storagePath: String!
+            $uploadID: String!
+        ) {
+        completeMultipartUploadArtifact(
+            input: {
+                completeMultipartAction: $completeMultipartAction,
+                completedParts: $completedParts,
+                artifactID: $artifactID,
+                storagePath: $storagePath
+                uploadID: $uploadID
+            }
+            ) {
+                digest
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "completeMultipartAction": complete_multipart_action,
+                "artifactID": artifact_id,
+                "storagePath": storage_path,
+                "completedParts": completed_parts,
+                "uploadID": upload_id,
+            },
+        )
+        digest: Optional[str] = response["completeMultipartUploadArtifact"]["digest"]
+        return digest
+
     def create_artifact_manifest(
         self,
         name: str,
@@ -3197,6 +3313,14 @@ class Api:
                             displayName
                             uploadUrl
                             uploadHeaders
+                            storagePath
+                            uploadMultipartUrls {
+                                uploadID
+                                uploadUrlParts {
+                                    partNumber
+                                    uploadUrl
+                                }
+                            }
                             artifact {
                                 id
                             }

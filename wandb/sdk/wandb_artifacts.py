@@ -2,6 +2,7 @@ import base64
 import contextlib
 import hashlib
 import json
+import math
 import os
 import pathlib
 import re
@@ -935,7 +936,100 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception(f"unrecognized storage layout: {storage_layout}")
 
-    def store_file_sync(
+    # def multipart_chunking(file_size: int) -> int:
+    #     if file_size > 10000 * 1024**2:
+    #         return math.ceil((file_size / 1000))
+    #     else:
+    #         return (math.ceil((file_size / (100 * 1024**2))),)
+
+    def s3_multipart_complete_upload(
+        self,
+        artifact_id,
+        storage_path: str,
+        completed_parts: List[Dict[str, any]],
+        upload_id: str,
+    ):
+        self._api.complete_multipart_upload_artifact(
+            artifact_id, storage_path, completed_parts, upload_id
+        )
+
+    def s3_multipart_store_file_sync(
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactManifestEntry,
+        preparer: "StepPrepare",
+    ) -> bool:
+        """Upload a file to the artifact store.
+
+        Returns:
+            True if the file was a duplicate (did not need to be uploaded),
+            False if it needed to be uploaded or was a reference (nothing to dedupe).
+        """
+        chunk_size = 100 * 1024**2  # hard coded for now
+        file_size = entry.size
+        upload_parts = []
+        hex_digests = {}
+        file_path = pathlib.Path(entry.local_path)
+        file_bytes = file_path.read_bytes()
+        for part_number in range(1, int(math.ceil(file_size / chunk_size)) + 1):
+            data = file_bytes[(part_number - 1) * chunk_size : part_number * chunk_size]
+            hex_digest = hashlib.md5(data).hexdigest()
+            hex_digests[part_number] = hex_digest
+            print(f"creating {part_number} of {file_size // chunk_size}...", end=" ")
+            upload_parts.append({"hexMD5": hex_digest, "partNumber": part_number})
+
+        resp = preparer.prepare_sync(
+            {
+                "artifactID": artifact_id,
+                "artifactManifestID": artifact_manifest_id,
+                "name": entry.path,
+                "md5": entry.digest,
+                "uploadPartsInput": upload_parts,
+            }
+        ).get()
+
+        entry.birth_artifact_id = resp.birth_artifact_id
+
+        multipartUrls = resp.multipart_upload_url
+        if multipartUrls is None:
+            return True
+        if entry.local_path is None:
+            return False
+
+        extra_headers = {
+            header.split(":", 1)[0]: header.split(":", 1)[1]
+            for header in (resp.upload_headers or {})
+        }
+
+        etags = []
+        # This fails if we don't send the first byte before the signed URL expires.
+        for part_number in range(1, int(math.ceil(file_size / chunk_size)) + 1):
+            data = file_bytes[(part_number - 1) * chunk_size : part_number * chunk_size]
+            md5_b64_str = str(hex_to_b64_id(hex_digests[part_number]))
+            print(md5_b64_str, " header: ", extra_headers)
+            upload_resp = self._api.upload_multipart_file_chunk_retry(
+                multipartUrls[part_number],
+                data,
+                extra_headers={
+                    "content-md5": md5_b64_str,
+                    "content-length": str(len(data)),
+                    "content-type": extra_headers.get("Content-Type"),
+                },
+            )
+            etags.append(
+                {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
+            )
+        self.s3_multipart_complete_upload(
+            artifact_id,
+            storage_path=resp.storage_path,
+            completed_parts=etags,
+            upload_id=resp.upload_id,
+        )
+        self._write_cache(entry)
+        return False
+
+    def default_store_file_sync(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -978,6 +1072,30 @@ class WandbStoragePolicy(StoragePolicy):
         self._write_cache(entry)
 
         return False
+
+    def store_file_sync(
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactManifestEntry,
+        preparer: "StepPrepare",
+        progress_callback: Optional["progress.ProgressFn"] = None,
+    ) -> bool:
+        """Upload a file to the artifact store.
+
+        Returns:
+            True if the file was a duplicate (did not need to be uploaded),
+            False if it needed to be uploaded or was a reference (nothing to dedupe).
+        #"""
+
+        if entry.size > 100 * 1024**2:
+            multipart_uploaded = self.s3_multipart_store_file_sync(
+                artifact_id, artifact_manifest_id, entry, preparer
+            )
+            return multipart_uploaded
+        return self.default_store_file_sync(
+            artifact_id, artifact_manifest_id, entry, preparer, progress_callback
+        )
 
     async def store_file_async(
         self,

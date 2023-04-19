@@ -8,6 +8,7 @@ import time
 from typing import (
     TYPE_CHECKING,
     Callable,
+    Dict,
     List,
     Mapping,
     NamedTuple,
@@ -40,6 +41,9 @@ class RequestFinish(NamedTuple):
 
 class ResponsePrepare(NamedTuple):
     upload_url: Optional[str]
+    multipart_upload_url: Optional[Dict[int, str]]
+    upload_id: Optional[str]
+    storage_path: Optional[str]
     upload_headers: Sequence[str]
     birth_artifact_id: str
 
@@ -58,7 +62,6 @@ def gather_batch(
     max_batch_size: int,
     clock: Callable[[], float] = time.monotonic,
 ) -> Tuple[bool, Sequence[RequestPrepare]]:
-
     batch_start_time = clock()
     remaining_time = batch_time
 
@@ -129,9 +132,25 @@ class StepPrepare:
                     upload_url = response_file["uploadUrl"]
                     upload_headers = response_file["uploadHeaders"]
                     birth_artifact_id = response_file["artifact"]["id"]
+                    multipart_upload_url = None
+                    upload_id = None
+                    if response_file["uploadMultipartUrls"] is not None:
+                        multipart_resp = response_file["uploadMultipartUrls"][
+                            "uploadUrlParts"
+                        ]
+                        multipart_upload_url = {
+                            u["partNumber"]: u["uploadUrl"] for u in multipart_resp
+                        }
+                        upload_id = response_file["uploadMultipartUrls"]["uploadID"]
+                    storage_path = response_file["storagePath"]
 
                     response = ResponsePrepare(
-                        upload_url, upload_headers, birth_artifact_id
+                        upload_url,
+                        multipart_upload_url,
+                        upload_id,
+                        storage_path,
+                        upload_headers,
+                        birth_artifact_id,
                     )
                     if isinstance(prepare_request.response_channel, queue.Queue):
                         prepare_request.response_channel.put(response)
