@@ -131,15 +131,15 @@ class Config:
 
     def _check_locked(self, key, ignore_locked=False) -> bool:
         locked = self._locked.get(key)
-        if locked is not None:
-            locked_user = self._users_inv[locked]
-            if not ignore_locked:
-                wandb.termwarn(
-                    "Config item '%s' was locked by '%s' (ignored update)."
-                    % (key, locked_user)
-                )
-            return True
-        return False
+        if locked is None:
+            return False
+
+        locked_user = self._users_inv[locked]
+        if not ignore_locked:
+            wandb.termwarn(
+                f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
+            )
+        return True
 
     def __setitem__(self, key, val):
         if self._check_locked(key):

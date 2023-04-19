@@ -2870,7 +2870,7 @@ class Api:
         ) <= parse_version(max_cli_version)
 
         mutation = gql(
-            """
+            f"""
         mutation CreateArtifact(
             $artifactTypeName: String!,
             $artifactCollectionNames: [String!],
@@ -2882,13 +2882,17 @@ class Api:
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            %s
-            %s
-            %s
-            %s
-            %s
-        ) {
-            createArtifact(input: {
+            {
+                '$historyStep: Int64!,'
+                if can_handle_history and history_step not in [0, None]
+                else ''
+            }
+            {'$distributedID: String,' if distributed_id else ''}
+            {'$clientID: ID!,' if can_handle_client_id else ''}
+            {'$sequenceClientID: ID!,' if can_handle_client_id else ''}
+            {'$enableDigestDeduplication: Boolean,' if can_handle_dedupe else ''}
+        ) {{
+            createArtifact(input: {{
                 artifactTypeName: $artifactTypeName,
                 artifactCollectionNames: $artifactCollectionNames,
                 entityName: $entityName,
@@ -2900,53 +2904,39 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                %s
-                %s
-                %s
-                %s
-                %s
-            }) {
-                artifact {
+                {
+                    'historyStep: $historyStep,'
+                    if can_handle_history and history_step not in [0, None]
+                    else ''
+                }
+                {'distributedID: $distributedID,' if distributed_id else ''}
+                {'clientID: $clientID,' if can_handle_client_id else ''}
+                {'sequenceClientID: $sequenceClientID,' if can_handle_client_id else ''}
+                {
+                    'enableDigestDeduplication: $enableDigestDeduplication,'
+                    if can_handle_dedupe
+                    else ''
+                }
+            }}) {{
+                artifact {{
                     id
                     digest
                     state
-                    aliases {
+                    aliases {{
                         artifactCollectionName
                         alias
-                    }
-                    artifactSequence {
+                    }}
+                    artifactSequence {{
                         id
-                        latestArtifact {
+                        latestArtifact {{
                             id
                             versionIndex
-                        }
-                    }
-                }
-            }
-        }
+                        }}
+                    }}
+                }}
+            }}
+        }}
         """
-            %
-            # For backwards compatibility with older backends that don't support
-            # distributed writers or digest deduplication.
-            (
-                "$historyStep: Int64!,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "$distributedID: String," if distributed_id else "",
-                "$clientID: ID!," if can_handle_client_id else "",
-                "$sequenceClientID: ID!," if can_handle_client_id else "",
-                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
-                # line sep
-                "historyStep: $historyStep,"
-                if can_handle_history and history_step not in [0, None]
-                else "",
-                "distributedID: $distributedID," if distributed_id else "",
-                "clientID: $clientID," if can_handle_client_id else "",
-                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
-                "enableDigestDeduplication: $enableDigestDeduplication,"
-                if can_handle_dedupe
-                else "",
-            )
         )
 
         entity_name = entity_name or self.settings("entity")
@@ -3041,9 +3031,9 @@ class Api:
             $projectName: String!,
             $runName: String!,
             $includeUpload: Boolean!,
-            %s
-        ) {
-            createArtifactManifest(input: {
+            {'$type: ArtifactManifestType = FULL' if type != 'FULL' else ''}
+        ) {{
+            createArtifactManifest(input: {{
                 name: $name,
                 digest: $digest,
                 artifactID: $artifactID,
@@ -3051,28 +3041,21 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                %s
-            }) {
-                artifactManifest {
+                {'type: $type' if type != 'FULL' else ''}
+            }}) {{
+                artifactManifest {{
                     id
-                    file {
+                    file {{
                         id
                         name
                         displayName
                         uploadUrl @include(if: $includeUpload)
                         uploadHeaders @include(if: $includeUpload)
-                    }
-                }
-            }
-        }
+                    }}
+                }}
+            }}
+        }}
         """
-            %
-            # For backwards compatibility with older backends that don't support
-            # patch manifests.
-            (
-                "$type: ArtifactManifestType = FULL" if type != "FULL" else "",
-                "type: $type" if type != "FULL" else "",
-            )
         )
 
         entity_name = entity or self.settings("entity")

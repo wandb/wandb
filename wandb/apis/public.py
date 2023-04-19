@@ -1915,26 +1915,19 @@ class Run(Attrs):
     def delete(self, delete_artifacts=False):
         """Delete the given run from the wandb backend."""
         mutation = gql(
-            """
+            f"""
             mutation DeleteRun(
                 $id: ID!,
-                %s
-            ) {
-                deleteRun(input: {
+                {'$deleteArtifacts: Boolean' if delete_artifacts else ''}
+            ) {{
+                deleteRun(input: {{
                     id: $id,
-                    %s
-                }) {
+                    {'deleteArtifacts: $deleteArtifacts' if delete_artifacts else ''}
+                }}) {{
                     clientMutationId
-                }
-            }
+                }}
+            }}
         """
-            %
-            # Older backends might not support the 'deleteArtifacts' argument,
-            # so only supply it when it is explicitly set.
-            (
-                "$deleteArtifacts: Boolean" if delete_artifacts else "",
-                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
-            )
         )
 
         self.client.execute(
@@ -4738,8 +4731,8 @@ class Artifact(artifacts.Artifact):
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
             termlog(
-                "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self._artifact_name, size / (1024 * 1024), nfiles),
+                f"Downloading large artifact {self._artifact_name}, "
+                f"{size / (1024 * 1024):.2f}MB. {nfiles} files... "
             )
             start_time = datetime.datetime.now()
 
@@ -5080,8 +5073,7 @@ class Artifact(artifacts.Artifact):
             or response["project"].get("artifact") is None
         ):
             raise ValueError(
-                'Project %s/%s does not contain artifact: "%s"'
-                % (self.entity, self.project, self._artifact_name)
+                f'Project {self.entity}/{self.project} does not contain artifact: "{self._artifact_name}"'
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
@@ -5287,37 +5279,34 @@ class ArtifactVersions(Paginator):
         }
         self.QUERY = gql(
             """
-            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
-                project(name: $project, entityName: $entity) {
-                    artifactType(name: $type) {
-                        artifactCollection: %s(name: $collection) {
+            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+                project(name: $project, entityName: $entity) {{
+                    artifactType(name: $type) {{
+                        artifactCollection: {
+                            artifact_collection_edge_name(
+                                server_supports_artifact_collections_gql_edges(client)
+                            )}(name: $collection) {{
                             name
-                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                                 totalCount
-                                edges {
-                                    node {
+                                edges {{
+                                    node {{
                                         ...ArtifactFragment
-                                    }
+                                    }}
                                     version
                                     cursor
-                                }
-                                pageInfo {
+                                }}
+                                pageInfo {{
                                     endCursor
                                     hasNextPage
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            %s
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+            {ARTIFACT_FRAGMENT}
             """
-            % (
-                artifact_collection_edge_name(
-                    server_supports_artifact_collections_gql_edges(client)
-                ),
-                ARTIFACT_FRAGMENT,
-            )
         )
         super().__init__(client, variables, per_page)
 
