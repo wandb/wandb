@@ -5,7 +5,7 @@
 * feat(integrations): add autolog for OpenAI's python library by @dmitryduev @parambharat @kptkin @raubitsj in https://github.com/wandb/wandb/pull/5362
 ### :hammer: Fixes
 * fix(integrations): add function signature wrapper to the patched openai methods by @parambharat in https://github.com/wandb/wandb/pull/5369
-
+* fix(integrations): adjust OpenAI autolog public API to improve user experience by @dmitryduev @kptkin @raubitsj in https://github.com/wandb/wandb/pull/5381
 
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.2...v0.15.0
 
