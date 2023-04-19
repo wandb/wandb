@@ -423,4 +423,4 @@ def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
         name_path = name_path.replace(":", "-")
 
     downloaded = Path(logged_artifact.download())
-    assert downloaded == art_dir / "an-unusual-path" / name_path
+    assert downloaded == art_dir / name_path
