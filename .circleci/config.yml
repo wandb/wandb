@@ -1401,15 +1401,15 @@ workflows:
           parallelism: 4
 
       - tox-base:
+          context: sdk-third-party-api
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [8]
               shard:
-                - "langchain"
+                - "llm"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          # todo: func-covercircle doesn't work with python 3.8+, should be fixed
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
           tox_args: "tests/functional_tests"
 
       #
