@@ -4119,6 +4119,8 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         entry: "artifacts.ArtifactManifestEntry",
         parent_artifact: "Artifact",
     ):
+        assert name == entry.path
+
         super().__init__(
             path=entry.path,
             digest=entry.digest,
@@ -4697,6 +4699,8 @@ class Artifact(artifacts.Artifact):
                 raise KeyError("Path not contained in artifact: %s" % name)
             else:
                 name = entry.path
+
+        assert name == entry.path
 
         return _DownloadedArtifactEntry(name, entry, self)
 
