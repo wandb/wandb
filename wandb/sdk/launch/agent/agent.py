@@ -47,18 +47,20 @@ class JobAndRunStatus:
     run_queue_item_id: str
     run_id: Optional[str] = None
     project: Optional[str] = None
+    entity: Optional[str] = None
     run: Optional[AbstractRun] = None
     failed_to_start: bool = False
-    completed: bool = False
+    completed_status: Optional[str] = None
     is_scheduler: bool = False
 
     @property
     def job_completed(self) -> bool:
-        return self.completed or self.failed_to_start
+        return self.failed_to_start or self.completed_status is not None
 
     def update_run_info(self, launch_project: LaunchProject) -> None:
         self.run_id = launch_project.run_id
         self.project = launch_project.target_project
+        self.entity = launch_project.target_entity
 
 
 def _convert_access(access: str) -> str:
@@ -256,6 +258,14 @@ class LaunchAgent:
         job_and_run_status = self._jobs[thread_id]
         if not job_and_run_status.run_id or not job_and_run_status.project:
             self.fail_run_queue_item(job_and_run_status.run_queue_item_id)
+        elif job_and_run_status.entity != self._entity:
+            _logger.info(
+                "Skipping check for completed run status because run is on a different entity than agent"
+            )
+        elif job_and_run_status.completed_status not in ["stopped", "failed"]:
+            _logger.info(
+                "Skipping check for completed run status because run was successful"
+            )
         else:
             run_info = None
             # sweep runs exist but have no info before they are started
@@ -496,7 +506,7 @@ class LaunchAgent:
             run.command_proc.kill()
 
     def _check_run_finished(self, job_tracker: JobAndRunStatus) -> bool:
-        if job_tracker.completed:
+        if job_tracker.completed_status:
             return True
 
         # the run can be done before the run has started
@@ -518,7 +528,7 @@ class LaunchAgent:
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
-                    job_tracker.completed = True
+                    job_tracker.completed_status = status
                 return True
             return False
         except LaunchError as e:
