@@ -7,11 +7,10 @@ from typing import TYPE_CHECKING, Awaitable, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
-from wandb import env, util
+from wandb import util
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
-from wandb.sdk.lib.filesystem import mkdir_exists_ok
+from wandb.sdk.internal.staging import remove_from_staging
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -293,24 +292,6 @@ class ArtifactSaver:
         We need to delete them once we've uploaded the file or confirmed we
         already have a committed copy.
         """
-        staging_dir = get_staging_dir()
         for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
-                try:
-                    os.chmod(entry.local_path, 0o600)
-                    os.remove(entry.local_path)
-                except OSError:
-                    pass
-
-
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
-    try:
-        mkdir_exists_ok(path)
-    except OSError as e:
-        raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
-            f"{env.DATA_DIR} to a directory where you have the necessary write access."
-        ) from e
-
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
+            if entry.local_path:
+                remove_from_staging(entry.local_path)

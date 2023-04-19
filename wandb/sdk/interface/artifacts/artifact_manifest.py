@@ -1,13 +1,18 @@
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb import util
+from wandb.sdk.internal.staging import is_staged_copy, remove_from_staging
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
 from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.interface.artifacts import Artifact
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -114,7 +119,10 @@ class ArtifactManifest:
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
         ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
+            logger.debug(f"Overwriting existing entry {entry.path}")
+            local_path = self.entries[entry.path].local_path
+            if local_path and is_staged_copy(local_path):
+                remove_from_staging(local_path)
         self.entries[entry.path] = entry
 
     def get_entry_by_path(self, path: str) -> Optional[ArtifactManifestEntry]:

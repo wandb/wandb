@@ -3,6 +3,7 @@ import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Mapping, Optional
 
 import numpy as np
@@ -282,6 +283,46 @@ def test_add_new_file():
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
         "size": 5,
     }
+
+
+def test_add_changed():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    with artifact.new_file("file1.txt") as f:
+        f.write("hello")
+
+    entry1 = artifact.manifest.entries["file1.txt"]
+    assert entry1.path == "file1.txt"
+    assert Path(entry1.local_path).read_text() == "hello"
+
+    with artifact.new_file("file1.txt") as f:
+        f.write("goodbye")
+
+    entry2 = artifact.manifest.entries["file1.txt"]
+    assert entry1 != entry2
+    assert entry2.path == "file1.txt"
+    assert entry1.local_path != entry2.local_path
+    assert Path(entry2.local_path).read_text() == "goodbye"
+
+
+def test_add_changed_by_name(monkeypatch, tmp_path):
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+
+    file1 = Path("file1.txt")
+    file1.write_text("hello")
+    file2 = Path("file2.txt")
+    file2.write_text("goodbye")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    artifact.add_file("file1.txt", name="great-file.txt")
+    artifact.add_file("file2.txt", name="great-file.txt")
+
+    assert len(artifact.manifest.entries) == 1
+
+    # The first staging copy should have been deleted.
+    assert len(list(tmp_path.rglob("*"))) == 1
+
+    entry = artifact.manifest.entries["great-file.txt"]
+    assert Path(entry.local_path).read_text() == "goodbye"
 
 
 def test_add_after_finalize():

@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import json
+import logging
 import os
 import pathlib
 import re
@@ -49,7 +50,7 @@ from wandb.sdk.interface.artifacts import (
     get_artifacts_cache,
 )
 from wandb.sdk.internal import progress
-from wandb.sdk.internal.artifacts import get_staging_dir
+from wandb.sdk.internal.staging import get_staging_dir
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.hashutil import (
     B64MD5,
@@ -94,6 +95,9 @@ _REQUEST_POOL_CONNECTIONS = 64
 _REQUEST_POOL_MAXSIZE = 64
 
 ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
+
+
+logger = logging.getLogger(__name__)
 
 
 class _AddedObj:
@@ -394,7 +398,7 @@ class Artifact(ArtifactInterface):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
-            raise ValueError(f"File with name {name!r} already exists at {path!r}")
+            logger.warning(f"Overwriting existing file: {path}")
 
         filesystem.mkdir_exists_ok(os.path.dirname(path))
         try:
@@ -404,7 +408,7 @@ class Artifact(ArtifactInterface):
             wandb.termerror(
                 f"Failed to open the provided file (UnicodeEncodeError: {e}). Please provide the proper encoding."
             )
-            raise e
+            raise
         self.add_file(path, name=name)
 
     def add_file(
