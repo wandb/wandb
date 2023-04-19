@@ -8,7 +8,7 @@ def main():
     request_kwargs = dict(
         model="text-davinci-edit-001",
         input="To bee or not to bee?",
-        instruction="Please fix the spelling.",
+        instruction="Fix the spelling mistakes.",
     )
 
     _ = openai.Edit.create(**request_kwargs)
