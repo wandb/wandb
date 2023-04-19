@@ -639,6 +639,7 @@ def test_add_reference_unknown_handler():
 @pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
 def test_remove_file(name_type):
     file1 = Path("foo/file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
     file2 = Path("foo/file2.txt")
     file2.write_text("hello")
@@ -656,6 +657,7 @@ def test_remove_file(name_type):
 @pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
 def test_remove_directory(name_type):
     file1 = Path("foo/file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
     file2 = Path("foo/file2.txt")
     file2.write_text("hello2")
@@ -670,6 +672,7 @@ def test_remove_directory(name_type):
 
 def test_remove_non_existent():
     file1 = Path("foo/file1.txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -685,7 +688,7 @@ def test_remove_non_existent():
 
 def test_remove_manifest_entry():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    entry = artifact.add_reference("http://example.com/file1.txt")
+    entry = artifact.add_reference("file:///example/file1.txt")
 
     artifact.remove(entry)
 
