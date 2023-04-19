@@ -731,7 +731,7 @@ class Artifact(ArtifactInterface):
         )
 
         self._manifest.add_entry(entry)
-        self._added_local_paths[path] = entry
+        self._added_local_paths[str(path)] = entry
         return entry
 
 
