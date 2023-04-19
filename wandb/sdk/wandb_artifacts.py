@@ -1,6 +1,5 @@
 import base64
 import contextlib
-import hashlib
 import json
 import os
 import pathlib
@@ -55,6 +54,7 @@ from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
     HexMD5,
+    _md5,
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
@@ -269,6 +269,13 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.name
 
         return self._name
+
+    @property
+    def full_name(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.full_name
+
+        return super().full_name
 
     @property
     def state(self) -> str:
@@ -804,7 +811,7 @@ class ArtifactManifestV1(ArtifactManifest):
         }
 
     def digest(self) -> HexMD5:
-        hasher = hashlib.md5()
+        hasher = _md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
         for name, entry in sorted(self.entries.items(), key=lambda kv: kv[0]):
             hasher.update(f"{name}:{entry.digest}\n".encode())
