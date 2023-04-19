@@ -241,7 +241,7 @@ def test_upload_gives_useful_error_when_out_of_space(
     wandb_init, example_files, monkeypatch
 ):
     termerror = MagicMock()
-    monkeypatch.setattr(wandb.termerror, "termerror", termerror)
+    monkeypatch.setattr(wandb, "termerror", termerror)
 
     def out_of_space():
         raise OSError(errno.ENOSPC, "out of space")
