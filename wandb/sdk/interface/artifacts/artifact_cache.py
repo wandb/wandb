@@ -2,18 +2,21 @@ import contextlib
 import hashlib
 import os
 import secrets
+from pathlib import Path
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 from wandb import env, util
-from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
+from wandb.sdk.interface.artifacts import (
+    Artifact,
+    ArtifactManifestEntry,
+    ArtifactNotLoggedError,
+)
 from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.util import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     import sys
-
-    from wandb.sdk import wandb_artifacts
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -34,7 +37,17 @@ class ArtifactsCache:
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id: Dict[str, Artifact] = {}
-        self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
+        self._artifacts_by_client_id: Dict[str, Artifact] = {}
+
+    def locate(self, item: ArtifactManifestEntry) -> Path:
+        """Determine the path in the cache to a given file.
+
+        Because the cache is content-addressed, this path is static and is valid even
+        if the file doesn't exist yet.
+        """
+        digest = B64MD5(item.digest)
+        size = item.size if item.size else 0
+        return Path(self.check_md5_obj_path(digest, size)[0])
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
@@ -74,12 +87,10 @@ class ArtifactsCache:
             raise ArtifactNotLoggedError(artifact, "store_artifact")
         self._artifacts_by_id[artifact.id] = artifact
 
-    def get_client_artifact(
-        self, client_id: str
-    ) -> Optional["wandb_artifacts.Artifact"]:
+    def get_client_artifact(self, client_id: str) -> Optional[Artifact]:
         return self._artifacts_by_client_id.get(client_id)
 
-    def store_client_artifact(self, artifact: "wandb_artifacts.Artifact") -> None:
+    def store_client_artifact(self, artifact: Artifact) -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
