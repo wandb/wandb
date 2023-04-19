@@ -1,3 +1,4 @@
+import errno
 import os
 import shutil
 import time
@@ -233,6 +234,25 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
     # The staging directory should be empty again.
     assert dir_size() == 0
+
+
+def test_upload_gives_useful_error_when_out_of_space(
+    wandb_init, example_files, monkeypatch
+):
+    termerror = monkeypatch.setattr(wandb.termerror, "termerror")
+
+    def out_of_space():
+        raise OSError(errno.ENOSPC, "out of space")
+
+    monkeypatch.setattr(wandb.env, "get_data_dir", out_of_space)
+
+    with wandb_init() as run:
+        artifact = wandb.Artifact("test", type="dataset")
+        artifact.add_dir(example_files)
+        with pytest.raises(OSError, match="out of space"):
+            run.log_artifact(artifact)
+        assert termerror.call_count == 1
+        assert "No disk space available" in termerror.call_args[0][0]
 
 
 def test_local_references(wandb_init):
