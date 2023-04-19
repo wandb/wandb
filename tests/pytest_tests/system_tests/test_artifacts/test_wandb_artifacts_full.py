@@ -248,11 +248,10 @@ def test_upload_gives_useful_error_when_out_of_space(
 
     monkeypatch.setattr(wandb.env, "get_data_dir", out_of_space)
 
-    with wandb_init() as run:
+    with wandb_init():
         artifact = wandb.Artifact("test", type="dataset")
-        artifact.add_dir(example_files)
         with pytest.raises(OSError, match="out of space"):
-            run.log_artifact(artifact)
+            artifact.add_dir(example_files)
         assert termerror.call_count == 1
         assert "No disk space available" in termerror.call_args[0][0]
 
