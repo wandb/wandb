@@ -2,7 +2,9 @@
 
 ### :magic_wand: Enhancements
 * feat(media): add support for LangChain media type by @tssweeney in https://github.com/wandb/wandb/pull/5288
-* feat(integrations): add autolog for OpenAI's python library by @dmitryduev @parambharat @kptkin @raubitsj in #5362
+* feat(integrations): add autolog for OpenAI's python library by @dmitryduev @parambharat @kptkin @raubitsj in https://github.com/wandb/wandb/pull/5362
+### :hammer: Fixes
+* fix(integrations): add function signature wrapper to the patched openai methods by @parambharat in https://github.com/wandb/wandb/pull/5369
 
 
 **Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.2...v0.15.0
