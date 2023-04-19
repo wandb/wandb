@@ -718,8 +718,8 @@ class Artifact(ArtifactInterface):
         local_path = stage_for_upload(path)
         entry = ArtifactManifestEntry(
             path=util.to_forward_slash_path(name),
-            digest=digest or md5_file_b64(path),
-            size=os.path.getsize(path),
+            digest=digest or md5_file_b64(local_path),
+            size=local_path.stat().st_size,
             local_path=FilePathStr(str(local_path)),
         )
 
