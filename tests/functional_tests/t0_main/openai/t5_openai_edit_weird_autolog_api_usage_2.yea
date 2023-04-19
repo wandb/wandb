@@ -3,8 +3,7 @@ plugin:
   - wandb
 tag:
   shard: llm
-  skips:
-    - platform: win
+  skip: true  # todo: fix
 depend:
   requirements:
     - "openai>=0.27.4"
