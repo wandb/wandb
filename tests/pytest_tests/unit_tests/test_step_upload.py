@@ -652,15 +652,15 @@ class TestUpload:
 
                 mock_file_stream.push_success.assert_not_called()
 
-    @pytest.mark.parametrize("concurrency_limit", [None, 100])
     def test_uses_save_fn_async_iff_settings_say_to(
         self,
         tmp_path: Path,
-        concurrency_limit: Optional[int],
+        async_settings: SettingsStatic,
     ):
-        async_settings = make_async_settings(concurrency_limit=concurrency_limit)
         save_fn_sync = Mock(return_value=False)
         save_fn_async = Mock(wraps=asyncify(Mock(return_value=False)))
+
+        api = make_api()
 
         run_step_upload(
             [
@@ -670,6 +670,7 @@ class TestUpload:
                     save_fn_async=save_fn_async,
                 )
             ],
+            api=api,
             settings=async_settings,
         )
 
@@ -679,6 +680,31 @@ class TestUpload:
         else:
             save_fn_sync.assert_called_once()
             save_fn_async.assert_not_called()
+
+        # The upload should go through `save_fn` and `save_fn_async` (which are noops),
+        # not calling API methods directly:
+        api.upload_file.assert_not_called()
+        api.upload_file_async.assert_not_called()
+        api.upload_file_retry.assert_not_called()
+        api.upload_file_retry_async.assert_not_called()
+
+    def test_no_async_if_no_save_fn(
+        self,
+        tmp_path: Path,
+        async_settings: SettingsStatic,
+    ):
+        api = make_api()
+
+        run_step_upload(
+            [make_request_upload(make_tmp_file(tmp_path))],
+            api=api,
+            settings=async_settings,
+        )
+
+        # These uploads should go through `upload_file_retry`, not anything async (for now):
+        api.upload_file_retry.assert_called()
+        api.upload_file_async.assert_not_called()
+        api.upload_file_retry_async.assert_not_called()
 
 
 class TestAsyncUpload:
