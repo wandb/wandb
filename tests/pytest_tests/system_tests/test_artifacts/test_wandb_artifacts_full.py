@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Optional
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -239,7 +240,8 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 def test_upload_gives_useful_error_when_out_of_space(
     wandb_init, example_files, monkeypatch
 ):
-    termerror = monkeypatch.setattr(wandb.termerror, "termerror")
+    termerror = MagicMock()
+    monkeypatch.setattr(wandb.termerror, "termerror", termerror)
 
     def out_of_space():
         raise OSError(errno.ENOSPC, "out of space")
