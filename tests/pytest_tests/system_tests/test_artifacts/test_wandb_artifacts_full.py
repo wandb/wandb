@@ -38,6 +38,7 @@ def logged_artifact(wandb_init, example_files) -> Artifact:
         artifact = wandb.Artifact("test-artifact", "dataset")
         artifact.add_dir(example_files)
         run.log_artifact(artifact)
+    artifact.wait()
     return artifact
 
 
