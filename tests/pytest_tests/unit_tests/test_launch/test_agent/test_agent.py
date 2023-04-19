@@ -35,6 +35,50 @@ def test_loop_capture_stack_trace(mocker):
     assert "Traceback (most recent call last):" in mocker.termerror.call_args[0][0]
 
 
+def test_run_job_secure_mode(mocker):
+    _setup(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+        "secure_mode": True,
+    }
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+
+    jobs = [
+        {
+            "runSpec": {
+                "resource_args": {
+                    "kubernetes": {"spec": {"template": {"spec": {"hostPID": True}}}}
+                }
+            }
+        },
+        {
+            "runSpec": {
+                "resource_args": {
+                    "kubernetes": {
+                        "spec": {
+                            "template": {
+                                "spec": {
+                                    "containers": [{}, {"command": ["some", "code"]}]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
+    ]
+    errors = [
+        'This agent is configured to lock "hostPID" in pod spec but the job specification attempts to override it.',
+        'This agent is configured to lock "command" in container spec but the job specification attempts to override it.',
+        'This agent is configured to lock the "entrypoint" override but the job specification attempts to override it.',
+    ]
+    for job, error in zip(jobs, errors):
+        with pytest.raises(ValueError, match=error):
+            agent.run_job(job)
+
+
 def test_team_entity_warning(mocker):
     _setup(mocker)
     mocker.api.entity_is_team = MagicMock(return_value=True)
