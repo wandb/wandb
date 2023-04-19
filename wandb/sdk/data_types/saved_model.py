@@ -41,7 +41,7 @@ DEBUG_MODE = False
 
 def _add_deterministic_dir_to_artifact(
     artifact: "LocalArtifact", dir_name: PathOrStr, target_dir_root: PathOrStr
-) -> PathOrStr:
+) -> FilePathStr:
     file_paths = []
     dir_path = Path(dir_name).resolve()
     for path in dir_path.rglob("*"):
@@ -50,9 +50,7 @@ def _add_deterministic_dir_to_artifact(
     dirname = md5_file_hex(*file_paths)[:20]
     target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
     artifact.add_dir(dir_path, target_path)
-    if isinstance(target_dir_root, str):
-        return FilePathStr(str(target_path))
-    return Path(target_path)
+    return FilePathStr(target_path)
 
 
 def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
@@ -178,10 +176,8 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             # The directory must be named deterministically based on the contents of the directory,
             # but the files themselves need to have their name preserved.
             # FUTURE: Add this functionality to the artifact adder itself
-            json_obj["path"] = str(
-                _add_deterministic_dir_to_artifact(
-                    artifact, self._path, Path(".wb_data") / "saved_models"
-                )
+            json_obj["path"] = _add_deterministic_dir_to_artifact(
+                artifact, self._path, Path(".wb_data") / "saved_models"
             )
         else:
             raise ValueError(
@@ -348,12 +344,10 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
         json_obj = super().to_json(run_or_artifact)
         assert isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact)
         if self._dep_py_files_path is not None:
-            json_obj["dep_py_files_path"] = str(
-                _add_deterministic_dir_to_artifact(
-                    run_or_artifact,
-                    Path(self._dep_py_files_path),
-                    Path(".wb_data") / "extra_files",
-                )
+            json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
+                run_or_artifact,
+                Path(self._dep_py_files_path),
+                Path(".wb_data") / "extra_files",
             )
         return json_obj
 
