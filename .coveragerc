@@ -4,6 +4,7 @@ canonicalsrc =
     .tox/func-s_base-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_docs-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_llm-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_noml-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_ray112-py37/lib/python3.7/site-packages/wandb/
@@ -25,8 +26,8 @@ source =
     wandb/
 
 omit =
-    wandb/vendor/*
-    wandb/proto/*
+    **/wandb/vendor/**
+    **/wandb/proto/**
 
 [report]
 exclude_lines =
@@ -35,5 +36,7 @@ exclude_lines =
     @abstractmethod
 
 omit =
-    wandb/vendor/*
-    wandb/proto/*
+    **/wandb/vendor/**
+    **/wandb/proto/**
+
+ignore_errors = True
