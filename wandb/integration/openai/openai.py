@@ -1,3 +1,4 @@
+import functools
 import logging
 import sys
 from typing import Any, Dict, List, Optional
@@ -66,7 +67,9 @@ class PatchOpenAIAPI:
             # save original method
             self.original_methods[symbol] = original
             # monkeypatch
-            getattr(self.openai, symbol).create = method_factory(original)
+            wrapper = method_factory(original)
+            wrapper = functools.update_wrapper(wrapper, original)
+            getattr(self.openai, symbol).create = wrapper
 
     def unpatch(self) -> None:
         """Unpatches the OpenAI API."""
