@@ -2,15 +2,19 @@ import os
 import platform
 import shutil
 import stat
+import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from pyfakefs.fake_filesystem import OSType
 from wandb.sdk.lib.filesystem import (
     copy_or_overwrite_changed,
     mkdir_exists_ok,
+    safe_copy,
     safe_open,
 )
 
@@ -236,7 +240,7 @@ def test_safe_read_write_existing_file(binary):
             if binary == "b":
                 content = content.decode("utf-8")
             assert content == original_content
-            f.seek(5)
+            f.seek(len("🔜O".encode()))
             f.write(new_content.encode("utf-8") if binary == "b" else new_content)
 
         assert original_file.read_text("utf-8") == "🔜OMore❗ content"
@@ -284,3 +288,139 @@ def test_safe_write_complete_exclusive_writes(binary, mode):
 
         assert original_file.read_text("utf-8") == new_content
         assert list(tmp_dir.iterdir()) == [original_file]
+
+
+def test_safe_copy_missing_source_file(tmp_path: Path):
+    source_path = tmp_path / "missing.txt"
+    target_path = tmp_path / "target.txt"
+
+    with pytest.raises(FileNotFoundError):
+        safe_copy(source_path, target_path)
+
+
+def test_safe_copy_existing_source_and_target_files(tmp_path: Path):
+    source_path = tmp_path / "source.txt"
+    target_path = tmp_path / "target.txt"
+    source_content = "Source content 📝"
+    target_content = "Target content 🎯"
+
+    source_path.write_text(source_content, encoding="utf-8")
+    target_path.write_text(target_content, encoding="utf-8")
+
+    safe_copy(source_path, target_path)
+
+    assert source_path.read_text("utf-8") == source_content
+    assert target_path.read_text("utf-8") == source_content
+
+
+def test_safe_copy_existing_source_and_missing_target(tmp_path: Path):
+    source_path = tmp_path / "source.txt"
+    target_path = tmp_path / "target.txt"
+    source_content = "Source content 📝"
+
+    source_path.write_text(source_content, encoding="utf-8")
+
+    returned = safe_copy(source_path, target_path)
+
+    assert returned == target_path
+    assert target_path.read_text("utf-8") == source_content
+
+
+def test_safe_copy_str_path(tmp_path: Path):
+    source_path = tmp_path / "source.txt"
+    target_path = str(tmp_path / "target.txt")
+    source_content = "Source content 📝"
+
+    source_path.write_text(source_content, encoding="utf-8")
+
+    returned = safe_copy(source_path, target_path)
+
+    assert returned == target_path  # Should return str, not pathlib.Path.
+    assert Path(target_path).read_text("utf-8") == source_content
+
+
+real_temp_dir = tempfile.TemporaryDirectory()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="pyfakefs limitations")
+@pytest.mark.parametrize("fs_type", [OSType.LINUX, OSType.MACOS, OSType.WINDOWS])
+def test_safe_copy_different_file_systems(fs, fs_type: OSType):
+    fs.os = fs_type
+
+    fs.add_real_directory(real_temp_dir.name)
+
+    source_path = Path(real_temp_dir.name) / "source.txt"
+    target_path = Path("/target.txt")
+    source_content = "Source content 📝"
+
+    source_path.write_text(source_content, encoding="utf-8")
+
+    safe_copy(source_path, target_path)
+
+    assert target_path.read_text("utf-8") == source_content
+
+
+def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
+    source_path = tmp_path / "source.txt"
+    target_path = tmp_path / "target.txt"
+    source_content = "Source content 📝" * 1000
+    changed_target_content = "Changed target content 🔀"
+
+    source_path.write_text(source_content, encoding="utf-8")
+
+    def repeatedly_write_content():
+        end_time = time.time() + 1.0
+        while time.time() < end_time:
+            target_path.write_text(changed_target_content, encoding="utf-8")
+
+    def delayed_copy_with_pause(src, dst, *args, **kwargs):
+        time.sleep(0.1)
+        with open(src, "rb") as infile, open(dst, "wb") as outfile:
+            for block in iter(lambda: infile.read(4096), b""):
+                outfile.write(block)
+                time.sleep(0.1)
+
+    monkeypatch.setattr(shutil, "copy2", delayed_copy_with_pause)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future = executor.submit(repeatedly_write_content)
+        safe_copy(source_path, target_path)
+        future.result()
+
+    result_content = target_path.read_text("utf-8")
+    assert result_content == source_content or result_content == changed_target_content
+
+
+@pytest.mark.parametrize("src_link", [None, "symbolic", "hard"])
+@pytest.mark.parametrize("dest_link", [None, "symbolic", "hard"])
+def test_safe_copy_with_links(tmp_path: Path, src_link, dest_link):
+    source_path = tmp_path / "source.txt"
+    target_path = tmp_path / "target.txt"
+    source_content = "Source content 📝"
+    target_content = "Target content 🎯"
+    source_path.write_text(source_content, encoding="utf-8")
+    target_path.write_text(target_content, encoding="utf-8")
+
+    if src_link == "symbolic":
+        use_src_path = source_path.with_suffix(".symlink")
+        use_src_path.symlink_to(source_path)
+    elif src_link == "hard":
+        use_src_path = source_path.with_suffix(".hardlink")
+        os.link(source_path, use_src_path)
+    else:
+        use_src_path = source_path
+    source_path = use_src_path
+
+    if dest_link == "symbolic":
+        use_dst_path = target_path.with_suffix(".symlink")
+        use_dst_path.symlink_to(target_path)
+    elif dest_link == "hard":
+        use_dst_path = target_path.with_suffix(".hardlink")
+        os.link(target_path, use_dst_path)
+    else:
+        use_dst_path = target_path
+    target_path = use_dst_path
+
+    safe_copy(source_path, target_path)
+
+    assert target_path.read_text("utf-8") == source_content

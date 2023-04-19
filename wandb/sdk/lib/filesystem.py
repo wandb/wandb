@@ -136,28 +136,31 @@ def safe_open(
     """Open a file, ensuring any changes only apply atomically after close.
 
     This context manager ensures that even unsuccessful writes will not leave a "dirty"
-    file or overwrite good data, and that all temp data is cleaned up. Otherwise, the
-    semantics and behavior should be identical to the built-in open() function.
+    file or overwrite good data, and that all temp data is cleaned up.
+
+    The semantics and behavior are intended to be nearly identical to the built-in
+    open() function. Differences:
+        - It creates any parent directories that don't exist, rather than raising.
+        - In 'x' mode, it checks at the beginning AND end of the write and fails if the
+            file exists either time.
     """
-    path = Path(path)
+    path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if "x" in mode and path.exists():
         raise FileExistsError(f"{path!s} already exists")
 
-    if "r" in mode:
-        if not path.exists():
-            raise FileNotFoundError(f"{path!s} does not exist")
-        if "+" not in mode:
-            # This is read-only, so we can just open the original file.
-            with path.open(mode, *args, **kwargs) as f:
-                yield f
-            return
+    if "r" in mode and "+" not in mode:
+        # This is read-only, so we can just open the original file.
+        # TODO (hugh): create a reflink and read from that.
+        with path.open(mode, *args, **kwargs) as f:
+            yield f
+        return
 
     with tempfile.TemporaryDirectory(dir=path.parent) as tmp_dir:
         tmp_path = Path(tmp_dir) / path.name
 
-        if ("a" in mode or "+" in mode) and "w" not in mode and path.exists():
+        if ("r" in mode or "a" in mode) and path.exists():
             # We need to copy the original file in order to support reads and appends.
             # TODO (hugh): use reflinks to avoid the copy on platforms that support it.
             shutil.copy2(path, tmp_path)
@@ -175,3 +178,15 @@ def safe_open(
             os.unlink(tmp_path)
         else:
             tmp_path.replace(path)
+
+
+def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
+    """Copy a file, ensuring any changes only apply atomically once finished."""
+    # TODO (hugh): check that there is enough free space.
+    output_path = Path(target_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=output_path.parent) as tmp_dir:
+        tmp_path = (Path(tmp_dir) / Path(source_path).name).with_suffix(".tmp")
+        shutil.copy2(source_path, tmp_path)
+        tmp_path.replace(output_path)
+    return target_path
