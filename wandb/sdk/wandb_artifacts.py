@@ -722,12 +722,12 @@ class Artifact(ArtifactInterface):
         path: Union[FilePathStr, os.PathLike],
         digest: Optional[B64MD5] = None,
     ) -> ArtifactManifestEntry:
-        local_path = stage_for_upload(path)
+        staging_path = stage_for_upload(path)
         entry = ArtifactManifestEntry(
             path=util.to_forward_slash_path(name),
-            digest=digest or md5_file_b64(local_path),
-            size=local_path.stat().st_size,
-            local_path=FilePathStr(str(local_path)),
+            digest=digest or md5_file_b64(staging_path),
+            size=staging_path.stat().st_size,
+            local_path=FilePathStr(str(staging_path)),
         )
 
         self._manifest.add_entry(entry)
