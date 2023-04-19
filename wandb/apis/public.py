@@ -4649,6 +4649,9 @@ class Artifact(artifacts.Artifact):
     def add(self, obj, name):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
+    def remove(self, item):
+        raise ValueError("Cannot remove files from an artifact once it has been saved")
+
     def _add_download_root(self, dir_path):
         """Make `dir_path` a root directory for this artifact."""
         self._download_roots.add(os.path.abspath(dir_path))

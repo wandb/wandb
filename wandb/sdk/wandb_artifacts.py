@@ -2,11 +2,11 @@ import base64
 import contextlib
 import json
 import os
-import pathlib
 import re
 import shutil
 import tempfile
 import time
+from pathlib import PurePosixPath
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -577,6 +577,26 @@ class Artifact(ArtifactInterface):
                 os.remove(file_path)
 
         return entry
+
+    def remove(self, item: Union[str, "os.PathLike", "ArtifactManifestEntry"]) -> None:
+        if self._logged_artifact:
+            raise ArtifactFinalizedError(self, "remove")
+
+        if isinstance(item, ArtifactManifestEntry):
+            self._manifest.remove_entry(item)
+            return
+
+        path = str(PurePosixPath(item))
+        entry = self._manifest.get_entry_by_path(path)
+        if entry:
+            self._manifest.remove_entry(entry)
+            return
+
+        remove = self._manifest.get_entries_in_directory(path)
+        if not remove:
+            raise FileNotFoundError(f"No such file or directory: {path}")
+        for entry in remove:
+            self._manifest.remove_entry(entry)
 
     def get_path(self, name: str) -> ArtifactManifestEntry:
         if self._logged_artifact:
@@ -1542,12 +1562,12 @@ class S3Handler(StorageHandler):
         bucket, key, _ = self._parse_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
-        posix_key = pathlib.PurePosixPath(obj.key)  # the bucket key
-        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+        posix_key = PurePosixPath(obj.key)  # the bucket key
+        posix_path = PurePosixPath(bucket) / PurePosixPath(
             key
         )  # the path, with the scheme stripped
-        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
-        posix_name = pathlib.PurePosixPath(name or "")
+        posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
 
         if name is None:
@@ -1556,7 +1576,7 @@ class S3Handler(StorageHandler):
                 posix_name = posix_key.relative_to(posix_prefix)
                 posix_ref = posix_path / posix_name
             else:
-                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
         elif multi:
             # We're adding a directory with a name override.
@@ -1763,12 +1783,12 @@ class GCSHandler(StorageHandler):
         bucket, key, _ = self._parse_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
-        posix_key = pathlib.PurePosixPath(obj.name)  # the bucket key
-        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+        posix_key = PurePosixPath(obj.name)  # the bucket key
+        posix_path = PurePosixPath(bucket) / PurePosixPath(
             key
         )  # the path, with the scheme stripped
-        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
-        posix_name = pathlib.PurePosixPath(name or "")
+        posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
 
         if name is None:
@@ -1777,7 +1797,7 @@ class GCSHandler(StorageHandler):
                 posix_name = posix_key.relative_to(posix_prefix)
                 posix_ref = posix_path / posix_name
             else:
-                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
         elif multi:
             # We're adding a directory with a name override.

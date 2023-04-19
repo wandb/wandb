@@ -5,6 +5,8 @@ from wandb.data_types import WBValue
 from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
+    import os
+
     import wandb.apis.public
     from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 
@@ -49,7 +51,7 @@ class ArtifactFinalizedError(ArtifactStatusError):
         super().__init__(
             artifact,
             attr,
-            "'{method_id}' used on logged artifact. Can't add to finalized artifact.",
+            "'{method_id}' used on logged artifact. Can't modify finalized artifact.",
         )
 
 
@@ -406,6 +408,23 @@ class Artifact:
             artifact = wandb.use_artifact('my_table:latest')
             table = artifact.get("my_table")
             ```
+        """
+        raise NotImplementedError
+
+    def remove(self, item: Union[str, "os.PathLike", "ArtifactManifestEntry"]) -> None:
+        """Remove an item from the artifact.
+
+        Arguments:
+            item: (str, os.PathLike, ArtifactManifestEntry) the item to remove. Can be a
+                specific manifest entry or the name of an artifact-relative path. If the
+                item matches a directory all items in that directory will be removed.
+
+        Raises:
+            ArtifactFinalizedError: if the artifact has already been finalized.
+            FileNotFoundError: if the item isn't found in the artifact.
+
+        Returns:
+            None
         """
         raise NotImplementedError
 

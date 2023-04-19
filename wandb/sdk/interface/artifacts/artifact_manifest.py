@@ -117,6 +117,11 @@ class ArtifactManifest:
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
+    def remove_entry(self, entry: ArtifactManifestEntry) -> None:
+        if entry.path not in self.entries:
+            raise FileNotFoundError(f"Cannot remove missing entry: '{entry.path}'")
+        del self.entries[entry.path]
+
     def get_entry_by_path(self, path: str) -> Optional[ArtifactManifestEntry]:
         return self.entries.get(path)
 
