@@ -421,7 +421,7 @@ class Artifact(ArtifactInterface):
             file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._add_local_file(name, local_path, digest=digest)
+        return self._add_local_file(name, FilePathStr(local_path), digest=digest)
 
     def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
         self._ensure_can_add()
@@ -446,7 +446,7 @@ class Artifact(ArtifactInterface):
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path)
+            self._add_local_file(logical_path, FilePathStr(physical_path))
 
         import multiprocessing.dummy  # this uses threads
 
