@@ -50,6 +50,7 @@ class PatchOpenAIAPI:
             original = getattr(self.openai, symbol).create
 
             def method_factory(original_method: Any):
+                @functools.wraps(original_method)
                 def create(*args, **kwargs):
                     with Timer() as timer:
                         result = original_method(*args, **kwargs)
@@ -67,9 +68,7 @@ class PatchOpenAIAPI:
             # save original method
             self.original_methods[symbol] = original
             # monkeypatch
-            wrapper = method_factory(original)
-            wrapper = functools.update_wrapper(wrapper, original)
-            getattr(self.openai, symbol).create = wrapper
+            getattr(self.openai, symbol).create = method_factory(original)
 
     def unpatch(self) -> None:
         """Unpatches the OpenAI API."""
