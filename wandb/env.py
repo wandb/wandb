@@ -350,7 +350,7 @@ def get_magic(
 
 
 def get_data_dir(env: Optional[Env] = None) -> str:
-    default_dir = os.path.join(".", "artifacts")
+    default_dir = appdirs.user_data_dir("wandb")
     if env is None:
         env = os.environ
     val = env.get(DATA_DIR, default_dir)
@@ -358,7 +358,7 @@ def get_data_dir(env: Optional[Env] = None) -> str:
 
 
 def get_artifact_dir(env: Optional[Env] = None) -> str:
-    default_dir = appdirs.user_data_dir("wandb")
+    default_dir = os.path.join(".", "artifacts")
     if env is None:
         env = os.environ
     val = env.get(ARTIFACT_DIR, default_dir)
