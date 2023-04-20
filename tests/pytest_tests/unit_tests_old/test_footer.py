@@ -2,8 +2,19 @@
 footer tests.
 """
 
+import re
+
 import pytest
 import wandb
+
+
+def strip_upgrade_messages(message_lines):
+    upgrade_messages = re.compile(
+        r"(wandb: ERROR wandb version .* has been retired!  Please upgrade\."
+        r"|wandb: wandb version .* is available!  To upgrade, please run:"
+        r"|wandb:  \$ pip install wandb --upgrade)"
+    )
+    return [line for line in message_lines if not upgrade_messages.match(line)]
 
 
 @pytest.mark.parametrize("utfText", ["my first hint", ""])
@@ -34,6 +45,7 @@ def test_footer_server_message(
         run.log(dict(d=2))
 
     lines = capsys.readouterr().err.splitlines()
+    lines = strip_upgrade_messages(lines)
 
     if messageType == "footer":
         assert (
@@ -80,4 +92,5 @@ def test_footer_server_message_no_message(
         run.log(dict(d=2))
 
     lines = capsys.readouterr().err.splitlines()
+    lines = strip_upgrade_messages(lines)
     assert "Find logs at:" in lines[-1]
