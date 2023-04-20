@@ -6,9 +6,6 @@ import tempfile
 import time
 from typing import Optional
 
-import kubernetes  # type: ignore
-from kubernetes import client
-
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -17,6 +14,7 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
+from wandb.util import get_module
 
 from .._project_spec import (
     EntryPoint,
@@ -36,6 +34,14 @@ from .build import (
     generate_dockerfile,
     image_tag_from_dockerfile_and_source,
 )
+
+get_module(
+    "kubernetes",
+    required="Kaniko builder requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
+)
+
+import kubernetes  # type: ignore # noqa: E402
+from kubernetes import client  # noqa: E402
 
 _logger = logging.getLogger(__name__)
 
@@ -401,7 +407,7 @@ class KanikoBuilder(AbstractBuilder):
             ),
         )
         # Create the specification of job
-        spec = client.V1JobSpec(template=template, backoff_limit=1)
+        spec = client.V1JobSpec(template=template, backoff_limit=0)
         job = client.V1Job(
             api_version="batch/v1",
             kind="Job",

@@ -15,6 +15,7 @@ import pytest
 import requests
 import tensorflow as tf
 import wandb
+import wandb.errors as errors
 from wandb import util
 
 try:
@@ -269,17 +270,6 @@ def test_find_runner():
 
 
 ###############################################################################
-# Test util.parse_sweep_id
-###############################################################################
-
-
-def test_parse_sweep_id():
-    parts = {"name": "test/test/test"}
-    util.parse_sweep_id(parts)
-    assert parts == {"name": "test", "entity": "test", "project": "test"}
-
-
-###############################################################################
 # Test util.from_human_size and util.to_human_size
 ###############################################################################
 
@@ -483,7 +473,7 @@ def test_no_retry_auth():
         assert not util.no_retry_auth(e)
     e.response.status_code = 401
     e.response.reason = "Unauthorized"
-    with pytest.raises(wandb.CommError):
+    with pytest.raises(errors.AuthenticationError):
         util.no_retry_auth(e)
     e.response.status_code = 403
     e.response.reason = "Forbidden"

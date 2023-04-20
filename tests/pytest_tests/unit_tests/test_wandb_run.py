@@ -6,6 +6,7 @@ import unittest.mock as mock
 import numpy as np
 import pytest
 import wandb
+import wandb.errors
 from wandb import wandb_sdk
 
 
@@ -227,3 +228,73 @@ def test_run_deepcopy():
     run = wandb_sdk.wandb_run.Run(settings=s, config=c)
     run2 = copy.deepcopy(run)
     assert id(run) == id(run2)
+
+
+@pytest.mark.parametrize(
+    "settings, expected",
+    [
+        ({}, False),
+        ({"resume": True}, True),
+        ({"resume": "auto"}, True),
+        ({"resume": "allow"}, True),
+        ({"resume": "never"}, True),
+        ({"resume": "must"}, True),
+        ({"resume": "run_id"}, True),
+    ],
+)
+def test_resumed_run_resume_file_state(mock_run, tmp_path, settings, expected):
+    tmp_file = tmp_path / "test_resume.json"
+    tmp_file.write_text("{'run_id': 'test'}")
+
+    run = mock_run(
+        use_magic_mock=True, settings={"resume_fname": str(tmp_file), **settings}
+    )
+    run._on_ready()
+
+    assert tmp_file.exists() == expected
+
+
+@pytest.mark.parametrize(
+    "method, args",
+    [
+        ("alert", ["test", "test"]),
+        ("define_metric", ["test"]),
+        ("log", [{"test": 2}]),
+        ("log_code", []),
+        ("mark_preempting", []),
+        ("save", []),
+        ("status", []),
+        ("link_artifact", [wandb.Artifact("test", type="dataset"), "input"]),
+        ("use_artifact", ["test"]),
+        ("log_artifact", ["test"]),
+        ("upsert_artifact", ["test"]),
+        ("finish_artifact", ["test"]),
+    ],
+)
+def test_error_when_using_methods_of_finished_run(mock_run, method, args):
+    run = mock_run(use_magic_mock=True)
+    run.finish()
+    assert run._is_finished
+    with pytest.raises(wandb.errors.UsageError):
+        getattr(run, method)(*args)
+
+
+@pytest.mark.parametrize(
+    "attribute, value",
+    [
+        ("config", ["test", 2]),
+        ("summary", ["test", 2]),
+        ("name", "test"),
+        ("notes", "test"),
+        ("tags", "test"),
+    ],
+)
+def test_error_when_using_attributes_of_finished_run(mock_run, attribute, value):
+    run = mock_run(use_magic_mock=True)
+    run.finish()
+    assert run._is_finished
+    with pytest.raises(wandb.errors.UsageError):
+        if isinstance(value, list):
+            setattr(getattr(run, attribute), *value)
+        else:
+            setattr(run, attribute, value)

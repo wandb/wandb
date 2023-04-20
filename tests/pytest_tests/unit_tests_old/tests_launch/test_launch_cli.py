@@ -128,6 +128,10 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
         "print_status",
         lambda x: raise_(KeyboardInterrupt),
     )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.entity_is_team",
+        lambda c, entity: False,
+    )
 
     # m = mock.Mock()
     # m.sleep = lambda x: raise_(KeyboardInterrupt)
@@ -151,6 +155,10 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         # patch to no result, agent should read stopPolling and stop
         return None
 
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.entity_is_team",
+        lambda c, entity: False,
+    )
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
         lambda c, queue: patched_pop_empty_queue(c, queue),
@@ -195,9 +203,7 @@ def test_launch_cli_with_config_file_and_params(
             [
                 "-c",
                 "config.json",
-                "-a",
-                "epochs=1",
-                "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                "-u" "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
         assert result.exit_code == 0
@@ -221,8 +227,7 @@ def test_launch_cli_with_config_and_params(
             [
                 "-c",
                 json.dumps(config),
-                "-a",
-                "epochs=1",
+                "-u",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
@@ -241,7 +246,7 @@ def test_launch_no_docker_exec(
     )
     result = runner.invoke(
         cli.launch,
-        ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
+        ["-u", "https://wandb.ai/mock_server_entity/test_project/runs/1"],
     )
     assert result.exit_code == 1
     assert "Could not find Docker executable" in str(result.exception)
@@ -255,27 +260,21 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                     "name": "My Sweep",
                     "method": "grid",
                     "job": "test-job:v9",
+                    "launch": {
+                        "queue": "default",
+                        "resource": "local-process",
+                    },
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
                     "parameters": {"parameter1": {"values": [1, 2, 3]}},
                 },
                 f,
             )
-        with open("launch-config.yaml", "w") as f:
-            json.dump(
-                {
-                    "queue": "default",
-                    "resource": "local-process",
-                    "scheduler": {
-                        "resource": "local-process",
-                    },
-                },
-                f,
-            )
         result = runner.invoke(
-            cli.sweep,
+            cli.launch_sweep,
             [
                 "sweep-config.yaml",
-                "--launch_config",
-                "launch-config.yaml",
                 "--entity",
                 "mock_server_entity",
             ],
@@ -289,6 +288,7 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
         result = runner.invoke(
             cli.launch,
             [
+                "-u",
                 "https://github.com/test/repo.git",
                 "--entry-point",
                 "python train.py",
@@ -310,7 +310,7 @@ def test_launch_local_dir(runner, live_mock_server):
             f.write("wandb\n")
         result = runner.invoke(
             cli.launch,
-            ["repo"],
+            ["-u", "repo"],
         )
 
     assert result.exit_code == 0
@@ -322,6 +322,7 @@ def test_launch_queue_error(runner):
         result = runner.invoke(
             cli.launch,
             [
+                "-u",
                 "https://github.com/test/repo.git",
                 "--entry-point",
                 "train.py",
@@ -392,7 +393,7 @@ def test_launch_agent_launch_error_continue(
     runner, test_settings, live_mock_server, monkeypatch
 ):
     def print_then_exit():
-        print("except caught, acked item")
+        print("except caught, failed item")
         raise KeyboardInterrupt
 
     monkeypatch.setattr(
@@ -400,8 +401,12 @@ def test_launch_agent_launch_error_continue(
         lambda a, b: raise_(LaunchError("blah blah")),
     )
     monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.ack_run_queue_item",
+        "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
         lambda a, b: print_then_exit(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.entity_is_team",
+        lambda c, entity: False,
     )
     with runner.isolated_filesystem():
         result = runner.invoke(
@@ -414,7 +419,7 @@ def test_launch_agent_launch_error_continue(
             ],
         )
         assert "blah blah" in result.output
-        assert "except caught, acked item" in result.output
+        assert "except caught, failed item" in result.output
 
 
 def test_launch_name_run_id_environment_variable(
@@ -425,6 +430,7 @@ def test_launch_name_run_id_environment_variable(
     run_id = "test_run_id"
     run_name = "test_run_name"
     args = [
+        "-u",
         "https://github.com/test/repo.git",
         "--entry-point",
         "train.py",
