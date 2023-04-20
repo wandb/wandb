@@ -11,7 +11,6 @@ from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, Typ
 
 from requests import HTTPError
 
-import wandb
 from wandb.util import CheckRetryFnType
 
 from .mailbox import ContextCancelledError
@@ -180,7 +179,11 @@ class Retry(Generic[_R]):
                         # todo: would like to catch other errors, eg wandb.errors.Error, ConnectionError etc
                         # but some of these can be raised before the retry handler thread (RunStatusChecker) is
                         # spawned in wandb_init
-                        logger.debug("%s (%s), entering retry loop.", self._error_prefix, e.__class__.__name__)
+                        logger.debug(
+                            "%s (%s), entering retry loop.",
+                            self._error_prefix,
+                            e.__class__.__name__,
+                        )
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
             cancelled = self._sleep_check_cancelled(
