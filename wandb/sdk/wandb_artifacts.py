@@ -1008,11 +1008,12 @@ class WandbStoragePolicy(StoragePolicy):
         chunk_size = self.calc_chunk_size(file_size)
         upload_parts = []
         hex_digests = {}
-        file_path = pathlib.Path(entry.local_path)
-        file_bytes = file_path.read_bytes()
+        file_bytes = None
 
         # Only chunk files if larger than 2 GB
         if file_size > 2_000 * 1024**2:
+            file_path = pathlib.Path(entry.local_path)
+            file_bytes = file_path.read_bytes()
             for part_number in range(1, math.ceil(file_size / chunk_size) + 1):
                 data = file_bytes[
                     (part_number - 1) * chunk_size : part_number * chunk_size
