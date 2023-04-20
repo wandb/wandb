@@ -90,7 +90,10 @@ class ArtifactsCache:
         return self._artifacts_by_client_id.get(client_id)
 
     def store_client_artifact(self, artifact: "Artifact") -> None:
-        self._artifacts_by_client_id[artifact._client_id] = artifact
+        client_id = getattr(artifact, "_client_id", None)
+        if client_id is None:
+            raise ValueError("Only wandb.Artifacts have a client id")
+        self._artifacts_by_client_id[client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
         bytes_reclaimed = 0
