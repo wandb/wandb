@@ -48,9 +48,9 @@ def _add_deterministic_dir_to_artifact(
         if path.is_file():
             file_paths.append(path)
     dirname = md5_file_hex(*file_paths)[:20]
-    target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
+    target_path = (Path(target_dir_root) / dirname).as_posix()
     artifact.add_dir(dir_path, target_path)
-    return str(target_path)
+    return target_path
 
 
 def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
@@ -167,10 +167,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             if already_added_path is not None:
                 json_obj["path"] = already_added_path
             else:
-                target_path = os.path.join(
-                    ".wb_data", "saved_models", self._path.parent
-                )
-                json_obj["path"] = artifact.add_file(self._path, target_path, True).path
+                target_path = Path(".wb_data") / "saved_models" / self._path.parent
+                name = target_path.as_posix()
+                json_obj["path"] = artifact.add_file(self._path, name, True).path
         elif self._path.is_dir():
             # If the path is a directory, then we need to add all of the files
             # The directory must be named deterministically based on the contents of the directory,

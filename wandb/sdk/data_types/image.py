@@ -154,10 +154,11 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
         elif isinstance(data_or_path, (str, Path)):
-            if self.path_is_reference(str(data_or_path)):
-                self._initialize_from_reference(str(data_or_path))
+            data_or_path = str(data_or_path)
+            if self.path_is_reference(data_or_path):
+                self._initialize_from_reference(data_or_path)
             else:
-                self._initialize_from_path(str(data_or_path))
+                self._initialize_from_path(data_or_path)
         else:
             self._initialize_from_data(data_or_path, mode)
 

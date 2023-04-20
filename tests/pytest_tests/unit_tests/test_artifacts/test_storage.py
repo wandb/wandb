@@ -41,7 +41,7 @@ def test_check_etag_obj_path_points_to_opener_dst(cache):
 
     with opener() as f:
         f.write("hi")
-    with open(path) as f:
+    with path.open() as f:
         contents = f.read()
 
     assert contents == "hi"
@@ -79,7 +79,7 @@ def test_check_etag_obj_path_returns_not_exists_if_incomplete(cache):
 
 def test_check_etag_obj_path_does_not_include_etag(cache):
     path, _, _ = cache.check_etag_obj_path("http://url/1", "abcdef", 10)
-    assert "abcdef" not in path
+    assert "abcdef" not in str(path)
 
 
 @pytest.mark.parametrize(
