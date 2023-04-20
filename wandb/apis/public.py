@@ -46,6 +46,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
+from wandb.env import get_artifact_dir
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
@@ -4848,11 +4849,8 @@ class Artifact(artifacts.Artifact):
         return downloaded_path
 
     def _default_root(self, include_version=True):
-        root = (
-            os.path.join(".", "artifacts", self.name)
-            if include_version
-            else os.path.join(".", "artifacts", self._sequence_name)
-        )
+        name = self.name if include_version else self._sequence_name
+        root = os.path.join(get_artifact_dir(), name)
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
