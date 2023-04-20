@@ -10,7 +10,7 @@ import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 
-from .._project_spec import LaunchProject, compute_command_args
+from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
@@ -117,14 +117,13 @@ class LocalContainerRunner(AbstractRunner):
             entry_cmd = []
             if entry_point is not None:
                 entry_cmd = entry_point.command
-            override_args = compute_command_args(launch_project.override_args)
             command_str = " ".join(
                 get_docker_command(
                     image_uri,
                     env_vars,
                     entry_cmd=entry_cmd,
                     docker_args=docker_args,
-                    additional_args=override_args,
+                    additional_args=launch_project.override_args,
                 )
             ).strip()
         else:
