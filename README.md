@@ -570,9 +570,9 @@ run.finish()
 
 Weights & Biases is available in the cloud or installed on your private infrastructure. Set up a W&B Server in a production environment in one of three ways:
 
-1. [Production Cloud](https://docs.wandb.ai/guides/hosting/setup/private-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Set up a production deployment on a private cloud in just a few steps using terraform scripts provided by W&B.
-2. [Dedicated Cloud](https://docs.wandb.ai/guides/hosting/setup/dedicated-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): A managed, dedicated deployment on W&B's single-tenant infrastructure in your choice of cloud region.
-3. [On-Prem/Bare Metal](https://docs.wandb.ai/guides/hosting/setup/on-premise-baremetal?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): W&B supports setting up a production server on most bare metal servers in your on-premise data centers. Quickly get started by running `wandb server` to easily start hosting W&B on your local infrastructure.
+1. [Production Cloud](https://docs.wandb.ai/guides/hosting/hosting-options/self-managed#on-prem-private-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Set up a production deployment on a private cloud in just a few steps using terraform scripts provided by W&B.
+2. [Dedicated Cloud](https://docs.wandb.ai/guides/hosting/hosting-options/wb-managed#dedicated-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): A managed, dedicated deployment on W&B's single-tenant infrastructure in your choice of cloud region.
+3. [On-Prem/Bare Metal](https://docs.wandb.ai/guides/hosting/how-to-guides/bare-metal?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): W&B supports setting up a production server on most bare metal servers in your on-premise data centers. Quickly get started by running `wandb server` to easily start hosting W&B on your local infrastructure.
 
 See the [Hosting documentation](https://docs.wandb.ai/guides/hosting?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting) in the W&B Developer Guide for more information.
 
