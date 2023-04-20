@@ -8,19 +8,13 @@ import pytest
 import wandb
 
 
-upgrade_messages = [
-    re.compile(r"wandb: ERROR wandb version .* has been retired!  Please upgrade\."),
-    re.compile(r"wandb: wandb version .* is available!  To upgrade, please run:"),
-    re.compile(r"wandb:  \$ pip install wandb --upgrade"),
-]
-
-
 def strip_upgrade_messages(message_lines):
-    return [
-        line
-        for line in message_lines
-        if not any(upgrade_message.match(line) for upgrade_message in upgrade_messages)
-    ]
+    upgrade_messages = re.compile(
+        r"(wandb: ERROR wandb version .* has been retired!  Please upgrade\."
+        r"|wandb: wandb version .* is available!  To upgrade, please run:"
+        r"|wandb:  \$ pip install wandb --upgrade)"
+    )
+    return [line for line in message_lines if not upgrade_messages.match(line)]
 
 
 @pytest.mark.parametrize("utfText", ["my first hint", ""])
