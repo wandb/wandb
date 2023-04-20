@@ -224,12 +224,12 @@ class JobBuilder:
         self,
     ) -> Optional[Dict]:
         metadata_file = Path(self._settings.files_dir) / METADATA_FNAME
-        if metadata_file.is_file():
-            with metadata_file.open() as f:
-                metadata: Dict = json.load(f)
-            return metadata
+        if not metadata_file.is_file():
+            return None
 
-        return None
+        with metadata_file.open() as f:
+            metadata: Dict = json.load(f)
+        return metadata
 
     def _has_git_job_ingredients(
         self, metadata: Dict[str, Any], program_relpath: Optional[str]

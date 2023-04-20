@@ -1825,8 +1825,7 @@ class HTTPHandler(StorageHandler):
         response.raise_for_status()
 
         digest, size, extra = self._entry_from_headers(response.headers)
-        digest = digest or manifest_entry.ref
-        if manifest_entry.digest != digest:
+        if manifest_entry.digest != (digest or manifest_entry.ref):
             raise ValueError(
                 f"Digest mismatch for url {manifest_entry.ref}: expected {manifest_entry.digest} but found {digest}"
             )
@@ -1851,10 +1850,9 @@ class HTTPHandler(StorageHandler):
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
             digest, size, extra = self._entry_from_headers(response.headers)
-            digest = digest or path
         return [
             ArtifactManifestEntry(
-                path=name, ref=path, digest=digest, size=size, extra=extra
+                path=name, ref=path, digest=digest or path, size=size, extra=extra
             )
         ]
 
@@ -1920,11 +1918,13 @@ class WBArtifactHandler(StorageHandler):
         # Parse the reference path and download the artifact if needed
         artifact_id = util.host_from_path(manifest_entry.ref)
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
-
+        link_target_path: str
         dep_artifact = PublicArtifact.from_id(hex_to_b64_id(artifact_id), self.client)
         if local:
-            return dep_artifact.get_path(artifact_file_path).download()
-        return dep_artifact.get_path(artifact_file_path).ref_target()
+            link_target_path = dep_artifact.get_path(artifact_file_path).download()
+        else:
+            link_target_path = dep_artifact.get_path(artifact_file_path).ref_target()
+        return link_target_path
 
     def store_path(
         self,

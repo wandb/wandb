@@ -39,14 +39,14 @@ class ArtifactsCache:
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
-    ) -> Tuple[Path, bool, "Opener"]:
+    ) -> Tuple[str, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
         path = self._cache_dir / "obj" / "md5" / hex_md5[:2] / hex_md5[2:]
         opener = self._cache_opener(path)
         if path.is_file() and path.stat().st_size == size:
-            return path, True, opener
+            return str(path), True, opener
         mkdir_exists_ok(path.parent)
-        return path, False, opener
+        return str(path), False, opener
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -55,7 +55,7 @@ class ArtifactsCache:
         url: str,
         etag: ETag,
         size: int,
-    ) -> Tuple[Path, bool, "Opener"]:
+    ) -> Tuple[str, bool, "Opener"]:
         hexhash = hashlib.sha256(
             hashlib.sha256(url.encode("utf-8")).digest()
             + hashlib.sha256(etag.encode("utf-8")).digest()
@@ -63,9 +63,9 @@ class ArtifactsCache:
         path = self._cache_dir / "obj" / "etag" / hexhash[:2] / hexhash[2:]
         opener = self._cache_opener(path)
         if path.is_file() and path.stat().st_size == size:
-            return path, True, opener
+            return str(path), True, opener
         mkdir_exists_ok(path.parent)
-        return path, False, opener
+        return str(path), False, opener
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
