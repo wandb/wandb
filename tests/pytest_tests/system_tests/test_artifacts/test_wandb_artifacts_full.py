@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import time
 from datetime import datetime, timedelta, timezone
@@ -458,3 +459,14 @@ def test_log_incremental_modify_file(wandb_init, logged_artifact):
     downloaded_path = Path(artifact.download())
     that_file = list(downloaded_path.glob(one_file.name))[0]
     assert that_file.read_text() == "all new content!"
+
+
+def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
+    art_dir = tmp_path / "an-unusual-path"
+    monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
+    name_path = logged_artifact.name
+    if platform.system() == "Windows":
+        name_path = name_path.replace(":", "-")
+
+    downloaded = Path(logged_artifact.download())
+    assert downloaded == art_dir / name_path
