@@ -6,17 +6,16 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 from wandb import env, util
-from wandb.sdk.interface.artifacts import (
-    Artifact,
-    ArtifactManifestEntry,
-    ArtifactNotLoggedError,
-)
+from wandb.sdk.interface.artifacts.artifact import ArtifactNotLoggedError
 from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.util import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     import sys
+
+    from wandb.sdk.interface.artifacts.artifact import Artifact
+    from wandb.sdk.interface.artifacts.artifact_manifest import ArtifactManifestEntry
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
@@ -36,10 +35,10 @@ class ArtifactsCache:
         mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self._artifacts_by_id: Dict[str, Artifact] = {}
-        self._artifacts_by_client_id: Dict[str, Artifact] = {}
+        self._artifacts_by_id: Dict[str, "Artifact"] = {}
+        self._artifacts_by_client_id: Dict[str, "Artifact"] = {}
 
-    def locate(self, item: ArtifactManifestEntry) -> Path:
+    def locate(self, item: "ArtifactManifestEntry") -> Path:
         """Determine the path in the cache to a given file.
 
         Because the cache is content-addressed, this path is static and is valid even
@@ -87,10 +86,10 @@ class ArtifactsCache:
             raise ArtifactNotLoggedError(artifact, "store_artifact")
         self._artifacts_by_id[artifact.id] = artifact
 
-    def get_client_artifact(self, client_id: str) -> Optional[Artifact]:
+    def get_client_artifact(self, client_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_client_id.get(client_id)
 
-    def store_client_artifact(self, artifact: Artifact) -> None:
+    def store_client_artifact(self, artifact: "Artifact") -> None:
         self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:

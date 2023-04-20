@@ -193,7 +193,7 @@ def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
         manifest_entry,
         local=True,
     )
-    assert local_path == cache_path
+    assert local_path == str(cache_path)
 
 
 def test_s3_storage_handler_load_path_uses_cache(cache):
@@ -252,7 +252,7 @@ def test_gcs_storage_handler_load_path_uses_cache(cache):
     handler._cache = cache
 
     local_path = handler.load_path(manifest_entry, local=True)
-    assert local_path == cache_path
+    assert local_path == str(cache_path)
 
 
 def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
