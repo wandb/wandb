@@ -47,7 +47,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         - Save the model either in SavedModel format or in `.h5` format.
 
     Arguments:
-        filepath (PathOrStr): path to save the model file.
+        filepath (str or PathLike): path to save the model file.
         monitor (str): The metric name to monitor.
         verbose (int): Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
             displays messages when the callback takes an action.
