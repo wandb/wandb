@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.sdk.interface import ArtifactFinalizedError
+from wandb.sdk.interface.artifacts.artifact import ArtifactFinalizedError
 from wandb.sdk.wandb_artifacts import Artifact
 from wandb.sdk.wandb_run import Run, WaitTimeoutError
 
