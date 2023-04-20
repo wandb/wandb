@@ -1,6 +1,5 @@
 import base64
 import contextlib
-import hashlib
 import json
 import os
 import pathlib
@@ -55,6 +54,7 @@ from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
     HexMD5,
+    _md5,
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
@@ -269,6 +269,13 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.name
 
         return self._name
+
+    @property
+    def full_name(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.full_name
+
+        return super().full_name
 
     @property
     def state(self) -> str:
@@ -712,18 +719,15 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: str, path: str, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
-        digest = digest or md5_file_b64(path)
-        size = os.path.getsize(path)
-        name = util.to_forward_slash_path(name)
-
         with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
+            os.chmod(staging_path, 0o400)
 
         entry = ArtifactManifestEntry(
-            path=name,
-            digest=digest,
-            size=size,
+            path=util.to_forward_slash_path(name),
+            digest=digest or md5_file_b64(staging_path),
+            size=os.path.getsize(staging_path),
             local_path=staging_path,
         )
 
@@ -808,7 +812,7 @@ class ArtifactManifestV1(ArtifactManifest):
         }
 
     def digest(self) -> HexMD5:
-        hasher = hashlib.md5()
+        hasher = _md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
         for name, entry in sorted(self.entries.items(), key=lambda kv: kv[0]):
             hasher.update(f"{name}:{entry.digest}\n".encode())
@@ -1169,8 +1173,7 @@ class TrackingHandler(StorageHandler):
             # no way of actually loading it.
             url = urlparse(manifest_entry.ref)
             raise ValueError(
-                "Cannot download file at path %s, scheme %s not recognized"
-                % (str(manifest_entry.ref), str(url.scheme))
+                f"Cannot download file at path {str(manifest_entry.ref)}, scheme {str(url.scheme)} not recognized"
             )
         # TODO(spencerpearson): should this go through util.to_native_slash_path
         # instead of just getting typecast?
@@ -1239,8 +1242,7 @@ class LocalFileHandler(StorageHandler):
         md5 = md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
             raise ValueError(
-                "Local file reference: Digest mismatch for path %s: expected %s but found %s"
-                % (local_path, manifest_entry.digest, md5)
+                f"Local file reference: Digest mismatch for path {local_path}: expected {manifest_entry.digest} but found {md5}"
             )
 
         filesystem.mkdir_exists_ok(os.path.dirname(path))
@@ -1416,13 +1418,13 @@ class S3Handler(StorageHandler):
                             break
                     if obj is None:
                         raise ValueError(
-                            "Couldn't find object version for %s/%s matching etag %s"
-                            % (bucket, key, manifest_entry.extra.get("etag"))
+                            "Couldn't find object version for {}/{} matching etag {}".format(
+                                bucket, key, manifest_entry.extra.get("etag")
+                            )
                         )
                 else:
                     raise ValueError(
-                        "Digest mismatch for object %s: expected %s but found %s"
-                        % (manifest_entry.ref, manifest_entry.digest, etag)
+                        f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {etag}"
                     )
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
@@ -1482,8 +1484,9 @@ class S3Handler(StorageHandler):
                 multi = True
             else:
                 raise CommError(
-                    "Unable to connect to S3 (%s): %s"
-                    % (e.response["Error"]["Code"], e.response["Error"]["Message"])
+                    "Unable to connect to S3 ({}): {}".format(
+                        e.response["Error"]["Code"], e.response["Error"]["Message"]
+                    )
                 )
         if multi:
             start_time = time.time()
@@ -1667,14 +1670,12 @@ class GCSHandler(StorageHandler):
             obj = self._client.bucket(bucket).get_blob(key)
             if obj is None:
                 raise ValueError(
-                    "Unable to download object %s with generation %s"
-                    % (manifest_entry.ref, version)
+                    f"Unable to download object {manifest_entry.ref} with generation {version}"
                 )
             md5 = obj.md5_hash
             if md5 != manifest_entry.digest:
                 raise ValueError(
-                    "Digest mismatch for object %s: expected %s but found %s"
-                    % (manifest_entry.ref, manifest_entry.digest, md5)
+                    f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {md5}"
                 )
 
         with cache_open(mode="wb") as f:
@@ -1842,8 +1843,7 @@ class HTTPHandler(StorageHandler):
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
             raise ValueError(
-                "Digest mismatch for url %s: expected %s but found %s"
-                % (manifest_entry.ref, manifest_entry.digest, digest)
+                f"Digest mismatch for url {manifest_entry.ref}: expected {manifest_entry.digest} but found {digest}"
             )
 
         with cache_open(mode="wb") as file:

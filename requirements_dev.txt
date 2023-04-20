@@ -1,5 +1,6 @@
 pytest
 hypothesis
+pyfakefs
 coverage
 Pillow
 pandas
