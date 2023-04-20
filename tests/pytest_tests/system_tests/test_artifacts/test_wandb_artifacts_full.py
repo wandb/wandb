@@ -248,6 +248,41 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     assert dir_size() == 0
 
 
+def test_unstaging_refuses_to_delete_files_not_in_staging(
+    wandb_init, example_file, monkeypatch
+):
+    termerror = MagicMock()
+    monkeypatch.setattr(wandb, "termerror", termerror)
+
+    artifact = wandb.Artifact("test", type="dataset")
+    with wandb_init():
+        entry = artifact.add_file(example_file)
+        entry.local_path = str(example_file)
+    artifact.wait()
+
+    assert termerror.call_count >= 1
+    assert "not in staging dir" in termerror.call_args[0][0]
+
+
+def test_unstaging_skips_files_it_cant_delete(wandb_init, example_file, monkeypatch):
+    termerror = MagicMock()
+    monkeypatch.setattr(wandb, "termerror", termerror)
+
+    def disallowed():
+        raise PermissionError
+
+    monkeypatch.setattr("pathlib.Path.chmod", disallowed)
+
+    artifact = wandb.Artifact("test", type="dataset")
+    with wandb_init():
+        entry = artifact.add_file(example_file)
+        entry.local_path = str(example_file)
+    artifact.wait()
+
+    assert termerror.call_count >= 1
+    assert "unable to remove staging file" in termerror.call_args[0][0]
+
+
 def test_upload_gives_useful_error_when_out_of_space(
     wandb_init, example_files, monkeypatch
 ):
@@ -265,6 +300,28 @@ def test_upload_gives_useful_error_when_out_of_space(
             artifact.add_dir(example_files)
         assert termerror.call_count >= 1
         assert "No disk space available" in termerror.call_args[0][0]
+
+
+def test_cache_add_gives_useful_error_when_out_of_space(
+    wandb_init, example_files, monkeypatch
+):
+    termerror = MagicMock()
+    monkeypatch.setattr(wandb, "termerror", termerror)
+
+    def out_of_space():
+        raise OSError(errno.ENOSPC, "out of space")
+
+    monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
+
+    artifact = wandb.Artifact("test", type="dataset")
+    with pytest.raises(OSError, match="out of space"):
+        with wandb_init():
+            artifact.add_dir(example_files)
+        artifact.wait()
+
+    assert termerror.call_count >= 1
+    assert "No disk space available" in termerror.call_args[0][0]
+    assert "set WANDB_CACHE_DIR" in termerror.call_args[0][0]
 
 
 def test_local_references(wandb_init):

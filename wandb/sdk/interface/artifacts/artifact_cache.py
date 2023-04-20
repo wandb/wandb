@@ -133,10 +133,9 @@ class ArtifactsCache:
             except OSError as e:
                 if e.errno == errno.ENOSPC:
                     wandb.termerror(
-                        f"No available disk space in {dirname}. "
-                        "Run `wandb artifact cache cleanup 0` to empty your cache, or set "
-                        "the environment variable WANDB_CACHE_DIR to a location with more "
-                        "available disk space."
+                        f"No disk space available in {dirname}. Run `wandb artifact "
+                        "cache cleanup 0` to empty your cache, or set WANDB_CACHE_DIR "
+                        "to a location with more available disk space."
                     )
                 raise
 
