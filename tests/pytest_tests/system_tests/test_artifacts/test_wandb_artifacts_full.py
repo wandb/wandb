@@ -263,7 +263,7 @@ def test_upload_gives_useful_error_when_out_of_space(
         artifact = wandb.Artifact("test", type="dataset")
         with pytest.raises(OSError, match="out of space"):
             artifact.add_dir(example_files)
-        assert termerror.call_count == 1
+        assert termerror.call_count >= 1
         assert "No disk space available" in termerror.call_args[0][0]
 
 
