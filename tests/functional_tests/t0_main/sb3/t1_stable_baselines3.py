@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-"""Test stable_baselines3 integration"""
+"""Test stable_baselines3 integration."""
 
-import gym
+
+import gymnasium as gym
 import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor

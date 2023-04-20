@@ -32,6 +32,7 @@ class WriteManager:
     _record_num: int
     _telemetry_obj: tpb.TelemetryRecord
     _telemetry_overflow: bool
+    _use_flow_control: bool
 
     # TODO(cancel_paused): implement me
     # _sender_cancel_set: Set[str]
@@ -61,6 +62,9 @@ class WriteManager:
         self._record_num = 0
         self._telemetry_obj = tpb.TelemetryRecord()
         self._telemetry_overflow = False
+        self._use_flow_control = not (
+            self._settings._flow_control_disabled or self._settings._offline
+        )
 
     def open(self) -> None:
         self._ds = datastore.DataStore()
@@ -130,11 +134,7 @@ class WriteManager:
         if not record.control.local:
             self._write_record(record)
 
-        # flow control can be disabled by setting the network_buffer setting to 0
-        use_flow_control = (
-            self._settings._network_buffer != 0 and not self._settings._offline
-        )
-        if use_flow_control:
+        if self._use_flow_control:
             self._flow_control.flow(record)
         elif not self._settings._offline or record.control.always_send:
             # when flow_control is disabled we pass through all records to

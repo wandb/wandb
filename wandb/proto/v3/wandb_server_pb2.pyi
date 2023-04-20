@@ -83,6 +83,68 @@ class StringTupleValue(google.protobuf.message.Message):
 
 global___StringTupleValue = StringTupleValue
 
+class StringStringMapValue(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    class MapValuesEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        value: builtins.str
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: builtins.str = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+    MAP_VALUES_FIELD_NUMBER: builtins.int
+    @property
+    def map_values(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
+    def __init__(
+        self,
+        *,
+        map_values: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["map_values", b"map_values"]) -> None: ...
+
+global___StringStringMapValue = StringStringMapValue
+
+class NestedStringStringMapValue(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    class NestedMapValuesEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        @property
+        def value(self) -> global___StringStringMapValue: ...
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: global___StringStringMapValue | None = ...,
+        ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+    NESTED_MAP_VALUES_FIELD_NUMBER: builtins.int
+    @property
+    def nested_map_values(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___StringStringMapValue]: ...
+    def __init__(
+        self,
+        *,
+        nested_map_values: collections.abc.Mapping[builtins.str, global___StringStringMapValue] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["nested_map_values", b"nested_map_values"]) -> None: ...
+
+global___NestedStringStringMapValue = NestedStringStringMapValue
+
 class SettingsValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -93,6 +155,8 @@ class SettingsValue(google.protobuf.message.Message):
     NULL_VALUE_FIELD_NUMBER: builtins.int
     TUPLE_VALUE_FIELD_NUMBER: builtins.int
     TIMESTAMP_VALUE_FIELD_NUMBER: builtins.int
+    MAP_VALUE_FIELD_NUMBER: builtins.int
+    NESTED_MAP_VALUE_FIELD_NUMBER: builtins.int
     int_value: builtins.int
     string_value: builtins.str
     float_value: builtins.float
@@ -101,6 +165,10 @@ class SettingsValue(google.protobuf.message.Message):
     @property
     def tuple_value(self) -> global___StringTupleValue: ...
     timestamp_value: builtins.str
+    @property
+    def map_value(self) -> global___StringStringMapValue: ...
+    @property
+    def nested_map_value(self) -> global___NestedStringStringMapValue: ...
     def __init__(
         self,
         *,
@@ -111,10 +179,12 @@ class SettingsValue(google.protobuf.message.Message):
         null_value: builtins.bool = ...,
         tuple_value: global___StringTupleValue | None = ...,
         timestamp_value: builtins.str = ...,
+        map_value: global___StringStringMapValue | None = ...,
+        nested_map_value: global___NestedStringStringMapValue | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["value_type", b"value_type"]) -> typing_extensions.Literal["int_value", "string_value", "float_value", "bool_value", "null_value", "tuple_value", "timestamp_value"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "map_value", b"map_value", "nested_map_value", b"nested_map_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["bool_value", b"bool_value", "float_value", b"float_value", "int_value", b"int_value", "map_value", b"map_value", "nested_map_value", b"nested_map_value", "null_value", b"null_value", "string_value", b"string_value", "timestamp_value", b"timestamp_value", "tuple_value", b"tuple_value", "value_type", b"value_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["value_type", b"value_type"]) -> typing_extensions.Literal["int_value", "string_value", "float_value", "bool_value", "null_value", "tuple_value", "timestamp_value", "map_value", "nested_map_value"] | None: ...
 
 global___SettingsValue = SettingsValue
 

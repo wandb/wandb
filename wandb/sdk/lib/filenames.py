@@ -31,7 +31,7 @@ def is_wandb_file(name: str) -> bool:
 def filtered_dir(
     root: str, include_fn: Callable[[str], bool], exclude_fn: Callable[[str], bool]
 ) -> Generator[str, None, None]:
-    """Simple generator to walk a directory"""
+    """Simple generator to walk a directory."""
     for dirpath, _, files in os.walk(root):
         for fname in files:
             file_path = os.path.join(dirpath, fname)

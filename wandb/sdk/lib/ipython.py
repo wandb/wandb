@@ -1,5 +1,6 @@
 import logging
 import sys
+import warnings
 from typing import Optional
 
 import wandb
@@ -39,7 +40,7 @@ def in_jupyter() -> bool:
 
 
 def display_html(html: str):  # type: ignore
-    """Displays HTML in notebooks, is a noop outside of a jupyter context"""
+    """Display HTML in notebooks, is a noop outside of a jupyter context."""
     if wandb.run and wandb.run._settings.silent:
         return
     try:
@@ -51,7 +52,7 @@ def display_html(html: str):  # type: ignore
 
 
 def display_widget(widget):
-    """Displays ipywidgets in notebooks, is a noop outside of a jupyter context"""
+    """Display ipywidgets in notebooks, is a noop outside of a jupyter context."""
     if wandb.run and wandb.run._settings.silent:
         return
     try:
@@ -65,7 +66,7 @@ def display_widget(widget):
 
 
 class ProgressWidget:
-    """A simple wrapper to render a nice progress bar with a label"""
+    """A simple wrapper to render a nice progress bar with a label."""
 
     def __init__(self, widgets, min, max):
         self.widgets = widgets
@@ -98,12 +99,14 @@ class ProgressWidget:
 
 
 def jupyter_progress_bar(min: float = 0, max: float = 1.0) -> Optional[ProgressWidget]:
-    """Returns an ipywidget progress bar or None if we can't import it"""
+    """Return an ipywidget progress bar or None if we can't import it."""
     widgets = wandb.util.get_module("ipywidgets")
     try:
         if widgets is None:
             # TODO: this currently works in iPython but it's deprecated since 4.0
-            from IPython.html import widgets  # type: ignore
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                from IPython.html import widgets  # type: ignore
 
         assert hasattr(widgets, "VBox")
         assert hasattr(widgets, "Label")

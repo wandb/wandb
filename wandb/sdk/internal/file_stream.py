@@ -79,7 +79,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
                     util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
-                util.sentry_message(msg)
+                wandb._sentry.message(msg, repeat=False)
             else:
                 chunk_data.append(chunk.data)
 
@@ -97,14 +97,15 @@ class SummaryFilePolicy(DefaultFilePolicy):
                 util.to_human_size(util.MAX_LINE_BYTES)
             )
             wandb.termerror(msg, repeat=False)
-            util.sentry_message(msg)
+            wandb._sentry.message(msg, repeat=False)
             return False
         return {"offset": 0, "content": [data]}
 
 
 class StreamCRState:
-    """There are two streams: stdout and stderr.
-    We create two instances for each stream.
+    r"""Stream state that tracks carriage returns.
+
+    There are two streams: stdout and stderr. We create two instances for each stream.
     An instance holds state about:
         found_cr:       if a carriage return has been found in this stream.
         cr:             most recent offset (line number) where we found \r.
@@ -124,17 +125,16 @@ class StreamCRState:
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
-    """File stream policy that removes characters that would be erased by
-    carriage returns.
+    r"""File stream policy for removing carriage-return erased characters.
 
-    This is what a terminal does. We use it for console output to reduce the
-    amount of data we need to send over the network (eg. for progress bars),
-    while preserving the output's appearance in the web app.
+    This is what a terminal does. We use it for console output to reduce the amount of
+    data we need to send over the network (eg. for progress bars), while preserving the
+    output's appearance in the web app.
 
-    CR stands for "carriage return", for the character \r. It tells the terminal
-    to move the cursor back to the start of the current line. Progress bars
-    (like tqdm) use \r repeatedly to overwrite a line with newer updates.
-    This gives the illusion of the progress bar filling up in real-time.
+    CR stands for "carriage return", for the character \r. It tells the terminal to move
+    the cursor back to the start of the current line. Progress bars (like tqdm) use \r
+    repeatedly to overwrite a line with newer updates. This gives the illusion of the
+    progress bar filling up in real-time.
     """
 
     def __init__(self, start_chunk_id: int = 0) -> None:
@@ -148,7 +148,8 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     @staticmethod
     def get_consecutive_offsets(console: Dict[int, str]) -> List[List[int]]:
-        """
+        """Compress consecutive line numbers into an interval.
+
         Args:
             console: Dict[int, str] which maps offsets (line numbers) to lines of text.
             It represents a mini version of our console dashboard on the UI.
@@ -176,13 +177,14 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     @staticmethod
     def split_chunk(chunk: Chunk) -> Tuple[str, str]:
-        """
+        r"""Split chunks.
+
         Args:
             chunk: object with two fields: filename (str) & data (str)
             `chunk.data` is a str containing the lines we want. It usually contains \n or \r or both.
             `chunk.data` has two possible formats (for the two streams - stdout and stderr):
                 - "2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n"
-                - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n"
+                - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n".
 
                 Here's another example with a carriage return \r.
                 - "ERROR 2020-08-25T20:38:36.895321 \r progress bar\n"
@@ -206,7 +208,8 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         return prefix, rest
 
     def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
-        """
+        r"""Process chunks.
+
         Args:
             chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
 
@@ -268,7 +271,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
         intervals = self.get_consecutive_offsets(console)
         ret = []
-        for (a, b) in intervals:
+        for a, b in intervals:
             processed_chunk: "ProcessedChunk" = {
                 "offset": a,
                 "content": [console[i] for i in range(a, b + 1)],
@@ -491,11 +494,11 @@ class FileStreamApi:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
-            util.sentry_exc(exc_info, delay=True)
+            wandb._sentry.exception(exc_info)
             raise e
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
-        """Logs dropped chunks and updates dynamic settings"""
+        """Log dropped chunks and updates dynamic settings."""
         if isinstance(response, Exception):
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
@@ -575,7 +578,7 @@ class FileStreamApi:
         self._queue.put(Chunk(filename, data))
 
     def push_success(self, artifact_id: str, save_name: str) -> None:
-        """Notification that a file upload has been successfully completed
+        """Notification that a file upload has been successfully completed.
 
         Arguments:
             artifact_id: ID of artifact
@@ -584,7 +587,7 @@ class FileStreamApi:
         self._queue.put(self.PushSuccess(artifact_id, save_name))
 
     def finish(self, exitcode: int) -> None:
-        """Cleans up.
+        """Clean up.
 
         Anything pushed after finish will be dropped.
 

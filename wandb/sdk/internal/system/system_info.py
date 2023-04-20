@@ -47,7 +47,7 @@ class SystemInfo:
 
     # todo: refactor these _save_* methods
     def _save_pip(self) -> None:
-        """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""
+        """Save the current working set of pip packages to {REQUIREMENTS_FNAME}."""
         logger.debug(
             "Saving list of pip packages installed into the current environment"
         )
@@ -220,8 +220,7 @@ class SystemInfo:
                     if self.settings._jupyter_path.startswith("fileId="):
                         unescaped = unquote(self.settings._jupyter_path)
                         data["colab"] = (
-                            "https://colab.research.google.com/notebook#"
-                            + unescaped  # noqa
+                            "https://colab.research.google.com/notebook#" + unescaped
                         )
                         data["program"] = self.settings._jupyter_name
                     else:

@@ -2,13 +2,13 @@ import collections
 import dataclasses
 import json
 import logging
-import multiprocessing as mp
 import pathlib
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -41,7 +41,7 @@ NEURON_MONITOR_DEFAULT_CONFIG: Final[dict] = {
                 {"type": "neuroncore_counters"},
                 {"type": "memory_used"},
                 {"type": "neuron_runtime_vcpu_usage"},
-                {"type": "execution_stats"},
+                # {"type": "execution_stats"},
             ],
         }
     ],
@@ -91,9 +91,7 @@ class _Stats:
 
 
 class NeuronCoreStats:
-    """
-    AWS Trainium stats.
-    """
+    """AWS Trainium stats."""
 
     name: str = "trn.{key}"
     samples: "Deque[_Stats]"
@@ -116,19 +114,21 @@ class NeuronCoreStats:
                 "-c",
                 self.neuron_monitor_config_path,
             ]
-            popen = subprocess.Popen(
+            with subprocess.Popen(
                 command,
-                shell=False,
                 stdout=subprocess.PIPE,
                 stderr=None,
-            )
-            while not self.shutdown_event.is_set():
-                if popen.stdout is None:
-                    continue
+            ) as process:
+                while not self.shutdown_event.is_set():
+                    if process.stdout is None:
+                        self.shutdown_event.wait(0.1)
+                        continue
 
-                raw_data = popen.stdout.readline()
-                if raw_data:
-                    self.raw_samples.append(raw_data)
+                    raw_data = process.stdout.readline()
+                    if raw_data:
+                        self.raw_samples.append(raw_data)
+                process.kill()
+                process.wait()
         except Exception as e:
             logger.error("neuron-monitor failed: %s" % e)
 
@@ -148,6 +148,15 @@ class NeuronCoreStats:
         self.samples: "Deque[_Stats]" = deque()
         self.shutdown_event = threading.Event()
 
+        self.neuron_monitor_thread: Optional[threading.Thread] = None
+
+    def setup(self) -> None:
+        """Start the neuron-monitor thread for collecting raw data."""
+        if self.neuron_monitor_thread is not None:
+            return
+
+        logger.debug("Starting neuron-monitor thread")
+        self.shutdown_event.clear()
         self.neuron_monitor_thread = threading.Thread(
             name="NeuronCoreMntr",
             target=self.neuron_monitor,
@@ -155,9 +164,20 @@ class NeuronCoreStats:
         )
         self.neuron_monitor_thread.start()
 
+    def teardown(self) -> None:
+        """Stop the neuron-monitor thread."""
+        logger.debug("Stopping neuron-monitor thread")
+        try:
+            self.shutdown_event.set()
+            assert self.neuron_monitor_thread is not None
+            self.neuron_monitor_thread.join()
+        except Exception as e:
+            logger.error("neuron-monitor thread failed to stop: %s" % e)
+        finally:
+            self.neuron_monitor_thread = None
+
     def _is_matching_entry(self, entry: dict) -> bool:
-        """
-        For now, only check if the pid in the entry matches the pid of the process.
+        """For now, only check if the pid in the entry matches the pid of the process.
 
         todo: add matching by neuron_runtime_tag
         """
@@ -215,9 +235,7 @@ class NeuronCoreStats:
 
     @staticmethod
     def flatten_stats(sample: _Stats) -> dict:
-        """
-        Flatten _Stats object into a flat dict of numbers.
-        """
+        """Flatten _Stats object into a flat dict of numbers."""
         flattened = {}
 
         def helper(key: str, value: Any) -> None:
@@ -269,7 +287,7 @@ class Trainium:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
@@ -291,16 +309,25 @@ class Trainium:
 
     @classmethod
     def is_available(cls) -> bool:
-        # check if neuron-ls is available and if yes, what it reports. see:
+        # todo: check if neuron-ls is available and if yes, what it reports. see:
         # https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-ls.html
+        if not pathlib.Path(NEURON_LS_COMMAND[0]).exists():
+            return False
+        # need to be extra careful as neuron tools could be pre-installed
+        # on some systems that do not have the hardware
         try:
+            # redirect stderr to null to avoid printing errors to the console
+            # todo: alternative: check /dev/neuron0 ? sysfs support coming soon in neuron tools
             output = subprocess.check_output(
-                NEURON_LS_COMMAND, universal_newlines=True
+                NEURON_LS_COMMAND,
+                universal_newlines=True,
+                stderr=subprocess.DEVNULL,
             ).strip()
             if len(json.loads(output)) > 0:
                 return True
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
             pass
+
         return False
 
     def start(self) -> None:
@@ -308,11 +335,6 @@ class Trainium:
 
     def finish(self) -> None:
         self.metrics_monitor.finish()
-        # stop the raw data acquisition threads
-        for metric in self.metrics:
-            if hasattr(metric, "shutdown_event"):
-                logger.debug("Stopping neuron-monitor thread")
-                metric.shutdown_event.set()
 
     def probe(self) -> dict:
         try:
@@ -323,23 +345,30 @@ class Trainium:
                 "-c",
                 self.metrics[0].neuron_monitor_config_path,  # type: ignore
             ]
-            popen = subprocess.Popen(
+            with subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=None,
-            )
-            while True:
-                if popen.stdout is None:
-                    continue
+            ) as process:
+                while True:
+                    if process.stdout is None:
+                        time.sleep(0.1)
+                        continue
 
-                raw_data = popen.stdout.readline()
-                if raw_data:
-                    parsed_data = json.loads(raw_data)
-                    neuron_hardware_info = parsed_data.get("neuron_hardware_info", {})
-                    neuron_hardware_info.pop("error", None)
-                    break
+                    raw_data = process.stdout.readline()
+                    if raw_data:
+                        parsed_data = json.loads(raw_data)
+                        neuron_hardware_info = parsed_data.get(
+                            "neuron_hardware_info", {}
+                        )
+                        neuron_hardware_info.pop("error", None)
+                        break
 
-            popen.terminate()
+            try:
+                process.kill()
+                process.wait()
+            except:  # noqa
+                pass
 
             return {self.name: neuron_hardware_info}
         except Exception as e:

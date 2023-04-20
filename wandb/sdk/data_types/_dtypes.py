@@ -22,9 +22,9 @@ if not _TYPES_STRIPPED:
 
 
 class TypeRegistry:
-    """The TypeRegistry resolves python objects to Types as well as
-    deserializes JSON dicts. Additional types can be registered via
-    the .add call.
+    """A resolver for python objects that can deserialize JSON dicts.
+
+    Additional types can be registered via the .add call.
     """
 
     _types_by_name = None
@@ -137,7 +137,7 @@ def _params_obj_to_json_obj(
     params_obj: t.Any,
     artifact: t.Optional["ArtifactInCreation"] = None,
 ) -> t.Any:
-    """Helper method"""
+    """Helper method."""
     if params_obj.__class__ == dict:
         return {
             key: _params_obj_to_json_obj(params_obj[key], artifact)
@@ -154,7 +154,7 @@ def _params_obj_to_json_obj(
 def _json_obj_to_params_obj(
     json_obj: t.Any, artifact: t.Optional["DownloadedArtifact"] = None
 ) -> t.Any:
-    """Helper method"""
+    """Helper method."""
     if json_obj.__class__ == dict:
         if "wb_type" in json_obj:
             return TypeRegistry.type_from_dict(json_obj, artifact)
@@ -170,7 +170,8 @@ def _json_obj_to_params_obj(
 
 
 class Type:
-    """This is the most generic type which all types are subclasses.
+    """The most generic type that all types subclass.
+
     It provides simple serialization and deserialization as well as equality checks.
     A name class-level property must be uniquely set by subclasses.
     """
@@ -201,8 +202,7 @@ class Type:
         return self._params
 
     def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
-        """Assign a python object to the type, returning a new type representing
-        the result of the assignment.
+        """Assign a python object to the type.
 
         May to be overridden by subclasses
 
@@ -211,7 +211,7 @@ class Type:
             this type
 
         Returns:
-            Type: an instance of a subclass of the Type class.
+            Type: a new type representing the result of the assignment.
         """
         return self.assign_type(TypeRegistry.type_of(py_obj))
 
@@ -251,10 +251,10 @@ class Type:
         json_dict: t.Dict[str, t.Any],
         artifact: t.Optional["DownloadedArtifact"] = None,
     ) -> "Type":
-        """Construct a new instance of the type using a JSON dictionary equivalent to
-        the kind output by `to_json`.
+        """Construct a new instance of the type using a JSON dictionary.
 
-        If overridden by subclass, ensure that `to_json` is equivalently overridden.
+        The mirror function of `to_json`. If overridden by subclass, ensure that
+        `to_json` is equivalently overridden.
 
         Returns:
             _Type: an instance of a subclass of the _Type class.
@@ -266,12 +266,13 @@ class Type:
         return cls()
 
     def explain(self, other: t.Any, depth=0) -> str:
-        """Explains why an item is not assignable to a type. Assumes that
-        the caller has already validated that the assignment fails.
+        """Explain why an item is not assignable to a type.
+
+        Assumes that the caller has already validated that the assignment fails.
 
         Args:
-            other (any): Any object
-            depth (int, optional): depth of the type checking. Defaults to 0.
+            other (any): Any object depth (int, optional): depth of the type checking.
+                Defaults to 0.
 
         Returns:
             str: human-readable explanation
@@ -307,8 +308,10 @@ class Type:
 
 
 class InvalidType(Type):
-    """all assignments to a InvalidType result in a Never Type.
-    InvalidType is basically the invalid case
+    """A disallowed type.
+
+    Assignments to a InvalidType result in a Never Type. InvalidType is basically the
+    invalid case.
     """
 
     name = "invalid"
@@ -319,8 +322,10 @@ class InvalidType(Type):
 
 
 class AnyType(Type):
-    """all assignments to an AnyType result in the
-    AnyType except None which will be InvalidType
+    """An object that can be any type.
+
+    Assignments to an AnyType result in the AnyType except None which results in an
+    InvalidType.
     """
 
     name = "any"
@@ -335,8 +340,10 @@ class AnyType(Type):
 
 
 class UnknownType(Type):
-    """all assignments to an UnknownType result in the type of the assigned object
-    except none which will result in a InvalidType
+    """An object with an unknown type.
+
+    All assignments to an UnknownType result in the type of the assigned object except
+    `None` which results in a InvalidType.
     """
 
     name = "unknown"
@@ -416,7 +423,7 @@ if np:
 
 
 class PythonObjectType(Type):
-    """Serves as a backup type by keeping track of the python object name"""
+    """A backup type that keeps track of the python object name."""
 
     name = "pythonObject"
     legacy_names = ["object"]
@@ -431,7 +438,7 @@ class PythonObjectType(Type):
 
 
 class ConstType(Type):
-    """Represents a constant value (currently only primitives supported)"""
+    """A constant value (currently only primitives supported)."""
 
     name = "const"
     types: t.ClassVar[t.List[type]] = []
@@ -524,7 +531,7 @@ def _union_assigner(
 
 
 class UnionType(Type):
-    """Represents an "or" of types"""
+    """An "or" of types."""
 
     name = "union"
     types: t.ClassVar[t.List[type]] = []
@@ -580,8 +587,9 @@ class UnionType(Type):
 
 
 def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
-    """Function that mimics the Type class API for constructing an "Optional Type"
-    which is just a Union[wb_type, NoneType]
+    """Function that mimics the Type class API for constructing an "Optional Type".
+
+    This is just a Union[wb_type, NoneType].
 
     Args:
         dtype (Type): type to be optional
@@ -593,7 +601,7 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
 
 
 class ListType(Type):
-    """Represents a list of homogenous types"""
+    """A list of homogenous types."""
 
     name = "list"
     types: t.ClassVar[t.List[type]] = [list, tuple, set, frozenset]
@@ -693,7 +701,7 @@ class ListType(Type):
 
 
 class NDArrayType(Type):
-    """Represents a list of homogenous types"""
+    """Represents a list of homogenous types."""
 
     name = "ndarray"
     types: t.ClassVar[t.List[type]] = []  # will manually add type if np is available
@@ -782,7 +790,7 @@ if np:
 
 
 class TypedDictType(Type):
-    """Represents a dictionary object where each key can have a type"""
+    """Represents a dictionary object where each key can have a type."""
 
     name = "typedDict"
     legacy_names = ["dictionary"]
