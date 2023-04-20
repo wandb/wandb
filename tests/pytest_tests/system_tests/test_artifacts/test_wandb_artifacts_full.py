@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import time
 from datetime import datetime, timedelta, timezone
@@ -436,3 +437,14 @@ def test_log_patch_add_file(wandb_init, example_file, logged_artifact):
     files = list(downloaded_path.rglob("*"))
     assert len(files) == 4
     assert example_file.name in [f.name for f in files]
+
+
+def test_artfact_download_root(logged_artifact, monkeypatch, tmp_path):
+    art_dir = tmp_path / "an-unusual-path"
+    monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
+    name_path = logged_artifact.name
+    if platform.system() == "Windows":
+        name_path = name_path.replace(":", "-")
+
+    downloaded = Path(logged_artifact.download())
+    assert downloaded == art_dir / name_path
