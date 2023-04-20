@@ -61,7 +61,7 @@ from wandb.sdk.lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
-from wandb.util import FilePathStr, LogicalFilePathStr, PathOrStr, URIStr
+from wandb.util import PathOrStr
 
 if TYPE_CHECKING:
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
@@ -441,14 +441,14 @@ class Artifact(ArtifactInterface):
         paths = []
         for path in Path(local_path).rglob("*"):
             if path.is_file():
-                logical_path = FilePathStr(str(path.relative_to(local_path)))
+                logical_path = path.relative_to(local_path)
                 if name is not None:
-                    logical_path = FilePathStr(str(Path(name) / logical_path))
+                    logical_path = Path(name) / logical_path
                 paths.append((logical_path, path))
 
-        def add_manifest_file(log_phy_path: Tuple[FilePathStr, Path]) -> None:
+        def add_manifest_file(log_phy_path: Tuple[Path, Path]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path)
+            self._add_local_file(str(logical_path), physical_path)
 
         import multiprocessing.dummy  # this uses threads
 
@@ -486,11 +486,7 @@ class Artifact(ArtifactInterface):
             )
 
         manifest_entries = self._storage_policy.store_reference(
-            self,
-            URIStr(uri_str),
-            name=name,
-            checksum=checksum,
-            max_objects=max_objects,
+            self, uri_str, name=name, checksum=checksum, max_objects=max_objects
         )
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
@@ -722,7 +718,7 @@ class Artifact(ArtifactInterface):
         self, name: str, path: PathOrStr, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
         with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
-            staging_path = FilePathStr(f.name)
+            staging_path = f.name
             shutil.copyfile(path, staging_path)
             os.chmod(staging_path, 0o400)
 
@@ -734,7 +730,7 @@ class Artifact(ArtifactInterface):
         )
 
         self._manifest.add_entry(entry)
-        self._added_local_paths[FilePathStr(str(path))] = entry
+        self._added_local_paths[str(path)] = entry
         return entry
 
 
@@ -764,7 +760,7 @@ class ArtifactManifestV1(ArtifactManifest):
         entries: Mapping[str, ArtifactManifestEntry]
         entries = {
             name: ArtifactManifestEntry(
-                path=LogicalFilePathStr(name),
+                path=name,
                 digest=val["digest"],
                 birth_artifact_id=val.get("birthArtifactID"),
                 ref=val.get("ref"),
@@ -899,7 +895,7 @@ class WandbStoragePolicy(StoragePolicy):
     def store_reference(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1071,13 +1067,13 @@ class __S3BucketPolicy(StoragePolicy):  # noqa: N801
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         return self._handler.load_path(manifest_entry, local=local)
 
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1110,7 +1106,7 @@ class MultiHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         url = urlparse(manifest_entry.ref)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
@@ -1123,7 +1119,7 @@ class MultiHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1168,7 +1164,7 @@ class TrackingHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         if local:
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
@@ -1177,14 +1173,12 @@ class TrackingHandler(StorageHandler):
             raise ValueError(
                 f"Cannot download file at path {str(manifest_entry.ref)}, scheme {str(url.scheme)} not recognized"
             )
-        # TODO(spencerpearson): should this go through util.to_native_slash_path
-        # instead of just getting typecast?
-        return FilePathStr(manifest_entry.path)
+        return util.to_native_slash_path(manifest_entry.path)
 
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1199,7 +1193,7 @@ class TrackingHandler(StorageHandler):
             "Artifact references with unsupported schemes cannot be checksummed: %s"
             % path
         )
-        name = LogicalFilePathStr(name or url.path[1:])  # strip leading slash
+        name = name or url.path[1:]  # strip leading slash
         return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
 
@@ -1225,7 +1219,7 @@ class LocalFileHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         if manifest_entry.ref is None:
             raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
         local_path = Path(util.local_file_uri_to_path(str(manifest_entry.ref)))
@@ -1256,12 +1250,12 @@ class LocalFileHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        local_path = FilePathStr(util.local_file_uri_to_path(path))
+        local_path = util.local_file_uri_to_path(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
@@ -1300,8 +1294,8 @@ class LocalFileHandler(StorageHandler):
                         logical_path = Path(name) / logical_path
 
                     entry = ArtifactManifestEntry(
-                        path=LogicalFilePathStr(str(logical_path)),
-                        ref=FilePathStr(os.path.join(path, logical_path)),
+                        path=str(logical_path),
+                        ref=os.path.join(path, logical_path),
                         size=physical_path.stat().st_size,
                         digest=md5(physical_path),
                     )
@@ -1311,7 +1305,7 @@ class LocalFileHandler(StorageHandler):
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                path=LogicalFilePathStr(name),
+                path=name,
                 ref=path,
                 size=os.path.getsize(local_path),
                 digest=md5(local_path),
@@ -1377,7 +1371,7 @@ class S3Handler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -1385,7 +1379,7 @@ class S3Handler(StorageHandler):
         assert manifest_entry.ref is not None
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            URIStr(manifest_entry.ref),
+            manifest_entry.ref,
             ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1439,7 +1433,7 @@ class S3Handler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1452,7 +1446,7 @@ class S3Handler(StorageHandler):
         # parsing. Once we have that, we can store the rest of the
         # metadata in the artifact entry itself.
         bucket, key, version = self._parse_uri(path)
-        path = URIStr(f"{self.scheme}://{bucket}/{key}")
+        path = f"{self.scheme}://{bucket}/{key}"
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
                 f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
@@ -1460,11 +1454,7 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [
-                ArtifactManifestEntry(
-                    path=LogicalFilePathStr(name or key), ref=path, digest=path
-                )
-            ]
+            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -1565,8 +1555,8 @@ class S3Handler(StorageHandler):
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            path=LogicalFilePathStr(str(posix_name)),
-            ref=URIStr(f"{self.scheme}://{str(posix_ref)}"),
+            path=str(posix_name),
+            ref=f"{self.scheme}://{posix_ref!s}",
             digest=ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
@@ -1589,13 +1579,12 @@ class S3Handler(StorageHandler):
         return extra
 
     @staticmethod
-    def _content_addressed_path(md5: str) -> FilePathStr:
+    def _content_addressed_path(md5: str) -> str:
         # TODO: is this the structure we want? not at all human
         # readable, but that's probably OK. don't want people
         # poking around in the bucket
-        return FilePathStr(
-            "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
-        )
+        pathkey = base64.b64encode(md5.encode("ascii")).decode("ascii")
+        return f"wandb/{pathkey}"
 
 
 class GCSHandler(StorageHandler):
@@ -1643,7 +1632,7 @@ class GCSHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -1687,7 +1676,7 @@ class GCSHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1699,7 +1688,7 @@ class GCSHandler(StorageHandler):
         # such as version identifiers, pare down the path to just the bucket
         # and key.
         bucket, key, version = self._parse_uri(path)
-        path = URIStr(f"{self.scheme}://{bucket}/{key}")
+        path = f"{self.scheme}://{bucket}/{key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
@@ -1707,11 +1696,7 @@ class GCSHandler(StorageHandler):
             )
 
         if not checksum:
-            return [
-                ArtifactManifestEntry(
-                    path=LogicalFilePathStr(name or key), ref=path, digest=path
-                )
-            ]
+            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
 
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
@@ -1784,8 +1769,8 @@ class GCSHandler(StorageHandler):
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            path=LogicalFilePathStr(str(posix_name)),
-            ref=URIStr(f"{self.scheme}://{str(posix_ref)}"),
+            path=str(posix_name),
+            ref=f"{self.scheme}://{posix_ref!s}",
             digest=obj.md5_hash,
             size=obj.size,
             extra=self._extra_from_obj(obj),
@@ -1799,13 +1784,12 @@ class GCSHandler(StorageHandler):
         }
 
     @staticmethod
-    def _content_addressed_path(md5: str) -> FilePathStr:
+    def _content_addressed_path(md5: str) -> str:
         # TODO: is this the structure we want? not at all human
         # readable, but that's probably OK. don't want people
         # poking around in the bucket
-        return FilePathStr(
-            "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
-        )
+        pathkey = base64.b64encode(md5.encode("ascii")).decode("ascii")
+        return f"wandb/{pathkey}"
 
 
 class HTTPHandler(StorageHandler):
@@ -1822,7 +1806,7 @@ class HTTPHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -1830,7 +1814,7 @@ class HTTPHandler(StorageHandler):
         assert manifest_entry.ref is not None
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            URIStr(manifest_entry.ref),
+            manifest_entry.ref,
             ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
@@ -1840,7 +1824,6 @@ class HTTPHandler(StorageHandler):
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
-        digest: Optional[Union[ETag, FilePathStr, URIStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
@@ -1856,18 +1839,17 @@ class HTTPHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        name = LogicalFilePathStr(name or os.path.basename(path))
+        name = name or os.path.basename(path)
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
-            digest: Optional[Union[ETag, FilePathStr, URIStr]]
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
         return [
@@ -1918,7 +1900,7 @@ class WBArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         """Load the file in the specified artifact given its corresponding entry.
 
         Download the referenced artifact; create and return a new symlink to the caller.
@@ -1940,18 +1922,14 @@ class WBArtifactHandler(StorageHandler):
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
 
         dep_artifact = PublicArtifact.from_id(hex_to_b64_id(artifact_id), self.client)
-        link_target_path: FilePathStr
         if local:
-            link_target_path = dep_artifact.get_path(artifact_file_path).download()
-        else:
-            link_target_path = dep_artifact.get_path(artifact_file_path).ref_target()
-
-        return link_target_path
+            return dep_artifact.get_path(artifact_file_path).download()
+        return dep_artifact.get_path(artifact_file_path).ref_target()
 
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1985,18 +1963,14 @@ class WBArtifactHandler(StorageHandler):
             path = entry.ref
 
         # Create the path reference
-        path = URIStr(
-            "{}://{}/{}".format(
-                self._scheme,
-                b64_to_hex_id(target_artifact.id),
-                artifact_file_path,
-            )
+        path = "{}://{}/{}".format(
+            self._scheme, b64_to_hex_id(target_artifact.id), artifact_file_path
         )
 
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                path=LogicalFilePathStr(name or os.path.basename(path)),
+                path=name or os.path.basename(path),
                 ref=path,
                 size=0,
                 digest=entry.digest,
@@ -2022,7 +1996,7 @@ class WBLocalArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> str:
         raise NotImplementedError(
             "Should not be loading a path for an artifact entry with unresolved client id."
         )
@@ -2030,7 +2004,7 @@ class WBLocalArtifactHandler(StorageHandler):
     def store_path(
         self,
         artifact: ArtifactInterface,
-        path: Union[URIStr, FilePathStr],
+        path: str,
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -2057,7 +2031,7 @@ class WBLocalArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                path=LogicalFilePathStr(name or os.path.basename(path)),
+                path=name or os.path.basename(path),
                 ref=path,
                 size=0,
                 digest=target_entry.digest,

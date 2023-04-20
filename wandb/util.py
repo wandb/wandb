@@ -24,6 +24,7 @@ import traceback
 import urllib
 from datetime import date, datetime, timedelta
 from importlib import import_module
+from pathlib import Path
 from sys import getsizeof
 from types import ModuleType
 from typing import (
@@ -36,7 +37,6 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    NewType,
     Optional,
     Sequence,
     Set,
@@ -61,21 +61,10 @@ if TYPE_CHECKING:
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
-# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
-# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
-# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
-LogicalFilePathStr = NewType("LogicalFilePathStr", str)
 
-# `FilePathStr` represents a path to a file on the local filesystem.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.Path
-FilePathStr = NewType("FilePathStr", str)
-PathOrStr = Union[os.PathLike, FilePathStr]
+# PathOrStr should be used for all user input; Path is preferred for internal use.
+PathOrStr = Union[os.PathLike, str]
 
-# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
-URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -1303,14 +1292,12 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def to_forward_slash_path(path: str) -> LogicalFilePathStr:
-    if platform.system() == "Windows":
-        path = path.replace("\\", "/")
-    return LogicalFilePathStr(path)
+def to_forward_slash_path(path: PathOrStr) -> str:
+    return str(Path(path).as_posix())
 
 
-def to_native_slash_path(path: str) -> FilePathStr:
-    return FilePathStr(path.replace("/", os.sep))
+def to_native_slash_path(path: PathOrStr) -> str:
+    return str(Path(path))
 
 
 def check_and_warn_old(files: List[str]) -> bool:

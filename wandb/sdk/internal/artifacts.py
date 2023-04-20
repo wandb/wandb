@@ -12,7 +12,6 @@ from wandb import env, util
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -281,10 +280,8 @@ class ArtifactSaver:
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = util.URIStr(
-                        "wandb-artifact://{}/{}".format(
-                            b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
-                        )
+                    entry.ref = "wandb-artifact://{}/{}".format(
+                        b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                     )
 
     def _cleanup_staged_entries(self) -> None:
@@ -296,7 +293,7 @@ class ArtifactSaver:
         """
         staging_dir = get_staging_dir()
         for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
+            if entry.local_path and entry.local_path.startswith(str(staging_dir)):
                 try:
                     os.chmod(entry.local_path, 0o600)
                     os.remove(entry.local_path)
@@ -304,14 +301,14 @@ class ArtifactSaver:
                     pass
 
 
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+def get_staging_dir() -> Path:
+    path = Path(env.get_data_dir()) / "artifacts" / "staging"
     try:
         mkdir_exists_ok(path)
     except OSError as e:
         raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"Unable to write staging files to {path!s}. To fix this problem, set "
             f"{env.DATA_DIR} to a directory where you have the necessary write access."
         ) from e
 
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
+    return path.expanduser().resolve()

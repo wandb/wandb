@@ -1108,7 +1108,7 @@ def test_tracking_storage_handler():
     #
     # Empirically, this test fails with:
     #   AssertionError: assert 'some-file' == '/path/to/file.txt'
-    # But 'some-file' started out as a `name`, i.e. a util.LogicalFilePathStr,
+    # But 'some-file' started out as a `name`, i.e. a forward-slash-separated path,
     # representing the location of the file *within the artifact*
     # rather than *on the filesystem*.
     #

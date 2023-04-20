@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
 
@@ -16,7 +16,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, Error
 from wandb.sdk.launch.wandb_reference import WandbReference
-from wandb.util import FilePathStr, PathOrStr
+from wandb.util import PathOrStr
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -315,14 +315,12 @@ def download_wandb_python_deps(
 
 
 def get_local_python_deps(
-    dir: PathOrStr, filename: Union[os.PathLike, str] = "requirements.local.txt"
+    dir: PathOrStr, filename: PathOrStr = "requirements.local.txt"
 ) -> Optional[PathOrStr]:
     try:
         env = os.environ
         with open(Path(dir) / filename, "w") as f:
             subprocess.call(["pip", "freeze"], env=env, stdout=f)
-        if isinstance(filename, str):
-            filename = FilePathStr(filename)
         return filename
     except subprocess.CalledProcessError as e:
         wandb.termerror(f"Command failed: {e}")

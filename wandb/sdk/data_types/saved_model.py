@@ -19,7 +19,7 @@ import wandb
 from wandb import util
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.hashutil import md5_file_hex
-from wandb.util import FilePathStr, PathOrStr
+from wandb.util import PathOrStr
 
 from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
@@ -41,7 +41,7 @@ DEBUG_MODE = False
 
 def _add_deterministic_dir_to_artifact(
     artifact: "LocalArtifact", dir_name: PathOrStr, target_dir_root: PathOrStr
-) -> FilePathStr:
+) -> str:
     file_paths = []
     dir_path = Path(dir_name).resolve()
     for path in dir_path.rglob("*"):
@@ -50,7 +50,7 @@ def _add_deterministic_dir_to_artifact(
     dirname = md5_file_hex(*file_paths)[:20]
     target_path = util.to_forward_slash_path(os.path.join(target_dir_root, dirname))
     artifact.add_dir(dir_path, target_path)
-    return FilePathStr(target_path)
+    return str(target_path)
 
 
 def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
@@ -102,7 +102,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             isinstance(obj_or_path, (str, os.PathLike)) and Path(obj_or_path).exists()
         )
         if input_is_path:
-            self._set_obj(self._deserialize(FilePathStr(str(obj_or_path))))
+            self._set_obj(self._deserialize(str(obj_or_path)))
         else:
             self._set_obj(obj_or_path)
 

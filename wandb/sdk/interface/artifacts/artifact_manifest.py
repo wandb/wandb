@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb import util
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_artifacts
@@ -12,9 +11,9 @@ if TYPE_CHECKING:
 
 @dataclass
 class ArtifactManifestEntry:
-    path: LogicalFilePathStr
-    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
-    ref: Optional[Union[FilePathStr, URIStr]] = None
+    path: str
+    digest: Union[B64MD5, str, ETag]
+    ref: Optional[str] = None
     birth_artifact_id: Optional[str] = None
     size: Optional[int] = None
     extra: Dict = field(default_factory=dict)
@@ -34,7 +33,7 @@ class ArtifactManifestEntry:
         """
         raise NotImplementedError
 
-    def download(self, root: Optional[str] = None) -> FilePathStr:
+    def download(self, root: Optional[str] = None) -> str:
         """Download this artifact entry to the specified root path.
 
         Arguments:

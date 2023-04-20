@@ -42,7 +42,7 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
-from wandb.util import FilePathStr, PathOrStr
+from wandb.util import PathOrStr
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -2017,7 +2017,7 @@ class Api:
         filename = Path(metadata["name"])
         path: PathOrStr = Path(out_dir or self.settings("wandb_dir")) / filename
         if self.file_current(filename, B64MD5(metadata["md5"])):
-            return FilePathStr(str(path)) if isinstance(out_dir, str) else path, None
+            return str(path) if isinstance(out_dir, str) else path, None
 
         size, response = self.download_file(metadata["url"])
 
@@ -2026,7 +2026,7 @@ class Api:
                 file.write(data)
 
         if isinstance(out_dir, str):
-            path = FilePathStr(str(path))
+            path = str(path)
         return path, response
 
     def upload_file_azure(

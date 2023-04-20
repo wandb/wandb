@@ -2,13 +2,14 @@ import contextlib
 import hashlib
 import os
 import secrets
+from pathlib import Path
 from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional, Tuple
 
 from wandb import env, util
 from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
-from wandb.util import FilePathStr, PathOrStr, URIStr
+from wandb.util import PathOrStr
 
 if TYPE_CHECKING:
     import sys
@@ -29,42 +30,42 @@ class ArtifactsCache:
     _TMP_PREFIX = "tmp"
 
     def __init__(self, cache_dir: PathOrStr) -> None:
-        self._cache_dir = cache_dir
+        self._cache_dir = Path(cache_dir)
         mkdir_exists_ok(self._cache_dir)
-        self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
-        self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
+        self._md5_obj_dir = self._cache_dir / "obj" / "md5"
+        self._etag_obj_dir = self._cache_dir / "obj" / "etag"
         self._artifacts_by_id: Dict[str, Artifact] = {}
         self._artifacts_by_client_id: Dict[str, "wandb_artifacts.Artifact"] = {}
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
+    ) -> Tuple[Path, bool, "Opener"]:
         hex_md5 = b64_to_hex_id(b64_md5)
-        path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
+        path = self._cache_dir / "obj" / "md5" / hex_md5[:2] / hex_md5[2:]
         opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        if path.is_file() and path.stat().st_size == size:
+            return path, True, opener
+        mkdir_exists_ok(path.parent)
+        return path, False, opener
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
     def check_etag_obj_path(
         self,
-        url: URIStr,
+        url: str,
         etag: ETag,
         size: int,
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
+    ) -> Tuple[Path, bool, "Opener"]:
         hexhash = hashlib.sha256(
             hashlib.sha256(url.encode("utf-8")).digest()
             + hashlib.sha256(etag.encode("utf-8")).digest()
         ).hexdigest()
-        path = os.path.join(self._cache_dir, "obj", "etag", hexhash[:2], hexhash[2:])
+        path = self._cache_dir / "obj" / "etag" / hexhash[:2] / hexhash[2:]
         opener = self._cache_opener(path)
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return FilePathStr(path), True, opener
-        mkdir_exists_ok(os.path.dirname(path))
-        return FilePathStr(path), False, opener
+        if path.is_file() and path.stat().st_size == size:
+            return path, True, opener
+        mkdir_exists_ok(path.parent)
+        return path, False, opener
 
     def get_artifact(self, artifact_id: str) -> Optional["Artifact"]:
         return self._artifacts_by_id.get(artifact_id)
@@ -115,18 +116,15 @@ class ArtifactsCache:
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
 
-    def _cache_opener(self, path: PathOrStr) -> "Opener":
+    def _cache_opener(self, path: Path) -> "Opener":
         @contextlib.contextmanager
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
-            dirname = os.path.dirname(path)
-            tmp_file = FilePathStr(
-                os.path.join(
-                    dirname, f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
-                )
-            )
+            dirpath = path.parent
+            tmp_file = dirpath / f"{ArtifactsCache._TMP_PREFIX}_{secrets.token_hex(8)}"
+
             with util.fsync_open(tmp_file, mode=mode) as f:
                 yield f
 
