@@ -42,7 +42,6 @@ class BoringModel(LightningModule):
         self.training_step_outputs.append(loss)
         return loss
 
-
     def on_train_epoch_end(self):
         _ = torch.stack(self.training_step_outputs).mean()
         self.training_step_outputs.clear()  # free memory
