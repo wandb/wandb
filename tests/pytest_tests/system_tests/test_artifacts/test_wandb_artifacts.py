@@ -1,5 +1,6 @@
 import os
 import shutil
+import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Mapping, Optional
@@ -14,7 +15,13 @@ import wandb.sdk.interface as wandb_interface
 from wandb import util, wandb_sdk
 from wandb.sdk import wandb_artifacts
 from wandb.sdk.lib.hashutil import md5_string
-from wandb.sdk.wandb_artifacts import ArtifactFinalizedError, ArtifactNotLoggedError
+from wandb.sdk.wandb_artifacts import (
+    ArtifactFinalizedError,
+    ArtifactNotLoggedError,
+    GCSHandler,
+    HTTPHandler,
+    S3Handler,
+)
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -74,10 +81,11 @@ def mock_boto(artifact, path=False, content_type=None):
             return BucketStatus()
 
     mock = S3Resource()
-    handler = artifact._storage_policy._handler._handlers["s3"]
-    handler._s3 = mock
-    handler._botocore = util.get_module("botocore")
-    handler._botocore.exceptions = util.get_module("botocore.exceptions")
+    for handler in artifact._storage_policy._handler._handlers:
+        if isinstance(handler, S3Handler):
+            handler._s3 = mock
+            handler._botocore = util.get_module("botocore")
+            handler._botocore.exceptions = util.get_module("botocore.exceptions")
     return mock
 
 
@@ -108,9 +116,93 @@ def mock_gcs(artifact, path=False):
             return GSBucket()
 
     mock = GSClient()
-    handler = artifact._storage_policy._handler._handlers["gs"]
-    handler._client = mock
+    for handler in artifact._storage_policy._handler._handlers:
+        if isinstance(handler, GCSHandler):
+            handler._client = mock
     return mock
+
+
+@pytest.fixture
+def mock_azure_handler():
+    class BlobServiceClient:
+        def __init__(self, account_url, credential):
+            pass
+
+        def get_container_client(self, container):
+            return ContainerClient()
+
+        def get_blob_client(self, container, blob):
+            return BlobClient(blob)
+
+    class ContainerClient:
+        def list_blobs(self, name_starts_with):
+            return [
+                blob_properties
+                for blob_properties in blobs
+                if blob_properties.name.startswith(name_starts_with)
+            ]
+
+    class BlobClient:
+        def __init__(self, name):
+            self.name = name
+
+        def exists(self, version_id=None):
+            for blob_properties in blobs:
+                if (
+                    blob_properties.name == self.name
+                    and blob_properties.version_id == version_id
+                ):
+                    return True
+            return False
+
+        def get_blob_properties(self, version_id=None):
+            for blob_properties in blobs:
+                if (
+                    blob_properties.name == self.name
+                    and blob_properties.version_id == version_id
+                ):
+                    return blob_properties
+            raise Exception("Blob does not exist")
+
+    class BlobProperties:
+        def __init__(self, name, version_id, etag, size):
+            self.name = name
+            self.version_id = version_id
+            self.etag = etag
+            self.size = size
+
+    blobs = [
+        BlobProperties(
+            "my-blob", version_id=None, etag="my-blob version None", size=42
+        ),
+        BlobProperties("my-blob", version_id="v2", etag="my-blob version v2", size=42),
+        BlobProperties(
+            "my-dir/a", version_id=None, etag="my-dir/a version None", size=42
+        ),
+        BlobProperties(
+            "my-dir/b", version_id=None, etag="my-dir/b version None", size=42
+        ),
+    ]
+
+    class AzureStorageBlobModule:
+        def __init__(self):
+            self.BlobServiceClient = BlobServiceClient
+
+    class AzureIdentityModule:
+        def __init__(self):
+            self.DefaultAzureCredential = lambda: None
+
+    def _get_module(self, name):
+        if name == "azure.storage.blob":
+            return AzureStorageBlobModule()
+        if name == "azure.identity":
+            return AzureIdentityModule()
+        raise NotImplementedError
+
+    with unittest.mock.patch(
+        "wandb.sdk.wandb_artifacts.AzureHandler._get_module", new=_get_module
+    ):
+        yield
 
 
 def mock_http(artifact, path=False, headers=None):
@@ -137,8 +229,9 @@ def mock_http(artifact, path=False, headers=None):
             return Response(self.headers)
 
     mock = Session()
-    handler = artifact._storage_policy._handler._handlers["http"]
-    handler._session = mock
+    for handler in artifact._storage_policy._handler._handlers:
+        if isinstance(handler, HTTPHandler):
+            handler._session = mock
     return mock
 
 
@@ -580,6 +673,155 @@ def test_add_gs_reference_path(runner, capsys):
         }
         _, err = capsys.readouterr()
         assert "Generating checksum" in err
+
+
+def test_add_azure_reference_no_checksum(mock_azure_handler):
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob",
+        checksum=False,
+    )
+    assert len(entries) == 1
+    assert entries[0].path == "nonexistent-blob"
+    assert (
+        entries[0].ref
+        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
+    )
+    assert (
+        entries[0].digest
+        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
+    )
+    assert entries[0].size is None
+    assert entries[0].extra == {}
+
+    # with name
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob",
+        name="my-name",
+        checksum=False,
+    )
+    assert len(entries) == 1
+    assert entries[0].path == "my-name"
+    assert (
+        entries[0].ref
+        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
+    )
+    assert (
+        entries[0].digest
+        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
+    )
+    assert entries[0].size is None
+    assert entries[0].extra == {}
+
+    # with version
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob?versionId=v2",
+        checksum=False,
+    )
+    assert len(entries) == 1
+    assert entries[0].path == "nonexistent-blob"
+    assert (
+        entries[0].ref
+        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
+    )
+    assert (
+        entries[0].digest
+        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
+    )
+    assert entries[0].size is None
+    assert entries[0].extra == {}
+
+
+def test_add_azure_reference(mock_azure_handler):
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/my-blob"
+    )
+    assert len(entries) == 1
+    assert entries[0].path == "my-blob"
+    assert (
+        entries[0].ref == "https://myaccount.blob.core.windows.net/my-container/my-blob"
+    )
+    assert entries[0].digest == "my-blob version None"
+    assert entries[0].size == 42
+    assert entries[0].extra == {"etag": "my-blob version None"}
+
+    # with name
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/my-blob", name="my-name"
+    )
+    assert len(entries) == 1
+    assert entries[0].path == "my-name"
+    assert (
+        entries[0].ref == "https://myaccount.blob.core.windows.net/my-container/my-blob"
+    )
+    assert entries[0].digest == "my-blob version None"
+    assert entries[0].size == 42
+    assert entries[0].extra == {"etag": "my-blob version None"}
+
+    # with version
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/my-blob?versionId=v2"
+    )
+    assert len(entries) == 1
+    assert entries[0].path == "my-blob"
+    assert (
+        entries[0].ref == "https://myaccount.blob.core.windows.net/my-container/my-blob"
+    )
+    assert entries[0].digest == "my-blob version v2"
+    assert entries[0].size == 42
+    assert entries[0].extra == {"etag": "my-blob version v2", "versionID": "v2"}
+
+
+def test_add_azure_reference_directory(mock_azure_handler):
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/my-dir"
+    )
+    assert len(entries) == 2
+    assert entries[0].path == "a"
+    assert (
+        entries[0].ref
+        == "https://myaccount.blob.core.windows.net/my-container/my-dir/a"
+    )
+    assert entries[0].digest == "my-dir/a version None"
+    assert entries[0].size == 42
+    assert entries[0].extra == {"etag": "my-dir/a version None"}
+    assert entries[1].path == "b"
+    assert (
+        entries[1].ref
+        == "https://myaccount.blob.core.windows.net/my-container/my-dir/b"
+    )
+    assert entries[1].digest == "my-dir/b version None"
+    assert entries[1].size == 42
+    assert entries[1].extra == {"etag": "my-dir/b version None"}
+
+    # with name
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/my-dir", name="my-name"
+    )
+    assert len(entries) == 2
+    assert entries[0].path == "my-name/a"
+    assert (
+        entries[0].ref
+        == "https://myaccount.blob.core.windows.net/my-container/my-dir/a"
+    )
+    assert entries[0].digest == "my-dir/a version None"
+    assert entries[0].size == 42
+    assert entries[0].extra == {"etag": "my-dir/a version None"}
+    assert entries[1].path == "my-name/b"
+    assert (
+        entries[1].ref
+        == "https://myaccount.blob.core.windows.net/my-container/my-dir/b"
+    )
+    assert entries[1].digest == "my-dir/b version None"
+    assert entries[1].size == 42
+    assert entries[1].extra == {"etag": "my-dir/b version None"}
 
 
 def test_add_http_reference_path():
