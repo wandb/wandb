@@ -216,7 +216,7 @@ def test_edit_after_add(wandb_init):
 def test_remove_after_log(wandb_init):
     with wandb_init() as run:
         artifact = wandb.Artifact(name="hi-art", type="dataset")
-        artifact.add_reference("file:///example/file1.txt")
+        artifact.add_reference(Path(__file__).as_uri())
         run.log_artifact(artifact)
         artifact.wait()
 

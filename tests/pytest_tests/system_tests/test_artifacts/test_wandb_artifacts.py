@@ -688,7 +688,7 @@ def test_remove_non_existent():
 
 def test_remove_manifest_entry():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    entry = artifact.add_reference("file:///example/file1.txt")
+    entry = artifact.add_reference(Path(__file__).as_uri())
 
     artifact.remove(entry)
 
