@@ -904,9 +904,13 @@ class Table(Media):
             ndxs.append(index)
         return ndxs
 
-    def get_df(self):
+    def get_dataframe(self):
         """Returns a pandas.DataFrame of the table."""
-        return pd.DataFrame.from_records(self.data, columns = self.columns)
+        pd = util.get_module(
+            "pandas",
+            required="Converting to pandas.DataFrame requires installing pandas",
+        )
+        return pd.DataFrame.from_records(self.data, columns=self.columns)
 
     def index_ref(self, index):
         """Get a reference to a particular row index in the table."""
