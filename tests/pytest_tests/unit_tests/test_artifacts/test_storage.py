@@ -41,7 +41,7 @@ def test_check_etag_obj_path_points_to_opener_dst(cache):
 
     with opener() as f:
         f.write("hi")
-    with path.open() as f:
+    with open(path) as f:
         contents = f.read()
 
     assert contents == "hi"
