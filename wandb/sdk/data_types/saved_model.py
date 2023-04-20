@@ -43,7 +43,7 @@ def _add_deterministic_dir_to_artifact(
     artifact: "LocalArtifact", dir_name: PathOrStr, target_dir_root: PathOrStr
 ) -> str:
     file_paths = []
-    dir_path = Path(dir_name).resolve()
+    dir_path = Path(dir_name)
     for path in dir_path.rglob("*"):
         if path.is_file():
             file_paths.append(path)
