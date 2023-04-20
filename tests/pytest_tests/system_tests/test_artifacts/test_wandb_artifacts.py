@@ -197,7 +197,7 @@ def test_add_after_finalize():
     artifact.finalize()
     with pytest.raises(ArtifactFinalizedError) as e:
         artifact.add_file("file1.txt")
-    assert "Can't add to finalized artifact" in str(e.value)
+    assert "Can't modify finalized artifact" in str(e.value)
 
 
 def test_add_new_file_encode_error(capsys):
@@ -638,10 +638,10 @@ def test_add_reference_unknown_handler():
 
 @pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
 def test_remove_file(name_type):
-    file1 = Path("foo/file1.txt")
+    file1 = Path("file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
-    file2 = Path("foo/file2.txt")
+    file2 = Path("file2.txt")
     file2.write_text("hello")
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -692,7 +692,7 @@ def test_remove_non_existent():
 
 def test_remove_manifest_entry():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    entry = artifact.add_reference(Path(__file__).as_uri())
+    entry = artifact.add_reference(Path(__file__).as_uri())[0]
 
     artifact.remove(entry)
 
