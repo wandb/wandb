@@ -6,9 +6,9 @@ from typing import IO, TYPE_CHECKING, ContextManager, Dict, Generator, Optional,
 
 from wandb import env, util
 from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
-from wandb.sdk.lib.filesystem import StrPath, mkdir_exists_ok
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
-from wandb.util import FilePathStr, URIStr
+from wandb.util import FilePathStr, PathOrStr, URIStr
 
 if TYPE_CHECKING:
     import sys
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 class ArtifactsCache:
     _TMP_PREFIX = "tmp"
 
-    def __init__(self, cache_dir: StrPath) -> None:
+    def __init__(self, cache_dir: PathOrStr) -> None:
         self._cache_dir = cache_dir
         mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
@@ -115,7 +115,7 @@ class ArtifactsCache:
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
 
-    def _cache_opener(self, path: StrPath) -> "Opener":
+    def _cache_opener(self, path: PathOrStr) -> "Opener":
         @contextlib.contextmanager
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             if "a" in mode:

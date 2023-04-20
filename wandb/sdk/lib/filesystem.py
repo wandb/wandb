@@ -8,16 +8,16 @@ import stat
 import tempfile
 import threading
 from pathlib import Path
-from typing import IO, Any, BinaryIO, Generator, Union
+from typing import IO, Any, BinaryIO, Generator
 
-StrPath = Union[str, "os.PathLike[str]"]
+from wandb.util import PathOrStr
 
 logger = logging.getLogger(__name__)
 
 WRITE_PERMISSIONS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IWRITE
 
 
-def mkdir_exists_ok(dir_name: StrPath) -> None:
+def mkdir_exists_ok(dir_name: PathOrStr) -> None:
     """Create `dir_name` and any parent directories if they don't exist.
 
     Raises:
@@ -84,7 +84,9 @@ class CRDedupedFile(WriteSerializingFile):
         super().close()
 
 
-def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> StrPath:
+def copy_or_overwrite_changed(
+    source_path: PathOrStr, target_path: PathOrStr
+) -> PathOrStr:
     """Copy source_path to target_path, unless it already exists with the same mtime.
 
     We liberally add write permissions to deal with the case of multiple users needing
@@ -131,7 +133,7 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
 
 @contextlib.contextmanager
 def safe_open(
-    path: StrPath, mode: str = "r", *args: Any, **kwargs: Any
+    path: PathOrStr, mode: str = "r", *args: Any, **kwargs: Any
 ) -> Generator[IO, None, None]:
     """Open a file, ensuring any changes only apply atomically after close.
 
@@ -180,7 +182,7 @@ def safe_open(
             tmp_path.replace(path)
 
 
-def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
+def safe_copy(source_path: PathOrStr, target_path: PathOrStr) -> PathOrStr:
     """Copy a file, ensuring any changes only apply atomically once finished."""
     # TODO (hugh): check that there is enough free space.
     output_path = Path(target_path).resolve()
