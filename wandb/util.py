@@ -26,7 +26,7 @@ import urllib
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
-from types import ModuleType, TracebackType
+from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -43,17 +43,14 @@ from typing import (
     Set,
     TextIO,
     Tuple,
-    Type,
     Union,
 )
-from urllib.parse import quote
 
 import requests
-import sentry_sdk  # type: ignore
 import yaml
 
 import wandb
-from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
+import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
@@ -133,24 +130,6 @@ def get_platform_name() -> str:
         return PLATFORM_UNKNOWN
 
 
-# TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
-#  side effect of loading a module.
-sentry_client: Optional["sentry_sdk.client.Client"] = None
-sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
-sentry_default_dsn = (
-    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
-)
-if error_reporting_enabled():
-    sentry_dsn = os.environ.get(SENTRY_DSN, sentry_default_dsn)
-    sentry_client = sentry_sdk.Client(
-        dsn=sentry_dsn,
-        default_integrations=False,
-        environment=SENTRY_ENV,
-        release=wandb.__version__,
-    )
-
-    sentry_hub = sentry_sdk.Hub(sentry_client)
-
 POW_10_BYTES = [
     ("B", 10**0),
     ("KB", 10**3),
@@ -170,127 +149,6 @@ POW_2_BYTES = [
     ("PiB", 2**50),
     ("EiB", 2**60),
 ]
-
-
-def sentry_message(message: str) -> None:
-    if error_reporting_enabled():
-        sentry_hub.capture_message(message)  # type: ignore
-    return None
-
-
-def sentry_exc(
-    exc: Union[
-        str,
-        BaseException,
-        Tuple[
-            Optional[Type[BaseException]],
-            Optional[BaseException],
-            Optional[TracebackType],
-        ],
-        None,
-    ],
-    delay: bool = False,
-) -> None:
-    if error_reporting_enabled():
-        if isinstance(exc, str):
-            sentry_hub.capture_exception(Exception(exc))  # type: ignore
-        else:
-            sentry_hub.capture_exception(exc)  # type: ignore
-    if delay:
-        time.sleep(2)
-    return None
-
-
-def sentry_reraise(exc: Any, delay: bool = False) -> None:
-    """Re-raise an exception after logging it to Sentry.
-
-    Use this for top-level exceptions when you want the user to see the traceback.
-
-    Must be called from within an exception handler.
-    """
-    sentry_exc(exc, delay=delay)
-    # this will messily add this "reraise" function to the stack trace,
-    # but hopefully it's not too bad
-    raise exc.with_traceback(sys.exc_info()[2])
-
-
-def sentry_set_scope(
-    settings_dict: Optional[
-        Union[
-            "wandb.sdk.wandb_settings.Settings",
-            "wandb.sdk.internal.settings_static.SettingsStatic",
-        ]
-    ] = None,
-    process_context: Optional[str] = None,
-) -> None:
-    if not error_reporting_enabled():
-        return None
-
-    # Tags come from two places: settings and args passed into this func.
-    args = dict(locals())
-    del args["settings_dict"]
-
-    settings_tags = [
-        "entity",
-        "project",
-        "run_id",
-        "run_url",
-        "sweep_url",
-        "sweep_id",
-        "deployment",
-        "_disable_service",
-        "launch",
-    ]
-
-    s = settings_dict
-
-    # convenience function for getting attr from settings
-    def get(key: str) -> Any:
-        return getattr(s, key, None)
-
-    with sentry_hub.configure_scope() as scope:  # type: ignore
-        scope.set_tag("platform", get_platform_name())
-
-        # apply settings tags
-        if s is not None:
-            for tag in settings_tags:
-                val = get(tag)
-                if val not in [None, ""]:
-                    scope.set_tag(tag, val)
-
-            python_runtime = (
-                "colab"
-                if get("_colab")
-                else ("jupyter" if get("_jupyter") else "python")
-            )
-            scope.set_tag("python_runtime", python_runtime)
-
-            # Hack for constructing run_url and sweep_url given run_id and sweep_id
-            required = ["entity", "project", "base_url"]
-            params = {key: get(key) for key in required}
-            if all(params.values()):
-                # here we're guaranteed that entity, project, base_url all have valid values
-                app_url = wandb.util.app_url(params["base_url"])
-                e, p = (quote(params[k]) for k in ["entity", "project"])
-
-                # TODO: the settings object will be updated to contain run_url and sweep_url
-                # This is done by passing a settings_map in the run_start protocol buffer message
-                for word in ["run", "sweep"]:
-                    _url, _id = f"{word}_url", f"{word}_id"
-                    if not get(_url) and get(_id):
-                        scope.set_tag(_url, f"{app_url}/{e}/{p}/{word}s/{get(_id)}")
-
-            if hasattr(s, "email"):
-                scope.user = {"email": s.email}
-
-        # apply directly passed-in tags
-        for tag, value in args.items():
-            if value is not None and value != "":
-                scope.set_tag(tag, value)
-
-    # Track session so we can get metrics about error free rate
-    if sentry_hub:
-        sentry_hub.start_session()
 
 
 def vendor_setup() -> Callable:
@@ -398,7 +256,7 @@ VALUE_BYTES_LIMIT = 100000
 def app_url(api_url: str) -> str:
     """Return the frontend app url without a trailing slash."""
     # TODO: move me to settings
-    app_url = get_app_url()
+    app_url = wandb.env.get_app_url()
     if app_url is not None:
         return str(app_url.strip("/"))
     if "://api.wandb.test" in api_url:
@@ -491,36 +349,6 @@ def make_tarfile(
     finally:
         os.close(descriptor)
         os.remove(unzipped_filename)
-
-
-def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
-    user_dict = dict()
-    value: Union[str, bool]
-    name: str
-    i = 0
-    while i < len(arguments):
-        arg = arguments[i]
-        split = arg.split("=", maxsplit=1)
-        # flag arguments don't require a value -> set to True if specified
-        if len(split) == 1 and (
-            i + 1 >= len(arguments) or arguments[i + 1].startswith("-")
-        ):
-            name = split[0].lstrip("-")
-            value = True
-            i += 1
-        elif len(split) == 1 and not arguments[i + 1].startswith("-"):
-            name = split[0].lstrip("-")
-            value = arguments[i + 1]
-            i += 2
-        elif len(split) == 2:
-            name = split[0].lstrip("-")
-            value = split[1]
-            i += 1
-        if name in user_dict:
-            wandb.termerror(f"Repeated parameter: {name!r}")
-            sys.exit(1)
-        user_dict[name] = value
-    return user_dict
 
 
 def is_tf_tensor(obj: Any) -> bool:
@@ -1023,9 +851,11 @@ def no_retry_auth(e: Any) -> bool:
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise AuthenticationError(
-            "The API key is either invalid or missing, or the host is incorrect. "
-            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
-            "The host defaults to 'https://api.wandb.ai' if not specified. "
+            "The API key you provided is either invalid or missing.  "
+            f"If the `{wandb.env.API_KEY}` environment variable is set, make sure it is correct. "
+            "Otherwise, to resolve this issue, you may try running the 'wandb login --relogin' command. "
+            "If you are using a local server, make sure that you're using the correct hostname. "
+            "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
     elif wandb.run:
@@ -1473,39 +1303,6 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def parse_sweep_id(parts_dict: dict) -> Optional[str]:
-    """In place parse sweep path from parts dict.
-
-    Arguments:
-        parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-
-    Returns:
-        None or str if there is an error
-    """
-    entity = None
-    project = None
-    sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, str):
-        return "Expected string sweep_id"
-
-    sweep_split = sweep_id.split("/")
-    if len(sweep_split) == 1:
-        pass
-    elif len(sweep_split) == 2:
-        split_project, sweep_id = sweep_split
-        project = split_project or project
-    elif len(sweep_split) == 3:
-        split_entity, split_project, sweep_id = sweep_split
-        project = split_project or project
-        entity = split_entity or entity
-    else:
-        return (
-            "Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep"
-        )
-    parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
-    return None
-
-
 def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
@@ -1661,45 +1458,6 @@ def _is_databricks() -> bool:
 
 def _is_py_path(path: str) -> bool:
     return path.endswith(".py")
-
-
-def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
-    """Consolidate schema violation strings from wandb/sweeps into a single string.
-
-    Parameters
-    ----------
-    violations: list of str
-        The warnings to render.
-
-    Returns:
-    -------
-    violation: str
-        The consolidated violation text.
-
-    """
-    violation_base = (
-        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
-        "To avoid this, please fix the sweep config schema violations below:"
-    )
-
-    for i, warning in enumerate(violations):
-        violations[i] = f"  Violation {i + 1}. {warning}"
-    violation = "\n".join([violation_base] + violations)
-
-    return violation
-
-
-def handle_sweep_config_violations(warnings: List[str]) -> None:
-    """Echo sweep config schema violation warnings from Gorilla to the terminal.
-
-    Parameters
-    ----------
-    warnings: list of str
-        The warnings to render.
-    """
-    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
-    if len(warnings) > 0:
-        term.termwarn(warning)
 
 
 def _log_thread_stacks() -> None:
