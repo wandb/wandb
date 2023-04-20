@@ -656,14 +656,18 @@ def test_remove_file(name_type):
 
 @pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
 def test_remove_directory(name_type):
-    file1 = Path("foo/file1.txt")
+    file1 = Path("bar/foo/file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
-    file2 = Path("foo/file2.txt")
+    file2 = Path("bar/foo/file2.txt")
     file2.write_text("hello2")
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_dir("foo")
+    artifact.add_dir("bar")
+
+    print(artifact.manifest.entries)
+
+    assert len(artifact.manifest.entries) == 2
 
     artifact.remove(name_type("foo"))
 
@@ -671,12 +675,12 @@ def test_remove_directory(name_type):
 
 
 def test_remove_non_existent():
-    file1 = Path("foo/file1.txt")
+    file1 = Path("baz/foo/file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_dir("foo")
+    artifact.add_dir("baz")
 
     with pytest.raises(FileNotFoundError):
         artifact.remove("file1.txt")
