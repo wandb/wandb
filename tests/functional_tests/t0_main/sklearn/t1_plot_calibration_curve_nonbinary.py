@@ -67,7 +67,7 @@ run = wandb.init(project="my-scikit-integration")
 
 wandb.sklearn.plot_calibration_curve(model, X_train, y_train, "RandomForestClassifier")
 
-print(model.n_features_)
+print(model.n_features_in_)
 
 outs = model.predict(X_train)
 
