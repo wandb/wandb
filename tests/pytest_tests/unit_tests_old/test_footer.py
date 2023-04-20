@@ -2,10 +2,10 @@
 footer tests.
 """
 
+import re
+
 import pytest
 import wandb
-
-import re
 
 
 upgrade_messages = [
