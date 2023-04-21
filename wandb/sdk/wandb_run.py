@@ -47,11 +47,11 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
-from wandb.sdk.lib.filesystem import StrPath
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
+from wandb.sdk.lib.paths import StrPath
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
