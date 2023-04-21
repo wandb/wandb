@@ -1157,7 +1157,7 @@ class TrackingHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> str:
+    ) -> Union[URIStr, FilePathStr]:
         if local:
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
@@ -1168,7 +1168,7 @@ class TrackingHandler(StorageHandler):
             )
         # TODO(spencerpearson): should this go through util.to_native_slash_path
         # instead of just getting typecast?
-        return manifest_entry.path
+        return FilePathStr(manifest_entry.path)
 
     def store_path(
         self,
