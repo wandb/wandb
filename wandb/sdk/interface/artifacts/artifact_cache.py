@@ -8,8 +8,7 @@ from wandb import env, util
 from wandb.sdk.interface.artifacts import Artifact, ArtifactNotLoggedError
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
-from wandb.sdk.lib.paths import StrPath
-from wandb.util import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     import sys

@@ -61,7 +61,7 @@ from wandb.sdk.lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult

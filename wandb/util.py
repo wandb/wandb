@@ -36,7 +36,6 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    NewType,
     Optional,
     Sequence,
     Set,
@@ -52,7 +51,7 @@ import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -62,17 +61,6 @@ if TYPE_CHECKING:
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
-# This *should* be a PurePosixPath, but changing now it would change the public API.
-# It represents an artifact-relative or run-relative path and is always POSIX-style.
-LogicalFilePathStr = NewType("LogicalFilePathStr", str)
-
-# `FilePathStr` represents a path to a file on the local filesystem.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.Path
-FilePathStr = NewType("FilePathStr", str)
-
-# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
-URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
