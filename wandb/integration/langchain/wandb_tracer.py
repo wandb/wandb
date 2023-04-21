@@ -17,7 +17,6 @@ will be raised when importing this module.
 
 
 import json
-import pathlib
 import sys
 
 if sys.version_info >= (3, 8):
@@ -30,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, ca
 import wandb
 import wandb.util
 from wandb.sdk.data_types import trace_tree
+from wandb.sdk.lib.paths import StrPath
 
 _ = wandb.util.get_module(
     name="langchain",
@@ -71,7 +71,7 @@ monkeypatch.ensure_patched()
 
 class WandbRunArgs(TypedDict):
     job_type: Optional[str]
-    dir: Union[str, pathlib.Path, None]
+    dir: Optional[StrPath]
     config: Union[Dict, str, None]
     project: Optional[str]
     entity: Optional[str]
