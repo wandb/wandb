@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
-from wandb.sdk.launch._project_spec import EntryPoint, compute_command_args
+from wandb.sdk.launch._project_spec import EntryPoint
 
 
 def test_local_container_entrypoint(relay_server, monkeypatch):
@@ -44,11 +44,12 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.override_config = {}
         project.override_entrypoint = entrypoint
         project.get_single_entry_point.return_value = entrypoint
-        project.override_args = {"a1": 20, "a2": 10}
+        project.override_args = ["--a1", "20", "--a2", "10"]
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
-        string_args = " ".join(compute_command_args(project.override_args))
+        project.launch_spec = {}
+        string_args = " ".join(project.override_args)
         environment = loader.environment_from_config({})
         registry = loader.registry_from_config({}, environment)
         builder = loader.builder_from_config({"type": "noop"}, environment, registry)
@@ -60,8 +61,10 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
             environment,
         )
         command = runner.run(launch_project=project, builder=builder)
-        assert f"--entrypoint {' '.join(entry_command)}" in command
-        assert f"{project.docker_image} {string_args}" in command
+        assert (
+            f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
+            in command
+        )
 
         # test with no user provided image
         project.docker_image = None

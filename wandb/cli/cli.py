@@ -15,6 +15,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
+from typing import Any, Dict
 
 import click
 import yaml
@@ -33,6 +34,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.sweeps import SCHEDULER_URI
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     ExecutionError,
@@ -663,7 +665,6 @@ def sync(
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
-@click.pass_context
 @click.option("--project", "-p", default=None, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
@@ -672,12 +673,6 @@ def sync(
 @click.option("--program", default=None, help="Set sweep program")
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
-@click.option(
-    "--launch_config",
-    "-c",
-    metavar="FILE",
-    help="Path to JSON or YAML file which defines how to launch the sweep.",
-)
 @click.option(
     "--stop",
     is_flag=True,
@@ -702,18 +697,8 @@ def sync(
     default=False,
     help="Resume a sweep to continue running new runs.",
 )
-@click.option(
-    "--queue",
-    "-q",
-    default=None,
-    help="The name of a launch queue (configured with a resource), available in the current user or team.",
-)
-@click.option(
-    "--project-queue",
-    default=LAUNCH_DEFAULT_PROJECT,
-    help="Specify sweeps launch project",
-)
 @click.argument("config_yaml_or_sweep_id")
+@click.pass_context
 @display_error
 def sweep(
     ctx,
@@ -725,14 +710,11 @@ def sweep(
     program,
     settings,
     update,
-    launch_config,  # TODO(gst): deprecate
     stop,
     cancel,
     pause,
     resume,
     config_yaml_or_sweep_id,
-    queue,
-    project_queue,
 ):
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -747,7 +729,7 @@ def sweep(
             ctx.invoke(login, no_offline=True)
             api = _get_cling_api(reset=True)
         parts = dict(entity=entity, project=project, name=sweep_id)
-        err = util.parse_sweep_id(parts)
+        err = sweep_utils.parse_sweep_id(parts)
         if err:
             wandb.termerror(err)
             return
@@ -761,9 +743,7 @@ def sweep(
             "pause": "Pausing",
             "resume": "Resuming",
         }
-        wandb.termlog(
-            "{} sweep {}.".format(ings[state], f"{entity}/{project}/{sweep_id}")
-        )
+        wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
         getattr(api, "%s_sweep" % state)(sweep_id, entity=entity, project=project)
         wandb.termlog("Done.")
         return
@@ -795,7 +775,7 @@ def sweep(
     sweep_obj_id = None
     if update:
         parts = dict(entity=entity, project=project, name=update)
-        err = util.parse_sweep_id(parts)
+        err = sweep_utils.parse_sweep_id(parts)
         if err:
             wandb.termerror(err)
             return
@@ -827,24 +807,9 @@ def sweep(
             return
         sweep_obj_id = found["id"]
 
-    wandb.termlog(
-        "{} sweep from: {}".format(
-            "Updating" if sweep_obj_id else "Creating", config_yaml
-        )
-    )
-    try:
-        yaml_file = open(config_yaml)
-    except OSError:
-        wandb.termerror("Couldn't open sweep file: %s" % config_yaml)
-        return
-    try:
-        config = util.load_yaml(yaml_file)
-    except yaml.YAMLError as err:
-        wandb.termerror("Error in configuration file: %s" % err)
-        return
-    if config is None:
-        wandb.termerror("Configuration file is empty")
-        return
+    action = "Updating" if sweep_obj_id else "Creating"
+    wandb.termlog(f"{action} sweep from: {config_yaml}")
+    config = sweep_utils.load_sweep_config(config_yaml)
 
     # Set or override parameters
     if name:
@@ -867,7 +832,7 @@ def sweep(
         tuner = wandb_controller()
         err = tuner._validate(config)
         if err:
-            wandb.termerror("Error in sweep file: %s" % err)
+            wandb.termerror(f"Error in sweep file: {err}")
             return
 
     env = os.environ
@@ -885,115 +850,22 @@ def sweep(
         or util.auto_project_name(config.get("program"))
     )
 
-    _launch_scheduler_spec = None
-    if launch_config is not None or queue:
-        if launch_config:
-            launch_config = util.load_json_yaml_dict(launch_config)
-            if launch_config is None:
-                raise LaunchError(
-                    f"Invalid format for launch config at {launch_config}"
-                )
-        else:
-            launch_config = {}
-        wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
-
-        if entity is None or project is None:
-            _msg = "Must specify --entity and --project flags when using launch."
-            wandb.termerror(_msg)
-            raise LaunchError(_msg)
-
-        # Try and get job from sweep config
-        _job = config.get("job")
-        _image_uri = config.get("image_uri")
-        if not _job and not _image_uri:  # don't allow empty string
-            raise LaunchError("No 'job' or 'image_uri' found in sweep config")
-        elif _job and _image_uri:
-            raise LaunchError("Sweep has both 'job' and 'image_uri'")
-
-        if not queue:
-            if launch_config.get("queue"):
-                queue = launch_config["queue"]
-            else:
-                raise LaunchError(
-                    "No queue passed from CLI or in launch config for launch-sweep."
-                )
-
-        scheduler_config = launch_config.get("scheduler", {})
-        num_workers = f'{scheduler_config.get("num_workers")}'
-        if num_workers is None or not str.isdigit(num_workers):
-            num_workers = "8"
-
-        scheduler_entrypoint = [
-            "wandb",
-            "scheduler",
-            "WANDB_SWEEP_ID",
-            "--queue",
-            f"{queue!r}",
-            "--project",
-            project,
-            "--num_workers",
-            num_workers,
-        ]
-
-        if _job:
-            scheduler_entrypoint += [
-                "--job",
-                _job,
-            ]
-        elif _image_uri:
-            scheduler_entrypoint += ["--image_uri", _image_uri]
-
-        # Launch job spec for the Scheduler
-        _launch_scheduler_spec = json.dumps(
-            {
-                "queue": queue,
-                "run_queue_project": project_queue,
-                "run_spec": json.dumps(
-                    construct_launch_spec(
-                        SCHEDULER_URI,  # uri
-                        None,  # job
-                        api,
-                        "Scheduler.WANDB_SWEEP_ID",  # name,
-                        project,
-                        entity,
-                        scheduler_config.get("docker_image"),  # docker_image,
-                        scheduler_config.get("resource", "local-process"),  # resource,
-                        scheduler_entrypoint,  # entrypoint
-                        None,  # version,
-                        None,  # parameters,
-                        scheduler_config.get("resource_args"),  # resource_args,
-                        None,  # launch_config,
-                        None,  # run_id,
-                        launch_config.get("registry", {}).get(
-                            "url", None
-                        ),  # repository
-                    )
-                ),
-            }
-        )
-
     sweep_id, warnings = api.upsert_sweep(
         config,
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
-        launch_scheduler=_launch_scheduler_spec,
     )
-    util.handle_sweep_config_violations(warnings)
+    sweep_utils.handle_sweep_config_violations(warnings)
 
-    wandb.termlog(
-        "{} sweep with ID: {}".format(
-            "Updated" if sweep_obj_id else "Created", click.style(sweep_id, fg="yellow")
-        )
-    )
+    # Log nicely formatted sweep information
+    styled_id = click.style(sweep_id, fg="yellow")
+    wandb.termlog(f"{action} sweep with ID: {styled_id}")
 
     sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
-        wandb.termlog(
-            "View sweep at: {}".format(
-                click.style(sweep_url, underline=True, fg="blue")
-            )
-        )
+        styled_url = click.style(sweep_url, underline=True, fg="blue")
+        wandb.termlog(f"View sweep at: {styled_url}")
 
     # re-probe entity and project if it was auto-detected by upsert_sweep
     entity = entity or env.get("WANDB_ENTITY")
@@ -1009,14 +881,8 @@ def sweep(
     if sweep_path.find(" ") >= 0:
         sweep_path = f"{sweep_path!r}"
 
-    if launch_config is not None or queue:
-        wandb.termlog("Scheduler added to launch queue. Starting sweep...")
-    else:
-        wandb.termlog(
-            "Run sweep agent with: {}".format(
-                click.style("wandb agent %s" % sweep_path, fg="yellow")
-            )
-        )
+    styled_path = click.style(f"wandb agent {sweep_path}", fg="yellow")
+    wandb.termlog(f"Run sweep agent with: {styled_path}")
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller
@@ -1026,11 +892,165 @@ def sweep(
 
 
 @cli.command(
-    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
-    "or a git uri pointing to a remote repository, or path to a local directory.",
+    context_settings=CONTEXT,
+    no_args_is_help=True,
+    help="Run a W&B launch sweep (Experimental).",
 )
-@click.argument("uri", nargs=1, required=False)
+@click.option(
+    "--queue",
+    "-q",
+    default=None,
+    help="The name of a queue to push the sweep to",
+)
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    help="Name of the project which the agent will watch. "
+    "If passed in, will override the project value passed in using a config file",
+)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
+@click.option(
+    "--resume_id",
+    "-r",
+    default=None,
+    help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
+)
+@click.option(
+    "--num_workers",
+    "-n",
+    default=1,
+    help="Number of concurrent jobs a scheduler can run",
+)
+@click.argument("config", required=False, type=click.Path(exists=True))
+@click.pass_context
+@display_error
+def launch_sweep(
+    ctx,
+    project,
+    entity,
+    queue,
+    config,
+    resume_id,
+    num_workers,
+):
+    api = _get_cling_api()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    # if not sweep_config XOR resume_id
+    if not (config or resume_id):
+        wandb.termerror("'config' and/or 'resume_id' required")
+        return
+
+    parsed_config = sweep_utils.load_launch_sweep_config(config)
+    # Rip special keys out of config
+    scheduler_args: Dict[str, Any] = parsed_config.get("scheduler", {})
+    launch_args: Dict[str, Any] = parsed_config.get("launch", {})
+    if scheduler_args:
+        del parsed_config["scheduler"]
+    if launch_args:
+        del parsed_config["launch"]
+
+    queue = queue or launch_args.get("queue")
+    if not queue:
+        wandb.termerror(
+            "Launch-sweeps require setting a 'queue', use --queue option or a 'queue' key in the 'launch' section in the config"
+        )
+        return
+
+    env = os.environ
+    entity = entity or env.get("WANDB_ENTITY") or api.settings("entity")
+    if entity is None:
+        wandb.termerror("Must specify entity when using launch")
+        return
+
+    project = project or env.get("WANDB_PROJECT") or api.settings("project")
+    if project is None:
+        wandb.termerror("A project must be configured when using launch")
+        return
+
+    parsed_sweep_config, sweep_obj_id = None, None
+    if resume_id:  # Resuming an existing sweep
+        found = api.sweep(resume_id, "{}", entity=entity, project=project)
+        if not found:
+            wandb.termerror(f"Could not find sweep {entity}/{project}/{resume_id}")
+            return
+        sweep_obj_id = found["id"]
+        parsed_sweep_config = yaml.safe_load(found["config"])
+        wandb.termlog(f"Resuming from existing sweep {entity}/{project}/{resume_id}")
+        if len(parsed_config.keys()) > 0:
+            wandb.termwarn(
+                "Sweep params loaded from resumed sweep, ignoring provided keys"
+            )
+    else:
+        parsed_sweep_config = parsed_config
+
+    num_workers = num_workers or scheduler_args.get("num_workers", 8)
+    scheduler_entrypoint = sweep_utils.construct_scheduler_entrypoint(
+        sweep_config=parsed_sweep_config,
+        queue=queue,
+        project=project,
+        num_workers=num_workers,
+    )
+    if not scheduler_entrypoint:
+        # error already logged
+        return
+
+    # Launch job spec for the Scheduler
+    launch_scheduler_spec = construct_launch_spec(
+        uri=SCHEDULER_URI,
+        api=api,
+        name="Scheduler.WANDB_SWEEP_ID",
+        project=project,
+        entity=entity,
+        docker_image=scheduler_args.get("docker_image"),
+        resource=scheduler_args.get("resource", "local-process"),
+        entry_point=scheduler_entrypoint,
+        resource_args=scheduler_args.get("resource_args", {}),
+        repository=launch_args.get("registry", {}).get("url", None),
+        job=None,
+        version=None,
+        launch_config=None,
+        run_id=None,
+    )
+    launch_scheduler_with_queue = json.dumps(
+        {
+            "queue": queue,
+            "run_queue_project": LAUNCH_DEFAULT_PROJECT,
+            "run_spec": json.dumps(launch_scheduler_spec),
+        }
+    )
+
+    sweep_id, warnings = api.upsert_sweep(
+        parsed_sweep_config,
+        project=project,
+        entity=entity,
+        obj_id=sweep_obj_id,  # if resuming
+        launch_scheduler=launch_scheduler_with_queue,
+        state="PENDING",
+    )
+    sweep_utils.handle_sweep_config_violations(warnings)
+
+    # Log nicely formatted sweep information
+    styled_id = click.style(sweep_id, fg="yellow")
+    wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")
+    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    if sweep_url:
+        styled_url = click.style(sweep_url, underline=True, fg="blue")
+        wandb.termlog(f"View sweep at: {styled_url}")
+    wandb.termlog(f"Scheduler added to launch queue ({queue})")
+
+
+@cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
+@click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
     "--job",
     "-j",
@@ -1052,16 +1072,8 @@ def sweep(
     "--git-version",
     "-g",
     metavar="GIT-VERSION",
+    hidden=True,
     help="Version of the project to run, as a Git commit reference for Git projects.",
-)
-@click.option(
-    "--args-list",
-    "-a",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="An argument for the run, of the form -a name=value. Provided arguments that "
-    "are not in the list of arguments for an entry point will be passed to the "
-    "corresponding entry point as command-line arguments in the form `--name value`",
 )
 @click.option(
     "--name",
@@ -1139,6 +1151,7 @@ def sweep(
     "--build",
     "-b",
     is_flag=True,
+    hidden=True,
     help="Flag to build an associated job and push to queue as an image job.",
 )
 @click.option(
@@ -1146,6 +1159,7 @@ def sweep(
     "-rg",
     is_flag=False,
     default=None,
+    hidden=True,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
 # TODO: this is only included for back compat. But we should remove this in the future
@@ -1161,7 +1175,6 @@ def launch(
     job,
     entry_point,
     git_version,
-    args_list,
     name,
     resource,
     entity,
@@ -1190,17 +1203,13 @@ def launch(
     )
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
+    wandb._sentry.configure_scope(process_context="launch_cli")
 
     if run_async and queue is not None:
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
-
-    args_dict = util._user_args_to_dict(args_list)
 
     if resource_args is not None:
         resource_args = util.load_json_yaml_dict(resource_args)
@@ -1234,6 +1243,7 @@ def launch(
     if queue is None:
         # direct launch
         try:
+
             wandb_launch.run(
                 api,
                 uri,
@@ -1244,7 +1254,6 @@ def launch(
                 entity=entity,
                 docker_image=docker_image,
                 name=name,
-                parameters=args_dict,
                 resource=resource,
                 resource_args=resource_args,
                 config=config,
@@ -1254,36 +1263,41 @@ def launch(
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
+            wandb._sentry.exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.error("=== %s ===", e)
+            wandb._sentry.exception(e)
             sys.exit(e)
     else:
-        _launch_add(
-            api,
-            uri,
-            job,
-            config,
-            project,
-            entity,
-            queue,
-            resource,
-            entry_point,
-            name,
-            git_version,
-            docker_image,
-            args_dict,
-            project_queue,
-            resource_args,
-            build=build,
-            run_id=run_id,
-            repository=repository,
-        )
+        try:
+            _launch_add(
+                api,
+                uri,
+                job,
+                config,
+                project,
+                entity,
+                queue,
+                resource,
+                entry_point,
+                name,
+                git_version,
+                docker_image,
+                project_queue,
+                resource_args,
+                build=build,
+                run_id=run_id,
+                repository=repository,
+            )
+        except Exception as e:
+            wandb._sentry.exception(e)
+            raise e
 
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Run a W&B launch agent (Experimental).",
+    help="Run a W&B launch agent.",
 )
 @click.pass_context
 @click.option(
@@ -1344,10 +1358,8 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
+    wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues, config
     )
@@ -1364,7 +1376,11 @@ def launch_agent(
     check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
-    wandb_launch.create_and_run_agent(api, agent_config)
+    try:
+        wandb_launch.create_and_run_agent(api, agent_config)
+    except Exception as e:
+        wandb._sentry.exception(e)
+        raise e
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1407,6 +1423,7 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
+    wandb._sentry.configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
@@ -1421,13 +1438,16 @@ def scheduler(
             if str.isdigit(_args):
                 _args = int(_args)
             kwargs[_key] = _args
-
-    _scheduler = load_scheduler("sweep")(
-        api,
-        sweep_id=sweep_id,
-        **kwargs,
-    )
-    _scheduler.start()
+    try:
+        _scheduler = load_scheduler("sweep")(
+            api,
+            sweep_id=sweep_id,
+            **kwargs,
+        )
+        _scheduler.start()
+    except Exception as e:
+        wandb._sentry.exception(e)
+        raise e
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
@@ -2319,3 +2339,30 @@ def verify(host):
         and url_success
     ):
         sys.exit(1)
+
+
+@cli.group("import", help="Commands for importing data from other systems")
+def importer():
+    pass
+
+
+@importer.command("mlflow", help="Import from MLFlow")
+@click.option("--mlflow-tracking-uri", help="MLFlow Tracking URI")
+@click.option(
+    "--target-entity", required=True, help="Override default entity to import data into"
+)
+@click.option(
+    "--target-project",
+    required=True,
+    help="Override default project to import data into",
+)
+def mlflow(mlflow_tracking_uri, target_entity, target_project):
+    from wandb.apis.importers import MlflowImporter
+
+    importer = MlflowImporter(mlflow_tracking_uri=mlflow_tracking_uri)
+    overrides = {
+        "entity": target_entity,
+        "project": target_project,
+    }
+
+    importer.import_all_parallel(overrides=overrides)

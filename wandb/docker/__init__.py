@@ -82,17 +82,49 @@ def is_buildx_installed() -> bool:
     return _buildx_installed
 
 
-def build(tags: List[str], file: str, context_path: str) -> str:
+def build(
+    tags: List[str], file: str, context_path: str, platform: Optional[str] = None
+) -> str:
     command = ["buildx", "build"] if is_buildx_installed() else ["build"]
+    if platform:
+        command += ["--platform", platform]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    run(
-        ["docker"] + command + build_tags + ["-f", file, context_path],
-        capture_stderr=False,
-        capture_stdout=False,
+    args = ["docker"] + command + build_tags + ["-f", file, context_path]
+    stdout = run_command_live_output(
+        args,
     )
-    return tags[0]
+    return stdout
+
+
+def run_command_live_output(args: List[Any]) -> str:
+    with subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
+    ) as process:
+        stdout = ""
+        while True:
+            chunk = os.read(process.stdout.fileno(), 4096)  # type: ignore
+            if not chunk:
+                break
+            index = chunk.find(b"\r")
+            if index != -1:
+                print(chunk.decode(), end="")
+            else:
+                stdout += chunk.decode()
+                print(chunk.decode(), end="\r")
+
+        print(stdout)
+
+    return_code = process.wait()
+    if return_code != 0:
+        raise DockerError(args, return_code, stdout.encode())
+
+    return stdout
 
 
 def run(

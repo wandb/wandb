@@ -1,5 +1,6 @@
 pytest
 hypothesis
+pyfakefs
 coverage
 Pillow
 pandas
@@ -18,7 +19,7 @@ nbclient
 scikit-learn
 tensorflow>=1.15.2; sys_platform != 'darwin'
 tensorflow>=1.15.2; python_version > '3.6' and sys_platform == 'darwin' and platform.machine != 'arm64'
-tensorflow-macos; python_version > '3.6' and python_version < '3.10' and sys_platform == 'darwin' and platform.machine == 'arm64'
+tensorflow-macos; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch
 torchvision
 plotly
@@ -35,6 +36,9 @@ xgboost
 lightgbm
 rdkit-pypi; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
+httpx>=0.22.0  # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
+respx>=0.20.0  # 0.21.0 dropped Python 3.6; we can upgrade once we drop it too
+pytest-benchmark
 prometheus_client
 
 # TODO: fix extra dependencies
@@ -70,3 +74,5 @@ azure-storage-blob
 cloudpickle
 responses
 kfp
+
+mlflow

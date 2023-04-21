@@ -40,13 +40,13 @@ from typing import (
 import requests
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
-from wandb_gql.transport.requests import RequestsHTTPTransport
 
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
+from wandb.env import get_artifact_dir
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
@@ -58,6 +58,7 @@ from wandb.sdk.launch.utils import (
     apply_patch,
 )
 from wandb.sdk.lib import filesystem, ipython, retry, runid
+from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
 
 if TYPE_CHECKING:
@@ -424,7 +425,7 @@ class Api:
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         self._base_client = Client(
-            transport=RequestsHTTPTransport(
+            transport=GraphQLSession(
                 headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -662,7 +663,7 @@ class Api:
 
     def _parse_artifact_path(self, path):
         """Return project, entity and artifact name for project specified by path."""
-        project = self.settings["project"]
+        project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
             return entity, project
@@ -1918,20 +1919,16 @@ class Run(Attrs):
             """
             mutation DeleteRun(
                 $id: ID!,
-                %s
-            ) {
-                deleteRun(input: {
+                {}
+            ) {{
+                deleteRun(input: {{
                     id: $id,
-                    %s
-                }) {
+                    {}
+                }}) {{
                     clientMutationId
-                }
-            }
-        """
-            %
-            # Older backends might not support the 'deleteArtifacts' argument,
-            # so only supply it when it is explicitly set.
-            (
+                }}
+            }}
+        """.format(
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
                 "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
             )
@@ -4738,8 +4735,9 @@ class Artifact(artifacts.Artifact):
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
             termlog(
-                "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self._artifact_name, size / (1024 * 1024), nfiles),
+                "Downloading large artifact {}, {:.2f}MB. {} files... ".format(
+                    self._artifact_name, size / (1024 * 1024), nfiles
+                ),
             )
             start_time = datetime.datetime.now()
 
@@ -4851,11 +4849,8 @@ class Artifact(artifacts.Artifact):
         return downloaded_path
 
     def _default_root(self, include_version=True):
-        root = (
-            os.path.join(".", "artifacts", self.name)
-            if include_version
-            else os.path.join(".", "artifacts", self._sequence_name)
-        )
+        name = self.name if include_version else self._sequence_name
+        root = os.path.join(get_artifact_dir(), name)
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
@@ -5080,8 +5075,7 @@ class Artifact(artifacts.Artifact):
             or response["project"].get("artifact") is None
         ):
             raise ValueError(
-                'Project %s/%s does not contain artifact: "%s"'
-                % (self.entity, self.project, self._artifact_name)
+                f'Project {self.entity}/{self.project} does not contain artifact: "{self._artifact_name}"'
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
@@ -5253,12 +5247,6 @@ class Artifact(artifacts.Artifact):
                 run_obj["name"],
             )
 
-    def __setitem__(self, name, item):
-        return self.add(item, name)
-
-    def __getitem__(self, name):
-        return self.get(name)
-
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
@@ -5293,32 +5281,31 @@ class ArtifactVersions(Paginator):
         }
         self.QUERY = gql(
             """
-            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
-                project(name: $project, entityName: $entity) {
-                    artifactType(name: $type) {
-                        artifactCollection: %s(name: $collection) {
+            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+                project(name: $project, entityName: $entity) {{
+                    artifactType(name: $type) {{
+                        artifactCollection: {}(name: $collection) {{
                             name
-                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                                 totalCount
-                                edges {
-                                    node {
+                                edges {{
+                                    node {{
                                         ...ArtifactFragment
-                                    }
+                                    }}
                                     version
                                     cursor
-                                }
-                                pageInfo {
+                                }}
+                                pageInfo {{
                                     endCursor
                                     hasNextPage
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            %s
-            """
-            % (
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+            {}
+            """.format(
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
@@ -5519,8 +5506,6 @@ class Job:
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
-        if self._args:
-            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._source_info.get("source", {}).get("artifact")
@@ -5537,8 +5522,6 @@ class Job:
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
         launch_project.python_version = self._source_info.get("runtime")
-        if self._args:
-            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("source", {}).get("image")
@@ -5548,8 +5531,6 @@ class Job:
             )
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
-        if self._args:
-            launch_project.override_args = util._user_args_to_dict(self._args)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint
