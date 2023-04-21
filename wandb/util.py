@@ -1289,7 +1289,6 @@ def auto_project_name(program: Optional[str]) -> str:
 
 
 def to_forward_slash_path(path: str) -> LogicalFilePathStr:
-    path = str(path)
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
     return LogicalFilePathStr(path)
