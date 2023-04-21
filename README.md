@@ -15,7 +15,7 @@
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
-<p align='center'>
+<!-- <p align='center'>
 <a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
   <source  srcset="./docs/README_images/Experiments-hex.svg" width="12.0%">
@@ -63,6 +63,63 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </a>
+</p> -->
+
+<p align='center'>
+<a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/experiments-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/experiments-light.svg" width="12.0%">
+  <img alt="Weights and Biases Experiments" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/report-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/report-light.svg" width="12.0%">
+  <img alt="Weights and Biases Reports" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/artifacts-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/artifacts-light.svg" width="12.0%">
+  <img alt="Weights and Biases Artifacts" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/tables-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/tables-light.svg" width="12.0%">
+  <img alt="Weights and Biases Tables" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/sweeps-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/sweeps-light.svg" width="12.0%">
+  <img alt="Weights and Biases Sweeps" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/models-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/models-light.svg" width="12.0%">
+  <img alt="Weights and Biases Model Management" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/launch-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/launch-light.svg" width="12.0%">
+  <img alt="Weights and Biases Launch" src="">
+</picture>
+</a>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/prompts-dark.svg" width="12.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/prompts-light.svg" width="12.0%">
+  <img alt="Weights and Biases Prompts" src="">
+</picture>
 </p>
 
 &nbsp;
