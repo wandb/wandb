@@ -2,7 +2,7 @@ from typing import IO, TYPE_CHECKING, ContextManager, List, Optional, Sequence, 
 
 import wandb
 from wandb.data_types import WBValue
-from wandb.util import FilePathStr
+from wandb.util import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -23,7 +23,7 @@ class ArtifactStatusError(AttributeError):
         super().__init__(msg.format(artifact=artifact, attr=attr, method_id=method_id))
         # Follow the same pattern as AttributeError.
         self.obj = artifact
-        self.name = attr
+        self.name = str(attr) or ""
 
 
 class ArtifactNotLoggedError(ArtifactStatusError):
@@ -209,7 +209,10 @@ class Artifact:
         raise NotImplementedError
 
     def new_file(
-        self, name: str, mode: str = "w", encoding: Optional[str] = None
+        self,
+        name: StrPath,
+        mode: str = "w",
+        encoding: Optional[str] = None,
     ) -> ContextManager[IO]:
         """Open a new temporary file that will be automatically added to the artifact.
 
@@ -238,7 +241,7 @@ class Artifact:
     def add_file(
         self,
         local_path: str,
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         is_tmp: Optional[bool] = False,
     ) -> "ArtifactManifestEntry":
         """Add a local file to the artifact.
@@ -272,7 +275,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    def add_dir(self, local_path: str, name: Optional[StrPath] = None) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -304,7 +307,7 @@ class Artifact:
     def add_reference(
         self,
         uri: Union["ArtifactManifestEntry", str],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence["ArtifactManifestEntry"]:
@@ -373,7 +376,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def add(self, obj: WBValue, name: str) -> "ArtifactManifestEntry":
+    def add(self, obj: WBValue, name: StrPath) -> "ArtifactManifestEntry":
         """Add wandb.WBValue `obj` to the artifact.
 
         ```
@@ -410,7 +413,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get_path(self, name: str) -> "ArtifactManifestEntry":
+    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         """Get the path to the file located at the artifact relative `name`.
 
         Arguments:
@@ -439,7 +442,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def get(self, name: str) -> WBValue:
+    def get(self, name: StrPath) -> WBValue:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
@@ -556,7 +559,7 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def __getitem__(self, name: str) -> Optional[WBValue]:
+    def __getitem__(self, name: StrPath) -> Optional[WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
@@ -583,7 +586,7 @@ class Artifact:
         """
         return self.get(name)
 
-    def __setitem__(self, name: str, item: WBValue) -> "ArtifactManifestEntry":
+    def __setitem__(self, name: StrPath, item: WBValue) -> "ArtifactManifestEntry":
         """Add `item` to the artifact at path `name`.
 
         Arguments:

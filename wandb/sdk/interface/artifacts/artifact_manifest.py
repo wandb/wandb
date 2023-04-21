@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
-from wandb import util
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
-from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.util import FilePathStr, URIStr, to_forward_slash_path
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_artifacts
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class ArtifactManifestEntry:
-    path: LogicalFilePathStr
+    path: Union[str, PurePosixPath]  # The artifact-relative path.
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
     ref: Optional[Union[FilePathStr, URIStr]] = None
     birth_artifact_id: Optional[str] = None
@@ -21,7 +21,8 @@ class ArtifactManifestEntry:
     local_path: Optional[str] = None
 
     def __post_init__(self) -> None:
-        self.path = util.to_forward_slash_path(self.path)
+        # For backwards compatibility we always store the path as a string.
+        self.path = to_forward_slash_path(self.path)
         self.extra = self.extra or {}
         if self.local_path and self.size is None:
             raise ValueError("size required when local_path specified")
@@ -110,10 +111,8 @@ class ArtifactManifest:
         raise NotImplementedError
 
     def add_entry(self, entry: ArtifactManifestEntry) -> None:
-        if (
-            entry.path in self.entries
-            and entry.digest != self.entries[entry.path].digest
-        ):
+        former_entry = self.entries.get(entry.path)
+        if former_entry and former_entry.digest != entry.digest:
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 

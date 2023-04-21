@@ -9,7 +9,6 @@ import logging
 import math
 import numbers
 import os
-import pathlib
 import platform
 import queue
 import random
@@ -25,6 +24,7 @@ import traceback
 import urllib
 from datetime import date, datetime, timedelta
 from importlib import import_module
+from pathlib import Path, PurePosixPath
 from sys import getsizeof
 from types import ModuleType
 from typing import (
@@ -62,12 +62,11 @@ if TYPE_CHECKING:
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
-# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
-# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
-# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
-LogicalFilePathStr = NewType("LogicalFilePathStr", str)
+
+# Path inputs should generally accept any kind of path. This is named the same and
+# modeled after the hint defined in the Python standard library's `typeshed`:
+# https://github.com/python/typeshed/blob/0b1cd5989669544866213807afa833a88f649ee7/stdlib/_typeshed/__init__.pyi#L56-L65
+StrPath = Union[str, "os.PathLike[str]"]
 
 # `FilePathStr` represents a path to a file on the local filesystem.
 #
@@ -1303,14 +1302,23 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def to_forward_slash_path(path: str) -> LogicalFilePathStr:
+def to_forward_slash_path(path: StrPath) -> str:
+    path = str(path)
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return LogicalFilePathStr(path)
+    return path
 
 
-def to_native_slash_path(path: str) -> FilePathStr:
-    return FilePathStr(path.replace("/", os.sep))
+def to_posixpath(path: StrPath) -> PurePosixPath:
+    path = Path(path)
+    anchor = path.anchor
+    if anchor:
+        return PurePosixPath("/") / path.relative_to(anchor).as_posix()
+    return PurePosixPath(path.as_posix())
+
+
+def to_native_slash_path(path: StrPath) -> FilePathStr:
+    return FilePathStr(str(path).replace("/", os.sep))
 
 
 def check_and_warn_old(files: List[str]) -> bool:
@@ -1412,7 +1420,7 @@ def rand_alphanumeric(
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
+    path: StrPath, mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
     """Open a path for I/O and guarante that the file is flushed and synced."""
     with open(path, mode, encoding=encoding) as f:

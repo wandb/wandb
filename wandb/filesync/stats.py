@@ -2,6 +2,7 @@ import threading
 from typing import MutableMapping, NamedTuple
 
 import wandb
+from wandb.util import StrPath
 
 
 class FileStats(NamedTuple):
@@ -31,8 +32,12 @@ class Stats:
         self._lock = threading.Lock()
 
     def init_file(
-        self, save_name: str, size: int, is_artifact_file: bool = False
+        self,
+        save_name: StrPath,
+        size: int,
+        is_artifact_file: bool = False,
     ) -> None:
+        save_name = str(save_name)
         with self._lock:
             self._stats[save_name] = FileStats(
                 deduped=False,
@@ -42,7 +47,8 @@ class Stats:
                 artifact_file=is_artifact_file,
             )
 
-    def set_file_deduped(self, save_name: str) -> None:
+    def set_file_deduped(self, save_name: StrPath) -> None:
+        save_name = str(save_name)
         with self._lock:
             orig = self._stats[save_name]
             self._stats[save_name] = orig._replace(
@@ -50,13 +56,15 @@ class Stats:
                 uploaded=orig.total,
             )
 
-    def update_uploaded_file(self, save_name: str, total_uploaded: int) -> None:
+    def update_uploaded_file(self, save_name: StrPath, total_uploaded: int) -> None:
+        save_name = str(save_name)
         with self._lock:
             self._stats[save_name] = self._stats[save_name]._replace(
                 uploaded=total_uploaded,
             )
 
-    def update_failed_file(self, save_name: str) -> None:
+    def update_failed_file(self, save_name: StrPath) -> None:
+        save_name = str(save_name)
         with self._lock:
             self._stats[save_name] = self._stats[save_name]._replace(
                 uploaded=0,

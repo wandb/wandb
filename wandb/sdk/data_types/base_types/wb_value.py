@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
 from wandb import util
+from wandb.util import StrPath
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
@@ -39,18 +40,22 @@ class _WBValueArtifactSource:
     artifact: "PublicArtifact"
     name: Optional[str]
 
-    def __init__(self, artifact: "PublicArtifact", name: Optional[str] = None) -> None:
+    def __init__(
+        self, artifact: "PublicArtifact", name: Optional[StrPath] = None
+    ) -> None:
         self.artifact = artifact
-        self.name = name
+        self.name = util.to_forward_slash_path(name) if name else None
 
 
 class _WBValueArtifactTarget:
     artifact: "LocalArtifact"
     name: Optional[str]
 
-    def __init__(self, artifact: "LocalArtifact", name: Optional[str] = None) -> None:
+    def __init__(
+        self, artifact: "LocalArtifact", name: Optional[StrPath] = None
+    ) -> None:
         self.artifact = artifact
-        self.name = name
+        self.name = util.to_forward_slash_path(name) if name else None
 
 
 class WBValue:
@@ -105,7 +110,7 @@ class WBValue:
         raise NotImplementedError
 
     @classmethod
-    def with_suffix(cls: Type["WBValue"], name: str, filetype: str = "json") -> str:
+    def with_suffix(cls: Type["WBValue"], name: StrPath, filetype: str = "json") -> str:
         """Get the name with the appropriate suffix.
 
         Args:
@@ -116,6 +121,7 @@ class WBValue:
             str: a filename which is suffixed with it's `_log_type` followed by the
                 filetype.
         """
+        name = str(name)
         if cls._log_type is not None:
             suffix = cls._log_type + "." + filetype
         else:
@@ -186,7 +192,7 @@ class WBValue:
         raise NotImplementedError
 
     def _set_artifact_source(
-        self, artifact: "PublicArtifact", name: Optional[str] = None
+        self, artifact: "PublicArtifact", name: Optional[StrPath] = None
     ) -> None:
         assert (
             self._artifact_source is None
@@ -196,7 +202,7 @@ class WBValue:
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
     def _set_artifact_target(
-        self, artifact: "LocalArtifact", name: Optional[str] = None
+        self, artifact: "LocalArtifact", name: Optional[StrPath] = None
     ) -> None:
         assert (
             self._artifact_target is None

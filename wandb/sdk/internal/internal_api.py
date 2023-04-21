@@ -41,6 +41,7 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.util import StrPath
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -1798,7 +1799,7 @@ class Api:
     def upload_urls(
         self,
         project: str,
-        files: Union[List[str], Dict[str, IO]],
+        files: Union[List[StrPath], Dict[StrPath, IO]],
         run: Optional[str] = None,
         entity: Optional[str] = None,
         description: Optional[str] = None,
@@ -1852,7 +1853,7 @@ class Api:
                 "run": run_id,
                 "entity": entity,
                 "description": description,
-                "files": [file for file in files],
+                "files": [str(file) for file in files],
             },
         )
 
@@ -2574,7 +2575,7 @@ class Api:
     @normalize_exceptions
     def push(
         self,
-        files: Union[List[str], Dict[str, IO]],
+        files: Union[List[StrPath], Dict[StrPath, IO]],
         run: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
@@ -3016,7 +3017,7 @@ class Api:
 
     def create_artifact_manifest(
         self,
-        name: str,
+        name: StrPath,
         digest: str,
         artifact_id: Optional[str],
         base_artifact_id: Optional[str] = None,
@@ -3074,7 +3075,7 @@ class Api:
         response = self.gql(
             mutation,
             variable_values={
-                "name": name,
+                "name": str(name),
                 "digest": digest,
                 "artifactID": artifact_id,
                 "baseArtifactID": base_artifact_id,

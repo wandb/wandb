@@ -47,12 +47,12 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
     ServerInfoResponse,
 )
-from wandb.sdk.lib.filesystem import StrPath
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
 from wandb.util import (
+    StrPath,
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
@@ -3849,10 +3849,10 @@ class _LazyArtifact(ArtifactInterface):
     def logged_by(self) -> "wandb.apis.public.Run":
         return self._instance.logged_by()
 
-    def get_path(self, name: str) -> "ArtifactManifestEntry":
+    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         return self._instance.get_path(name)
 
-    def get(self, name: str) -> "WBValue":
+    def get(self, name: StrPath) -> "WBValue":
         return self._instance.get(name)
 
     def download(

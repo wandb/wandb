@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 
-from wandb.util import FilePathStr, URIStr
+from wandb.util import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -107,7 +107,7 @@ class StorageHandler:
         self,
         artifact: "Artifact",
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence["ArtifactManifestEntry"]:
