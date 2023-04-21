@@ -15,56 +15,6 @@
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
-<!-- <p align='center'>
-<a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source  srcset="./docs/README_images/Experiments-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Experiments" src="">
-</picture>
-<a target="_blank" href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source  srcset="./docs/README_images/Artifacts-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Experiments" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source  srcset="./docs/README_images/Reports-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Reports" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source srcset="./docs/README_images/Tables-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Tables" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source srcset="./docs/README_images/Sweeps-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Sweeps" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source srcset="./docs/README_images/Models-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Model Management" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source srcset="./docs/README_images/Launch-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Launch" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/prompts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source srcset="./docs/README_images/Prompts-hex.svg" width="12.0%">
-  <img alt="Weights and Biases Prompts" src="">
-</picture>
-</a>
-</p> -->
-
 <p align='center'>
 <a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
@@ -121,8 +71,6 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </p>
-
-&nbsp;
 
 🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme).
 
