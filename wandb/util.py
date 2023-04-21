@@ -63,10 +63,14 @@ if TYPE_CHECKING:
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 
-# Path inputs should generally accept any kind of path. This is named the same and
+# Path _inputs_ should generally accept any kind of path. This is named the same and
 # modeled after the hint defined in the Python standard library's `typeshed`:
 # https://github.com/python/typeshed/blob/0b1cd5989669544866213807afa833a88f649ee7/stdlib/_typeshed/__init__.pyi#L56-L65
 StrPath = Union[str, "os.PathLike[str]"]
+
+# This *should* be a PurePosixPath, but changing now it would change the public API.
+# It represents an artifact-relative or run-relative path and is always POSIX-style.
+LogicalFilePathStr = NewType("LogicalFilePathStr", str)
 
 # `FilePathStr` represents a path to a file on the local filesystem.
 #
@@ -1302,11 +1306,11 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def to_forward_slash_path(path: StrPath) -> str:
+def to_forward_slash_path(path: StrPath) -> LogicalFilePathStr:
     path = str(path)
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return path
+    return LogicalFilePathStr(path)
 
 
 def to_posixpath(path: StrPath) -> PurePosixPath:
