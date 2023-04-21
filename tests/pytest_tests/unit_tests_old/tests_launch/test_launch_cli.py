@@ -203,8 +203,6 @@ def test_launch_cli_with_config_file_and_params(
             [
                 "-c",
                 "config.json",
-                "-a",
-                "epochs=1",
                 "-u" "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
@@ -229,8 +227,6 @@ def test_launch_cli_with_config_and_params(
             [
                 "-c",
                 json.dumps(config),
-                "-a",
-                "epochs=1",
                 "-u",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
@@ -264,27 +260,21 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
                     "name": "My Sweep",
                     "method": "grid",
                     "job": "test-job:v9",
+                    "launch": {
+                        "queue": "default",
+                        "resource": "local-process",
+                    },
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
                     "parameters": {"parameter1": {"values": [1, 2, 3]}},
                 },
                 f,
             )
-        with open("launch-config.yaml", "w") as f:
-            json.dump(
-                {
-                    "queue": "default",
-                    "resource": "local-process",
-                    "scheduler": {
-                        "resource": "local-process",
-                    },
-                },
-                f,
-            )
         result = runner.invoke(
-            cli.sweep,
+            cli.launch_sweep,
             [
                 "sweep-config.yaml",
-                "--launch_config",
-                "launch-config.yaml",
                 "--entity",
                 "mock_server_entity",
             ],

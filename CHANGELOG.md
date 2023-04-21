@@ -1,3 +1,21 @@
+## 0.15.0 (April 19, 2023)
+
+### :magic_wand: Enhancements
+* feat(media): add support for LangChain media type by @tssweeney in https://github.com/wandb/wandb/pull/5288
+* feat(integrations): add autolog for OpenAI's python library by @dmitryduev @parambharat @kptkin @raubitsj in https://github.com/wandb/wandb/pull/5362
+### :hammer: Fixes
+* fix(integrations): add function signature wrapper to the patched openai methods by @parambharat in https://github.com/wandb/wandb/pull/5369
+* fix(integrations): adjust OpenAI autolog public API to improve user experience by @dmitryduev @kptkin @raubitsj in https://github.com/wandb/wandb/pull/5381
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.2...v0.15.0
+
+## 0.14.2 (April 7, 2023)
+
+### :hammer: Fixes
+* fix(sdk): fix `wandb sync` regression by @kptkin in https://github.com/wandb/wandb/pull/5306
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.14.1...v0.14.2
+
 ## 0.14.1 (April 5, 2023)
 
 ### :magic_wand: Enhancements
