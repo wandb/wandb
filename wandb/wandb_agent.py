@@ -19,6 +19,7 @@ import wandb
 from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 logger = logging.getLogger(__name__)
 
@@ -545,7 +546,7 @@ def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
     parts = dict(entity=entity, project=project, name=sweep_id)
-    err = util.parse_sweep_id(parts)
+    err = sweep_utils.parse_sweep_id(parts)
     if err:
         wandb.termerror(err)
         return

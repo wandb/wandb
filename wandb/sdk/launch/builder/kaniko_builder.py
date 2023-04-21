@@ -407,7 +407,7 @@ class KanikoBuilder(AbstractBuilder):
             ),
         )
         # Create the specification of job
-        spec = client.V1JobSpec(template=template, backoff_limit=1)
+        spec = client.V1JobSpec(template=template, backoff_limit=0)
         job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
