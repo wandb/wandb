@@ -1300,15 +1300,15 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def to_forward_slash_path(path: StrPath) -> LogicalFilePathStr:
+def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     path = str(path)
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
     return LogicalFilePathStr(path)
 
 
-def to_native_slash_path(path: StrPath) -> FilePathStr:
-    return FilePathStr(str(path).replace("/", os.sep))
+def to_native_slash_path(path: str) -> FilePathStr:
+    return FilePathStr(path.replace("/", os.sep))
 
 
 def check_and_warn_old(files: List[str]) -> bool:
