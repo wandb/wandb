@@ -2882,13 +2882,13 @@ class Api:
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            %s
-            %s
-            %s
-            %s
-            %s
-        ) {
-            createArtifact(input: {
+            {}
+            {}
+            {}
+            {}
+            {}
+        ) {{
+            createArtifact(input: {{
                 artifactTypeName: $artifactTypeName,
                 artifactCollectionNames: $artifactCollectionNames,
                 entityName: $entityName,
@@ -2900,35 +2900,31 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                %s
-                %s
-                %s
-                %s
-                %s
-            }) {
-                artifact {
+                {}
+                {}
+                {}
+                {}
+                {}
+            }}) {{
+                artifact {{
                     id
                     digest
                     state
-                    aliases {
+                    aliases {{
                         artifactCollectionName
                         alias
-                    }
-                    artifactSequence {
+                    }}
+                    artifactSequence {{
                         id
-                        latestArtifact {
+                        latestArtifact {{
                             id
                             versionIndex
-                        }
-                    }
-                }
-            }
-        }
-        """
-            %
-            # For backwards compatibility with older backends that don't support
-            # distributed writers or digest deduplication.
-            (
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """.format(
                 "$historyStep: Int64!,"
                 if can_handle_history and history_step not in [0, None]
                 else "",
@@ -3041,9 +3037,9 @@ class Api:
             $projectName: String!,
             $runName: String!,
             $includeUpload: Boolean!,
-            %s
-        ) {
-            createArtifactManifest(input: {
+            {}
+        ) {{
+            createArtifactManifest(input: {{
                 name: $name,
                 digest: $digest,
                 artifactID: $artifactID,
@@ -3051,25 +3047,21 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                %s
-            }) {
-                artifactManifest {
+                {}
+            }}) {{
+                artifactManifest {{
                     id
-                    file {
+                    file {{
                         id
                         name
                         displayName
                         uploadUrl @include(if: $includeUpload)
                         uploadHeaders @include(if: $includeUpload)
-                    }
-                }
-            }
-        }
-        """
-            %
-            # For backwards compatibility with older backends that don't support
-            # patch manifests.
-            (
+                    }}
+                }}
+            }}
+        }}
+        """.format(
                 "$type: ArtifactManifestType = FULL" if type != "FULL" else "",
                 "type: $type" if type != "FULL" else "",
             )
