@@ -1,18 +1,16 @@
-from dataclasses import dataclass, field
-from pathlib import PurePosixPath
+from dataclasses import field
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb.sdk.lib.hashutil import B64MD5, ETag, HexMD5
-from wandb.util import FilePathStr, URIStr, to_forward_slash_path
+from wandb.util import FilePathStr, StrPath, URIStr, to_forward_slash_path
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.interface.artifacts import Artifact
 
 
-@dataclass
 class ArtifactManifestEntry:
-    path: Union[str, PurePosixPath]  # The artifact-relative path.
+    path: str  # The artifact-relative path.
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
     ref: Optional[Union[FilePathStr, URIStr]] = None
     birth_artifact_id: Optional[str] = None
@@ -20,10 +18,24 @@ class ArtifactManifestEntry:
     extra: Dict = field(default_factory=dict)
     local_path: Optional[str] = None
 
-    def __post_init__(self) -> None:
+    def __init__(
+        self,
+        path: StrPath,
+        digest: Union[B64MD5, URIStr, FilePathStr, ETag],
+        ref: Optional[Union[FilePathStr, URIStr]] = None,
+        birth_artifact_id: Optional[str] = None,
+        size: Optional[int] = None,
+        extra: Optional[Dict] = None,
+        local_path: Optional[str] = None,
+    ) -> None:
         # For backwards compatibility we always store the path as a string.
-        self.path = to_forward_slash_path(self.path)
-        self.extra = self.extra or {}
+        self.path = to_forward_slash_path(path)
+        self.digest = digest
+        self.ref = ref
+        self.birth_artifact_id = birth_artifact_id
+        self.size = size
+        self.extra = extra or {}
+        self.local_path = local_path
         if self.local_path and self.size is None:
             raise ValueError("size required when local_path specified")
 
