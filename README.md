@@ -47,19 +47,19 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Models-hex.svg" width="12.0%">
+  <source srcset="./docs/README_images/Models-hex.svg" width="12.0%">
   <img alt="Weights and Biases Model Management" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Launch-hex.svg" width="12.0%">
+  <source srcset="./docs/README_images/Launch-hex.svg" width="12.0%">
   <img alt="Weights and Biases Launch" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/prompts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Prompts-hex.svg" width="12.0%">
+  <source srcset="./docs/README_images/Prompts-hex.svg" width="12.0%">
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </a>
