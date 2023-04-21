@@ -28,8 +28,6 @@ Want to use Weights & Biases for seamless collaboration between your ML or Data 
 
 # Documentation
 
-See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/ref?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
-
 <p align='center'>
 <a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
@@ -86,6 +84,8 @@ See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_mediu
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </p>
+
+See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/ref?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
 
 # Quickstart
 
