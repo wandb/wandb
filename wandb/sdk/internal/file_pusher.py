@@ -132,11 +132,7 @@ class FilePusher:
             return
 
         save_name = dir_watcher.SaveName(wandb.util.to_forward_slash_path(save_name))
-        event = step_checksum.RequestUpload(
-            path,
-            dir_watcher.SaveName(save_name),
-            copy,
-        )
+        event = step_checksum.RequestUpload(path, save_name, copy)
         self._incoming_queue.put(event)
 
     def store_manifest_files(

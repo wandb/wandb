@@ -60,6 +60,7 @@ from wandb.sdk.launch.utils import (
 from wandb.sdk.lib import filesystem, ipython, retry, runid
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id, md5_file_b64
+from wandb.util import StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.reports
@@ -4685,7 +4686,8 @@ class Artifact(artifacts.Artifact):
                 return entry, wb_class
         return None, None
 
-    def get_path(self, name):
+    def get_path(self, name: StrPath):
+        name = util.to_forward_slash_path(name)
         manifest = self._load_manifest()
         entry = manifest.entries.get(name)
         if entry is None:
@@ -4777,9 +4779,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
@@ -4796,9 +4796,7 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(
-                    os.path.relpath(full_path, start=dirpath)
-                )
+                artifact_path = os.path.relpath(full_path, start=dirpath)
                 try:
                     self.get_path(artifact_path)
                 except KeyError:

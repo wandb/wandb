@@ -14,6 +14,7 @@ import wandb
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
+from wandb.util import StrPath
 from wandb.viz import CustomChart
 
 from . import run as internal_run
@@ -145,7 +146,7 @@ class TBWatcher:
 
         return namespace
 
-    def add(self, logdir: str, save: bool, root_dir: str) -> None:
+    def add(self, logdir: StrPath, save: bool, root_dir: StrPath) -> None:
         logdir = util.to_forward_slash_path(logdir)
         root_dir = util.to_forward_slash_path(root_dir)
         if logdir in self._logdirs:

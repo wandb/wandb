@@ -421,7 +421,7 @@ class Artifact(ArtifactInterface):
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
 
-        name = util.to_forward_slash_path(name or os.path.basename(local_path))
+        name = name or os.path.basename(local_path)
         digest = md5_file_b64(local_path)
 
         if is_tmp:
@@ -475,7 +475,6 @@ class Artifact(ArtifactInterface):
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
         self._ensure_can_add()
-        name = util.to_forward_slash_path(name) if name else None
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactManifestEntry which is a private class returned by Artifact.get_path in
@@ -1280,9 +1279,9 @@ class LocalFileHandler(StorageHandler):
                             % max_objects
                         )
                     physical_path = os.path.join(root, sub_path)
-                    # TODO(spencerpearson): this is not a "logical path" in the sense that
-                    # `util.to_forward_slash_path` returns a "logical path"; it's a relative path
-                    # **on the local filesystem**.
+                    # TODO(spencerpearson): this is not a "logical path" in the sense
+                    # that `util.to_forward_slash_path` returns a "logical path"; it's a
+                    # relative path **on the local filesystem**.
                     logical_path = os.path.relpath(physical_path, start=local_path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
