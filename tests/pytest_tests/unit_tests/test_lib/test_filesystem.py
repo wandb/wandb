@@ -360,6 +360,7 @@ def test_safe_copy_different_file_systems(fs, fs_type: OSType):
     assert target_path.read_text("utf-8") == source_content
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows locks active files")
 def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
     source_path = tmp_path / "source.txt"
     target_path = tmp_path / "target.txt"
