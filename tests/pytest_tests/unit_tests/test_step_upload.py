@@ -20,7 +20,7 @@ from wandb.filesync.step_upload import (
 )
 from wandb.sdk.internal import file_stream, internal_api
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import LogicalPath, StrPath
 from wandb.sdk.wandb_settings import Settings
 
 
@@ -50,7 +50,8 @@ def mock_upload_urls(
     )
 
 
-def get_upload_url(save_name: str):
+def get_upload_url(save_name: StrPath):
+    save_name = LogicalPath(save_name)
     return mock_upload_urls("my-proj", [save_name])[2][save_name]["url"]
 
 
@@ -534,7 +535,7 @@ class TestUpload:
                 stats=mock_stats,
             )
 
-            mock_stats.update_failed_file.assert_called_once_with(str(f))
+            mock_stats.update_failed_file.assert_called_once_with(LogicalPath(f))
 
         @pytest.mark.parametrize("deduped", [True, False])
         def test_update_on_deduped(
@@ -553,7 +554,7 @@ class TestUpload:
             )
 
             if deduped:
-                mock_stats.set_file_deduped.assert_called_once_with(str(f))
+                mock_stats.set_file_deduped.assert_called_once_with(LogicalPath(f))
             else:
                 mock_stats.set_file_deduped.assert_not_called()
 
@@ -957,9 +958,7 @@ def test_enforces_concurrency_limit(tmp_path: Path, is_async: bool):
     finish_and_wait(q)
 
 
-def test_is_alive_until_last_job_finishes(
-    tmp_path: Path,
-):
+def test_is_alive_until_last_job_finishes(tmp_path: Path):
     q = queue.Queue()
 
     api = UploadBlockingMockApi()
