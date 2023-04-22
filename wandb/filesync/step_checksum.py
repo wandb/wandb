@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 class RequestUpload:
     def __init__(self, path: StrPath, save_name: StrPath, copy: bool) -> None:
         self.path = str(path)
-        self.save_name: LogicalPath(save_name)
-        copy: bool
+        self.save_name = LogicalPath(save_name)
+        self.copy = copy
 
 
 class RequestStoreManifestFiles(NamedTuple):
