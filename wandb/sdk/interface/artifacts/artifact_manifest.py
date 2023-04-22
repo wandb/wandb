@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Union
 
 from wandb import util
@@ -24,7 +25,12 @@ class ArtifactManifestEntry:
         self.path = util.to_forward_slash_path(self.path)
         self.extra = self.extra or {}
         if self.local_path and self.size is None:
-            raise ValueError("size required when local_path specified")
+            try:
+                self.size = Path(self.local_path).stat().st_size
+            except OSError as e:
+                raise ValueError(
+                    "A size is required with local_path if the file is not readable."
+                ) from e
 
     def parent_artifact(self) -> "Artifact":
         """Get the artifact to which this artifact entry belongs.
