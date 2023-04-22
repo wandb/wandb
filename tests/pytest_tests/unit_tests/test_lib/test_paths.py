@@ -5,7 +5,14 @@ import pytest
 from hypothesis import assume, example, given
 from hypothesis_fspaths import fspaths
 from wandb.sdk.lib.paths import LogicalPath
-from wandb.util import to_forward_slash_path
+
+
+# This is the historical definition of to_forward_slash_path. We now use LogicalPath,
+# so we need to use its former definition to demonstrated compatibility.
+def to_forward_slash_path(path: str) -> str:
+    if platform.system() == "Windows":
+        path = path.replace("\\", "/")
+    return str(path)
 
 
 @pytest.mark.parametrize(
