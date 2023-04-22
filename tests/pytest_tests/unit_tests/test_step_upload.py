@@ -88,9 +88,9 @@ def make_request_upload(path: Path, **kwargs: Any) -> RequestUpload:
         kwargs.setdefault("save_fn_async", asyncify(kwargs["save_fn"]))
 
     return RequestUpload(
-        path=str(path),
+        path=path,
         **{
-            "save_name": str(path),
+            "save_name": path,
             "artifact_id": None,
             "md5": None,
             "copied": False,

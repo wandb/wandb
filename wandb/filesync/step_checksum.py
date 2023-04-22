@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
 from wandb.filesync import step_upload
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import LogicalPath, StrPath
 
 if TYPE_CHECKING:
     import tempfile
@@ -21,10 +21,11 @@ if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
 
 
-class RequestUpload(NamedTuple):
-    path: str
-    save_name: LogicalPath
-    copy: bool
+class RequestUpload:
+    def __init__(self, path: StrPath, save_name: StrPath, copy: bool) -> None:
+        self.path = str(path)
+        self.save_name: LogicalPath(save_name)
+        copy: bool
 
 
 class RequestStoreManifestFiles(NamedTuple):
@@ -110,7 +111,7 @@ class StepChecksum:
                         self._output_queue.put(
                             step_upload.RequestUpload(
                                 entry.local_path,
-                                LogicalPath(entry.path),
+                                entry.path,
                                 req.artifact_id,
                                 entry.digest,
                                 False,

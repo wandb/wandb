@@ -20,7 +20,7 @@ from typing import (
 
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import LogicalPath, StrPath
 
 if TYPE_CHECKING:
     from wandb.filesync import stats
@@ -48,15 +48,26 @@ SaveFnAsync = Callable[["progress.ProgressFn"], Awaitable[bool]]
 logger = logging.getLogger(__name__)
 
 
-class RequestUpload(NamedTuple):
-    path: str
-    save_name: LogicalPath
-    artifact_id: Optional[str]
-    md5: Optional[str]
-    copied: bool
-    save_fn: Optional[SaveFn]
-    save_fn_async: Optional[SaveFnAsync]
-    digest: Optional[str]
+class RequestUpload:
+    def __init__(
+        self,
+        path: StrPath,
+        save_name: StrPath,
+        artifact_id: Optional[str],
+        md5: Optional[str],
+        copied: bool,
+        save_fn: Optional[SaveFn],
+        save_fn_async: Optional[SaveFnAsync],
+        digest: Optional[str],
+    ) -> None:
+        self.path = str(path)
+        self.save_name = LogicalPath(save_name)
+        self.artifact_id = artifact_id
+        self.md5 = md5
+        self.copied = copied
+        self.save_fn = save_fn
+        self.save_fn_async = save_fn_async
+        self.digest = digest
 
 
 class RequestCommitArtifact(NamedTuple):

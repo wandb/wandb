@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import wandb
 import wandb.util
 from wandb.filesync import stats, step_checksum, step_upload
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import StrPath
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
@@ -115,8 +115,8 @@ class FilePusher:
 
     def file_changed(
         self,
-        save_name: LogicalPath,
-        path: str,
+        save_name: StrPath,
+        path: StrPath,
         copy: bool = True,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
@@ -132,11 +132,7 @@ class FilePusher:
         if os.path.getsize(path) == 0:
             return
 
-        event = step_checksum.RequestUpload(
-            path,
-            LogicalPath(save_name),
-            copy,
-        )
+        event = step_checksum.RequestUpload(path, save_name, copy)
         self._incoming_queue.put(event)
 
     def store_manifest_files(
