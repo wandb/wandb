@@ -360,9 +360,7 @@ def test_safe_copy_different_file_systems(fs, fs_type: OSType):
     assert target_path.read_text("utf-8") == source_content
 
 
-# I *think* the absurd copy function below will work on Windows. If not we can
-# disable this test again.
-# @pytest.mark.skipif(sys.platform == "win32", reason="Windows locks active files")
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows locks active files")
 def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
     source_path = tmp_path / "source.txt"
     target_path = tmp_path / "target.txt"
@@ -377,20 +375,11 @@ def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
             target_path.write_text(changed_target_content, encoding="utf-8")
 
     def delayed_copy_with_pause(src, dst, *args, **kwargs):
-        pos = 0
-        with open(src, "rb") as infile:
+        time.sleep(0.1)
+        with open(src, "rb") as infile, open(dst, "wb") as outfile:
             for block in iter(lambda: infile.read(4096), b""):
-                success = False
-                while not success:
-                    time.sleep(0.1)
-                    try:
-                        with open(dst, "wb") as outfile:
-                            outfile.seek(pos)
-                            outfile.write(block)
-                        pos += len(block)
-                        success = True
-                    except OSError:
-                        pass
+                outfile.write(block)
+                time.sleep(0.1)
 
     monkeypatch.setattr(shutil, "copy2", delayed_copy_with_pause)
 
