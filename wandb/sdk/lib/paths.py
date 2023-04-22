@@ -63,7 +63,7 @@ class LogicalPath(str):
 
     def __new__(cls, path: StrPath) -> "LogicalPath":
         if hasattr(path, "as_posix"):
-            return super().__new__(cls, path.as_posix())
+            path = path.as_posix()
         if hasattr(path, "__fspath__"):
             path = path.__fspath__()  # Can be str or bytes.
         if isinstance(path, bytes):
