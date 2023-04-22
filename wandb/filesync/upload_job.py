@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import wandb
+from wandb.sdk.lib.paths import LogicalPath, StrPath
 
 if TYPE_CHECKING:
     from wandb.filesync import dir_watcher, stats, step_upload
@@ -25,7 +26,7 @@ class UploadJob:
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
         silent: bool,
-        save_name: "dir_watcher.SaveName",
+        save_name: StrPath,
         path: "dir_watcher.PathStr",
         artifact_id: Optional[str],
         md5: Optional[str],
@@ -46,7 +47,7 @@ class UploadJob:
         self._api = api
         self._file_stream = file_stream
         self.silent = silent
-        self.save_name = save_name
+        self.save_name = LogicalPath(save_name)
         self.save_path = self.path = path
         self.artifact_id = artifact_id
         self.md5 = md5
