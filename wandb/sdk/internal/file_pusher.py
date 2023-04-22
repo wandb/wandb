@@ -126,7 +126,7 @@ class FilePusher:
         if os.path.getsize(path) == 0:
             return
 
-        event = step_checksum.RequestUpload(path, save_name, copy)
+        event = step_checksum.RequestUpload(path, LogicalPath(save_name), copy)
         self._incoming_queue.put(event)
 
     def store_manifest_files(
