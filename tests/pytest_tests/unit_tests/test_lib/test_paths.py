@@ -88,6 +88,12 @@ def test_logical_path_acts_like_posix_path(path1, path2):
     assert path1 / PurePosixPath("/foo") == LogicalPath("/foo")
 
 
+def test_sanitize_path_on_awful_input():
+    path = '\r/foo\u0000/AUX/<:?"*>/\0/\n\\\tCOM5.tar.gz /'
+    sanitized = sanitize_path(path)
+    assert sanitized == PurePosixPath("foo/_AUX/______/_COM5.tar.gz")
+
+
 @settings(max_examples=500)
 @given(one_of(fspaths(), text(), binary()))
 def test_sanitize_path_on_arbitrary_input(path):
