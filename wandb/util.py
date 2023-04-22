@@ -51,7 +51,7 @@ import wandb
 import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, StrPath
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
 
 if TYPE_CHECKING:
     import wandb.apis.public
@@ -1289,10 +1289,8 @@ def auto_project_name(program: Optional[str]) -> str:
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
-def to_forward_slash_path(path: str) -> LogicalFilePathStr:
-    if platform.system() == "Windows":
-        path = path.replace("\\", "/")
-    return LogicalFilePathStr(path)
+def to_forward_slash_path(path: StrPath) -> LogicalPath:
+    return LogicalPath(path)
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py

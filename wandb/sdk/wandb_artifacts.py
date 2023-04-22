@@ -2,11 +2,11 @@ import base64
 import contextlib
 import json
 import os
-import pathlib
 import re
 import shutil
 import tempfile
 import time
+from pathlib import PurePosixPath
 from types import ModuleType
 from typing import (
     IO,
@@ -61,7 +61,7 @@ from wandb.sdk.lib.hashutil import (
     md5_file_b64,
     md5_string,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalFilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -417,7 +417,7 @@ class Artifact(ArtifactInterface):
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
 
-        name = util.to_forward_slash_path(name or os.path.basename(local_path))
+        name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
 
         if is_tmp:
@@ -466,13 +466,13 @@ class Artifact(ArtifactInterface):
     def add_reference(
         self,
         uri: Union[ArtifactManifestEntry, str],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
         self._ensure_can_add()
         if name is not None:
-            name = util.to_forward_slash_path(name)
+            name = LogicalPath(name)
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactManifestEntry which is a private class returned by Artifact.get_path in
@@ -500,9 +500,9 @@ class Artifact(ArtifactInterface):
 
         return manifest_entries
 
-    def add(self, obj: data_types.WBValue, name: str) -> ArtifactManifestEntry:
+    def add(self, obj: data_types.WBValue, name: StrPath) -> ArtifactManifestEntry:
         self._ensure_can_add()
-        name = util.to_forward_slash_path(name)
+        name = LogicalPath(name)
 
         # This is a "hack" to automatically rename tables added to
         # the wandb /media/tables directory to their sha-based name.
@@ -583,7 +583,7 @@ class Artifact(ArtifactInterface):
 
         return entry
 
-    def get_path(self, name: str) -> ArtifactManifestEntry:
+    def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         if self._logged_artifact:
             return self._logged_artifact.get_path(name)
 
@@ -722,7 +722,7 @@ class Artifact(ArtifactInterface):
             raise ArtifactFinalizedError(artifact=self)
 
     def _add_local_file(
-        self, name: str, path: str, digest: Optional[B64MD5] = None
+        self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
         with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
@@ -730,14 +730,14 @@ class Artifact(ArtifactInterface):
             os.chmod(staging_path, 0o400)
 
         entry = ArtifactManifestEntry(
-            path=util.to_forward_slash_path(name),
+            path=name,
             digest=digest or md5_file_b64(staging_path),
             size=os.path.getsize(staging_path),
             local_path=staging_path,
         )
 
         self._manifest.add_entry(entry)
-        self._added_local_paths[path] = entry
+        self._added_local_paths[str(path)] = entry
         return entry
 
 
@@ -767,7 +767,7 @@ class ArtifactManifestV1(ArtifactManifest):
         entries: Mapping[str, ArtifactManifestEntry]
         entries = {
             name: ArtifactManifestEntry(
-                path=LogicalFilePathStr(name),
+                path=name,
                 digest=val["digest"],
                 birth_artifact_id=val.get("birthArtifactID"),
                 ref=val.get("ref"),
@@ -1171,7 +1171,7 @@ class TrackingHandler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
@@ -1185,7 +1185,7 @@ class TrackingHandler(StorageHandler):
             "Artifact references with unsupported schemes cannot be checksummed: %s"
             % path
         )
-        name = LogicalFilePathStr(name or url.path[1:])  # strip leading slash
+        name = name or url.path[1:]  # strip leading slash
         return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
 
@@ -1242,7 +1242,7 @@ class LocalFileHandler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
@@ -1278,14 +1278,14 @@ class LocalFileHandler(StorageHandler):
                         )
                     physical_path = os.path.join(root, sub_path)
                     # TODO(spencerpearson): this is not a "logical path" in the sense that
-                    # `util.to_forward_slash_path` returns a "logical path"; it's a relative path
+                    # `LogicalPath` returns a "logical path"; it's a relative path
                     # **on the local filesystem**.
                     logical_path = os.path.relpath(physical_path, start=local_path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
 
                     entry = ArtifactManifestEntry(
-                        path=LogicalFilePathStr(logical_path),
+                        path=logical_path,
                         ref=FilePathStr(os.path.join(path, logical_path)),
                         size=os.path.getsize(physical_path),
                         digest=md5(physical_path),
@@ -1296,7 +1296,7 @@ class LocalFileHandler(StorageHandler):
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                path=LogicalFilePathStr(name),
+                path=name,
                 ref=path,
                 size=os.path.getsize(local_path),
                 digest=md5(local_path),
@@ -1424,7 +1424,7 @@ class S3Handler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
@@ -1444,11 +1444,7 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [
-                ArtifactManifestEntry(
-                    path=LogicalFilePathStr(name or key), ref=path, digest=path
-                )
-            ]
+            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -1511,7 +1507,7 @@ class S3Handler(StorageHandler):
         self,
         obj: "boto3.s3.Object",
         path: str,
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
@@ -1527,12 +1523,12 @@ class S3Handler(StorageHandler):
         bucket, key, _ = self._parse_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
-        posix_key = pathlib.PurePosixPath(obj.key)  # the bucket key
-        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+        posix_key = PurePosixPath(obj.key)  # the bucket key
+        posix_path = PurePosixPath(bucket) / PurePosixPath(
             key
         )  # the path, with the scheme stripped
-        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
-        posix_name = pathlib.PurePosixPath(name or "")
+        posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
 
         if name is None:
@@ -1541,7 +1537,7 @@ class S3Handler(StorageHandler):
                 posix_name = posix_key.relative_to(posix_prefix)
                 posix_ref = posix_path / posix_name
             else:
-                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
         elif multi:
             # We're adding a directory with a name override.
@@ -1549,7 +1545,7 @@ class S3Handler(StorageHandler):
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            path=LogicalFilePathStr(str(posix_name)),
+            path=posix_name,
             ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
             digest=ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
@@ -1671,7 +1667,7 @@ class GCSHandler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
@@ -1690,11 +1686,7 @@ class GCSHandler(StorageHandler):
             )
 
         if not checksum:
-            return [
-                ArtifactManifestEntry(
-                    path=LogicalFilePathStr(name or key), ref=path, digest=path
-                )
-            ]
+            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
 
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
@@ -1729,7 +1721,7 @@ class GCSHandler(StorageHandler):
         self,
         obj: "gcs_module.blob.Blob",
         path: str,
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
@@ -1745,12 +1737,12 @@ class GCSHandler(StorageHandler):
         bucket, key, _ = self._parse_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
-        posix_key = pathlib.PurePosixPath(obj.name)  # the bucket key
-        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+        posix_key = PurePosixPath(obj.name)  # the bucket key
+        posix_path = PurePosixPath(bucket) / PurePosixPath(
             key
         )  # the path, with the scheme stripped
-        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
-        posix_name = pathlib.PurePosixPath(name or "")
+        posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
 
         if name is None:
@@ -1759,7 +1751,7 @@ class GCSHandler(StorageHandler):
                 posix_name = posix_key.relative_to(posix_prefix)
                 posix_ref = posix_path / posix_name
             else:
-                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
         elif multi:
             # We're adding a directory with a name override.
@@ -1767,7 +1759,7 @@ class GCSHandler(StorageHandler):
             posix_name = posix_name / relpath
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            path=LogicalFilePathStr(str(posix_name)),
+            path=posix_name,
             ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
             digest=obj.md5_hash,
             size=obj.size,
@@ -1865,7 +1857,7 @@ class AzureHandler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence["ArtifactManifestEntry"]:
@@ -1874,9 +1866,7 @@ class AzureHandler(StorageHandler):
 
         if not checksum:
             return [
-                ArtifactManifestEntry(
-                    path=LogicalFilePathStr(name or blob_name), digest=path, ref=path
-                )
+                ArtifactManifestEntry(path=name or blob_name, digest=path, ref=path)
             ]
 
         blob_service_client = self._get_module("azure.storage.blob").BlobServiceClient(
@@ -1893,9 +1883,7 @@ class AzureHandler(StorageHandler):
             return [
                 self._create_entry(
                     blob_properties,
-                    path=LogicalFilePathStr(
-                        name or pathlib.PurePosixPath(blob_name).name
-                    ),
+                    path=name or PurePosixPath(blob_name).name,
                     ref=URIStr(
                         f"{account_url}/{container_name}/{blob_properties.name}"
                     ),
@@ -1913,11 +1901,11 @@ class AzureHandler(StorageHandler):
                     f"Exceeded {max_objects} objects tracked, pass max_objects to "
                     f"add_reference"
                 )
-            suffix = pathlib.PurePosixPath(blob_properties.name).relative_to(blob_name)
+            suffix = PurePosixPath(blob_properties.name).relative_to(blob_name)
             entries.append(
                 self._create_entry(
                     blob_properties,
-                    path=LogicalFilePathStr(str(name / suffix if name else suffix)),
+                    path=name / suffix if name else suffix,
                     ref=URIStr(
                         f"{account_url}/{container_name}/{blob_properties.name}"
                     ),
@@ -1945,7 +1933,7 @@ class AzureHandler(StorageHandler):
     def _create_entry(
         self,
         blob_properties: "azure.storage.blob.BlobProperties",
-        path: LogicalFilePathStr,
+        path: StrPath,
         ref: URIStr,
     ) -> ArtifactManifestEntry:
         extra = {"etag": blob_properties.etag.strip('"')}
@@ -2008,11 +1996,11 @@ class HTTPHandler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        name = LogicalFilePathStr(name or os.path.basename(path))
+        name = name or os.path.basename(path)
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
@@ -2101,7 +2089,7 @@ class WBArtifactHandler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
@@ -2145,7 +2133,7 @@ class WBArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                path=LogicalFilePathStr(name or os.path.basename(path)),
+                path=name or os.path.basename(path),
                 ref=path,
                 size=0,
                 digest=entry.digest,
@@ -2178,7 +2166,7 @@ class WBLocalArtifactHandler(StorageHandler):
         self,
         artifact: ArtifactInterface,
         path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        name: Optional[StrPath] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
@@ -2204,7 +2192,7 @@ class WBLocalArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                path=LogicalFilePathStr(name or os.path.basename(path)),
+                path=name or os.path.basename(path),
                 ref=path,
                 size=0,
                 digest=target_entry.digest,

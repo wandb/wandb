@@ -3849,7 +3849,7 @@ class _LazyArtifact(ArtifactInterface):
     def logged_by(self) -> "wandb.apis.public.Run":
         return self._instance.logged_by()
 
-    def get_path(self, name: str) -> "ArtifactManifestEntry":
+    def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         return self._instance.get_path(name)
 
     def get(self, name: str) -> "WBValue":
