@@ -70,6 +70,7 @@ def mock_tty(monkeypatch):
     del sys.stdout.isatty
 
 
+@pytest.mark.slow
 def test_login_timeout(mock_tty):
     mock_tty("junk\nmore\n")
     start_time = time.time()
@@ -96,6 +97,7 @@ def test_login_timeout_choose(mock_tty):
     assert wandb.setup().settings.mode == "offline"
 
 
+@pytest.mark.slow
 def test_login_timeout_env_blank(mock_tty):
     mock_tty("\n\n\n")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
@@ -115,6 +117,7 @@ def test_login_timeout_env_invalid(mock_tty):
             wandb.login()
 
 
+@pytest.mark.slow
 def test_relogin_timeout(dummy_api_key):
     logged_in = wandb.login(relogin=True, key=dummy_api_key)
     assert logged_in is True
@@ -122,6 +125,7 @@ def test_relogin_timeout(dummy_api_key):
     assert logged_in is True
 
 
+@pytest.mark.slow
 def test_login_key(capsys):
     wandb.login(key="A" * 40)
     # TODO: this was a bug when tests were leaking out to the global config
@@ -141,12 +145,14 @@ def test_login(test_settings):
     wandb.finish()
 
 
+@pytest.mark.slow
 def test_login_anonymous():
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         wandb.login(anonymous="must")
         assert wandb.api.api_key == "ANONYMOOSE" * 4
 
 
+@pytest.mark.slow
 def test_login_sets_api_base_url(local_settings):
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         base_url = "https://api.test.host.ai"

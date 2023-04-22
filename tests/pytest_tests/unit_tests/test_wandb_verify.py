@@ -1,6 +1,7 @@
 import time
 import unittest.mock
 
+import pytest
 import wandb
 import wandb.sdk.verify.verify as wandb_verify
 from wandb.apis import InternalApi
@@ -38,6 +39,7 @@ def test_check_secure_requests(capsys):
     assert "\u274C" in captured
 
 
+@pytest.mark.slow
 def test_retry_fn():
     i = 0
 
@@ -75,6 +77,7 @@ def test_check_cors_configuration(test_settings, capsys):
     assert "\u274C" in captured
 
 
+@pytest.mark.server_issues
 def test_check_wandb_version(capsys):
     api = InternalApi()
 

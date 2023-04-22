@@ -17,6 +17,7 @@ def test_base_url_sanitization():
         assert api.settings["base_url"] == "https://wandb.corp.net"
 
 
+@pytest.mark.server_issues
 @pytest.mark.parametrize(
     "path",
     [
@@ -35,6 +36,7 @@ def test_parse_path(path):
         assert run == "run"
 
 
+@pytest.mark.server_issues
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path():
     with mock.patch.object(wandb, "login", mock.MagicMock()):
@@ -43,6 +45,7 @@ def test_parse_project_path():
         assert project == "proj"
 
 
+@pytest.mark.slow
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
@@ -51,6 +54,7 @@ def test_parse_project_path_proj():
         assert project == "proj"
 
 
+@pytest.mark.slow
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_path_docker_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
@@ -60,6 +64,7 @@ def test_parse_path_docker_proj():
         assert run == "run"
 
 
+@pytest.mark.slow
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_path_user_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
@@ -69,6 +74,7 @@ def test_parse_path_user_proj():
         assert run == "run"
 
 
+@pytest.mark.slow
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_path_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
@@ -85,6 +91,7 @@ def test_direct_specification_of_api_key():
     assert api.api_key == "abcd" * 10
 
 
+@pytest.mark.server_issues
 @pytest.mark.parametrize(
     "path",
     [
@@ -99,6 +106,7 @@ def test_from_path_project_type(path):
         assert isinstance(project, wandb.apis.public.Project)
 
 
+@pytest.mark.slow
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_report_to_html():
     path = "test/test/reports/My-Report--XYZ"

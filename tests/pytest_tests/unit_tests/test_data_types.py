@@ -160,6 +160,7 @@ def test_captions(
     assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
+@pytest.mark.server_issues
 def test_bind_image(
     mock_run,
     image,
@@ -175,6 +176,7 @@ def test_image_accepts_other_images():
     assert image_a == image_b
 
 
+@pytest.mark.server_issues
 def test_image_accepts_bounding_boxes(
     mock_run,
     image,
@@ -195,6 +197,7 @@ def test_image_accepts_bounding_boxes(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.server_issues
 def test_image_accepts_bounding_boxes_optional_args(
     mock_run,
     image,
@@ -220,6 +223,7 @@ def test_image_accepts_bounding_boxes_optional_args(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.server_issues
 def test_image_accepts_masks(
     mock_run,
     image,
@@ -238,6 +242,7 @@ def test_image_accepts_masks(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.server_issues
 def test_image_accepts_masks_without_class_labels(
     mock_run,
     image,
@@ -257,6 +262,7 @@ def test_image_accepts_masks_without_class_labels(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.server_issues
 def test_image_seq_to_json(
     mock_run,
     image,
@@ -268,6 +274,7 @@ def test_image_seq_to_json(
     assert os.path.exists(os.path.join(run.dir, "media", "images", "test_0_0.png"))
 
 
+@pytest.mark.server_issues
 def test_max_images(mock_run):
     run = mock_run()
     large_image = np.random.randint(255, size=(10, 10))
@@ -607,6 +614,7 @@ def test_video_numpy_gif(mock_run):
     assert vid.to_json(run)["path"].endswith(".gif")
 
 
+@pytest.mark.server_issues
 def test_video_numpy_mp4(mock_run):
     run = mock_run()
     video = np.random.randint(255, size=(10, 3, 28, 28))
@@ -1460,6 +1468,7 @@ def test_partitioned_table():
 ################################################################################
 
 
+@pytest.mark.server_issues
 @pytest.mark.parametrize(
     "media",
     [

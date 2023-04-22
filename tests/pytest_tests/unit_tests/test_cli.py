@@ -181,6 +181,7 @@ def test_login_anonymously(runner, dummy_api_key, monkeypatch, empty_netrc):
         assert dummy_api_key in generated_netrc
 
 
+@pytest.mark.slow
 def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):
@@ -218,6 +219,7 @@ def test_sync_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
+@pytest.mark.slow
 def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key):
     with runner.isolated_filesystem():
         mocker.patch("wandb.wandb_lib.apikey.getpass", input)

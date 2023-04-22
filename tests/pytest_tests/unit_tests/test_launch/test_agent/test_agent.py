@@ -19,6 +19,7 @@ def _setup(mocker):
     mocker.patch("wandb.termerror", mocker.termerror)
 
 
+@pytest.mark.slow
 def test_loop_capture_stack_trace(mocker):
     _setup(mocker)
     mock_config = {

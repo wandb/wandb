@@ -327,6 +327,7 @@ def test_no_repeat_warnings(capsys):
     assert captured.count(msg) == 1
 
 
+@pytest.mark.slow
 def test_program_python_m():
     with tempfile.TemporaryDirectory() as tmpdir:
         path_module = os.path.join(tmpdir, "module")
