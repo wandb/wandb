@@ -108,7 +108,7 @@ class StepChecksum:
                         self._output_queue.put(
                             step_upload.RequestUpload(
                                 entry.local_path,
-                                dir_watcher.SaveName(
+                                dir_watcher.to_save(
                                     entry.path
                                 ),  # typecast might not be legit
                                 req.artifact_id,

@@ -33,6 +33,11 @@ else:
 PathStr = str  # TODO(spencerpearson): would be nice to use Path here
 SaveName = NewType("SaveName", str)
 
+
+def to_save(name: str) -> SaveName:
+    return SaveName(LogicalPath(name))
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,8 +52,7 @@ class FileEventHandler(abc.ABC):
     ) -> None:
         self.file_path = file_path
         # Convert windows paths to unix paths
-        save_name = SaveName(LogicalPath(save_name))
-        self.save_name = save_name
+        self.save_name = to_save(save_name)
         self._file_pusher = file_pusher
         self._last_sync: Optional[float] = None
 
@@ -233,7 +237,7 @@ class DirWatcher:
         # faster if the name happens to include glob escapable characters.  In
         # the future we may add a flag to "files" records that indicates it's
         # policy is not dynamic and doesn't need to be stored / checked.
-        save_name = SaveName(os.path.relpath(os.path.join(self._dir, path), self._dir))
+        save_name = to_save(os.path.relpath(os.path.join(self._dir, path), self._dir))
         if save_name.startswith("media/"):
             pass
         elif path == glob.escape(path):
@@ -241,7 +245,7 @@ class DirWatcher:
         else:
             self._user_file_policies[policy].add(path)
         for src_path in glob.glob(os.path.join(self._dir, path)):
-            save_name = SaveName(os.path.relpath(src_path, self._dir))
+            save_name = to_save(os.path.relpath(src_path, self._dir))
             feh = self._get_file_event_handler(src_path, save_name)
             # handle the case where the policy changed
             if feh.policy != policy:
@@ -285,18 +289,18 @@ class DirWatcher:
             emitter = self.emitter
             if emitter:
                 emitter._timeout = int(self._file_count / 100) + 1
-        save_name = SaveName(os.path.relpath(event.src_path, self._dir))
+        save_name = to_save(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
     # TODO(spencerpearson): this pattern repeats so many times we should have a method/function for it
     # def _save_name(self, path: PathStr) -> SaveName:
-    #     return SaveName(os.path.relpath(path, self._dir))
+    #     return to_save(os.path.relpath(path, self._dir))
 
     def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
         logger.info(f"file/dir modified: { event.src_path}")
         if os.path.isdir(event.src_path):
             return None
-        save_name = SaveName(os.path.relpath(event.src_path, self._dir))
+        save_name = to_save(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
     def _on_file_moved(self, event: "wd_events.FileMovedEvent") -> None:
@@ -304,8 +308,8 @@ class DirWatcher:
         logger.info(f"file/dir moved: {event.src_path} -> {event.dest_path}")
         if os.path.isdir(event.dest_path):
             return None
-        old_save_name = SaveName(os.path.relpath(event.src_path, self._dir))
-        new_save_name = SaveName(os.path.relpath(event.dest_path, self._dir))
+        old_save_name = to_save(os.path.relpath(event.src_path, self._dir))
+        new_save_name = to_save(os.path.relpath(event.dest_path, self._dir))
 
         # We have to move the existing file handler to the new name
         handler = self._get_file_event_handler(event.src_path, old_save_name)
@@ -398,7 +402,7 @@ class DirWatcher:
         for dirpath, _, filenames in os.walk(self._dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
-                save_name = SaveName(os.path.relpath(file_path, self._dir))
+                save_name = to_save(os.path.relpath(file_path, self._dir))
                 ignored = False
                 for glb in self._settings.ignore_globs:
                     if len(fnmatch.filter([save_name], glb)) > 0:
