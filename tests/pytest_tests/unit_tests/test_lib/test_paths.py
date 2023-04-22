@@ -79,7 +79,9 @@ def test_logical_path_acts_like_posix_path(path1, path2):
     else:
         assert path1.anchor == ""
 
-    assert path1.joinpath("bar").parent == path1
+    itself = path1.joinpath("bar").parent
+    assert isinstance(itself, LogicalPath)
+    assert PurePosixPath(itself) == PurePosixPath(path1)
 
     path2 = LogicalPath(path2)
     assert path1 / path2 == path1.joinpath(path2)
