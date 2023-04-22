@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, MutableSet, Opti
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import LogicalPath, StrPath
 
 if TYPE_CHECKING:
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
@@ -31,13 +31,13 @@ logger = logging.getLogger(__name__)
 class FileEventHandler(abc.ABC):
     def __init__(
         self,
-        file_path: PathStr,
+        file_path: StrPath,
         save_name: LogicalPath,
         file_pusher: "FilePusher",
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        self.file_path = file_path
+        self.file_path = PathStr(str(file_path))
         # Convert windows paths to unix paths
         self.save_name = LogicalPath(save_name)
         self._file_pusher = file_pusher
@@ -111,7 +111,7 @@ class PolicyLive(FileEventHandler):
 
     def __init__(
         self,
-        file_path: PathStr,
+        file_path: StrPath,
         save_name: LogicalPath,
         file_pusher: "FilePusher",
         settings: Optional["wandb_settings.Settings"] = None,
@@ -282,7 +282,7 @@ class DirWatcher:
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
     # TODO(spencerpearson): this pattern repeats so many times we should have a method/function for it
-    # def _save_name(self, path: PathStr) -> LogicalPath:
+    # def _save_name(self, path: StrPath) -> LogicalPath:
     #     return LogicalPath(os.path.relpath(path, self._dir))
 
     def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
