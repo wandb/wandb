@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import wandb
 import wandb.util
 from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
@@ -131,7 +132,7 @@ class FilePusher:
         if os.path.getsize(path) == 0:
             return
 
-        save_name = dir_watcher.SaveName(wandb.util.to_forward_slash_path(save_name))
+        save_name = dir_watcher.SaveName(LogicalPath(save_name))
         event = step_checksum.RequestUpload(
             path,
             dir_watcher.SaveName(save_name),

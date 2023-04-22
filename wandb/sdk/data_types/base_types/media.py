@@ -9,6 +9,7 @@ import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.paths import LogicalPath
 
 from .wb_value import WBValue
 
@@ -193,7 +194,7 @@ class Media(WBValue):
                 # by definition is_bound, but are needed for
                 # mypy to understand that these are strings below.
                 assert isinstance(self._path, str)
-                json_obj["path"] = util.to_forward_slash_path(
+                json_obj["path"] = LogicalPath(
                     os.path.relpath(self._path, self._run.dir)
                 )
 
