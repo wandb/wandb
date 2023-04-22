@@ -6,7 +6,7 @@ import os
 import queue
 import shutil
 import threading
-from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
+from typing import TYPE_CHECKING, NamedTuple, Optional, Union
 
 from wandb.filesync import step_upload
 from wandb.sdk.lib import filesystem, runid
@@ -103,9 +103,10 @@ class StepChecksum:
             elif isinstance(req, RequestStoreManifestFiles):
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
+                        assert entry.size is not None
                         self._stats.init_file(
-                            entry.local_path,
-                            cast(int, entry.size),
+                            LogicalPath(entry.local_path),
+                            entry.size,
                             is_artifact_file=True,
                         )
                         self._output_queue.put(

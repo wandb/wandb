@@ -2,7 +2,7 @@ import threading
 from typing import MutableMapping, NamedTuple
 
 import wandb
-from wandb.sdk.lib.paths import LogicalPath, StrPath
+from wandb.sdk.lib.paths import LogicalPath
 
 
 class FileStats(NamedTuple):
@@ -32,9 +32,8 @@ class Stats:
         self._lock = threading.Lock()
 
     def init_file(
-        self, save_name: StrPath, size: int, is_artifact_file: bool = False
+        self, save_name: LogicalPath, size: int, is_artifact_file: bool = False
     ) -> None:
-        save_name = LogicalPath(save_name)
         with self._lock:
             self._stats[save_name] = FileStats(
                 deduped=False,
@@ -44,8 +43,7 @@ class Stats:
                 artifact_file=is_artifact_file,
             )
 
-    def set_file_deduped(self, save_name: StrPath) -> None:
-        save_name = LogicalPath(save_name)
+    def set_file_deduped(self, save_name: LogicalPath) -> None:
         with self._lock:
             orig = self._stats[save_name]
             self._stats[save_name] = orig._replace(
@@ -53,15 +51,13 @@ class Stats:
                 uploaded=orig.total,
             )
 
-    def update_uploaded_file(self, save_name: StrPath, total_uploaded: int) -> None:
-        save_name = LogicalPath(save_name)
+    def update_uploaded_file(self, save_name: LogicalPath, total_uploaded: int) -> None:
         with self._lock:
             self._stats[save_name] = self._stats[save_name]._replace(
                 uploaded=total_uploaded,
             )
 
-    def update_failed_file(self, save_name: StrPath) -> None:
-        save_name = LogicalPath(save_name)
+    def update_failed_file(self, save_name: LogicalPath) -> None:
         with self._lock:
             self._stats[save_name] = self._stats[save_name]._replace(
                 uploaded=0,
