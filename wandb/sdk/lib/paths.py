@@ -122,9 +122,14 @@ def sanitize_path(path: StrPath) -> PurePosixPath:
     if isinstance(path, str):
         path = PurePath(path)
 
-    # If absolute, make relative to the root/drive.
-    if path.anchor:
-        path = path.relative_to(path.anchor)
+    # If absolute, make relative to the root/drive. Handling pathological inputs means
+    # we can't guarantee a path has a valid representation on the current platform.
+    try:
+        pure_path = PurePath(path)
+        path = pure_path.relative_to(pure_path.anchor)
+    except ValueError:
+        pure_path = PurePosixPath(path)
+        path = pure_path.relative_to(pure_path.anchor)
 
     # Remove unprintable characters.
     path_str = "".join(c for c in path.as_posix() if c.isprintable())
