@@ -122,20 +122,22 @@ def sanitize_path(path: StrPath) -> PurePosixPath:
     if isinstance(path, str):
         path = PurePath(path)
 
-    # If absolute, make relative to the root/drive. Either way, convert to a posix str.
-    path_str = path.relative_to(path.anchor).as_posix()
+    # If absolute, make relative to the root/drive.
+    if path.anchor:
+        path = path.relative_to(path.anchor)
 
     # Remove unprintable characters.
-    path_str = "".join(c for c in path_str if c.isprintable())
+    path_str = "".join(c for c in path.as_posix() if c.isprintable())
 
     # Replace all backslashes with forward slashes.
     path = PurePosixPath(path_str.replace("\\", "/"))
 
     # We do this again because the previous steps may have introduced a new root.
-    path_str = path.relative_to(path.anchor).as_posix()
+    if path.anchor:
+        path = path.relative_to(path.anchor)
 
     # Replace characters not allowed in Windows filenames.
-    path_str = "".join(c if c not in PROHIBITED_CHARS else "_" for c in path_str)
+    path_str = "".join(c if c not in PROHIBITED_CHARS else "_" for c in path.as_posix())
 
     # Strip trailing dots and spaces (another Windows requirement).
     # Also normalize by eliminating trailing slashes.

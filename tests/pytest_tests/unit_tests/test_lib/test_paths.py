@@ -116,6 +116,7 @@ dangerous_chars = list(PROHIBITED_CHARS + "/\\ .")
 
 
 @given(fspaths(), text(dangerous_chars))
+@example(path="\x01", snippet="\\")
 def test_sanitize_path_on_paths_with_dangerous_chars(path, snippet):
     path = path_as_str(path)
     bookended = snippet + path + snippet
