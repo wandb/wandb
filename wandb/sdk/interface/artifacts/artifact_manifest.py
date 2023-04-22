@@ -28,9 +28,7 @@ class ArtifactManifestEntry:
             try:
                 self.size = Path(self.local_path).stat().st_size
             except OSError as e:
-                raise ValueError(
-                    "A size is required with local_path if the file is not readable."
-                ) from e
+                raise ValueError("size required when local_path specified") from e
 
     def parent_artifact(self) -> "Artifact":
         """Get the artifact to which this artifact entry belongs.
