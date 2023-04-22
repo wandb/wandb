@@ -1,16 +1,16 @@
 [paths]
 canonicalsrc =
     wandb/
-    .tox/func-s_base-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_base-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_docs-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_llm-py38/lib/python3.8/site-packages/wandb/
+    .tox/func-s_llm-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_noml-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_ray112-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_ray2-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_ray112-py39/lib/python3.9/site-packages/wandb/
+    .tox/func-s_ray2-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_service-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_sklearn-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_sklearn-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_tf115-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf21-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf24-py37/lib/python3.7/site-packages/wandb/
