@@ -17,6 +17,7 @@ from typing import (
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
+from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
@@ -46,7 +47,7 @@ class FileEventHandler(abc.ABC):
     ) -> None:
         self.file_path = file_path
         # Convert windows paths to unix paths
-        save_name = SaveName(util.to_forward_slash_path(save_name))
+        save_name = SaveName(LogicalPath(save_name))
         self.save_name = save_name
         self._file_pusher = file_pusher
         self._last_sync: Optional[float] = None
