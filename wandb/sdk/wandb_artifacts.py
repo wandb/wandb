@@ -732,7 +732,6 @@ class Artifact(ArtifactInterface):
         entry = ArtifactManifestEntry(
             path=util.to_forward_slash_path(name),
             digest=digest or md5_file_b64(staging_path),
-            size=os.path.getsize(staging_path),
             local_path=staging_path,
         )
 
