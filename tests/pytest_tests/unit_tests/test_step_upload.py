@@ -20,6 +20,7 @@ from wandb.filesync.step_upload import (
 )
 from wandb.sdk.internal import file_stream, internal_api
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.wandb_settings import Settings
 
 
@@ -481,7 +482,9 @@ class TestUpload:
                 [make_request_upload(f)], settings=async_settings, stats=mock_stats
             )
 
-            mock_stats.update_uploaded_file.assert_called_with(str(f), f.stat().st_size)
+            mock_stats.update_uploaded_file.assert_called_with(
+                LogicalPath(f), f.stat().st_size
+            )
 
         def test_updates_on_read_with_save_fn(
             self,
@@ -498,7 +501,9 @@ class TestUpload:
                 stats=mock_stats,
             )
 
-            mock_stats.update_uploaded_file.assert_called_with(str(f), f.stat().st_size)
+            mock_stats.update_uploaded_file.assert_called_with(
+                LogicalPath(f), f.stat().st_size
+            )
 
         @pytest.mark.parametrize(
             "save_fn",
