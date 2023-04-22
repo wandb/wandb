@@ -7,7 +7,7 @@ import wandb
 from wandb.sdk.lib.paths import LogicalPath, StrPath
 
 if TYPE_CHECKING:
-    from wandb.filesync import dir_watcher, stats, step_upload
+    from wandb.filesync import stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
 
 
@@ -27,7 +27,7 @@ class UploadJob:
         file_stream: "file_stream.FileStreamApi",
         silent: bool,
         save_name: StrPath,
-        path: "dir_watcher.PathStr",
+        path: StrPath,
         artifact_id: Optional[str],
         md5: Optional[str],
         copied: bool,
@@ -48,7 +48,7 @@ class UploadJob:
         self._file_stream = file_stream
         self.silent = silent
         self.save_name = LogicalPath(save_name)
-        self.save_path = self.path = path
+        self.save_path = str(path)
         self.artifact_id = artifact_id
         self.md5 = md5
         self.copied = copied
@@ -72,10 +72,10 @@ class UploadJob:
             # Retry logic must happen in save_fn currently
             try:
                 deduped = self.save_fn(
-                    lambda _, t: self._stats.update_uploaded_file(self.save_path, t)
+                    lambda _, t: self._stats.update_uploaded_file(self.save_name, t)
                 )
             except Exception as e:
-                self._stats.update_failed_file(self.save_path)
+                self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
                 wandb._sentry.exception(e)
                 message = str(e)
@@ -91,7 +91,7 @@ class UploadJob:
 
             if deduped:
                 logger.info("Skipped uploading %s", self.save_path)
-                self._stats.set_file_deduped(self.save_path)
+                self._stats.set_file_deduped(self.save_name)
             else:
                 logger.info("Uploaded file %s", self.save_path)
             return
@@ -179,7 +179,9 @@ class UploadJobAsync:
     async def run(self) -> None:
         try:
             deduped = await self._save_fn_async(
-                lambda _, t: self._stats.update_uploaded_file(self._request.path, t)
+                lambda _, t: self._stats.update_uploaded_file(
+                    self._request.save_name, t
+                )
             )
         except Exception as e:
             # Async uploads aren't yet (2023-01) battle-tested.
@@ -210,7 +212,7 @@ class UploadJobAsync:
 
             if deduped:
                 logger.info("Skipped uploading %s", self._request.path)
-                self._stats.set_file_deduped(self._request.path)
+                self._stats.set_file_deduped(self._request.save_name)
             else:
                 logger.info("Uploaded file %s", self._request.path)
         finally:
