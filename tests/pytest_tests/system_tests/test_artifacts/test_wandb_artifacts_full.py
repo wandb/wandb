@@ -384,7 +384,7 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch)
 
 def test_artifact_missing_file_re_downloads(logged_artifact):
     handler = wandb_artifacts.GCSHandler()
-    cache = wandb_sdk.interface.artifacts.artifact_cache.get_artifact_cache()
+    cache = wandb_sdk.interface.artifacts.artifact_cache.get_artifacts_cache()
     cache.cleanup(0)
     path = handler.load_path(logged_artifact.manifest.entries[0])
     assert Path(path).is_file()

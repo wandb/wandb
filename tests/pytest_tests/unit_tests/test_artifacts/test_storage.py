@@ -190,6 +190,20 @@ def test_storing_a_file_without_a_location():
     storage_policy.store_file_sync("artifact_id", "manifest_id", manifest_entry, None)
 
 
+def test_load_file_reference_caches_files(tmp_path):
+    file = tmp_path / "file.txt"
+    file.write_text("hello")
+    digest = "XUFAKrxLKna5cZ2REBfFkg=="
+    handler = wandb_artifacts.LocalFileHandler()
+    cache = wandb.sdk.interface.artifacts.artifact_cache.get_artifacts_cache()
+    entry = ArtifactManifestEntry(
+        path="foo/bar", digest=digest, ref=file.as_uri(), size=123
+    )
+    path = handler.load_path(entry)
+
+    assert Path(path).relative_to(cache._cache_dir)
+
+
 def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
