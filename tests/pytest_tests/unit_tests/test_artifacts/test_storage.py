@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
+from wandb.sdk.interface.artifacts import ArtifactNotLoggedError
 from wandb.sdk.internal.artifacts import get_staging_dir
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_artifacts import ArtifactManifestEntry
@@ -168,6 +169,18 @@ def test_artifacts_cache_cleanup_tmp_files(cache):
     reclaimed_bytes = cache.cleanup(10000)
 
     assert reclaimed_bytes == 1000
+
+
+def test_cache_refuses_unlogged_artifact(cache):
+    artifact = wandb_artifacts.Artifact("test", type="test")
+    with pytest.raises(ArtifactNotLoggedError):
+        cache.store_artifact(artifact)
+
+
+def test_cache_refuses_wandb_as_client(cache):
+    artifact = wandb_artifacts.Artifact("test", type="test")
+    with pytest.raises(ValueError, match="Only wandb.Artifacts have a client id"):
+        cache.store_client_artifact(artifact)
 
 
 def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
