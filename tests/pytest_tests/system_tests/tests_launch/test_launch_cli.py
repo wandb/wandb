@@ -275,3 +275,40 @@ def test_launch_build_with_local(
             "Cannot build a docker image for the resource: local-process"
             in result.output
         )
+
+
+def test_agent_stop_polling(runner, monkeypatch, user, test_settings):
+
+    args = ["--entity", user, "--queue", "default"]
+
+    def patched_pop_empty_queue(self, queue):
+        # patch to no result, agent should read stopPolling and stop
+        return None
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        lambda c, queue: patched_pop_empty_queue(c, queue),
+    )
+
+    monkeypatch.setattr(
+        "wandb.init", lambda project, entity, settings, id, job_type: None
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.create_launch_agent",
+        lambda c, e, p, q, g: {"launchAgentId": "mock_agent_id"},
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.get_launch_agent",
+        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
+        lambda c, i, s, g: {"success": True},
+    )
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch_agent, args)
+
+    assert "Shutting down, active jobs" in result.output

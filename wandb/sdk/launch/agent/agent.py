@@ -172,11 +172,20 @@ class LaunchAgent:
             wandb.termwarn(
                 f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
             )
-        
-        agent_response = self._api.get_launch_agent(self._id, self.gorilla_supports_agents)
-        self._name = agent_response["name"]
 
-        settings = wandb.Settings(silent=True)
+        agent_response = self._api.get_launch_agent(
+            self._id, self.gorilla_supports_agents
+        )
+        self._name = agent_response["name"]
+        if self.gorilla_supports_agents:
+            self._init_agent_run()
+
+    def fail_run_queue_item(self, run_queue_item_id: str) -> None:
+        if self._gorilla_supports_fail_run_queue_items:
+            self._api.fail_run_queue_item(run_queue_item_id)
+
+    def _init_agent_run(self):
+        settings = wandb.Settings(silent=True, disable_git=True)
         wandb.init(
             project=self._project,
             entity=self._entity,
@@ -184,10 +193,6 @@ class LaunchAgent:
             id=self._name,
             job_type=HIDDEN_AGENT_RUN_TYPE,
         )
-
-    def fail_run_queue_item(self, run_queue_item_id: str) -> None:
-        if self._gorilla_supports_fail_run_queue_items:
-            self._api.fail_run_queue_item(run_queue_item_id)
 
     @property
     def thread_ids(self) -> List[int]:
