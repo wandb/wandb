@@ -5,10 +5,75 @@ import hashlib
 import pytest
 from hypothesis import composite, given
 from hypothesis import strategies as st
+from wandb.sdk.lib import hashutil
 from wandb.sdk.lib.hashutil import B64_MD5 as B64MD5
 from wandb.sdk.lib.hashutil import Digest, MD5Digest, RefDigest
 from wandb.sdk.lib.hashutil import E_Tag as ETag
 from wandb.sdk.lib.hashutil import Hex_MD5 as HexMD5
+
+
+def test_md5_string():
+    assert hashutil.md5_string("") == "1B2M2Y8AsgTpgAmY7PhCfg=="
+    assert hashutil.md5_string("foo") == "rL0Y20zC+Fzt72VPzMSk2A=="
+
+
+@given(st.binary())
+def test_hex_to_b64_id(data):
+    hex_str = data.hex()
+    assert hashutil.hex_to_b64_id(hex_str) == base64.b64encode(data).decode("ascii")
+
+
+@given(st.binary())
+def test_hex_to_b64_id_bytes(data):
+    hex_bytes = data.hex().encode("ascii")
+    assert hashutil.hex_to_b64_id(hex_bytes) == base64.b64encode(data).decode("ascii")
+
+
+@given(st.binary())
+def test_b64_to_hex_id(data):
+    b64str = base64.b64encode(data).decode("ascii")
+    assert hashutil.b64_to_hex_id(b64str) == data.hex()
+
+
+@given(st.binary())
+def test_b64_to_hex_id_bytes(data):
+    b64 = base64.b64encode(data)
+    assert hashutil.b64_to_hex_id(b64) == data.hex()
+
+
+def test_md5_file_b64_no_files():
+    b64hash = base64.b64encode(hashlib.md5(b"").digest()).decode("ascii")
+    assert b64hash == hashutil.md5_file_b64()
+
+
+@given(st.binary())
+def test_md5_file_hex_single_file(data):
+    open("binfile", "wb").write(data)
+    assert hashlib.md5(data).hexdigest() == hashutil.md5_file_hex("binfile")
+
+
+@given(st.binary(), st.text(), st.binary())
+def test_md5_file_b64_three_files(data1, text, data2):
+    open("a.bin", "wb").write(data1)
+    open("b.txt", "w", encoding="utf-8").write(text)
+    open("c.bin", "wb").write(data2)
+    data = data1 + open("b.txt", "rb").read() + data2
+    # Intentionally provide the paths out of order (check sorting).
+    path_hash = hashutil.md5_file_b64("c.bin", "a.bin", "b.txt")
+    b64hash = base64.b64encode(hashlib.md5(data).digest()).decode("ascii")
+    assert b64hash == path_hash
+
+
+@given(st.binary(), st.text(), st.binary())
+def test_md5_file_hex_three_files(data1, text, data2):
+    open("a.bin", "wb").write(data1)
+    open("b.txt", "w", encoding="utf-8").write(text)
+    open("c.bin", "wb").write(data2)
+    data = data1 + open("b.txt", "rb").read() + data2
+    # Intentionally provide the paths out of order (check sorting).
+    path_hash = hashutil.md5_file_hex("c.bin", "a.bin", "b.txt")
+    assert hashlib.md5(data).hexdigest() == path_hash
+
 
 digests = st.binary(min_size=8, max_size=64)
 
@@ -29,19 +94,19 @@ def test_b64md5_string():
 
 
 @given(st.binary(min_size=16))
-def test_hex_to_b64_id(data):
+def test_hex_to_b64_id_(data):
     hex_str = data.hex()
     assert B64MD5(HexMD5(hex_str)) == base64.b64encode(data).decode("ascii")
 
 
 @given(st.binary(min_size=16))
-def test_b64_to_hex_id(data):
+def test_b64_to_hex_id_(data):
     b64str = base64.b64encode(data).decode("ascii")
     assert HexMD5(B64MD5(b64str)) == data.hex()
 
 
 @given(st.binary())
-def test_b64_to_hex_id_bytes(data):
+def test_b64_to_hex_id_bytes_(data):
     b64 = base64.b64encode(data)
     assert HexMD5(B64MD5.from_bytes(b64)) == data.hex()
 
@@ -98,19 +163,19 @@ def test_invalid_b64md5():
             B64MD5(wrong_length)
 
 
-def test_md5_file_b64_no_files():
+def test_md5_file_b64_no_files_():
     b64hash = base64.b64encode(hashlib.md5(b"").digest()).decode("ascii")
     assert b64hash == B64MD5.hash_files()
 
 
 @given(st.binary())
-def test_md5_file_hex_single_file(data):
+def test_md5_file_hex_single_file_(data):
     open("binfile", "wb").write(data)
     assert hashlib.md5(data).hexdigest() == HexMD5.hash_files("binfile")
 
 
 @given(st.binary(), st.text(), st.binary())
-def test_md5_file_b64_three_files(data1, text, data2):
+def test_md5_file_b64_three_files_(data1, text, data2):
     open("a.bin", "wb").write(data1)
     open("b.txt", "w", encoding="utf-8").write(text)
     open("c.bin", "wb").write(data2)
@@ -122,7 +187,7 @@ def test_md5_file_b64_three_files(data1, text, data2):
 
 
 @given(st.binary(), st.text(), st.binary())
-def test_md5_file_hex_three_files(data1, text, data2):
+def test_md5_file_hex_three_files_(data1, text, data2):
     open("a.bin", "wb").write(data1)
     open("b.txt", "w", encoding="utf-8").write(text)
     open("c.bin", "wb").write(data2)

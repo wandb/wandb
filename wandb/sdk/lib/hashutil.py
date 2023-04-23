@@ -50,6 +50,15 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
     return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
+def _md5_file_hasher(*paths: StrPath) -> "hashlib._Hash":
+    md5_hash = _md5()
+    for path in sorted(str(p) for p in paths):
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(64 * 1024), b""):
+                md5_hash.update(chunk)
+    return md5_hash
+
+
 class Digest(str, ABC):
     def __new__(cls, digest: Union[str, bytes, "Digest"]) -> "Digest":
         if isinstance(digest, "Digest"):
@@ -85,23 +94,6 @@ class MD5Digest(Digest):
     @classmethod
     def hash_files(cls, *paths: StrPath) -> "MD5Digest":
         return cls.from_bytes(_md5_file_hasher(*paths).digest())
-
-
-def _md5(data: bytes = b"") -> "hashlib._Hash":
-    """Allow FIPS-compliant md5 hash when supported."""
-    if sys.version_info >= (3, 9):
-        return hashlib.md5(data, usedforsecurity=False)
-    else:
-        return hashlib.md5(data)
-
-
-def _md5_file_hasher(*paths: StrPath) -> "hashlib._Hash":
-    md5_hash = _md5()
-    for path in sorted(str(p) for p in paths):
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(64 * 1024), b""):
-                md5_hash.update(chunk)
-    return md5_hash
 
 
 class B64_MD5(MD5Digest):  # noqa: N801
