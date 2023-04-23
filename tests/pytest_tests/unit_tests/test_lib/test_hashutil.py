@@ -5,7 +5,10 @@ import hashlib
 import pytest
 from hypothesis import composite, given
 from hypothesis import strategies as st
-from wandb.sdk.lib.hashutil import B64MD5, Digest, ETag, HexMD5, MD5Digest, RefDigest
+from wandb.sdk.lib.hashutil import B64_MD5 as B64MD5
+from wandb.sdk.lib.hashutil import Digest, MD5Digest, RefDigest
+from wandb.sdk.lib.hashutil import E_Tag as ETag
+from wandb.sdk.lib.hashutil import Hex_MD5 as HexMD5
 
 digests = st.binary(min_size=8, max_size=64)
 

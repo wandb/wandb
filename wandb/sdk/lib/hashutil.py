@@ -3,13 +3,51 @@ import binascii
 import hashlib
 import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, NewType, Union
 
 if TYPE_CHECKING:
     import os
 
-
 StrPath = Union[str, "os.PathLike[str]"]
+
+ETag = NewType("ETag", str)
+HexMD5 = NewType("HexMD5", str)
+B64MD5 = NewType("B64MD5", str)
+
+
+def _md5(data: bytes = b"") -> "hashlib._Hash":
+    """Allow FIPS-compliant md5 hash when supported."""
+    if sys.version_info >= (3, 9):
+        return hashlib.md5(data, usedforsecurity=False)
+    else:
+        return hashlib.md5(data)
+
+
+def md5_string(string: str) -> B64MD5:
+    return _b64_from_hasher(_md5(string.encode("utf-8")))
+
+
+def _b64_from_hasher(hasher: "hashlib._Hash") -> B64MD5:
+    return B64MD5(base64.b64encode(hasher.digest()).decode("ascii"))
+
+
+def b64_to_hex_id(string: B64MD5) -> HexMD5:
+    return HexMD5(base64.standard_b64decode(string).hex())
+
+
+def hex_to_b64_id(encoded_string: Union[str, bytes]) -> B64MD5:
+    if isinstance(encoded_string, bytes):
+        encoded_string = encoded_string.decode("utf-8")
+    as_str = bytes.fromhex(encoded_string)
+    return B64MD5(base64.standard_b64encode(as_str).decode("utf-8"))
+
+
+def md5_file_b64(*paths: StrPath) -> B64MD5:
+    return _b64_from_hasher(_md5_file_hasher(*paths))
+
+
+def md5_file_hex(*paths: StrPath) -> HexMD5:
+    return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
 class Digest(str, ABC):
@@ -66,7 +104,7 @@ def _md5_file_hasher(*paths: StrPath) -> "hashlib._Hash":
     return md5_hash
 
 
-class B64MD5(MD5Digest):
+class B64_MD5(MD5Digest):  # noqa: N801
     """Base64 encoded MD5 digest."""
 
     def __init__(self) -> None:
@@ -79,10 +117,10 @@ class B64MD5(MD5Digest):
         return base64.standard_b64decode(self)
 
     def from_bytes(self, bytes_: bytes) -> Digest:
-        return B64MD5(base64.standard_b64encode(bytes_).decode("ascii"))
+        return B64_MD5(base64.standard_b64encode(bytes_).decode("ascii"))
 
 
-class HexMD5(MD5Digest):
+class Hex_MD5(MD5Digest):  # noqa: N801
     """Hex encoded MD5 digest."""
 
     def __init__(self) -> None:
@@ -95,10 +133,10 @@ class HexMD5(MD5Digest):
         return bytes.fromhex(self)
 
     def from_bytes(self, bytes_: bytes) -> Digest:
-        return HexMD5(bytes_.hex())
+        return Hex_MD5(bytes_.hex())
 
 
-class ETag(Digest):
+class E_Tag(Digest):  # noqa: N801
     """Entity Tag for an object in remote storage.
 
     ETags are often but not always MD5 digests. Sometimes they are hex encoded,
@@ -106,7 +144,7 @@ class ETag(Digest):
     an object's contents change, so we can't validate them in any way.
     """
 
-    def __new__(cls, digest: Union[str, bytes, "Digest"]) -> "Digest":
+    def __new__(cls, digest: Union[str, bytes, Digest]) -> Digest:
         if isinstance(digest, bytes):
             raise ValueError(f"Unable to construct ETag from byte value: {digest!r}")
         # Don't change the representation of a Digest.
