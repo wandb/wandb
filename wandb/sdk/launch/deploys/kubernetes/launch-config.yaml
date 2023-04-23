@@ -74,19 +74,12 @@ roleRef:
 apiVersion: v1
 data:
   launch-config.yaml: |
-    base_url: https://api.wandb.ai # TODO: set wandb base url
+    base_url: https://qa.wandb.ai # TODO: set wandb base url
     max_jobs: -1 # TODO: set max concurrent jobs here
     queues:
     - default # TODO: set queue name here
-    environment:
-      type: aws
-      region: us-east-1 # TODO: set aws region here
-    registry:
-      type: ecr
-      repository: # TODO: set ecr repository name here
     builder:
-      type: kaniko
-      build-context-store: s3://my-bucket/... # TODO: set your build context store here
+      type: noop
 
 kind: ConfigMap
 metadata:
@@ -100,4 +93,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: "" ### API KEY HERE
+  password: "e3b128254499772882e0ebe97ddf0fb0ca578437" ### API KEY HERE
