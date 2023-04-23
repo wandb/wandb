@@ -225,11 +225,13 @@ def test_edit_after_add(wandb_init):
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
     staging_dir = Path(wandb_sdk.internal.staging.get_staging_dir())
 
     def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
+        files = [f for f in staging_dir.rglob("*") if f.is_file()]
+        staging_files = [f for f in files if not f.name.startswith(".")]
+        return sum(f.stat().st_size for f in staging_files)
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
     with open("random.bin", "wb") as f:

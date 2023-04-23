@@ -319,7 +319,9 @@ def test_add_changed_by_name(monkeypatch, tmp_path):
     assert len(artifact.manifest.entries) == 1
 
     # The first staging copy should have been deleted.
-    assert len(list(tmp_path.rglob("*"))) == 1
+    staging_files = list(str(f) for f in tmp_path.rglob("*") if f.is_file())
+    for f in staging_files:
+        assert "file1.txt" not in f
 
     entry = artifact.manifest.entries["great-file.txt"]
     assert Path(entry.local_path).read_text() == "goodbye"

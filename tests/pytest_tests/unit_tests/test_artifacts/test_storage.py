@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
-from wandb.sdk.internal.staging import get_staging_dir
+from wandb.sdk.internal import staging
 
 
 def test_opener_rejects_append_mode(cache):
@@ -367,5 +367,8 @@ def test_unwritable_staging_dir(monkeypatch):
 
     monkeypatch.setattr(os, "makedirs", nope)
 
+    # we need to unset this if other tests have already opened it.
+    global _staging_dir
+    staging._staging_dir = None
     with pytest.raises(PermissionError, match="is not writable"):
-        _ = get_staging_dir()
+        _ = staging.get_staging_dir()
