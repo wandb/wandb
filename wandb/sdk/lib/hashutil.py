@@ -2,6 +2,7 @@ import base64
 import binascii
 import hashlib
 import sys
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
@@ -11,23 +12,25 @@ if TYPE_CHECKING:
 StrPath = Union[str, "os.PathLike[str]"]
 
 
-class Digest(str):
-    def __new__(cls, digest: str) -> "Digest":
+class Digest(str, ABC):
+    def __new__(cls, digest: Union[str, bytes, "Digest"]) -> "Digest":
         if isinstance(digest, "Digest"):
             return cls.from_bytes(bytes(digest))
         if isinstance(digest, bytes):
             return cls.from_bytes(digest)
         return super().__new__(cls, digest)
 
+    @abstractmethod
     def __init__(self) -> None:
         """Ensure the input is a valid digest."""
-        raise NotImplementedError
 
+    @abstractmethod
     def __bytes__(self) -> bytes:
-        raise NotImplementedError
+        """Convert to the byte representation if there is one."""
 
+    @abstractmethod
     def from_bytes(self, bytes_: bytes) -> "Digest":
-        raise NotImplementedError
+        """Convert from the byte representation if there is one."""
 
 
 class MD5Digest(Digest):
@@ -103,11 +106,17 @@ class ETag(Digest):
     an object's contents change, so we can't validate them in any way.
     """
 
+    def __new__(cls, digest: Union[str, bytes, "Digest"]) -> "Digest":
+        if isinstance(digest, bytes):
+            raise ValueError(f"Unable to construct ETag from byte value: {digest!r}")
+        # Don't change the representation of a Digest.
+        return super().__new__(cls, str(digest))
+
     def __init__(self) -> None:
-        # A base-64 encoded CRC32 is 6 characters long and a hex encoded FNV-1a can be
-        # up to 256 characters; lengths outside this range are unreasonable and probably
+        # A base-64 encoded MD5 is 24 characters long and a hex encoded SHA-512 can be
+        # up to 128 characters; lengths outside this range are unreasonable and probably
         # a programming error (e.g. using the contents of the file instead of the ETag).
-        if len(self) < 6 or len(bytes(self)) > 256:
+        if len(self) < 24 or len(self) > 128:
             raise ValueError(f"Etags must be between 16 and 64 bytes: {self!r}")
 
     def __bytes__(self) -> bytes:
@@ -137,6 +146,9 @@ class ETag(Digest):
             return base64.urlsafe_b64decode(self)
         except (ValueError, binascii.Error):
             raise ValueError(f"Unable to decode ETag: {self!r}")
+
+    def from_bytes(self, bytes_: bytes) -> Digest:
+        raise ValueError(f"Unable to construct ETag from byte value: {bytes_!r}")
 
 
 class RefDigest(Digest):
