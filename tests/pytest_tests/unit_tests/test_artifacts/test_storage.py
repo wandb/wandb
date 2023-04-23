@@ -183,6 +183,12 @@ def test_cache_refuses_wandb_as_client(cache):
         cache.store_client_artifact(artifact)
 
 
+def test_storing_a_file_without_a_location():
+    storage_policy = wandb_artifacts.wandb_artifacts.StoragePolicy()
+    manifest_entry = ArtifactManifestEntry(path="foo/bar", digest="XUFAK", size=0)
+    storage_policy.store_file_sync("artifact_id", "manifest_id", manifest_entry, None)
+
+
 def test_local_file_handler_load_path_uses_cache(cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
