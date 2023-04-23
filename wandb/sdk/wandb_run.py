@@ -52,7 +52,7 @@ from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.paths import LocalPath, LogicalPath, StrPath
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -3840,18 +3840,18 @@ class _LazyArtifact(ArtifactInterface):
     def get_path(self, name: StrPath) -> "ArtifactManifestEntry":
         return self._instance.get_path(name)
 
-    def get(self, name: str) -> "WBValue":
+    def get(self, name: StrPath) -> "WBValue":
         return self._instance.get(name)
 
     def download(
-        self, root: Optional[str] = None, recursive: bool = False
-    ) -> FilePathStr:
+        self, root: Optional[StrPath] = None, recursive: bool = False
+    ) -> LocalPath:
         return self._instance.download(root, recursive)
 
-    def checkout(self, root: Optional[str] = None) -> str:
+    def checkout(self, root: Optional[StrPath] = None) -> LocalPath:
         return self._instance.checkout(root)
 
-    def verify(self, root: Optional[str] = None) -> Any:
+    def verify(self, root: Optional[StrPath] = None) -> Any:
         return self._instance.verify(root)
 
     def save(self) -> None:

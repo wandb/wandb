@@ -11,7 +11,7 @@ from wandb import env, util
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import LocalPath, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -303,8 +303,8 @@ class ArtifactSaver:
                     pass
 
 
-def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+def get_staging_dir() -> LocalPath:
+    path = LocalPath(env.get_data_dir(), "artifacts", "staging")
     try:
         mkdir_exists_ok(path)
     except OSError as e:
@@ -313,4 +313,4 @@ def get_staging_dir() -> FilePathStr:
             f"{env.DATA_DIR} to a directory where you have the necessary write access."
         ) from e
 
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
+    return path.expanduser().absolute()
