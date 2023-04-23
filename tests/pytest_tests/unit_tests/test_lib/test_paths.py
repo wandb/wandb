@@ -1,6 +1,6 @@
 import os
 import platform
-from pathlib import PurePath, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 
 import pytest
 from hypothesis import example, given, settings
@@ -9,6 +9,7 @@ from hypothesis_fspaths import fspaths
 from wandb.sdk.lib.paths import (
     PROHIBITED_CHARS,
     RESERVED_NAMES,
+    LocalPath,
     LogicalPath,
     sanitize_path,
 )
@@ -86,6 +87,39 @@ def test_logical_path_acts_like_posix_path(path1, path2):
     path2 = LogicalPath(path2)
     assert path1 / path2 == path1.joinpath(path2)
     assert path1 / PurePosixPath("/foo") == LogicalPath("/foo")
+    assert (path1 == PurePosixPath(path2)) == (path1 == path2)
+    assert (path1 != PurePosixPath(path2)) == (path1 != path2)
+
+
+@given(fspaths())
+def test_local_path_is_idempotent(path):
+    local_path = LocalPath(path)
+    assert local_path == LocalPath(local_path)
+    assert str(local_path) == local_path
+    assert Path(local_path) == local_path
+
+
+@given(fspaths(), fspaths())
+def test_local_path_acts_like_posix_path(path1, path2):
+    path1 = LocalPath(path1)
+    assert path1.is_absolute() == Path(path1).is_absolute()
+    assert path1.parts == Path(path1).parts
+    if path1.is_absolute():
+        assert path1.root == "/"
+        assert path1.as_uri() == Path(path1).as_uri()
+        assert not path1.relative_to(path1.root).is_absolute()
+    else:
+        assert path1.anchor == ""
+
+    itself = path1.joinpath("bar").parent
+    assert isinstance(itself, LocalPath)
+    assert Path(itself) == Path(path1)
+
+    path2 = LocalPath(path2)
+    assert path1 / path2 == path1.joinpath(path2)
+    assert path1 / Path("/foo") == LocalPath("/foo")
+    assert (path1 == Path(path2)) == (Path(path1) == Path(path2))
+    assert (path1 != Path(path2)) == (Path(path1) != Path(path2))
 
 
 def test_sanitize_path_on_awful_input():

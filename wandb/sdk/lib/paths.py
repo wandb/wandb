@@ -1,7 +1,7 @@
 import os
 import platform
 from functools import wraps
-from pathlib import PurePath, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any, NewType, Union
 
 # Path _inputs_ should generally accept any kind of path. This is named the same and
@@ -20,6 +20,57 @@ FilePathStr = NewType("FilePathStr", str)
 
 # A URI. Likewise, it should be a urllib.parse.ParseResult, but it's too late now.
 URIStr = NewType("URIStr", str)
+
+
+class LocalPath(str):
+    """A string that represents a path on the local filesystem.
+
+    It can be used as a pathlib.Path object.
+    """
+
+    def __new__(cls, path: StrPath) -> "LocalPath":
+        if hasattr(path, "__fspath__"):
+            path = path.__fspath__()
+        if isinstance(path, bytes):
+            path = os.fsdecode(path)
+        return super().__new__(cls, str(Path(path)))
+
+    def to_path(self) -> Path:
+        """Convert to a local pathlib.Path."""
+        return Path(self)
+
+    def __getattr__(self, attr: str) -> Any:
+        """Act like a subclass of pathlib.Path for all methods not defined on str."""
+        result = getattr(self.to_path(), attr)
+        if isinstance(result, Path):
+            return LocalPath(result)
+        if callable(result):
+
+            @wraps(result)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                inner_result = result(*args, **kwargs)
+                if isinstance(inner_result, Path):
+                    return LocalPath(inner_result)
+                return inner_result
+
+            return wrapper
+        return result
+
+    def __truediv__(self, other: StrPath) -> "LocalPath":
+        """Act like a PurePosixPath for the / operator, but return a LocalPath."""
+        return LocalPath(self.to_path() / other)
+
+    def __eq__(self, other: object) -> bool:
+        """Compare equal with Path objects."""
+        if isinstance(other, Path):
+            return self.to_path() == other
+        return super().__eq__(other)
+
+    def __ne__(self, other: object) -> bool:
+        """Compare not equal with Path objects."""
+        if isinstance(other, Path):
+            return self.to_path() != other
+        return super().__ne__(other)
 
 
 class LogicalPath(str):
@@ -97,6 +148,18 @@ class LogicalPath(str):
     def __truediv__(self, other: StrPath) -> "LogicalPath":
         """Act like a PurePosixPath for the / operator, but return a LogicalPath."""
         return LogicalPath(self.to_path() / other)
+
+    def __eq__(self, other: object) -> bool:
+        """Compare equal with PurePosixPath objects."""
+        if isinstance(other, PurePosixPath):
+            return self.to_path() == other
+        return super().__eq__(other)
+
+    def __ne__(self, other: object) -> bool:
+        """Compare not equal with PurePosixPath objects."""
+        if isinstance(other, PurePosixPath):
+            return self.to_path() != other
+        return super().__ne__(other)
 
 
 PROHIBITED_CHARS = r'<>:"|?*'
