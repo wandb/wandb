@@ -255,9 +255,10 @@ def test_unstaging_refuses_to_delete_files_not_in_staging(
     monkeypatch.setattr(wandb, "termerror", termerror)
 
     artifact = wandb.Artifact("test", type="dataset")
-    with wandb_init():
+    with wandb_init() as run:
         entry = artifact.add_file(example_file)
         entry.local_path = str(example_file)
+        run.log_artifact(artifact)
     artifact.wait()
 
     assert termerror.call_count >= 1
@@ -274,9 +275,10 @@ def test_unstaging_skips_files_it_cant_delete(wandb_init, example_file, monkeypa
     monkeypatch.setattr("pathlib.Path.chmod", disallowed)
 
     artifact = wandb.Artifact("test", type="dataset")
-    with wandb_init():
+    with wandb_init() as run:
         entry = artifact.add_file(example_file)
         entry.local_path = str(example_file)
+        run.log_artifact(artifact)
     artifact.wait()
 
     assert termerror.call_count >= 1
@@ -315,8 +317,9 @@ def test_cache_add_gives_useful_error_when_out_of_space(
 
     artifact = wandb.Artifact("test", type="dataset")
     with pytest.raises(OSError, match="out of space"):
-        with wandb_init():
+        with wandb_init() as run:
             artifact.add_dir(example_files)
+            run.log_artifact(artifact)
         artifact.wait()
 
     assert termerror.call_count >= 1
