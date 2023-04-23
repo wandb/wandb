@@ -3,6 +3,7 @@ import base64
 import os
 import random
 from multiprocessing import Pool
+from urllib.parse import urlparse
 
 import pytest
 import wandb
@@ -351,7 +352,7 @@ def test_storage_handler_incomplete():
     ush = UnfinishedStorageHandler()
 
     with pytest.raises(NotImplementedError):
-        ush.scheme()
+        ush.can_handle(parsed_url=urlparse("https://wandb.com"))
     with pytest.raises(NotImplementedError):
         ush.load_path(manifest_entry=None)
     with pytest.raises(NotImplementedError):

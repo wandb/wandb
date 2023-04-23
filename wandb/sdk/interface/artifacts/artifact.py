@@ -322,6 +322,9 @@ class Artifact:
           versioning is enabled, then the version ID is also tracked.
         - gs: The checksum and size will be pulled from the object metadata. If bucket
           versioning is enabled, then the version ID is also tracked.
+        - https, domain matching *.blob.core.windows.net (Azure): The checksum and size
+          will be pulled from the blob metadata. If storage account versioning is
+          enabled, then the version ID is also tracked.
         - file: The checksum and size will be pulled from the file system. This scheme
           is useful if you have an NFS share or other externally mounted volume
           containing files you wish to track but not necessarily upload.
@@ -331,19 +334,17 @@ class Artifact:
 
         Arguments:
             uri: (str) The URI path of the reference to add. Can be an object returned
-            from
-                Artifact.get_path to store a reference to another artifact's entry.
+                from Artifact.get_path to store a reference to another artifact's entry.
             name: (str) The path within the artifact to place the contents of this
-            reference checksum: (bool, optional) Whether or not to checksum the
-            resource(s) located at the
-                reference URI. Checksumming is strongly recommended as it enables
-                automatic integrity validation, however it can be disabled to speed up
-                artifact creation. (default: True)
+                reference
+            checksum: (bool, optional) Whether or not to checksum the resource(s)
+                located at the reference URI. Checksumming is strongly recommended as it
+                enables automatic integrity validation, however it can be disabled to
+                speed up artifact creation. (default: True)
             max_objects: (int, optional) The maximum number of objects to consider when
-            adding a
-                reference that points to directory or bucket store prefix. For S3 and
-                GCS, this limit is 10,000 by default but is uncapped for other URI
-                schemes. (default: None)
+                adding a reference that points to directory or bucket store prefix. For
+                S3 and GCS, this limit is 10,000 by default but is uncapped for other
+                URI schemes. (default: None)
 
         Raises:
             ArtifactFinalizedError: if the artifact has already been finalized.
