@@ -26,7 +26,6 @@ _logger = logging.getLogger(__name__)
 
 
 def resolve_agent_config(  # noqa: C901
-    api: Api,
     entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[int],
@@ -47,13 +46,10 @@ def resolve_agent_config(  # noqa: C901
         Tuple[Dict[str, Any], Api]: The resolved config and api.
     """
     defaults = {
-        "entity": api.default_entity,
         "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
         "max_schedulers": 1,
         "queues": [],
-        "api_key": api.api_key,
-        "base_url": api.settings("base_url"),
         "registry": {},
         "builder": {},
         "runner": {},
@@ -108,19 +104,17 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    if (
-        resolved_config["entity"] != defaults["entity"]
-        or resolved_config["api_key"] != defaults["api_key"]
-        or resolved_config["base_url"] != defaults["base_url"]
-    ):
-        settings = dict(
-            api_key=resolved_config["api_key"],
-            base_url=resolved_config["base_url"],
-            project=resolved_config["project"],
-            entity=resolved_config["entity"],
-        )
-        api = Api(default_settings=settings)
+    settings = dict(
+        api_key=resolved_config.get("api_key"),
+        base_url=resolved_config.get("base_url"),
+        project=resolved_config.get("project"),
+        entity=resolved_config.get("entity"),
+    )
 
+    api = Api(default_settings=settings)
+
+    if resolved_config.get("entity") is None:
+        resolved_config.update({"entity": api.default_entity})
     if user_set_project:
         wandb.termwarn(
             "Specifying a project for the launch agent is deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
