@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
+from wandb.sdk import wandb_artifacts
 from wandb.sdk.wandb_artifacts import Artifact
 from wandb.sdk.wandb_run import Run, WaitTimeoutError
 
@@ -379,6 +380,14 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch)
         assert file1 == file2  # Same path, but the content should have changed.
         assert file2.is_file()
         assert file2.read_text() == "hello"
+
+
+def test_artifact_missing_file_re_downloads(logged_artifact):
+    handler = wandb_artifacts.GCSHandler()
+    cache = wandb_sdk.interface.artifacts.artifact_cache.get_artifact_cache()
+    cache.cleanup(0)
+    path = handler.load_path(logged_artifact.manifest.entries[0])
+    assert Path(path).is_file()
 
 
 @pytest.mark.parametrize("path_type", [str, Path])

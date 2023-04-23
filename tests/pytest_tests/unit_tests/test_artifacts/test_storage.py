@@ -177,8 +177,9 @@ def test_cache_refuses_unlogged_artifact(cache):
         cache.store_artifact(artifact)
 
 
-def test_cache_refuses_wandb_as_client(cache):
+def test_cache_refuses_missing_client_id(cache):
     artifact = wandb_artifacts.Artifact("test", type="test")
+    del artifact._client_id
     with pytest.raises(ValueError, match="Only wandb.Artifacts have a client id"):
         cache.store_client_artifact(artifact)
 
