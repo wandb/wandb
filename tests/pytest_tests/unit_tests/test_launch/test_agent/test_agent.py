@@ -35,6 +35,50 @@ def test_loop_capture_stack_trace(mocker):
     assert "Traceback (most recent call last):" in mocker.termerror.call_args[0][0]
 
 
+def test_run_job_secure_mode(mocker):
+    _setup(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+        "secure_mode": True,
+    }
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+
+    jobs = [
+        {
+            "runSpec": {
+                "resource_args": {
+                    "kubernetes": {"spec": {"template": {"spec": {"hostPID": True}}}}
+                }
+            }
+        },
+        {
+            "runSpec": {
+                "resource_args": {
+                    "kubernetes": {
+                        "spec": {
+                            "template": {
+                                "spec": {
+                                    "containers": [{}, {"command": ["some", "code"]}]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
+    ]
+    errors = [
+        'This agent is configured to lock "hostPID" in pod spec but the job specification attempts to override it.',
+        'This agent is configured to lock "command" in container spec but the job specification attempts to override it.',
+        'This agent is configured to lock the "entrypoint" override but the job specification attempts to override it.',
+    ]
+    for job, error in zip(jobs, errors):
+        with pytest.raises(ValueError, match=error):
+            agent.run_job(job)
+
+
 def test_team_entity_warning(mocker):
     _setup(mocker)
     mocker.api.entity_is_team = MagicMock(return_value=True)
@@ -191,6 +235,25 @@ def test_thread_finish_run_fail_start_old_server(mocker):
     job.run_id = "test_run_id"
     agent._jobs_lock = MagicMock()
     agent._jobs = {"thread_1": job}
+    agent.finish_thread_id("thread_1")
+    assert len(agent._jobs) == 0
+    assert not mocker.api.fail_run_queue_item.called
+
+
+def test_thread_finish_run_fail_different_entity(mocker):
+    _setup_thread_finish(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    job = JobAndRunStatus("run_queue_item_id")
+    job.run_id = "test_run_id"
+    job.project = "test-project"
+    job.entity = "other-entity"
+    agent._jobs = {"thread_1": job}
+    agent._jobs_lock = MagicMock()
     agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
     assert not mocker.api.fail_run_queue_item.called

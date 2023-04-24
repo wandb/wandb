@@ -203,8 +203,6 @@ def test_launch_cli_with_config_file_and_params(
             [
                 "-c",
                 "config.json",
-                "-a",
-                "epochs=1",
                 "-u" "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
@@ -229,8 +227,6 @@ def test_launch_cli_with_config_and_params(
             [
                 "-c",
                 json.dumps(config),
-                "-a",
-                "epochs=1",
                 "-u",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
