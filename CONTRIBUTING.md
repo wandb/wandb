@@ -482,7 +482,7 @@ The interfaces are described here:
 
 Good examples of tests for each level of testing can be found at:
 
-- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metric/test_system_metrics_*.py): User process tests
+- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metrics/test_system_metrics_*.py): User process tests
 - [test_metric_internal.py](tests/pytest_tests/system_tests/test_metric_internal.py): Internal process tests
 - [test_metric_full.py](tests/pytest_tests/system_tests/test_metric_full.py): Full stack tests
 
