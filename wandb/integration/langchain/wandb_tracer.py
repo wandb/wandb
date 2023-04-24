@@ -1,17 +1,17 @@
 """This module contains an integration with the LangChain library.
 
-Specifically, it exposes
-a `WandbTracer` class that can be used to stream LangChain activity to W&B. The intended
-usage pattern is to call `WandbTracer.init()` at the top of the script/notebook, and call
-`WandbTracer.finish()` at the end of the script/notebook. This will automatically stream
-all LangChain activity to W&B.
+Specifically, it exposes a `WandbTracer` class that can be used to stream
+LangChain activity to W&B. The intended usage pattern is to call
+`WandbTracer.init()` at the top of the script/notebook, and call
+`WandbTracer.finish()` at the end of the script/notebook. This will
+automatically stream all LangChain activity to W&B.
 
 Technical Note:
 LangChain is in very rapid development - meaning their APIs and schemas are actively changing.
-As a matter of precaution, any call to langchain apis, or use of their returned data is wrapped
-in a try/except block. This is to ensure that if a breaking change is introduced, the wandb
+As a matter of precaution, any call to LangChain apis, or use of their returned data is wrapped
+in a try/except block. This is to ensure that if a breaking change is introduced, the W&B
 integration will not break user code. The one exception to the rule is at import time. If
-langchain is not installed, or the symbols are not in the same place, the appropriate error
+LangChain is not installed, or the symbols are not in the same place, the appropriate error
 will be raised when importing this module.
 """
 
@@ -99,10 +99,10 @@ class WandbRunArgs(TypedDict):
 class WandbTracer(SharedTracer):
     """Callback Handler that logs to Weights and Biases.
 
-    Parameters:
-        run_args (dict): The arguments to pass to wandb.init().
-
-    This handler will log the model architecture and run traces to Weights and Biases.
+    This handler will log the model architecture and run traces to Weights and Biases. It is rare
+    that you will need to instantiate this class directly. Instead, you should use the
+    `WandbTracer.init()` method to set up the handler and make it the default handler. This will
+    ensure that all LangChain activity is logged to W&B.
     """
 
     _run: Optional["WBRun"] = None
@@ -117,15 +117,23 @@ class WandbTracer(SharedTracer):
     ) -> None:
         """Sets up a WandbTracer and makes it the default handler.
 
+        Parameters:
+            run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
+                called with no arguments. Please refer to the `wandb.init` for more details.
+            include_stdout: (bool, optional) If True, the `StdOutCallbackHandler` will be added to the list of
+                handlers. This is common practice when using LangChain as it prints useful information to stdout.
+            additional_handlers: (list, optional) A list of additional handlers to add to the list of LangChain handlers.
+
+
         To use W&B to
         monitor all LangChain activity, simply call this function at the top of
         the notebook or script:
         ```
         from wandb.integration.langchain import WandbTracer
-        WandbTracer.watch_all()
+        WandbTracer.init()
         # ...
         # end of notebook / script:
-        WandbTracer.stop_watch()
+        WandbTracer.finish()
         ```.
 
         It is safe to call this repeatedly with the same arguments (such as in a
@@ -143,7 +151,11 @@ class WandbTracer(SharedTracer):
 
     @staticmethod
     def finish() -> None:
-        """Stops watching all LangChain activity and resets the default handler."""
+        """Stops watching all LangChain activity and resets the default handler.
+
+        It is recommended to call this function before terminating the kernel or
+        python script.
+        """
         if WandbTracer._instance:
             cast(WandbTracer, WandbTracer._instance).finish_run()
             manager = get_callback_manager()
@@ -152,9 +164,15 @@ class WandbTracer(SharedTracer):
     def init_run(self, run_args: Optional[WandbRunArgs] = None) -> None:
         """Initialize wandb if it has not been initialized.
 
+        Parameters:
+            run_args: (dict, optional) Arguments to pass to `wandb.init()`. If not provided, `wandb.init()` will be
+                called with no arguments. Please refer to the `wandb.init` for more details.
+
         We only want to start a new run if the run args differ. This will reduce
         the number of W&B runs created, which is more ideal in a notebook
-        setting.
+        setting. Note: it is uncommon to call this method directly. Instead, you
+        should use the `WandbTracer.init()` method. This method is exposed if you
+        want to manually initialize the tracer and add it to the list of handlers.
         """
         # Add a check for differences between wandb.run and self._run
         if (
@@ -168,7 +186,7 @@ class WandbTracer(SharedTracer):
         self._run_args = run_args
         self._run = None
 
-        # Make a shallow copy of the run args so we don't modify the original
+        # Make a shallow copy of the run args, so we don't modify the original
         run_args = run_args or {}  # type: ignore
         run_args: dict = {**run_args}  # type: ignore
 
@@ -182,11 +200,7 @@ class WandbTracer(SharedTracer):
         print_wandb_init_message(self._run.settings.run_url)
 
     def finish_run(self) -> None:
-        """Waits for W&B data to upload.
-
-        It is recommended to call this function before terminating the kernel or
-        python script.
-        """
+        """Waits for W&B data to upload."""
         if self._run is not None:
             url = self._run.settings.run_url
             self._run.finish()
@@ -215,7 +229,7 @@ class WandbTracer(SharedTracer):
         )
         self._run.log({"langchain_trace": model_trace})
 
-    # Start of required methods
+    # Start of required methods (these methods are required by the BaseCallbackHandler interface)
     @property
     def always_verbose(self) -> bool:
         """Whether to call verbose callbacks even if verbose is False."""

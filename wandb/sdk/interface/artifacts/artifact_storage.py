@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 from wandb.util import FilePathStr, URIStr
 
 if TYPE_CHECKING:
+    from urllib.parse import ParseResult
+
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.interface.artifacts import Artifact, ArtifactManifestEntry
     from wandb.sdk.internal.progress import ProgressFn
@@ -77,12 +79,11 @@ class StoragePolicy:
 
 
 class StorageHandler:
-    @property
-    def scheme(self) -> str:
-        """The scheme this handler applies to.
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        """Checks whether this handler can handle the given url.
 
         Returns:
-            The scheme to which this handler applies.
+            Whether this handler can handle the given url.
         """
         raise NotImplementedError
 

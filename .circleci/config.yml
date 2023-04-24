@@ -294,7 +294,7 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       toxenv:
         type: string
       shard:
@@ -788,6 +788,7 @@ jobs:
     steps:
       - checkout
       - go/install
+      - gcloud/install
       - gcloud/install
       - setup_gcloud
       - create_gke_cluster:
@@ -1372,7 +1373,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,maccovercircle"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch --ignore=tests/pytest_tests/unit_tests_old/tests_s_nb"
 
       - mac:
@@ -1381,7 +1382,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,maccovercircle"
           tox_args: "tests/pytest_tests/unit_tests"
 
       #
@@ -1391,9 +1392,10 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
+              python_version_minor: [9]
               shard:
                 - "base"
+
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
           tox_args: "tests/functional_tests"
@@ -1401,15 +1403,18 @@ workflows:
           parallelism: 4
 
       - tox-base:
+          context: sdk-third-party-api
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [8]
+              python_version_minor: [9]
               shard:
-                - "langchain"
+                - "llm"
+                - "sklearn"
+                - "ray112"
+                - "ray2"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          # todo: func-covercircle doesn't work with python 3.8+, should be fixed
-          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
           tox_args: "tests/functional_tests"
 
       #
@@ -1421,15 +1426,12 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7]
               shard:
-                - "sklearn"
                 - "metaflow"
                 - "tf115"
                 - "tf21"
                 - "tf24"
                 - "tf25"
                 - "tf26"
-                - "ray112"
-                - "ray2"
                 - "service"
                 - "noml"
                 - "grpc"
