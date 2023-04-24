@@ -63,6 +63,8 @@ def monitor():
 
     def close(self):
         recorder.orig_close(self)
+        if not self.enabled:
+            return
         m = re.match(r".+(video\.\d+).+", getattr(self, path))
         if m:
             key = m.group(1)

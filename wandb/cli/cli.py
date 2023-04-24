@@ -1019,7 +1019,6 @@ def launch_sweep(
         repository=launch_args.get("registry", {}).get("url", None),
         job=None,
         version=None,
-        parameters=None,
         launch_config=None,
         run_id=None,
         author=None,  # author gets passed into scheduler command
@@ -1052,11 +1051,7 @@ def launch_sweep(
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
 
 
-@cli.command(
-    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
-    "uri of the form https://wandb.ai/entity/project/runs/run_id, "
-    "or a git uri pointing to a remote repository, or path to a local directory.",
-)
+@cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
 @click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
 @click.option(
     "--job",
@@ -1081,15 +1076,6 @@ def launch_sweep(
     metavar="GIT-VERSION",
     hidden=True,
     help="Version of the project to run, as a Git commit reference for Git projects.",
-)
-@click.option(
-    "--args-list",
-    "-a",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="An argument for the run, of the form -a name=value. Provided arguments that "
-    "are not in the list of arguments for an entry point will be passed to the "
-    "corresponding entry point as command-line arguments in the form `--name value`",
 )
 @click.option(
     "--name",
@@ -1191,7 +1177,6 @@ def launch(
     job,
     entry_point,
     git_version,
-    args_list,
     name,
     resource,
     entity,
@@ -1218,20 +1203,15 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    wandb._sentry.configure_scope(process_context="launch_cli")
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
+    wandb._sentry.configure_scope(process_context="launch_cli")
 
     if run_async and queue is not None:
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
-
-    args_dict = util._user_args_to_dict(args_list)
 
     if resource_args is not None:
         resource_args = util.load_json_yaml_dict(resource_args)
@@ -1265,6 +1245,7 @@ def launch(
     if queue is None:
         # direct launch
         try:
+
             wandb_launch.run(
                 api,
                 uri,
@@ -1275,7 +1256,6 @@ def launch(
                 entity=entity,
                 docker_image=docker_image,
                 name=name,
-                parameters=args_dict,
                 resource=resource,
                 resource_args=resource_args,
                 config=config,
@@ -1306,7 +1286,6 @@ def launch(
                 name,
                 git_version,
                 docker_image,
-                args_dict,
                 project_queue,
                 resource_args,
                 build=build,
@@ -1320,7 +1299,7 @@ def launch(
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Run a W&B launch agent (Experimental).",
+    help="Run a W&B launch agent.",
 )
 @click.pass_context
 @click.option(
@@ -1374,7 +1353,6 @@ def launch_agent(
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    wandb._sentry.configure_scope(process_context="launch_agent")
     if url is not None:
         raise LaunchError(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
@@ -1382,10 +1360,8 @@ def launch_agent(
 
     from wandb.sdk.launch import launch as wandb_launch
 
-    wandb.termlog(
-        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
-    )
     api = _get_cling_api()
+    wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues, config
     )

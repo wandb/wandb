@@ -492,28 +492,6 @@ def check_server_health(
     return False
 
 
-def check_mysql_health(num_retries: int = 1, sleep_time: int = 1):
-    for _ in range(num_retries):
-        try:
-            exit_code = subprocess.call(
-                [
-                    "docker",
-                    "exec",
-                    "-t",
-                    "wandb-local",
-                    "/bin/bash",
-                    "-c",
-                    "sudo mysqladmin ping",
-                ]
-            )
-            if exit_code == 0:
-                return True
-            time.sleep(sleep_time)
-        except subprocess.CalledProcessError:
-            time.sleep(sleep_time)
-    return False
-
-
 def check_server_up(
     base_url: str,
     wandb_server_tag: str = "master",
@@ -566,12 +544,12 @@ def check_server_up(
         )
         if not server_is_up:
             return False
-        # check that MySQL and fixture service are accessible
-        return check_mysql_health(num_retries=30) and check_server_health(
+        # check that the fixture service is accessible
+        return check_server_health(
             base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
         )
 
-    return check_mysql_health(num_retries=10) and check_server_health(
+    return check_server_health(
         base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
     )
 
