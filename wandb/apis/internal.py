@@ -200,5 +200,11 @@ class Api:
     def stop_run(self, *args, **kwargs):
         return self.api.stop_run(*args, **kwargs)
 
+    def delete_project(self, *args, **kwargs):
+        return self.api.delete_project(*args, **kwargs)
+
+    def update_artifact_collection(self, *args, **kwargs):
+        return self.api.update_artifact_collection(*args, **kwargs)
+
 
 __all__ = ["Api"]
