@@ -1,5 +1,6 @@
 import json
 import platform
+import re
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
@@ -193,7 +194,8 @@ class ImporterRun:
         )
 
     def _make_artifact_record(self) -> pb.Record:
-        art = wandb.Artifact("this should not work", "imported-artifacts")
+        artifact_name = self._handle_incompatible_strings(self.display_name())
+        art = wandb.Artifact(artifact_name, "imported-artifacts")
         artifacts = self.artifacts()
         if artifacts is not None:
             for name, path in artifacts:
@@ -260,6 +262,13 @@ class ImporterRun:
         with open(f"{run_dir}/files/wandb-metadata.json", "w") as f:
             f.write(json.dumps(d))
 
+    @staticmethod
+    def _handle_incompatible_strings(s):
+        valid_chars = r"[^a-zA-Z0-9_\-\.]"
+        replacement = "__"
+
+        return re.sub(valid_chars, replacement, s)
+
 
 class Importer(ABC):
     @abstractmethod
@@ -282,10 +291,16 @@ class Importer(ABC):
                 }
                 for future in as_completed(futures):
                     run = futures[future]
-                    pbar.update(1)
-                    pbar.set_description(
-                        f"Imported Run: {run.run_group()} {run.display_name()}"
-                    )
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        wandb.termerror(f"Failed to import {run.display_name()}: {exc}")
+                    else:
+                        pbar.set_description(
+                            f"Imported Run: {run.run_group()} {run.display_name()}"
+                        )
+                    finally:
+                        pbar.update(1)
 
     def import_one(
         self,
