@@ -22,5 +22,5 @@ assert:
     - :wandb:runs[0][summary][langchain_trace]
     - model_dict_dumps
   - :op:contains:
-    - :wandb:runs[1][telemetry][3]  # features
+    - :wandb:runs[0][telemetry][3]  # features
     - 52  # LangChain W&B Tracer callback
