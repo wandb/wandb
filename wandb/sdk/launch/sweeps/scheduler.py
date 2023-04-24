@@ -49,12 +49,12 @@ class RunState(Enum):
     PREEMPTED = "preempted", "dead"
     UNKNOWN = "unknown", "unknown"
 
-    def __new__(cls, *args, **kwds):
-        obj = object.__new__(cls)
+    def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
+        obj: "RunState" = object.__new__(cls)
         obj._value_ = args[0]
         return obj
 
-    def __init__(self, _: str, life: str):
+    def __init__(self, _: str, life: str = "unknown") -> None:
         self._life = life
 
     @property
