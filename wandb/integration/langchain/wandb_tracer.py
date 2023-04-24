@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, ca
 import wandb
 import wandb.util
 from wandb.sdk.data_types import trace_tree
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 _ = wandb.util.get_module(
     name="langchain",
@@ -198,6 +199,9 @@ class WandbTracer(SharedTracer):
         # Start the run and add the stream table
         self._run = wandb.init(**run_args)
         print_wandb_init_message(self._run.settings.run_url)
+
+        with wb_telemetry.context(self._run) as tel:
+            tel.feature.langchain_tracer = True
 
     def finish_run(self) -> None:
         """Waits for W&B data to upload."""
