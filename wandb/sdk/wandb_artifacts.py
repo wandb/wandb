@@ -7,6 +7,7 @@ import re
 import shutil
 import tempfile
 import time
+from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -48,7 +49,7 @@ from wandb.sdk.interface.artifacts import (
     get_artifacts_cache,
 )
 from wandb.sdk.internal import progress
-from wandb.sdk.internal.artifacts import get_staging_dir
+from wandb.sdk.internal.artifact_saver import get_staging_dir
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.hashutil import (
     B64MD5,
@@ -63,6 +64,10 @@ from wandb.sdk.lib.hashutil import (
 from wandb.util import FilePathStr, LogicalFilePathStr, URIStr
 
 if TYPE_CHECKING:
+    from urllib.parse import ParseResult
+
+    import azure.storage.blob  # type: ignore
+
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
     # instead of `type:ignore`ing these boto imports, but it's nontrivial:
     # for some reason, despite being actively maintained as of 2022-09-30,
@@ -269,6 +274,13 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.name
 
         return self._name
+
+    @property
+    def full_name(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.full_name
+
+        return super().full_name
 
     @property
     def state(self) -> str:
@@ -712,18 +724,15 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: str, path: str, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
-        digest = digest or md5_file_b64(path)
-        size = os.path.getsize(path)
-        name = util.to_forward_slash_path(name)
-
         with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
+            os.chmod(staging_path, 0o400)
 
         entry = ArtifactManifestEntry(
-            path=name,
-            digest=digest,
-            size=size,
+            path=util.to_forward_slash_path(name),
+            digest=digest or md5_file_b64(staging_path),
+            size=os.path.getsize(staging_path),
             local_path=staging_path,
         )
 
@@ -843,6 +852,7 @@ class WandbStoragePolicy(StoragePolicy):
 
         s3 = S3Handler()
         gcs = GCSHandler()
+        azure = AzureHandler()
         http = HTTPHandler(self._session)
         https = HTTPHandler(self._session, scheme="https")
         artifact = WBArtifactHandler()
@@ -854,6 +864,7 @@ class WandbStoragePolicy(StoragePolicy):
             handlers=[
                 s3,
                 gcs,
+                azure,
                 http,
                 https,
                 artifact,
@@ -1082,37 +1093,33 @@ class __S3BucketPolicy(StoragePolicy):  # noqa: N801
 
 
 class MultiHandler(StorageHandler):
-    _handlers: Dict[str, StorageHandler]
+    _handlers: List[StorageHandler]
 
     def __init__(
         self,
         handlers: Optional[List[StorageHandler]] = None,
         default_handler: Optional[StorageHandler] = None,
     ) -> None:
-        self._handlers = {}
+        self._handlers = handlers or []
         self._default_handler = default_handler
 
-        handlers = handlers or []
-        for handler in handlers:
-            self._handlers[handler.scheme] = handler
-
-    @property
-    def scheme(self) -> str:
-        raise NotImplementedError
+    def _get_handler(self, url: Union[FilePathStr, URIStr]) -> StorageHandler:
+        parsed_url = urlparse(url)
+        for handler in self._handlers:
+            if handler.can_handle(parsed_url):
+                return handler
+        if self._default_handler is not None:
+            return self._default_handler
+        raise ValueError('No storage handler registered for url "%s"' % str(url))
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
-        url = urlparse(manifest_entry.ref)
-        if url.scheme not in self._handlers:
-            if self._default_handler is not None:
-                return self._default_handler.load_path(manifest_entry, local=local)
-            raise ValueError(
-                'No storage handler registered for scheme "%s"' % str(url.scheme)
-            )
-        return self._handlers[str(url.scheme)].load_path(manifest_entry, local=local)
+        assert manifest_entry.ref is not None
+        handler = self._get_handler(manifest_entry.ref)
+        return handler.load_path(manifest_entry, local=local)
 
     def store_path(
         self,
@@ -1122,21 +1129,7 @@ class MultiHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        url = urlparse(path)
-        if url.scheme not in self._handlers:
-            if self._default_handler is not None:
-                return self._default_handler.store_path(
-                    artifact,
-                    path,
-                    name=name,
-                    checksum=checksum,
-                    max_objects=max_objects,
-                )
-            raise ValueError(
-                'No storage handler registered for scheme "%s"' % url.scheme
-            )
-        handler: StorageHandler
-        handler = self._handlers[url.scheme]
+        handler = self._get_handler(path)
         return handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
@@ -1154,9 +1147,8 @@ class TrackingHandler(StorageHandler):
         """
         self._scheme = scheme or ""
 
-    @property
-    def scheme(self) -> str:
-        return self._scheme
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == self._scheme
 
     def load_path(
         self,
@@ -1169,8 +1161,7 @@ class TrackingHandler(StorageHandler):
             # no way of actually loading it.
             url = urlparse(manifest_entry.ref)
             raise ValueError(
-                "Cannot download file at path %s, scheme %s not recognized"
-                % (str(manifest_entry.ref), str(url.scheme))
+                f"Cannot download file at path {str(manifest_entry.ref)}, scheme {str(url.scheme)} not recognized"
             )
         # TODO(spencerpearson): should this go through util.to_native_slash_path
         # instead of just getting typecast?
@@ -1212,9 +1203,8 @@ class LocalFileHandler(StorageHandler):
         self._scheme = scheme or "file"
         self._cache = get_artifacts_cache()
 
-    @property
-    def scheme(self) -> str:
-        return self._scheme
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == self._scheme
 
     def load_path(
         self,
@@ -1239,8 +1229,7 @@ class LocalFileHandler(StorageHandler):
         md5 = md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
             raise ValueError(
-                "Local file reference: Digest mismatch for path %s: expected %s but found %s"
-                % (local_path, manifest_entry.digest, md5)
+                f"Local file reference: Digest mismatch for path {local_path}: expected {manifest_entry.digest} but found {md5}"
             )
 
         filesystem.mkdir_exists_ok(os.path.dirname(path))
@@ -1330,9 +1319,8 @@ class S3Handler(StorageHandler):
         self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
-    @property
-    def scheme(self) -> str:
-        return self._scheme
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == self._scheme
 
     def init_boto(self) -> "boto3.resources.base.ServiceResource":
         if self._s3 is not None:
@@ -1416,13 +1404,13 @@ class S3Handler(StorageHandler):
                             break
                     if obj is None:
                         raise ValueError(
-                            "Couldn't find object version for %s/%s matching etag %s"
-                            % (bucket, key, manifest_entry.extra.get("etag"))
+                            "Couldn't find object version for {}/{} matching etag {}".format(
+                                bucket, key, manifest_entry.extra.get("etag")
+                            )
                         )
                 else:
                     raise ValueError(
-                        "Digest mismatch for object %s: expected %s but found %s"
-                        % (manifest_entry.ref, manifest_entry.digest, etag)
+                        f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {etag}"
                     )
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
@@ -1448,7 +1436,7 @@ class S3Handler(StorageHandler):
         # parsing. Once we have that, we can store the rest of the
         # metadata in the artifact entry itself.
         bucket, key, version = self._parse_uri(path)
-        path = URIStr(f"{self.scheme}://{bucket}/{key}")
+        path = URIStr(f"{self._scheme}://{bucket}/{key}")
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
                 f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
@@ -1482,8 +1470,9 @@ class S3Handler(StorageHandler):
                 multi = True
             else:
                 raise CommError(
-                    "Unable to connect to S3 (%s): %s"
-                    % (e.response["Error"]["Code"], e.response["Error"]["Message"])
+                    "Unable to connect to S3 ({}): {}".format(
+                        e.response["Error"]["Code"], e.response["Error"]["Message"]
+                    )
                 )
         if multi:
             start_time = time.time()
@@ -1561,7 +1550,7 @@ class S3Handler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             path=LogicalFilePathStr(str(posix_name)),
-            ref=URIStr(f"{self.scheme}://{str(posix_ref)}"),
+            ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
             digest=ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
@@ -1613,9 +1602,8 @@ class GCSHandler(StorageHandler):
         self._versioning_enabled = bucket.versioning_enabled
         return self._versioning_enabled
 
-    @property
-    def scheme(self) -> str:
-        return self._scheme
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == self._scheme
 
     def init_gcs(self) -> "gcs_module.client.Client":
         if self._client is not None:
@@ -1667,14 +1655,12 @@ class GCSHandler(StorageHandler):
             obj = self._client.bucket(bucket).get_blob(key)
             if obj is None:
                 raise ValueError(
-                    "Unable to download object %s with generation %s"
-                    % (manifest_entry.ref, version)
+                    f"Unable to download object {manifest_entry.ref} with generation {version}"
                 )
             md5 = obj.md5_hash
             if md5 != manifest_entry.digest:
                 raise ValueError(
-                    "Digest mismatch for object %s: expected %s but found %s"
-                    % (manifest_entry.ref, manifest_entry.digest, md5)
+                    f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {md5}"
                 )
 
         with cache_open(mode="wb") as f:
@@ -1696,7 +1682,7 @@ class GCSHandler(StorageHandler):
         # such as version identifiers, pare down the path to just the bucket
         # and key.
         bucket, key, version = self._parse_uri(path)
-        path = URIStr(f"{self.scheme}://{bucket}/{key}")
+        path = URIStr(f"{self._scheme}://{bucket}/{key}")
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
@@ -1782,7 +1768,7 @@ class GCSHandler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             path=LogicalFilePathStr(str(posix_name)),
-            ref=URIStr(f"{self.scheme}://{str(posix_ref)}"),
+            ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
             digest=obj.md5_hash,
             size=obj.size,
             extra=self._extra_from_obj(obj),
@@ -1805,15 +1791,183 @@ class GCSHandler(StorageHandler):
         )
 
 
+class AzureHandler(StorageHandler):
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == "https" and parsed_url.netloc.endswith(
+            ".blob.core.windows.net"
+        )
+
+    def load_path(
+        self,
+        manifest_entry: "ArtifactManifestEntry",
+        local: bool = False,
+    ) -> Union[URIStr, FilePathStr]:
+        assert manifest_entry.ref is not None
+        if not local:
+            return manifest_entry.ref
+
+        path, hit, cache_open = get_artifacts_cache().check_etag_obj_path(
+            URIStr(manifest_entry.ref),
+            ETag(manifest_entry.digest),
+            manifest_entry.size or 0,
+        )
+        if hit:
+            return path
+
+        account_url, container_name, blob_name, query = self._parse_uri(
+            manifest_entry.ref
+        )
+        version_id = manifest_entry.extra.get("versionID")
+        blob_service_client = self._get_module("azure.storage.blob").BlobServiceClient(
+            account_url,
+            credential=self._get_module("azure.identity").DefaultAzureCredential(),
+        )
+        blob_client = blob_service_client.get_blob_client(
+            container=container_name, blob=blob_name
+        )
+        if version_id is None:
+            # Try current version, then all versions.
+            try:
+                downloader = blob_client.download_blob(
+                    etag=manifest_entry.digest,
+                    match_condition=self._get_module(
+                        "azure.core"
+                    ).MatchConditions.IfNotModified,
+                )
+            except self._get_module("azure.core.exceptions").ResourceModifiedError:
+                container_client = blob_service_client.get_container_client(
+                    container_name
+                )
+                for blob_properties in container_client.walk_blobs(
+                    name_starts_with=blob_name, include=["versions"]
+                ):
+                    if (
+                        blob_properties.name == blob_name
+                        and blob_properties.etag == manifest_entry.digest
+                        and blob_properties.version_id is not None
+                    ):
+                        downloader = blob_client.download_blob(
+                            version_id=blob_properties.version_id
+                        )
+                        break
+                else:  # didn't break
+                    raise ValueError(
+                        f"Couldn't find blob version for {manifest_entry.ref} matching "
+                        f"etag {manifest_entry.digest}."
+                    )
+        else:
+            downloader = blob_client.download_blob(version_id=version_id)
+        with cache_open(mode="wb") as f:
+            downloader.readinto(f)
+        return path
+
+    def store_path(
+        self,
+        artifact: ArtifactInterface,
+        path: Union[URIStr, FilePathStr],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ) -> Sequence["ArtifactManifestEntry"]:
+        account_url, container_name, blob_name, query = self._parse_uri(path)
+        path = URIStr(f"{account_url}/{container_name}/{blob_name}")
+
+        if not checksum:
+            return [
+                ArtifactManifestEntry(
+                    path=LogicalFilePathStr(name or blob_name), digest=path, ref=path
+                )
+            ]
+
+        blob_service_client = self._get_module("azure.storage.blob").BlobServiceClient(
+            account_url,
+            credential=self._get_module("azure.identity").DefaultAzureCredential(),
+        )
+        blob_client = blob_service_client.get_blob_client(
+            container=container_name, blob=blob_name
+        )
+        if blob_client.exists(version_id=query.get("versionId")):
+            blob_properties = blob_client.get_blob_properties(
+                version_id=query.get("versionId")
+            )
+            return [
+                self._create_entry(
+                    blob_properties,
+                    path=LogicalFilePathStr(
+                        name or pathlib.PurePosixPath(blob_name).name
+                    ),
+                    ref=URIStr(
+                        f"{account_url}/{container_name}/{blob_properties.name}"
+                    ),
+                )
+            ]
+
+        entries = []
+        container_client = blob_service_client.get_container_client(container_name)
+        max_objects = max_objects or DEFAULT_MAX_OBJECTS
+        for i, blob_properties in enumerate(
+            container_client.list_blobs(name_starts_with=f"{blob_name}/")
+        ):
+            if i >= max_objects:
+                raise ValueError(
+                    f"Exceeded {max_objects} objects tracked, pass max_objects to "
+                    f"add_reference"
+                )
+            suffix = pathlib.PurePosixPath(blob_properties.name).relative_to(blob_name)
+            entries.append(
+                self._create_entry(
+                    blob_properties,
+                    path=LogicalFilePathStr(str(name / suffix if name else suffix)),
+                    ref=URIStr(
+                        f"{account_url}/{container_name}/{blob_properties.name}"
+                    ),
+                )
+            )
+        return entries
+
+    def _get_module(self, name: str) -> ModuleType:
+        module = util.get_module(
+            name,
+            lazy=False,
+            required="Azure references require the azure library, run "
+            "pip install wandb[azure]",
+        )
+        assert isinstance(module, ModuleType)
+        return module
+
+    def _parse_uri(self, uri: str) -> Tuple[str, str, str, Dict[str, str]]:
+        parsed_url = urlparse(uri)
+        query = dict(parse_qsl(parsed_url.query))
+        account_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        _, container_name, blob_name = parsed_url.path.split("/", 2)
+        return account_url, container_name, blob_name, query
+
+    def _create_entry(
+        self,
+        blob_properties: "azure.storage.blob.BlobProperties",
+        path: LogicalFilePathStr,
+        ref: URIStr,
+    ) -> ArtifactManifestEntry:
+        extra = {"etag": blob_properties.etag.strip('"')}
+        if blob_properties.version_id:
+            extra["versionID"] = blob_properties.version_id
+        return ArtifactManifestEntry(
+            path=path,
+            ref=ref,
+            digest=blob_properties.etag.strip('"'),
+            size=blob_properties.size,
+            extra=extra,
+        )
+
+
 class HTTPHandler(StorageHandler):
     def __init__(self, session: requests.Session, scheme: Optional[str] = None) -> None:
         self._scheme = scheme or "http"
         self._cache = get_artifacts_cache()
         self._session = session
 
-    @property
-    def scheme(self) -> str:
-        return self._scheme
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == self._scheme
 
     def load_path(
         self,
@@ -1842,8 +1996,7 @@ class HTTPHandler(StorageHandler):
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
             raise ValueError(
-                "Digest mismatch for url %s: expected %s but found %s"
-                % (manifest_entry.ref, manifest_entry.digest, digest)
+                f"Digest mismatch for url {manifest_entry.ref}: expected {manifest_entry.digest} but found {digest}"
             )
 
         with cache_open(mode="wb") as file:
@@ -1901,10 +2054,8 @@ class WBArtifactHandler(StorageHandler):
         self._cache = get_artifacts_cache()
         self._client = None
 
-    @property
-    def scheme(self) -> str:
-        """Scheme this handler applies to."""
-        return self._scheme
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == self._scheme
 
     @property
     def client(self) -> PublicApi:
@@ -2011,10 +2162,8 @@ class WBLocalArtifactHandler(StorageHandler):
         self._scheme = "wandb-client-artifact"
         self._cache = get_artifacts_cache()
 
-    @property
-    def scheme(self) -> str:
-        """Scheme this handler applies to."""
-        return self._scheme
+    def can_handle(self, parsed_url: "ParseResult") -> bool:
+        return parsed_url.scheme == self._scheme
 
     def load_path(
         self,

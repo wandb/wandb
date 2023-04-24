@@ -159,7 +159,6 @@ def construct_launch_spec(
     resource: Optional[str],
     entry_point: Optional[List[str]],
     version: Optional[str],
-    parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     run_id: Optional[str],
@@ -201,16 +200,8 @@ def construct_launch_spec(
     if "overrides" not in launch_spec:
         launch_spec["overrides"] = {}
 
-    if parameters:
-        override_args = util._user_args_to_dict(
-            launch_spec["overrides"].get("args", [])
-        )
-        base_args = override_args
-        launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
-    elif isinstance(launch_spec["overrides"].get("args"), list):
-        launch_spec["overrides"]["args"] = util._user_args_to_dict(
-            launch_spec["overrides"].get("args")
-        )
+    if not isinstance(launch_spec["overrides"].get("args", []), list):
+        raise LaunchError("override args must be a list of strings")
 
     if resource_args:
         launch_spec["resource_args"] = resource_args
@@ -288,8 +279,6 @@ def fetch_wandb_project_run_info(
             result["codePath"] = data.get("codePath")
             result["cudaVersion"] = data.get("cuda", None)
 
-    if result.get("args") is not None:
-        result["args"] = util._user_args_to_dict(result["args"])
     return result
 
 
