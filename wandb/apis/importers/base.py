@@ -193,7 +193,7 @@ class ImporterRun:
         )
 
     def _make_artifact_record(self) -> pb.Record:
-        art = wandb.Artifact(self.display_name(), "imported-artifacts")
+        art = wandb.Artifact("this should not work", "imported-artifacts")
         artifacts = self.artifacts()
         if artifacts is not None:
             for name, path in artifacts:
