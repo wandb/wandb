@@ -1040,8 +1040,48 @@ class Api:
                     success
                 }
             }
-        """
+            """
         )
+        project_info = self.project(project, entity)
+        response = self.gql(mutation, variable_values={"id": project_info["id"]})
+        status: bool = response["deleteModel"]["success"]
+        return status
+
+    @normalize_exceptions
+    def update_artifact_collection(self, artifact_sequence_id, name, description):
+        mutation = gql(
+            """
+            mutation UpdateArtifactCollection(
+                $artifactSequenceID: ID!
+                $name: String
+                $description: String
+            ) {
+                updateArtifactSequence(
+                    input: {
+                        artifactSequenceID: $artifactSequenceID
+                        name: $name
+                        description: $description
+                    }
+                    ) {
+                    artifactCollection {
+                        id
+                        name
+                        description
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "artifactSequenceID": artifact_sequence_id,
+                "name": name,
+                "description": description,
+            },
+        )
+        result: Dict[str, Any] = response["updateArtifactSequence"]
+        return result
 
     @normalize_exceptions
     def upsert_project(
