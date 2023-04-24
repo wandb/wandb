@@ -39,9 +39,27 @@ class SchedulerState(Enum):
 
 
 class RunState(Enum):
-    ALIVE = 0
-    DEAD = 1
-    UNKNOWN = 2
+    RUNNING = "running", "alive"
+    PENDING = "pending", "alive"
+    PREEMPTING = "preempting", "alive"
+    CRASHED = "crashed", "dead"
+    FAILED = "failed", "dead"
+    KILLED = "killed", "dead"
+    FINISHED = "finished", "dead"
+    PREEMPTED = "preempted", "dead"
+    UNKNOWN = "unknown", "unknown"
+
+    def __new__(cls, *args, **kwds):
+        obj = object.__new__(cls)
+        obj._value_ = args[0]
+        return obj
+
+    def __init__(self, _: str, life: str):
+        self._life = life
+
+    @property
+    def is_alive(self) -> bool:
+        return self._life == "alive"
 
 
 @dataclass
@@ -54,7 +72,7 @@ class _Worker:
 class SweepRun:
     id: str
     worker_id: int
-    state: RunState = RunState.ALIVE
+    state: RunState = RunState.RUNNING
     queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
@@ -62,15 +80,6 @@ class SweepRun:
 
 class Scheduler(ABC):
     """A controller/agent that populates a Launch RunQueue from a hyperparameter sweep."""
-
-    END_STATES = [
-        "crashed",
-        "failed",
-        "killed",
-        "finished",
-        "preempted",
-    ]
-    RUN_STATES = ["running", "pending", "preempting"]
 
     def __init__(
         self,
@@ -374,7 +383,7 @@ class Scheduler(ABC):
             )
             return False
 
-        if run.state == RunState.DEAD:
+        if not run.state.is_alive:
             # run already dead, just delete reference
             return True
 
@@ -398,22 +407,19 @@ class Scheduler(ABC):
         for run_id, run in self._yield_runs():
             try:
                 state = self._api.get_run_state(self._entity, self._project, run_id)
+                run.state = RunState(state)
             except CommError as e:
                 _logger.debug(f"error getting state for run ({run_id}): {e}")
                 run.state = RunState.UNKNOWN
                 continue
-
-            rqi_state = run.queued_run.state if run.queued_run else None
-            if not state or state in self.END_STATES or rqi_state == "failed":
-                _logger.debug(f"({run_id}) states: ({state}, {rqi_state})")
-                run.state = RunState.DEAD
-                runs_to_remove.append(run_id)
-            elif state in self.RUN_STATES:
-                run.state = RunState.ALIVE
-            else:
-                _logger.debug(f"({run_id}) unknown state: {state}")
+            except AttributeError as e:
+                _logger.debug(f"bad state ({state}) for run ({run_id}): {e}")
                 run.state = RunState.UNKNOWN
 
+            rqi_state = run.queued_run.state if run.queued_run else None
+            if not run.state.is_alive or rqi_state == "failed":
+                _logger.debug(f"({run_id}) states: ({run.state}, {rqi_state})")
+                runs_to_remove.append(run_id)
         self._cleanup_runs(runs_to_remove)
 
     def _add_to_launch_queue(self, run: SweepRun) -> bool:
@@ -453,6 +459,7 @@ class Scheduler(ABC):
             resource_args=self._kwargs.get("resource_args"),
         )
         run.queued_run = queued_run
+        run.state = RunState.RUNNING  # assume it will get picked up
         self._runs[run_id] = run
 
         wandb.termlog(
