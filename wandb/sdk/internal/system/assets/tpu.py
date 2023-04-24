@@ -1,6 +1,6 @@
 import logging
-import multiprocessing as mp
 import os
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
@@ -68,7 +68,7 @@ class TPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.service_addr = self.get_service_addr()

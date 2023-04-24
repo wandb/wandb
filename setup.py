@@ -17,7 +17,7 @@ test_requirements = ["mock>=2.0.0", "tox-pyenv>=1.0.3"]
 
 gcp_requirements = ["google-cloud-storage"]
 aws_requirements = ["boto3"]
-azure_requirements = ["azure-storage-blob"]
+azure_requirements = ["azure-identity", "azure-storage-blob"]
 grpc_requirements = ["grpcio>=1.27.2"]
 service_requirements = []
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
@@ -55,7 +55,7 @@ async_requirements = [
 
 setup(
     name="wandb",
-    version="0.14.1.dev1",
+    version="0.15.1.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
