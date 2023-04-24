@@ -66,7 +66,7 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]  # noqa: N815
-        uploadPartsInput: Optional["UploadPartsInput"]
+        uploadPartsInput: Optional["UploadPartsInput"]  # noqa: N815
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
@@ -74,24 +74,25 @@ if TYPE_CHECKING:
         displayName: str  # noqa: N815
         uploadUrl: Optional[str]  # noqa: N815
         uploadHeaders: Sequence[str]  # noqa: N815
-        multipartUploadUrls: Optional[dict[str, any]]
+        uploadMultipartUrls: Optional[dict[str, any]]  # noqa: N815
+        storagePath: str  # noqa: N815
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
 
     class UploadPartsInput(TypedDict):
-        partNumber: int
-        hexMD5: str
+        partNumber: int  # noqa: N815
+        hexMD5: str  # noqa: N815
 
     class CompleteMultipartUploadArtifactInput(TypedDict):
         """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
 
-        completeMultipartAction: str
-        completedParts: List["UploadPartsInput"]
-        artifactID: str
-        storagePath: str
-        uploadID: str
+        completeMultipartAction: str  # noqa: N815
+        completedParts: List["UploadPartsInput"]  # noqa: N815
+        artifactID: str  # noqa: N815
+        storagePath: str  # noqa: N815
+        uploadID: str  # noqa: N815
         md5: str
 
     class CompleteMultipartUploadArtifactResponse(TypedDict):

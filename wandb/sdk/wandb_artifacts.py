@@ -944,7 +944,7 @@ class WandbStoragePolicy(StoragePolicy):
         file_size: int,
         chunk_size: int,
         hex_digests: Dict[int, str],
-        multipartUrls: Dict[int, str],
+        multipart_urls: Dict[int, str],
         extra_headers: Dict[str, str],
     ) -> List[Dict[str, any]]:
         etags = []
@@ -952,7 +952,7 @@ class WandbStoragePolicy(StoragePolicy):
             data = file_bytes[(part_number - 1) * chunk_size : part_number * chunk_size]
             md5_b64_str = str(hex_to_b64_id(hex_digests[part_number]))
             upload_resp = self._api.upload_multipart_file_chunk_retry(
-                multipartUrls[part_number],
+                multipart_urls[part_number],
                 data,
                 extra_headers={
                     "content-md5": md5_b64_str,
@@ -972,7 +972,7 @@ class WandbStoragePolicy(StoragePolicy):
         extra_headers: Dict[str, any],
         progress_callback: Optional["progress.ProgressFn"] = None,
     ):
-        """Upload a file to the artifact store and write to cache"""
+        """Upload a file to the artifact store and write to cache."""
         with open(entry.local_path, "rb") as file:
             # This fails if we don't send the first byte before the signed URL expires.
             self._api.upload_file_retry(
@@ -1034,8 +1034,8 @@ class WandbStoragePolicy(StoragePolicy):
 
         entry.birth_artifact_id = resp.birth_artifact_id
 
-        multipartUrls = resp.multipart_upload_url
-        if resp.upload_url is None and multipartUrls is None:
+        multipart_urls = resp.multipart_upload_url
+        if resp.upload_url is None and multipart_urls is None:
             return True
         if entry.local_path is None:
             return False
@@ -1057,7 +1057,7 @@ class WandbStoragePolicy(StoragePolicy):
                 file_size,
                 chunk_size,
                 hex_digests,
-                multipartUrls,
+                multipart_urls,
                 extra_headers,
             )
             self._api.complete_multipart_upload_artifact(
