@@ -440,7 +440,7 @@ class Scheduler(ABC):
             if unresolved:
                 wandb.termwarn(
                     f"{LOG_PREFIX}Sweep command contains unresolved macros: "
-                    f"'{unresolved}', see launch docs for supported macros."
+                    f"{unresolved}, see launch docs for supported macros."
                 )
 
         run_id = run.id or generate_id()
