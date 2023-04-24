@@ -424,21 +424,23 @@ class Scheduler(ABC):
             raise SchedulerError(f"{LOG_PREFIX}Sweep has both 'job' and 'image_uri'")
 
         args = create_sweep_command_args({"args": run.args})
-        entry_point = make_launch_sweep_entrypoint(
+        entry_point, macro_args = make_launch_sweep_entrypoint(
             args, self._sweep_config.get("command")
         )
-        if not entry_point:
-            launch_config = {"overrides": {"run_config": args["args_dict"]}}
-        else:
-            launch_config = {}
+        launch_config = {"overrides": {"run_config": args["args_dict"]}}
+        if macro_args:  # pipe hyperparam macros
+            launch_config = {"overrides": {"args": macro_args}}
+
+        if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
-            if entry_point[0].startswith("${"):
+            unresolved = [x for x in entry_point if x.startswith("${")]
+            if unresolved:
                 wandb.termwarn(
-                    f"{LOG_PREFIX}Sweep command begins with unresolved macro: "
-                    f"'{entry_point[0]}', and may fail in certain environments"
+                    f"{LOG_PREFIX}Sweep command contains unresolved macros: "
+                    f"'{unresolved}', see launch docs for supported macros."
                 )
 
         run_id = run.id or generate_id()
