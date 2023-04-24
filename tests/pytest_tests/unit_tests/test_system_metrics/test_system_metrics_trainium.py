@@ -1,5 +1,6 @@
 import itertools
 import json
+import os
 import threading
 import time
 from unittest import mock
@@ -14,8 +15,8 @@ MOCK_DATA = [
     {
         "neuron_runtime_data": [
             {
-                "pid": 16851,
-                "neuron_runtime_tag": "16851",
+                "pid": 1337,
+                "neuron_runtime_tag": "1337",
                 "error": "",
                 "report": {
                     "execution_stats": {
@@ -909,9 +910,41 @@ def neuron_monitor_mock(self: NeuronCoreStats):
         self.shutdown_event.wait(1)
 
 
-def _is_matching_entry_mock(self: NeuronCoreStats, entry: dict) -> bool:
-    # bypass pid check on the mock data
-    return True
+def trainium_asset(test_settings) -> AssetInterface:
+    interface = AssetInterface()
+    settings = SettingsStatic(
+        test_settings(
+            dict(
+                _stats_sample_rate_seconds=1,
+                _stats_samples_to_average=1,
+                _stats_pid=1337,
+            )
+        ).make_static()
+    )
+    shutdown_event = threading.Event()
+
+    trainium = Trainium(
+        interface=interface,
+        settings=settings,
+        shutdown_event=shutdown_event,
+    )
+
+    assert not trainium.is_available()
+
+    trainium.start()
+
+    # wait for the mock data to be processed indefinitely,
+    # until the test times out in the worst case
+    while interface.metrics_queue.empty():
+        time.sleep(0.1)
+
+    shutdown_event.set()
+    trainium.finish()
+
+    assert not interface.metrics_queue.empty()
+    assert not interface.telemetry_queue.empty()
+
+    return interface
 
 
 @pytest.mark.timeout(30)
@@ -919,36 +952,28 @@ def test_trainium(test_settings):
     with mock.patch.multiple(
         "wandb.sdk.internal.system.assets.trainium.NeuronCoreStats",
         neuron_monitor=neuron_monitor_mock,
-        _is_matching_entry=_is_matching_entry_mock,
     ):
-        interface = AssetInterface()
-        settings = SettingsStatic(
-            test_settings(
-                dict(
-                    _stats_sample_rate_seconds=1,
-                    _stats_samples_to_average=1,
-                )
-            ).make_static()
+        interface = trainium_asset(test_settings)
+        metrics = interface.metrics_queue.get()
+        assert len(metrics) == 18
+
+
+@pytest.mark.timeout(30)
+@pytest.mark.parametrize("local_rank", ("0", "1"))
+def test_trainium_torchrun(test_settings, local_rank):
+    with mock.patch.multiple(
+        "wandb.sdk.internal.system.assets.trainium.NeuronCoreStats",
+        neuron_monitor=neuron_monitor_mock,
+    ), mock.patch.dict(
+        os.environ,
+        {
+            "LOCAL_RANK": local_rank,
+        },
+    ):
+        interface = trainium_asset(test_settings)
+        metrics = interface.metrics_queue.get()
+        assert len(metrics) == 12
+        assert (
+            len([key for key in metrics.keys() if key.startswith(f"trn.{local_rank}")])
+            == 6
         )
-        shutdown_event = threading.Event()
-
-        trainium = Trainium(
-            interface=interface,
-            settings=settings,
-            shutdown_event=shutdown_event,
-        )
-
-        assert not trainium.is_available()
-
-        trainium.start()
-
-        # wait for the mock data to be processed indefinitely,
-        # until the test times out in the worst case
-        while interface.metrics_queue.empty():
-            time.sleep(0.1)
-
-        shutdown_event.set()
-        trainium.finish()
-
-        assert not interface.metrics_queue.empty()
-        assert not interface.telemetry_queue.empty()
