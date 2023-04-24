@@ -14,9 +14,11 @@ def _setup(mocker):
     mocker.termlog = MagicMock()
     mocker.termwarn = MagicMock()
     mocker.termerror = MagicMock()
+    mocker.wandb_init = MagicMock()
     mocker.patch("wandb.termlog", mocker.termlog)
     mocker.patch("wandb.termwarn", mocker.termwarn)
     mocker.patch("wandb.termerror", mocker.termerror)
+    mocker.patch("wandb.init", mocker.wandb_init)
 
 
 def test_loop_capture_stack_trace(mocker):
