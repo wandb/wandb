@@ -279,7 +279,7 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
         }
 
         def mock_get_run_state(entity, project, run_id, *args, **kwargs):
-            return mock_run_states[run_id][0]
+            return mock_run_states[run_id]
 
         api.get_run_state = mock_get_run_state
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
