@@ -33,7 +33,7 @@ from wandb.proto import wandb_internal_pb2
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import (
-    artifacts,
+    artifact_saver,
     context,
     datastore,
     file_stream,
@@ -1485,7 +1485,7 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifacts.ArtifactSaver(
+        saver = artifact_saver.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
             manifest_json=_manifest_json_from_proto(artifact.manifest),
