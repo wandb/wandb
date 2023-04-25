@@ -1,5 +1,6 @@
 import configparser
 import os
+import pathlib
 import shutil
 import tempfile
 from typing import Any, Optional
@@ -44,6 +45,17 @@ class Settings:
                 else:
                     raise
 
+    def _persist_settings(self, settings, settings_path) -> None:
+        # write a temp file and then move it to the settings path
+        target_dir = os.path.dirname(settings_path)
+        with tempfile.NamedTemporaryFile(
+            "w+", suffix=".tmp", delete=False, dir=target_dir
+        ) as fp:
+            path = os.path.abspath(fp.name)
+            with open(path, "w+") as f:
+                settings.write(f)
+            shutil.move(path, settings_path)
+
     def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persist settings to disk if persist = True"""
 
@@ -53,14 +65,7 @@ class Settings:
             settings.set(section, key, str(value))
 
             if persist:
-                # write a temp file and then move it to the settings path
-                with tempfile.NamedTemporaryFile(
-                    "w+", suffix=".tmp", delete=True
-                ) as fp:
-                    path = os.path.abspath(fp.name)
-                    with open(path, "w+") as f:
-                        settings.write(f)
-                    shutil.move(path, settings_path)
+                self._persist_settings(settings, settings_path)
 
         if globally:
             write_setting(self._global_settings, Settings._global_path(), persist)
@@ -73,13 +78,7 @@ class Settings:
         def clear_setting(settings, settings_path, persist):
             settings.remove_option(section, key)
             if persist:
-                with tempfile.NamedTemporaryFile(
-                    "w+", suffix=".tmp", delete=True
-                ) as fp:
-                    path = os.path.abspath(fp.name)
-                    with open(path, "w+") as f:
-                        settings.write(f)
-                    shutil.move(path, settings_path)
+                self._persist_settings(settings, settings_path)
 
         if globally:
             clear_setting(self._global_settings, Settings._global_path(), persist)
