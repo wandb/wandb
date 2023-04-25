@@ -187,7 +187,7 @@ class LaunchAgent:
         if self._gorilla_supports_fail_run_queue_items:
             self._api.fail_run_queue_item(run_queue_item_id)
 
-    def _init_agent_run(self):
+    def _init_agent_run(self) -> None:
         settings = wandb.Settings(silent=True, disable_git=True)
         wandb.init(
             project=self._project,
