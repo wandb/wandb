@@ -49,7 +49,7 @@ from wandb.sdk.interface.artifacts import (
     get_artifacts_cache,
 )
 from wandb.sdk.internal import progress
-from wandb.sdk.internal.artifacts import stage_for_upload
+from wandb.sdk.internal.artifact_saver import stage_for_upload
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.hashutil import (
     B64MD5,

@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import pytest
 import wandb
 from wandb.sdk import wandb_artifacts
-from wandb.sdk.internal.artifacts import stage_for_upload
+from wandb.sdk.internal.artifact_saver import stage_for_upload
 
 
 def test_opener_rejects_append_mode(cache):
