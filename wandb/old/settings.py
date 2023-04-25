@@ -1,6 +1,5 @@
 import configparser
 import os
-import shutil
 import tempfile
 from typing import Any, Optional
 
@@ -53,7 +52,7 @@ class Settings:
             path = os.path.abspath(fp.name)
             with open(path, "w+") as f:
                 settings.write(f)
-            shutil.move(path, settings_path)
+        os.rename(path, settings_path)
 
     def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persist settings to disk if persist = True"""
