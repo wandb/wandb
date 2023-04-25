@@ -113,6 +113,7 @@ def construct_scheduler_entrypoint(
     queue: str,
     project: str,
     num_workers: Union[str, int],
+    num_previous_runs: Optional[int] = None,
 ) -> Optional[List[str]]:
     """Construct a sweep scheduler run spec.
 
@@ -162,5 +163,8 @@ def construct_scheduler_entrypoint(
         entrypoint += ["--job", job]
     elif image_uri:
         entrypoint += ["--image_uri", image_uri]
+
+    if num_previous_runs:
+        entrypoint += ["--num_previous_runs", str(num_previous_runs)]
 
     return entrypoint
