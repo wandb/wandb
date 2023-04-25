@@ -104,12 +104,10 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    settings = dict(
-        api_key=resolved_config.get("api_key"),
-        base_url=resolved_config.get("base_url"),
-        project=resolved_config.get("project"),
-        entity=resolved_config.get("entity"),
-    )
+    keys = ["api_key", "base_url", "project", "entity"]
+    settings = {
+        k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
+    }
 
     api = Api(default_settings=settings)
 
