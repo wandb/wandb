@@ -119,6 +119,9 @@ class Scheduler(ABC):
         # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
+        # Init wandb run to manage scheduler
+        self._wandb_run: SdkRun = _init_wandb_run()
+
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         """Called when worker available."""
