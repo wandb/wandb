@@ -710,15 +710,12 @@ class _WandbInit:
         if not self.settings.disable_git:
             run._populate_git_info()
 
-        run_proto = backend.interface._make_run(run)
         run_result: Optional["pb.RunUpdateResult"] = None
 
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
 
-            # backend.interface.publish_run(run_proto)
-            # run._set_run_obj_offline(run_proto)
             if self.settings.resume:
                 wandb.termwarn(
                     "`resume` will be ignored since W&B syncing is set to `offline`. "
@@ -731,7 +728,7 @@ class _WandbInit:
 
         logger.info(f"communicating run to backend with {timeout} second timeout")
 
-        run_init_handle = backend.interface.deliver_run(run_proto)
+        run_init_handle = backend.interface.deliver_run(run)
         result = run_init_handle.wait(
             timeout=timeout,
             on_progress=self._on_progress_init,

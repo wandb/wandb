@@ -882,8 +882,7 @@ class Run:
             tel.feature.set_run_name = True
         self._name = name
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -904,8 +903,7 @@ class Run:
     def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
@@ -924,8 +922,7 @@ class Run:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend and self._backend.interface:
-            run = self._backend.interface._make_run(self)
-            self._backend.interface.publish_run(run)
+            self._backend.interface.publish_run(self)
 
     @property
     @_run_decorator._attach
