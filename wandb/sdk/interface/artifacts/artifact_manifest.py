@@ -25,10 +25,7 @@ class ArtifactManifestEntry:
         self.path = util.to_forward_slash_path(self.path)
         self.extra = self.extra or {}
         if self.local_path and self.size is None:
-            try:
-                self.size = Path(self.local_path).stat().st_size
-            except OSError as e:
-                raise ValueError("size required when local_path specified") from e
+            self.size = Path(self.local_path).stat().st_size
 
     def parent_artifact(self) -> "Artifact":
         """Get the artifact to which this artifact entry belongs.
