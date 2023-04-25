@@ -122,6 +122,7 @@ def test_internal_api_with_no_write_global_config_dir(tmp_path):
     with patch.dict("os.environ", WANDB_CONFIG_DIR=str(tmp_path)):
         os.chmod(tmp_path, 0o444)
         internal.InternalApi()
+        os.chmod(tmp_path, 0o777)  # Allow the test runner to clean up.
 
 
 @pytest.fixture
