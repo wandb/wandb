@@ -120,9 +120,9 @@ class ArtifactManifest:
             and entry.digest != self.entries[entry.path].digest
         ):
             logger.debug(f"Overwriting existing entry {entry.path}")
-            local_path = self.entries[entry.path].local_path
-            if local_path and is_staged_copy(local_path):
-                remove_from_staging(local_path)
+            old_local_path = self.entries[entry.path].local_path
+            if old_local_path and is_staged_copy(old_local_path):
+                remove_from_staging(old_local_path)
         self.entries[entry.path] = entry
 
     def get_entry_by_path(self, path: str) -> Optional[ArtifactManifestEntry]:
