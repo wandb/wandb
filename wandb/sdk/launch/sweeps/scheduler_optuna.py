@@ -284,6 +284,7 @@ class OptunaScheduler(Scheduler):
 
         direction = self._sweep_config.get("metric", {}).get("goal")
         self._storage_path = existing_storage or OptunaComponents.storage.value
+        # TODO(gst): implement basic early_stopping opt
         self._study = optuna.create_study(
             study_name=self.study_name,
             storage=f"sqlite:///{self._storage_path}",
@@ -487,16 +488,25 @@ class OptunaScheduler(Scheduler):
 
         Returns wandb formatted config and optuna trial from real study
         """
-        wandb.termlog(f"{LOG_PREFIX}Making trial params from objective func")
+        wandb.termlog(
+            f"{LOG_PREFIX}Making trial params from objective func, ignoring sweep config parameters"
+        )
         study_copy = optuna.create_study()
         study_copy.add_trials(self.study.trials)
-        try:
-            study_copy.optimize(self._objective_func, n_trials=1, timeout=2)
-        except TimeoutError:
-            raise SchedulerError(
+
+        # Signal handler to raise error if objective func takes too long
+        import signal
+
+        def handler(signum, frame):
+            raise TimeoutError(
                 "Passed optuna objective function only creates parameter config."
                 f" Do not train; must execute in {2} seconds. See docs."
             )
+
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(2)
+
+        study_copy.optimize(self._objective_func, n_trials=1)
 
         temp_trial = study_copy.trials[-1]
         # convert from optuna-type param config to wandb-type param config

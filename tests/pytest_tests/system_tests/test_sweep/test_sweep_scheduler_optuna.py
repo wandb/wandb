@@ -155,7 +155,7 @@ def test_optuna_artifacts(user, monkeypatch):
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
         lambda _x: make_mock_run(),
     )
-    objective_str = """
+    optuna_str = """
 import optuna
 
 def objective(trial):
@@ -171,7 +171,7 @@ def pruner():
     os.mkdir("./tmp")
     os.mkdir("./tmp/optuna")
     with open(f"./tmp/optuna/{OptunaComponents.main_file.value}", "w") as f:
-        f.write(objective_str)
+        f.write(optuna_str)
 
     sweep_config = {
         "name": "mock-sweep-bayes",
@@ -197,3 +197,59 @@ def pruner():
         num_workers=1,
     )
     scheduler._load_state()
+    assert isinstance(scheduler.study.sampler, optuna.samplers.RandomSampler)
+    assert isinstance(scheduler.study.pruner, optuna.pruners.HyperbandPruner)
+    assert "objective" in repr(scheduler._objective_func)
+
+    config, trial = scheduler._trial_func()
+
+    assert "param1" not in config
+    assert config["x"]["value"] < 10 and config["x"]["value"] > -10
+    assert trial.params["x"] < 10 and trial.params["x"] > -10
+
+
+def test_optuna_artifact_timeout(user, monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
+        lambda _x: make_mock_run(),
+    )
+    optuna_str = """
+import time
+
+def objective(trial):
+    x = trial.suggest_uniform("x", -10, 10)
+    time.sleep(15)
+    return x ** 2
+"""
+    os.mkdir("./tmp")
+    os.mkdir("./tmp/optuna")
+    with open(f"./tmp/optuna/{OptunaComponents.main_file.value}", "w") as f:
+        f.write(optuna_str)
+
+    sweep_config = {
+        "name": "mock-sweep-bayes",
+        "command": ["echo", "hello world"],
+        "method": "bayes",
+        "metric": {"name": "metric1", "goal": "maximize"},
+        "parameters": {"param1": {"values": [1, 2, 3]}},
+        "optuna": {
+            "artifact": "mock-artifact",
+        },
+    }
+    api = internal.Api()
+    project = "test-project"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+
+    scheduler = OptunaScheduler(
+        api,
+        sweep_type="optuna",
+        sweep_id=sweep_id,
+        entity=user,
+        project=project,
+        polling_sleep=0,
+        num_workers=1,
+    )
+
+    scheduler._load_state()
+    with pytest.raises(TimeoutError):
+        config, trial = scheduler._trial_func()
