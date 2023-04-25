@@ -327,7 +327,7 @@ def test_agent_update_failed(runner, monkeypatch, user, test_settings):
 
     def patched_pop_empty_queue(self, queue):
         # patch to no result, agent should read stopPolling and stop
-        return None
+        raise_(KeyboardInterrupt)
 
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
