@@ -270,17 +270,6 @@ def test_find_runner():
 
 
 ###############################################################################
-# Test util.parse_sweep_id
-###############################################################################
-
-
-def test_parse_sweep_id():
-    parts = {"name": "test/test/test"}
-    util.parse_sweep_id(parts)
-    assert parts == {"name": "test", "entity": "test", "project": "test"}
-
-
-###############################################################################
 # Test util.from_human_size and util.to_human_size
 ###############################################################################
 

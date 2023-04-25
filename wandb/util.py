@@ -50,7 +50,7 @@ import requests
 import yaml
 
 import wandb
-from wandb.env import get_app_url
+import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
 from wandb.sdk.lib import filesystem, runid
 
@@ -256,7 +256,7 @@ VALUE_BYTES_LIMIT = 100000
 def app_url(api_url: str) -> str:
     """Return the frontend app url without a trailing slash."""
     # TODO: move me to settings
-    app_url = get_app_url()
+    app_url = wandb.env.get_app_url()
     if app_url is not None:
         return str(app_url.strip("/"))
     if "://api.wandb.test" in api_url:
@@ -349,36 +349,6 @@ def make_tarfile(
     finally:
         os.close(descriptor)
         os.remove(unzipped_filename)
-
-
-def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
-    user_dict = dict()
-    value: Union[str, bool]
-    name: str
-    i = 0
-    while i < len(arguments):
-        arg = arguments[i]
-        split = arg.split("=", maxsplit=1)
-        # flag arguments don't require a value -> set to True if specified
-        if len(split) == 1 and (
-            i + 1 >= len(arguments) or arguments[i + 1].startswith("-")
-        ):
-            name = split[0].lstrip("-")
-            value = True
-            i += 1
-        elif len(split) == 1 and not arguments[i + 1].startswith("-"):
-            name = split[0].lstrip("-")
-            value = arguments[i + 1]
-            i += 2
-        elif len(split) == 2:
-            name = split[0].lstrip("-")
-            value = split[1]
-            i += 1
-        if name in user_dict:
-            wandb.termerror(f"Repeated parameter: {name!r}")
-            sys.exit(1)
-        user_dict[name] = value
-    return user_dict
 
 
 def is_tf_tensor(obj: Any) -> bool:
@@ -881,9 +851,11 @@ def no_retry_auth(e: Any) -> bool:
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise AuthenticationError(
-            "The API key is either invalid or missing, or the host is incorrect. "
-            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
-            "The host defaults to 'https://api.wandb.ai' if not specified. "
+            "The API key you provided is either invalid or missing.  "
+            f"If the `{wandb.env.API_KEY}` environment variable is set, make sure it is correct. "
+            "Otherwise, to resolve this issue, you may try running the 'wandb login --relogin' command. "
+            "If you are using a local server, make sure that you're using the correct hostname. "
+            "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
     elif wandb.run:
@@ -1331,39 +1303,6 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def parse_sweep_id(parts_dict: dict) -> Optional[str]:
-    """In place parse sweep path from parts dict.
-
-    Arguments:
-        parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-
-    Returns:
-        None or str if there is an error
-    """
-    entity = None
-    project = None
-    sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, str):
-        return "Expected string sweep_id"
-
-    sweep_split = sweep_id.split("/")
-    if len(sweep_split) == 1:
-        pass
-    elif len(sweep_split) == 2:
-        split_project, sweep_id = sweep_split
-        project = split_project or project
-    elif len(sweep_split) == 3:
-        split_entity, split_project, sweep_id = sweep_split
-        project = split_project or project
-        entity = split_entity or entity
-    else:
-        return (
-            "Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep"
-        )
-    parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
-    return None
-
-
 def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
@@ -1519,45 +1458,6 @@ def _is_databricks() -> bool:
 
 def _is_py_path(path: str) -> bool:
     return path.endswith(".py")
-
-
-def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
-    """Consolidate schema violation strings from wandb/sweeps into a single string.
-
-    Parameters
-    ----------
-    violations: list of str
-        The warnings to render.
-
-    Returns:
-    -------
-    violation: str
-        The consolidated violation text.
-
-    """
-    violation_base = (
-        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
-        "To avoid this, please fix the sweep config schema violations below:"
-    )
-
-    for i, warning in enumerate(violations):
-        violations[i] = f"  Violation {i + 1}. {warning}"
-    violation = "\n".join([violation_base] + violations)
-
-    return violation
-
-
-def handle_sweep_config_violations(warnings: List[str]) -> None:
-    """Echo sweep config schema violation warnings from Gorilla to the terminal.
-
-    Parameters
-    ----------
-    warnings: list of str
-        The warnings to render.
-    """
-    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
-    if len(warnings) > 0:
-        term.termwarn(warning)
 
 
 def _log_thread_stacks() -> None:

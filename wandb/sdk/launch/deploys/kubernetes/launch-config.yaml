@@ -74,22 +74,19 @@ roleRef:
 apiVersion: v1
 data:
   launch-config.yaml: |
-    base_url: https://api.wandb.ai # TODO: SET YOUR WANDB BASE URL
-    max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
+    base_url: https://api.wandb.ai # TODO: set wandb base url
+    max_jobs: -1 # TODO: set max concurrent jobs here
+    queues:
+    - default # TODO: set queue name here
+    environment:
+      type: aws
+      region: us-east-1 # TODO: set aws region here
     registry:
-      url: # TODO: SET ECR REPOSITORY URL HERE
-      ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
-      credentials:
-        secret-name: aws-secret # TODO: SET SECRET NAME HERE
-        secret-mount-path: /root/.aws/ # SET MOUNT PATH HERE for aws /root/.aws
+      type: ecr
+      repository: # TODO: set ecr repository name here
     builder:
       type: kaniko
-      build-context-store: s3://wandb-build/build-contexts/ # name here
-      secret-name: aws-secret # TODO: SET SECRET NAME HERE
-      secret-key: credentials # TODO: SET SECRET KEY (i.e. name of credentials file) HERE
-    runner:
-      type: kubernetes
-      namespace: wandb # TODO: set namespace here
+      build-context-store: s3://my-bucket/... # TODO: set your build context store here
 
 kind: ConfigMap
 metadata:
