@@ -368,7 +368,6 @@ def test_unwritable_staging_dir(monkeypatch):
     monkeypatch.setattr(os, "makedirs", nope)
 
     # we need to unset this if other tests have already opened it.
-    global _staging_dir
     staging._staging_dir = None
     with pytest.raises(PermissionError, match="is not writable"):
         _ = staging.get_staging_dir()

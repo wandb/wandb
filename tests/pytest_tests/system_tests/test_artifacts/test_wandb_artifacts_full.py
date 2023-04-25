@@ -225,7 +225,7 @@ def test_edit_after_add(wandb_init):
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(wandb_sdk.internal.staging.get_staging_dir())
 
     def dir_size():
