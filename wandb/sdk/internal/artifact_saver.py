@@ -14,7 +14,6 @@ from wandb import env, util
 from wandb.sdk.interface.artifacts import ArtifactManifest, ArtifactManifestEntry
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.util import FilePathStr
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -320,7 +319,7 @@ def _get_staging_dir() -> Path:
     return path.expanduser().resolve()
 
 
-def stage_for_upload(filepath: Union[FilePathStr, os.PathLike]) -> Path:
+def stage_for_upload(filepath: Union[str, os.PathLike]) -> Path:
     """Copy a file to a staging directory and return the path to the copy."""
     try:
         staging_dir = _get_staging_dir()
