@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 from wandb.sdk.internal import file_pusher, file_stream, internal_api
-from wandb.sdk.internal.artifacts import ArtifactSaver
+from wandb.sdk.internal.artifact_saver import ArtifactSaver
 
 
 def mock_upload_urls(
