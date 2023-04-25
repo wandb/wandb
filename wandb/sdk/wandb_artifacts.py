@@ -940,40 +940,45 @@ class WandbStoragePolicy(StoragePolicy):
 
     def s3_multipart_file_upload(
         self,
-        file_bytes: List[bytes],
-        file_size: int,
+        file_path: str,
         chunk_size: int,
         hex_digests: Dict[int, str],
         multipart_urls: Dict[int, str],
         extra_headers: Dict[str, str],
-    ) -> List[Dict[str, any]]:
+    ) -> List[Dict[str, Any]]:
         etags = []
-        for part_number in range(1, math.ceil(file_size / chunk_size) + 1):
-            data = file_bytes[(part_number - 1) * chunk_size : part_number * chunk_size]
-            md5_b64_str = str(hex_to_b64_id(hex_digests[part_number]))
-            upload_resp = self._api.upload_multipart_file_chunk_retry(
-                multipart_urls[part_number],
-                data,
-                extra_headers={
-                    "content-md5": md5_b64_str,
-                    "content-length": str(len(data)),
-                    "content-type": extra_headers.get("Content-Type"),
-                },
-            )
-            etags.append(
-                {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
-            )
+        part_number = 1
+
+        with open(file_path, "rb") as f:
+            while True:
+                data = f.read(chunk_size)
+                if not data:
+                    break
+                md5_b64_str = str(hex_to_b64_id(hex_digests[part_number]))
+                upload_resp = self._api.upload_multipart_file_chunk_retry(
+                    multipart_urls[part_number],
+                    data,
+                    extra_headers={
+                        "content-md5": md5_b64_str,
+                        "content-length": str(len(data)),
+                        "content-type": extra_headers.get("Content-Type"),
+                    },
+                )
+                etags.append(
+                    {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
+                )
+                part_number += 1
         return etags
 
     def default_file_upload(
         self,
         upload_url: str,
-        entry: ArtifactManifestEntry,
-        extra_headers: Dict[str, any],
+        file_path: str,
+        extra_headers: Dict[str, Any],
         progress_callback: Optional["progress.ProgressFn"] = None,
-    ):
+    ) -> None:
         """Upload a file to the artifact store and write to cache."""
-        with open(entry.local_path, "rb") as file:
+        with open(file_path, "rb") as file:
             # This fails if we don't send the first byte before the signed URL expires.
             self._api.upload_file_retry(
                 upload_url,
@@ -1004,23 +1009,26 @@ class WandbStoragePolicy(StoragePolicy):
             True if the file was a duplicate (did not need to be uploaded),
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
-        file_size = entry.size
+        file_size = entry.size if entry.size is not None else 0
         chunk_size = self.calc_chunk_size(file_size)
         upload_parts = []
         hex_digests = {}
-        file_bytes = None
+        file_path = entry.local_path if entry.local_path is not None else ""
 
         # Only chunk files if larger than 2 GB
         if file_size > 2_000 * 1024**2:
-            file_path = pathlib.Path(entry.local_path)
-            file_bytes = file_path.read_bytes()
-            for part_number in range(1, math.ceil(file_size / chunk_size) + 1):
-                data = file_bytes[
-                    (part_number - 1) * chunk_size : part_number * chunk_size
-                ]
-                hex_digest = hashlib.md5(data).hexdigest()
-                hex_digests[part_number] = hex_digest
-                upload_parts.append({"hexMD5": hex_digest, "partNumber": part_number})
+            part_number = 1
+            with open(file_path, "rb") as f:
+                while True:
+                    data = f.read(chunk_size)
+                    if not data:
+                        break
+                    hex_digest = hashlib.md5(data).hexdigest()
+                    upload_parts.append(
+                        {"hexMD5": hex_digest, "partNumber": part_number}
+                    )
+                    hex_digests[part_number] = hex_digest
+                    part_number += 1
 
         resp = preparer.prepare_sync(
             {
@@ -1046,15 +1054,16 @@ class WandbStoragePolicy(StoragePolicy):
         }
 
         # This multipart upload isn't available, do a regular single url upload
-        if resp.multipart_upload_url is None:
+        if multipart_urls is None and resp.upload_url:
             self.default_file_upload(
-                resp.upload_url, entry, extra_headers, progress_callback
+                resp.upload_url, file_path, extra_headers, progress_callback
             )
         else:
+            if multipart_urls is None:
+                raise ValueError(f"No multipart urls to upload for file: {file_path}")
             # Upload files using s3 multipart upload urls
             etags = self.s3_multipart_file_upload(
-                file_bytes,
-                file_size,
+                file_path,
                 chunk_size,
                 hex_digests,
                 multipart_urls,

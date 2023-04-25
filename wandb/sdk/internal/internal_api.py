@@ -66,7 +66,7 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]  # noqa: N815
-        uploadPartsInput: Optional["UploadPartsInput"]  # noqa: N815
+        uploadPartsInput: Optional[List[Dict[str, object]]]  # noqa: N815
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
@@ -74,22 +74,26 @@ if TYPE_CHECKING:
         displayName: str  # noqa: N815
         uploadUrl: Optional[str]  # noqa: N815
         uploadHeaders: Sequence[str]  # noqa: N815
-        uploadMultipartUrls: Optional[dict[str, any]]  # noqa: N815
+        uploadMultipartUrls: "UploadPartsResponse"  # noqa: N815
         storagePath: str  # noqa: N815
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
 
-    class UploadPartsInput(TypedDict):
+    class UploadPartsResponse(TypedDict):
+        uploadUrlParts: List["UploadUrlParts"]  # noqa: N815
+        uploadID: str  # noqa: N815
+
+    class UploadUrlParts(TypedDict):
         partNumber: int  # noqa: N815
-        hexMD5: str  # noqa: N815
+        uploadUrl: str  # noqa: N815
 
     class CompleteMultipartUploadArtifactInput(TypedDict):
         """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
 
         completeMultipartAction: str  # noqa: N815
-        completedParts: List["UploadPartsInput"]  # noqa: N815
+        completedParts: Dict[int, str]  # noqa: N815
         artifactID: str  # noqa: N815
         storagePath: str  # noqa: N815
         uploadID: str  # noqa: N815
@@ -2101,7 +2105,6 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        response: Optional[requests.Response] = None
         try:
             response = self._upload_file_session.put(
                 url, data=upload_chunk, headers=extra_headers
@@ -3091,7 +3094,7 @@ class Api:
         self,
         artifact_id: str,
         storage_path: str,
-        completed_parts: List[Dict[str, any]],
+        completed_parts: List[Dict[str, Any]],
         upload_id: str,
         complete_multipart_action: str = "Complete",
     ) -> Optional[str]:
