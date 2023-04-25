@@ -23,7 +23,7 @@ class ArtifactStatusError(AttributeError):
         super().__init__(msg.format(artifact=artifact, attr=attr, method_id=method_id))
         # Follow the same pattern as AttributeError.
         self.obj = artifact
-        self.name = str(attr) or ""
+        self.name = attr or ""
 
 
 class ArtifactNotLoggedError(ArtifactStatusError):

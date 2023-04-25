@@ -10,12 +10,9 @@ StrPath = Union[str, "os.PathLike[str]"]
 
 
 # An artifact-relative or run-relative path. It is always POSIX-style.
-# This *should* be a PurePosixPath, but changing now it would change the public API.
 LogicalFilePathStr = NewType("LogicalFilePathStr", str)
 
 # A native path to a file on a local filesystem.
-# Ideally it would be a pathlib.Path, but it's too late now.
 FilePathStr = NewType("FilePathStr", str)
 
-# A URI. Likewise, it should be a urllib.parse.ParseResult, but it's too late now.
 URIStr = NewType("URIStr", str)
