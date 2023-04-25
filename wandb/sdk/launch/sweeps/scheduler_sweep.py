@@ -48,6 +48,8 @@ class SweepScheduler(Scheduler):
                 wandb.termlog(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
                 continue
 
+            self._wandb_run.log({"heartbeat-command": command})
+
             return SweepRun(
                 id=_run_id,
                 args=command.get("args", {}),
