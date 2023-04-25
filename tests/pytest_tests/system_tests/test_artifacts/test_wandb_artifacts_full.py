@@ -254,10 +254,13 @@ def test_unstaging_refuses_to_delete_files_not_in_staging(
     termerror = MagicMock()
     monkeypatch.setattr(wandb, "termerror", termerror)
 
+    staging_dir = wandb_sdk.internal.artifact_saver._get_staging_dir().resolve()
+
     artifact = wandb.Artifact("test", type="dataset")
     with wandb_init() as run:
         entry = artifact.add_file(example_file)
-        entry.local_path = str(example_file)
+        entry.local_path = str(example_file.resolve())
+        assert str(staging_dir) not in entry.local_path
         run.log_artifact(artifact)
     artifact.wait()
 
@@ -269,7 +272,7 @@ def test_unstaging_skips_files_it_cant_delete(wandb_init, example_file, monkeypa
     termerror = MagicMock()
     monkeypatch.setattr(wandb, "termerror", termerror)
 
-    def disallowed():
+    def disallowed(*args, **kwargs):
         raise PermissionError
 
     monkeypatch.setattr("pathlib.Path.chmod", disallowed)
@@ -310,7 +313,7 @@ def test_cache_add_gives_useful_error_when_out_of_space(
     termerror = MagicMock()
     monkeypatch.setattr(wandb, "termerror", termerror)
 
-    def out_of_space():
+    def out_of_space(*args, **kwargs):
         raise OSError(errno.ENOSPC, "out of space")
 
     monkeypatch.setattr(wandb.util, "fsync_open", out_of_space)
