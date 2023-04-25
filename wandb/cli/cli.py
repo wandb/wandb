@@ -955,12 +955,10 @@ def launch_sweep(
 
     parsed_config = sweep_utils.load_launch_sweep_config(config)
     # Rip special keys out of config
-    scheduler_args: Dict[str, Any] = parsed_config.get("scheduler", {})
-    launch_args: Dict[str, Any] = parsed_config.get("launch", {})
-    if scheduler_args:
-        del parsed_config["scheduler"]
-    if launch_args:
-        del parsed_config["launch"]
+    # TODO(gst): store args in artifact associated with run
+    # can we get the run_id back out of the upsertSweep mutation?
+    scheduler_args: Dict[str, Any] = parsed_config.pop("scheduler", {})
+    launch_args: Dict[str, Any] = parsed_config.pop("launch", {})
 
     queue = queue or launch_args.get("queue")
     if not queue:

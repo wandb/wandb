@@ -208,6 +208,9 @@ class OptunaScheduler(Scheduler):
             if component.value in storage_files:
                 if path.startswith("./"):  # TODO(gst): robust way of handling this
                     path = path[2:]
+                wandb.termlog(
+                    f"{LOG_PREFIX}Loaded storage from artifact: {artifact_name}"
+                )
                 return f"{path}/{component.value}"
         except wandb.errors.CommError as e:
             raise SchedulerError(str(e))
