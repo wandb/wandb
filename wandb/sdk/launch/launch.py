@@ -164,6 +164,7 @@ def _run(
         launch_config,
         run_id,
         repository,
+        author=None,
     )
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)

@@ -999,6 +999,7 @@ def launch_sweep(
         queue=queue,
         project=project,
         num_workers=num_workers,
+        author=entity,
     )
     if not scheduler_entrypoint:
         # error already logged
@@ -1020,6 +1021,7 @@ def launch_sweep(
         version=None,
         launch_config=None,
         run_id=None,
+        author=None,  # author gets passed into scheduler command
     )
     launch_scheduler_with_queue = json.dumps(
         {

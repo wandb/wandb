@@ -88,6 +88,7 @@ def test_sweeps_on_launch(
                         None,  # launch_config,
                         None,  # run_id,
                         None,  # repository
+                        user,  # author
                     )
                 ),
             }
@@ -182,6 +183,7 @@ def test_launch_agent_scheduler(
                     None,  # launch_config,
                     None,  # run_id,
                     None,  # repository
+                    user,  # author
                 )
             ),
         }
