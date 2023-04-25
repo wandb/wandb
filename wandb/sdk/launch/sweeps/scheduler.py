@@ -428,15 +428,15 @@ class Scheduler(ABC):
             args, self._sweep_config.get("command")
         )
         launch_config = {"overrides": {"run_config": args["args_dict"]}}
-        if macro_args:  # pipe hyperparam macros
-            launch_config = {"overrides": {"args": macro_args}}
+        if macro_args:  # pipe in hyperparam args as params to launch
+            launch_config["overrides"]["args"] = macro_args
 
         if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
                 f' {"job" if _job else "image_uri"} entrypoint'
             )
-            unresolved = [x for x in entry_point if x.startswith("${")]
+            unresolved = [x for x in entry_point if str(x).startswith("${")]
             if unresolved:
                 wandb.termwarn(
                     f"{LOG_PREFIX}Sweep command contains unresolved macros: "
