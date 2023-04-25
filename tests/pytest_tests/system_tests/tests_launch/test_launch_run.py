@@ -1,7 +1,7 @@
 import json
 from unittest import mock
 
-import wandb
+from wandb.sdk.internal import job_builder
 
 
 def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_init):
@@ -11,7 +11,7 @@ def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_in
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ", WANDB_ARTIFACTS=artifact_env
     ):
-        artifact = wandb.Artifact(name=art_name, type="job")
+        artifact = job_builder.JobArtifact(name=art_name)
         filename = "file1.txt"
         with open(filename, "w") as fp:
             fp.write("hello!")
