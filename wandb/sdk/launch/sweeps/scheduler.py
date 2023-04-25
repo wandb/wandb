@@ -16,6 +16,7 @@ import yaml
 
 import wandb
 import wandb.apis.public as public
+from wandb.sdk.wandb_run import Run as SdkRun
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
@@ -120,7 +121,7 @@ class Scheduler(ABC):
         self._kwargs: Dict[str, Any] = kwargs
 
         # Init wandb run to manage scheduler
-        self._wandb_run: SdkRun = _init_wandb_run()
+        self._wandb_run: SdkRun = self._init_wandb_run()
 
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
@@ -199,6 +200,21 @@ class Scheduler(ABC):
         return {
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
+
+    def _init_wandb_run(self) -> SdkRun:
+        """Controls resume or init logic for a scheduler wandb run."""
+        if self._kwargs.get("run_id"):  # resume
+            resumed_run: SdkRun = wandb.init(resume=self._kwargs["run_id"])
+            return resumed_run
+
+        _type = self._kwargs.get("sweep_type", "sweep")
+
+        run: SdkRun = wandb.init(
+            name=f"{_type}-scheduler-{self._sweep_id}",
+            job_type="sweep-controller",
+            resume="allow",
+        )
+        return run
 
     def stop_sweep(self) -> None:
         """Stop the sweep."""
@@ -290,6 +306,7 @@ class Scheduler(ABC):
         ]:
             self.state = SchedulerState.FAILED
         self._stop_runs()
+        self._wandb_run.finish()
 
     def _try_load_executable(self) -> bool:
         """Check existance of valid executable for a run.
