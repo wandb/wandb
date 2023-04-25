@@ -1,6 +1,5 @@
 import configparser
 import os
-import pathlib
 import shutil
 import tempfile
 from typing import Any, Optional
