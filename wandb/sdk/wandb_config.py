@@ -135,8 +135,7 @@ class Config:
             locked_user = self._users_inv[locked]
             if not ignore_locked:
                 wandb.termwarn(
-                    "Config item '%s' was locked by '%s' (ignored update)."
-                    % (key, locked_user)
+                    f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
                 )
             return True
         return False
