@@ -335,7 +335,7 @@ class TestStoreFile:
             assert not is_cache_hit(artifacts_cache, "my-digest", f.stat().st_size)
 
 
-@pytest.mark.parametrize("type", ["job", "wandb-history", "wandb:foo"])
+@pytest.mark.parametrize("type", ["job", "wandb-history", "wandb-foo"])
 def test_invalid_artifact_type(type):
     with pytest.raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=type)

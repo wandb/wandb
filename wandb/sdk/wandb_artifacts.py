@@ -170,9 +170,9 @@ class Artifact(ArtifactInterface):
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
                 'Invalid name: "%s"' % name
             )
-        if type in ("job", "wandb-history") or type.startswith("wandb:"):
+        if type == "job" or type.startswith("wandb-"):
             raise ValueError(
-                f"Artifact type '{type}' is reserved for internal use. "
+                "Artifact types 'job' and 'wandb-*' are reserved for internal use. "
                 "Please use a different type."
             )
 
