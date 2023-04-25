@@ -91,10 +91,10 @@ class OptunaScheduler(Scheduler):
     @property
     def study_string(self) -> str:
         msg = f"{LOG_PREFIX}{'Loading' if self._wandb_run.resumed else 'Creating'}"
-        msg += f" optuna study: {self.study_name} [storage:'{self.study._storage}'"
-        msg += f", direction:'{self.study.direction.name}'"
-        msg += f", pruner:'{self.study.pruner.__class__.__name__}'"
-        msg += f", sampler:'{self.study.sampler.__class__.__name__}'"
+        msg += f" optuna study: {self.study_name} [storage:{self.study._storage.__class__.__name__}"
+        msg += f", direction:{self.study.direction.name.capitalize()}"
+        msg += f", pruner:{self.study.pruner.__class__.__name__}"
+        msg += f", sampler:{self.study.sampler.__class__.__name__}]"
         return msg
 
     @property
@@ -178,21 +178,35 @@ class OptunaScheduler(Scheduler):
             )
 
         # Set custom optuna trial creation method
-        if mod.objective:
-            self._trial_func = self._make_trial_from_objective
+        try:
             self._objective_func = mod.objective
+            self._trial_func = self._make_trial_from_objective
+        except AttributeError:
+            pass
 
-        if mod.study:
+        try:
+            study = mod.study()
+            val_error: Optional[str] = self._validate_optuna_study(study)
             wandb.termlog(
                 f"{LOG_PREFIX}User provided study, ignoring pruner and sampler"
             )
-            val_error: Optional[str] = self._validate_optuna_study(mod.study())
             if val_error:
                 raise SchedulerError(err)
-            return mod.study(), None, None
+            return study, None, None
+        except AttributeError:
+            pass
 
-        pruner = mod.pruner() if mod.pruner else None
-        sampler = mod.sampler() if mod.sampler else None
+        pruner, sampler = None, None
+        try:
+            pruner = mod.pruner()
+        except AttributeError:
+            pass
+
+        try:
+            sampler = mod.sampler()
+        except AttributeError:
+            pass
+
         return None, pruner, sampler
 
     def _get_and_download_artifact(self, component: OptunaComponents) -> Optional[str]:
@@ -242,23 +256,31 @@ class OptunaScheduler(Scheduler):
             self._study = study
             wandb.termlog(self.study_string)
             return
-
         # making a new study
-        pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
-        if pruner_args:
-            pruner = load_optuna_pruner(pruner_args["type"], pruner_args.get("args"))
-            wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner})")
-        else:
-            wandb.termlog(f"{LOG_PREFIX}No pruner args, defaulting to MedianPruner")
 
-        sampler_args = self._sweep_config.get("optuna", {}).get("sampler", {})
-        if sampler_args:
-            sampler = load_optuna_sampler(
-                sampler_args["type"], sampler_args.get("args")
-            )
-            wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler})")
+        if pruner:
+            wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner.__class__.__name__})")
         else:
-            wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
+            pruner_args = self._sweep_config.get("optuna", {}).get("pruner", {})
+            if pruner_args:
+                pruner = load_optuna_pruner(
+                    pruner_args["type"], pruner_args.get("args")
+                )
+                wandb.termlog(f"{LOG_PREFIX}Loaded pruner ({pruner})")
+            else:
+                wandb.termlog(f"{LOG_PREFIX}No pruner args, defaulting to MedianPruner")
+
+        if sampler:
+            wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler.__class__.__name__})")
+        else:
+            sampler_args = self._sweep_config.get("optuna", {}).get("sampler", {})
+            if sampler_args:
+                sampler = load_optuna_sampler(
+                    sampler_args["type"], sampler_args.get("args")
+                )
+                wandb.termlog(f"{LOG_PREFIX}Loaded sampler ({sampler})")
+            else:
+                wandb.termlog(f"{LOG_PREFIX}No sampler args, defaulting to TPESampler")
 
         direction = self._sweep_config.get("metric", {}).get("goal")
         self._storage_path = existing_storage or OptunaComponents.storage.value

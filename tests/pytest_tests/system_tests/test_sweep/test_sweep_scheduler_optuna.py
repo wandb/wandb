@@ -1,3 +1,4 @@
+import os
 import time
 from unittest.mock import Mock
 
@@ -7,6 +8,7 @@ import wandb
 from wandb.apis import internal, public
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler_optuna import (
+    OptunaComponents,
     OptunaScheduler,
     validate_optuna_pruner,
     validate_optuna_sampler,
@@ -37,6 +39,19 @@ OPTUNA_SAMPLER_ARGS = {
 }
 
 
+def make_mock_run(resumed: bool = False, artifact_path: str = "./tmp/optuna"):
+    m = Mock()
+    m.finish = Mock()
+    m.resumed = resumed
+    m.log_artifact = lambda a: None
+    artifact = Mock()
+
+    artifact.download = lambda: artifact_path
+    m.use_artifact = lambda _x, type: artifact
+
+    return m
+
+
 @pytest.mark.parametrize("pruner", optuna.pruners.__all__[1:])
 def test_optuna_pruner_validation(pruner):
     config = {"type": pruner}
@@ -56,17 +71,15 @@ def test_optuna_sampler_validation(sampler):
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_optuna_scheduler_attrs(user, sweep_config, monkeypatch):
     monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
+        lambda _x: make_mock_run(),
+    )
+    monkeypatch.setattr(
         "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
         lambda _: True,
     )
 
     api = internal.Api()
-
-    # def mock_upsert_run(self, **kwargs):
-    #     return [Mock(spec=public.Run)]
-
-    # api.upsert_run = mock_upsert_run
-
     project = "test-project"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
 
@@ -85,7 +98,7 @@ def test_optuna_scheduler_attrs(user, sweep_config, monkeypatch):
     scheduler._study = Mock(spec=optuna.study.Study)
 
     assert scheduler.study
-    assert scheduler.formatted_trials == {}
+    assert scheduler.formatted_trials
 
     config, trial = scheduler._make_trial()
     assert "parameters" in config
@@ -135,3 +148,52 @@ def test_pythonic_search_space(user, monkeypatch):
     with pytest.raises(SchedulerError):
         # timeout is 2 seconds
         scheduler._make_trial_from_objective()
+
+
+def test_optuna_artifacts(user, monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._init_wandb_run",
+        lambda _x: make_mock_run(),
+    )
+    objective_str = """
+import optuna
+
+def objective(trial):
+    x = trial.suggest_uniform("x", -10, 10)
+    return x ** 2
+
+def sampler():
+    return optuna.samplers.RandomSampler()
+
+def pruner():
+    return optuna.pruners.HyperbandPruner()
+"""
+    os.mkdir("./tmp")
+    os.mkdir("./tmp/optuna")
+    with open(f"./tmp/optuna/{OptunaComponents.main_file.value}", "w") as f:
+        f.write(objective_str)
+
+    sweep_config = {
+        "name": "mock-sweep-bayes",
+        "command": ["echo", "hello world"],
+        "method": "bayes",
+        "metric": {"name": "metric1", "goal": "maximize"},
+        "parameters": {"param1": {"values": [1, 2, 3]}},
+        "optuna": {
+            "artifact": "mock-artifact",
+        },
+    }
+    api = internal.Api()
+    project = "test-project"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+
+    scheduler = OptunaScheduler(
+        api,
+        sweep_type="optuna",
+        sweep_id=sweep_id,
+        entity=user,
+        project=project,
+        polling_sleep=0,
+        num_workers=1,
+    )
+    scheduler._load_state()
