@@ -3,11 +3,15 @@ import json
 import pytest
 import wandb
 from wandb.cli import cli
+from wandb.sdk.launch.utils import LaunchError
 
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
 QUEUE_NAME = "test_queue"
 
+
+def _setup(mocker):
+    pass
 
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
@@ -341,20 +345,74 @@ def test_agent_update_failed(runner, monkeypatch, user, test_settings):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
+        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
     )
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
         lambda c, i, s, g: {"success": False},
     )
 
-    # m = mock.Mock()
-    # m.sleep = lambda x: raise_(KeyboardInterrupt)
-    # with mock.patch.dict("sys.modules", time=m):
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch_agent,
             args
         )
 
-        assert "Aborted!" in result.output
+        assert "Failed to update agent status" in result.output
+
+
+def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_settings):
+
+    def print_then_exit():
+        print("except caught, failed item")
+        raise KeyboardInterrupt
+    
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
+        lambda c, r: print_then_exit(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.run_job",
+        lambda a, b: raise_(LaunchError("blah blah")),
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        lambda c, queue: {"runSpec": {"job": "fake-job:latest"}, "runQueueItemId": "fakerqi"},
+    )
+
+    monkeypatch.setattr(
+        "wandb.init", lambda project, entity, settings, id, job_type: None
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.create_launch_agent",
+        lambda c, e, p, q, g: {"launchAgentId": "mock_agent_id"},
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.get_launch_agent",
+        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
+        lambda c, i, s, g: {"success": True},
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.entity_is_team",
+        lambda c, entity: False,
+    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch_agent,
+            [
+                "--entity",
+                user,
+                "--queue",
+                "default",
+            ],
+        )
+        print(result.output)
+        assert "blah blah" in result.output
+        assert "except caught, failed item" in result.output

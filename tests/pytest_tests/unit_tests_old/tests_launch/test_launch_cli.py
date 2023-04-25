@@ -327,39 +327,6 @@ def test_launch_agent_project_environment_variable(
     )
 
 
-def test_launch_agent_launch_error_continue(
-    runner, test_settings, live_mock_server, monkeypatch
-):
-    def print_then_exit():
-        print("except caught, failed item")
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.run_job",
-        lambda a, b: raise_(LaunchError("blah blah")),
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.fail_run_queue_item",
-        lambda a, b: print_then_exit(),
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.entity_is_team",
-        lambda c, entity: False,
-    )
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch_agent,
-            [
-                "--entity",
-                "mock_server_entity",
-                "--queue",
-                "default",
-            ],
-        )
-        assert "blah blah" in result.output
-        assert "except caught, failed item" in result.output
-
-
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
