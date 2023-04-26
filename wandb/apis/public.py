@@ -4126,6 +4126,12 @@ class _DownloadedArtifactEntry(artifacts.ArtifactManifestEntry):
         )
         self._parent_artifact = parent_artifact
 
+    @property
+    def name(self):
+        # TODO(hugh): add telemetry to see if anyone is still using this.
+        wandb.termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
+        return self.path
+
     def parent_artifact(self):
         return self._parent_artifact
 
