@@ -252,4 +252,4 @@ def objective(trial):
 
     scheduler._load_state()
     with pytest.raises(TimeoutError):
-        config, trial = scheduler._trial_func()
+        scheduler._trial_func()
